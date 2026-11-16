@@ -31,6 +31,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
 
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Xcode
   alias Tuist.Vault.Binary
 
   @derive {Inspect, except: [:environment_key, :anthropic_api_key]}
@@ -50,6 +51,9 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     field :name, :string
     field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
     field :template, :string, default: "default"
+    # The Xcode a macOS environment's sandboxes boot; nil is the default
+    # Xcode. `template` follows it (`Tuist.Sandboxes.Xcode`).
+    field :xcode_version, :string
     field :vcpus, :integer, default: 2
     field :memory_mb, :integer, default: 4096
     field :workspace_gb, :integer, default: 10
@@ -93,6 +97,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
       :anthropic_service_account_id,
       :anthropic_federation_rule_id,
       :template,
+      :xcode_version,
       :vcpus,
       :memory_mb,
       :workspace_gb,
@@ -107,6 +112,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     |> validate_agent_fields()
     |> validate_length(:name, max: 100)
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+    |> Xcode.validate()
     |> Sandbox.validate_shape()
     |> validate_number(:max_idle_seconds, greater_than: 0, less_than_or_equal_to: 3600)
     |> validate_number(:pause_grace_seconds, greater_than_or_equal_to: 0, less_than_or_equal_to: 3600)
@@ -115,11 +121,30 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
 
   def update_changeset(agent_environment, attrs) do
     agent_environment
-    |> cast(attrs, [:anthropic_api_key, :agent_model, :agent_system_prompt, :setup_script | @federation_fields])
+    |> cast(attrs, [
+      :anthropic_api_key,
+      :agent_model,
+      :agent_system_prompt,
+      :setup_script,
+      :xcode_version | @federation_fields
+    ])
     |> validate_required([:agent_model])
     |> validate_agent_fields()
+    |> Xcode.validate()
+    |> put_xcode_template()
     |> reset_cached_agent()
   end
+
+  # A changed Xcode changes the template the environment's next sandboxes
+  # boot. Sandboxes it already has keep theirs.
+  defp put_xcode_template(%Ecto.Changeset{valid?: true} = changeset) do
+    case fetch_change(changeset, :xcode_version) do
+      {:ok, version} -> put_change(changeset, :template, Xcode.template(version))
+      :error -> changeset
+    end
+  end
+
+  defp put_xcode_template(changeset), do: changeset
 
   @doc """
   Validates the four federation ids on their own, all required, for the

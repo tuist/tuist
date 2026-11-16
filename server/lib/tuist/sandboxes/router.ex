@@ -20,7 +20,9 @@ defmodule Tuist.Sandboxes.Router do
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Anthropic.Client
   alias Tuist.Sandboxes.Anthropic.ControlPlane
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Xcode
   alias Tuist.VCS
 
   require Logger
@@ -30,11 +32,10 @@ defmodule Tuist.Sandboxes.Router do
   @checkout_timeout_ms 60_000
   @commit_sha ~r/\A[0-9a-f]{7,64}\z/
 
-  def dispatch(%AgentEnvironment{} = agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
+  def dispatch(%AgentEnvironment{} = connected, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
       when is_binary(work_id) and is_binary(session_id) do
-    agent_environment = session_environment(agent_environment, item)
-
-    with {:ok, sandbox, created?} <- find_or_create_sandbox(agent_environment, session_id),
+    with {:ok, agent_environment} <- session_environment(connected, item),
+         {:ok, sandbox, created?} <- find_or_create_sandbox(agent_environment, session_id),
          {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
          :ok <- if(created?, do: prepare_workspace(agent_environment, sandbox, session_id, item), else: :ok),
          {:ok, _data} <-
@@ -52,15 +53,26 @@ defmodule Tuist.Sandboxes.Router do
 
       :ok
     else
+      {:error, {:unserved_xcode_version, version}} = error ->
+        Logger.error(
+          "sandboxes: the session asks for Xcode #{version}, which macOS sandboxes do not serve; stopping its work item. Served: #{Enum.join(Xcode.versions(), ", ")}",
+          agent_environment_id: connected.id,
+          session_id: session_id,
+          work_id: work_id
+        )
+
+        release(connected, work_id)
+        error
+
       {:error, reason} ->
         Logger.error("sandboxes: failed to route work item",
-          agent_environment_id: agent_environment.id,
+          agent_environment_id: connected.id,
           session_id: session_id,
           work_id: work_id,
           reason: inspect(reason)
         )
 
-        release(agent_environment, work_id)
+        release(connected, work_id)
         {:error, reason}
     end
   end
@@ -72,58 +84,98 @@ defmodule Tuist.Sandboxes.Router do
   end
 
   @doc """
-  The environment as the work item's session runs on it. A session keeps
-  the platform of the sandbox it already has. A new one runs the platform
-  named on its `AgentSession` row, else the `tuist_platform` key of the
-  session metadata (`linux`, `darwin` or `macos`), else the environment's.
-  A platform other than the environment's takes that platform's default
-  template and shape, so one environment serves both Linux and macOS.
+  Whether the work item's session could start now:
+  `Tuist.Sandboxes.Capacity.admission/2` on its session environment
+  (`session_environment/2`). A session that asks for an Xcode the hosts do not
+  serve is admitted, so `dispatch/2` stops it at once instead of holding it.
   """
-  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}})
-      when is_binary(session_id) do
-    platform =
-      case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-        %Sandbox{platform: platform} ->
-          platform
-
-        nil ->
-          requested_platform(
-            AgentSessions.get_agent_session_by_anthropic_session_id(session_id),
-            agent_environment,
-            session_id
-          )
-      end
-
-    if is_nil(platform) or platform == agent_environment.platform,
-      do: agent_environment,
-      else: struct(agent_environment, Sandboxes.platform_defaults(%{platform: platform}))
-  end
-
-  def session_environment(%AgentEnvironment{} = agent_environment, _item), do: agent_environment
-
-  defp requested_platform(%AgentSession{platform: platform}, _agent_environment, _session_id) when not is_nil(platform),
-    do: platform
-
-  # Work items carry only the session id, so the session's own metadata
-  # comes from the control plane, with the environment's credential.
-  defp requested_platform(_agent_session, %AgentEnvironment{} = agent_environment, session_id) do
-    case AgentSessions.credential(agent_environment) do
-      {:ok, credential} -> read_platform(credential, agent_environment, session_id)
-      {:error, _reason} -> nil
+  def admission(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}} = item) do
+    case session_environment(agent_environment, item) do
+      {:ok, session_environment} -> Capacity.admission(session_environment, session_id)
+      {:error, {:unserved_xcode_version, _version}} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  defp read_platform(credential, agent_environment, session_id) do
-    case ControlPlane.get_session(credential, session_id) do
-      {:ok, %{"metadata" => %{"tuist_platform" => platform}}} ->
-        case platform do
-          "linux" -> :linux
-          platform when platform in ["darwin", "macos"] -> :darwin
-          _other -> nil
+  @doc """
+  The environment as the work item's session runs on it. A session keeps
+  the platform and template of the sandbox it already has. A new one runs
+  the platform and Xcode named on its `AgentSession` row, else the
+  `tuist_platform` (`linux`, `darwin` or `macos`) and `tuist_xcode_version`
+  keys of the session metadata, else the environment's. An Xcode asks for
+  macOS when no platform is named, and applies only on macOS. A platform
+  other than the environment's takes that platform's default template and
+  shape, so one environment serves both Linux and macOS; the environment's
+  Xcode applies only on its own platform.
+
+  `{:error, {:unserved_xcode_version, version}}` names an Xcode the hosts do
+  not serve. A metadata read that fails falls back to the environment's
+  platform, except on macOS: there it would boot the environment's Xcode
+  where the session may have asked for another, so the item is held
+  (`{:error, :session_metadata_unavailable}`) and checked again.
+  """
+  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}})
+      when is_binary(session_id) do
+    case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
+      %Sandbox{platform: platform} ->
+        {:ok, on_platform(agent_environment, platform, nil)}
+
+      nil ->
+        agent_session = AgentSessions.get_agent_session_by_anthropic_session_id(session_id)
+
+        with {:ok, platform, xcode_version} <- requested(agent_session, agent_environment, session_id),
+             platform = platform || agent_environment.platform,
+             xcode_version = if(platform == :darwin, do: xcode_version),
+             :ok <- Xcode.served(xcode_version) do
+          {:ok, on_platform(agent_environment, platform, xcode_version)}
         end
+    end
+  end
+
+  def session_environment(%AgentEnvironment{} = agent_environment, _item), do: {:ok, agent_environment}
+
+  defp on_platform(agent_environment, platform, xcode_version) do
+    cond do
+      platform != agent_environment.platform ->
+        struct(agent_environment, Sandboxes.platform_defaults(%{platform: platform, xcode_version: xcode_version}))
+
+      is_nil(xcode_version) or xcode_version == agent_environment.xcode_version ->
+        agent_environment
+
+      true ->
+        %{agent_environment | xcode_version: xcode_version, template: Xcode.template(xcode_version)}
+    end
+  end
+
+  defp requested(%AgentSession{platform: platform, xcode_version: xcode_version}, _agent_environment, _session_id)
+       when not is_nil(platform), do: {:ok, platform, xcode_version}
+
+  # Work items carry only the session id, so the session's own metadata
+  # comes from the control plane, with the environment's credential.
+  defp requested(_agent_session, %AgentEnvironment{} = agent_environment, session_id) do
+    case AgentSessions.credential(agent_environment) do
+      {:ok, credential} -> read_metadata(credential, agent_environment, session_id)
+      {:error, _reason} -> {:ok, nil, nil}
+    end
+  end
+
+  defp read_metadata(credential, agent_environment, session_id) do
+    case ControlPlane.get_session(credential, session_id) do
+      {:ok, %{"metadata" => %{} = metadata}} ->
+        xcode_version = present(metadata["tuist_xcode_version"])
+        {:ok, metadata_platform(metadata["tuist_platform"]) || (xcode_version && :darwin), xcode_version}
 
       {:ok, _session} ->
-        nil
+        {:ok, nil, nil}
+
+      {:error, reason} when agent_environment.platform == :darwin ->
+        Logger.warning("sandboxes: could not read session metadata, holding the work item until its Xcode is known",
+          agent_environment_id: agent_environment.id,
+          session_id: session_id,
+          reason: inspect(reason)
+        )
+
+        {:error, :session_metadata_unavailable}
 
       {:error, reason} ->
         Logger.warning("sandboxes: could not read session metadata, using the environment's platform",
@@ -132,9 +184,16 @@ defmodule Tuist.Sandboxes.Router do
           reason: inspect(reason)
         )
 
-        nil
+        {:ok, nil, nil}
     end
   end
+
+  defp metadata_platform("linux"), do: :linux
+  defp metadata_platform(platform) when platform in ["darwin", "macos"], do: :darwin
+  defp metadata_platform(_platform), do: nil
+
+  defp present(value) when is_binary(value) and value != "", do: String.trim(value)
+  defp present(_value), do: nil
 
   defp metadata(item), do: get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
 

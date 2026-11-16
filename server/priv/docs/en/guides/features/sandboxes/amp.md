@@ -32,7 +32,8 @@ You need to be an administrator of both the Amp workspace and the Tuist account.
    | `linux-large` | Linux | 8 vCPU, 16 GiB RAM, 10 GB workspace |
    | `linux-xxlarge` | Linux | 16 vCPU, 32 GiB RAM, 10 GB workspace |
    | `linux-3xlarge` | Linux | 16 vCPU, 44 GiB RAM, 10 GB workspace |
-   | `macos` | macOS with Xcode | 8 vCPU, 8 GiB RAM, 10 GB workspace |
+   | `macos` | macOS with the default Xcode | 8 vCPU, 8 GiB RAM, 10 GB workspace |
+   | `macos-xcode-<version>` | macOS with that Xcode, such as `macos-xcode-26-1-1` for Xcode 26.1.1 | 8 vCPU, 8 GiB RAM, 10 GB workspace |
 
 3. In Tuist, open **Sandboxes** in your account's dashboard, click **Connect** on the Amp card, and paste the token.
 
@@ -47,6 +48,16 @@ amp -ox "Fix the failing snapshot tests" --orb-provider tuist --orb-size macos
 ```
 
 A thread keeps its orb type for life. Without a type, it gets the provider's default. To use one type for every new thread, choose the provider and its type under **Default Orb** in Amp's **Settings → Orbs**.
+
+### Choose an Xcode {#xcode}
+
+`macos` runs the default <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link>. For another one, add an orb type named after it, with the dots replaced by dashes: `macos-xcode-26-1-1` runs Xcode 26.1.1, `macos-xcode-27-0` Xcode 27.0. Add one for each Xcode your repositories pin, and pick it per thread like any other type:
+
+```bash
+amp -ox "Fix the failing snapshot tests" --orb-provider tuist --orb-size macos-xcode-26-1-1
+```
+
+A type for an Xcode Tuist doesn't offer fails when a new orb starts. An orb Tuist already started on it keeps resuming after Tuist stops offering that Xcode.
 
 Amp clones the repository, runs your `.agents/setup` script and sets up Git credentials, as it does for every orb. Each orb can also read your account's Tuist <.localized_link href="/guides/features/cache">cache</.localized_link>.
 
@@ -77,7 +88,7 @@ Amp keeps editing code where it runs. Before each command on the Mac, the plugin
 
 The Mac has no Tuist CLI of its own: after the first sync, Amp runs `mise install` in the repository root so the project's pinned Tuist is installed, and `tuist_mac_shell` puts mise's shims on `PATH`. Each command on the Mac is <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">signed in to your account's cache</.localized_link> on its own with Tuist 4.218.0 or later; with 4.215.0 to 4.217.x, Amp runs `tuist auth login` first.
 
-A thread uses one Mac. Tuist pauses it when it's idle and the next command resumes it. Amp deletes it when the task is done; a Mac left behind is deleted after 14 days paused. Macs count toward your Tuist account like any other sandbox.
+A thread uses one Mac. Amp passes `tuist_mac_start` the <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link> the repository pins, such as in `.xcode-version`, or you can ask for one ("use Xcode 26.1.1"); without one, the Mac runs the default. The Mac keeps its Xcode, so switching means stopping it and starting another. Tuist pauses it when it's idle and the next command resumes it. Amp deletes it when the task is done; a Mac left behind is deleted after 14 days paused. Macs count toward your Tuist account like any other sandbox.
 
 ### Set it up {#remote-mac-setup}
 

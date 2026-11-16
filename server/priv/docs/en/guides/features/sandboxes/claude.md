@@ -61,7 +61,7 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments
   }'
 ```
 
-To start sessions through Tuist's API, also send either the four federation IDs (see [Connect without an API key](#managed-agents-federation)) or an `anthropic_api_key`. The environment runs on Linux unless you pass `"platform": "darwin"`; `vcpus`, `memory_mb` and `workspace_gb` change the shape of its sandboxes.
+To start sessions through Tuist's API, also send either the four federation IDs (see [Connect without an API key](#managed-agents-federation)) or an `anthropic_api_key`. The environment runs on Linux unless you pass `"platform": "darwin"`; `vcpus`, `memory_mb` and `workspace_gb` change the shape of its sandboxes, and `xcode_version` the [Xcode](#xcode) of its macOS sandboxes.
 
 ### Start a session {#managed-agents-sessions}
 
@@ -104,8 +104,28 @@ When the account has more than one environment, pass `agent_environment_id`. You
 
 The repository is checked out in `/workspace` on Linux and `/Users/runner/work` on macOS. A session's sandbox pauses after the agent finishes a turn and resumes on the next message.
 
+### Choose a session's Xcode {#managed-agents-xcode}
+
+A session's Mac boots before Claude runs any tool, so Claude can't choose its own Xcode. Whoever creates the session chooses it, the same way they choose macOS. Tuist uses the first of these that is set:
+
+1. `xcode_version` in Tuist's agent-sessions API, next to `platform`. A version Tuist doesn't offer is refused when you create the session, with the list of versions you can choose.
+2. `tuist_xcode_version` in the session's metadata, when you create the session with the Claude API:
+
+   ```json
+   "metadata": { "tuist_platform": "macos", "tuist_xcode_version": "26.1.1" }
+   ```
+
+3. The environment's `xcode_version`, when the session runs on the environment's platform.
+4. The default Xcode.
+
+An Xcode without a platform asks for macOS. Some things to know:
+
+- **The session keeps its Xcode.** Its sandbox boots once, and a later message or changed metadata doesn't move it. Use a new session for another Xcode.
+- **Tuist checks metadata when the first turn arrives.** If `tuist_xcode_version` names an Xcode Tuist doesn't offer, Tuist stops that turn without starting a sandbox and logs the versions you can choose. Use Tuist's agent-sessions API to get the error when you create the session.
+- **On a macOS environment, Tuist waits rather than guesses.** If Tuist can't read a new session's metadata, it holds the turn and tries again instead of booting the environment's Xcode.
+
 > [!WARNING]
-> Anyone who can create sessions in the Claude workspace that owns the environment can run sessions on your Tuist account, and can ask for macOS with session metadata. Limit access to that workspace accordingly.
+> Anyone who can create sessions in the Claude workspace that owns the environment can run sessions on your Tuist account, and can ask for macOS, and its Xcode, with session metadata. Limit access to that workspace accordingly.
 
 ### Connect without an API key {#managed-agents-federation}
 
@@ -156,6 +176,20 @@ Developers pick the environment, and with it the platform, when they start a clo
   ```
 
 Sessions in these environments use your organization's Claude Code usage as usual, and their sandboxes count toward your Tuist account.
+
+### Choose an Xcode {#xcode}
+
+Each macOS environment boots one <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link>, the default unless you connect it with `xcode_version`, for example `"xcode_version": "26.1.1"`. To offer more than one, connect an environment for each and name them after it, for example **Tuist macOS · Xcode 26.1.1**. Developers then pick the Xcode by picking the environment.
+
+To move an environment to another Xcode, update it:
+
+```bash
+curl -X PATCH "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments/<id>" \
+  -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "xcode_version": "27.0" }'
+```
+
+New sessions get the new Xcode, and sessions that already have a sandbox keep theirs. `null` goes back to the default. The same applies to Managed Agents environments, whose sessions can also [choose their own](#managed-agents-xcode).
 
 ### Faster session starts and builds {#claude-code-caching}
 

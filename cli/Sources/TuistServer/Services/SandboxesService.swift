@@ -40,6 +40,7 @@ public protocol SandboxesServicing: Sendable {
         serverURL: URL,
         platform: ServerSandboxPlatform?,
         template: String?,
+        xcodeVersion: String?,
         vcpus: Int?,
         memoryMB: Int?,
         workspaceGB: Int?
@@ -221,6 +222,7 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         serverURL: URL,
         platform: ServerSandboxPlatform?,
         template: String?,
+        xcodeVersion: String?,
         vcpus: Int?,
         memoryMB: Int?,
         workspaceGB: Int?
@@ -238,7 +240,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
                     platform: platform,
                     template: template,
                     vcpus: shapeVCPUs,
-                    workspace_gb: workspaceGB
+                    workspace_gb: workspaceGB,
+                    xcode_version: xcodeVersion
                 ))
             ))
         }

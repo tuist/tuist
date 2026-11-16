@@ -2389,6 +2389,11 @@ sandboxes:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true
   macos:
+    # Besides the default 26.6: the Xcode 27 minors, and 26.1.1, which
+    # customers' CI still runs. They rank first in the rack's golden budget
+    # above, so five of its seven images are these and every rack host has
+    # them.
+    xcodeVersions: ["26.1.1", "27.0", "27.1", "27.2"]
     # A booted 8 vCPU / 8 GiB sandbox VM on the BER1 rack, where macOS
     # sandboxes run. A create of that shape claims it and only adds its
     # workspace volume, instead of the clone and boot that took 17 to 19 s on

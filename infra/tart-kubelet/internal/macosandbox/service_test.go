@@ -242,3 +242,25 @@ func TestControlPodReadyBeforeTemplatePreparation(t *testing.T) {
 		t.Fatalf("control Pod stayed NotReady after the node recovered: %+v", pod.Status)
 	}
 }
+
+func TestConfigServesTemplatesWithTheDefaultFirst(t *testing.T) {
+	const def, other = "ghcr.io/tuist/tuist-runner@sha256:default", "ghcr.io/tuist/tuist-runner:xcode-27.0-abc"
+	base := Config{URL: "https://tuist.dev", Image: def, Template: "macos"}
+	for name, c := range map[string]struct {
+		templates []TemplateConfig
+		valid     bool
+	}{
+		"default alone":           {nil, true},
+		"default then another":    {[]TemplateConfig{{"macos", def}, {"macos-xcode-27-0", other}}, true},
+		"another first":           {[]TemplateConfig{{"macos-xcode-27-0", other}, {"macos", def}}, false},
+		"duplicate name":          {[]TemplateConfig{{"macos", def}, {"macos", other}}, false},
+		"unversioned other image": {[]TemplateConfig{{"macos", def}, {"macos-xcode-27-0", "ghcr.io/tuist/tuist-runner:latest"}}, false},
+		"unnamed other template":  {[]TemplateConfig{{"macos", def}, {"", other}}, false},
+	} {
+		cfg := base
+		cfg.Templates = c.templates
+		if err := validateConfig(cfg); (err == nil) != c.valid {
+			t.Errorf("%s: valid=%v, error=%v", name, c.valid, err)
+		}
+	}
+}

@@ -31,9 +31,23 @@ const (
 )
 
 type Config struct {
-	URL      string `json:"url"`
+	URL string `json:"url"`
+	// Image and Template are the default template, which a kubelet without
+	// Templates serves alone.
 	Image    string `json:"image"`
 	Template string `json:"template"`
+	// Templates lists every template the host serves, the default first:
+	// `macos-xcode-<version>` for each Xcode, plus Template naming the
+	// default Xcode's Image. Empty serves only Image as Template.
+	Templates []TemplateConfig `json:"templates,omitempty"`
+}
+
+// templates lists the configured templates, the default first.
+func (c Config) templates() []TemplateConfig {
+	if len(c.Templates) > 0 {
+		return c.Templates
+	}
+	return []TemplateConfig{{Template: c.Template, Image: c.Image}}
 }
 
 // Service runs on the host, not in a guest. The control Pod provides a
@@ -259,12 +273,8 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = json.Unmarshal(configData, &cfg); err != nil {
 			return err
 		}
-		parsed, err := url.Parse(cfg.URL)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return errors.New("sandbox server requires HTTPS")
-		}
-		if cfg.Template == "" || (!strings.Contains(cfg.Image, "@sha256:") && (!strings.Contains(cfg.Image, ":") || strings.HasSuffix(cfg.Image, ":latest"))) {
-			return errors.New("sandbox requires a named template and versioned image")
+		if err = validateConfig(cfg); err != nil {
+			return err
 		}
 		if err = atomicFile(filepath.Join(s.Root, "config.json"), configData); err != nil {
 			return err
@@ -302,7 +312,9 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			controlID = string(control.UID)
 		}
 		cap := &KubeCapacity{Kube: s.Kube, Node: s.Node, NodeUID: string(node.UID), Namespace: Namespace, ControlUID: controlID}
-		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), TemplateTag: cfg.Image, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Image: cfg.Image, Template: cfg.Template, Tools: s.Tools, Checkouts: s.Checkouts}}
+		// No template is prepared until a control Pod's preparation below.
+		templates := NewTemplates(nil)
+		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), Templates: templates, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Templates: templates, Tools: s.Tools, Checkouts: s.Checkouts}}
 		if err = m.Load(ctx); err != nil {
 			return err
 		}
@@ -360,10 +372,16 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = validateConfig(cfg); err != nil {
 			return err
 		}
+		// The default template is prepared before the host connects, so a
+		// connected host always places the default. The others are prepared
+		// after it connects (prepareTemplates) and reported as not ready
+		// until then, so one template whose image cannot be had yet never
+		// keeps the host from serving the rest.
+		configured := cfg.templates()
 		tartRuntime, _ := m.Runtime.(*TartRuntime)
 		if tartRuntime != nil {
 			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, cfg.Image)
+				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, configured[0].Image)
 			}); err != nil {
 				return err
 			}
@@ -372,19 +390,26 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			return err
 		}
 		m.Gate.Lock()
-		m.TemplateTag = cfg.Image
 		s.capacity.ControlUID = string(control.UID)
-		if runtime, ok := m.Runtime.(*TartRuntime); ok {
-			runtime.Image = cfg.Image
-			runtime.Template = cfg.Template
+		// Every name of the default image is ready with it; a runtime
+		// without a store has nothing to prepare.
+		prepared := map[string]string{}
+		var pending []TemplateConfig
+		for _, t := range configured {
+			if tartRuntime == nil || t.Image == configured[0].Image {
+				prepared[t.Template] = t.Image
+			} else {
+				pending = append(pending, t)
+			}
 		}
+		m.Templates.replace(prepared)
 		m.Gate.Unlock()
-		// After Image is set: the cached image's size is looked up by name.
-		// Until a size is known the server reserves no root disk here, and
-		// checkDisk learns it on the next create, resume or save.
+		// After the default is prepared: the cached image's size is looked up
+		// by name. Until a size is known the server reserves no root disk
+		// here, and checkDisk learns it on the next create, resume or save.
 		if tartRuntime != nil {
 			if err = tartRuntime.learnRootDisk(parent); err != nil {
-				slog.Warn("macOS sandbox root disk size unknown", "image", cfg.Image, "error", err)
+				slog.Warn("macOS sandbox root disk size unknown", "image", configured[0].Image, "error", err)
 			}
 		}
 		// A runtime without a store reports no disk budget, which the server does not budget.
@@ -405,7 +430,12 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		*controlUID = string(control.UID)
 		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
 		templates := func() []protocol.TemplateInfo {
-			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, RootfsBytes: rootfs(), Warm: m.warmShapes()}}
+			infos := make([]protocol.TemplateInfo, 0, len(configured))
+			for _, t := range configured {
+				image, ok := m.Templates.Image(t.Template)
+				infos = append(infos, protocol.TemplateInfo{Name: t.Template, Tag: t.Image, Ready: ok && image == t.Image, RootfsBytes: rootfs(), Warm: m.warmShapes(t.Template)})
+			}
+			return infos
 		}
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
@@ -420,6 +450,9 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		m.Emit = client.Emit
 		m.Gate.Unlock()
 		go client.Run(clientCtx)
+		if len(pending) > 0 {
+			go s.prepareTemplates(clientCtx, control, tartRuntime, m.Templates, pending)
+		}
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -613,8 +646,16 @@ func validateConfig(cfg Config) error {
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return errors.New("sandbox server requires HTTPS")
 	}
-	if cfg.Template == "" || (!strings.Contains(cfg.Image, "@sha256:") && (!strings.Contains(cfg.Image, ":") || strings.HasSuffix(cfg.Image, ":latest"))) {
-		return errors.New("sandbox requires a named template and versioned image")
+	seen := map[string]bool{}
+	for _, t := range cfg.templates() {
+		if t.Template == "" || seen[t.Template] || (!strings.Contains(t.Image, "@sha256:") && (!strings.Contains(t.Image, ":") || strings.HasSuffix(t.Image, ":latest"))) {
+			return errors.New("sandbox requires uniquely named templates and versioned images")
+		}
+		seen[t.Template] = true
+	}
+	// A kubelet that only reads Image and Template serves the default.
+	if len(cfg.Templates) > 0 && (cfg.Templates[0].Template != cfg.Template || cfg.Templates[0].Image != cfg.Image) {
+		return errors.New("the first sandbox template must be the default image and template")
 	}
 	return nil
 }

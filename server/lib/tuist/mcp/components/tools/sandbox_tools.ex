@@ -113,6 +113,8 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
     do: """
     Boot a bare Linux or macOS sandbox from a template and return it once it runs. Linux sandboxes take 2x4096, 4x8192 or 8x16384 vCPUs x memory MB (default 2x4096); macOS sandboxes take 8x8192, 8x16384 or 8x24576 (default 8x8192). It counts toward the account's sandbox limits. Requires an account member.
 
+    #{xcode_guidance()}
+
     To build, test or run local Apple-platform code (xcodebuild, the iOS Simulator) from a machine that is not a Mac, create one macOS sandbox per task, reuse it, and drive it with the Tuist CLI where the code is. These tools cannot reach local files. If `tuist` is missing or `tuist sandbox --help` doesn't list `sync`, install the newest CLI: download `tuist-linux-x86_64.tar.gz` (or `-aarch64`) from the newest https://github.com/tuist/tuist release whose tag is a bare version such as 4.216.3 (other tags belong to other components), and put the `tuist` it contains on PATH. The CLI needs its own authentication, `TUIST_TOKEN` or `tuist auth login`; this server's sign-in does not carry over. Pass `--account <account_handle>` to every command.
     - Before every command, run `tuist sandbox sync <id> --json`. It mirrors the files Git does not ignore, committed or not, and returns the repository's `root` on the Mac. It is one-way: edit files locally, not on the Mac.
     - The Mac has no Tuist CLI. After the first sync, run `mise install` in `root` to install the repository's pinned Tuist, and put `$HOME/.local/share/mise/shims` on `PATH` in commands that run `tuist`. Each command gets `TUIST_URL`, the in-rack `TUIST_CACHE_ENDPOINT` and a short-lived `TUIST_OIDC_TOKEN`, so Tuist 4.218.0 or later uses the account's cache without credentials from you; with 4.215.0 to 4.217.x, run `tuist auth login` first in the same command.
@@ -122,6 +124,17 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
     """
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:create, conn, args)
+
+  # The served Xcodes are this server's, so the agent sees what it can pick.
+  defp xcode_guidance do
+    case Tuist.Sandboxes.Xcode.versions() do
+      [] ->
+        "macOS sandboxes boot one Xcode; `xcode_version` is not available on this server."
+
+      [default | _] = versions ->
+        "For a macOS sandbox, pass `xcode_version` with the exact Xcode the project needs: read the version it pins, in `.xcode-version`, `mise.toml`, a CI config (`xcode-version:`, `DEVELOPER_DIR`, `xcode-select`) or its Tuist runner profile, and pick that version. It implies `platform: darwin`. Served: #{Enum.join(versions, ", ")}. Without it the sandbox boots #{default}. A version not served is refused; then pick the nearest served one and tell the user. A sandbox keeps its Xcode; another one needs a new sandbox."
+    end
+  end
 end
 
 defmodule Tuist.MCP.Components.Tools.PauseSandbox do

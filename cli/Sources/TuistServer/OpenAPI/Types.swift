@@ -1008,7 +1008,7 @@ public protocol APIProtocol: Sendable {
     func pauseSandbox(_ input: Operations.pauseSandbox.Input) async throws -> Operations.pauseSandbox.Output
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -4048,7 +4048,7 @@ extension APIProtocol {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -9711,6 +9711,10 @@ public enum Components {
             public var title: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/updated_at`.
             public var updated_at: Foundation.Date
+            /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `SandboxAgentSession`.
             ///
             /// - Parameters:
@@ -9729,6 +9733,7 @@ public enum Components {
             ///   - stop_reason: The stop reason of the latest idle event the server saw.
             ///   - title:
             ///   - updated_at:
+            ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
             public init(
                 agent_environment_id: Swift.Int,
                 anthropic_agent_id: Swift.String,
@@ -9744,7 +9749,8 @@ public enum Components {
                 status: Swift.String? = nil,
                 stop_reason: Swift.String? = nil,
                 title: Swift.String? = nil,
-                updated_at: Foundation.Date
+                updated_at: Foundation.Date,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_environment_id = agent_environment_id
                 self.anthropic_agent_id = anthropic_agent_id
@@ -9761,6 +9767,7 @@ public enum Components {
                 self.stop_reason = stop_reason
                 self.title = title
                 self.updated_at = updated_at
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
@@ -9778,6 +9785,7 @@ public enum Components {
                 case stop_reason
                 case title
                 case updated_at
+                case xcode_version
             }
         }
         /// Represents a single build run.
@@ -17998,6 +18006,10 @@ public enum Components {
             public var vcpus: Swift.Int
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/workspace_gb`.
             public var workspace_gb: Swift.Int
+            /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `SandboxAgentEnvironment`.
             ///
             /// - Parameters:
@@ -18026,6 +18038,7 @@ public enum Components {
             ///   - updated_at:
             ///   - vcpus:
             ///   - workspace_gb:
+            ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
             public init(
                 agent_model: Swift.String,
                 agent_system_prompt: Swift.String? = nil,
@@ -18051,7 +18064,8 @@ public enum Components {
                 template: Swift.String,
                 updated_at: Foundation.Date,
                 vcpus: Swift.Int,
-                workspace_gb: Swift.Int
+                workspace_gb: Swift.Int,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
@@ -18078,6 +18092,7 @@ public enum Components {
                 self.updated_at = updated_at
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
@@ -18105,6 +18120,7 @@ public enum Components {
                 case updated_at
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/XcodeCachedModule`.
@@ -18281,11 +18297,15 @@ public enum Components {
             public var operation: Components.Schemas.DispatchAmpOrb.operationPayload
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/orb_token`.
             public var orb_token: Swift.String?
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/platform`.
             @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case linux = "linux"
                 case darwin = "darwin"
             }
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/platform`.
             public var platform: Components.Schemas.DispatchAmpOrb.platformPayload?
             /// Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
@@ -18310,6 +18330,10 @@ public enum Components {
             public var vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/workspace_gb`.
             public var workspace_gb: Swift.Int?
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `DispatchAmpOrb`.
             ///
             /// - Parameters:
@@ -18317,11 +18341,12 @@ public enum Components {
             ///   - memory_mb:
             ///   - operation:
             ///   - orb_token:
-            ///   - platform:
+            ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
             ///   - template: Sandbox template name.
             ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 amp_url: Swift.String? = nil,
                 memory_mb: Components.Schemas.DispatchAmpOrb.memory_mbPayload? = nil,
@@ -18331,7 +18356,8 @@ public enum Components {
                 snapshot_id: Swift.String? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload? = nil,
-                workspace_gb: Swift.Int? = nil
+                workspace_gb: Swift.Int? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.amp_url = amp_url
                 self.memory_mb = memory_mb
@@ -18342,6 +18368,7 @@ public enum Components {
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case amp_url
@@ -18353,6 +18380,7 @@ public enum Components {
                 case template
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeResponse`.
@@ -19559,11 +19587,15 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/pause_grace_seconds`.
             public var pause_grace_seconds: Swift.Int?
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
             @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case linux = "linux"
                 case darwin = "darwin"
             }
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
             public var platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload?
             /// Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
@@ -19588,6 +19620,10 @@ public enum Components {
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/workspace_gb`.
             public var workspace_gb: Swift.Int?
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `CreateSandboxAgentEnvironment`.
             ///
             /// - Parameters:
@@ -19605,11 +19641,12 @@ public enum Components {
             ///   - memory_mb:
             ///   - name:
             ///   - pause_grace_seconds:
-            ///   - platform:
+            ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
             ///   - template: Sandbox template name.
             ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 agent_model: Swift.String? = nil,
                 agent_system_prompt: Swift.String? = nil,
@@ -19629,7 +19666,8 @@ public enum Components {
                 setup_script: Swift.String? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload? = nil,
-                workspace_gb: Swift.Int? = nil
+                workspace_gb: Swift.Int? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
@@ -19650,6 +19688,7 @@ public enum Components {
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
@@ -19671,6 +19710,7 @@ public enum Components {
                 case template
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// The maximum number of targets to return in a single page.
@@ -24940,11 +24980,15 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
             public var memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload?
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
             @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case linux = "linux"
                 case darwin = "darwin"
             }
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
             public var platform: Components.Schemas.CreateSandbox.platformPayload?
             /// Sandbox template name.
@@ -24965,26 +25009,33 @@ public enum Components {
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/workspace_gb`.
             public var workspace_gb: Swift.Int?
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `CreateSandbox`.
             ///
             /// - Parameters:
             ///   - memory_mb:
-            ///   - platform:
+            ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - template: Sandbox template name.
             ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
                 platform: Components.Schemas.CreateSandbox.platformPayload? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandbox.vcpusPayload? = nil,
-                workspace_gb: Swift.Int? = nil
+                workspace_gb: Swift.Int? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.memory_mb = memory_mb
                 self.platform = platform
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case memory_mb
@@ -24992,6 +25043,7 @@ public enum Components {
                 case template
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/OnceRunKind`.
@@ -25503,6 +25555,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage`.
             public var usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload?
+            /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `SandboxAgentSessionDetail`.
             ///
             /// - Parameters:
@@ -25523,6 +25579,7 @@ public enum Components {
             ///   - title:
             ///   - updated_at:
             ///   - usage:
+            ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
             public init(
                 agent_environment_id: Swift.Int,
                 anthropic_agent_id: Swift.String,
@@ -25540,7 +25597,8 @@ public enum Components {
                 stop_reason: Swift.String? = nil,
                 title: Swift.String? = nil,
                 updated_at: Foundation.Date,
-                usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload? = nil
+                usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_environment_id = agent_environment_id
                 self.anthropic_agent_id = anthropic_agent_id
@@ -25559,6 +25617,7 @@ public enum Components {
                 self.title = title
                 self.updated_at = updated_at
                 self.usage = usage
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
@@ -25578,6 +25637,7 @@ public enum Components {
                 case title
                 case updated_at
                 case usage
+                case xcode_version
             }
         }
         /// The schema for a Tuist run.
@@ -28451,6 +28511,10 @@ public enum Components {
             public var repository_url: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/title`.
             public var title: Swift.String?
+            /// The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `CreateSandboxAgentSession`.
             ///
             /// - Parameters:
@@ -28463,6 +28527,7 @@ public enum Components {
             ///   - repository_ref: Branch, tag or commit sha to check out.
             ///   - repository_url: HTTPS URL of a repository to clone under /workspace before the agent starts.
             ///   - title:
+            ///   - xcode_version: The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
             public init(
                 agent_environment_id: Swift.Int? = nil,
                 agent_id: Swift.String? = nil,
@@ -28472,7 +28537,8 @@ public enum Components {
                 prompt: Swift.String,
                 repository_ref: Swift.String? = nil,
                 repository_url: Swift.String? = nil,
-                title: Swift.String? = nil
+                title: Swift.String? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_environment_id = agent_environment_id
                 self.agent_id = agent_id
@@ -28483,6 +28549,7 @@ public enum Components {
                 self.repository_ref = repository_ref
                 self.repository_url = repository_url
                 self.title = title
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
@@ -28494,6 +28561,7 @@ public enum Components {
                 case repository_ref
                 case repository_url
                 case title
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/SandboxCommands`.
@@ -30032,6 +30100,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/setup_script`.
             public var setup_script: Swift.String?
+            /// A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `UpdateSandboxAgentEnvironment`.
             ///
             /// - Parameters:
@@ -30043,6 +30115,7 @@ public enum Components {
             ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
             ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
             ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+            ///   - xcode_version: A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
             public init(
                 agent_model: Swift.String? = nil,
                 agent_system_prompt: Swift.String? = nil,
@@ -30051,7 +30124,8 @@ public enum Components {
                 anthropic_organization_id: Swift.String? = nil,
                 anthropic_service_account_id: Swift.String? = nil,
                 anthropic_workspace_id: Swift.String? = nil,
-                setup_script: Swift.String? = nil
+                setup_script: Swift.String? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
@@ -30061,6 +30135,7 @@ public enum Components {
                 self.anthropic_service_account_id = anthropic_service_account_id
                 self.anthropic_workspace_id = anthropic_workspace_id
                 self.setup_script = setup_script
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
@@ -30071,6 +30146,7 @@ public enum Components {
                 case anthropic_service_account_id
                 case anthropic_workspace_id
                 case setup_script
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList`.
@@ -37963,11 +38039,15 @@ public enum Operations {
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
                     public var memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload?
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case linux = "linux"
                         case darwin = "darwin"
                     }
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
                     public var platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload?
                     /// Sandbox template name.
@@ -37988,26 +38068,33 @@ public enum Operations {
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - memory_mb:
-                    ///   - platform:
+                    ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - template: Sandbox template name.
                     ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload? = nil,
-                        workspace_gb: Swift.Int? = nil
+                        workspace_gb: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.memory_mb = memory_mb
                         self.platform = platform
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case memory_mb
@@ -38015,6 +38102,7 @@ public enum Operations {
                         case template
                         case vcpus
                         case workspace_gb
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/content/application\/json`.
@@ -41203,11 +41291,15 @@ public enum Operations {
                     public var operation: Operations.dispatchAmpOrb.Input.Body.jsonPayload.operationPayload
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/orb_token`.
                     public var orb_token: Swift.String?
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case linux = "linux"
                         case darwin = "darwin"
                     }
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/platform`.
                     public var platform: Operations.dispatchAmpOrb.Input.Body.jsonPayload.platformPayload?
                     /// Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
@@ -41232,6 +41324,10 @@ public enum Operations {
                     public var vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -41239,11 +41335,12 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - operation:
                     ///   - orb_token:
-                    ///   - platform:
+                    ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
                     ///   - template: Sandbox template name.
                     ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         amp_url: Swift.String? = nil,
                         memory_mb: Operations.dispatchAmpOrb.Input.Body.jsonPayload.memory_mbPayload? = nil,
@@ -41253,7 +41350,8 @@ public enum Operations {
                         snapshot_id: Swift.String? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload? = nil,
-                        workspace_gb: Swift.Int? = nil
+                        workspace_gb: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.amp_url = amp_url
                         self.memory_mb = memory_mb
@@ -41264,6 +41362,7 @@ public enum Operations {
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case amp_url
@@ -41275,6 +41374,7 @@ public enum Operations {
                         case template
                         case vcpus
                         case workspace_gb
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/content/application\/json`.
@@ -99666,6 +99766,10 @@ public enum Operations {
                             public var vcpus: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/workspace_gb`.
                             public var workspace_gb: Swift.Int
+                            /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/xcode_version`.
+                            public var xcode_version: Swift.String?
                             /// Creates a new `agent_environmentsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -99694,6 +99798,7 @@ public enum Operations {
                             ///   - updated_at:
                             ///   - vcpus:
                             ///   - workspace_gb:
+                            ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
                             public init(
                                 agent_model: Swift.String,
                                 agent_system_prompt: Swift.String? = nil,
@@ -99719,7 +99824,8 @@ public enum Operations {
                                 template: Swift.String,
                                 updated_at: Foundation.Date,
                                 vcpus: Swift.Int,
-                                workspace_gb: Swift.Int
+                                workspace_gb: Swift.Int,
+                                xcode_version: Swift.String? = nil
                             ) {
                                 self.agent_model = agent_model
                                 self.agent_system_prompt = agent_system_prompt
@@ -99746,6 +99852,7 @@ public enum Operations {
                                 self.updated_at = updated_at
                                 self.vcpus = vcpus
                                 self.workspace_gb = workspace_gb
+                                self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case agent_model
@@ -99773,6 +99880,7 @@ public enum Operations {
                                 case updated_at
                                 case vcpus
                                 case workspace_gb
+                                case xcode_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environments`.
@@ -100103,11 +100211,15 @@ public enum Operations {
                     public var name: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/pause_grace_seconds`.
                     public var pause_grace_seconds: Swift.Int?
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case linux = "linux"
                         case darwin = "darwin"
                     }
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
                     public var platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload?
                     /// Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
@@ -100132,6 +100244,10 @@ public enum Operations {
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -100149,11 +100265,12 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - name:
                     ///   - pause_grace_seconds:
-                    ///   - platform:
+                    ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
                     ///   - template: Sandbox template name.
                     ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         agent_model: Swift.String? = nil,
                         agent_system_prompt: Swift.String? = nil,
@@ -100173,7 +100290,8 @@ public enum Operations {
                         setup_script: Swift.String? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload? = nil,
-                        workspace_gb: Swift.Int? = nil
+                        workspace_gb: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.agent_model = agent_model
                         self.agent_system_prompt = agent_system_prompt
@@ -100194,6 +100312,7 @@ public enum Operations {
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_model
@@ -100215,6 +100334,7 @@ public enum Operations {
                         case template
                         case vcpus
                         case workspace_gb
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/content/application\/json`.
@@ -100313,6 +100433,10 @@ public enum Operations {
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/workspace_gb`.
                         public var workspace_gb: Swift.Int
+                        /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -100341,6 +100465,7 @@ public enum Operations {
                         ///   - updated_at:
                         ///   - vcpus:
                         ///   - workspace_gb:
+                        ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
                         public init(
                             agent_model: Swift.String,
                             agent_system_prompt: Swift.String? = nil,
@@ -100366,7 +100491,8 @@ public enum Operations {
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
-                            workspace_gb: Swift.Int
+                            workspace_gb: Swift.Int,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_model = agent_model
                             self.agent_system_prompt = agent_system_prompt
@@ -100393,6 +100519,7 @@ public enum Operations {
                             self.updated_at = updated_at
                             self.vcpus = vcpus
                             self.workspace_gb = workspace_gb
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_model
@@ -100420,6 +100547,7 @@ public enum Operations {
                             case updated_at
                             case vcpus
                             case workspace_gb
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/application\/json`.
@@ -103159,6 +103287,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage`.
                         public var usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload?
+                        /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -103179,6 +103311,7 @@ public enum Operations {
                         ///   - title:
                         ///   - updated_at:
                         ///   - usage:
+                        ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                         public init(
                             agent_environment_id: Swift.Int,
                             anthropic_agent_id: Swift.String,
@@ -103196,7 +103329,8 @@ public enum Operations {
                             stop_reason: Swift.String? = nil,
                             title: Swift.String? = nil,
                             updated_at: Foundation.Date,
-                            usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload? = nil
+                            usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload? = nil,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_environment_id = agent_environment_id
                             self.anthropic_agent_id = anthropic_agent_id
@@ -103215,6 +103349,7 @@ public enum Operations {
                             self.title = title
                             self.updated_at = updated_at
                             self.usage = usage
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
@@ -103234,6 +103369,7 @@ public enum Operations {
                             case title
                             case updated_at
                             case usage
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/application\/json`.
@@ -103656,6 +103792,10 @@ public enum Operations {
                         public var title: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -103674,6 +103814,7 @@ public enum Operations {
                         ///   - stop_reason: The stop reason of the latest idle event the server saw.
                         ///   - title:
                         ///   - updated_at:
+                        ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                         public init(
                             agent_environment_id: Swift.Int,
                             anthropic_agent_id: Swift.String,
@@ -103689,7 +103830,8 @@ public enum Operations {
                             status: Swift.String? = nil,
                             stop_reason: Swift.String? = nil,
                             title: Swift.String? = nil,
-                            updated_at: Foundation.Date
+                            updated_at: Foundation.Date,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_environment_id = agent_environment_id
                             self.anthropic_agent_id = anthropic_agent_id
@@ -103706,6 +103848,7 @@ public enum Operations {
                             self.stop_reason = stop_reason
                             self.title = title
                             self.updated_at = updated_at
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
@@ -103723,6 +103866,7 @@ public enum Operations {
                             case stop_reason
                             case title
                             case updated_at
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/application\/json`.
@@ -117378,7 +117522,7 @@ public enum Operations {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -117457,6 +117601,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/setup_script`.
                     public var setup_script: Swift.String?
+                    /// A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -117468,6 +117616,7 @@ public enum Operations {
                     ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
                     ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
                     ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+                    ///   - xcode_version: A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
                     public init(
                         agent_model: Swift.String? = nil,
                         agent_system_prompt: Swift.String? = nil,
@@ -117476,7 +117625,8 @@ public enum Operations {
                         anthropic_organization_id: Swift.String? = nil,
                         anthropic_service_account_id: Swift.String? = nil,
                         anthropic_workspace_id: Swift.String? = nil,
-                        setup_script: Swift.String? = nil
+                        setup_script: Swift.String? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.agent_model = agent_model
                         self.agent_system_prompt = agent_system_prompt
@@ -117486,6 +117636,7 @@ public enum Operations {
                         self.anthropic_service_account_id = anthropic_service_account_id
                         self.anthropic_workspace_id = anthropic_workspace_id
                         self.setup_script = setup_script
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_model
@@ -117496,6 +117647,7 @@ public enum Operations {
                         case anthropic_service_account_id
                         case anthropic_workspace_id
                         case setup_script
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/content/application\/json`.
@@ -117594,6 +117746,10 @@ public enum Operations {
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/workspace_gb`.
                         public var workspace_gb: Swift.Int
+                        /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -117622,6 +117778,7 @@ public enum Operations {
                         ///   - updated_at:
                         ///   - vcpus:
                         ///   - workspace_gb:
+                        ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
                         public init(
                             agent_model: Swift.String,
                             agent_system_prompt: Swift.String? = nil,
@@ -117647,7 +117804,8 @@ public enum Operations {
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
-                            workspace_gb: Swift.Int
+                            workspace_gb: Swift.Int,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_model = agent_model
                             self.agent_system_prompt = agent_system_prompt
@@ -117674,6 +117832,7 @@ public enum Operations {
                             self.updated_at = updated_at
                             self.vcpus = vcpus
                             self.workspace_gb = workspace_gb
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_model
@@ -117701,6 +117860,7 @@ public enum Operations {
                             case updated_at
                             case vcpus
                             case workspace_gb
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/application\/json`.
@@ -137075,6 +137235,10 @@ public enum Operations {
                             public var title: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/updated_at`.
                             public var updated_at: Foundation.Date
+                            /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/xcode_version`.
+                            public var xcode_version: Swift.String?
                             /// Creates a new `agent_sessionsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -137093,6 +137257,7 @@ public enum Operations {
                             ///   - stop_reason: The stop reason of the latest idle event the server saw.
                             ///   - title:
                             ///   - updated_at:
+                            ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                             public init(
                                 agent_environment_id: Swift.Int,
                                 anthropic_agent_id: Swift.String,
@@ -137108,7 +137273,8 @@ public enum Operations {
                                 status: Swift.String? = nil,
                                 stop_reason: Swift.String? = nil,
                                 title: Swift.String? = nil,
-                                updated_at: Foundation.Date
+                                updated_at: Foundation.Date,
+                                xcode_version: Swift.String? = nil
                             ) {
                                 self.agent_environment_id = agent_environment_id
                                 self.anthropic_agent_id = anthropic_agent_id
@@ -137125,6 +137291,7 @@ public enum Operations {
                                 self.stop_reason = stop_reason
                                 self.title = title
                                 self.updated_at = updated_at
+                                self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case agent_environment_id
@@ -137142,6 +137309,7 @@ public enum Operations {
                                 case stop_reason
                                 case title
                                 case updated_at
+                                case xcode_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessions`.
@@ -137451,6 +137619,10 @@ public enum Operations {
                     public var repository_url: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/title`.
                     public var title: Swift.String?
+                    /// The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -137463,6 +137635,7 @@ public enum Operations {
                     ///   - repository_ref: Branch, tag or commit sha to check out.
                     ///   - repository_url: HTTPS URL of a repository to clone under /workspace before the agent starts.
                     ///   - title:
+                    ///   - xcode_version: The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
                     public init(
                         agent_environment_id: Swift.Int? = nil,
                         agent_id: Swift.String? = nil,
@@ -137472,7 +137645,8 @@ public enum Operations {
                         prompt: Swift.String,
                         repository_ref: Swift.String? = nil,
                         repository_url: Swift.String? = nil,
-                        title: Swift.String? = nil
+                        title: Swift.String? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.agent_environment_id = agent_environment_id
                         self.agent_id = agent_id
@@ -137483,6 +137657,7 @@ public enum Operations {
                         self.repository_ref = repository_ref
                         self.repository_url = repository_url
                         self.title = title
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_environment_id
@@ -137494,6 +137669,7 @@ public enum Operations {
                         case repository_ref
                         case repository_url
                         case title
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/content/application\/json`.
@@ -137567,6 +137743,10 @@ public enum Operations {
                         public var title: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -137585,6 +137765,7 @@ public enum Operations {
                         ///   - stop_reason: The stop reason of the latest idle event the server saw.
                         ///   - title:
                         ///   - updated_at:
+                        ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                         public init(
                             agent_environment_id: Swift.Int,
                             anthropic_agent_id: Swift.String,
@@ -137600,7 +137781,8 @@ public enum Operations {
                             status: Swift.String? = nil,
                             stop_reason: Swift.String? = nil,
                             title: Swift.String? = nil,
-                            updated_at: Foundation.Date
+                            updated_at: Foundation.Date,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_environment_id = agent_environment_id
                             self.anthropic_agent_id = anthropic_agent_id
@@ -137617,6 +137799,7 @@ public enum Operations {
                             self.stop_reason = stop_reason
                             self.title = title
                             self.updated_at = updated_at
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
@@ -137634,6 +137817,7 @@ public enum Operations {
                             case stop_reason
                             case title
                             case updated_at
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/application\/json`.

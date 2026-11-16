@@ -70,19 +70,28 @@ func rootDisk(vms []tart.VM) int64 {
 }
 
 // learnRootDisk records the root disk ceiling for the host's report: the
-// cached template image's size when Tart reports it, otherwise that of a
-// sandbox VM already on the host. checkDisk refreshes it on every create,
+// largest cached template image's size when Tart reports it, otherwise that
+// of a sandbox VM already on the host. Every template is a runner image of
+// the same disk size, so one ceiling covers them all. checkDisk refreshes it on every create,
 // resume and save.
 func (t *TartRuntime) learnRootDisk(ctx context.Context) error {
 	vms, err := t.Client.List(ctx)
 	if err != nil {
 		return err
 	}
+	images := map[string]bool{}
+	for _, image := range t.Templates.Images() {
+		images[image] = true
+	}
+	var largest int64
 	for _, vm := range vms {
-		if vm.Source == "OCI" && vm.Name == t.Image && vm.Disk > 0 {
-			t.rootfs.Store((int64(vm.Disk) + 1) * 1_000_000_000)
-			return nil
+		if vm.Source == "OCI" && images[vm.Name] && vm.Disk > 0 {
+			largest = max(largest, (int64(vm.Disk)+1)*1_000_000_000)
 		}
+	}
+	if largest > 0 {
+		t.rootfs.Store(largest)
+		return nil
 	}
 	for _, vm := range vms {
 		if !strings.HasPrefix(vm.Name, sandboxVMPrefix) {

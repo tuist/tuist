@@ -27,7 +27,7 @@ func warmHarness(t *testing.T) (*Service, *Manager, *fakeRuntime, *KubeCapacity)
 	t.Helper()
 	k, node, _ := capacityFixture()
 	runtime := &fakeRuntime{states: map[string]string{}, memory: map[string]string{}}
-	m := &Manager{Root: t.TempDir(), NodeUID: string(node.UID), TemplateTag: warmTestImage, RuntimePath: "/runtime/pinned", ToolsPath: "/tools/pinned", Runtime: runtime, Capacity: k}
+	m := &Manager{Root: t.TempDir(), NodeUID: string(node.UID), Templates: NewTemplates(map[string]string{"macos": warmTestImage}), RuntimePath: "/runtime/pinned", ToolsPath: "/tools/pinned", Runtime: runtime, Capacity: k}
 	if err := m.Load(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func waitWarmPhase(t *testing.T, s *Service, pod *corev1.Pod, phase corev1.PodPh
 }
 
 func warmArgs(memoryMB int) protocol.CreateArgs {
-	return protocol.CreateArgs{SandboxID: uuid.NewString(), VCPUs: 8, MemoryMB: memoryMB, WorkspaceGB: 10, TemplateTag: warmTestImage}
+	return protocol.CreateArgs{SandboxID: uuid.NewString(), VCPUs: 8, MemoryMB: memoryMB, WorkspaceGB: 10, Template: "macos", TemplateTag: warmTestImage}
 }
 
 func TestWarmPodBootsAsWarmCapacityAndCreateClaimsIt(t *testing.T) {
@@ -273,5 +273,55 @@ func TestSessionHostLabelFollowsSessionsThatResumeOnlyHere(t *testing.T) {
 		if err != nil || (labels[SessionHostLabel] == "true") != want {
 			t.Fatalf("state %q: labels %v %v, want advertised %v", state, labels, err, want)
 		}
+	}
+}
+
+// Each Xcode is its own template. A warm VM boots the template whose image
+// its Pod names, and only a create for that template claims it.
+func TestWarmVMServesOnlyItsOwnTemplate(t *testing.T) {
+	s, m, runtime, _ := warmHarness(t)
+	const xcode27 = "ghcr.io/tuist/tuist-runner@sha256:xcode27"
+	m.Templates.set("macos-xcode-27-0", xcode27)
+	waitWarmPhase(t, s, warmPod(t, s, xcode27, "8Gi"), corev1.PodRunning)
+	if shapes := m.warmShapes("macos"); len(shapes) != 0 {
+		t.Fatalf("the default template reports another template's warm VM: %v", shapes)
+	}
+	if shapes := m.warmShapes("macos-xcode-27-0"); len(shapes) != 1 || shapes[0] != "8x8192" {
+		t.Fatalf("warm shapes for macos-xcode-27-0: %v", shapes)
+	}
+
+	if err := m.Create(context.Background(), warmArgs(8192)); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.creates != 1 || len(m.warm) != 1 {
+		t.Fatalf("a default create claimed the Xcode 27.0 warm VM: creates=%d warm=%d", runtime.creates, len(m.warm))
+	}
+
+	a := warmArgs(8192)
+	a.Template, a.TemplateTag = "macos-xcode-27-0", ""
+	if err := m.Create(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.creates != 1 || len(m.warm) != 0 || m.records[a.SandboxID].TemplateTag != xcode27 {
+		t.Fatalf("an Xcode 27.0 create did not claim its warm VM: creates=%d warm=%d tag=%q", runtime.creates, len(m.warm), m.records[a.SandboxID].TemplateTag)
+	}
+}
+
+// `macos` and the default Xcode's own name boot the same image, so a create
+// that pins the default by version claims the default's warm VM.
+func TestWarmVMServesEveryNameOfItsImage(t *testing.T) {
+	s, m, runtime, _ := warmHarness(t)
+	m.Templates.set("macos-xcode-26-6", warmTestImage)
+	waitWarmPhase(t, s, warmPod(t, s, warmTestImage, "8Gi"), corev1.PodRunning)
+	if shapes := m.warmShapes("macos-xcode-26-6"); len(shapes) != 1 {
+		t.Fatalf("the pinned default does not report the default's warm VM: %v", shapes)
+	}
+	a := warmArgs(8192)
+	a.Template, a.TemplateTag = "macos-xcode-26-6", ""
+	if err := m.Create(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.creates != 0 || len(m.warm) != 0 || m.records[a.SandboxID].Template != "macos-xcode-26-6" {
+		t.Fatalf("a pinned default create did not claim the warm VM: creates=%d warm=%d template=%q", runtime.creates, len(m.warm), m.records[a.SandboxID].Template)
 	}
 }

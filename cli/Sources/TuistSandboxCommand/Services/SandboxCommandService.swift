@@ -128,6 +128,7 @@ struct SandboxCommandService {
         options: SandboxOptions.Values,
         platform: ServerSandboxPlatform?,
         template: String?,
+        xcodeVersion: String? = nil,
         vcpus: Int?,
         memoryGB: Int?,
         workspaceGB: Int?
@@ -139,6 +140,7 @@ struct SandboxCommandService {
                 serverURL: serverURL,
                 platform: platform,
                 template: template,
+                xcodeVersion: xcodeVersion,
                 vcpus: vcpus,
                 memoryMB: memoryGB.map { $0 * 1024 },
                 workspaceGB: workspaceGB

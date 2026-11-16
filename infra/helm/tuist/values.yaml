@@ -2661,7 +2661,13 @@ sandboxes:
   macos:
     enabled: false
     templateName: macos
+    # The default Xcode, which `templateName` boots.
     xcodeVersion: "26.6"
+    # More Xcodes sandboxes can be created with (`xcode_version`), each from
+    # `runnersFleet.xcodeVersions`. Only the rack serves them: their images
+    # rank first in `rackFleet.runners.goldenBudget`, which must hold the
+    # default and all of these, so a template never costs disk of its own.
+    xcodeVersions: []
     # Empty follows the same released, digest-pinned image as the CI pool.
     image: ""
     # Pre-booted 8 vCPU sandbox VMs that a create of the same shape claims

@@ -2,64 +2,66 @@
 {
   "title": "Rust 快取",
   "titleTemplate": ":title · 快取 · 功能 · 指南 · Tuist",
-  "description": "透過 Cargo，喺本地同 Tuist 遙距快取中重用受支援嘅 Rust 編譯輸出。"
+  "description": "透過 Cargo，在本地及 Tuist 遠端快取中重複使用受支援嘅 Rust 編譯輸出。"
 }
 ---
 # Rust 快取 {#rust-cache}
 
-Tuist 會快取支援的 Rust 編譯輸出，讓 Cargo 在移除其建置輸出後可以重用。快取已內建於 Tuist CLI。無需安裝獨立的快取執行檔或 Cargo 外掛程式。
+Tuist 會快取支援嘅 Rust 編譯輸出，令 Cargo 喺移除建構輸出之後可以重用佢哋。快取功能已內置於 Tuist CLI，無須安裝獨立嘅快取執行檔或 Cargo 外掛程式。
 
 <!-- @snippet: ./_rust-experimental -->
 
 ## 啟用快取 {#enable-caching}
 
-按照<.localized_link href="/guides/get-started/rust-project">Rust 專案設定</.localized_link>連接你的專案並進行驗證。然後透過 Tuist 執行你的建置：
+按照 <.localized_link href="/guides/get-started/rust-project">Rust 專案設定</.localized_link> 連接你嘅專案並進行驗證。然後透過 Tuist 執行你嘅建構：
 
 ```sh
 tuist cargo build --release
 ```
 
-符合條件的編譯會自動快取。沒有額外的快取設定或啟用旗標。Tuist 會使用你現有的專案和伺服器設定，探索你帳戶的快取端點並取得快取憑證。
+符合條件嘅編譯會自動快取。無須額外設定快取或使用啟用旗標。Tuist 會根據你現有嘅專案同伺服器設定，發現你帳戶嘅快取端點並取得快取憑證。
 
-如果你使用 mise，<.localized_link href="/guides/get-started/rust-project#keep-typing-cargo">設定 Cargo 包裝器</.localized_link>以繼續輸入一般的 `cargo` 指令。
+如果你使用 mise，請 <.localized_link href="/guides/get-started/rust-project#keep-typing-cargo">設定 Cargo 包裝器</.localized_link>，以便繼續輸入普通嘅 `cargo` 指令。
 
 ## 運作方式 {#how-it-works}
 
-在 Cargo 啟動之前，Tuist 會還原你先前使用相同工具鏈、設定檔和設定所產生的 registry 和 git 相依項目的輸出，讓 Cargo 認為它們是最新的。Cargo 仍負責決定要重新建置什麼。然後，對於 Cargo 仍然執行的每個符合條件的編譯，Tuist 會：
+喺 Cargo 啟動之前，Tuist 會還原你嘅 registry 同 git 依賴項喺先前建構中產生嘅輸出（使用相同嘅工具鏈、設定檔同配置），令 Cargo 認為佢哋係最新。Cargo 仍然負責決定要重新建構乜嘢。然後，對於 Cargo 仍然執行嘅每個符合條件嘅編譯，Tuist 會：
 
-1. 檢查其本機快取是否有相符的輸出。
-2. 如果本機未命中，則透過遠端執行 API (REAPI) 查詢 Kura，下載任何缺少的內容，並在還原之前驗證輸出。
-3. 如果快取未命中，則正常執行編譯器。編譯成功後，它會在本機儲存輸出，並在獲得授權時透過 REAPI 將它們上傳到 Kura。只有在其所有參考的內容都可用時，才會發布遠端快取項目。
+1. 檢查其本地快取以尋找匹配嘅輸出。
+2. 如果本機快取未命中，會透過 Remote Execution API (REAPI) 向 Kura 查詢、下載任何缺失的內容，並在還原之前驗證輸出。
+3. 如果快取未命中，會正常執行編譯器。編譯成功後，會將輸出儲存至本機，並在獲得授權時透過 REAPI 上傳到 Kura。遠端快取項目只會在所有參照的內容都可用之後才會發布。
 
-本機和 CI 建置使用相同的遠端快取協定。讀取和寫入權限來自 Tuist 伺服器發出的快取憑證以及你帳戶的<.localized_link href="/guides/features/cache#restrict-uploads-to-ci">快取上傳政策</.localized_link>。帳戶可以允許開發人員下載，同時限制只有 CI 和帳戶權杖才能上傳。快取寫入者是受信任的程式碼產生者：快取的編譯器輸出是可執行程式碼，因此只授予你信任的機器和權杖寫入權限。
+同一部機器上嘅建構會共用本地快取，包括其他工作樹或目標目錄中嘅建構。當另一個建構已經編譯緊相同嘅 crate 或運行緊相同嘅建構腳本時，Tuist 會等待佢完成並還原其輸出，避免重複執行相同工作。如果該建構耗時超過 10 分鐘，Tuist 會停止等待並自行編譯該 crate。
 
-如果遠端設定失敗，本機快取仍然可用。不可用、缺少或損毀的快取項目會回退到編譯。上傳失敗不會導致建置失敗，也不會捨棄其本機快取項目。
+本地同 CI 建構使用相同嘅遠端快取協定。讀寫權限來自 Tuist 伺服器發出嘅快取憑證以及你帳戶嘅 <.localized_link href="/guides/features/cache#restrict-uploads-to-ci">快取上傳政策</.localized_link>。帳戶可以允許開發人員下載，同時限制只有 CI 同帳戶令牌可以先上傳。快取寫入者係受信任嘅代碼生產者：由於快取嘅編譯器輸出係可執行代碼，因此只應向你信任嘅機器同令牌授予寫入權限。
 
-## 可以快取什麼 {#what-can-be-cached}
+如果遠端設定失敗，本地快取仍然可用。無法使用、缺失或損壞嘅快取項目會回退到編譯。上傳失敗不會導致建構失敗，亦不會丟棄其本地快取項目。
+
+## 可以快取乜嘢 {#what-can-be-cached}
 
 快取支援：
 
-- 程式庫 crate，包括工作區和路徑 crate、具有相依項目的 crate，以及具有產生原始碼的 crate。Tuist 會根據編譯器讀取的原始碼為它們建立索引鍵。
-- 在 Apple silicon Mac 上，無法預先透過原始碼檢查建立索引鍵的編譯，例如使用程序巨集、內嵌組合語言或原生程式庫的 crate、程序巨集本身，以及連結的可執行檔。Tuist 會記錄每個項目讀取的檔案、環境變數和唯讀指令（例如 `git describe`），並根據這些內容建立索引鍵。
-- 在 Apple silicon Mac 上，build-script 執行，包括它們使用預設 Apple 編譯器執行的 C 編譯。只有當它讀取的檔案、環境和指令未改變時，才會還原執行。
-- 警告和其他診斷訊息，快取的 crate 會再次顯示這些訊息。
+- 函式庫 crates，包括 workspace 同路徑 crates、帶有依賴項嘅 crates，以及帶有生成源碼嘅 crates。Tuist 會根據編譯器讀取嘅源碼為佢哋建立索引鍵。
+- 喺 Apple silicon Mac 上，對於源碼檢查無法預先建立索引鍵嘅編譯，例如使用程序宏、內聯組合語言或原生函式庫嘅 crates、程序宏本身，以及連結後嘅可執行檔。Tuist 會記錄每個項目讀取嘅檔案、環境變數同唯讀指令（例如 `git describe`），並根據呢啲資訊建立索引鍵。
+- 喺 Apple silicon Mac 上，建構腳本運行，包括佢哋使用預設 Apple 編譯器執行嘅 C 編譯。只有當佢讀取嘅檔案、環境同指令保持不變時，運行才會被還原。
+- 警告同其他診斷訊息，快取嘅 crate 會再次顯示呢啲訊息。
 
-以下項目仍會正常建置：
+以下情況仍然正常建構：
 
-- Linux 上的建置腳本和已記錄的編譯。
-- 連線到網路、啟動 Tuist 無法觀察的程式，或在輸出目錄之外寫入的建置腳本。
-- 增量編譯、自訂目標，以及不支援的編譯器引數或原始碼輸入。
-- 僅限中繼資料的 `cargo check` 呼叫。
-- 發出意外編譯器輸出的編譯。
-- 使用動態載入器設定（例如 `LD_PRELOAD`）執行的編譯，或使用位於 Rust 工具鏈和目標目錄之外的 `LD_LIBRARY_PATH` 目錄執行的編譯，例如從你的 shell 繼承的目錄，或位於目標目錄之外的 `build.build-dir`。
+- Linux 上嘅建構腳本同已記錄嘅編譯。
+- 連接網絡、啟動 Tuist 無法觀察嘅程式，或喺其輸出目錄之外寫入嘅建構腳本。
+- 增量編譯、自訂目標，以及不受支援嘅編譯器參數或源碼輸入。
+- 僅元數據嘅 `cargo check` 調用。
+- 產生意外編譯器輸出嘅編譯。
+- 使用動態載入器設定（例如 `LD_PRELOAD`）運行嘅編譯，或者使用位於 Rust 工具鏈同目標目錄之外嘅 `LD_LIBRARY_PATH` 目錄（例如從你嘅 shell 繼承，或者位於目標目錄之外嘅 `build.build-dir`）。
 
-預先存在的全域編譯器包裝器會停用 Tuist 的編譯快取和編譯器觀察器。自訂工作區包裝器也會繞過快取。請參閱<.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">編譯器工具相容性</.localized_link>。
+預先存在嘅全域編譯器包裝器會停用 Tuist 嘅編譯快取同編譯器觀察器。自訂 workspace 包裝器亦會繞過快取。請參閱 <.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">編譯器工具相容性</.localized_link>。
 
-快取索引鍵包括套件內容、編譯器和工具鏈、引數以及建置環境。檢出、目標目錄、Cargo home 和工具鏈位置會被替換為預留位置，因此在其他路徑的檢出會重用相同的項目。如果 crate 的輸出內嵌了其自身路徑（例如透過 `env!("CARGO_MANIFEST_DIR")`），則只在該路徑重用。憑證、Tuist 報告設定和已識別的 CI 執行中繼資料不會使項目失效。在編譯期間讀取這些排除變數的 crate 不會被快取。
+快取索引鍵包括套件內容、編譯器同工具鏈、參數，以及建構環境。檢出目錄、目標目錄、Cargo home 同工具鏈位置會被替換為預留位置，因此喺另一條路徑檢出時可以重用相同項目。如果 crate 嘅輸出嵌入咗自己嘅路徑（例如透過 `env!("CARGO_MANIFEST_DIR")`），則只會在該路徑重用。憑證、Tuist 報告設定，以及已識別嘅 CI 運行元數據不會使項目失效。喺編譯期間讀取呢啲排除變數嘅 crates 不會被快取。
 
 ## 驗證重用 {#verify-reuse}
 
-Cargo 已經避免重新建置最新的輸出。為了測試 Tuist 的快取而非 Cargo 的現有輸出，請建置一次，移除 Cargo 的輸出，然後重複相同的建置：
+Cargo 已經避免重新建構最新嘅輸出。為了測試 Tuist 嘅快取而非 Cargo 嘅現有輸出，請建構一次，移除 Cargo 嘅輸出，然後重複相同嘅建構：
 
 ```sh
 tuist cargo build --release
@@ -67,20 +69,27 @@ cargo clean
 tuist cargo build --release
 ```
 
-符合條件的程式庫可以在第二次建置時還原；不支援的 crate 仍會編譯。移除 Cargo 的輸出不會移除 Tuist 獨立的本機快取。這檢查的是重用，不一定是遠端下載：本機命中不需要從 Kura 傳輸。輸入驗證和快取操作會增加開銷，因此避免編譯並不保證小型 crate 的建置會更快。
+符合條件嘅函式庫可以喺第二次建構時還原；不受支援嘅 crates 仍然會編譯。移除 Cargo 嘅輸出並不會移除 Tuist 獨立嘅本地快取。呢個操作檢查重用情況，未必涉及遠端下載：本地命中無須從 Kura 傳輸。輸入驗證同快取操作會增加開銷，因此避免編譯並唔保證小型 crates 嘅建構會更快。
+
+要檢查命中是否正確（例如作為 CI 中嘅金絲雀測試），請將任一變數設定為 `sampled`（每 64 個 crate 中有一個，每次建構相同嘅 crates）或 `always`：
+
+- `TUIST_CARGO_VERIFY` 檢查命中所依據嘅輸入是否仍然係編譯器或建構腳本讀取嘅內容。
+- `TUIST_CARGO_VERIFY_RECOMPILE` 會重新編譯命中項目，並將其輸出與快取嘅輸出進行比較。
+
+被檢查嘅 crate 會進行編譯而非還原，就好似佢未被快取一樣，因此其輸出始終係最新嘅，而驗證過程不會改變建構結果。驗證永遠不會儲存或替換被檢查 crate 嘅快取項目。如果其最新輸出與快取嘅輸出不同，依賴佢嘅 crates 就會出現未命中，並像未快取建構一樣被快取。增量編譯唔具可重現性，因此對於呢啲情況，`TUIST_CARGO_VERIFY_RECOMPILE` 只會比較元數據同依賴資訊。使用 `TUIST_DEBUG=1` 時，每次檢查都會列印一行 `Tuist Cargo cache: verified`，而發現差異嘅檢查會被計入建構快取測量中嘅分歧數。
 
 ## 檢查快取活動 {#inspect-cache-activity}
 
-在你專案的儀表板中開啟**Cargo Cache**，以檢查命中率、記錄的傳輸、延遲、吞吐量和最近的建置。開啟建置的**Cache**分頁以查看個別任務決策和 CAS 輸出。
+喺你項目嘅儀表板中打開 **Cargo Cache**，以檢查命中率、記錄嘅傳輸、延遲、吞吐量同最近嘅建構。打開某個建構嘅 **Cache** 標籤頁，查看個別任務決策同 CAS 輸出。
 
-缺少的測量值不會計為零，且快取命中不一定代表遠端下載。詳情請參閱<.localized_link href="/guides/features/build-insights/rust#cache-measurements">Rust 快取測量</.localized_link>。
+缺失嘅測量數據不會被計為零，而且快取命中並唔一定代表遠端下載。詳情請參閱 <.localized_link href="/guides/features/build-insights/rust#cache-measurements">Rust 快取測量</.localized_link>。
 
 ## 疑難排解 {#troubleshooting}
 
-啟用偵錯輸出以檢查快取傳輸和報告失敗：
+啟用除錯輸出以檢查快取傳輸同報告失敗：
 
 ```sh
 TUIST_DEBUG=1 tuist cargo build --release
 ```
 
-偵錯輸出也會解釋為什麼編譯或 build-script 執行未被儲存。如果你看不到任何命中，請檢查是否有其他編譯器包裝器優先生效，以及編譯器、旗標和環境是否與填充快取的建置相符。對於遠端上傳，也請檢查驗證和帳戶的快取上傳政策。
+除錯輸出亦會解釋點解某次編譯或建構腳本運行未被儲存。如果你睇唔到任何命中，請檢查是否另有編譯器包裝器佔用優先權，以及編譯器、旗標同環境是否與填充快取嘅建構相匹配。對於遠端上傳，亦請檢查認證同帳戶嘅快取上傳政策。

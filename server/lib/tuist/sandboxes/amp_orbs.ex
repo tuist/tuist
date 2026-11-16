@@ -28,6 +28,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker
+  alias Tuist.Sandboxes.Xcode
 
   require Logger
 
@@ -39,6 +40,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # (https://ampcode.com/docs/orbs/sizes-and-costs), and `linux` is
   # `linux-medium`, Amp's default. An existing Orb keeps the shape it was
   # created with.
+  #
+  # `macos` boots the default Xcode. Each other Xcode macOS sandboxes serve is
+  # a type named after its template, `macos-xcode-<xcode-dashes>` (such as
+  # `macos-xcode-26-1-1`), with the `macos` shape.
   @orb_types %{
     "linux" => %{platform: :linux, template: "default", vcpus: 4, memory_mb: 8192, workspace_gb: 10},
     "linux-tiny" => %{platform: :linux, template: "default", vcpus: 1, memory_mb: 2048, workspace_gb: 10},
@@ -50,15 +55,31 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 10}
   }
 
-  def orb_types, do: @orb_types |> Map.keys() |> Enum.sort()
+  @xcode_orb_type ~r/\Amacos-xcode-[0-9]+(-[0-9]+)*\z/
 
-  @doc "The platform and shape of an Orb type; `nil` is a thread without one."
+  @doc "The Orb types an administrator can add in Amp: the fixed ones and one per served Xcode."
+  def orb_types do
+    xcode_types = Enum.map(Xcode.versions(), &Xcode.template/1)
+    (Map.keys(@orb_types) ++ xcode_types) |> Enum.uniq() |> Enum.sort()
+  end
+
+  @doc """
+  The platform and shape of an Orb type; `nil` is a thread without one. A
+  `macos-xcode-*` type is accepted even after its Xcode stops being served,
+  so its threads' Orbs still resume; a new Orb of it finds no host with the
+  template.
+  """
   def orb_type(nil), do: orb_type("linux")
 
   def orb_type(name) do
     case Map.fetch(@orb_types, name) do
-      {:ok, shape} -> {:ok, shape}
-      :error -> {:error, :unknown_orb_type}
+      {:ok, shape} ->
+        {:ok, shape}
+
+      :error ->
+        if Regex.match?(@xcode_orb_type, name),
+          do: {:ok, %{@orb_types["macos"] | template: name}},
+          else: {:error, :unknown_orb_type}
     end
   end
 

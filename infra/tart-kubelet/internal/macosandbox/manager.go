@@ -129,12 +129,14 @@ type Manager struct {
 	Root, NodeUID string
 	RuntimePath   string
 	ToolsPath     string
-	TemplateTag   string
-	published     atomic.Value
-	Runtime       Runtime
-	Capacity      Capacity
-	Emit          func(protocol.Event)
-	Grace         time.Duration
+	// Templates are the host's prepared templates; a create's TemplateTag
+	// is its template's image.
+	Templates *Templates
+	published atomic.Value
+	Runtime   Runtime
+	Capacity  Capacity
+	Emit      func(protocol.Event)
+	Grace     time.Duration
 	// Checkouts is nil on a host without the runner cache.
 	Checkouts Checkouts
 	// The same gate is used by the CI launcher. TryLock there avoids putting
@@ -307,7 +309,7 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 		return errors.New("invalid macOS sandbox shape")
 	}
 	if a.TemplateTag == "" {
-		a.TemplateTag = m.TemplateTag
+		a.TemplateTag, _ = m.Templates.Image(a.Template)
 	}
 	if r := m.records[a.SandboxID]; r != nil {
 		if r.CreateArgs != a {

@@ -148,6 +148,7 @@ struct SandboxCommandServiceTests {
             serverURL: .value(Self.serverURL),
             platform: .value(.darwin),
             template: .value(nil),
+            xcodeVersion: .value(nil),
             vcpus: .value(8),
             memoryMB: .value(24576),
             workspaceGB: .value(nil)
@@ -156,8 +157,9 @@ struct SandboxCommandServiceTests {
         let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
         try await subject().create(
             options: Self.values(),
-            platform: command.platform.server,
+            platform: command.resolvedPlatform.server,
             template: command.template,
+            xcodeVersion: command.xcode,
             vcpus: command.vcpus,
             memoryGB: command.memoryGB,
             workspaceGB: command.workspaceGb
@@ -165,6 +167,36 @@ struct SandboxCommandServiceTests {
 
         #expect(ui().contains("Platform: macOS"))
         #expect(ui().contains("vCPUs: 8"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func anXcodeVersionAsksForAMacOSSandboxWithIt() async throws {
+        let created = Self.sandbox(status: "starting")
+            .replacingOccurrences(of: "\"vcpus\":4", with: "\"platform\":\"darwin\",\"vcpus\":8")
+        given(sandboxesService).createSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            platform: .value(.darwin),
+            template: .value(nil),
+            xcodeVersion: .value("26.1.1"),
+            vcpus: .value(nil),
+            memoryMB: .value(nil),
+            workspaceGB: .value(nil)
+        ).willReturn(try Self.decode(created))
+
+        let command = try SandboxCreateCommand.parse(["--xcode", "26.1.1"])
+        try await subject().create(
+            options: Self.values(),
+            platform: command.resolvedPlatform.server,
+            template: command.template,
+            xcodeVersion: command.xcode,
+            vcpus: command.vcpus,
+            memoryGB: command.memoryGB,
+            workspaceGB: command.workspaceGb
+        )
+
+        #expect(ui().contains("Platform: macOS"))
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "linux", "--xcode", "26.1.1"]) }
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)

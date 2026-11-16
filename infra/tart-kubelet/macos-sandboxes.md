@@ -2,7 +2,8 @@
 
 macOS sandboxes use the existing account API and Managed Agents session router.
 macOS sandboxes share the `sandboxes` account feature flag with Linux sandboxes;
-there is no separate macOS flag. Select `platform: "darwin"` when creating a sandbox
+there is no separate macOS flag. Select `platform: "darwin"` (and optionally an
+`xcode_version`, see [Xcode templates](#xcode-templates)) when creating a sandbox
 or agent environment, or per Managed Agents session with `platform` on Tuist's
 agent-sessions API or the `tuist_platform` session metadata key (`macos` or
 `darwin`) on any agent environment. Claude Code (desktop, web, CLI) selects
@@ -53,6 +54,44 @@ Deploy all of the following before enabling an account:
 Enabling the feature flag does not provision new hardware. No available grant
 means no placement. Disabling it stops new native creation, resumes, commands and
 Managed Agents admission. Pause, stop-worker and delete remain available.
+
+## Xcode templates
+
+Each Xcode a macOS sandbox can boot is a template of its own,
+`macos-xcode-<xcode-dashes>`, whose image is that Xcode's CI runner image (the
+stacked build on a stacked rack). `macos` boots the default Xcode
+(`sandboxes.macos.xcodeVersion`), which is also served as its
+`macos-xcode-<version>` name, so a sandbox that pins the default keeps it when
+the default moves. Callers pick one with an exact `xcode_version`
+(`Tuist.Sandboxes.Xcode` in the server); nothing reads a repository's
+`.xcode-version`.
+
+- **Which Xcodes.** `sandboxes.macos.xcodeVersions` lists the Xcodes beyond the
+  default, each from `runnersFleet.xcodeVersions`. Only the rack serves them; the
+  rented fleet and the hosts staging and canary borrow serve the default alone.
+  The server validates against `TUIST_MACOS_SANDBOX_XCODE_VERSIONS`, which the
+  chart renders from the same list.
+- **Disk.** Their catalog pools carry `tuist.dev/macos-sandbox-template=true`,
+  which ranks their images first in the rack's golden budget
+  (`internal/podagent/budget.go`), so every rack host keeps them and each
+  template is an APFS clone of the CI golden that costs no disk of its own. The
+  chart fails to render when the default plus the list exceeds
+  `rackFleet.runners.goldenBudget`. A template whose golden CI does drop keeps
+  its blocks (about 73 GB) until it is collected.
+- **Preparation.** The host prepares the default image before it connects and
+  the rest after it connects, one at a time, retrying every five minutes
+  (`prepareTemplates`). Reports list every configured template, `ready` only
+  once its image is in the sandbox store, so a missing template never stops the
+  host serving the others, and placement skips a host that has not prepared the
+  one asked for.
+- **Warm VMs.** A warm VM boots the template its Pod's image names. A create
+  claims it when the image and shape match, under either name of the default.
+  Only the default keeps warm VMs; another Xcode cold-creates.
+- **Lifetime.** A sandbox keeps its template, and a resume reads only the VM's
+  own disks. Dropping an Xcode from the list stops new creates on it; its
+  sandboxes keep running and resuming. Templates no longer configured are not
+  collected yet: reclaim them only after no journal or checkpoint references
+  them.
 
 ## Capacity and CI sharing
 

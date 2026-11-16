@@ -79,6 +79,8 @@ The tools' errors say what is missing. Setup is described at ${DOCS}.
 interface SessionRecord {
 	sandboxId: string
 	account?: string
+	// The Xcode version asked for at start; absent is the server's default.
+	xcode?: string
 	// The repository's path on the Mac, from the last sync.
 	root?: string
 }
@@ -161,7 +163,8 @@ export default async function (amp: PluginAPI) {
 			"Start a macOS Tuist sandbox (Xcode, simulators, Homebrew) for this thread, or reuse the thread's existing one. " +
 			'Use it when the task needs macOS: Xcode builds, Apple-platform tests, or the iOS Simulator. ' +
 			'It mirrors the worktree onto the Mac, including unpushed commits, uncommitted and untracked (non-ignored) changes, and tuist_mac_shell mirrors it again before each command. ' +
-			'Tuist pauses an idle Mac and resumes it on the next command; tuist_mac_stop deletes it.',
+			'Tuist pauses an idle Mac and resumes it on the next command; tuist_mac_stop deletes it. ' +
+			'Pass `xcode` with the exact Xcode version the project pins (.xcode-version, mise.toml, CI config) so the Mac boots it; without it the Mac boots the default Xcode.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -169,6 +172,11 @@ export default async function (amp: PluginAPI) {
 					type: 'string',
 					description:
 						'Tuist account handle that owns the Mac. Needed when the repository has no tuist.toml with `project = "<account>/<project>"`, for example one configured with Tuist.swift: use the account part of its `fullHandle`.',
+				},
+				xcode: {
+					type: 'string',
+					description:
+						"Exact Xcode version, such as 26.1.1, from the versions Tuist's macOS sandboxes serve; an unserved one fails with the list. Read the project's pin to choose it. Default: the server's default Xcode. A Mac keeps its Xcode: stop it to switch.",
 				},
 				memory_gb: {
 					type: 'number',
@@ -183,7 +191,11 @@ export default async function (amp: PluginAPI) {
 			await loaded
 			const thread = ctx.thread.id
 			const cwd = requireRoot()
+			const xcode = typeof input.xcode === 'string' && input.xcode.trim() ? input.xcode.trim() : undefined
 			const existing = sessions.get(thread)
+			if (existing && xcode && existing.xcode !== xcode) {
+				return `The thread's Mac (sandbox ${existing.sandboxId}) was started with ${existing.xcode ? `Xcode ${existing.xcode}` : 'the default Xcode'}, and a Mac keeps its Xcode. Call tuist_mac_stop, then tuist_mac_start with xcode ${xcode}.`
+			}
 			if (existing) {
 				const shown = await run(existing, ['show', existing.sandboxId, '--json'])
 				const state = shown.exitCode === 0 ? (JSON.parse(shown.stdout) as Sandbox) : null
@@ -199,10 +211,21 @@ export default async function (amp: PluginAPI) {
 			return withKeepAlive(async () => {
 				const started = Date.now()
 				const created = await sandboxJSON<Sandbox>(
-					['create', '--platform', 'macos', '--vcpus', '8', '--memory-gb', String(memoryGB), '--workspace-gb', String(workspaceGB)],
+					[
+						'create',
+						'--platform',
+						'macos',
+						...(xcode ? ['--xcode', xcode] : []),
+						'--vcpus',
+						'8',
+						'--memory-gb',
+						String(memoryGB),
+						'--workspace-gb',
+						String(workspaceGB),
+					],
 					{ cwd, account, signal: ctx.signal },
 				)
-				const record: SessionRecord = { sandboxId: created.id, account }
+				const record: SessionRecord = { sandboxId: created.id, account, xcode }
 				sessions.set(thread, record)
 				await persist()
 				try {

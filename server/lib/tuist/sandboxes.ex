@@ -35,6 +35,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
+  alias Tuist.Sandboxes.Xcode
   alias Tuist.Tasks
 
   require Logger
@@ -102,16 +103,24 @@ defmodule Tuist.Sandboxes do
 
   defp reconcile_claude_code(_agent_environment), do: :ok
 
-  @doc "Fills the shape and template `attrs` leave out with the defaults of their platform."
+  @doc """
+  Fills the shape and template `attrs` leave out with the defaults of their
+  platform. An `xcode_version` without a platform is macOS, and picks the
+  template of that Xcode (`Tuist.Sandboxes.Xcode`); the changesets validate it.
+  """
   def platform_defaults(attrs) do
+    attrs = attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new()
+    xcode_version = Map.get(attrs, :xcode_version)
+    attrs = if xcode_version, do: Map.put_new(attrs, :platform, :darwin), else: attrs
+
     defaults =
       if Map.get(attrs, :platform) in [:darwin, "darwin"] do
-        %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: "macos"}
+        %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: Xcode.template(xcode_version)}
       else
         Map.put(@default_shape, :template, @default_template)
       end
 
-    Map.merge(defaults, attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
+    Map.merge(defaults, attrs)
   end
 
   def workspace(%{platform: :darwin}), do: "/Users/runner/work"
