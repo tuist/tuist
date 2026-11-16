@@ -1,6 +1,7 @@
 alias Ecto.Adapters.SQL.Sandbox
 
 Mimic.copy(Redix)
+Mimic.copy(Tuist.Agents.Lease)
 Mimic.copy(Tuist.Agents.SessionStore)
 Mimic.copy(Sentry)
 Mimic.copy(Sentry.Context)

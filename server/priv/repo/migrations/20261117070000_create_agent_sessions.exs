@@ -30,16 +30,18 @@ defmodule Tuist.Repo.Migrations.CreateAgentSessions do
     create index(:agent_sessions, [:host])
     create index(:agent_sessions, [:deleted_at], where: "deleted_at IS NOT NULL")
 
-    # Threads with an inference run in flight from before sessions were
-    # hosted: their Oban jobs no longer run them, so their sessions want a
-    # host. The epoch starts at the run's attempt, so a host's claim is later.
+    # Threads with an inference run queued from before sessions were hosted:
+    # their sessions want a host. A running one is still a previous pod's to
+    # finish; if that pod stops first, its Oban job comes back to a new pod,
+    # which wants the session then (`Tuist.Threads.Worker`). The epoch starts
+    # at the run's attempt, so a host's claim is later.
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute(
       """
       INSERT INTO agent_sessions (id, kind, wanted, wanted_at, want_seq, epoch, inserted_at, updated_at)
       SELECT r.thread_id::text, 'thread', true, CURRENT_TIMESTAMP, 1, max(r.attempt), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       FROM thread_runs r
-      WHERE r.kind <> 'ship' AND r.status IN ('queued', 'running')
+      WHERE r.kind <> 'ship' AND r.status = 'queued'
       GROUP BY r.thread_id
       ON CONFLICT (id) DO NOTHING
       """,

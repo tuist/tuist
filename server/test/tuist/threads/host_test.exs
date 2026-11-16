@@ -6,6 +6,7 @@ defmodule Tuist.Threads.HostTest do
 
   alias Tuist.Accounts.AISubscriptions
   alias Tuist.Accounts.MCPServers
+  alias Tuist.Agents.Kind
   alias Tuist.Agents.Lease
   alias Tuist.Agents.SessionStore
   alias Tuist.OAuth2.PinnedHTTP
@@ -25,8 +26,6 @@ defmodule Tuist.Threads.HostTest do
     def create(_config, _key, _body), do: {:error, :econnrefused}
     @impl true
     def get(_config, _key), do: {:error, :econnrefused}
-    @impl true
-    def head(_config, _key), do: {:error, :econnrefused}
     @impl true
     def list(_config, _prefix, _start_after), do: {:error, :econnrefused}
     @impl true
@@ -454,31 +453,7 @@ defmodule Tuist.Threads.HostTest do
   test "a host that cannot reach the session store leaves the run for a later host" do
     user = AccountsFixtures.user_fixture()
 
-    plug = fn conn ->
-      response = %{
-        id: "completion",
-        object: "chat.completion",
-        created: 0,
-        model: Provider.default_model(:chatgpt),
-        choices: [
-          %{
-            index: 0,
-            message: %{role: "assistant", content: JSON.encode!(%{reply: "Back online.", suggestions: []})},
-            finish_reason: "stop"
-          }
-        ],
-        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
-      }
-
-      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
-    end
-
-    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
-    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
-
-    stub(Provider, :client_opts, fn _, _ ->
-      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
-    end)
+    answer_with(user, reply_plug("Back online."))
 
     stub(SessionStore, :store, fn kind, id, epoch ->
       {module, store} = Mimic.call_original(SessionStore, :store, [kind, id, epoch])
@@ -490,7 +465,7 @@ defmodule Tuist.Threads.HostTest do
     pid = host(thread.id)
     ref = Process.monitor(pid)
 
-    assert_receive {:DOWN, ^ref, :process, ^pid, {:shutdown, :store_unavailable}}, 5_000
+    assert_receive {:DOWN, ^ref, :process, ^pid, {:shutdown, :unavailable}}, 5_000
     assert Repo.reload!(run).status == "running"
 
     stub(SessionStore, :store, &Mimic.call_original(SessionStore, :store, [&1, &2, &3]))
@@ -500,6 +475,92 @@ defmodule Tuist.Threads.HostTest do
     assert %{status: "succeeded", attempt: 2} = Repo.reload!(run)
     assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
     assert [%{body: "Back online."}] = Enum.filter(fresh.messages, &(&1.kind == "agent"))
+  end
+
+  # A stored session that cannot be read stays that way, so retrying it after
+  # a backoff would never end; the run fails and the host stays usable.
+  test "a session the store cannot read fails its run instead of being retried" do
+    user = AccountsFixtures.user_fixture()
+    answer_with(user, reply_plug("First answer."))
+
+    {:ok, thread} = Threads.create(user, user.account, request("First"))
+    host_until_idle(thread.id)
+
+    stub(SessionStore, :store, fn kind, id, epoch ->
+      {module, store} = Mimic.call_original(SessionStore, :store, [kind, id, epoch])
+      {module, Keyword.put(store, :decrypt, fn _ -> raise "bad key" end)}
+    end)
+
+    {:ok, _thread} = Threads.message(user, user.account, thread.id, request("Second"))
+    run = Repo.one!(from(r in Run, where: r.thread_id == ^thread.id and r.status != "succeeded"))
+    lapse(thread.id)
+    host_until_idle(thread.id)
+
+    assert Repo.reload!(run).status == "failed"
+  end
+
+  # A message whose wake never reached the host is found when the runner next
+  # asks the host to stop if idle, instead of the host stopping with it.
+  test "a host asked to stop with work it was not woken for runs it" do
+    user = AccountsFixtures.user_fixture()
+    answer_with(user, reply_plug("Done."))
+
+    {:ok, thread} = Threads.create(user, user.account, request("First"))
+    host_until_idle(thread.id)
+
+    # The host has looked for work and found none.
+    lapse(thread.id)
+    pid = host(thread.id)
+    :sys.get_state(pid)
+    stub(Lease, :wake, fn _id -> :ok end)
+
+    {:ok, _thread} = Threads.message(user, user.account, thread.id, request("Second"))
+    refute idle?(pid)
+
+    eventually(fn -> Repo.aggregate(from(r in Run, where: r.status == "succeeded"), :count) == 2 end)
+    assert idle?(pid)
+  end
+
+  defp answer_with(user, plug) do
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+  end
+
+  defp reply_plug(reply) do
+    fn conn ->
+      response = %{
+        id: "completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [
+          %{
+            index: 0,
+            message: %{role: "assistant", content: JSON.encode!(%{reply: reply, suggestions: []})},
+            finish_reason: "stop"
+          }
+        ],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+  end
+
+  # Whether the host stops when asked to if idle. A host that does is gone,
+  # so callers ask only while they expect it to stay.
+  defp idle?(pid) do
+    Host.stop_if_idle(pid, self(), :probe)
+
+    receive do
+      {Kind, :idle, ^pid, :probe} -> true
+    after
+      100 -> false
+    end
   end
 
   # Takes the thread's session lease as an agents runner does and hosts it.
@@ -519,7 +580,7 @@ defmodule Tuist.Threads.HostTest do
       Host.stop_if_idle(pid, self(), :token)
 
       receive do
-        {Tuist.Agents.Kind, :idle, ^pid, :token} -> true
+        {Kind, :idle, ^pid, :token} -> true
       after
         50 -> false
       end

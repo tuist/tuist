@@ -172,7 +172,8 @@ defmodule Tuist.Agents.Lease do
   @doc """
   Tells the session's process, wherever it is hosted, that it has new work,
   and runners that a session may want a host. Call it after the transaction
-  that stored the work commits. Runners also poll, so a lost wake only delays.
+  that stored the work commits. A host that misses the wake finds the work when the runner next asks it
+  to stop if idle.
   """
   def wake(id) do
     Phoenix.PubSub.broadcast(Tuist.PubSub, topic(id), {__MODULE__, :wake})
