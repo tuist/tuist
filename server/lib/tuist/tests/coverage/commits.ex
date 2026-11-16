@@ -29,9 +29,11 @@ defmodule Tuist.Tests.Coverage.Commits do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
@@ -133,6 +135,10 @@ defmodule Tuist.Tests.Coverage.Commits do
       # tests they ran, become carry sources for the commits that skip them.
       TargetSources.record(project.id, runs)
       TestSources.record(project.id, runs)
+
+      # The test maps coverage-based test selection decides from.
+      project = Repo.preload(project, :account)
+      if FeatureFlags.test_impact_analysis_enabled?(project.account, project), do: Snapshots.record(project, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)

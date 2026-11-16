@@ -654,13 +654,13 @@ defmodule Tuist.Tests.CoverageTest do
   end
 
   test "apply_retention sets the time-to-live of every table the coverage retention governs" do
-    tables =
-      IngestRepo
-      |> Ecto.Adapters.SQL.Sandbox.unboxed_run(fn -> Coverage.apply_retention() end)
-      |> Enum.map(&elem(&1, 0))
-      |> Enum.sort()
+    applied = Ecto.Adapters.SQL.Sandbox.unboxed_run(IngestRepo, fn -> Coverage.apply_retention() end)
 
-    assert tables ==
+    assert applied |> Enum.map(&elem(&1, 0)) |> Enum.sort() ==
              ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files test_impact_diffs test_impact_run_tests test_impact_runs)
+
+    # Hash sources live as long as the test maps they're carried from, not
+    # with the file detail.
+    assert {"coverage_target_sources", 31} in applied
   end
 end

@@ -1,0 +1,340 @@
+defmodule Tuist.TestImpactAnalysis.ShadowTest do
+  use TuistTestSupport.Cases.DataCase, async: false
+
+  alias Tuist.TestImpactAnalysis.Candidate
+  alias Tuist.TestImpactAnalysis.Runs
+  alias Tuist.TestImpactAnalysis.Shadow
+  alias Tuist.TestImpactAnalysis.Snapshots
+  alias Tuist.Tests.Coverage.Reported
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  @sources ~w(Sources/Math.swift Sources/Sub.swift Sources/Strings.swift Sources/Core.swift Sources/Boot.swift)
+  @test_file "Tests/MathTests.swift"
+  @paths @sources ++ [@test_file]
+
+  # The baseline c1 is a full run of AppTests (MathTests: testAdd() over
+  # Math.swift and the suite's test file, testSub() over Sub.swift;
+  # StringTests: testUpper() over Strings.swift; SumTests: sum(), without
+  # evidence) and CoreTests (CoreSuite: testCore() over Core.swift, its
+  # processes also running Boot.swift outside the test).
+  setup do
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("c1", [], 0),
+      CoverageFixtures.commit("c2", ["c1"], 1),
+      CoverageFixtures.commit("c3", ["c2"], 2),
+      CoverageFixtures.commit("c4", ["c3"], 3)
+    ])
+
+    CoverageFixtures.seed_listing(account, "c1", @paths ++ ["Package.resolved"])
+
+    test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
+
+    scope = fn module, suite, name, files ->
+      %{kind: "test", module: module, suite: suite, name: name, files: files, lines: Enum.map(files, fn _ -> [1, 1] end)}
+    end
+
+    CoverageFixtures.run_with_coverage(project, account, files(), %{
+      git_commit_sha: "c1",
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 1,
+          test_cases: [
+            test_case.("testAdd()", "MathTests"),
+            test_case.("testSub()", "MathTests"),
+            test_case.("testUpper()", "StringTests"),
+            test_case.("sum()", "SumTests")
+          ]
+        },
+        %{name: "CoreTests", status: "success", duration: 1, test_cases: [test_case.("testCore()", "CoreSuite")]}
+      ],
+      coverage_evidence: %{
+        paths: @paths,
+        scopes: [
+          scope.("AppTests", "MathTests", "testAdd()", [0, 5]),
+          scope.("AppTests", "MathTests", "testSub()", [1]),
+          scope.("AppTests", "StringTests", "testUpper()", [2]),
+          scope.("CoreTests", "CoreSuite", "testCore()", [3]),
+          %{kind: "target", module: "CoreTests", files: [3, 4], lines: [[1, 1], [1, 1]]}
+        ]
+      }
+    })
+
+    %{project: project, account: account}
+  end
+
+  # Every file with its line covered (`count` 1), at `blobs`' blob where it names one.
+  defp files(blobs \\ %{}, count \\ 1) do
+    blob = fn path -> [git_blob_id: Map.get(blobs, path, "blob-" <> path)] end
+
+    Enum.map(@sources, &CoverageFixtures.file(&1, [count], blob.(&1))) ++
+      [CoverageFixtures.file(@test_file, [count], [is_test: true] ++ blob.(@test_file))]
+  end
+
+  defp params(head_sha, changed_files) do
+    %{
+      build_system: "xcode",
+      head_sha: head_sha,
+      baseline_sha: "c1",
+      git_branch: "feature",
+      modules: [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: false}],
+      changed_files: changed_files,
+      xcode: %{scheme: "App"}
+    }
+  end
+
+  defp changed(path, blob, modules \\ ["AppTests"]), do: %{path: path, status: "M", blob: blob, affected_modules: modules}
+
+  defp decide(project, head_sha, changed_files) do
+    {:ok, %{run: run}} = Runs.create(project, params(head_sha, changed_files))
+    {:ok, result} = Shadow.decide(project, run)
+    {run, result}
+  end
+
+  # Each test's `{decision, reason}` by name.
+  defp by_name(project, %{decisions: decisions}) do
+    snapshot = Snapshots.at(project.id, "c1", "App", "")
+    tests = Candidate.evaluate(project.id, snapshot, [])
+    named = Snapshots.names(project.id, snapshot, Enum.map(tests, & &1.idx))
+    names = Map.new(tests, &{&1.test_case_id, named[&1.idx].name})
+
+    Map.new(decisions, fn {id, d} -> {names[id], {d.decision, d.reason}} end)
+  end
+
+  test "a full run writes a checkpoint that decides as the version pipeline does", %{project: project} do
+    {_run, result} = decide(project, "c2", [changed("Sources/Math.swift", "m2")])
+
+    assert by_name(project, result) == %{
+             "testAdd()" => {:selected, :impacted},
+             "testSub()" => {:skipped, :unaffected},
+             "testUpper()" => {:skipped, :unaffected},
+             "sum()" => {:selected, :no_evidence},
+             "testCore()" => {:skipped, :unaffected}
+           }
+
+    assert result.comparison == %{only_shadow_skipped: [], only_run_skipped: []}
+  end
+
+  test "selects a changed test file's whole suite, a module's target-level evidence and files no evidence includes",
+       %{project: project} do
+    {_run, result} = decide(project, "c2", [changed(@test_file, "t2")])
+    decisions = by_name(project, result)
+    # testSub() never executed the test file; its suite did.
+    assert decisions["testAdd()"] == {:selected, :test_file_changed}
+    assert decisions["testSub()"] == {:selected, :test_file_changed}
+    assert decisions["testUpper()"] == {:skipped, :unaffected}
+
+    {_run, result} = decide(project, "c3", [changed("Sources/Boot.swift", "b2", ["CoreTests"])])
+    assert by_name(project, result)["testCore()"] == {:selected, :impacted}
+    assert by_name(project, result)["testAdd()"] == {:skipped, :unaffected}
+
+    {_run, result} = decide(project, "c4", [changed("Resources/Image.png", "i2", ["CoreTests"])])
+    assert by_name(project, result)["testCore()"] == {:selected, :owned_without_evidence}
+  end
+
+  test "decides nothing, without a diff, when hashing skipped every module", %{project: project} do
+    modules = [%{name: "AppTests", skipped: true}, %{name: "CoreTests", skipped: true}]
+    {:ok, %{run: run}} = Runs.create(project, %{params("c2", nil) | modules: modules})
+    assert %{outcome: "selected", requested_modules: []} = run
+
+    assert Shadow.decide(project, run) ==
+             {:ok, %{decisions: %{}, candidates: [], comparison: %{only_shadow_skipped: [], only_run_skipped: []}}}
+  end
+
+  # A run's fold at its creation comes before its results are processed:
+  # a checkpoint written then would hold no tests, and its id would stop the
+  # fold after processing from writing the real one.
+  test "writes no snapshot for a run whose results aren't processed yet", %{project: project, account: account} do
+    id = UUIDv7.generate()
+    attrs = %{id: id, git_commit_sha: "c2", test_modules: []}
+    CoverageFixtures.run_with_coverage(project, account, files(), attrs)
+    assert Snapshots.at(project.id, "c2", "App", "") == nil
+
+    modules = [
+      %{
+        name: "AppTests",
+        status: "success",
+        duration: 1,
+        test_cases: [%{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 10}]
+      }
+    ]
+
+    CoverageFixtures.run_with_coverage(project, account, files(), %{attrs | test_modules: modules})
+    assert %{checkpoint: %{tests_count: 1}} = Snapshots.at(project.id, "c2", "App", "")
+  end
+
+  test "lists the files a test depends on in a snapshot", %{project: project} do
+    snapshot = Snapshots.at(project.id, "c1", "App", "")
+    tests = Candidate.evaluate(project.id, snapshot, [])
+    named = Snapshots.names(project.id, snapshot, Enum.map(tests, & &1.idx))
+    names = Map.new(tests, &{named[&1.idx].name, &1.test_case_id})
+
+    assert Snapshots.test_files(project.id, snapshot, names["testAdd()"]) == [
+             %{path: "Sources/Math.swift", executed: true, target: false},
+             %{path: @test_file, executed: true, target: false}
+           ]
+
+    assert Snapshots.test_files(project.id, snapshot, names["testCore()"]) == [
+             %{path: "Sources/Boot.swift", executed: false, target: true},
+             # testCore() executed it, so it isn't target-only.
+             %{path: "Sources/Core.swift", executed: true, target: false}
+           ]
+
+    assert Snapshots.test_files(project.id, snapshot, Ecto.UUID.generate()) == nil
+  end
+
+  test "skips what the branch's previous run already ran against the same files, and not what it left stale",
+       %{project: project, account: account} do
+    # c2 changes Math.swift and Strings.swift; its selective run executes
+    # testAdd() and sum(), which records no evidence.
+    previous = [changed("Sources/Math.swift", "m2"), changed("Sources/Strings.swift", "s2")]
+    {:ok, %{run: impact_run}} = Runs.create(project, params("c2", previous))
+
+    CoverageFixtures.run_with_coverage(project, account, files(), %{
+      git_commit_sha: "c2",
+      git_branch: "feature",
+      partial: true,
+      test_impact_run_id: impact_run.id,
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 1,
+          test_cases: [
+            %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 10},
+            # Without evidence of its own, as at c1.
+            %{name: "sum()", test_suite_name: "SumTests", status: "success", duration: 10}
+          ]
+        }
+      ],
+      coverage_evidence: %{
+        paths: @paths,
+        scopes: [
+          %{
+            kind: "test",
+            module: "AppTests",
+            suite: "MathTests",
+            name: "testAdd()",
+            files: [0, 5],
+            lines: [[1, 1], [1, 1]]
+          }
+        ]
+      }
+    })
+
+    # c3 carries the same two blobs and changes Sub.swift too.
+    {_run, result} = decide(project, "c3", previous ++ [changed("Sources/Sub.swift", "b3")])
+
+    assert length(result.candidates) == 2
+
+    assert by_name(project, result) == %{
+             # Ran on c2's tree with Math.swift at m2 and passed.
+             "testAdd()" => {:skipped, :unaffected},
+             # Sub.swift changed since both candidates.
+             "testSub()" => {:selected, :impacted},
+             # c2 didn't run it although Strings.swift changed: stale there.
+             "testUpper()" => {:selected, :impacted},
+             # c2 ran it, but without evidence it's still unknown what it executed.
+             "sum()" => {:selected, :no_evidence},
+             "testCore()" => {:skipped, :unaffected}
+           }
+  end
+
+  test "carries a test skipped through the branch's previous run from that run's evidence",
+       %{project: project, account: account} do
+    for sha <- ~w(c2 c3), do: CoverageFixtures.seed_listing(account, sha, @paths ++ ["Package.resolved"])
+    test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
+
+    # c2 changes Math.swift, now two lines, and Strings.swift; its selective
+    # run executes only testAdd(), over both lines, so the overlay replaces it.
+    previous = [changed("Sources/Math.swift", "m2"), changed("Sources/Strings.swift", "s2")]
+    {:ok, %{run: previous_run}} = Runs.create(project, params("c2", previous))
+    c2_blobs = %{"Sources/Math.swift" => "m2", "Sources/Strings.swift" => "s2"}
+
+    with_math = fn files, count ->
+      [CoverageFixtures.file("Sources/Math.swift", [count, count], git_blob_id: "m2") | tl(files)]
+    end
+
+    CoverageFixtures.run_with_coverage(project, account, with_math.(files(c2_blobs), 1), %{
+      git_commit_sha: "c2",
+      git_branch: "feature",
+      partial: true,
+      test_impact_run_id: previous_run.id,
+      test_modules: [
+        %{name: "AppTests", status: "success", duration: 1, test_cases: [test_case.("testAdd()", "MathTests")]}
+      ],
+      coverage_evidence: %{
+        paths: @paths,
+        scopes: [
+          %{
+            kind: "test",
+            module: "AppTests",
+            suite: "MathTests",
+            name: "testAdd()",
+            files: [0, 5],
+            lines: [[1, 2], [1, 1]]
+          }
+        ]
+      }
+    })
+
+    # c3 changes Sub.swift too. testAdd() is skipped through c2's run, where
+    # it ran over Math.swift at m2, and testCore() through the baseline.
+    {run, result} = decide(project, "c3", previous ++ [changed("Sources/Sub.swift", "b3")])
+    assert %{"testAdd()" => {:skipped, :unaffected}, "testCore()" => {:skipped, :unaffected}} = by_name(project, result)
+
+    c3_files = with_math.(files(Map.put(c2_blobs, "Sources/Sub.swift", "b3"), 0), 0)
+
+    CoverageFixtures.run_with_coverage(project, account, c3_files, %{
+      git_commit_sha: "c3",
+      git_branch: "feature",
+      partial: true,
+      test_impact_run_id: run.id,
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 1,
+          test_cases: [
+            test_case.("testSub()", "MathTests"),
+            test_case.("testUpper()", "StringTests"),
+            test_case.("sum()", "SumTests")
+          ]
+        }
+      ]
+    })
+
+    reported = Reported.compute(project, "c3", source: :snapshots)
+
+    assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2, carried_from: ["c1", "c2"]} =
+             reported
+
+    assert reported.carried_lines == %{
+             "Sources/Core.swift" => MapSet.new([1]),
+             "Sources/Math.swift" => MapSet.new([1, 2])
+           }
+
+    assert reported == Reported.compute(project, "c3", source: :versions)
+  end
+
+  describe "compose/3" do
+    test "keeps the paths whose blobs differ between the two trees" do
+      previous = [changed("A", "a2"), changed("B", "b2"), %{path: "C", status: "D", blob: "", affected_modules: []}]
+      between = [%{path: "D", from: "d1", to: "d2"}, %{path: "B", from: "b1", to: "b1"}]
+      current = [changed("A", "a2"), changed("B", "b3")]
+
+      assert previous |> Shadow.compose(between, current) |> Enum.map(&{&1.path, &1.status, &1.blob}) == [
+               # B moved on; C was deleted only in the previous tree; D changed between the checkpoints.
+               {"B", "M", "b3"},
+               {"C", "M", nil},
+               {"D", "M", "d2"}
+             ]
+    end
+  end
+end

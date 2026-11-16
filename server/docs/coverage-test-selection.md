@@ -223,8 +223,25 @@ Impact runs live in ClickHouse next to `shard_plans`, written and read back the 
 
 - **The link sits on the test run**, not the impact run, because the impact run is written before any test run exists. Linking it the other way would mean updating a ClickHouse row after upload, and an impact run whose build fails would never get one. `test_runs` has no TTL, so an old test run can keep an ID whose impact run expired; its tab then says so.
 - **Retention.** Diffs and selected tests are built from file-level evidence and can't be explained once it expires, so they share its retention; runs keep the overview's statistics for as long as coverage run totals. All three tables are in `Tuist.Tests.Coverage`'s retention tables, so `mix tuist.coverage.retention` re-applies a changed setting.
-- **Evidence isn't copied.** Test evidence comes from `coverage_test_sources` and target evidence from the baseline runs' `coverage_files` rows, both written by coverage. Selection adds no index, worker or backfill of its own, and skipped tests produce no `test_case_runs` rows.
+- **Evidence isn't copied.** Test evidence comes from `coverage_test_sources` and target evidence from the baseline runs' `coverage_files` rows, both written by coverage. Selection adds no index, worker or backfill of its own outside the shadow-mode snapshots below, and skipped tests produce no `test_case_runs` rows.
 - These are stored customer data: `server/data-export.md` documents them.
+
+### Snapshots (shadow mode)
+
+A redesign of the evidence storage runs beside the pipeline above for projects with the `:test_impact_analysis` flag. It decides nothing yet: clients still get the decision of `Tuist.TestImpactAnalysis.run/1`, and the new decision is only stored and compared.
+
+- **Test maps instead of per-test versions.** A commit's fold writes, through `Tuist.TestImpactAnalysis.Snapshots.record/2`, a **checkpoint** for each scope (repository, scheme, platform) its full runs measured: every test, numbered densely in module, suite and name order, and an inverted index from each repository file to the tests, suites' tests and modules' tests that executed it, as roaring bitmaps. A selective run with an impact run writes an **overlay** against its baseline's checkpoint holding only the tests whose file set or status changed. Maps are built inside ClickHouse from the runs' `coverage_files` evidence, only once the run's results are processed, under an id derived from their inputs.
+- **The shadow decision.** Each clean runs request enqueues `Workers.ShadowWorker`, which decides the run again with `Tuist.TestImpactAnalysis.Shadow`: the diff against the baseline's checkpoint (`Candidate.evaluate/4`), and the branch's newest earlier overlay, read through the diff composed from that overlay's commit to the run's (its own diff, the files changed between the two checkpoints' commits, and the run's diff), unless that composed diff changes a tracked file. Each test is decided by the newest candidate holding evidence for it, except that the primary's `test_file_changed` and `owned_without_evidence` always select. It stores one bitmap per decision, reason and deciding map in `test_impact_run_decisions`, and logs how many tests only one side skipped.
+- **Coverage carry from maps.** `Tuist.Tests.Coverage.Reported.compute(..., source: :snapshots)` carries skipped tests from the maps (`Tuist.TestImpactAnalysis.Carry`) instead of `coverage_test_sources`; each test map also stores its tests' line ranges (`test_impact_snapshot_lines`). Reads still default to the versions.
+- **Retention.** Maps and decisions expire 31 days after their run. `coverage_target_sources` follows them, since a hash-skipped module carries from its source run's map.
+
+| Table | What it holds |
+| --- | --- |
+| `test_impact_snapshots` (PostgreSQL, `Tuist.TestImpactAnalysis.Snapshot`) | One row per map: kind, commit, scope, runs, its checkpoint for an overlay. |
+| `test_impact_snapshot_tests` | A map's tests: number, `test_case_id`, module, suite, status and hashes of the files and lines it executed. |
+| `test_impact_snapshot_files` | The inverted index: per file, bitmaps of the tests, suites' tests and modules' tests that executed it. |
+| `test_impact_snapshot_lines` | The line ranges each test, suite setup and module ran per file, for carry. |
+| `test_impact_run_decisions` | Per impact run, a bitmap of tests per decision, reason and deciding map. |
 
 ## Scope and platform
 
@@ -294,11 +311,11 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 - **A feature flag in the client.** No released CLI should depend on a flag that's later removed; the manifest option is the client's switch, and the server's `:test_impact_analysis` flag decides per project.
 - **A named default strategy, a "none" strategy, or environment overrides.** Leaving the strategy out already means the default, and the existing switch for selective testing already turns selection off; a second way to say either could disagree with the first.
 - **Platform-aware evidence.** Recording the exact device and OS version on each test's evidence would let another platform's baseline serve, but a same-platform baseline is nearly always there.
-- **Dry-run, shadow or comparison modes.** They add flags, columns and a scoring pipeline; full runs on the default branch remain the safety net.
+- **Dry-run modes for clients.** They add flags and columns to the client; the server-side shadow decision ([Snapshots](#snapshots-shadow-mode)) compares a storage redesign without changing what clients run.
 - **A reason of its own for a baseline without a complete listing.** The walk passes such a commit over, so an older baseline still selects, and when none is left the run has no usable baseline, which `no_baseline` already says. A new reason would reach the API, the CLI's output and the UI for a case the user can't act on differently.
 - **Diffing full file listings on the server for the selection diff.** The payload grows with the repository and large listings are truncated by `commit_file_limit`. The client diff sends only what changed. The server does compare a stored listing with the commit below it, once per commit and outside any request, to write `git_file_changes`.
 - **Caching verdicts per commit.** Verdicts depend on evidence, which can still arrive after the first run, and on the rules version. Only the diff is per commit.
-- **A per-baseline path index.** It would copy the test-scoped evidence a second time and need a worker and a backfill; `coverage_test_sources` already holds what each test version executed.
+- **A per-baseline path index beside `coverage_test_sources`.** It would copy the test-scoped evidence a second time. The snapshots are meant to replace `coverage_test_sources` instead: evaluating every version of every test grows with tests times code states, while a map's index grows with tests times files once per day.
 - **A `target_changed` rule.** A module's hash includes transitive sources, so it would select nearly everything with evidence. Tests without evidence already run as `no_evidence`.
 - **Planning shards in the runs call.** It tied the impact run to sharding settings and needed a second planning path for runs with a reason.
 - **An idempotency key on impact runs.** ClickHouse can't enforce uniqueness, and shards already reach the run through the newest plan for their reference.
