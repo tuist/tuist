@@ -64,11 +64,13 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
         if attributes && valid_attributes?(attributes) do
           id = UUID.uuid5(:oid, "artifact:#{publication.id}:#{name}")
+          payload = manifest["payloads"][interface["payload"]]
 
           {:ok,
            Map.merge(attributes, %{
              id: id,
-             payload: manifest["payloads"][interface["payload"]],
+             payload: payload,
+             binary_id: binary_id(attributes, payload),
              icon:
                icon_descriptor(
                  manifest,
@@ -146,6 +148,12 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
   defp app_attributes(_), do: nil
 
+  # The APK payload is the APK itself, so its digest is the content hash `tuist share`
+  # records as an APK's binary ID, and an installed app can compute it to find
+  # its own preview. Apple bundles are archived, so their digest identifies no binary.
+  defp binary_id(%{type: :apk}, %{"digest" => "sha256:" <> hash}), do: hash
+  defp binary_id(_attributes, _payload), do: nil
+
   # The display name is optional and newer than the application ID, so an
   # unusable one falls back to the ID instead of dropping the preview.
   defp android_display_name(name, identifier) do
@@ -211,6 +219,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
               type: app.type,
               supported_platforms: app.platforms,
               supported_architectures: Map.get(app, :architectures, []),
+              binary_id: app.binary_id,
               build_version: app.build_version,
               inserted_at: publication.inserted_at
             })

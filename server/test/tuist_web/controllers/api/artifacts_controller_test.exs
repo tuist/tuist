@@ -112,8 +112,11 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
     assert :ok = ProjectApplicationsWorker.perform(%Oban.Job{args: job.args})
     assert Enum.sort(Enum.map(Repo.all(Preview), & &1.bundle_identifier)) == ["org.example.android", "org.example.apple"]
 
-    assert Enum.sort(Enum.map(Repo.all(AppBuild), &{&1.type, &1.supported_platforms, &1.build_version})) ==
-             [{:apk, [:android], "23"}, {:app_bundle, [:ios_simulator], "45"}]
+    # An installed APK finds its preview by its SHA-256, like one uploaded with `tuist share`.
+    apk_hash = :sha256 |> :crypto.hash("mock native payload 0") |> Base.encode16(case: :lower)
+
+    assert Enum.sort(Enum.map(Repo.all(AppBuild), &{&1.type, &1.supported_platforms, &1.build_version, &1.binary_id})) ==
+             [{:apk, [:android], "23", apk_hash}, {:app_bundle, [:ios_simulator], "45", nil}]
 
     assert Repo.get!(Publication, publication.id).projected
   end
