@@ -6,14 +6,14 @@ Choose Tuist when you want a BuildBuddy alternative that keeps Bazel's remote ca
 
 BuildBuddy's [public repository](https://github.com/buildbuddy-io/buildbuddy) describes a Bazel build-event viewer, result store, timing information, test logs, and remote cache. It identifies its core as MIT-licensed and documents cloud and self-hosted deployment. The [repository license](https://github.com/buildbuddy-io/buildbuddy/blob/master/LICENSE) explicitly separates `enterprise/` and third-party components from the MIT core. Check those terms rather than assigning the core license to every feature.
 
-Its [remote cache](https://www.buildbuddy.io/remote-cache/) and [remote execution documentation](https://www.buildbuddy.io/docs/remote-build-execution/) describe different mechanisms, and so does Tuist. Both reuse compatible Bazel action outputs through a remote cache. Cache reuse is not remote execution: running cache-miss actions on other machines is a separate service, and both products offer it.
+Its [remote cache](https://www.buildbuddy.io/remote-cache/) and [remote execution documentation](https://www.buildbuddy.io/docs/remote-build-execution/) describe different mechanisms, and so does Tuist. Both reuse compatible Bazel action outputs through a remote cache. Cache reuse is not remote execution: running cache-miss actions on other machines is a separate service, which both products offer; Tuist's is available to enabled accounts.
 
 ## Compare the Bazel workflow
 
 | Requirement | Tuist | BuildBuddy evidence to evaluate |
 | --- | --- | --- |
 | Reuse Bazel outputs | [Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache) shares compatible action outputs between developer machines, CI, and agents, without requiring Tuist Runners. | BuildBuddy provides a Bazel remote cache too. Compare locality, transfer, retention, trust, and diagnostics. |
-| Execute actions on remote workers | Available on request: [contact us](mailto:contact@tuist.dev) to enable it for your account. Then `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, which read from and write to the same remote cache. Actions need to run on the executors' Linux toolchain rather than local host tools. | BuildBuddy documents remote execution with platform and executor configuration. Remote execution and cache reuse have separate platform and executor requirements. |
+| Execute actions on remote workers | For enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, which read from and write to the same remote cache. Actions need to run on the executors' Linux toolchain rather than local host tools. | BuildBuddy documents remote execution with platform and executor configuration. Remote execution and cache reuse have separate platform and executor requirements. |
 | Explain a Bazel build | [Build Insights](/en/docs-markdown/guides/features/build-insights/bazel) records invocations, profiles, critical paths, and cache behavior, with authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp) for agents. | BuildBuddy also documents cloud/on-prem [MCP access](https://www.buildbuddy.io/docs/enterprise-mcp/) to build/test metadata, logs, artifacts, and target statuses. Compare tool coverage and permissions. |
 | Operate across several toolchains | Tuist also supports Xcode, Gradle, and Elixir insights; caching and test acceleration vary by integration. | The cited BuildBuddy capabilities are Bazel-focused. Verify any additional offering separately rather than inferring unsupported integrations from this comparison. |
 | Inspect or self-host | Tuist publishes source; [supported server self-hosting](/en/docs-markdown/guides/server/self-host/server) requires Enterprise and component terms vary. | BuildBuddy publishes an MIT core and self-hosting instructions; commercial features can have different requirements. |
@@ -56,7 +56,7 @@ Configure [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cach
 
 ### Is Tuist a BuildBuddy alternative?
 
-For Bazel remote caching, build and test results, and agent access to that evidence, yes: Tuist covers the same jobs through Bazel's standard remote cache and Build Event Service protocols. Tuist also runs Bazel actions remotely on Linux executors. The difference is scope: the same platform serves Xcode, Gradle, and Elixir builds.
+For Bazel remote caching, build and test results, and agent access to that evidence, yes: Tuist covers the same jobs through Bazel's standard remote cache and Build Event Service protocols. Tuist also runs Bazel actions remotely on Linux executors for enabled accounts; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it. The difference is scope: the same platform serves Xcode, Gradle, and Elixir builds.
 
 ### Do I need to change my BUILD files to switch?
 
@@ -64,7 +64,7 @@ No. Tuist connects through Bazel flags in a generated `.bazelrc.tuist`. Targets,
 
 ### Does Tuist support Bazel remote execution?
 
-Yes, on request. Remote execution is enabled per account, so [contact us](mailto:contact@tuist.dev) to turn it on. Then `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache, so cache misses run remotely instead of on the local machine or CI runner.
+Yes, for enabled accounts; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it. `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache, so cache misses run remotely instead of on the local machine or CI runner.
 
 ### Can I self-host Tuist like BuildBuddy?
 
