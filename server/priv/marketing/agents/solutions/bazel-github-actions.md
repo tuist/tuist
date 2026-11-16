@@ -1,4 +1,4 @@
-# Bazel on GitHub Actions: caching, remote execution, and setup
+# Bazel cache for GitHub Actions: a shared remote cache across runners
 
 Tuist makes Bazel on GitHub Actions fast by giving every ephemeral runner a shared remote cache and recording each invocation, so jobs reuse actions that developers and earlier jobs already ran. Improve the project first, then its execution environment: connect the workspace with `tuist bazel setup`, authenticate with GitHub's OIDC token instead of a stored secret, and use the recorded invocations to find what still runs on every job.
 

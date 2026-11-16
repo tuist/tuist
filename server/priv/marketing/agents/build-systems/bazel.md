@@ -1,4 +1,4 @@
-# Tuist with Bazel
+# Bazel remote cache and build insights with Tuist
 
 Tuist brings Bazel-native depth to one productivity platform for organizations with diverse build systems. Its remote action cache and build/test insights use protocols Bazel already supports, alongside the platform's supported Gradle, Xcode, Mix, and canary Once workflows. Keep your `BUILD` files, language rules, toolchains, and ordinary build commands; no migration to generated Xcode projects or Tuist Runners is required.
 
@@ -57,4 +57,4 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 Written by Tuist. Sources reviewed on **2026-10-09**: [Bazel remote caching](https://bazel.build/remote/caching), [remote execution](https://bazel.build/remote/rbe), [Build Event Protocol](https://bazel.build/remote/bep), and the linked Tuist references. Compare the build system at bazel.build, not a remote-infrastructure vendor's offering.
 
-[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)
+[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Bazel cache for GitHub Actions](/marketing-markdown/solutions/bazel-github-actions) · [BuildBuddy alternative](/marketing-markdown/compare/buildbuddy) · [EngFlow alternative](/marketing-markdown/compare/engflow) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)

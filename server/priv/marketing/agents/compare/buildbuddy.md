@@ -1,4 +1,4 @@
-# BuildBuddy alternative: Tuist for Bazel caching, remote execution, and build insights
+# BuildBuddy alternative: Tuist for Bazel remote caching and build insights
 
 Choose Tuist when you want a BuildBuddy alternative that keeps Bazel's remote cache, build event stream, and test results in one place with your Xcode, Gradle, and Elixir builds. Optimize the project first, then its execution environment. Start with [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache): one `tuist bazel setup` points Bazel at Tuist's remote cache and Build Event Service, and your `BUILD` files and commands stay the same.
 

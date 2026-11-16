@@ -1,4 +1,4 @@
-# EngFlow alternative: Tuist for Bazel caching, remote execution, and build insights
+# EngFlow alternative: Tuist for Bazel remote caching and build insights
 
 Choose Tuist when you want an EngFlow alternative that puts Bazel's remote cache, build events, and test results on the same platform as your Xcode, Gradle, and Elixir builds. Optimize the project first, then its execution environment. Start with [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache): `tuist bazel setup` points Bazel at Tuist's remote cache and Build Event Service through a credential helper, and your `BUILD` files and commands stay the same.
 
