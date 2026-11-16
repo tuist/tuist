@@ -3034,6 +3034,21 @@ defmodule Tuist.Accounts do
     end
   end
 
+  @doc """
+  Whether account `claims` (OIDC exchanges, agent and OAuth tokens) were issued
+  at or before the account's last bulk credential revocation (see
+  `Tuist.Accounts.CredentialRevocation`). These tokens are not stored, so this
+  is what revokes them.
+  """
+  def account_credentials_revoked?(%Account{credentials_revoked_at: nil}, _claims), do: false
+
+  def account_credentials_revoked?(%Account{credentials_revoked_at: revoked_at}, claims) do
+    case Map.get(claims, "auth_time") || Map.get(claims, "iat") do
+      issued_at when is_integer(issued_at) -> issued_at <= DateTime.to_unix(revoked_at)
+      _ -> true
+    end
+  end
+
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
     Repo.exists?(
       from(t in UserToken,

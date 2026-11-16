@@ -657,6 +657,67 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
+  Tells an account admin to rotate the account's Tuist credentials after a
+  security incident. `kind` is `:revoked` when Tuist already revoked them
+  (see `Tuist.Accounts.CredentialRevocation`), or `:rotate` when the admin
+  should rotate them. `details_url` links the incident write-up, if any.
+  """
+  def deliver_credential_rotation_notice(user, account, kind, details_url \\ nil) do
+    user |> credential_rotation_notice_email(account, kind, details_url) |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def credential_rotation_notice_email(user, account, kind, details_url \\ nil) when kind in [:revoked, :rotate] do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      tokens_url = Environment.app_url(path: "/#{account.name}/settings/tokens")
+
+      {subject, opening} =
+        case kind do
+          :revoked ->
+            {dgettext("dashboard_account", "We revoked the Tuist credentials of %{account_name}",
+               account_name: account.name
+             ),
+             dgettext(
+               "dashboard_account",
+               "As a precaution after a security incident, we revoked the credentials of %{account_name}: browser sessions, CLI sign-ins, account tokens, project tokens and legacy tokens. Members need to sign in again.",
+               account_name: account.name
+             )}
+
+          :rotate ->
+            {dgettext("dashboard_account", "Rotate the Tuist credentials of %{account_name}", account_name: account.name),
+             dgettext(
+               "dashboard_account",
+               "As a precaution after a security incident, we recommend rotating the credentials of %{account_name}: revoke its account and project tokens and create new ones.",
+               account_name: account.name
+             )}
+        end
+
+      paragraphs =
+        [
+          opening,
+          dgettext(
+            "dashboard_account",
+            "Create new tokens and update them wherever they are used, such as the TUIST_TOKEN variable of your CI. Where your CI supports it, use OpenID Connect instead, which needs no stored token."
+          )
+        ] ++
+          if(details_url,
+            do: [dgettext("dashboard_account", "Read more about the incident: %{url}", url: details_url)],
+            else: []
+          )
+
+      build_email(user.email, subject, %{
+        title: subject,
+        paragraphs: paragraphs,
+        button: {dgettext("dashboard_account", "Manage tokens"), tokens_url},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
+  @doc """
   Tells an account admin that a subscription payment failed. It makes no
   promise about how long the plan is kept: that is how long Stripe keeps
   retrying, a setting that can change.

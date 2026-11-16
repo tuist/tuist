@@ -54,6 +54,8 @@ defmodule Tuist.Accounts.Account do
     field :current_month_cache_egress_megabytes, :integer
     field :current_month_cache_requests, :integer
     field :free_tier_reset_at, :utc_datetime
+    # See `Tuist.Accounts.account_credentials_revoked?/2`.
+    field :credentials_revoked_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 
