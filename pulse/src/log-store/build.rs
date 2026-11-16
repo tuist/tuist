@@ -35,7 +35,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use protoc_rust::{Codegen, Customize};
+use protobuf_codegen::{Codegen, Customize};
 
 /// Returns whether `protoc` runs and meets Pulse's minimum supported version.
 fn usable_protoc(protoc: &Path) -> bool {
@@ -94,14 +94,12 @@ fn main() {
     std::fs::create_dir_all(&out_dir).expect("failed to create protobuf output directory");
 
     Codegen::new()
-        .protoc_path(protoc_path())
-        .out_dir(out_dir)
-        .input(proto)
-        .include(proto_dir)
-        .customize(Customize {
-            gen_mod_rs: Some(true),
-            ..Default::default()
-        })
+        .protoc()
+        .protoc_path(&protoc_path())
+        .include(&proto_dir)
+        .input(&proto)
+        .cargo_out_dir("protos")
+        .customize(Customize::default().gen_mod_rs(true))
         .run()
         .expect("failed to generate log-store protobuf bindings")
 }

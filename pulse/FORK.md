@@ -109,6 +109,16 @@ covered by this list.
   are dropped. Responses carry the envelope's event ID, as Sentry's do.
   `tests-integration`'s `test_sentry_envelope` sends envelopes captured from
   sentry-elixir and sentry-rust.
+- **rust-protobuf 3** ([`src/log-store`](src/log-store), [`third-party/raft-engine`](third-party/raft-engine)).
+  `log-store` generates its raft-engine messages with `protobuf-codegen` 3.7.2
+  instead of `protoc-rust` 2.28. Published `raft-engine` 0.4.2 requires
+  `protobuf` 2 and `prometheus` 0.13, and 2.28.0 is the last 2.x release, so
+  Pulse vendors that crate at the same version with those two dependencies
+  moved to `protobuf` 3.7.2 and `prometheus` 0.14. `tokio-metrics-collector`
+  0.2 also required `prometheus` 0.13, so the unstable runtime metrics path
+  uses 0.3 (and `tokio-metrics` 0.4, which that release requires). The
+  log-store messages are proto3 scalars and bytes, which both protobuf
+  libraries write in the standard wire format.
 - **Release image protoc** ([`docker/buildx/ubuntu/Dockerfile`](docker/buildx/ubuntu/Dockerfile)).
   The image `pulse-build-publish.yml` builds installed Ubuntu 22.04's protoc 3.12,
   which cannot compile `substrait`'s proto3 optional fields. It now installs

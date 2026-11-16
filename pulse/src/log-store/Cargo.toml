@@ -6,7 +6,7 @@ license.workspace = true
 
 [build-dependencies]
 protoc-bin-vendored.workspace = true
-protoc-rust.workspace = true
+protobuf-codegen.workspace = true
 
 [lints]
 workspace = true
@@ -38,7 +38,7 @@ lazy_static.workspace = true
 object-store.workspace = true
 pin-project.workspace = true
 prometheus.workspace = true
-protobuf = { version = "2", features = ["bytes"] }
+protobuf = "3.7.2"
 raft-engine.workspace = true
 rskafka.workspace = true
 serde.workspace = true

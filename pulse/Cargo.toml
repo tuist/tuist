@@ -216,7 +216,7 @@ promql-parser = { version = "0.10.0", features = ["ser"] }
 prost = { version = "0.14", features = ["no-recursion-limit"] }
 prost-types = "0.14"
 protoc-bin-vendored = "3.2"
-protoc-rust = "2.28"
+protobuf-codegen = "3.7.2"
 raft-engine = { version = "0.4.1", default-features = false }
 rand = "0.9"
 ratelimit = "0.10"
@@ -387,6 +387,10 @@ sqlparser = { git = "https://github.com/GreptimeTeam/sqlparser-rs.git", rev = "9
 # pprof 0.15.0 initializes framehop inside SIGPROF; pin the unreleased fix
 # that initializes it before sampling. Remove once tikv/pprof-rs#282 is released.
 pprof = { git = "https://github.com/tikv/pprof-rs", rev = "01cff82dbe6fe110a707bf2b38d8ebb1d14a18f8" }
+
+# raft-engine 0.4.2 requires protobuf 2. This copy uses protobuf 3.7.2 so the
+# lockfile does not keep the vulnerable 2.28.0 release. See pulse/FORK.md.
+raft-engine = { path = "third-party/raft-engine" }
 
 # Temporary: use the GreptimeTeam fork of tikv-jemalloc-sys embedding
 # jemalloc 5.3.1 + backport of 54f22c83 ("Initialize TSD tcache before
