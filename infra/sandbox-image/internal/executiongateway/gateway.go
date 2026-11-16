@@ -37,8 +37,11 @@ type Gateway struct {
 	URL    string
 	Client *http.Client
 	// Dial opens action-cache connections; tests replace it.
-	Dial  func(endpoint string) (*grpc.ClientConn, error)
-	slots chan struct{}
+	Dial func(endpoint string) (*grpc.ClientConn, error)
+	// ActionReadBudget is how long Execute keeps trying to read an action
+	// for its VM size; tests shorten it.
+	ActionReadBudget time.Duration
+	slots            chan struct{}
 
 	publications chan struct{}
 	pending      sync.WaitGroup
@@ -72,7 +75,7 @@ func New(serverURL string) *Gateway {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
 	registry := prometheus.NewRegistry()
-	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
+	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, ActionReadBudget: 2 * time.Minute, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)

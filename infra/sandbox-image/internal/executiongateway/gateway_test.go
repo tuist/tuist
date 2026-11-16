@@ -16,6 +16,7 @@ import (
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -401,10 +402,11 @@ type blobStore struct {
 	// inputs answers a read of one action that asks for its inputs with them
 	// too, as Kura does; tamper corrupts the last input it returns.
 	inputs, tamper bool
-	// fail answers every read with an error.
-	fail      bool
-	reads     atomic.Int32
-	treeCalls atomic.Int32
+	// fail answers every read with an error, unavailable its first reads.
+	fail        bool
+	unavailable int32
+	reads       atomic.Int32
+	treeCalls   atomic.Int32
 }
 
 func (b *blobStore) GetTree(r *re.GetTreeRequest, s grpc.ServerStreamingServer[re.GetTreeResponse]) error {
@@ -444,7 +446,9 @@ func (b *blobStore) message(m proto.Message) *re.Digest {
 }
 
 func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
-	b.reads.Add(1)
+	if b.reads.Add(1) <= b.unavailable {
+		return nil, status.Error(codes.Unavailable, "cache busy")
+	}
 	if b.fail {
 		return nil, status.Error(codes.Internal, "cache failure")
 	}
@@ -571,6 +575,48 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 	}
 	if auth, _ := store.auth.Load().([]string); len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
 		t.Fatalf("credentials: %v", auth)
+	}
+}
+
+// A cache too busy to answer the prefetch and the first size read must delay
+// a larger action, not fail it: Bazel would fail the build.
+func TestExecuteRetriesTheActionReadForItsSize(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}, unavailable: 2}
+	command := store.message(&re.Command{Arguments: []string{"true"}})
+	root := store.message(&re.Directory{})
+	platform := &re.Platform{Properties: []*re.Platform_Property{{Name: worker.MemoryProperty, Value: "8"}}}
+	action := store.message(&re.Action{CommandDigest: command, InputRootDigest: root, Platform: platform})
+	l := bufconn.Listen(1 << 20)
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, store)
+	go s.Serve(l)
+	t.Cleanup(s.Stop)
+	g := New("https://control.example")
+	g.Dial = func(string) (*grpc.ClientConn, error) {
+		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+	}
+	bodies := make(chan map[string]any, 1)
+	client, _ := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			return response(200, `{"image":"sha-x","cas_endpoint":"grpcs://cache.example"}`), nil
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies <- body
+		return response(202, `{"id":"`+id+`","state":"completed","done":true}`), nil
+	})
+	stream, err := client.Execute(authenticated(), &re.ExecuteRequest{InstanceName: "app", ActionDigest: action})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := stream.Recv(); err != nil || !result.Done {
+		t.Fatalf("result: %v %v", result, err)
+	}
+	if body := <-bodies; body["memory_gb"] != float64(8) {
+		t.Fatalf("memory_gb %v; want 8", body["memory_gb"])
+	}
+	if reads := store.reads.Load(); reads != 3 {
+		t.Fatalf("cache reads %d; want the prefetch, a refused size read and its retry", reads)
 	}
 }
 

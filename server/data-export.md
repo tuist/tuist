@@ -1276,6 +1276,40 @@ requires separate authorized operator handling. The SQL projections, nanosecond
 timestamps and aggregate queries have been exercised against Pulse;
 this does not establish complete attribution for every collector or source.
 
+### Pulse errors
+
+Services whose Sentry DSN points at Pulse (`/v1/sentry/<service>/...`, see
+`infra/helm/pulse/README.md`) have their error events stored in the
+`errors` table of the same `public` database, one row per event, so its storage
+location, buckets and access identities are those of the telemetry above. Until
+a service's DSN is switched, its events go only to Atlas. Rows hold the occurrence time, the producing service, the
+Atlas-compatible grouping `fingerprint`, Sentry `event_id`, level, environment,
+release, platform, pod `server_name`, transaction, logger, exception type and
+value, title, culprit, `trace_id` (which relates the error to spans and logs),
+SDK, the `account_handle` of the selected or authenticated account from the
+event's extras or tags, and `event`, a JSON projection with exceptions and stack
+frames (file, module, function, line and that line's source), the last 20
+breadcrumbs (category, level, type, message, time), flattened tags, extra and
+contexts, the request method and URL path, and the message.
+
+The `sentry_errors` pipeline scrubs before storage: it drops the Sentry `user`
+object, request headers, cookies, bodies, query strings and environment, frame
+variables and module lists; replaces values whose tag, extra or context key path
+names a credential, session, email, phone, IP address (including `ip`,
+`client_ip`, `remote_ip` and forwarding headers), card, user or similar with
+`[Filtered]`, as well as arrays holding objects with such keys; and redacts
+credentials in URLs, query strings, emails, bearer and Basic credentials, Tuist
+tokens, JWTs and IPv4 and IPv6 addresses in every stored string. Exception messages and breadcrumbs can still contain other
+identifiers. Production keeps errors for 90 days and staging and canary for 7
+days (table TTL); physical object reclamation can lag logical expiry.
+
+For a legal export, query `errors` with the read-only `dashboard` identity as
+above: match the subject's handles in `account_handle`, then search `title`,
+`exception_value` and `json_to_string(event)` for their other verified
+identifiers within the retained window, and include related spans and logs by
+`trace_id`. Atlas keeps its own copy of the same events (see Atlas's
+`data-export.md`).
+
 ## Bazel remote execution
 
 - **Purpose:** Account-controlled Linux build and test execution.

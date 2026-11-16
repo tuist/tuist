@@ -163,7 +163,9 @@ Each environment moves in this order:
    not grant lifecycle-write or cross-bucket permissions, broaden IAM or bypass
    the probe. CI then applies `ALTER DATABASE public SET 'ttl' = '7d'` in
    staging/canary and **`'forever'` in production**, bootstraps native OTLP
-   metrics/logs/traces and the `loki_otlp` pipeline (`loki-otlp.yaml`), and smoke
+   metrics/logs/traces, the `loki_otlp` pipeline (`loki-otlp.yaml`), the `errors`
+   table (`errors.sql`, 90-day TTL in production, 7 days elsewhere) and the
+   `sentry_errors` pipeline (`sentry-errors.yaml`; see [Errors](#errors)), and smoke
    tests dashboard reads, rejected dashboard mutation, rejected writer reads and
    unauthenticated rejection, then rereads the data after restarting every
    stateful component.
@@ -237,6 +239,33 @@ identity that Kubernetes `podSelector`/`ipBlock` rules never match; without
 this policy Hubble shows them as `POLICY_DENIED` and Pulse has no
 `tuist-kube-apiserver` or `tuist-etcd` series. Pulse still authenticates them.
 
+## Errors
+
+Errors are Sentry events stored one row per event in `errors`. Pulse accepts
+Sentry envelopes itself (see `pulse/FORK.md`): an SDK whose DSN is
+`http://tuist:<password>@pulse.observability:4000/v1/sentry/<service>/1` posts
+to `/v1/sentry/<service>/api/1/envelope/`, authenticating as the write-only
+`tuist` identity, and Pulse runs each `event` item through the `sentry_errors`
+pipeline into `errors`, tagged with `<service>`. No producer uses such a DSN
+yet; Atlas stays the destination of every SDK until a DSN is switched. The
+pipeline computes Atlas's fingerprint from the raw event, so an issue is
+`(service, fingerprint)` with the fingerprint Atlas has for the same event, and
+stores only a scrubbed projection (no user, request headers, cookies, bodies or
+query strings, frame variables or module lists; credential, contact and
+IP-address keys filtered; credentials in URLs, query strings, emails, bearer and
+Basic credentials, Tuist tokens, JWTs and IPv4 and IPv6 addresses redacted in
+stored text). The table is not append-only: retried events with the same issue
+and timestamp merge on read.
+
+`sentry-errors-cases.json` holds grouping cases with Atlas's fingerprints. Atlas's
+`fingerprint_test.exs` and `test-sentry-errors.mjs`, which the validate job runs
+against the pinned Pulse image, both check them; change the pipeline and Atlas's
+`Fingerprint` together. To run it locally against a disposable Pulse:
+
+```bash
+PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/pulse/test-sentry-errors.mjs
+```
+
 ## Rollback boundaries
 
 Rolling back a collector change means pointing `k8s-monitoring` back at
@@ -259,6 +288,7 @@ the first install.
 bash infra/helm/pulse/test-managed.sh
 node --test .github/scripts/pulse-storage.test.mjs
 node --test .github/scripts/pulse-readiness.test.mjs
+PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/pulse/test-sentry-errors.mjs
 helm repo add grafana https://grafana.github.io/helm-charts
 helm dependency build infra/helm/k8s-monitoring
 bash .github/scripts/pulse-collectors.test.sh

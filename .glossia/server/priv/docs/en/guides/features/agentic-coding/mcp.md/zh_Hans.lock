@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "8bafe9e3309d2521d35fbcf0174d177253b90db701cc01807577efa97970b1e1",
+  "hash": "ce6ac24a2449ced136407c5ba137fba08377cc690bda31a9ec5e843dbd25b093",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Model Context Protocol": {
-                  "content_hash": "efca65ba86fbd000287edd1a1aeadfb0466b9c347b0a12e4873a7c672fd3d62a"
+                  "content_hash": "71fea7eb67779b34c0d0c663f9f5801e0b4c047db205d7defc0d2d7b2d212c7f"
                 },
                 "## Agents in Amp orbs and Claude Code cloud sessions": {
                   "content_hash": "c79a34c9d1cd74e73daaa1cc7c8d4892b62313a9913fa811b163a44b81dfb81a"
@@ -29,7 +29,7 @@
                   "content_hash": "96302518cb6aab6e284be7e1c6aaf4f3f04705337f8ed8283a121e57b36a5b5c"
                 },
                 "## WebMCP": {
-                  "content_hash": "4e1e5293ec4f74841f98cbb766b68e413ab8885ee7de70983e1b245eca17e3b5"
+                  "content_hash": "1d187d0a352591dd7488c03b01c16021ed73c094a4bc4f05a908e330da7a13ea"
                 },
                 "### Events": {
                   "content_hash": "c772e92fa6f357d052340fdf7a6cb956a73d6916a74b9a1bb04a4b7c46477068"
@@ -38,13 +38,10 @@
                   "content_hash": "2754eafd8e752cb6dc5adb1feeb5ff92eef864da76417043cb52be4f4536c1b3"
                 },
                 "### Pulse": {
-                  "content_hash": "c4680bd77806e316a6f22e3adb85af32b335bdaf4d5d36a3caaacc8832db4978"
+                  "content_hash": "4e8c0094e243015d24e66c17a5c06fc8ff857a65954446fbc99597672b55c920"
                 },
                 "### Tools": {
                   "content_hash": "567e276366b6da045cf72bd96b8c61d9632bfbe119ec50ca1a4de292f531f06f"
-                },
-                "#### AI subscriptions": {
-                  "content_hash": "07059a7a05eedab86d512f351b7792c74e90b9cb489a2c62029866037982d959"
                 },
                 "#### Account tokens": {
                   "content_hash": "5ff48a86344ab02ec828d42b5ebb2c762123c70a74db57e9b5c66bf0fb6398d2"
@@ -137,11 +134,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "07df030e1b2060d98257e448b37eb9c2276a9d46a10ae5cd036c647879a9186d",
+          "hash": "b11c16866eab8d07726af601222704aa95cc1a839c1c78ca0e2094d66fc05310",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "f2c042038254a777fc7acf85c88d0027d925f5dc5d3ae2a3a43b97aa67fdeaba"
+            "content_hash": "8a44a8797aae76ae7a62554594dd3e3f666579820d5972ee178a203c501551ca"
           }
         },
         {
@@ -374,14 +371,14 @@
         }
       ],
       "details": {},
-      "hash": "8bafe9e3309d2521d35fbcf0174d177253b90db701cc01807577efa97970b1e1",
+      "hash": "ce6ac24a2449ced136407c5ba137fba08377cc690bda31a9ec5e843dbd25b093",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8f62caf7a91bce60ca6bc24e28a87b60ebc522281af944ed658ab48f9fdbcb1a",
+  "output_hash": "88d726cdca08dc4faf09335aeaf48d61dd8fd7a07134af12b78e8c51af4ae0a8",
   "output_path": "server/priv/docs/zh_Hans/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -407,8 +404,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "3343fa17be541e62e88c4655870e4f4f25decbb1",
+  "source_commit_sha": "5db7c9d34e06273a7d30dfc80f05be34bf77b8e0",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-14T12:33:40.564374Z",
-  "translation_session_id": "01a1da0b-01c3-74b9-b5ca-d9df88ae5de7"
+  "translated_at": "2026-11-16T08:08:35.389647Z",
+  "translation_session_id": "01a1e365-27fa-7a6a-95cc-df4c1ffa9417"
 }

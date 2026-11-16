@@ -11,6 +11,7 @@ defmodule TuistWeb.PulseLive do
   alias Noora.Filter
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Pulse
+  alias Tuist.Utilities.DateFormatter
 
   @refresh_interval 15_000
   @table_params ~w(query range page page_size sort_by sort_order search end_at)
@@ -382,6 +383,7 @@ defmodule TuistWeb.PulseLive do
               active_filters={@active_filters}
             />
             <.button
+              :if={@signal != "errors"}
               id="pulse-toggle-query"
               variant="secondary"
               label={query_language(@signal)}
@@ -395,7 +397,7 @@ defmodule TuistWeb.PulseLive do
             <.active_filter :for={filter <- @active_filters} filter={filter} />
           </div>
           <.form
-            :if={@show_query}
+            :if={@show_query && @signal != "errors"}
             id="pulse-expression-form"
             for={@form}
             phx-submit="query"
@@ -437,6 +439,7 @@ defmodule TuistWeb.PulseLive do
                 </div>
               <% else %>
                 <.table
+                  :if={@signal != "errors"}
                   id="pulse-table"
                   rows={Enum.with_index(@telemetry.result.rows)}
                   row_key={fn {_, index} -> "pulse-row-#{index}" end}
@@ -449,6 +452,87 @@ defmodule TuistWeb.PulseLive do
                     sort_order={@sort_by == column.key && @sort_order}
                   >
                     <.text_cell label={cell(row, column.key)} data-column={column.key} />
+                  </:col>
+                </.table>
+                <.table
+                  :if={@signal == "errors"}
+                  id="pulse-table"
+                  rows={@telemetry.result.rows}
+                  row_key={&issue_row_id/1}
+                  row_navigate={fn row -> issue_path(assigns, row) end}
+                >
+                  <:col
+                    :let={row}
+                    label={dgettext("dashboard_pulse", "Issue")}
+                    patch={sort_patch(assigns, "title")}
+                    sort_order={@sort_by == "title" && @sort_order}
+                  >
+                    <div data-part="issue-cell">
+                      <div data-part="issue-title">
+                        <span data-part="platform-icon" title={error_platform_label(row["platform"])}>
+                          <.icon name={error_platform_icon(row["platform"])} />
+                        </span>
+                        <span data-part="issue-label" title={row["title"]}>{row["title"]}</span>
+                      </div>
+                      <div data-part="issue-context">
+                        <.badge
+                          :if={row["level"]}
+                          label={row["level"]}
+                          color={error_level_color(row["level"])}
+                          style="light-fill"
+                          size="small"
+                        />
+                        <span :if={row["culprit"]} data-part="issue-culprit" title={row["culprit"]}>
+                          {row["culprit"]}
+                        </span>
+                        <span data-part="issue-service">· {row["service"]}</span>
+                      </div>
+                    </div>
+                  </:col>
+                  <:col
+                    :let={row}
+                    :for={{key, label} <- error_time_columns()}
+                    label={label}
+                    patch={sort_patch(assigns, key)}
+                    sort_order={@sort_by == key && @sort_order}
+                  >
+                    <.text_cell
+                      label={timestamp_relative(row[key])}
+                      title={timestamp_label(row[key]) <> " UTC"}
+                    />
+                  </:col>
+                  <:col :let={row} label={dgettext("dashboard_pulse", "Trend")}>
+                    <div
+                      data-part="issue-trend"
+                      aria-label={dgettext("dashboard_pulse", "Events over the selected period")}
+                    >
+                      <.chart
+                        :if={row["occurrence_series"] not in [nil, []]}
+                        id={issue_row_id(row) <> "-trend"}
+                        type="bar"
+                        series={[
+                          %{
+                            name: "events",
+                            data:
+                              Enum.map(row["occurrence_series"], fn [time, count] ->
+                                [time * 1000, count]
+                              end)
+                          }
+                        ]}
+                        show_legend={false}
+                        extra_options={sparkline_options()}
+                        data-lazy="true"
+                      />
+                      <span :if={row["occurrence_series"] in [nil, []]}>—</span>
+                    </div>
+                  </:col>
+                  <:col
+                    :let={row}
+                    label={dgettext("dashboard_pulse", "Events")}
+                    patch={sort_patch(assigns, "events")}
+                    sort_order={@sort_by == "events" && @sort_order}
+                  >
+                    <.text_cell label={format_number(row["events"], fractional_digits: 0)} />
                   </:col>
                 </.table>
               <% end %>
@@ -505,6 +589,7 @@ defmodule TuistWeb.PulseLive do
 
   defp trend_type("metrics", "healthy"), do: :regular
   defp trend_type("metrics", "unhealthy"), do: :inverse
+  defp trend_type("errors", _id), do: :inverse
   defp trend_type(_signal, id) when id in ~w(errors warnings duration_p95), do: :inverse
   defp trend_type(_signal, _id), do: :neutral
 
@@ -563,7 +648,8 @@ defmodule TuistWeb.PulseLive do
     }
   end
 
-  defp timestamp_label(value) do
+  @doc "A Unix-nanosecond string as a UTC timestamp with microseconds."
+  def timestamp_label(value) do
     with {ns, ""} <- Integer.parse(to_string(value || "")),
          {:ok, time} <- DateTime.from_unix(div(ns, 1000), :microsecond) do
       Calendar.strftime(time, "%Y-%m-%d %H:%M:%S.%f")
@@ -571,6 +657,51 @@ defmodule TuistWeb.PulseLive do
       _ -> "—"
     end
   end
+
+  @doc "A Unix-nanosecond string relative to now, such as \"5 minutes ago\"."
+  def timestamp_relative(value) do
+    with {ns, ""} <- Integer.parse(to_string(value || "")),
+         {:ok, time} <- DateTime.from_unix(div(ns, 1000), :microsecond) do
+      DateFormatter.from_now(time)
+    else
+      _ -> "—"
+    end
+  end
+
+  def error_platform_icon("elixir"), do: "brand_elixir"
+  def error_platform_icon("rust"), do: "brand_rust"
+  def error_platform_icon("swift"), do: "brand_swift"
+  def error_platform_icon(_), do: "devices_code"
+
+  def error_platform_label(nil), do: dgettext("dashboard_pulse", "Not recorded")
+  def error_platform_label("elixir"), do: "Elixir"
+  def error_platform_label("rust"), do: "Rust"
+  def error_platform_label("swift"), do: "Swift"
+  def error_platform_label(value), do: value
+
+  def error_level_color(level) when level in ~w(error fatal), do: "destructive"
+  def error_level_color(level) when level in ~w(warning warn), do: "warning"
+  def error_level_color(_), do: "neutral"
+
+  defp error_time_columns,
+    do: [
+      {"last_seen", dgettext("dashboard_pulse", "Last seen")},
+      {"first_seen", dgettext("dashboard_pulse", "First seen")}
+    ]
+
+  defp sparkline_options do
+    %{
+      animation: false,
+      grid: %{left: 0, right: 0, top: 4, bottom: 4},
+      xAxis: %{show: false},
+      yAxis: %{show: false, min: 0},
+      tooltip: %{show: false},
+      legend: %{show: false}
+    }
+  end
+
+  defp issue_row_id(row),
+    do: "pulse-issue-" <> Base.url_encode64(row["service"] <> ":" <> row["fingerprint"], padding: false)
 
   defp cell(row, "timestamp"), do: timestamp_label(row["timestamp"])
 
@@ -599,6 +730,15 @@ defmodule TuistWeb.PulseLive do
       %{key: "trace_id", label: dgettext("dashboard_pulse", "Trace ID")}
     ]
 
+  defp columns("errors"),
+    do: [
+      %{key: "title", label: dgettext("dashboard_pulse", "Issue")},
+      %{key: "service", label: dgettext("dashboard_pulse", "Service")},
+      %{key: "events", label: dgettext("dashboard_pulse", "Events")},
+      %{key: "first_seen", label: dgettext("dashboard_pulse", "First seen")},
+      %{key: "last_seen", label: dgettext("dashboard_pulse", "Last seen")}
+    ]
+
   defp columns(_),
     do: [
       %{key: "timestamp", label: dgettext("dashboard_pulse", "Time (UTC)")},
@@ -609,7 +749,7 @@ defmodule TuistWeb.PulseLive do
     ]
 
   defp define_filters(signal) do
-    fields = if signal == "logs", do: ~w(service level), else: ~w(service)
+    fields = if signal in ~w(logs errors), do: ~w(service level), else: ~w(service)
     labels = %{"service" => dgettext("dashboard_pulse", "Service"), "level" => dgettext("dashboard_pulse", "Level")}
 
     Enum.map(fields, &%Filter.Filter{id: &1, display_name: labels[&1], type: :text, operator: :==, value: ""})
@@ -629,8 +769,9 @@ defmodule TuistWeb.PulseLive do
   end
 
   defp default_sort("metrics"), do: "name"
+  defp default_sort("errors"), do: "last_seen"
   defp default_sort(_), do: "timestamp"
-  defp default_order(field) when field in ~w(name service level), do: "asc"
+  defp default_order(field) when field in ~w(name service level title), do: "asc"
   defp default_order(_), do: "desc"
 
   defp sort_options(signal) do
@@ -639,6 +780,7 @@ defmodule TuistWeb.PulseLive do
         "metrics" -> ~w(name value)
         "logs" -> ~w(timestamp service level)
         "traces" -> ~w(timestamp service name duration_ms)
+        "errors" -> ~w(last_seen first_seen events title service)
       end
 
     for column <- columns(signal), column.key in fields, do: {column.key, column.label}
@@ -663,19 +805,32 @@ defmodule TuistWeb.PulseLive do
     signal_path(assigns.selected_account, assigns.signal, params)
   end
 
+  defp issue_path(assigns, row) do
+    params =
+      assigns.params
+      |> Map.take(~w(range))
+      |> Map.put("end_at", assigns.telemetry.result.meta["end_at"])
+      |> Map.put("service", row["service"])
+
+    ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{row["fingerprint"]}?#{params}"
+  end
+
   defp live_table?(assigns), do: assigns.params["page"] in [nil, "1", 1] && !assigns.params["end_at"]
 
   defp signal_path(account, "metrics", params), do: ~p"/#{account.name}/~/pulse/metrics?#{params}"
   defp signal_path(account, "logs", params), do: ~p"/#{account.name}/~/pulse/logs?#{params}"
   defp signal_path(account, "traces", params), do: ~p"/#{account.name}/~/pulse/traces?#{params}"
+  defp signal_path(account, "errors", params), do: ~p"/#{account.name}/~/pulse/errors?#{params}"
   defp title("metrics"), do: dgettext("dashboard_pulse", "Metrics")
   defp title("logs"), do: dgettext("dashboard_pulse", "Logs")
   defp title("traces"), do: dgettext("dashboard_pulse", "Traces")
+  defp title("errors"), do: dgettext("dashboard_pulse", "Errors")
   defp query_language("metrics"), do: "PromQL"
   defp query_language(_), do: dgettext("dashboard_pulse", "Text search (* for all)")
 
   defp signal_icon("metrics"), do: "chart_arcs"
   defp signal_icon("traces"), do: "list_tree"
+  defp signal_icon("errors"), do: "alert_circle"
   defp signal_icon(_), do: "file_text"
   defp range_label("15m"), do: dgettext("dashboard_pulse", "Last 15 minutes")
   defp range_label("6h"), do: dgettext("dashboard_pulse", "Last 6 hours")
@@ -776,6 +931,40 @@ defmodule TuistWeb.PulseLive do
           dgettext(
             "dashboard_pulse",
             "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
+          )
+      }
+    ]
+
+  defp widgets("errors"),
+    do: [
+      %{
+        id: "events",
+        title: dgettext("dashboard_pulse", "Error events"),
+        color: "primary",
+        description:
+          dgettext(
+            "dashboard_pulse",
+            "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
+          )
+      },
+      %{
+        id: "fatal",
+        title: dgettext("dashboard_pulse", "Fatal events"),
+        color: "destructive",
+        description:
+          dgettext(
+            "dashboard_pulse",
+            "Sentry events labelled fatal in the selected period. The chart shows events per interval."
+          )
+      },
+      %{
+        id: "services",
+        title: dgettext("dashboard_pulse", "Affected services"),
+        color: "secondary",
+        description:
+          dgettext(
+            "dashboard_pulse",
+            "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
           )
       }
     ]

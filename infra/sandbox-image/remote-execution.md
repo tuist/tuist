@@ -147,8 +147,10 @@ memory sizes, not per-toolchain pools, and the property is part of the action
 digest like the image.
 
 - The gateway reads the size from the action's platform. It uses the action
-  its prefetch read, or reads it again with a ten-second timeout; it fails the
-  call `UNAVAILABLE` when it cannot, because running the action in a smaller
+  its prefetch read, or reads it again, retrying a slow or failed read with
+  backoff for up to two minutes: a busy cache otherwise fails the build, since
+  Bazel gives up on the call after a few quick retries. It fails the call
+  `UNAVAILABLE` when it still cannot, because running the action in a smaller
   VM would only fail it. It asks the server for the project's cache endpoint
   when it no longer remembers one: clients check capabilities once per build.
   Leases hold default VMs, so larger actions always go through the server,

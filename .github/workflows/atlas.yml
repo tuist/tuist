@@ -11,6 +11,8 @@ on:
       - .github/workflows/atlas.yml
       - .github/workflows/atlas-deployment-validation.yml
       - once.toml
+      # Grouping cases shared with Pulse's sentry_errors pipeline.
+      - infra/helm/pulse/sentry-errors-cases.json
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -21,6 +23,8 @@ on:
       - .github/workflows/atlas.yml
       - .github/workflows/atlas-deployment-validation.yml
       - once.toml
+      # Grouping cases shared with Pulse's sentry_errors pipeline.
+      - infra/helm/pulse/sentry-errors-cases.json
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

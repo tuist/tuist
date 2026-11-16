@@ -694,6 +694,13 @@
             role="tabpanel"
             aria-labelledby={"customers-tab-#{slide.slug}"}
           >
+            <%!-- How long the customer has used Tuist, above its story;
+            slides without a confirmed date show none. --%>
+            <span :if={slide.since} data-part="since">
+              {dgettext("marketing", "Using Tuist since %{date}",
+                date: Timex.format!(slide.since, "{Mfull} {YYYY}")
+              )}
+            </span>
             <p>{slide.statement}</p>
             <.button
               :if={slide.href}

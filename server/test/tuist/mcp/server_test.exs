@@ -96,11 +96,11 @@ defmodule Tuist.MCP.ServerTest do
       assert "query_pulse" in tool_names
       assert "get_pulse_analytics" in tool_names
 
-      for name <- ~w(query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace) do
+      for name <-
+            ~w(get_pulse_error_issue query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace) do
         assert name in tool_names
       end
 
-      refute "get_pulse_error_issue" in tool_names
       refute "get_pulse_error_event" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
@@ -123,7 +123,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.65.0"
+      assert server.version == "1.67.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
@@ -144,6 +144,15 @@ defmodule Tuist.MCP.ServerTest do
       refute server.instructions =~ "tuist auth whoami"
       refute server.instructions =~ "Gradle"
       refute server.instructions =~ "Bazel"
+    end
+
+    test "keeps AI subscription credentials and sign-ins off the connector" do
+      tool_names = Map.keys(Server.server().tools)
+
+      for name <-
+            ~w(list_ai_subscriptions connect_claude_subscription start_chatgpt_subscription_login poll_chatgpt_subscription_login cancel_chatgpt_subscription_login disconnect_ai_subscription) do
+        refute name in tool_names
+      end
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do

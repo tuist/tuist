@@ -2831,6 +2831,15 @@
             transition: none;
           }
 
+          /* A case-study slide's start date, left-aligned above its
+             statement and centred between it and the logo tabs: the gap
+             below matches the card's top padding. */
+          & > [data-part="since"] {
+            margin-bottom: var(--noora-spacing-9);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+
           /* Runs the full card width, inside its 8px side padding. */
           & > p {
             margin-top: 0;

@@ -122,6 +122,10 @@ defmodule Tuist.Pulse.SQL do
   defp aggregate_expression("traces", "duration_p95"),
     do: {"opentelemetry_traces", "approx_percentile_cont(duration_nano, 0.95) / 1000000000.0", nil}
 
+  defp aggregate_expression("errors", "events"), do: {"errors", "count(*)", nil}
+  defp aggregate_expression("errors", "fatal"), do: {"errors", "count(*)", ~s|"level" = 'fatal'|}
+  defp aggregate_expression("errors", "services"), do: {"errors", "count(DISTINCT nullif(service, ''))", nil}
+
   def bounds(start, finish),
     do: "timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"
 

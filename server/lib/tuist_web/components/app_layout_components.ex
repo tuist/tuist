@@ -520,7 +520,8 @@ defmodule TuistWeb.AppLayoutComponents do
                     String.starts_with?(@current_path, item.path <> "/")
 
                   item.id == "sidebar-pulse" ->
-                    @current_path == child.path
+                    @current_path == child.path or
+                      String.starts_with?(@current_path, child.path <> "/")
 
                   true ->
                     String.starts_with?(@current_path, child.path)

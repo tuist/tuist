@@ -6,7 +6,7 @@ defmodule Tuist.MCP.WebMCPTest do
   alias Tuist.MCP.Server
   alias Tuist.MCP.WebMCP
 
-  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization ai-subscriptions pulse)
+  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization pulse)
   @build_systems ~w(xcode gradle bazel cargo mix once)
 
   setup do
@@ -30,8 +30,6 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/settings/tokens/1", user, nil) == "account-tokens"
     assert WebMCP.dashboard_page("/acme/settings", organization, nil) == "organization"
     assert WebMCP.dashboard_page("/acme/settings", user, nil) == nil
-    assert WebMCP.dashboard_page("/acme/settings/ai", user, nil) == "ai-subscriptions"
-    assert WebMCP.dashboard_page("/acme/settings/ai", organization, nil) == nil
     assert WebMCP.dashboard_page("/acme", user, nil) == "projects"
     assert WebMCP.dashboard_page("/acme/cache", organization, nil) == nil
   end
@@ -40,33 +38,17 @@ defmodule Tuist.MCP.WebMCPTest do
     organization = %{organization_id: 1}
 
     pulse_tools =
-      ~w(query_pulse get_pulse_analytics query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
+      ~w(query_pulse get_pulse_analytics get_pulse_error_issue query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
 
-    for path <- ~w(metrics logs traces) do
+    for path <- ~w(metrics logs traces errors errors/issues/abc) do
       assert WebMCP.dashboard_page("/acme/~/pulse/#{path}", organization, nil) == "pulse"
     end
-
-    assert WebMCP.dashboard_page("/acme/~/pulse/errors", organization, nil) == nil
-    refute Map.has_key?(WebMCP.account_server("pulse", nil).tools, "get_pulse_error_issue")
 
     assert pulse_tools -- Map.keys(WebMCP.account_server("pulse", nil).tools) == []
     assert Map.keys(WebMCP.public_server().tools) -- pulse_tools == Map.keys(WebMCP.public_server().tools)
 
     for page <- @pages -- ["pulse"] do
       assert Enum.all?(pulse_tools, &(not Map.has_key?(WebMCP.account_server(page, nil).tools, &1)))
-    end
-  end
-
-  test "the AI subscriptions page offers only the read-only list, and no other page does" do
-    assert "list_ai_subscriptions" in Map.keys(WebMCP.account_server("ai-subscriptions", nil).tools)
-
-    write_tools =
-      ~w(connect_claude_subscription start_chatgpt_subscription_login poll_chatgpt_subscription_login cancel_chatgpt_subscription_login disconnect_ai_subscription)
-
-    for page <- @pages, build_system <- [nil | @build_systems] do
-      names = Map.keys(WebMCP.account_server(page, build_system).tools)
-      assert names -- write_tools == names
-      if page != "ai-subscriptions", do: refute("list_ai_subscriptions" in names)
     end
   end
 

@@ -3,26 +3,52 @@ defmodule Tuist.Pulse.Schemas do
 
   alias OpenApiSpex.Schema
 
+  def inputs(:error_issue) do
+    fields =
+      Map.merge(options(:error_issue), %{
+        account_handle: string(),
+        fingerprint: %Schema{
+          type: :string,
+          pattern: "^[0-9a-f]{64}$",
+          description: "The issue's fingerprint from an errors row, which Atlas computes identically."
+        }
+      })
+
+    %{object("PulseErrorIssueInput", fields) | required: [:account_handle, :fingerprint, :service]}
+  end
+
   def inputs(action) do
     fields =
       action
       |> options()
-      |> Map.merge(%{account_handle: string(), signal: %Schema{type: :string, enum: ~w(metrics logs traces)}})
+      |> Map.merge(%{account_handle: string(), signal: %Schema{type: :string, enum: ~w(metrics logs traces errors)}})
 
     %{object("Pulse#{action}Input", fields) | required: [:account_handle, :signal]}
   end
+
+  @path ~w(account_handle signal fingerprint)a
 
   def parameters(action) do
     input = inputs(action)
 
     for name <- input.required ++ Enum.sort(Map.keys(input.properties) -- input.required) do
       schema = Map.fetch!(input.properties, name)
-      path? = name in input.required
-      {name, [in: if(path?, do: :path, else: :query), type: schema, required: path?]}
+      path? = name in @path
+      {name, [in: if(path?, do: :path, else: :query), type: schema, required: name in input.required]}
     end
   end
 
   def options(:analytics), do: %{range: range()}
+
+  def options(:error_issue) do
+    %{
+      service: %Schema{type: :string, description: "The issue's service from an errors row."},
+      range: range(),
+      end_at: %Schema{type: :string, description: "ISO8601 window end, such as an errors response's meta.end_at."},
+      page: %Schema{type: :integer, minimum: 1, maximum: 2_147_483_647, default: 1, description: "Events page."},
+      page_size: %Schema{type: :integer, minimum: 1, maximum: 100, default: 20}
+    }
+  end
 
   def options(:query) do
     %{
@@ -39,16 +65,17 @@ defmodule Tuist.Pulse.Schemas do
         type: :string,
         maxLength: 4096,
         description:
-          "PromQL expression for metrics; literal, case-insensitive log body or span name text for logs and traces (* selects all)."
+          "PromQL expression for metrics; literal, case-insensitive log body, span name or error issue title text for logs, traces and errors (* selects all)."
       },
       search: string(),
       level: string(),
       level_op: operator(),
       sort_by: %Schema{
         type: :string,
-        enum: ~w(name value timestamp service level message trace_id duration_ms),
+        enum:
+          ~w(name value timestamp service level message trace_id duration_ms last_seen first_seen events accounts title),
         description:
-          "Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id."
+          "Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen/first_seen/events/accounts/title/service/level."
       },
       sort_order: %Schema{type: :string, enum: ~w(asc desc)}
     }
@@ -56,6 +83,21 @@ defmodule Tuist.Pulse.Schemas do
 
   def response(:query),
     do: object("PulseQuery", %{rows: array(row()), series: array(series()), warnings: warnings(), meta: meta()})
+
+  def response(:error_issue) do
+    object("PulseErrorIssue", %{
+      issue: row(),
+      occurrence_series: points(),
+      latest_event: %Schema{
+        type: :object,
+        description:
+          "The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message)."
+      },
+      events: array(event()),
+      meta: meta(),
+      warnings: warnings()
+    })
+  end
 
   def response(:analytics) do
     object("PulseAnalytics", %{
@@ -83,10 +125,27 @@ defmodule Tuist.Pulse.Schemas do
       level: string(),
       message: string(),
       trace_id: string(),
-      duration_ms: %Schema{type: :number, nullable: true}
+      duration_ms: %Schema{type: :number, nullable: true},
+      fingerprint: string(),
+      title: string(true),
+      culprit: string(true),
+      platform: string(true),
+      events: %Schema{type: :integer},
+      accounts: %Schema{type: :integer, description: "Distinct impacted account handles."},
+      first_seen: string(),
+      last_seen: string(),
+      latest_event_id: string(true),
+      occurrence_series: %{points() | description: "Errors: 60 equal occurrence buckets over the window."}
     }
 
     %{object("PulseRow", fields) | required: []}
+  end
+
+  defp event do
+    fields =
+      Map.new(~w(event_id title level environment release server_name trace_id account_handle)a, &{&1, string(true)})
+
+    object("PulseErrorEvent", Map.put(fields, :timestamp, string()))
   end
 
   defp series do
@@ -153,9 +212,12 @@ defmodule Tuist.Pulse.Schemas do
         _ -> json
       end
 
-    Enum.reduce([:enum, :minimum, :maximum, :maxLength, :minItems, :maxItems, :description, :default], json, fn key,
-                                                                                                                acc ->
-      if is_nil(Map.get(schema, key)), do: acc, else: Map.put(acc, to_string(key), Map.get(schema, key))
-    end)
+    Enum.reduce(
+      [:enum, :pattern, :minimum, :maximum, :maxLength, :minItems, :maxItems, :description, :default],
+      json,
+      fn key, acc ->
+        if is_nil(Map.get(schema, key)), do: acc, else: Map.put(acc, to_string(key), Map.get(schema, key))
+      end
+    )
   end
 end

@@ -97,6 +97,8 @@ Check the linked guides for version requirements. Previews support mobile apps, 
 3. Create an [account and project](/en/docs-markdown/guides/server/accounts-and-projects) and connect it, usually with `tuist init`.
 4. Enable one capability for the current bottleneck, then measure a representative workload before and after.
 
+[Customer stories](/marketing-markdown/customers) report teams' own before-and-after figures and how long they have used Tuist; pick one with a comparable toolchain and bottleneck rather than projecting its numbers onto a different project.
+
 Coding agents can connect to Tuist's hosted [MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) to read project data such as test insights, or use the [Tuist skills](/en/docs-markdown/guides/features/agentic-coding/skills) for multi-step tasks like migrating to generated projects.
 
 ## Pricing, deployment, and licensing

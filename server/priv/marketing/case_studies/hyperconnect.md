@@ -4,6 +4,8 @@ date: "2026-04-24"
 url: "https://www.hyperconnect.com/en/"
 founded_date: "2014"
 company: "Hyperconnect"
+# onboarded_date: "YYYY-MM-DD"  # TODO: confirm with Hyperconnect the month it started using Tuist.
+# results:  # TODO: ask Hyperconnect for before/after figures (local verification time, CI run time) the story describes without numbers.
 excerpt: "Hyperconnect adopted Tuist to speed up local development and CI with Module Cache and Selective Testing."
 translations:
   ko:

@@ -8,12 +8,12 @@ msgstr "Tuistチームによるニュースレター。プロダクトのアッ�
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:93
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:97
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:475
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:478
 #, elixir-autogen, elixir-format
 msgid "About"
 msgstr "概要"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:999
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1006
 #, elixir-autogen, elixir-format
 msgid "Beyond expectations"
 msgstr "期待以上"
@@ -67,7 +67,7 @@ msgstr "CIプロバイダー"
 msgid "Cache"
 msgstr "キャッシュ"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:979
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:982
 #, elixir-autogen, elixir-format
 msgid "Can I change or cancel my plan at any time?"
 msgstr "プランはいつでも変更またはキャンセルできますか?"
@@ -84,13 +84,13 @@ msgid "Changelog"
 msgstr "変更履歴"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:70
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:926
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:933
 #, elixir-autogen, elixir-format
 msgid "Community"
 msgstr "コミュニティ"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:133
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:945
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:952
 #, elixir-autogen, elixir-format
 msgid "Community forum"
 msgstr "コミュニティフォーラム"
@@ -141,22 +141,22 @@ msgstr "ダッシュボード"
 msgid "Developers"
 msgstr "開発者"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1056
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1059
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
 msgstr "Tuistの柔軟な料金プランをご覧ください。時間制限のない無料枠があり、使った分だけお支払いいただけます。さらに、オープンソースプロジェクトは永久に無料です。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:986
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:989
 #, elixir-autogen, elixir-format
 msgid "Do you offer annual billing discounts?"
 msgstr "年間契約の割引はありますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1008
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1011
 #, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
 msgstr "非営利団体やオープンソース向けの割引はありますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:972
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:975
 #, elixir-autogen, elixir-format
 msgid "Do you support a seat-based pricing model?"
 msgstr "シートベースの料金モデルに対応していますか？"
@@ -169,7 +169,7 @@ msgstr "ドキュメント"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:55
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:85
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:544
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:547
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:93
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:119
 #, elixir-autogen, elixir-format
@@ -216,11 +216,11 @@ msgid "Get help when you need it through various support channels."
 msgstr "さまざまなサポートチャネルを通じて、必要なときにサポートを受けられます。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:196
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:136
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:162
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:692
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1191
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:49
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1047
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1054
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:827
@@ -249,7 +249,7 @@ msgstr "完了！メール %{email} が確認され、Tuist Digest の購読が�
 msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
 msgstr "Tuist サーバーを独自のインフラでホストし、完全な制御とデータ主権を実現します。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:998
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1001
 #, elixir-autogen, elixir-format
 msgid "How can I estimate the cost for my project?"
 msgstr "プロジェクトのコストを見積もるにはどうすればよいですか？"
@@ -259,18 +259,18 @@ msgstr "プロジェクトのコストを見積もるにはどうすればよい
 msgid "Imprint"
 msgstr "会社概要"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:668
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:704
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:671
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:707
 #, elixir-autogen, elixir-format
 msgid "Invalid verification link. Please try signing up again."
 msgstr "無効な認証リンクです。もう一度サインアップしてください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1003
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1006
 #, elixir-autogen, elixir-format
 msgid "Is there a free trial for paid plans?"
 msgstr "有料プランの無料トライアルはありますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:991
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:994
 #, elixir-autogen, elixir-format
 msgid "Is there a minimum contract length?"
 msgstr "最低契約期間はありますか？"
@@ -328,13 +328,13 @@ msgstr "Mastodon"
 msgid "Newsletter"
 msgstr "ニュースレター"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1215
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
 msgstr "ニュースレターの認証に失敗しました"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:992
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:995
 #, elixir-autogen, elixir-format
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
 msgstr "いいえ、最低契約期間はありません。いつでも自由に解約できます。"
@@ -359,7 +359,7 @@ msgstr "フリーティアの制限内であれば料金はかかりません"
 msgid "Pay only for what you use per feature"
 msgstr "機能ごとに使用した分だけお支払いください"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:632
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:635
 #, elixir-autogen, elixir-format
 msgid "Please check your email to confirm your subscription."
 msgstr "サブスクリプションを確認するため、メールをご確認ください。"
@@ -381,7 +381,7 @@ msgstr "フリーティアを超える部分の単価"
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:43
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:285
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:613
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1051
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1054
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr "料金プラン"
@@ -445,14 +445,14 @@ msgstr "Tuist インスタンスのセルフホスティング"
 msgid "Sign up"
 msgstr "サインアップ"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:413
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:416
 #, elixir-autogen, elixir-format
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
 msgstr "iOS プロジェクトで Tuist を導入してから、スケーラビリティと生産性が大幅に向上しました。全体として開発プロセスが加速し効率化され、チームはツールの制約に足をすくわれることなく機能の開発に集中できるようになりました。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:72
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:115
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:936
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:943
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
@@ -462,7 +462,7 @@ msgstr "Slack"
 msgid "Socials"
 msgstr "ソーシャル"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:649
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:652
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
@@ -484,7 +484,7 @@ msgstr "Tuistの最新の変更点と改善情報をお届けします。新機�
 msgid "Subscribe"
 msgstr "購読する"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:686
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:689
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Successfully Subscribed!"
@@ -495,7 +495,7 @@ msgstr "購読が完了しました！"
 msgid "Support"
 msgstr "サポート"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:598
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:601
 #, elixir-autogen, elixir-format
 msgid "Swift Stories Newsletter"
 msgstr "Swift Stories Newsletter"
@@ -511,11 +511,11 @@ msgid "Tailored legal terms"
 msgstr "カスタマイズされた法務条項"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:202
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:142
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:168
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:698
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1197
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:56
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1054
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1061
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:139
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:833
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:386
@@ -532,12 +532,12 @@ msgstr "お問い合わせ"
 msgid "Terms of service"
 msgstr "利用規約"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:735
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:738
 #, elixir-autogen, elixir-format
 msgid "The newsletter issue %{issue_number} was not found."
 msgstr "ニュースレターの%{issue_number}号が見つかりませんでした。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:727
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:730
 #, elixir-autogen, elixir-format
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "ニュースレターの号数%{issue_number}は有効な数字ではありません。"
@@ -547,14 +547,14 @@ msgstr "ニュースレターの号数%{issue_number}は有効な数字ではあ
 msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
 msgstr "重複アセットや肥大化したリソースを特定して、アプリサイズを追跡・削減します。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:474
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:500
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:543
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:597
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:957
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1050
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1129
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1143
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:477
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:503
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:546
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:600
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:960
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1053
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1132
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1146
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:87
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:61
 #, elixir-autogen, elixir-format
@@ -580,22 +580,22 @@ msgstr "Tuist 変更履歴"
 msgid "Tuist Digest"
 msgstr "Tuist Digest"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:606
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:609
 #, elixir-autogen, elixir-format
 msgid "Tuist Digest Newsletter"
 msgstr "Tuist Digest ニュースレター"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:452
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:455
 #, elixir-autogen, elixir-format
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
 msgstr "Tuist を導入したことで、既存のモノリシックなコードベースをモジュラー構成へ移行できました。各ドメインを個別のモジュールとして切り出し、余分な依存関係を削除してテスト容易性を高め、開発サイクルをこれまで以上に高速化しました。さらに、各モジュールでの開発を加速させる「Test Apps」も用意できるようになりました。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:386
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:389
 #, elixir-autogen, elixir-format
 msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
 msgstr "多数のエンジニアが同時に作業する大規模なコードベースにおいて、Tuist は私たちの開発に大きな変化をもたらしました。バージョン 1 の頃から利用していますが、新機能の追加とともに製品が進化・拡大していく様子を目の当たりにできたのは素晴らしい経験でした。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:401
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:404
 #, elixir-autogen, elixir-format
 msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
 msgstr "DraftKings における iOS 開発ワークフローを Tuist が革新しました。プロジェクト生成、ビルド設定、依存関係管理を自動化し、プロセスを効率化します。ワークフローの最適化を目指す iOS チームに強くお勧めします。"
@@ -656,18 +656,18 @@ msgstr "Tuistの機能更新と改善点。"
 msgid "Usage/seat based pricing"
 msgstr "ユーザー数/席単位の料金体系"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:425
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:428
 #, elixir-autogen, elixir-format
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
 msgstr "現在のプロジェクトでTuistを導入したことで、開発プロセスが劇的に変わりました。ビルド時間のストレスが大幅に軽減され、チーム内のコンフリクトも減少したため、設定の問題ではなく開発そのものに集中できるようになりました。今後のプロジェクトでも生産性とコラボレーションをさらに向上させてくれると確信しています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:697
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:700
 #, elixir-autogen, elixir-format
 msgid "Verification failed. Please try signing up again."
 msgstr "認証に失敗しました。もう一度サインアップしてください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:676
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:712
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:679
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:715
 #, elixir-autogen, elixir-format
 msgid "Verification link expired or invalid. Please try signing up again."
 msgstr "認証リンクの有効期限が切れているか、無効です。もう一度サインアップしてください。"
@@ -687,12 +687,12 @@ msgstr "すべて表示"
 msgid "View in web browser"
 msgstr "Webブラウザで見る"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:978
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:981
 #, elixir-autogen, elixir-format
 msgid "We accept credit card payments and wire transfers."
 msgstr "クレジットカード決済と銀行振込に対応しています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1004
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1007
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
 msgstr "すべての有料プランに generous な無料枠を設けているため、お支払い前に機能を試すことができます。"
@@ -702,52 +702,52 @@ msgstr "すべての有料プランに generous な無料枠を設けている�
 msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
 msgstr "私たちは小規模ながら情熱的なチームで、開発者体験を大切に考え、細部まで丁寧にツールを作り込むことに誇りを持っています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:981
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:984
 #, elixir-autogen, elixir-format
 msgid "What happens if I exceed my plan limits?"
 msgstr "プランの制限を超えるとどうなりますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:977
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:980
 #, elixir-autogen, elixir-format
 msgid "What payment methods do you accept?"
 msgstr "どのような支払い方法に対応していますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:993
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:996
 #, elixir-autogen, elixir-format
 msgid "What support is included with each plan?"
 msgstr "各プランにはどのようなサポートが含まれていますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:440
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:443
 #, elixir-autogen, elixir-format
 msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
 msgstr "マクロ、外部SDK、多数のSPMモジュール（完全にモジュール化されたアプリ）を使用していたため、M1デバイス上でXcodeが常に遅かったり、フリーズしたりしていました。SPMは依存関係の解決を繰り返し、コード補完は機能せず、swift-syntaxのコンパイルは永遠に終わらない状態でした。Tuistは大規模なチームや大規模なアプリ専用ではありません。Tuistのおかげで、サイドプロジェクトに取り組むインディー開発者としての生産性を取り戻すことができました。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:973
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:976
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
 msgstr "はい、対応しています。チームのニーズについてご相談ください。contact@tuist.dev までご連絡いただければ、お客様に適したカスタムプランをご用意いたします。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1009
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
 msgstr "はい、対応しています。詳細については contact@tuist.dev までお問い合わせください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:987
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:990
 #, elixir-autogen, elixir-format
 msgid "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
 msgstr "はい、年間サブスクリプションの割引を提供しています。詳細については contact@tuist.dev までお問い合わせください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:980
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:983
 #, elixir-autogen, elixir-format
 msgid "Yes, you can manage your plan at any time through our management interface."
 msgstr "はい、管理画面からいつでもプランを変更できます。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:999
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1002
 #, elixir-autogen, elixir-format
 msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
 msgstr "Airプランを設定して数日間利用し、使用量の目安を確認することができます。より高い上限が必要な場合は、お知らせください。カスタムプランの設定をお手伝いします。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:982
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:985
 #, elixir-autogen, elixir-format
 msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
 msgstr "プランの制限に達する前に警告が表示されます。制限に達すると、予期しない課金を防ぐためにプラン内のインタラクションが上限まで制限されます。"
@@ -791,14 +791,14 @@ msgstr "無料"
 msgid "and up"
 msgstr "〜"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:105
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:131
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Read story"
 msgstr "ストーリーを読む"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:32
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:93
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:119
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "%{company} case study"
@@ -820,12 +820,7 @@ msgstr "設立年"
 msgid "Learn how teams use Tuist to scale their iOS development."
 msgstr "Tuist を使って iOS 開発をスケールさせるチームの活用事例をご覧ください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:51
-#, elixir-autogen, elixir-format
-msgid "Onboarded"
-msgstr "オンボーディング完了"
-
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:68
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:94
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Read next"
@@ -842,14 +837,14 @@ msgstr "公開ダッシュボード"
 msgid "See how leading teams scale with Tuist"
 msgstr "先進的なチームが Tuist でどのようにスケールしているかをご覧ください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:134
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:160
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
 msgstr "AIは急速に進化しています。ビルドも同様であるべきです。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:109
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:958
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:961
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:6
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:625
 #: lib/tuist_web/marketing/live/marketing_customers_live.ex:91
@@ -865,7 +860,7 @@ msgstr "Tuistの顧客"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:14
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:24
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1100
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1103
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Tests"
@@ -950,7 +945,7 @@ msgstr "標準サポート"
 msgid "Standard support via Slack and email"
 msgstr "Slackとメールによる標準サポート"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:657
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:660
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Confirm Subscription"
@@ -976,17 +971,17 @@ msgstr "%{email} が Tuist Digest を受信することを承認してくださ�
 msgid "02m 00s"
 msgstr "02分 00秒"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:971
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:978
 #, elixir-autogen, elixir-format
 msgid "10k+ teams"
 msgstr "1万+ のチーム"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:965
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:972
 #, elixir-autogen, elixir-format
 msgid "1500+ members"
 msgstr "1500+ のメンバー"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:968
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:975
 #, elixir-autogen, elixir-format
 msgid "300+ committers"
 msgstr "300+ のコミッター"
@@ -1001,7 +996,7 @@ msgstr "40分 00秒"
 msgid "API documentation"
 msgstr "API ドキュメント"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:279
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:282
 #, elixir-autogen, elixir-format
 msgid "After integrating Tuist into our large-scale iOS codebase with over 160 modules, an internal survey showed developer satisfaction at 4.25/5. Developers highlighted faster compile times, smoother branch switching, and easier dependency management."
 msgstr "160を超えるモジュールを抱える大規模なiOSコードベースにTuistを導入した結果、社内調査では開発者の満足度が4.25/5を記録しました。コンパイル時間の短縮、ブランチ切り替えの円滑化、依存関係管理の簡素化が評価されています。"
@@ -1022,12 +1017,12 @@ msgstr "REST APIでビルド"
 msgid "Build time:"
 msgstr "ビルド時間："
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:748
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:755
 #, elixir-autogen, elixir-format
 msgid "Built for every stack"
 msgstr "あらゆるスタックに対応"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:811
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Built in the open, secured for scale"
 msgstr "オープンに構築し、スケールに合わせてセキュリティを確保"
@@ -1055,7 +1050,7 @@ msgstr "ジョブを完了"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:10
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:16
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1081
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1084
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:172
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:570
 #, elixir-autogen, elixir-format
@@ -1100,12 +1095,12 @@ msgstr "所要時間:"
 msgid "Enhance mobile-specific workflows and accelerate builds across developer, CI, and agent environments."
 msgstr "モバイル固有のワークフローを強化し、開発環境、CI、エージェント環境全体でビルドを高速化します。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:891
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:898
 #, elixir-autogen, elixir-format
 msgid "Enterprise-Ready Security"
 msgstr "エンタープライズ対応のセキュリティ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:915
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:922
 #, elixir-autogen, elixir-format
 msgid "Every customer gets their own dedicated compute environment, fully managed by us."
 msgstr "すべての顧客に専用のコンピューティング環境を提供し、当社が完全に管理します。"
@@ -1126,17 +1121,17 @@ msgstr "実際に信頼できる、より高速なテスト。"
 msgid "Flaky tests detected:"
 msgstr "不安定なテストを検出:"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:747
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Frameworks"
 msgstr "フレームワーク"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:750
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "From native mobile apps to cross-platform projects, support the tools, languages, and frameworks your teams already rely on."
 msgstr "ネイティブモバイルアプリからクロスプラットフォームプロジェクトまで、チームがすでに依存しているツール、言語、フレームワークをサポートします。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:929
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:936
 #, elixir-autogen, elixir-format
 msgid "Hear from our community about their experience with Tuist."
 msgstr "Tuistを利用しているコミュニティの声をご紹介します。"
@@ -1151,12 +1146,12 @@ msgstr "Tuistのセットアップと使い方"
 msgid "Install dependencies"
 msgstr "依存関係のインストール"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:372
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:375
 #, elixir-autogen, elixir-format
 msgid "It made the transition to SPM and the migration of our private pods to our monorepo super easy. We were able to create a framework template, making the option to build a modular project very simple. After integrating Tuist, we reduced our build time by 30%! We have no more project file conflicts and honestly - once you try it, you'll never go back"
 msgstr "SPMへの移行やプライベートPodのモノレポへの移行が非常に簡単になりました。フレームワークテンプレートを作成できるため、モジュラープロジェクトの構築も極めてシンプルです。Tuistを導入した結果、ビルド時間が30%短縮されました。プロジェクトファイルの競合もなくなり、正直なところ、一度試すと二度と戻れません。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:339
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:342
 #, elixir-autogen, elixir-format
 msgid "It's now trivial to spin up a compact Example app for any module. Even app extensions like widgets and Live Activities can be wrapped in their own Example apps just as easily. Instead of launching the entire app to try something out, I work against a small app that contains only the part I care about — and that alone changes how quickly you can iterate."
 msgstr "どのモジュールに対しても、コンパクトなExampleアプリを簡単に立ち上げられるようになりました。ウィジェットやLive Activitiesのようなアプリエクステンションでさえ、各自のExampleアプリに同じくらい簡単に組み込めます。全体を起動して試すのではなく、関心のある部分だけを含む小さなアプリを使って作業できるため、イテレーションの速度がまったく変わります。"
@@ -1166,7 +1161,7 @@ msgstr "どのモジュールに対しても、コンパクトなExampleアプ�
 msgid "Join discussions and share ideas on our community forum"
 msgstr "コミュニティフォーラムで議論に参加し、アイデアを共有しましょう"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:927
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:934
 #, elixir-autogen, elixir-format
 msgid "Join our community"
 msgstr "コミュニティに参加する"
@@ -1189,7 +1184,7 @@ msgstr "詳しく見る"
 msgid "Lint"
 msgstr "Lint"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:224
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:227
 #, elixir-autogen, elixir-format
 msgid "Member of Technical Staff, OpenAI"
 msgstr "OpenAI 技術スタッフメンバー"
@@ -1204,12 +1199,12 @@ msgstr "チームを支える、さらに多くの機能。"
 msgid "Never build the same thing twice."
 msgstr "同じものを二度ビルドしない。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:858
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:865
 #, elixir-autogen, elixir-format
 msgid "Open Source Since Day Zero"
 msgstr "初日からオープンソース"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:324
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:327
 #, elixir-autogen, elixir-format
 msgid "Our workspace definition became pure Swift code. Touching the project structure used to mean editing .pbxproj files whose diffs no human can read; now each domain team declares and owns its module configuration in Swift, and structure changes are reviewable diffs. Dependencies became visible data too — with the module graph declared in code, we finally have concrete, shared data to ground our dependency discussions."
 msgstr "ワークスペース定義が純粋なSwiftコードになりました。プロジェクト構造の変更は以前、人間には読めない差分を生成する .pbxproj ファイルの編集を意味していました。今は各ドメインチームがモジュール構成をSwiftで宣言し、所有しています。構造変更はレビュー可能な差分として扱えます。依存関係も可視化されたデータとなり、モジュールグラフがコードで宣言されることで、依存関係に関する議論の基盤となる具体的で共有されたデータを finally 手にしました。"
@@ -1225,7 +1220,7 @@ msgstr "並列実行"
 msgid "Post run actions"
 msgstr "実行後アクション"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:705
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:712
 #, elixir-autogen, elixir-format
 msgid "Read the %{company} case study"
 msgstr "%{company}の事例を読む"
@@ -1281,7 +1276,7 @@ msgstr "数秒で起動し、チームやエージェントの規模に合わせ
 msgid "Runners:"
 msgstr "ランナー："
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:893
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:900
 #, elixir-autogen, elixir-format
 msgid "SOC 2 compliant with the controls expected from critical infrastructure."
 msgstr "重要インフラに求められるコントロールを備えた SOC 2 準拠。"
@@ -1291,27 +1286,27 @@ msgstr "重要インフラに求められるコントロールを備えた SOC 2
 msgid "Save cache"
 msgstr "キャッシュを保存"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1001
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1008
 #, elixir-autogen, elixir-format
 msgid "See how Tuist is helping teams move faster and scale confidently."
 msgstr "Tuist がどのようにしてチームの加速と確かなスケーリングを支えているかをご覧ください。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:254
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:257
 #, elixir-autogen, elixir-format
 msgid "Senior Software Engineer II at Trendyol"
 msgstr "Trendyolのシニアソフトウェアエンジニア II"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:269
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:272
 #, elixir-autogen, elixir-format
 msgid "Senior Software Engineer at SafetyCulture"
 msgstr "SafetyCultureのシニアソフトウェアエンジニア"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:284
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:287
 #, elixir-autogen, elixir-format
 msgid "Senior Software Engineer at Zabka"
 msgstr "Zabkaのシニアソフトウェアエンジニア"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:239
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:242
 #, elixir-autogen, elixir-format
 msgid "Senior iOS Engineer at Fetch"
 msgstr "FetchのシニアiOSエンジニア"
@@ -1352,7 +1347,7 @@ msgstr "メンテナンスと拡張が容易になるよう、モジュラーな
 msgid "Simplify modular Xcode projects to make them easier to maintain and scale."
 msgstr "モジュラーなXcodeプロジェクトのメンテナンスと拡張を容易にするため、構成を簡素化します。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:264
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:267
 #, elixir-autogen, elixir-format
 msgid "Since adopting Tuist as our iOS build system and Gradle remote caching solution, the results have been nothing short of incredible. It's directly impacted both our CI and local build times, and increased the visibility of our platform through Tuist's insights dashboard. We're now seeing a 64% reduction in CI time and 4x faster clean builds. It's been just a month since we completed the integration, and the value is already showing across the company."
 msgstr "iOSビルドシステムおよびGradleリモートキャッシュソリューションとしてTuistを導入してから、その成果は驚くべきものです。CIおよびローカルビルド時間の両方に直接的な影響を与え、Tuistのインサイトダッシュボードを通じてプラットフォームの可視性を高めました。現在、CI時間を64%削減し、クリーンビルドを4倍高速化しています。統合完了からわずか1か月ですが、すでに会社全体でその価値が発揮されています。"
@@ -1377,7 +1372,7 @@ msgstr "キュー待ちを解消。"
 msgid "Test only what changed and catch flaky tests automatically"
 msgstr "変更部分のみをテストし、不安定なテストを自動検出"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:998
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1005
 #, elixir-autogen, elixir-format
 msgid "Testimonials"
 msgstr "お客様の声"
@@ -1397,32 +1392,32 @@ msgstr "スキップしたテスト:"
 msgid "Theme"
 msgstr "テーマ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:809
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:816
 #, elixir-autogen, elixir-format
 msgid "Transparency"
 msgstr "透明性"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:860
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:867
 #, elixir-autogen, elixir-format
 msgid "Transparent by default. Inspect the code, contribute improvements, and stay in control."
 msgstr "デフォルトで透明。コードを検証し、改善に貢献し、コントロールを維持できます。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:249
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:252
 #, elixir-autogen, elixir-format
 msgid "Tuist cuts our build times by 65% and reduces project conflicts, letting us focus on developer experience and testing. Hundreds of devs across multiple organizations, alongside AI agents, collaborate on Trendyol. Tuist is key to running tens of thousands of UI and unit tests across thousands of pipelines every day."
 msgstr "Tuist はビルド時間を 65% 短縮し、プロジェクトの競合を減らすことで、開発者体験とテストに集中できるようにします。複数の組織にまたがる数百人の開発者と AI エージェントが Trendyol で協業しています。Tuist は、毎日数千のパイプラインで数万の UI テストとユニットテストを実行する上で不可欠です。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:219
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:222
 #, elixir-autogen, elixir-format
 msgid "Tuist has made a meaningful difference to developer productivity across our growing iOS engineering organization which means faster iteration for both our engineers and coding agents working alongside them. Tuist has helped us turn build performance into a scalable advantage"
 msgstr "Tuist は、拡大する iOS エンジニアリング組織全体の開発者生産性に大きな影響を与え、エンジニアとそれを支援するコーディングエージェントの両方にとって、より迅速な反復を可能にしました。Tuist は、ビルドパフォーマンスをスケーラブルな優位性に変える助けとなりました"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:234
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:237
 #, elixir-autogen, elixir-format
 msgid "Tuist has made a real difference in how we work with Fetch's large, highly modular iOS codebase. Its remote module cache has materially reduced build times and tightened feedback loops for engineers locally and in CI, while Build Insights gives us valuable visibility into build performance and where to focus next. That combination of speed and observability has made the developer experience meaningfully better."
 msgstr "Tuistは、Fetchの大規模で高度にモジュール化されたiOSコードベースとの向き合い方に、真の変化をもたらしました。リモートモジュールキャッシュによりビルド時間が大幅に短縮され、エンジニアのローカル環境およびCIでのフィードバックループが強化されました。さらに、Build Insightsによってビルドパフォーマンスへの貴重な可視性が得られ、次にどこに注力すべきかが明確になりました。この速度と観測性の組み合わせにより、開発者体験は意味のあるレベルで向上しました。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:814
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:821
 #, elixir-autogen, elixir-format
 msgid "Tuist is built in the open because we believe developer infrastructure should be transparent, extensible, and community-driven."
 msgstr "Tuistはオープンに開発されています。開発者向けインフラストラクチャは透明性があり、拡張可能で、コミュニティ主導であるべきだと信じているからです。"
@@ -1432,7 +1427,7 @@ msgstr "Tuistはオープンに開発されています。開発者向けイン�
 msgid "Tuist is trusted by over 300+ product teams, from fast-growing startups to global enterprises."
 msgstr "Tuistは、急成長中のスタートアップからグローバル企業まで、300以上のプロダクトチームに信頼されています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:294
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:297
 #, elixir-autogen, elixir-format
 msgid "Tuist made git worktrees practical on our huge codebase. Worktrees used to be painful here — every new one ate serious disk space, opening the project over and over had real overhead, and each fresh worktree meant another clean build. Tuist shrank all of those hurdles, so now I spin up worktrees without hesitation — which is exactly what AI-assisted development needs."
 msgstr "Tuistのおかげで、巨大なコードベースでもgit worktreesが実用的になりました。以前はworktrees導入に伴う苦痛が大きく、新しいworktreeを作成するたびにディスク容量を大量に消費し、プロジェクトを何度も開く作業には現実的なオーバーヘッドがあり、新規作成ごとにクリーンビルドが必要でした。Tuistはこれらの障壁をすべて低減したため、今では躊躇なくworktreeを立ち上げられます。これはまさにAI支援開発に必要な状態です。"
@@ -1442,9 +1437,9 @@ msgstr "Tuistのおかげで、巨大なコードベースでもgit worktreesが
 msgid "Upload artifacts"
 msgstr "アーティファクトをアップロード"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:133
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:159
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:689
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1042
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1049
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:128
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:377
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:113
@@ -1454,7 +1449,7 @@ msgstr "アーティファクトをアップロード"
 msgid "What are you waiting for?"
 msgstr "何を待っていますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:309
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:312
 #, elixir-autogen, elixir-format
 msgid "With Tuist's development cache and focused modules, our local feedback loop got dramatically shorter. A build that took around 4 minutes drops to about 25 seconds on the next run — 123 of 124 targets served straight from cache. The feeling of facing the entire project on every build is gone; I just iterate on the modules I'm actually changing, and I rarely think about project file conflicts anymore."
 msgstr "Tuistの開発用キャッシュとフォーカスされたモジュールにより、ローカルでのフィードバックループが劇的に短縮されました。約4分かかっていたビルドが、次回の実行では約25秒に短縮され、124ターゲット中123がキャッシュから直接提供されました。毎回プロジェクト全体と対峙するという感覚はなくなり、実際に変更しているモジュールに対して反復作業を行うだけになり、プロジェクトファイルの競合についてもほとんど考えなくなりました。"
@@ -1469,20 +1464,20 @@ msgstr "キャッシュ利用時"
 msgid "Without cache"
 msgstr "キャッシュなし"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:913
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:920
 #, elixir-autogen, elixir-format
 msgid "Your Own Dedicated Infrastructure"
 msgstr "専用インフラストラクチャ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:784
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:791
 #, elixir-autogen, elixir-format
 msgid "and more ..."
 msgstr "その他..."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:299
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:314
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:329
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:344
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:302
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:317
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:332
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:347
 #, elixir-autogen, elixir-format
 msgid "iOS Developer at Toss"
 msgstr "Toss の iOS デベロッパー"
@@ -1504,13 +1499,13 @@ msgid "Download brand assets"
 msgstr "ブランドアセットをダウンロード"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:114
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:501
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:504
 #, elixir-autogen, elixir-format
 msgid "Brand"
 msgstr "ブランド"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:219
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:516
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:519
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Brand guidelines"
@@ -1651,7 +1646,7 @@ msgstr "ダーク背景上のモノクロTuistワードマーク"
 msgid "Monochrome Tuist wordmark on a light background"
 msgstr "ライト背景上のモノクロTuistワードマーク"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:511
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:514
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Resources for representing the Tuist brand clearly and cohesively. Tuist trademarks, logos, and other brand assets must not be modified or used for any purpose other than representing Tuist."
@@ -1978,7 +1973,7 @@ msgstr "最新のプレビューを一元管理"
 msgid "Desktop"
 msgstr "デスクトップ"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:559
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:562
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Download Tuist"
@@ -2000,7 +1995,7 @@ msgstr "macOS 版をダウンロード"
 msgid "Download on iPhone"
 msgstr "iPhone でダウンロード"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:554
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:557
 #, elixir-autogen, elixir-format
 msgid "Download the Tuist apps for macOS and iOS to launch, manage, and run Tuist Previews from your Mac and iPhone."
 msgstr "Mac と iPhone から Tuist Previews を起動、管理、実行するための macOS および iOS 用 Tuist アプリをダウンロードしてください。"
@@ -2200,7 +2195,7 @@ msgstr "アニメーション: Tuistメニューバーアプリが最新のプ�
 msgid "Brand assets"
 msgstr "ブランドアセット"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:934
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:941
 #, elixir-autogen, elixir-format
 msgid "Community links"
 msgstr "コミュニティリンク"
@@ -2315,7 +2310,7 @@ msgid "Worthy Five: %{name}"
 msgstr "Worthy Five: %{name}"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:690
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1043
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1050
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:130
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:378
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:380
@@ -2324,7 +2319,7 @@ msgstr "Worthy Five: %{name}"
 msgid "Supercharge your development"
 msgstr "開発を加速"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:359
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:362
 #, elixir-autogen, elixir-format
 msgid "Game Assistant"
 msgstr "ゲームアシスタント"
@@ -2339,7 +2334,7 @@ msgstr "プラン"
 msgid "Platform"
 msgstr "プラットフォーム"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:354
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:357
 #, elixir-autogen, elixir-format
 msgid "Tuist is an amazing tool for iOS developers. Since adopting this tool, I haven't had to face conflicts in Xcode projects. Overall, Tuist has reduced build time, so I can use more time on meaningful tasks. Thankfully, Tuist is receiving feedback from Korean users in local social communities. They are always there for you."
 msgstr "Tuist は iOS 開発者にとって素晴らしいツールです。このツールを導入してから、Xcode プロジェクトのコンフリクトに悩まされることがなくなりました。全体的にビルド時間が短縮されたため、重要なタスクに多くの時間を割けるようになりました。ありがたいことに、Tuist は韓国のソーシャルコミュニティで現地ユーザーからのフィードバックを受け取っています。彼らは常にサポートしてくれます。"
@@ -2375,7 +2370,7 @@ msgstr "いずれかのキャッシュから配信されたダウンロード。
 msgid "Each download from a cache is one request. Every cache shares one allowance each billing period, and requests from Tuist Runners count at half."
 msgstr "キャッシュからのダウンロードごとに 1 リクエストとしてカウントされます。すべてのキャッシュで請求期間ごとに共通の無料枠を共有し、Tuist Runner からのリクエストは半分の消費量としてカウントされます。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1011
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1014
 #, elixir-autogen, elixir-format
 msgid "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
 msgstr "エグレスとは、ビルドが Tuist の Module、Xcode、Gradle、Bazel の各キャッシュからダウンロードするデータのことで、ダウンロードごとに 1 リクエストとしてカウントされます。これらは請求期間ごとに共通の無料枠を共有します。アップロードとストレージは無料です。"
@@ -2395,7 +2390,7 @@ msgstr "リクエストはどのようにカウントされますか？"
 msgid "How is egress measured?"
 msgstr "エグレスはどのように測定されますか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1027
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1030
 #, elixir-autogen, elixir-format
 msgid "Is usage on Tuist Runners billed differently?"
 msgstr "Tuist Runnerの使用量は別料金ですか？"
@@ -2420,7 +2415,7 @@ msgstr "テストのインサイト"
 msgid "Track test results over time and catch flaky tests before they slow your team down."
 msgstr "時間の経過に伴うテスト結果を追跡し、チームの速度を低下させる不安定なテストを事前に検出します。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1010
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1013
 #, elixir-autogen, elixir-format
 msgid "What counts as cache egress and requests?"
 msgstr "キャッシュエグレスとリクエストとしてカウントされるものは何ですか？"
@@ -2430,7 +2425,7 @@ msgstr "キャッシュエグレスとリクエストとしてカウントされ
 msgid "Which test cases are billed?"
 msgstr "課金対象のテストケースはどれですか？"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1028
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1031
 #, elixir-autogen, elixir-format
 msgid "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
 msgstr "はい。Tuist Runnerからのキャッシュエグレスとリクエストは半額でカウントされ、Tuist Runnerで実行されるテストケースは無料です。"
@@ -2602,32 +2597,32 @@ msgstr "本日配信されたキャッシュダウンロード数（重複およ
 msgid "Powering teams that move fast"
 msgstr "高速開発を実現するチームを支える"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:114
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:116
 #, elixir-autogen, elixir-format
 msgid "Delivery Hero scaled its iOS rider app to around 115 modules with Tuist, cutting clean builds from 2.5 to 0.5 minutes and CI build and test time by 2.5x. Its Logistics team uses Tuist to keep modularization manageable and local builds fast."
 msgstr "Delivery HeroはTuistを使用してiOSライダーアプリを約115モジュールにスケールさせ、クリーンビルド時間を2.5分から0.5分に短縮し、CIのビルドおよびテスト時間を2.5倍短縮しました。同社のLogisticsチームは、Tuistを用いてモジュール化の管理可能性とローカルビルドの速度を維持しています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:94
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:96
 #, elixir-autogen, elixir-format
 msgid "Monzo reduced its pull request CI times by 71%, from 52 minutes to just 15 minutes, using Tuist's binary caching and selective testing. By eliminating redundant builds and running only relevant tests, Monzo improved development efficiency for its 45+ iOS engineers working across nearly 200 modules."
 msgstr "MonzoはTuistのバイナリキャッシングと選択的テストを活用して、プルリクエストのCI時間を71%削減し、52分からわずか15分に短縮しました。冗長なビルドを排除し関連するテストのみを実行することで、Monzoはほぼ200モジュールに取り組む45名以上のiOSエンジニアの開発効率を向上させました。"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:703
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:710
 #, elixir-autogen, elixir-format
 msgid "Read more"
 msgstr "続きを読む"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:99
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:101
 #, elixir-autogen, elixir-format
 msgid "Toss, Korea's leading financial super-app, more than tripled the share of local builds that finish within a minute using Tuist's binary cache. Across close to 1,000 modules, product developers now build only the modules they own, with most of the graph served from cache."
 msgstr "韓国の主要な金融スーパーアプリであるTossは、Tuistのバイナリキャッシュにより、1分以内に完了するローカルビルドの割合を3倍以上に増加させました。約1,000モジュールにわたり、プロダクト開発者は自身が所有するモジュールのみをビルドしており、グラフの大部分はキャッシュから提供されています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:104
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:106
 #, elixir-autogen, elixir-format
 msgid "Trendyol reduced build times by 65% with Tuist's caching, cutting CI builds to 10 minutes and local UI test setup to 30 seconds. Running a self-hosted Tuist instance, it keeps feedback loops fast for 170+ developers across more than 10 domain teams."
 msgstr "TrendyolはTuistのキャッシングによりビルド時間を65%削減し、CIビルドを10分に、ローカルのUIテストセットアップを30秒に短縮しました。セルフホスト型のTuistインスタンスを実行することで、10を超えるドメインチームに所属する170名以上の開発者に対して迅速なフィードバックループを維持しています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:109
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:111
 #, elixir-autogen, elixir-format
 msgid "monday.com's CI merge workflow dropped from more than 20 minutes to about 9, with Tuist's module cache playing a significant role. Its team of almost 20 iOS engineers now maintains around 200 modules, and creating a new one is simple enough for anyone on the team."
 msgstr "monday.comのCIマージワークフローは、Tuistのモジュールキャッシュが大きく貢献し、20分以上から約9分に短縮されました。現在、約20名のiOSエンジニアチームが約200のモジュールを管理しており、新しいモジュールの作成はチームの誰でも簡単に行えます。"
@@ -2653,7 +2648,7 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "/min"
 msgstr "/分"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1015
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
 #, elixir-autogen, elixir-format
 msgid "How are Tuist Runners billed?"
 msgstr "Tuist Runnerの課金体系について"
@@ -2730,7 +2725,7 @@ msgstr "毎月、macOS 100 分と Linux 2,500 分を無料で利用可能"
 msgid "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
 msgstr "すべてのプラン（Air プランを含む）に含まれています。Linux 分の計算は 2 vCPU / 8 GB のマシン基準で行われるため、より小さいマシンではより長く実行できます。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1016
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1019
 #, elixir-autogen, elixir-format
 msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
 msgstr "CI プロバイダーがジョブを開始してから完了するまでのジョブ時間 1 分ごとに課金され、分数の切り上げは行いません。マシンの起動とクリーンアップは課金対象外です。すべてのプランに、毎月 macOS 100 分と Linux 2,500 分（2 vCPU / 8 GB の Linux マシン基準で計算）、および 100 GB のキャッシュボリュームストレージが含まれており、超過分は $0.10 /GB・月です。年間契約や大量利用には割引があります。年間または大量利用の価格設定については contact@tuist.dev までお問い合わせください。"
@@ -2801,7 +2796,7 @@ msgstr "ガイド"
 msgid "Handle flaky tests"
 msgstr "不安定なテストへの対処"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1020
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1023
 #, elixir-autogen, elixir-format
 msgid "How does Tuist compare to other build and CI providers?"
 msgstr "Tuistは他のビルド・CIプロバイダーとどう違うのか？"
@@ -2836,12 +2831,12 @@ msgstr "遅いビルド"
 msgid "Slow tests"
 msgstr "遅いテスト"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1021
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
 #, elixir-autogen, elixir-format
 msgid "Tuist adds build and test capabilities to the CI you already use instead of replacing it. Our <a href=\"%{compare_url}\">comparison guides</a> cover providers such as Develocity, BuildBuddy, Bitrise, and CircleCI, and the <a href=\"%{costs_url}\">CI costs guide</a> shows where spend usually goes before you buy more compute."
 msgstr "Tuistは既存のCIを置き換えるのではなく、ビルドおよびテスト機能を追加します。<a href=\"%{compare_url}\">比較ガイド</a>ではDevelocity、BuildBuddy、Bitrise、CircleCIなどのプロバイダーを取り上げ、<a href=\"%{costs_url}\">CIコストガイド</a>では、追加のコンピューティングリソースを購入する前に、費用がどこに費やされているかを解説しています。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:994
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:997
 #, elixir-autogen, elixir-format
 msgid "Air includes community support through the forum. Pro includes standard support through Slack and email. Enterprise includes priority support through Slack and email."
 msgstr "Airプランにはフォーラムを通じたコミュニティサポートが含まれます。ProプランにはSlackとメールによる標準サポートが含まれます。EnterpriseプランにはSlackとメールによる優先サポートが含まれます。"
@@ -2851,7 +2846,7 @@ msgstr "Airプランにはフォーラムを通じたコミュニティサポー
 msgid "A cache lookup and download take time. Compare that overhead with the work avoided on a representative cold and repeat build. The chart is illustrative, not a benchmark."
 msgstr "キャッシュの検索とダウンロードには時間がかかります。代表的なコールドビルドとリピートビルドで回避される作業と比較して、このオーバーヘッドを評価してください。このチャートは例示であり、ベンチマークではありません。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:490
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:493
 #, elixir-autogen, elixir-format
 msgid "About Tuist: build infrastructure"
 msgstr "Tuistについて: ビルドインフラストラクチャ"
@@ -2876,7 +2871,7 @@ msgstr "ジョブに必要な容量とツールを備えた利用可能なマシ
 msgid "Compare your options"
 msgstr "オプションを比較する"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1073
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
 #, elixir-autogen, elixir-format
 msgid "Compute for build work · Tuist"
 msgstr "ビルド作業用のコンピューティングリソース · Tuist"
@@ -2947,7 +2942,7 @@ msgstr "開発、CI、コーディングエージェント間で互換性のあ�
 msgid "Reuse what you've"
 msgstr "これまで作成したものを再利用"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1067
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1070
 #, elixir-autogen, elixir-format
 msgid "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
 msgstr "共有ビルドキャッシュと並行して既存のCIジョブを実行。Tuist Computeは、チームやコーディングエージェント向けの招待制オプショナル実行環境です。"
@@ -2957,7 +2952,7 @@ msgstr "共有ビルドキャッシュと並行して既存のCIジョブを実�
 msgid "Run jobs without maintaining your own fleet. Jobs can queue when their requested shape exceeds available account capacity."
 msgstr "自前のフリート管理なしでジョブを実行。リクエストされたシェイプがアカウントの可用キャパシティを超えると、ジョブはキューに入ります。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1093
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
 #, elixir-autogen, elixir-format
 msgid "Test insights, sharding, and trustworthy feedback · Tuist"
 msgstr "テストインサイト、シャーディング、信頼できるフィードバック · Tuist"
@@ -2967,7 +2962,7 @@ msgstr "テストインサイト、シャーディング、信頼できるフィ
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Tuistブログ: エンジニアリングとビルドインフラストラクチャ"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1090
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
 msgstr "低速なテストや不安定なテストを把握し、テスト作業を分散させ、対応環境では選択的テストを活用します。CIを維持しながら、Tuistを段階的に導入できます。"
@@ -2987,7 +2982,7 @@ msgstr "すでにビルド済みです。"
 msgid "build work."
 msgstr "ビルド処理。"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:488
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
@@ -3021,3 +3016,33 @@ msgstr "Tuist は、エンジニアリングチームとコーディングエー
 #, elixir-autogen, elixir-format
 msgid "Tuist — Faster builds and reliable tests for every build system"
 msgstr "Tuist — あらゆるビルドシステムで、高速なビルドと信頼性の高いテストを"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "After"
+msgstr "後"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "As reported by %{company} for its own project."
+msgstr "%{company} が自社プロジェクトで報告した内容。"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:63
+#, elixir-autogen, elixir-format
+msgid "Before"
+msgstr "前"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Metric"
+msgstr "指標"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Using Tuist since"
+msgstr "Tuist 利用開始日"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:700
+#, elixir-autogen, elixir-format
+msgid "Using Tuist since %{date}"
+msgstr "Tuist 利用開始日: %{date}"

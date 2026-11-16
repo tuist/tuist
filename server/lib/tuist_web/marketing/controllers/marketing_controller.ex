@@ -62,7 +62,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   # a falling line for a time cut, a build-time histogram for more builds
   # finishing within a minute, steps for a staged drop, pairs for
   # before/after, and a rising line for a quote without a single metric. The logos come from
-  # priv/marketing/customers/logos, recoloured white by the template.
+  # priv/marketing/customers/logos, recoloured white by the template. `since`
+  # is the case study's `onboarded_date`; slides without one show no date.
   defp customer_slides do
     [openai_slide() | case_study_slides()]
   end
@@ -81,7 +82,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       statement: openai.quote,
       href: nil,
       author: openai.name,
-      role: openai.role
+      role: openai.role,
+      since: nil
     }
   end
 
@@ -131,7 +133,8 @@ defmodule TuistWeb.Marketing.MarketingController do
                 statement: statement,
                 href: case_study_link(case_study),
                 author: nil,
-                role: nil
+                role: nil,
+                since: case_study.onboarded_date
               }
             ]
         end

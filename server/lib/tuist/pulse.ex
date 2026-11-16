@@ -6,18 +6,21 @@ defmodule Tuist.Pulse do
   `page` (default 1), `page_size` (1..100, default 20), `sort_by`, `sort_order`
   (asc/desc), and an ISO8601 `end_at` (normalized to inclusive UTC seconds).
   Metrics sort by name/value; logs by timestamp/service/level/message/trace_id;
-  traces by timestamp/service/name/duration_ms/trace_id. Missing measurements
-  sort last. Metrics accept PromQL; log bodies and span names accept literal,
-  case-insensitive text (`*` selects all). Trace rows represent individual spans.
+  traces by timestamp/service/name/duration_ms/trace_id; errors by
+  last_seen/first_seen/events/accounts/title/service/level. Missing measurements
+  sort last. Metrics accept PromQL; log bodies, span names and error issue titles
+  accept literal, case-insensitive text (`*` selects all). Trace rows represent
+  individual spans; error rows are issues (`Tuist.Pulse.Errors`).
 
-  Service filters apply to every signal and level to logs. Each has an optional
+  Service filters apply to every signal and level to logs and errors. Each has an optional
   `_op`: eq (default, case-sensitive), contains or not_contains
   (case-insensitive literal). Filters are ANDed and empty values ignored. Search
   is a literal case-insensitive projected-row search. All filtering and sorting
   precedes pagination. Rows, series and metadata use string keys; result
   envelope keys are atoms. Series follow the metric page.
 
-  Logs and traces inspect up to 100 newest matches. Filtering, sorting and
+  Logs and traces inspect up to 100 newest matches, errors the 100 issues seen
+  most recently. Filtering, sorting and
   table totals cover only returned results, not the complete time window.
   Upstream warnings are preserved without generating a result-limit warning.
   Metric tables evaluate an instant snapshot at end_at, not a
@@ -36,18 +39,19 @@ defmodule Tuist.Pulse do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Pulse.Errors
   alias Tuist.Pulse.Explore
   alias Tuist.Pulse.SQL
   alias Tuist.Pulse.Table
   alias Tuist.Tasks
 
   @ranges %{"15m" => 900, "1h" => 3600, "6h" => 21_600, "24h" => 86_400}
-  @signals ~w(metrics logs traces)
+  @signals ~w(metrics logs traces errors)
   @limit 100
   @points 361
 
   def default_query("metrics"), do: "up"
-  def default_query(signal) when signal in ~w(logs traces), do: "*"
+  def default_query(signal) when signal in ~w(logs traces errors), do: "*"
   def default_query(_signal), do: nil
 
   def available?(%{id: id} = account) do
@@ -118,6 +122,58 @@ defmodule Tuist.Pulse do
        }}
     end
   end
+
+  @doc """
+  One error issue, `(service, fingerprint)`, over a window. String-keyed params
+  are a required `service`, `range`, an ISO8601 `end_at`, `page` and
+  `page_size`. Returns the issue summary, a 60-bucket occurrence series, the
+  latest event with its scrubbed payload and one page of events, newest first,
+  with pagination `meta`; `:not_found` when the issue has no events in the
+  window.
+  """
+  def error_issue(user, account, fingerprint, params) do
+    if authorized?(user, account) do
+      with {:ok, service, opts} <- issue_params(fingerprint, params, ~w(service range end_at page page_size)),
+           {:ok, client} <- credentials() do
+        Errors.issue(service, fingerprint, opts, &request(client, "/v1/sql", &1))
+      end
+    else
+      {:error, :forbidden}
+    end
+  end
+
+  @doc """
+  One event of an error issue, with its scrubbed payload. Params are a required
+  `service`, `range` and an ISO8601 `end_at`; `:not_found` when the issue has no
+  such event in the window.
+  """
+  def error_event(user, account, fingerprint, event_id, params) do
+    if authorized?(user, account) do
+      with true <- is_binary(event_id) and Regex.match?(~r/\A[0-9a-f]{32}\z/, event_id),
+           {:ok, service, opts} <- issue_params(fingerprint, params, ~w(service range end_at)),
+           {:ok, client} <- credentials() do
+        Errors.event(service, fingerprint, event_id, opts, &request(client, "/v1/sql", &1))
+      else
+        false -> {:error, :invalid_params}
+        error -> error
+      end
+    else
+      {:error, :forbidden}
+    end
+  end
+
+  defp issue_params(fingerprint, %{"service" => service} = params, keys)
+       when is_binary(fingerprint) and is_binary(service) do
+    with true <- Regex.match?(~r/\A[0-9a-f]{64}\z/, fingerprint) and byte_size(service) in 1..4096,
+         true <- Enum.all?(Map.keys(params), &(&1 in keys)),
+         {:ok, opts} <- Table.validate("errors", Map.delete(params, "service")) do
+      {:ok, service, opts}
+    else
+      _ -> {:error, :invalid_params}
+    end
+  end
+
+  defp issue_params(_fingerprint, _params, _keys), do: {:error, :invalid_params}
 
   @doc """
   Fixed aggregate widgets, independent of the table query. Only string-keyed
@@ -282,9 +338,10 @@ defmodule Tuist.Pulse do
 
   defp widget_queries("metrics"), do: Enum.map(@metric_widgets, &{elem(&1, 0), :count})
 
-  # Log and trace widget SQL is authored by Tuist.Pulse.SQL from the id.
+  # Log, trace and error widget SQL is authored server-side from the widget id.
   defp widget_queries("logs"), do: [{"entries", :count}, {"errors", :count}, {"warnings", :count}]
   defp widget_queries("traces"), do: [{"spans", :count}, {"errors", :count}, {"duration_p95", :milliseconds}]
+  defp widget_queries("errors"), do: [{"events", :count}, {"fatal", :count}, {"services", :count}]
 
   defp analytics_widgets(results, signal) do
     case Enum.find(results, &match?({:error, _}, &1)) do
@@ -338,33 +395,12 @@ defmodule Tuist.Pulse do
   defp credentials do
     config = Environment.pulse_config()
     url = Keyword.get(config, :base_url)
-    # Pulse's database name, sent as x-pulse-db-name.
-    tenant = Keyword.get(config, :tenant)
+    token = Keyword.get(config, :token)
 
-    with true <- valid_url?(url) and header?(tenant),
-         {:ok, token} <- token(Keyword.get(config, :token_file), Keyword.get(config, :token)),
-         true <- header?(token) do
-      {:ok,
-       %{
-         base_url: String.trim_trailing(url, "/"),
-         tenant: tenant,
-         token: token,
-         token_file: Keyword.get(config, :token_file)
-       }}
-    else
-      _ -> {:error, :not_configured}
-    end
+    if valid_url?(url) and header?(token),
+      do: {:ok, %{base_url: String.trim_trailing(url, "/"), token: token}},
+      else: {:error, :not_configured}
   end
-
-  # Projected secrets rotate independently of the application and are authoritative.
-  defp token(path, _token) when is_binary(path) and path != "" do
-    case File.read(path) do
-      {:ok, contents} -> {:ok, String.trim(contents)}
-      _ -> {:error, :not_configured}
-    end
-  end
-
-  defp token(_path, token), do: {:ok, token}
 
   defp header?(value) do
     is_binary(value) and byte_size(value) in 1..16_384 and String.valid?(value) and
@@ -385,11 +421,16 @@ defmodule Tuist.Pulse do
 
   defp execute(signal, opts, client) do
     result =
-      if signal == "metrics" do
-        with {:ok, body} <- request(client, "/api/v1/query", query: opts.query, time: opts.finish),
-             do: normalize(body)
-      else
-        SQL.query(signal, opts, &request(client, "/v1/sql", &1))
+      case signal do
+        "metrics" ->
+          with {:ok, body} <- request(client, "/api/v1/query", query: opts.query, time: opts.finish),
+               do: normalize(body)
+
+        "errors" ->
+          Errors.issues(opts, &request(client, "/v1/sql", &1))
+
+        _ ->
+          SQL.query(signal, opts, &request(client, "/v1/sql", &1))
       end
 
     with {:ok, result} <- result,
@@ -406,22 +447,15 @@ defmodule Tuist.Pulse do
   end
 
   # An unexpectedly oversized response still fails rather than escaping bounds.
-  defp complete_result(signal, %{rows: rows}) when signal in ~w(logs traces) and length(rows) > @limit,
+  defp complete_result(signal, %{rows: rows}) when signal in ~w(logs traces errors) and length(rows) > @limit,
     do: {:error, :query_result_limit}
 
   defp complete_result(_, %{rows: rows}) when length(rows) > 5000, do: {:error, :query_result_limit}
   defp complete_result(_, _), do: :ok
 
+  # Every Pulse signal lives in its `public` database, selected by Pulse's
+  # x-pulse-db-name header.
   defp request(client, path, params) do
-    with {:ok, token} <- token(client.token_file, client.token),
-         true <- header?(token) do
-      do_request(%{client | token: token}, path, params)
-    else
-      _ -> {:error, :not_configured}
-    end
-  end
-
-  defp do_request(client, path, params) do
     # Pulse serves its Prometheus-compatible API under /v1/prometheus.
     path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
 
@@ -430,10 +464,7 @@ defmodule Tuist.Pulse do
         method: :get,
         url: client.base_url <> path,
         auth: {:basic, "dashboard:" <> client.token},
-        headers: [
-          {"accept", "application/json"},
-          {"x-pulse-db-name", client.tenant}
-        ],
+        headers: [{"accept", "application/json"}, {"x-pulse-db-name", "public"}],
         params: params,
         compressed: false,
         into: &bounded_body/2,

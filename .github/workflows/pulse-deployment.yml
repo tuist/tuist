@@ -110,6 +110,19 @@ jobs:
           bash .github/scripts/pulse-collectors.test.sh
           mkdir -p "$RUNNER_TEMP/pulse-chart"
           helm package infra/helm/pulse --destination "$RUNNER_TEMP/pulse-chart"
+      - name: Run the Sentry errors pipeline in the pinned Pulse release
+        run: |
+          set -euo pipefail
+          printf 'pilot=ci\n' > "$RUNNER_TEMP/pulse-users"
+          chmod 644 "$RUNNER_TEMP/pulse-users"
+          docker run -d --name pulse -p 127.0.0.1:4000:4000 -v "$RUNNER_TEMP/pulse-users:/users:ro" \
+            "$(yq '.image' infra/helm/pulse/values.yaml)" \
+            standalone start --http-addr 0.0.0.0:4000 --user-provider=static_user_provider:file:/users
+          for _ in $(seq 60); do
+            curl -fsS -u pilot:ci 'http://127.0.0.1:4000/v1/sql?sql=SELECT%201' > /dev/null 2>&1 && break
+            sleep 2
+          done
+          PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-sentry-errors.mjs
       - uses: actions/upload-artifact@v4
         with:
           # One cascade run calls this workflow once per environment.
@@ -235,7 +248,6 @@ jobs:
               enrolled_account_id: Keyword.get(config, :account_id),
               pulse_reader_available: Code.ensure_loaded?(Tuist.Pulse) and function_exported?(Tuist.Pulse, :query, 4),
               expected_endpoint: Keyword.get(config, :base_url) == "http://pulse.observability.svc.cluster.local:4000",
-              expected_database: Keyword.get(config, :tenant) == "public",
               pulse_flag: FunWithFlags.enabled?(:pulse, for: account)
             }))' > "$inspection.out" 2> "$inspection.err"; then
             echo '::error::Staging reader inspection failed; raw runtime output is withheld.'
@@ -246,9 +258,9 @@ jobs:
             select((.account_id | type) == "number" and
               (.enrolled_account_id == null or (.enrolled_account_id | type) == "number") and
               ([.pulse_reader_available,
-                .expected_endpoint, .expected_database, .pulse_flag] | all(type == "boolean"))) |
+                .expected_endpoint, .pulse_flag] | all(type == "boolean"))) |
             {account_id, enrolled_account_id, pulse_reader_available,
-              expected_endpoint, expected_database, pulse_flag}'
+              expected_endpoint, pulse_flag}'
           rm -f "$inspection.out" "$inspection.err"
           helm history pulse -n observability -o json | jq '[.[] | {revision, chart, status}]'
       - name: Check prerequisites, ownership and capacity before creating backend resources
@@ -444,7 +456,11 @@ jobs:
               }]}}
           ' > "$dir/native.json"
           jq --rawfile pipeline infra/helm/pulse/loki-otlp.yaml \
-            '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline}]' "$dir/native.json" > "$dir/smoke.json"
+            --rawfile errors_table infra/helm/pulse/errors.sql \
+            --rawfile errors_pipeline infra/helm/pulse/sentry-errors.yaml \
+            '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline},
+              {name:"PULSE_ERRORS_TABLE",value:$errors_table},{name:"PULSE_ERRORS_PIPELINE",value:$errors_pipeline}]' \
+            "$dir/native.json" > "$dir/smoke.json"
       - name: Install private backend, retaining state on failure
         run: |
           set -euo pipefail

@@ -128,12 +128,11 @@ defmodule Tuist.MCP.WebMCP do
     segments = String.split(path || "", "/", trim: true)
     page = if project, do: project_page(Enum.drop(segments, 2)), else: account_page(Enum.drop(segments, 1))
 
-    cond do
-      # A personal account's settings have no organization to read.
-      page == "organization" and is_nil(account.organization_id) -> nil
-      # AI subscriptions are personal; organizations have no such page.
-      page == "ai-subscriptions" and not is_nil(account.organization_id) -> nil
-      true -> page
+    # A personal account's settings have no organization to read.
+    if page == "organization" and is_nil(account.organization_id) do
+      nil
+    else
+      page
     end
   end
 
@@ -155,12 +154,11 @@ defmodule Tuist.MCP.WebMCP do
 
   defp account_page([]), do: "projects"
   defp account_page(["projects"]), do: "projects"
-  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces), do: "pulse"
+  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces errors), do: "pulse"
   defp account_page(["runners" | _]), do: "runners"
   defp account_page(["webhooks" | _]), do: "webhooks"
   defp account_page(["sandboxes" | _]), do: "sandboxes"
   defp account_page(["settings", "tokens" | _]), do: "account-tokens"
-  defp account_page(["settings", "ai" | _]), do: "ai-subscriptions"
 
   defp account_page([organization | _]) when organization in ["settings", "members", "billing", "usage"],
     do: "organization"
@@ -204,6 +202,7 @@ defmodule Tuist.MCP.WebMCP do
     do: [
       Tools.QueryPulse,
       Tools.GetPulseAnalytics,
+      Tools.GetPulseErrorIssue,
       Tools.QueryPulseMetrics,
       Tools.ListPulseLabels,
       Tools.SearchPulseLogs,
@@ -217,7 +216,6 @@ defmodule Tuist.MCP.WebMCP do
   defp page_tools("sandboxes", _build_system), do: [Tools.ListSandboxes, Tools.GetSandbox, Tools.GetSandboxAnalytics]
   defp page_tools("account-tokens", _build_system), do: [Tools.ListAccountTokens, Tools.GetAccountToken]
   defp page_tools("organization", _build_system), do: [Tools.GetOrganization]
-  defp page_tools("ai-subscriptions", _build_system), do: [Tools.ListAISubscriptions]
   defp page_tools(_page, _build_system), do: []
 
   # Only the Xcode overview shows bundles.

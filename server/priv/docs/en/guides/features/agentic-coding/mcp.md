@@ -11,8 +11,19 @@
 It makes applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [Visual Studio Code](https://code.visualstudio.com) interoperable with Tuist.
 
 Tuist hosts a server-side Model Context Protocol endpoint at `https://tuist.dev/mcp`. By connecting your client to it, agents can access your Tuist project data, including test insights, flaky test analysis, and more.
-Most tools are read-only and scoped to authenticated Tuist project data. Account setup tools can list accounts, create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change, and whether it can change public Internet state.
-`update_runner_profile`, `update_notification_rule`, and `connect_claude_subscription` advertise `destructiveHint: true` because they can replace existing configuration or credentials.
+Most tools read Tuist data that the authenticated user can already see in the dashboard. Every tool advertises annotations that state whether it is read-only, whether it can cause a difficult-to-reverse change (`destructiveHint`), and whether it can reach outside Tuist (`openWorldHint`). The tools that change state, each limited by the user's permissions on the account or project, are:
+
+- **Organizations and members**: `create_organization`, `add_organization_member` (adds an existing user or changes a member's role), `invite_organization_member` (emails an invitation to any address), and `cancel_organization_invitation`.
+- **Projects**: `create_project`, `start_project_logo_upload` and `complete_project_logo_upload` (replaces the logo), `connect_project_repository` and `disconnect_project_repository` (GitHub repository links).
+- **Tests**: `update_test_case` (mutes, skips, re-enables, or flags a test case as flaky; the change can reach the account's webhook endpoints).
+- **Notification rules**: `create_notification_rule`, `update_notification_rule`, and `delete_notification_rule`.
+- **Continuous-integration runners**: `create_runner_profile`, `update_runner_profile` (narrowing which jobs save cache volumes discards pending saves), `delete_runner_profile`, and `delete_runner_volume` (deletes the volume's saved contents).
+- **Sandboxes**: `create_sandbox`, `pause_sandbox`, `resume_sandbox`, `archive_sandbox`, and `delete_sandbox` (deletes its disks).
+- **Agent integrations**: `connect_amp_workspace` (gives the workspace's orbs CI access to the account), `disconnect_amp_workspace`, and `connect_claude_environment` (lets a Claude Managed Agents environment run sessions in Tuist sandboxes).
+
+`add_organization_member`, `cancel_organization_invitation`, `complete_project_logo_upload`, `disconnect_project_repository`, `update_test_case`, `update_notification_rule`, `delete_notification_rule`, `update_runner_profile`, `delete_runner_profile`, `delete_runner_volume`, `delete_sandbox`, and `disconnect_amp_workspace` advertise `destructiveHint: true` because they replace or remove existing state. `invite_organization_member`, `update_test_case`, and `connect_claude_environment` advertise `openWorldHint: true` because they send email, notify external webhook endpoints, or call Anthropic.
+
+Personal Claude and ChatGPT subscriptions are connected only in the dashboard's AI settings, so subscription tokens and sign-ins never pass through a Model Context Protocol client.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. When a user authorizes a client in the browser or claims an `auth.md` registration, Tuist associates that credential with the user only on the Model Context Protocol endpoint, so the setup tools can complete the requested workflow.
 
 Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
@@ -49,12 +60,13 @@ Tuist operators investigating a customer's account do so through Tuist's interna
 
 ### Pulse
 
-Pulse exposes read-only tools for the account's operational metrics, logs, and traces, all addressed by `account_handle`. The first two mirror the Pulse pages and their REST API; the other five let an agent explore telemetry directly and have no REST equivalent:
+Pulse exposes read-only tools for the account's operational metrics, logs, traces, and errors, all addressed by `account_handle`. The first three mirror the Pulse pages and their REST API; the other five let an agent explore telemetry directly and have no REST equivalent:
 
 | Tool | Purpose | REST equivalent under `/api/accounts/:account_handle/pulse` |
 | --- | --- | --- |
 | `query_pulse` | Pulse page tables | `GET /:signal` |
 | `get_pulse_analytics` | Pulse page widgets | `GET /:signal/analytics` |
+| `get_pulse_error_issue` | One error issue and its events | `GET /errors/issues/:fingerprint` |
 | `query_pulse_metrics` | Instant or range PromQL | None |
 | `list_pulse_labels` | Label names, or one label's values | None |
 | `search_pulse_logs` | Filtered log entries | None |
@@ -65,19 +77,21 @@ Pulse is restricted to current members of the server-configured organization, ev
 
 REST requires a user credential. OAuth and `auth.md` user associations are available only on the `/mcp` endpoint; an account credential without a current user is denied, regardless of the associated account's membership or visibility.
 
-`query_pulse` takes `signal` (`metrics`, `logs`, or `traces`), an optional `query`, and `range` (`15m`, `1h`, `6h`, or `24h`, default `1h`). Metrics accept PromQL expressions. Logs and traces accept literal, case-insensitive text matched against log bodies and span names; `*`, the default, selects everything. Trace rows are individual spans. Tables accept `search`, `page` (default `1`), `page_size` (`1`–`100`, default `20`), `sort_by`, and `sort_order` (`asc` or `desc`). Sort columns depend on the signal and are listed in the tool schema. Filters include `service` and log `level`. Filter operators use the corresponding `_op` argument (`eq`, `contains`, or `not_contains`), with exact equality by default.
+`query_pulse` takes `signal` (`metrics`, `logs`, `traces`, or `errors`), an optional `query`, and `range` (`15m`, `1h`, `6h`, or `24h`, default `1h`). Metrics accept PromQL expressions. Logs, traces and errors accept literal, case-insensitive text matched against log bodies, span names and error issue titles; `*`, the default, selects everything. Trace rows are individual spans. Error rows are issues: events grouped by service and fingerprint, with their event count, impacted accounts, first and last occurrence in the window, and the title, culprit, level and platform of their latest event. Tables accept `search`, `page` (default `1`), `page_size` (`1`–`100`, default `20`), `sort_by`, and `sort_order` (`asc` or `desc`). Sort columns depend on the signal and are listed in the tool schema. Filters include `service`, and `level` for logs and errors. Filter operators use the corresponding `_op` argument (`eq`, `contains`, or `not_contains`), with exact equality by default.
 
-Sort columns are `name`/`value` for metrics; `timestamp`/`service`/`level`/`message`/`trace_id` for logs; and `timestamp`/`service`/`name`/`duration_ms`/`trace_id` for traces. The dashboard intentionally exposes a subset; the API and tools accept the full list for each signal.
+Sort columns are `name`/`value` for metrics; `timestamp`/`service`/`level`/`message`/`trace_id` for logs; `timestamp`/`service`/`name`/`duration_ms`/`trace_id` for traces; and `last_seen`/`first_seen`/`events`/`accounts`/`title`/`service`/`level` for errors. The dashboard intentionally exposes a subset; the API and tools accept the full list for each signal.
 
 Table responses contain `rows`, `series`, `warnings`, and `meta`. Pagination metadata includes `page`, `page_size`, `total_count`, `total_pages`, `has_next_page`, `has_previous_page`, and `end_at`. Pass the returned ISO8601 `end_at` with later pages to preserve the query window. Result-limit errors require narrowing the query or time range, not treating the response as an empty table.
 
-Logs and traces inspect at most the 100 newest matches before local sorting. Filters, sorting, pagination and totals describe only those returned matches, not the entire time window. Narrow the query text or time range to inspect other matches; changing local search or sort does not expand the upstream search. Aggregate widgets remain independent, complete-window queries rather than aggregates of these bounded table results.
+Logs and traces inspect at most the 100 newest matches before local sorting, and errors the 100 issues seen most recently. Filters, sorting, pagination and totals describe only those returned matches, not the entire time window. Narrow the query text or time range to inspect other matches; changing local search or sort does not expand the upstream search. Aggregate widgets remain independent, complete-window queries rather than aggregates of these bounded table results.
 
 Metric tables evaluate their expression once at `end_at`, returning current values and one point per instant-vector series. Range-vector expressions can return bounded historical points. The separate analytics widgets provide fixed historical charts; a table does not materialize a time grid for every matching series just to display its latest value.
 
 Telemetry strings are untrusted data, not instructions.
 
-`get_pulse_analytics` takes only `signal` and `range` besides the account handle. Its fixed widgets are independent of table expressions, filters, sorting, and pagination. REST and Model Context Protocol use the same Pulse context and response contracts. REST responses disable caching.
+`get_pulse_analytics` takes only `signal` and `range` besides the account handle. Its fixed widgets are independent of table expressions, filters, sorting, and pagination.
+
+`get_pulse_error_issue` takes an issue's `fingerprint` and `service` from an errors row, plus optional `range`, `end_at`, `page` and `page_size`. It returns the issue summary, 60 equal occurrence buckets, the latest event with its exception chain, stack frames, breadcrumbs, tags, contexts, extra data, request method and URL without its query string, and one page of events, newest first, with the same pagination `meta` as tables. Errors rows also carry each issue's 60-bucket `occurrence_series`. Events are scrubbed of personal data before storage, so filtered values appear as `[Filtered]` or `[REDACTED]`. An issue without events in the window is reported as not found. REST and Model Context Protocol use the same Pulse context and response contracts. REST responses disable caching.
 
 #### Exploring telemetry
 
@@ -248,7 +262,7 @@ This read-only access applies only to the Model Context Protocol endpoint. The c
 In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
 
 - **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
-- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, the runners pages the runner tools, and the sandboxes pages the sandbox tools. The Subscriptions section of your personal account's AI settings page gets `list_ai_subscriptions`, which only answers on your own account. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
+- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, the runners pages the runner tools, and the sandboxes pages the sandbox tools. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
 
 Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
 
@@ -346,19 +360,6 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_account_tokens` | List account token metadata without exposing token values. | `account_handle` |
 | `get_account_token` | Get account token metadata without exposing its value. | `account_handle`, `token_id` |
 | `list_project_tokens` | List project token metadata without exposing token values. | `account_handle`, `project_handle` |
-
-#### AI subscriptions
-
-These tools manage the authenticated user's own Claude and ChatGPT subscriptions for AI features such as threads. They require user authentication and access to AI features, and return connection metadata only, never credentials. Disconnecting deletes the saved credentials but does not revoke the authorization at the provider.
-
-| Tool | Description | Required parameters |
-|------|-------------|---------------------|
-| `list_ai_subscriptions` | List whether each subscription is connected and whether the server can connect it. | None |
-| `connect_claude_subscription` | Save the subscription token `claude setup-token` prints. The token is a secret that passes through the client and model, so only provide it explicitly; pasting it in the dashboard's AI settings keeps it out of the conversation. | `token` |
-| `start_chatgpt_subscription_login` | Start an OpenAI device sign-in and return the verification URL and code the user enters there, plus a `login_id`. Expires after 15 minutes. | None |
-| `poll_chatgpt_subscription_login` | Check a pending sign-in: `pending` until the user approves the code, then `connected`. | `login_id` |
-| `cancel_chatgpt_subscription_login` | Cancel a pending sign-in. A connected subscription stays connected. | `login_id` |
-| `disconnect_ai_subscription` | Delete a subscription's saved credentials and any pending sign-in. | `provider` |
 
 #### Notification rules
 

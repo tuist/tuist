@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.GetPulseAnalytics
+  alias Tuist.MCP.Components.Tools.GetPulseErrorIssue
   alias Tuist.MCP.Components.Tools.GetPulseTrace
   alias Tuist.MCP.Components.Tools.ListPulseLabels
   alias Tuist.MCP.Components.Tools.QueryPulse
@@ -102,6 +103,68 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
              GetPulseAnalytics.call(ctx.conn, Map.put(ctx.args, "range", "6h"))
   end
 
+  test "error issues forward the issue's identity and window, and validate it before reads", ctx do
+    fingerprint = String.duplicate("a1", 32)
+
+    expect(Pulse, :error_issue, fn user, account, ^fingerprint, params ->
+      assert user.id == ctx.user.id
+      assert account.id == ctx.account.id
+      assert params == %{"service" => "server", "range" => "6h", "page" => 2}
+
+      {:ok,
+       %{
+         issue: %{"service" => "server", "fingerprint" => fingerprint, "events" => 2, "title" => "RuntimeError"},
+         occurrence_series: [[123, 2]],
+         latest_event: %{"event_id" => "ee", "timestamp" => "1", "exception" => []},
+         events: [
+           %{
+             "event_id" => "ee",
+             "timestamp" => "1",
+             "title" => "RuntimeError",
+             "level" => "error",
+             "environment" => "production",
+             "release" => nil,
+             "server_name" => "web-1",
+             "trace_id" => nil,
+             "account_handle" => "tuist"
+           }
+         ],
+         meta: result().meta,
+         warnings: []
+       }}
+    end)
+
+    args = %{
+      "account_handle" => ctx.account.name,
+      "fingerprint" => fingerprint,
+      "service" => "server",
+      "range" => "6h",
+      "page" => 2
+    }
+
+    assert %{
+             "structuredContent" => %{
+               "issue" => %{"events" => 2},
+               "occurrence_series" => [[123, 2]],
+               "meta" => %{"has_next_page" => true}
+             }
+           } =
+             GetPulseErrorIssue.call(ctx.conn, args)
+
+    reject(&Pulse.error_issue/4)
+
+    for invalid <- [Map.delete(args, "service"), Map.put(args, "fingerprint", "ABC"), Map.put(args, "query", "x")] do
+      assert %{"isError" => true} = GetPulseErrorIssue.call(ctx.conn, invalid)
+    end
+  end
+
+  test "errors are a query_pulse signal", ctx do
+    expect(Pulse, :query, fn _, _, "errors", %{"sort_by" => "events"} -> {:ok, %{result() | rows: []}} end)
+
+    assert %{"structuredContent" => %{"rows" => []}} =
+             QueryPulse.call(ctx.conn, Map.put(%{ctx.args | "signal" => "errors"}, "sort_by", "events"))
+  end
+
   test "membership is persisted, rechecked after removal and independent of public visibility", ctx do
     {:ok, _account} = Accounts.update_account(ctx.account, %{visibility: :public})
     member = AccountsFixtures.user_fixture()
@@ -153,7 +216,8 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
           :rate_limited,
           :upstream_error,
           :malformed_response,
-          :timeout
+          :timeout,
+          :not_found
         ] do
       stub(Pulse, :query, fn _, _, _, _ -> {:error, reason} end)
       assert %{"isError" => true, "content" => [%{"text" => text}]} = QueryPulse.call(ctx.conn, ctx.args)

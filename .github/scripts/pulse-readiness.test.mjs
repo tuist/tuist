@@ -23,7 +23,7 @@ test('managed product configuration scopes Pulse to each environment\'s Tuist ac
     const accountID = {staging: '2', production: '3'}[environment];
     assert.deepEqual(connection, accountID ? {
       TUIST_PULSE_ACCOUNT_ID: accountID,
-      TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000', TUIST_PULSE_TENANT: 'public',
+      TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000',
     } : {}, environment);
     const secret = objects.find(object => object.kind === 'ExternalSecret' &&
       object.spec.data?.some(source => source.secretKey === 'TUIST_PULSE_TOKEN'));
@@ -137,7 +137,7 @@ if (args.includes('deployments')) {
   console.error('runtime diagnostic ' + canary);
   if (scenario === 'RPC failure') process.exit(1);
   const record = {account_id:11,enrolled_account_id:null,pulse_reader_available:false,
-    expected_endpoint:false,expected_database:false,pulse_flag:true,password:canary,url:'https://user:'+canary+'@example.invalid'};
+    expected_endpoint:false,pulse_flag:true,password:canary,url:'https://user:'+canary+'@example.invalid'};
   if (scenario === 'untyped metadata') record.account_id=canary;
   console.log('STAGING_READER_INSPECTION=' + JSON.stringify(record));
   if (scenario === 'duplicate metadata') console.log('STAGING_READER_INSPECTION=' + JSON.stringify(record));

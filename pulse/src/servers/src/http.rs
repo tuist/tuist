@@ -109,6 +109,7 @@ pub mod pprof;
 pub mod prom_store;
 pub mod prometheus;
 pub mod result;
+pub mod sentry;
 pub mod splunk;
 mod timeout;
 pub mod utils;
@@ -830,7 +831,13 @@ impl HttpServerBuilder {
 
         let router = router.nest(
             &format!("/{HTTP_API_VERSION}/splunk"),
-            HttpServer::route_splunk(log_state, self.memory_limiter.clone()),
+            HttpServer::route_splunk(log_state.clone(), self.memory_limiter.clone()),
+        );
+
+        // Tuist: Sentry SDKs report errors here; see http/sentry.rs.
+        let router = router.nest(
+            &format!("/{HTTP_API_VERSION}/sentry"),
+            HttpServer::route_sentry(log_state, self.memory_limiter.clone()),
         );
 
         Self { router, ..self }
@@ -1363,6 +1370,28 @@ impl HttpServer {
                 ServiceBuilder::new()
                     .layer(RequestDecompressionLayer::new().pass_through_unaccepted(true)),
             )
+            .layer(middleware::from_fn_with_state(
+                BatchingProtocol::Logs,
+                set_http_write_batching,
+            ))
+            .with_state(log_state)
+    }
+
+    fn route_sentry<S>(log_state: LogState, memory_limiter: ServerMemoryLimiter) -> Router<S> {
+        Router::new()
+            .route(
+                "/{service}/api/{project}/envelope/",
+                routing::post(sentry::envelope),
+            )
+            .route(
+                "/{service}/api/{project}/envelope",
+                routing::post(sentry::envelope),
+            )
+            .layer(middleware::from_fn_with_state(
+                memory_limiter,
+                memory_limit::decoded_body_accounting_middleware,
+            ))
+            .layer(ServiceBuilder::new().layer(RequestDecompressionLayer::new()))
             .layer(middleware::from_fn_with_state(
                 BatchingProtocol::Logs,
                 set_http_write_batching,

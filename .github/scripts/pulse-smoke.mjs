@@ -38,6 +38,9 @@ try {
   const ingest = process.env.PULSE_INGEST_URL;
   if (!['staging', 'canary', 'production'].includes(environment)) throw new Error();
   const ttl = environment === 'production' ? 'forever' : '7d';
+  // Errors carry more personal data than other telemetry: 90 days in
+  // production, matching Atlas's errors_events.
+  const errorsTtl = environment === 'production' ? '90d' : '7d';
   const password = readFileSync(process.env.PULSE_AUTH_FILE, 'utf8').trim().replace(/^pilot=/, '');
   if (!base || !password || !/^[a-zA-Z0-9-]+$/.test(run ?? '')) throw new Error();
   const headers = {
@@ -149,6 +152,24 @@ try {
       const pipeline = process.env.PULSE_LOKI_PIPELINE;
       if (!pipeline) throw new Error();
       await request('/v1/pipelines/loki_otlp', pipeline, {'Content-Type': 'application/x-yaml'});
+      // Errors: the table first, so the pipeline writes into its primary key and
+      // retention, then one synthetic Sentry event through the writer identity.
+      phase = 'errors table and pipeline';
+      const errorsTable = process.env.PULSE_ERRORS_TABLE;
+      const errorsPipeline = process.env.PULSE_ERRORS_PIPELINE;
+      if (!errorsTable || !errorsPipeline) throw new Error();
+      await sqlResult(errorsTable);
+      await sqlResult(`ALTER TABLE errors SET 'ttl' = '${errorsTtl}'`);
+      await request('/v1/pipelines/sentry_errors', errorsPipeline, {'Content-Type': 'application/x-yaml'});
+      phase = 'errors ingestion';
+      const error = await fetch(`${base}/v1/ingest?${new URLSearchParams({db: 'public', table: 'errors', pipeline_name: 'sentry_errors'})}`, {
+        method: 'POST', signal: AbortSignal.timeout(10000),
+        headers: { ...headers, 'Content-Type': 'application/json', ...(writerAuthorization ? { Authorization: writerAuthorization } : {}) },
+        body: JSON.stringify([{service: 'pulse-ci', event: {
+          event_id: trace, timestamp: Number(timestamp / 1000n) / 1e6, level: 'error', message: run,
+        }}]),
+      });
+      if (error.status !== 200) throw new Error();
     }
     // ExportTraceRequest.resource_spans.scope_spans.spans, including an error status.
     const span = concat(message(1, Buffer.from(trace, 'hex')), message(2, Buffer.from(trace.slice(0, 16), 'hex')),
@@ -191,6 +212,9 @@ try {
       const logs = await sql(`SELECT body, severity_text, timestamp, resource_attributes, trace_id FROM opentelemetry_logs WHERE body = '${run}'`);
       const traces = await sql(`SELECT trace_id, span_name, span_status_code, timestamp, service_name, duration_nano FROM opentelemetry_traces WHERE trace_id = '${trace}'`);
       const protobufLogs = ingest ? await sql(`SELECT body, severity_text, trace_id, resource_attributes FROM opentelemetry_logs WHERE body = '${run}-pb'`) : null;
+      const errors = ingest ? null : await sql(`SELECT title, "level", fingerprint, service FROM errors WHERE event_id = '${trace}'`);
+      const errorsDdl = ingest ? null : (await sql('SHOW CREATE TABLE errors'))?.[0]?.[1];
+      const errorsRetention = errorsTtl === '90d' ? /ttl\s*=\s*'(?:90d|90days|2months 29days 2h 52m 48s)'/ : /ttl\s*=\s*'7(?:d|days)'/;
       qualified = metrics.status === 'success' && metrics.data?.resultType === 'vector' &&
         metrics.data.result.length === 1 && metrics.data.result[0].metric.audit_run === run &&
         Number(metrics.data.result[0].value[1]) === 17 &&
@@ -199,13 +223,16 @@ try {
         traces?.length === 1 && traces[0][0] === trace && traces[0][1] === run && traces[0][2] === 'STATUS_CODE_ERROR' &&
         traces[0][3] != null && traces[0][4] === 'pulse-ci' && Number(traces[0][5]) === 17000000 &&
         (!ingest || (protobufLogs?.length === 1 && protobufLogs[0][1] === 'ERROR' && protobufLogs[0][2] === trace &&
-          protobufLogs[0][3]?.['service.name'] === 'pulse-ci'));
+          protobufLogs[0][3]?.['service.name'] === 'pulse-ci')) &&
+        (ingest || (errors?.length === 1 && errors[0][0] === run && errors[0][1] === 'error' &&
+          /^[0-9a-f]{64}$/.test(errors[0][2]) && errors[0][3] === 'pulse-ci' &&
+          typeof errorsDdl === 'string' && errorsRetention.test(errorsDdl)));
       if (qualified) break;
     } catch { /* Newly created tables can take time to become queryable. */ }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   if (!qualified) throw new Error();
-  console.log(`PASS: ${environment} database TTL ${ttl}; configured scoped identities; authenticated PromQL value/label, error log and trace identity; anonymous SQL rejected`);
+  console.log(`PASS: ${environment} database TTL ${ttl}; configured scoped identities; authenticated PromQL value/label, error log, trace and Sentry error (TTL ${errorsTtl}) identity; anonymous SQL rejected`);
 } catch {
   console.error(`FAIL: Pulse pilot (${phase})`);
   process.exitCode = 1;

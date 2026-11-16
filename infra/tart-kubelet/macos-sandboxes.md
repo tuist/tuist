@@ -159,7 +159,13 @@ their idle Pods give up their slot to CI and to sandbox growth. Unlike an idle
 CI runner, a warm VM counts as reclaimable room in sandbox grants immediately,
 without the CI preemption grace. The server never routes a job to the pools, so
 each keeps only `sandboxes.macos.warm.minWarmPoolFloor` VMs (rendered
-explicitly, default 0, since the CRD defaults an absent floor to 1). Production
+explicitly, default 0, since the CRD defaults an absent floor to 1). For that
+floor's place on a full rack, the server reports a pool's use from the macOS
+sandbox creates of its shape (`Tuist.Runners.MacosSandboxWarmPools`, which
+parses the pool name): `hours_with_jobs` ranks it against idle CI pools by the
+hours of the last 14 days with a create, and a create in the last hour marks it
+in use, so its floor is funded with those of the CI pools running jobs. Queued
+CI jobs still take its slot. Production
 keeps one 8 GiB VM on the BER1 rack: a cold create there took 17 to 19 s on a
 host with room, and a claim skips its clone and boot, leaving the workspace
 volume (`macOS sandbox boot phases` and `claim phases` in the kubelet log time

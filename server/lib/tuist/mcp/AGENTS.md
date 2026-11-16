@@ -85,13 +85,11 @@
   `Tool.json_schema/1`. They require test-read, then
   `Tuist.Tests.Coverage.supported?/1` for the project (Xcode, Mix, Cargo and Gradle projects).
 
-- AI subscription tools share `Accounts.AISubscriptions` with the dashboard and
-  `/api/me/ai-subscriptions`. They act only for `current_user`, require
-  `FeatureFlags.code_enabled?/1`, and under a WebMCP scope only answer on the
-  user's personal account; only the read-only list is offered over WebMCP.
-  Outputs are metadata only. The Claude `token` argument is a secret the user
-  must explicitly provide; Phoenix's `"arguments"` parameter filter keeps MCP
-  tool arguments out of request logs, so do not log or report them elsewhere.
+- Personal AI subscription credentials (Claude tokens, ChatGPT sign-ins) are
+  managed only in the dashboard and `/api/me/ai-subscriptions`. Do not add MCP
+  tools for them: a secret passed as a tool argument reaches the transcript and
+  the client's logs, and the Anthropic directory review requires it to stay out
+  of the connector.
 
 - Pulse tools share `Tuist.Pulse` with the Pulse pages: `PulseTools.execute/3`
   requires a user (or user-associated `mcp` credential), account read, then

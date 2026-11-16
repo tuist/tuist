@@ -105,7 +105,8 @@ spec:
 {{- if not (has (int $memoryMB) (list 8192 16384 24576)) }}
 {{- fail (printf "sandboxes.macos.warm.memoryMB: %v is not a macOS sandbox shape (8192, 16384 or 24576)" $memoryMB) }}
 {{- end }}
-{{- /* 8 GiB keeps the pool's original name and dispatch label. */}}
+{{- /* 8 GiB keeps the pool's original name and dispatch label. CONTRACT: the
+server's Tuist.Runners.MacosSandboxWarmPools reads the shape from this name. */}}
 {{- $suffix := ternary "" (printf "-%dgb" (div (int $memoryMB) 1024)) (eq (int $memoryMB) 8192) }}
 {{- $poolName := printf "%s%s" $basePoolName $suffix }}
 ---
