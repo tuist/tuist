@@ -134,7 +134,9 @@ memory image until they cold boot.
   removes `.tmp-*` leftovers. `delete_disks {snapshot_id}` removes the
   directory and succeeds when it is absent. `hello` and `report` list the
   snapshots under `disk_snapshots`; the disk report counts their exclusive
-  bytes as `snapshots_bytes`.
+  bytes as `snapshots_bytes`. macOS hosts implement these differently
+  (`infra/tart-kubelet/macos-sandboxes.md`, "Disk snapshots"): they also
+  answer `bytes` from `save_disks` and per snapshot.
 - `create {..., from_disk_snapshot}`: link the snapshot's kernel and
   reflink its disks into the jail instead of the template's (the template
   name and workspace size must match the snapshot), then cold boot like a

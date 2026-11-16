@@ -162,6 +162,9 @@ type DiskSnapshotInfo struct {
 	TemplateTag string    `json:"template_tag"`
 	WorkspaceGB int       `json:"workspace_gb"`
 	CreatedAt   time.Time `json:"created_at"`
+	// Bytes is what the snapshot holds on its own, which a macOS host
+	// reserves against its disk budget. Linux nodes leave it out.
+	Bytes int64 `json:"bytes,omitempty"`
 }
 
 type Hello struct {
@@ -331,6 +334,12 @@ type CopyDisksArgs struct {
 	Template    string         `json:"template"`
 	WorkspaceGB int            `json:"workspace_gb"`
 	FromArchive *ArchiveSource `json:"from_archive"`
+	// TemplateTag is the image a macOS snapshot was saved from, which its
+	// overlay needs; the host pulls it when its template has moved on.
+	TemplateTag string `json:"template_tag,omitempty"`
+	// Bytes is the snapshot's DiskSnapshotInfo.Bytes, which a macOS host
+	// admits against its disk budget before downloading.
+	Bytes int64 `json:"bytes,omitempty"`
 }
 
 // ArchiveSource is an archive to restore: a presigned GET URL and the size
@@ -437,6 +446,8 @@ type PauseResult struct {
 
 type SaveDisksResult struct {
 	DurationMs int64 `json:"duration_ms"`
+	// Bytes is the saved snapshot's DiskSnapshotInfo.Bytes, from macOS hosts.
+	Bytes int64 `json:"bytes,omitempty"`
 }
 
 type ArchivePart struct {

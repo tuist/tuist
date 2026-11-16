@@ -314,6 +314,73 @@ VMs are deleted on reconnect when their server row no longer exists. Runtime/too
 versions and template caches are deliberately retained for compatibility; reclaim
 those only after verifying no journal or checkpoint references them.
 
+## Disk snapshots
+
+Amp Orb project snapshots (`ORB_SNAPSHOT_ID`) are saved and booted on the host
+(`internal/macosandbox/snapshot.go`). A snapshot is a stopped Tart VM named
+`sbs-<snapshot id>` in the sandbox store, so a create clones it like the template.
+
+- Every pause runs `/bin/sync` in the guest first and journals `disks_synced`
+  (see archives); a resume clears it. A failed sync still pauses.
+- `save_disks {sandbox_id, snapshot_id}` needs a paused sandbox with synced
+  disks. It evicts a resident VM first (the checkpoint and fence free its slot),
+  then APFS-clones `config.json`, `nvram.bin` and the stacked VM's
+  `manifest.json` and private `overlay.asif` (base layers stay shared in the
+  content store) into `snapshots.tmp/<id>`, writes `disk-snapshot.json` and
+  renames it to `vms/sbs-<id>`. A VM with a standalone `disk.img` is refused:
+  that disk is the whole image, which could never be archived or copied, so
+  only its host could boot from it. `state.vzvmsave` and
+  the runtime's control files stay behind, so a clone cold boots. The workspace
+  is an APFS volume inside the root disk, so it comes along with its quota.
+  It answers `bytes`, the overlay's allocated size. Saving an existing ID
+  answers it unchanged. Startup empties `snapshots.tmp`.
+- `delete_disks {snapshot_id}` removes it; an absent one succeeds.
+- `create {from_disk_snapshot}` clones `sbs-<id>`, runs the snapshot's image tag,
+  sets shape and identity, boots, then mounts the existing `TuistSandboxWorkspace`
+  volume at `/Users/runner/work` instead of adding one. A host without the
+  snapshot answers `disk snapshot not found` before reserving anything. Warm VMs
+  are never used for these creates.
+- `hello` and `report` list `disk_snapshots` with their `bytes`, and
+  `disk.snapshots_bytes` sums them. `diskRoom` and the server's
+  `MacosCapacity.disk_room?` count them against half the filesystem; the server
+  does not reserve the Linux ceiling for them, because only the host can measure
+  what an overlay holds.
+
+Placement (`Sandboxes.place_and_create/4`, darwin clause): a create from a
+snapshot goes through `MacosCapacity.place/2` restricted to the hosts holding it.
+When none can take it or the clone fails, an archived snapshot is restored on
+another host like an archived session (`create {from_archive, template_tag}`,
+placed by `place_restore/3`); without an archive, or when no host can restore
+it, the template boots on any host at once, since waiting for the snapshot's
+host could take as long as a CI job.
+
+Claude Code repository snapshots (`Tuist.Sandboxes.ClaudeCodeSnapshots`) are
+built as on Linux: a builder VM with the build's id clones the repository and
+runs the environment's setup script as `runner` for up to an hour, then pauses
+with synced disks and is saved like an Orb. A builder serves no session, so
+`MacosCapacity` places it only where it leaves a granted slot free: no other VM
+on the host and a grant of two slots. While CI or sessions hold a slot it waits
+and retries every minute, and once it runs, CI waits for it like any VM.
+
+Replication follows Linux snapshot copies and reuses the session archive above.
+While the archive tier is on, a ready snapshot is uploaded (`archive_disks`) as
+an evicted session is (`uploadDisk`): `config.json`, `nvram.bin` and
+`overlay.asif`, sized by the snapshot's measured `disk_bytes`. A popular
+snapshot (`DiskSnapshots.copy/1`) is then copied
+(`copy_disks {..., template_tag, bytes}`) onto hosts picked by rendezvous
+hashing of its lineage among those serving its template and restoring archives
+(`MacosCapacity.snapshot_hosts/1`). A copy is a restore that stays stopped
+(`cloneArchived`): the host clones the image the snapshot was saved from into
+`vms/sbs-<id>`, pulling that digest first when its template moved on, puts the
+archived files over the clone's and writes `disk-snapshot.json` last, so a
+partial copy is never reported or cloned; a failed one is removed, and startup
+removes `sbs-*` VMs without metadata. The server admits a copy against the
+host's budget with the measured bytes and the copies still downloading there
+(`MacosCapacity.reserve_snapshot_copy/3`); the host checks again first.
+Qualification on a rack host (`TestAppleRuntimeAcceptance`) is still owed:
+clone of a saved or copied snapshot, cold boot and the workspace remount have
+only been exercised with fakes and, for the remount commands, in a guest.
+
 ## Cached checkouts
 
 With the runner cache enabled (`--custom-cache-url`), every sandbox VM, warm

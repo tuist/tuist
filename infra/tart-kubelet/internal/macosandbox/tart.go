@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -73,6 +74,8 @@ type TartRuntime struct {
 	// rootfs is the root disk ceiling diskRoom reserves per sandbox, as
 	// last seen on this host's sandbox VMs (see rootDisk). 0 until known.
 	rootfs atomic.Int64
+	// snapMu orders the renames and deletes of disk snapshot directories.
+	snapMu sync.Mutex
 }
 
 func (t *TartRuntime) client(r *Record) *tart.Client {
@@ -125,10 +128,24 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 		slog.Info("macOS sandbox boot phases", append(phases, "total_ms", time.Since(start).Milliseconds())...)
 	}()
 	c := t.client(r)
+	// A VM from a disk snapshot clones the snapshot, a stopped VM in this
+	// store, and keeps its workspace volume.
+	source, snapshot := image, protocol.DiskSnapshotInfo{}
+	if r.FromDiskSnapshot != "" {
+		var err error
+		if snapshot, err = t.DiskSnapshot(r.FromDiskSnapshot); err != nil {
+			return err
+		}
+		if snapshot.Template != r.Template || snapshot.WorkspaceGB != r.WorkspaceGB {
+			return errors.New("disk snapshot does not match the sandbox's template and workspace")
+		}
+		source = snapshotVMName(r.FromDiskSnapshot)
+		phases = append(phases, "disk_snapshot", r.FromDiskSnapshot)
+	}
 	if err := t.roomForClone(ctx, c, r.MemoryMB); err != nil {
 		return err
 	}
-	if err := c.Clone(ctx, image, r.VMName()); err != nil {
+	if err := c.Clone(ctx, source, r.VMName()); err != nil {
 		return err
 	}
 	lap("clone")
@@ -164,8 +181,12 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	// Adding the volume takes 1 to 2 s, so it happens before a claim waits.
-	err = t.addWorkspace(ctx, r)
+	if snapshot.ID != "" {
+		err = t.mountWorkspace(ctx, r, snapshot.WorkspaceGB)
+	} else {
+		// Adding the volume takes 1 to 2 s, so it happens before a claim waits.
+		err = t.addWorkspace(ctx, r)
+	}
 	lap("workspace")
 	if err == nil && strings.HasPrefix(r.VMName(), warmVMPrefix) {
 		err = t.primeVolumeDelete(ctx, r)
