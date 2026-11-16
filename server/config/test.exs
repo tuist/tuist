@@ -25,6 +25,12 @@ config :sentry, dsn: nil
 # Oban
 config :tuist, Oban, testing: :manual
 
+# Tests start their own runners.
+config :tuist, Tuist.Agents.Runner, enabled: false
+
+# Agent sessions keep their objects in memory (started in test_helper.exs).
+config :tuist, Tuist.Agents.SessionStore, bucket: {Condukt.SessionStore.ObjectStore.Memory, Tuist.Agents.TestBucket}
+
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,

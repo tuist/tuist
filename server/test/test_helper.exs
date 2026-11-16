@@ -1,6 +1,7 @@
 alias Ecto.Adapters.SQL.Sandbox
 
 Mimic.copy(Redix)
+Mimic.copy(Tuist.Agents.SessionStore)
 Mimic.copy(Sentry)
 Mimic.copy(Sentry.Context)
 Mimic.copy(Base)
@@ -322,6 +323,9 @@ end
 # in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1 built the full
 # locale set.
 locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
+
+# The bucket agent sessions store their objects in (config/test.exs).
+{:ok, _} = Condukt.SessionStore.ObjectStore.Memory.start_link(name: Tuist.Agents.TestBucket)
 
 ExUnit.start(capture_log: true, exclude: [:skip, :destructive_clickhouse_migration] ++ locale_exclude)
 Sandbox.mode(Tuist.Repo, :manual)

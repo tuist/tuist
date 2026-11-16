@@ -2,18 +2,22 @@ defmodule Tuist.ThreadsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Condukt.SessionStore.ObjectStore
+  alias Condukt.SessionStore.ObjectStore.Memory
+  alias Condukt.SessionStore.Snapshot
   alias Tuist.Accounts
+  alias Tuist.Agents.Lease
+  alias Tuist.Agents.SessionStore
+  alias Tuist.Agents.Workers.PurgeDeletedSessionsWorker
   alias Tuist.FeatureFlags
   alias Tuist.Threads
   alias Tuist.Threads.Approval
-  alias Tuist.Threads.Checkpoints
   alias Tuist.Threads.Message
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
   alias Tuist.Threads.Shipping
   alias Tuist.Threads.Thread
   alias Tuist.Threads.ToolCall
-  alias Tuist.Threads.Worker
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   # The built-in tools whose open calls of a run do not block each other.
@@ -38,7 +42,7 @@ defmodule Tuist.ThreadsTest do
     assert replay.id == thread.id
     assert Repo.aggregate(Thread, :count) == 1
     assert [%{kind: "human", body: "Explain this codebase"}] = thread.messages
-    assert_enqueued(worker: Worker, args: %{run_id: Repo.one!(Run).id, attempt: 0})
+    assert %{wanted: true, kind: "thread"} = session(thread.id)
     assert {:error, :request_conflict} = Threads.create(user, account, %{attrs | "content" => "Different work"})
     stranger = AccountsFixtures.user_fixture()
     assert {:error, :forbidden} = Threads.get(stranger, account, thread.id)
@@ -46,6 +50,33 @@ defmodule Tuist.ThreadsTest do
     assert {:error, :invalid_arguments} = Threads.get(user, account, "not-a-uuid")
     assert {:ok, %{revision: revision}} = Threads.snapshot(user, account, :inbox)
     assert revision > 0
+  end
+
+  test "deleting a thread deletes its agent session and its stored conversation", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, other} = Threads.create(user, account, request())
+    id = to_string(thread.id)
+    {ObjectStore, store} = SessionStore.store("thread", id, 1)
+    :ok = ObjectStore.save(Snapshot.new(%{}), store)
+
+    Repo.delete!(thread)
+
+    # A trigger cannot reach object storage: it marks the session, and the
+    # sweep deletes its objects once no host can still write them.
+    assert %{wanted: false} = session(id)
+    assert :ok = PurgeDeletedSessionsWorker.perform(%Oban.Job{})
+    assert Repo.exists?(from s in "agent_sessions", where: s.id == ^id)
+
+    Repo.update_all(from(s in "agent_sessions", where: s.id == ^id),
+      set: [deleted_at: DateTime.add(DateTime.utc_now(), -120)]
+    )
+
+    assert :ok = PurgeDeletedSessionsWorker.perform(%Oban.Job{})
+
+    refute Repo.exists?(from s in "agent_sessions", where: s.id == ^id)
+    assert ObjectStore.load(Keyword.delete(store, :epoch)) == :not_found
+    assert {:ok, []} = Memory.list(Tuist.Agents.TestBucket, "agents/thread/#{id}/", nil)
+    assert %{wanted: true} = session(other.id)
   end
 
   test "revoked feature access denies existing history", %{user: user, account: account} do
@@ -72,7 +103,7 @@ defmodule Tuist.ThreadsTest do
       {:ok, []}
     end)
 
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     {:ok, _} = Threads.finish(run, {:ok, "Done"})
     assert {:ok, next} = Threads.message(user, account, id, Map.put(request(), "model", "different-model"))
     assert next.model == "selected-model"
@@ -81,7 +112,7 @@ defmodule Tuist.ThreadsTest do
   test "remote tool effects use the ledger without a repository", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
     assert thread.repository == nil
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     invocation = Ecto.UUID.generate()
 
     assert {:ok, "remote result"} =
@@ -104,9 +135,9 @@ defmodule Tuist.ThreadsTest do
   test "duplicate delivery cannot claim a second run and completion persists suggestions", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
     run = Repo.one!(Run)
-    assert {:ok, {claimed, _}} = Threads.claim(run.id)
+    assert {:ok, {claimed, _}} = claim(run.id)
     assert claimed.attempt == 1
-    assert {:error, :stale_run} = Threads.claim(run.id)
+    assert {:error, :stale_run} = claim(run.id)
 
     assert {:ok, _} =
              Threads.finish(
@@ -124,7 +155,7 @@ defmodule Tuist.ThreadsTest do
 
   test "completed tools replay their results without repeating effects", %{user: user, account: account} do
     {:ok, _} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     {:ok, effects} = Agent.start_link(fn -> 0 end)
 
     write = fn ->
@@ -145,7 +176,7 @@ defmodule Tuist.ThreadsTest do
   test "the session's built-in tool calls are reserved before they run and completed after",
        %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     args = %{"command" => "make"}
 
     assert :ok = Threads.begin_tool_call(run, "call_1", "Bash", args, @tools)
@@ -171,7 +202,7 @@ defmodule Tuist.ThreadsTest do
   test "an external call whose outcome is unknown blocks the run's later built-in calls",
        %{user: user, account: account} do
     {:ok, _thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
 
     assert {:error, :tool_outcome_unknown} =
              Threads.call_external_tool(run, Ecto.UUID.generate(), "deploy", %{}, fn -> {:error, :timeout} end)
@@ -183,7 +214,7 @@ defmodule Tuist.ThreadsTest do
   test "cancelling a stopped session's calls closes only the named open calls",
        %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
 
     assert :ok = Threads.begin_tool_call(run, "call_1", "Bash", %{"command" => "make"}, @tools)
     assert :ok = Threads.begin_tool_call(run, "call_2", "Read", %{"path" => "a"}, @tools)
@@ -203,7 +234,7 @@ defmodule Tuist.ThreadsTest do
 
   test "an ambiguous tool effect blocks later writes and survives archiving", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     failed = fn -> {:error, :workspace_command_failed} end
     invocation = Ecto.UUID.generate()
 
@@ -222,47 +253,42 @@ defmodule Tuist.ThreadsTest do
     assert {:error, :tool_outcome_unknown} = Threads.message(user, account, thread.id, request("Try a different write"))
   end
 
-  test "expired attempts resume only safe work and reject old checkpoints", %{user: user, account: account} do
-    {:ok, _} = Threads.create(user, account, request())
-    {:ok, {first, _}} = Threads.claim(Repo.one!(Run).id)
-    :ok = Checkpoints.record(first.session_id, [Condukt.Message.user("Original request")], 1)
-    assert {:ok, _} = Checkpoints.load(Repo.reload!(first))
+  test "a lapsed host's run is resumed under the next lease, which fences the old attempt", %{
+    user: user,
+    account: account
+  } do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {first, _}} = claim(Repo.one!(Run).id)
+    assert first.session_id == thread.id
+    lapse(thread.id)
 
-    Repo.update_all(from(r in Run, where: r.id == ^first.id),
-      set: [heartbeat_at: DateTime.add(DateTime.utc_now(:second), -120)]
-    )
-
-    assert :ok = Threads.recover()
-    assert {:ok, {second, _}} = Threads.claim(first.id)
-    assert second.attempt == 2
-    assert second.session_id != first.session_id
-    :ok = Checkpoints.record(first.session_id, [Condukt.Message.user("Stale replacement")], 2)
-    assert {:ok, %{messages: [%{content: "Original request"}]}} = Checkpoints.load(Repo.reload!(second))
+    assert {:ok, {second, _}} = claim(first.id)
+    assert second.attempt == first.attempt + 1
+    assert second.session_id == thread.id
+    refute Threads.owns_run?(first.id, first.attempt)
     assert {:error, :stale_run} = Threads.rename(first, "Stale title")
     assert {:ok, _} = Threads.rename(second, "Current title")
   end
 
-  test "recovery never regenerates effects missing from a protocol checkpoint", %{user: user, account: account} do
-    {:ok, _} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+  test "a resumed run replays completed effects instead of repeating them", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    invocation = Ecto.UUID.generate()
+    args = %{"command" => "change-files"}
 
-    assert {:ok, _} =
-             Threads.call_external_tool(run, Ecto.UUID.generate(), "bash", %{"command" => "change-files"}, fn ->
-               {:ok, "changed once"}
-             end)
+    assert {:ok, "changed once"} =
+             Threads.call_external_tool(run, invocation, "bash", args, fn -> {:ok, "changed once"} end)
 
-    Repo.update_all(from(r in Run, where: r.id == ^run.id),
-      set: [heartbeat_at: DateTime.add(DateTime.utc_now(:second), -120)]
-    )
+    lapse(thread.id)
+    {:ok, {resumed, _}} = claim(run.id)
 
-    assert :ok = Threads.recover()
-    assert Repo.reload!(run).status == "interrupted"
-    assert {:error, :stale_run} = Threads.claim(run.id)
+    assert {:ok, "changed once"} =
+             Threads.call_external_tool(resumed, invocation, "bash", args, fn -> flunk("repeated a completed effect") end)
   end
 
   test "deactivation fences running model and tool access", %{user: user, account: account} do
     {:ok, _} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     Repo.update!(change(user, active: false))
     refute Threads.owns_run?(run.id, run.attempt)
     assert {:error, :stale_run} = Threads.rename(run, "Late title")
@@ -270,15 +296,12 @@ defmodule Tuist.ThreadsTest do
 
   for revocation <- [:permission, :inactive, :disabled, :feature] do
     @revocation revocation
-    test "claim and recovery terminalize queued work after #{@revocation} revocation", %{user: user} do
+    test "the host's claim terminalizes queued work after #{@revocation} revocation", %{user: user} do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       :ok = Accounts.add_user_to_organization(user, organization, role: :admin)
-      {:ok, claimed_thread} = Threads.create(user, account, request())
-      {:ok, recovered_thread} = Threads.create(user, account, request())
-      claimed = Repo.get_by!(Run, thread_id: claimed_thread.id)
-      recovered = Repo.get_by!(Run, thread_id: recovered_thread.id)
-      Repo.delete_all(Oban.Job)
+      {:ok, thread} = Threads.create(user, account, request())
+      queued = Repo.get_by!(Run, thread_id: thread.id)
 
       case @revocation do
         :permission -> Accounts.update_user_role_in_organization(user, organization, :user)
@@ -287,14 +310,11 @@ defmodule Tuist.ThreadsTest do
         :feature -> stub(FeatureFlags, :guild_enabled?, fn _ -> false end)
       end
 
-      assert {:error, :forbidden} = Threads.claim(claimed.id)
-      assert Repo.reload!(claimed).status == "interrupted"
-      assert Repo.reload!(claimed).attempt == 0
-      assert :ok = Threads.recover()
-      assert Repo.reload!(recovered).status == "interrupted"
-      assert Repo.reload!(recovered).attempt == 0
-      assert Repo.reload!(recovered_thread).agent_status == "interrupted"
-      refute_enqueued(worker: Worker)
+      assert {:error, :forbidden} = claim(queued.id)
+      assert Repo.reload!(queued).status == "interrupted"
+      assert Repo.reload!(queued).attempt == 0
+      assert Repo.reload!(thread).agent_status == "interrupted"
+      assert Threads.next_run(thread.id) == nil
 
       case @revocation do
         :permission -> Accounts.update_user_role_in_organization(user, organization, :admin)
@@ -303,46 +323,17 @@ defmodule Tuist.ThreadsTest do
         :feature -> stub(FeatureFlags, :guild_enabled?, fn _ -> true end)
       end
 
-      assert :ok = Threads.recover()
-      assert {:error, :stale_run} = Threads.claim(claimed.id)
-      assert {:error, :stale_run} = Threads.claim(recovered.id)
-      assert Enum.count(Threads.history(Repo.reload!(claimed_thread)).messages, &(&1.kind == "notice")) == 1
-      assert Enum.count(Threads.history(Repo.reload!(recovered_thread)).messages, &(&1.kind == "notice")) == 1
-      refute_enqueued(worker: Worker)
+      lapse(thread.id)
+      assert {:error, :stale_run} = claim(queued.id)
+      assert Enum.count(Threads.history(Repo.reload!(thread)).messages, &(&1.kind == "notice")) == 1
     end
-  end
-
-  test "unauthorized queued runs leave the bounded recovery window", %{user: user, account: account} do
-    for _ <- 1..100 do
-      {:ok, _} = Threads.create(user, account, request())
-    end
-
-    blocked_ids = Repo.all(from r in Run, select: r.id)
-    Repo.update!(change(user, disabled_at: DateTime.utc_now(:second)))
-
-    permitted = AccountsFixtures.user_fixture()
-    {:ok, thread} = Threads.create(permitted, permitted.account, request())
-    waiting = Repo.get_by!(Run, thread_id: thread.id)
-    Repo.delete_all(Oban.Job)
-
-    # Give every revoked run priority over the still-authorized queued run.
-    Repo.update_all(from(r in Run, where: r.id in ^blocked_ids),
-      set: [heartbeat_at: DateTime.add(DateTime.utc_now(:second), -120)]
-    )
-
-    assert :ok = Threads.recover()
-    assert Repo.aggregate(from(r in Run, where: r.id in ^blocked_ids and r.status == "interrupted"), :count) == 100
-    refute_enqueued(worker: Worker)
-    assert :ok = Threads.recover()
-    assert_enqueued(worker: Worker, args: %{run_id: waiting.id, attempt: 0})
-    assert {:ok, {_, _}} = Threads.claim(waiting.id)
   end
 
   test "revocation preserves uncertain effects in queued attempts", %{user: user, account: account} do
     runs =
       for _ <- 1..2 do
         {:ok, thread} = Threads.create(user, account, request())
-        {:ok, {run, _}} = Threads.claim(Repo.get_by!(Run, thread_id: thread.id).id)
+        {:ok, {run, _}} = claim(Repo.get_by!(Run, thread_id: thread.id).id)
 
         assert {:error, :tool_outcome_unknown} =
                  Threads.call_external_tool(run, Ecto.UUID.generate(), "remote_write", %{}, fn ->
@@ -352,28 +343,26 @@ defmodule Tuist.ThreadsTest do
         Repo.update!(change(run, status: "queued", heartbeat_at: nil))
       end
 
-    [claimed, recovered] = runs
-    Repo.delete_all(Oban.Job)
     Repo.update!(change(user, active: false))
-    assert {:error, :forbidden} = Threads.claim(claimed.id)
-    assert :ok = Threads.recover()
-    assert Repo.reload!(claimed).status == "outcome_unknown"
-    assert Repo.reload!(recovered).status == "outcome_unknown"
-    assert Repo.aggregate(from(c in "thread_tool_calls", where: c.status == "executing"), :count) == 2
-
-    Repo.update!(change(Repo.reload!(user), active: true))
-    assert :ok = Threads.recover()
-    refute_enqueued(worker: Worker)
 
     for run <- runs do
-      assert {:error, :stale_run} = Threads.claim(run.id)
+      lapse(run.thread_id)
+      assert {:error, :forbidden} = claim(run.id)
+      assert Repo.reload!(run).status == "outcome_unknown"
+    end
+
+    assert Repo.aggregate(from(c in "thread_tool_calls", where: c.status == "executing"), :count) == 2
+    Repo.update!(change(Repo.reload!(user), active: true))
+
+    for run <- runs do
+      assert {:error, :stale_run} = claim(run.id)
       assert {:error, :tool_outcome_unknown} = Threads.message(user, account, run.thread_id, request("Continue"))
     end
   end
 
   test "archive cancels active work, restore does not restart it", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     assert {:ok, %{status: :archived}} = Threads.archive(user, account, thread.id, "archived")
     assert {:error, :stale_run} = Threads.finish(run, {:ok, "Late private reply"})
     assert {:ok, %{status: :active, agent_status: "idle"}} = Threads.archive(user, account, thread.id, "active")
@@ -399,7 +388,7 @@ defmodule Tuist.ThreadsTest do
 
   test "Ship authorizes one exact persisted review, never arbitrary client fields", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     {:ok, _} = Threads.finish(run, {:ok, "Ready"})
 
     preview = %{
@@ -446,7 +435,7 @@ defmodule Tuist.ThreadsTest do
 
   test "archiving an in-flight Ship cannot erase an unknown publication", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
     {:ok, _} = Threads.finish(run, {:ok, "Ready"})
 
     ship =
@@ -463,6 +452,28 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, _} = Threads.archive(user, account, thread.id, "active")
     assert {:error, :tool_outcome_unknown} = Threads.message(user, account, thread.id, request("Continue"))
   end
+
+  # Takes the thread's session lease as an agents host does, then claims the
+  # run at its epoch. A lease that is still held keeps its epoch.
+  defp claim(run_id) do
+    thread_id = Repo.get!(Run, run_id).thread_id
+    Lease.claim("test-host", 1_000)
+    Threads.claim(run_id, session(thread_id).epoch)
+  end
+
+  defp lapse(thread_id) do
+    Repo.update_all(from(s in "agent_sessions", where: s.id == ^to_string(thread_id)),
+      set: [lease_expires_at: DateTime.add(DateTime.utc_now(), -1)]
+    )
+  end
+
+  defp session(thread_id),
+    do:
+      Repo.one!(
+        from s in "agent_sessions",
+          where: s.id == ^to_string(thread_id),
+          select: %{wanted: s.wanted, kind: s.kind, epoch: s.epoch, host: s.host}
+      )
 
   defp request(content \\ "Inspect the repository"),
     do: %{

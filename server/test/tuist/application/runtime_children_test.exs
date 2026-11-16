@@ -83,6 +83,24 @@ defmodule Tuist.Application.RuntimeChildrenTest do
     end
   end
 
+  describe "agents/3" do
+    defp runner?(children), do: Enum.any?(children, &match?(%{id: Tuist.Agents.Runner}, &1))
+
+    test "agents pods and undelegated web pods host sessions; no other mode does" do
+      for mode <- Environment.modes(), delegated? <- [false, true] do
+        children = RuntimeChildren.agents(mode, delegated?, [])
+        assert {DynamicSupervisor, name: Tuist.Agents.Hosts, strategy: :one_for_one} in children
+
+        assert runner?(children) == (mode == :agents or (mode == :web and not delegated?)),
+               "unexpected runner for mode=#{inspect(mode)} delegated?=#{delegated?}"
+      end
+    end
+
+    test "a disabled runner is left out" do
+      refute runner?(RuntimeChildren.agents(:agents, false, enabled: false))
+    end
+  end
+
   describe "readiness_server/1" do
     test ":xcresult_processor serves Tuist.Readiness.Plug on the readiness port" do
       assert [{Tuist.XcresultDrain, []}, {Plug.Cowboy, opts}] = RuntimeChildren.readiness_server(:xcresult_processor)

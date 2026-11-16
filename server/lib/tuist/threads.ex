@@ -8,6 +8,7 @@ defmodule Tuist.Threads do
   alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Accounts.User
+  alias Tuist.Agents.Lease
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Repo
@@ -92,7 +93,7 @@ defmodule Tuist.Threads do
          {:ok, repository, branch} <- repository(account, attrs),
          hash = fingerprint({body, repository, branch, provider, model}),
          :ok <- creation_model(user, account, request_id, hash, provider, model) do
-      transact(fn ->
+      fn ->
         # The account row serializes first-use request keys across replicas.
         Repo.one!(from a in Accounts.Account, where: a.id == ^account.id, lock: "FOR UPDATE")
         # Model discovery may refresh credentials and wait on the provider.
@@ -132,7 +133,9 @@ defmodule Tuist.Threads do
           _ ->
             Repo.rollback(:request_conflict)
         end
-      end)
+      end
+      |> transact()
+      |> wake()
     end
   end
 
@@ -149,7 +152,7 @@ defmodule Tuist.Threads do
          {:ok, request_id} <- uuid(attrs["request_id"]),
          {:ok, body} <- content(attrs["content"]),
          {:ok, _opts} <- Provider.client_opts(user, thread) do
-      transact(fn ->
+      fn ->
         thread = lock_thread(thread.id)
         require_access!(user, account, thread)
 
@@ -166,7 +169,9 @@ defmodule Tuist.Threads do
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
         end
-      end)
+      end
+      |> transact()
+      |> wake()
     end
   end
 
@@ -306,26 +311,42 @@ defmodule Tuist.Threads do
     end
   end
 
-  def claim(id) do
+  @doc """
+  Claims a queued Ship run for its Oban job: a new attempt, fenced by the
+  run's heartbeat.
+  """
+  def claim(id), do: claim(id, nil)
+
+  @doc """
+  Claims an inference run for the agents host holding the thread's session
+  lease at `epoch` (`Tuist.Agents.Lease`): a queued run, or a running one an
+  earlier host was interrupted in, which the new host resumes. The run's
+  attempt becomes the epoch, so the lease fences its effects
+  (`owns_run?/2`), and its Condukt session is the thread's own, by id.
+  """
+  def claim(id, epoch) do
     result =
       transact(fn ->
         run = Repo.get!(Run, id)
         thread = lock_thread(run.thread_id)
         run = Repo.one!(from r in Run, where: r.id == ^id, lock: "FOR UPDATE")
-        if run.status != "queued", do: Repo.rollback(:stale_run)
+        if not claimable?(run, epoch), do: Repo.rollback(:stale_run)
 
         if thread.status != :active or not worker_access?(thread) do
           # Commit the terminal state before acknowledging the forbidden job.
           # Rolling back here would leave it queued for every recovery sweep.
-          resume_or_interrupt!(thread, run, true)
+          interrupt!(thread, run)
           :forbidden
         else
+          {attempt, session_id} =
+            if is_nil(epoch), do: {run.attempt + 1, Ecto.UUID.generate()}, else: {epoch, thread.id}
+
           run =
             Repo.update!(
               Changeset.change(run,
                 status: "running",
-                attempt: run.attempt + 1,
-                session_id: Ecto.UUID.generate(),
+                attempt: attempt,
+                session_id: session_id,
                 heartbeat_at: now()
               )
             )
@@ -344,16 +365,48 @@ defmodule Tuist.Threads do
     end
   end
 
+  defp claimable?(%Run{kind: "ship"} = run, nil), do: run.status == "queued"
+  defp claimable?(%Run{kind: "ship"}, _epoch), do: false
+  defp claimable?(_run, nil), do: false
+  # A later epoch only: the host that took the lease over, never the same
+  # host claiming twice nor an older one.
+  defp claimable?(run, epoch), do: run.status in @active and epoch > run.attempt
+
+  @doc """
+  Whether attempt `attempt` still owns the run: a Ship attempt while its
+  heartbeat is fresh, an inference attempt while its host holds the thread's
+  session lease at that epoch.
+  """
   def owns_run?(id, attempt) do
     Repo.exists?(
       from r in Run,
         join: t in Thread,
         on: t.id == r.thread_id,
-        where:
-          r.id == ^id and r.attempt == ^attempt and r.status == "running" and t.status == :active and
-            r.heartbeat_at > fragment("CURRENT_TIMESTAMP - interval '45 seconds'")
+        left_join: s in "agent_sessions",
+        on: s.id == fragment("?::text", t.id) and s.epoch == r.attempt,
+        where: r.id == ^id and r.attempt == ^attempt and r.status == "running" and t.status == :active,
+        where: ^held()
     ) and
       worker_access?(Repo.get!(Thread, Repo.get!(Run, id).thread_id))
+  end
+
+  defp held do
+    dynamic(
+      [r, _t, s],
+      (r.kind == "ship" and r.heartbeat_at > fragment("CURRENT_TIMESTAMP - interval '45 seconds'")) or
+        (r.kind != "ship" and s.lease_expires_at > fragment("CURRENT_TIMESTAMP"))
+    )
+  end
+
+  @doc "The thread's inference run its host should work on next, queued or interrupted."
+  def next_run(thread_id) do
+    Repo.one(
+      from r in Run,
+        where: r.thread_id == ^thread_id and r.kind != "ship" and r.status in ^@active,
+        order_by: [asc: r.inserted_at, asc: r.id],
+        select: r.id,
+        limit: 1
+    )
   end
 
   def heartbeat(run) do
@@ -500,28 +553,37 @@ defmodule Tuist.Threads do
       %ToolCall{status: "completed", result: result} ->
         {:replay, result}
 
+      # The same call of the same run, which a resumed session reruns because
+      # its tool is replay-safe: it follows what the interrupted call started.
+      %ToolCall{} = call when is_tuple(scope) ->
+        {:dispatch, call}
+
       %ToolCall{} ->
         Repo.rollback(:tool_outcome_unknown)
 
       nil ->
-        executing =
-          from c in ToolCall,
-            join: r in Run,
-            on: r.id == c.run_id,
-            where: r.thread_id == ^thread.id and c.status == "executing"
-
-        executing =
-          case scope do
-            :thread -> executing
-            {:session, tools} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
-          end
-
-        if Repo.exists?(executing), do: Repo.rollback(:tool_outcome_unknown)
-
-        message = append!(thread, %{kind: "tool", body: "Working…", tool_name: name, tool_state: "running"})
-        call = Repo.insert!(%ToolCall{run_id: run.id, message_id: message.id, fingerprint: key, name: name})
-        {:dispatch, call}
+        reserve_new_tool!(run, thread, key, name, scope)
     end
+  end
+
+  defp reserve_new_tool!(run, thread, key, name, scope) do
+    executing =
+      from c in ToolCall,
+        join: r in Run,
+        on: r.id == c.run_id,
+        where: r.thread_id == ^thread.id and c.status == "executing"
+
+    executing =
+      case scope do
+        :thread -> executing
+        {:session, tools} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
+      end
+
+    if Repo.exists?(executing), do: Repo.rollback(:tool_outcome_unknown)
+
+    message = append!(thread, %{kind: "tool", body: "Working…", tool_name: name, tool_state: "running"})
+    call = Repo.insert!(%ToolCall{run_id: run.id, message_id: message.id, fingerprint: key, name: name})
+    {:dispatch, call}
   end
 
   defp execute_tool(run, call, dispatch) do
@@ -555,6 +617,15 @@ defmodule Tuist.Threads do
       update_thread!(thread, %{})
       output
     end)
+  end
+
+  @doc """
+  Ends a run its host could not continue, such as one whose process crashed,
+  as interrupted, or as `outcome_unknown` while a tool call's effect is
+  unknown. Fenced like `finish/2`: only the attempt that owns the run may.
+  """
+  def abandon(run) do
+    with_attempt(run, fn thread, fresh -> interrupt!(thread, fresh) end)
   end
 
   def finish(run, result) do
@@ -624,8 +695,10 @@ defmodule Tuist.Threads do
     candidates =
       Repo.all(
         from r in Run,
+          # Inference runs are hosted under session leases (`Tuist.Agents`),
+          # which a lapsed host hands on by itself; only Ship runs are jobs.
           where:
-            r.status in ^@active and
+            r.kind == "ship" and r.status in ^@active and
               (is_nil(r.heartbeat_at) or r.heartbeat_at < fragment("CURRENT_TIMESTAMP - interval '60 seconds'")),
           order_by: [asc_nulls_last: r.heartbeat_at, asc: r.id],
           limit: 100
@@ -653,7 +726,7 @@ defmodule Tuist.Threads do
   defp recover_locked(thread, run) do
     cond do
       run.status == "queued" and (thread.status != :active or not worker_access?(thread)) ->
-        resume_or_interrupt!(thread, run, true)
+        interrupt!(thread, run)
 
       run.status == "queued" ->
         insert_job!(run)
@@ -665,38 +738,25 @@ defmodule Tuist.Threads do
         :ok
 
       true ->
-        resume_or_interrupt!(thread, run)
+        interrupt!(thread, run)
     end
   end
 
-  defp resume_or_interrupt!(thread, run, access_revoked \\ false) do
+  # Ends a run no attempt may continue: a Ship whose attempt lapsed, or a run
+  # whose owner lost access. An interrupted inference run its host can still
+  # continue is resumed from its session's journal instead.
+  defp interrupt!(thread, run) do
     unknown = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and c.status == "executing")
-    uncheckpointed = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and not c.checkpointed)
+    status = if run.kind == "ship" or unknown, do: "outcome_unknown", else: "interrupted"
 
-    terminal = access_revoked or unknown or uncheckpointed or not retryable?(thread, run)
-    status = recovery_status(run, unknown, terminal)
-
-    run = Repo.update!(Changeset.change(run, status: status, session_id: nil))
+    Repo.update!(Changeset.change(run, status: status, session_id: nil))
     update_thread!(thread, %{agent_status: status})
 
-    if terminal do
-      append!(Repo.reload!(thread), %{
-        kind: "notice",
-        body: "Execution was interrupted. Unknown tool effects are never automatically repeated."
-      })
-    else
-      insert_job!(run)
-    end
+    append!(Repo.reload!(thread), %{
+      kind: "notice",
+      body: "Execution was interrupted. Unknown tool effects are never automatically repeated."
+    })
   end
-
-  defp retryable?(thread, run) do
-    run.kind != "ship" and run.attempt < 3 and thread.status == :active and worker_access?(thread)
-  end
-
-  defp recovery_status(%{kind: "ship"}, _unknown, _terminal), do: "outcome_unknown"
-  defp recovery_status(_run, true, _terminal), do: "outcome_unknown"
-  defp recovery_status(_run, false, true), do: "interrupted"
-  defp recovery_status(_run, false, false), do: "queued"
 
   def serialize(thread) do
     %{
@@ -824,11 +884,20 @@ defmodule Tuist.Threads do
     thread
   end
 
+  # The run and the session's want commit together; the host is told on
+  # commit, and once more by `wake/1` after it.
   defp enqueue!(thread, message_id) do
-    run = Repo.insert!(%Run{thread_id: thread.id, message_id: message_id})
-    insert_job!(run)
+    Repo.insert!(%Run{thread_id: thread.id, message_id: message_id})
+    Lease.want(thread.id, "thread")
     update_thread!(Repo.reload!(thread), %{agent_status: "queued"})
   end
+
+  defp wake({:ok, %Thread{id: id}} = result) do
+    Lease.wake(id)
+    result
+  end
+
+  defp wake(result), do: result
 
   defp insert_job!(run) do
     %{run_id: run.id, attempt: run.attempt} |> Worker.new() |> Oban.insert!()
