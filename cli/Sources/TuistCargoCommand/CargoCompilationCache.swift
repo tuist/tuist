@@ -348,13 +348,17 @@ struct CargoCompilationCache {
         let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
-            if FileManager.default.fileExists(atPath: destination.path) {
+            if !file.path.contains("/"), FileManager.default.fileExists(atPath: destination.path) {
                 let properties = try destination.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
                 guard properties.isRegularFile == true, properties.isSymbolicLink != true else { return false }
             }
             let blob = blobStore.path(file.digest)
             guard try verifier.digest(blob, shared: true) == file.digest else { return false }
             let temporary = staging.appendingPathComponent(file.path)
+            try FileManager.default.createDirectory(
+                at: temporary.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try FileManager.default.copyItem(at: blob, to: temporary)
             let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
@@ -372,9 +376,25 @@ struct CargoCompilationCache {
         // compilation (this hook) runs, so the session records their digests instead of hashing them again.
         let session = invocation.environment["TUIST_CARGO_SESSION"]
             .map { CargoInputHasher(sessionDirectory: URL(fileURLWithPath: $0)) }
+        // A bundle such as a binary's `.dSYM` is replaced whole, so none of an earlier one's files stay beside the
+        // restored ones, and a link in its place is removed rather than written through.
+        let bundles = Set(result.outputFiles.map(\.path).filter { $0.contains("/") }.map { String($0.prefix { $0 != "/" }) })
+        for bundle in bundles {
+            let directory = invocation.output.appendingPathComponent(bundle)
+            if (try? FileManager.default.attributesOfItem(atPath: directory.path)) != nil {
+                try FileManager.default.removeItem(at: directory)
+            }
+        }
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
-            if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
+            if file.path.contains("/") {
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+            } else if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
             try FileManager.default.moveItem(at: staging.appendingPathComponent(file.path), to: destination)
             measurement.reference(file.digest)
             if !file.path.hasSuffix(".d") {

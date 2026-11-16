@@ -23,6 +23,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
     let toolchain: URL
     let externs: [URL]
     let linksWithSystemLinker: Bool
+    /// The `.dSYM` a linked binary is stored with when its debug map names objects (`hasDebugMap`).
+    let debugBundle: String?
 
     static let keyVersion = "tuist-swift-cargo-recorded-v1"
     var cacheVersion: String { Self.keyVersion }
@@ -34,6 +36,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
     func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
 
     func unkeyedRoots(in file: URL) throws -> [String] {
+        // A `.dSYM` holds only debug information, like the binary's link-edit segment `boundRoots` skips.
+        if let debugBundle, file.path.hasPrefix(output.appendingPathComponent(debugBundle).path + "/") { return [] }
         let keyed = Set((reads?.entries ?? []).filter { $0.kind == "root" }.map(\.name))
         return try relocation.boundRoots(of: file).filter { !keyed.contains($0.placeholder) }.map(\.path)
     }
@@ -63,7 +67,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
             .map { String($0.dropFirst(15)) } ?? ""
         guard suffix.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else { return nil }
         let emitted = Set(emit.split(separator: ",").map(String.init))
-        let files: [String]
+        var files: [String]
+        var debugBundle: String?
         switch kind {
         case "lib", "rlib":
             guard emitted == ["dep-info", "metadata", "link"] else { return nil }
@@ -81,6 +86,10 @@ struct CargoRecordedInvocation: CargoCacheAction {
             #if os(macOS)
                 guard emitted == ["dep-info", "link"] else { return nil }
                 files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
+                if hasDebugMap(arguments) {
+                    debugBundle = "\(name)\(suffix).dSYM"
+                    files.insert(contentsOf: debugBundleFiles("\(name)\(suffix)"), at: 1)
+                }
             #else
                 return nil
             #endif
@@ -143,8 +152,61 @@ struct CargoRecordedInvocation: CargoCacheAction {
             arguments: arguments, environment: environment, directory: directory,
             output: URL(fileURLWithPath: out, relativeTo: base).standardizedFileURL, name: name, files: files,
             key: declared, declared: declared, reads: nil, relocation: relocation, inputHasher: inputHasher,
-            recorder: recorder, toolchain: identity.sysroot, externs: externs, linksWithSystemLinker: linksWithSystemLinker
+            recorder: recorder, toolchain: identity.sysroot, externs: externs, linksWithSystemLinker: linksWithSystemLinker,
+            debugBundle: debugBundle
         )
+    }
+
+    /// Whether a link's debug map names the objects lldb reads debug information from: ld64 writes their absolute
+    /// paths, so a binary restored into another checkout, or after `cargo clean`, names objects that are elsewhere or
+    /// gone. Cargo's macOS default leaves debug information unpacked in the objects; packed debug information has
+    /// rustc run `dsymutil` itself, which recording does not admit, and a stripped binary has no debug map.
+    /// Options are read as rustc reads them: `-C`, `-Cx` and `--codegen`, `-` and `_` alike in names, the last value
+    /// winning, and `-g` as `-C debuginfo=2`.
+    static func hasDebugMap(_ arguments: [String]) -> Bool {
+        var options: [String: String] = [:]
+        for (index, argument) in arguments.enumerated() {
+            let next = index + 1 < arguments.count ? arguments[index + 1] : nil
+            let codegen = argument == "-C" || argument == "--codegen" ? next
+                : argument.hasPrefix("--codegen=") ? String(argument.dropFirst(10))
+                : argument.hasPrefix("-C") ? String(argument.dropFirst(2)) : nil
+            if argument == "-g" { options["debuginfo"] = "2" }
+            guard let parts = codegen?.split(separator: "=", maxSplits: 1), parts.count == 2 else { continue }
+            options[parts[0].replacingOccurrences(of: "-", with: "_")] = String(parts[1])
+        }
+        return !["0", "none"].contains(options["debuginfo"] ?? "0") && options["split_debuginfo"] == "unpacked"
+            && !["debuginfo", "symbols"].contains(options["strip"] ?? "none")
+    }
+
+    /// The files of a binary's `.dSYM` that lldb reads. `dsymutil` also writes a relocation map, which it alone uses.
+    static func debugBundleFiles(_ binary: String) -> [String] {
+        ["\(binary).dSYM/Contents/Info.plist", "\(binary).dSYM/Contents/Resources/DWARF/\(binary)"]
+    }
+
+    /// Writes the `.dSYM` of a linked binary that has a debug map, while the objects it names still exist, so the
+    /// binary is stored and restored with debug information that does not depend on them. lldb prefers a
+    /// UUID-matched `.dSYM` beside a binary over its debug map. `dsymutil` comes with the linker the declared key
+    /// already identifies. `false` when it could not.
+    ///
+    /// An earlier build's bundle is overwritten in place, never removed first: Cargo uplifts it (links it beside the
+    /// binary in the profile) as soon as it hears the compiler exit, which is when this runs, and a bundle that
+    /// disappears between its existence and directory checks fails the build.
+    func bundleDebugInformation(process: CargoProcess) async -> Bool {
+        guard let debugBundle, let binary = files.first, let directory = try? AbsolutePath(validating: output.path)
+        else { return true }
+        let bundle = output.appendingPathComponent(debugBundle)
+        do {
+            // From the output directory, by name: the relocation map records the binary's path as given.
+            _ = try await process.captureOutput(
+                "/usr/bin/xcrun", arguments: ["dsymutil", binary, "-o", debugBundle], environment: environment,
+                directory: directory
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: bundle)
+            return false
+        }
+        return Self.debugBundleFiles(binary)
+            .allSatisfy { FileManager.default.fileExists(atPath: output.appendingPathComponent($0).path) }
     }
 
     /// A file the system linker may take from a search directory: `-l` resolves to `lib<name>` with one of these
@@ -223,7 +285,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
             return nil
         }
         // Outputs that name a root behave the same only at that root, so their key names it too.
-        for file in (try? outputFiles()) ?? [] where !file.hasSuffix(".d") {
+        for file in (try? outputFiles()) ?? [] where !file.hasSuffix(".d") && !file.contains("/") {
             guard let roots = try? relocation.boundRoots(of: output.appendingPathComponent(file)) else {
                 explain("could not read its output \(file)")
                 return nil
