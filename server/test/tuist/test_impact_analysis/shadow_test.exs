@@ -517,8 +517,8 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
              reported
 
     assert reported.carried_lines == %{
-             "Sources/Core.swift" => MapSet.new([1]),
-             "Sources/Math.swift" => MapSet.new([1, 2])
+             "Sources/Core.swift" => [[1, 1]],
+             "Sources/Math.swift" => [[1, 2]]
            }
 
     assert reported == Reported.compute(project, "c3", source: :versions)

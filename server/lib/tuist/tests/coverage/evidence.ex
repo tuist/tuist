@@ -172,6 +172,9 @@ defmodule Tuist.Tests.Coverage.Evidence do
     |> Enum.reverse()
   end
 
+  @doc "The line numbers of `line_ranges/1`'s runs, ascending."
+  def range_lines(ranges), do: Enum.flat_map(ranges, fn [first, last] -> first..last//1 end)
+
   defp rows(scope, paths, base, budget) do
     kind = value(scope, :kind, "")
     module_name = value(scope, :module, "")

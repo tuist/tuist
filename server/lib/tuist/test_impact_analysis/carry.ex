@@ -34,6 +34,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Xcode
 
@@ -106,9 +107,9 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   end
 
   @doc """
-  The lines the units carry in each file that counts, merged per file, and
-  per file the source its lines came from, the nearest when several did, as
-  `Reported`'s own reading returns them.
+  The lines the units carry in each file that counts, merged per file as
+  ranges (`Tuist.Tests.Coverage.Evidence.line_ranges/1`), and per file the
+  source its lines came from, the nearest when several did.
   """
   def lines(context, units) do
     units
@@ -120,8 +121,8 @@ defmodule Tuist.TestImpactAnalysis.Carry do
       context.project.id
       |> snapshot_lines({snapshot_id, checkpoint_id(snapshot_units)}, snapshot_units)
       |> Enum.reject(fn {path, _lines} -> ExcludedPaths.excluded?(context.excluded, path) end)
-      |> Enum.reduce({lines, sources}, fn {path, path_lines}, {lines, sources} ->
-        {Map.update(lines, path, MapSet.new(path_lines), &MapSet.union(&1, MapSet.new(path_lines))),
+      |> Enum.reduce({lines, sources}, fn {path, ranges}, {lines, sources} ->
+        {Map.update(lines, path, ranges, &Evidence.line_ranges(Evidence.range_lines(&1) ++ Evidence.range_lines(ranges))),
          Map.put_new(sources, path, source)}
       end)
     end)
@@ -496,10 +497,15 @@ defmodule Tuist.TestImpactAnalysis.Carry do
           SELECT scope, test_idx, epoch, line_set FROM test_impact_snapshot_lines
           WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
         ),
-        #{Snapshots.set_files_sql("empty(ranges)")}
-        SELECT p.path, toString(r.scope), t.module_name, t.suite_name, r.test_idx FROM refs AS r
-        INNER JOIN set_files AS f ON f.epoch = r.epoch AND f.line_set = r.line_set
-        INNER JOIN line_paths AS p ON p.epoch = f.epoch AND p.path_id = f.path_id
+        #{Snapshots.set_patterns_sql()},
+        unlined AS (
+          SELECT epoch, pattern, path_id FROM test_impact_line_patterns
+          WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs) AND empty(line_ranges)
+        )
+        SELECT p.path, toString(r.scope), t.module_name, t.suite_name, r.test_idx FROM set_patterns AS s
+        INNER JOIN unlined AS u ON u.epoch = s.epoch AND u.pattern = s.pattern
+        INNER JOIN refs AS r ON r.epoch = s.epoch AND r.line_set = s.line_set
+        INNER JOIN line_paths AS p ON p.epoch = u.epoch AND p.path_id = u.path_id
         LEFT JOIN tests AS t ON t.test_idx = r.test_idx
         WHERE p.path NOT IN (
             SELECT path FROM test_impact_snapshot_files
@@ -533,8 +539,8 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   # Lines
 
   # The snapshot's lines of the units' tests, their suites' setups and the
-  # modules in its files that aren't test code, expanded from ranges and
-  # merged per file in ClickHouse. The tests go as ranges of their numbers,
+  # modules in its files that aren't test code, merged per file in
+  # ClickHouse and read as ranges. The tests go as ranges of their numbers,
   # contiguous per suite and module, and ClickHouse expands them back and
   # finds their suites' and the modules' numbers (`Snapshots.scope_keys_sql/0`).
   defp snapshot_lines(project_id, {snapshot_id, checkpoint_id}, units) do
@@ -569,15 +575,19 @@ defmodule Tuist.TestImpactAnalysis.Carry do
               SELECT test_idx FROM module_keys WHERE module_name IN {targets:Array(String)}
             )))
         ),
-        #{Snapshots.set_files_sql()}
-        SELECT p.path, l.lines FROM (
-          -- Ranges are gathered per file before they're expanded: the sets
-          -- come in hash order, not by file, which makes merging each one's
-          -- lines into its file's state slow.
-          SELECT epoch, path_id, arrayDistinct(arrayFlatten(arrayMap((first, last) -> range(first, last + 1),
+        #{Snapshots.set_patterns_sql()}
+        SELECT p.path, #{Snapshots.ranges_sql("l.lines")} FROM (
+          -- The sets share most patterns, so each is read once, and a file's
+          -- are merged by expanding their ranges.
+          SELECT epoch, path_id, arraySort(arrayDistinct(arrayFlatten(arrayMap((first, last) -> range(first, last + 1),
             arrayFilter((x, i) -> i % 2 = 1, ranges, arrayEnumerate(ranges)),
-            arrayFilter((x, i) -> i % 2 = 0, ranges, arrayEnumerate(ranges))))) AS lines
-          FROM (SELECT epoch, path_id, groupArrayArray(ranges) AS ranges FROM set_files GROUP BY epoch, path_id)
+            arrayFilter((x, i) -> i % 2 = 0, ranges, arrayEnumerate(ranges)))))) AS lines
+          FROM (
+            SELECT epoch, path_id, groupArrayArray(line_ranges) AS ranges FROM test_impact_line_patterns
+            WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs)
+              AND (epoch, pattern) IN (SELECT epoch, pattern FROM set_patterns)
+            GROUP BY epoch, path_id
+          )
         ) AS l
         INNER JOIN line_paths AS p ON p.epoch = l.epoch AND p.path_id = l.path_id
         WHERE p.path NOT IN (
@@ -594,7 +604,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
         }
       )
     end)
-    |> Enum.map(fn [path, lines] -> {path, lines} end)
+    |> Enum.map(fn [path, ranges] -> {path, Enum.chunk_every(ranges, 2)} end)
   end
 
   # The checkpoint whose numbering an overlay's units share, the zero UUID

@@ -56,6 +56,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # URL-encoded value.
   @param_bytes 120_000
   @zero_uuid "00000000-0000-0000-0000-000000000000"
+  # A checkpoint of a large suite takes tens of seconds to write, beyond the
+  # connection's default of 15.
+  @write_timeout to_timeout(minute: 5)
   @settings [
     insert_quorum: "auto",
     insert_quorum_timeout: 10_000,
@@ -596,25 +599,30 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # each module's processes outside its tests ran per repository file, as
   # line sets: the snapshot points to each scope's set
   # (`test_impact_snapshot_lines`), and the sets the run's week doesn't hold
-  # yet are written once (`test_impact_line_sets`), under the week's path
-  # numbers (`test_impact_line_paths`). A suite's and a module's sets are
-  # numbered as their lowest test (`scope_keys_sql/0`); one with no test in
-  # the snapshot has nothing to carry and isn't written.
+  # yet are written once (`test_impact_line_sets`) as the numbers of their
+  # files' line patterns (`test_impact_line_patterns`), each file's distinct
+  # lines written once a week under the week's path numbers
+  # (`test_impact_line_paths`). A suite's and a module's sets are numbered as
+  # their lowest test (`scope_keys_sql/0`); one with no test in the snapshot
+  # has nothing to carry and isn't written.
   defp write_lines(project_id, params, ran_at) do
     epoch = epoch(ran_at)
     params = Map.merge(params, %{epoch: epoch, sets_expire_at: sets_expire_at(epoch)})
 
-    # Path numbers are allocated one writer at a time per project.
+    execute!(line_refs_sql(), params)
+
+    # Path and pattern numbers are allocated one writer at a time per
+    # project, so the sets written after read every pattern they name.
     {:ok, _} =
       Repo.transaction(
         fn ->
           Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["test_impact_line_paths:#{project_id}"])
           execute!(paths_sql(), params)
+          execute!(patterns_sql(), params)
         end,
-        timeout: 60_000
+        timeout: 2 * @write_timeout
       )
 
-    execute!(line_refs_sql(), params)
     execute!(line_sets_sql(), params)
   end
 
@@ -637,12 +645,48 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     """
   end
 
-  # The sets the snapshot points to that the week doesn't hold yet, each
-  # from one scope that has it: only those scopes' lines are read again.
+  # The files' lines of the sets the week doesn't hold yet that it hasn't
+  # numbered either, numbered after the week's last in file order, so a set's
+  # numbers, sorted, mostly step a little.
+  defp patterns_sql do
+    """
+    INSERT INTO test_impact_line_patterns (project_id, epoch, pattern, path_id, line_ranges, expires_at)
+    WITH #{new_set_lines_sql()},
+    fresh AS (
+      SELECT DISTINCT n.path_id AS path_id, k.ranges AS ranges
+      FROM keyed AS k INNER JOIN numbers AS n ON n.path = k.path
+      WHERE (n.path_id, k.ranges) NOT IN (SELECT path_id, line_ranges FROM known)
+    )
+    SELECT {project_id:Int64}, {epoch:Date},
+      toUInt32((SELECT max(pattern) FROM known) + row_number() OVER (ORDER BY path_id, ranges)), path_id, ranges,
+      {sets_expire_at:DateTime}
+    FROM fresh
+    """
+  end
+
+  # The sets the snapshot points to that the week doesn't hold yet, as their
+  # files' pattern numbers.
   defp line_sets_sql do
     """
-    INSERT INTO test_impact_line_sets (project_id, epoch, line_set, path_ids, line_ranges, expires_at)
-    WITH new_sets AS (
+    INSERT INTO test_impact_line_sets (project_id, epoch, line_set, patterns, expires_at)
+    WITH #{new_set_lines_sql()}
+    SELECT {project_id:Int64}, {epoch:Date}, #{line_set_sql()} AS line_set, arraySort(groupArray(p.pattern)),
+      {sets_expire_at:DateTime}
+    FROM keyed AS k
+    INNER JOIN numbers AS n ON n.path = k.path
+    INNER JOIN known AS p ON p.path_id = n.path_id AND p.line_ranges = k.ranges
+    GROUP BY k.scope, k.idx
+    LIMIT 1 BY line_set
+    """
+  end
+
+  # `keyed` (`keyed_lines_sql/1`) for the sets the snapshot points to that
+  # the week doesn't hold yet, each from one scope that has it: only those
+  # scopes' lines are read again. And the week's path numbers (`numbers`) and
+  # patterns (`known`).
+  defp new_set_lines_sql do
+    """
+    new_sets AS (
       SELECT toString(scope) AS scope, test_idx FROM test_impact_snapshot_lines
       WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
         AND line_set NOT IN (
@@ -656,15 +700,10 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
       GROUP BY path
     ),
-    sets AS (
-      SELECT #{line_set_sql()} AS line_set, arraySort(groupArray((n.path_id, k.ranges))) AS files
-      FROM keyed AS k INNER JOIN numbers AS n ON n.path = k.path
-      GROUP BY k.scope, k.idx
+    known AS (
+      SELECT pattern, path_id, line_ranges FROM test_impact_line_patterns
+      WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
     )
-    SELECT {project_id:Int64}, {epoch:Date}, line_set, arrayMap(f -> f.1, files), arrayMap(f -> f.2, files),
-      {sets_expire_at:DateTime}
-    FROM sets
-    LIMIT 1 BY line_set
     """
   end
 
@@ -720,12 +759,23 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       WHERE l.scope_kind = 'target'
     ),
     keyed AS (
-      SELECT path, scope, idx,
-        arrayFlatten(arrayMap(r -> [r[1], r[-1]],
-          arraySplit((x, start) -> start, lines, arrayMap((x, i) -> i = 1 OR x != lines[i - 1] + 1, lines, arrayEnumerate(lines)))))
-          AS ranges
-      FROM keyed_lines
+      SELECT path, scope, idx, #{ranges_sql("lines")} AS ranges FROM keyed_lines
     )
+    """
+  end
+
+  @doc """
+  SQL turning a sorted array of line numbers (`lines`, a column) into ranges
+  `[first, last, first, last, …]`: a line starts one when it doesn't follow
+  the previous, and ends one when the next doesn't follow it.
+  """
+  def ranges_sql(lines) do
+    steps = "arrayMap(d -> d != 1, arrayDifference(#{lines}))"
+
+    """
+    if(empty(#{lines}), [], arrayFlatten(arrayMap((first, last) -> [first, last],
+      arrayFilter((x, starts) -> starts, #{lines}, #{steps}),
+      arrayFilter((x, ends) -> ends, #{lines}, arrayPushBack(arrayPopFront(#{steps}), 1)))))\
     """
   end
 
@@ -748,20 +798,19 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   @doc """
-  SQL defining `set_files` (`epoch`, `line_set`, `path_id`, `ranges`): the
-  files of the line sets a `refs` relation (`epoch`, `line_set`) names, by
-  their week's number, with their lines as ranges, empty when only the file
-  is known. `where` narrows the files, as an SQL condition on `ranges`. And
-  `line_paths` (`epoch`, `path_id`, `path`): the paths of those weeks'
-  numbers, to join once the files are narrowed or merged, since a set's
-  files outnumber the paths many times over.
+  SQL defining `set_patterns` (`epoch`, `line_set`, `pattern`): the patterns
+  of the line sets a `refs` relation (`epoch`, `line_set`) names, whose file
+  (`path_id`) and lines (`line_ranges`, empty when only the file is known)
+  `test_impact_line_patterns` holds. And `line_paths` (`epoch`, `path_id`,
+  `path`): the paths of those weeks' numbers, to join once the patterns are
+  narrowed or merged, since the sets share most of them.
   """
-  def set_files_sql(where \\ "1") do
+  def set_patterns_sql do
     """
-    set_files AS (
-      SELECT epoch, line_set, path_id, ranges FROM test_impact_line_sets
-      ARRAY JOIN path_ids AS path_id, line_ranges AS ranges
-      WHERE project_id = {project_id:Int64} AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs) AND #{where}
+    set_patterns AS (
+      SELECT epoch, line_set, pattern FROM test_impact_line_sets
+      ARRAY JOIN patterns AS pattern
+      WHERE project_id = {project_id:Int64} AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs)
     ),
     line_paths AS (
       SELECT epoch, path_id, any(path) AS path FROM test_impact_line_paths
@@ -944,7 +993,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     # ClickHouse's `DateTime` parameters take whole seconds.
     params = Map.update(params, :expires_at, nil, &DateTime.to_unix/1)
     params = Map.update(params, :sets_expire_at, nil, &DateTime.to_unix/1)
-    IngestRepo.query!(sql, params, settings: @settings)
+    IngestRepo.query!(sql, params, settings: @settings, timeout: @write_timeout)
   end
 
   # The runs whose results are processed: they have test case runs, written

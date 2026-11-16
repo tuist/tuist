@@ -30,13 +30,19 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
     its suites' and modules' that ran.
   - `test_impact_line_sets`: each distinct line set once per project and
     week (`epoch`, the Monday of the run that wrote it), identified by a
-    hash of its content (`line_set`): per file (`path_ids`), the lines run
-    as ranges `[first, last, first, last, …]`, empty when only the file is
-    known. Lines barely change between full runs, so a snapshot writes only
-    the sets its week doesn't hold yet. A week's sets expire 31 days after
-    the week ends, so they outlive every snapshot that points to them.
+    hash of its files and their lines (`line_set`), as the numbers of its
+    files' line patterns (`patterns`, sorted). Lines barely change between
+    full runs, so a snapshot writes only the sets its week doesn't hold yet.
+    A week's sets expire 31 days after the week ends, so they outlive every
+    snapshot that points to them.
+  - `test_impact_line_patterns`: each distinct set of lines run in a file
+    once per project and week, numbered (`pattern`) in file order as they
+    first appear: the file (`path_id`) and its lines as ranges
+    `[first, last, first, last, …]` (`line_ranges`), empty when only the
+    file is known. A file's lines differ between few tests, so the sets
+    share them.
   - `test_impact_line_paths`: the week's path numbering that
-    `test_impact_line_sets` refers to.
+    `test_impact_line_patterns` refers to.
   - `test_impact_run_decisions`: what each impact run's decision made of a
     snapshot's tests, one bitmap per decision and reason, in the numbering
     of `snapshot_id`; `evidence_snapshot_id` is the snapshot whose evidence
@@ -121,13 +127,30 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
       `project_id` Int64,
       `epoch` Date,
       `line_set` UInt64,
-      `path_ids` Array(UInt32) CODEC(Delta, ZSTD(1)),
-      `line_ranges` Array(Array(UInt32)) CODEC(ZSTD(3)),
+      `patterns` Array(UInt32) CODEC(Delta, ZSTD(1)),
       `expires_at` DateTime
     )
     ENGINE = #{Migration.engine("ReplacingMergeTree")}
     PARTITION BY epoch
     ORDER BY (project_id, epoch, line_set)
+    TTL expires_at
+    SETTINGS ttl_only_drop_parts = 1
+    """)
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("""
+    CREATE TABLE IF NOT EXISTS test_impact_line_patterns
+    (
+      `project_id` Int64,
+      `epoch` Date,
+      `pattern` UInt32 CODEC(Delta, ZSTD(1)),
+      `path_id` UInt32 CODEC(Delta, ZSTD(1)),
+      `line_ranges` Array(UInt32) CODEC(ZSTD(3)),
+      `expires_at` DateTime
+    )
+    ENGINE = #{Migration.engine("ReplacingMergeTree")}
+    PARTITION BY epoch
+    ORDER BY (project_id, epoch, pattern)
     TTL expires_at
     SETTINGS ttl_only_drop_parts = 1
     """)
@@ -175,6 +198,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
     execute("DROP TABLE IF EXISTS test_impact_run_decisions")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("DROP TABLE IF EXISTS test_impact_line_paths")
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("DROP TABLE IF EXISTS test_impact_line_patterns")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("DROP TABLE IF EXISTS test_impact_line_sets")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed

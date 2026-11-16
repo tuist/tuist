@@ -224,8 +224,11 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Map.put(:carried_lines, carried_lines)
   end
 
-  # The units carried and their lines, from the tests' versions and the runs'
-  # evidence, or from snapshots (`Tuist.TestImpactAnalysis.Carry`).
+  # The units carried and their lines per file, as ranges
+  # (`Evidence.line_ranges/1`), from the tests' versions and the runs'
+  # evidence, or from snapshots (`Tuist.TestImpactAnalysis.Carry`). Ranges
+  # keep a whole project's carried lines small; a file's are expanded only
+  # while it's counted.
   defp carry_units(:snapshots, context, skipped) do
     context =
       Map.merge(context, %{
@@ -240,7 +243,8 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp carry_units(:versions, context, skipped) do
     {units, reasons} = carried(context, skipped)
-    {units, reasons, unit_lines(context, units)}
+    {lines, sources} = unit_lines(context, units)
+    {units, reasons, {Map.new(lines, fn {path, path_lines} -> {path, Evidence.line_ranges(path_lines)} end), sources}}
   end
 
   # A commit whose tracked files differ from every parent's carries nothing:
@@ -415,7 +419,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     case settled(project, sha, opts) do
       %{kind: "reported", files: %{^path => file}} = reported ->
         %{
-          carried_lines: reported.carried_lines |> Map.get(path, MapSet.new()) |> Enum.sort(),
+          carried_lines: reported.carried_lines |> Map.get(path, []) |> Evidence.range_lines(),
           source_run_ids: Map.get(file, :source_run_ids, [])
         }
 
@@ -1250,7 +1254,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         counts = Map.get(line_counts, path, [])
         executable = MapSet.new(counts, &elem(&1, 0))
         covered = for {line, count} <- counts, count > 0, into: MapSet.new(), do: line
-        carried = MapSet.intersection(carried_lines[path], executable)
+        carried = carried_lines[path] |> Evidence.range_lines() |> MapSet.new() |> MapSet.intersection(executable)
 
         if counts == [] do
           files
@@ -1285,7 +1289,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       )
       |> ClickHouseRepo.all()
       |> Enum.map(fn {path, git_blob_id, targets, executable} ->
-        carried = carried_lines[path]
+        carried = MapSet.new(Evidence.range_lines(carried_lines[path]))
 
         {path,
          %{
