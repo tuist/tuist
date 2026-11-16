@@ -4356,6 +4356,44 @@ observability:
         - ReadWriteOnce
       size: 20Gi
 
+# Sends a copy of every Sentry error to Pulse as well as to each service's
+# primary DSN (Atlas), to compare the two backends. Atlas stays primary: the
+# copy is fire-and-forget (TuistCommon.SentryHTTPClient, Kura's
+# FanOutTransport). Only the web server and Kura send copies, and Pulse's
+# NetworkPolicy admits only them. Off for every service by default. Each
+# enabled service gets the DSN http://<user>:<password>@<host>/v1/sentry/<service>/1,
+# built from the write-only Pulse user whose password lives in `item`/`field`
+# of the environment's vault.
+#
+# To turn a service on in an environment:
+#   1. Create the item, letters and digits only: the password is placed in the
+#      DSN unescaped.
+#   2. Add the environment to the Pulse chart's sentryWriter.environments and
+#      deploy Pulse, which restarts its frontends; they load users only at
+#      startup, so restart them too after creating or rotating the item later.
+#   3. Set the service here. A missing item fails the server's ExternalSecret
+#      and blocks its deploy; Kura's leaves kura-shared-secrets as it was.
+#
+# Turning the server off removes TUIST_SENTRY_PULSE_DSN on its next deploy.
+# Turning Kura off does not: its ExternalSecret merges into kura-shared-secrets
+# (creationPolicy: Merge), so deleting it leaves the key and Kura keeps copying.
+# After the deploy that sets kura to false, remove the key by hand, which rolls
+# every Kura pod through the controller's Secret watch (needs cluster write):
+#   kubectl -n kura patch secret kura-shared-secrets --type=json \
+#     -p '[{"op":"remove","path":"/data/KURA_SENTRY_PULSE_DSN"}]'
+sentryPulse:
+  user: sentry
+  item: PULSE_SENTRY_WRITER
+  field: password
+  host: pulse.observability.svc.cluster.local:4000
+  services:
+    # TUIST_SENTRY_PULSE_DSN in the server-config Secret. Only web instances
+    # use it (Tuist.Environment.sentry_pulse_dsn/2); the processors and
+    # registry sync share the Secret but Pulse does not admit them.
+    server: false
+    # KURA_SENTRY_PULSE_DSN, merged into kura-shared-secrets for every Kura pod.
+    kura: false
+
 # One global wildcard fallback; explicit account Route53 records take precedence.
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.
 kuraActivation:
