@@ -50,6 +50,7 @@ on:
       - "app/**"
       - "*.swift"
       - ".github/workflows/tuist-project-tests.yml"
+      - ".github/scripts/tuist-project-tests.test.cjs"
       - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
@@ -73,6 +74,7 @@ on:
       - "app/**"
       - "*.swift"
       - ".github/workflows/tuist-project-tests.yml"
+      - ".github/scripts/tuist-project-tests.test.cjs"
       - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
@@ -104,6 +106,65 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  acceptance-scope:
+    name: Check CLI acceptance scope
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    # This job needs no enterprise-source or tool-install credentials.
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      MISE_GITHUB_TOKEN: ""
+      TUIST_GITHUB_TOKEN: ""
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: node --test .github/scripts/tuist-project-tests.test.cjs
+      - uses: actions/github-script@v7
+        id: scope
+        with:
+          script: |
+            // Main keeps its full coverage baseline. Only a complete,
+            // unchanged PR diff containing translations may skip acceptance.
+            let required = true;
+            if (context.eventName === 'pull_request') {
+              try {
+                const pull_number = context.payload.pull_request.number;
+                const files = await github.paginate(github.rest.pulls.listFiles, {
+                  ...context.repo, pull_number, per_page: 100,
+                });
+                const { data: pull } = await github.rest.pulls.get({
+                  ...context.repo, pull_number,
+                });
+                const translation = path => [
+                  /^\.glossia\/.*\.lock$/,
+                  /^app\/Resources\/[^/]+\/(?!en\.lproj\/)[^/]+\.lproj\/[^/]+\.strings(dict)?$/,
+                  /^server\/priv\/gettext\/(?!en\/)[^/]+\/LC_MESSAGES\/[^/]+\.po$/,
+                  /^server\/priv\/docs\/(?!en\/)[^/]+\/.*\.md$/,
+                  /^android\/app\/src\/main\/res\/values-[^/]+\/strings\.xml$/,
+                ].some(pattern => pattern.test(path));
+                required = !(
+                  pull.head.sha === context.payload.pull_request.head.sha &&
+                  pull.base.sha === context.payload.pull_request.base.sha &&
+                  files.length > 0 && files.length === pull.changed_files &&
+                  files.every(file => translation(file.filename) &&
+                    (!file.previous_filename || translation(file.previous_filename)))
+                );
+              } catch (error) {
+                core.warning(`Could not determine translation-only scope; running CLI acceptance: ${error.message}`);
+              }
+            }
+            core.setOutput('required', String(required));
+
   cache:
     name: Cache
     runs-on: tuist-macos-27-0
@@ -268,12 +329,18 @@ jobs:
 
   acceptance-tests-build:
     name: Build Acceptance Tests
+    needs: acceptance-scope
     runs-on: tuist-macos-27-0
     timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    # A failed scope check runs acceptance rather than silently removing it.
+    if: >-
+      !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
     env:
       TUIST_EE: "1"
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
@@ -410,9 +477,12 @@ jobs:
   # cas-plugin isn't in the scheme there, and they don't authenticate.
   acceptance-tests-fork:
     name: Acceptance Tests (Fork)
+    needs: acceptance-scope
     runs-on: tuist-macos-27-0
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    if: >-
+      !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
+      github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
@@ -448,12 +518,17 @@ jobs:
   # testing hashes or coverage.
   coverage-selection-acceptance-tests-build:
     name: Build Coverage Selection Acceptance Tests
+    needs: acceptance-scope
     runs-on: tuist-macos-27-0
     timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    if: >-
+      !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
     env:
       TUIST_EE: "1"
     steps:
