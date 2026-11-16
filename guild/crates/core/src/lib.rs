@@ -4,6 +4,7 @@ mod bridge;
 mod client;
 pub mod theme;
 mod threads;
+mod updates;
 pub use bridge::{tuist_app_call, tuist_app_free};
 pub use client::{Host, MobileClient};
 pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};

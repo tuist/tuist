@@ -8,6 +8,7 @@ use tuist_oauth::{Pkce, Provider, authorization_url, endpoint};
 use url::Url;
 
 use crate::threads::{Threads, Transport};
+use crate::updates;
 
 const CALLBACK: &str = "tuist-guild://oauth-callback";
 pub(crate) type Result<T> = std::result::Result<T, &'static str>;
@@ -237,6 +238,7 @@ impl MobileClient {
                 }
                 Ok(data)
             }
+            "preview_update" => self.preview_update(args, host),
             "delete_account" => {
                 let index = self.active()?;
                 let handle = &self.vault.profiles[index].handle;
@@ -536,6 +538,37 @@ impl MobileClient {
             Err("Some memberships could not be refreshed")
         } else {
             Ok(json!(results))
+        }
+    }
+
+    /// Asks tuist.dev, whatever profile is selected, because that is where Tuist
+    /// Guild's previews live. People without a tuist.dev profile, or without
+    /// access to the project, have no update to install.
+    fn preview_update(&mut self, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let platform = text(args, "platform")?;
+        updates::build_type(platform)?;
+        let binary_id = text(args, "binary_id")?;
+        let server = server_url(updates::SERVER)?;
+        let on_server = |p: &Profile| {
+            !p.rejected && Url::parse(&p.server).is_ok_and(|u| u.origin() == server.origin())
+        };
+        let index = match self.active() {
+            Ok(index) if on_server(&self.vault.profiles[index]) => index,
+            _ => match self.vault.profiles.iter().position(on_server) {
+                Some(index) => index,
+                None => return Ok(json!({"update":null})),
+            },
+        };
+        let mut url = endpoint(&server, updates::PATH);
+        url.query_pairs_mut()
+            .append_pair("track", updates::TRACK)
+            .append_pair("supported_platforms", platform)
+            .append_pair("page", "1")
+            .append_pair("page_size", "20");
+        match self.api(index, "GET", url, host) {
+            Ok(data) => updates::select(&data, platform, binary_id),
+            Err("Access denied" | NOT_FOUND) => Ok(json!({"update":null})),
+            Err(error) => Err(error),
         }
     }
 

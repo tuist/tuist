@@ -5,9 +5,17 @@ private enum Destination: Hashable {
 }
 
 struct AppWorkspace: View {
-    @State private var client = AppClient()
+    @State private var client: AppClient
+    @State private var updater: PreviewUpdater
     @State private var selection = Destination.threads
     @State private var addingProfile = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let client = AppClient()
+        _client = State(initialValue: client)
+        _updater = State(initialValue: PreviewUpdater(client: client))
+    }
 
     var body: some View {
         Group {
@@ -25,7 +33,7 @@ struct AppWorkspace: View {
                     } detail: {
                         NavigationStack {
                             if selection == .profile {
-                                ProfileView(client: client, addingProfile: $addingProfile)
+                                ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
                             } else {
                                 ThreadsView(client: client)
                             }
@@ -39,7 +47,7 @@ struct AppWorkspace: View {
                             .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right") }
                             .tag(Destination.threads)
                         NavigationStack {
-                            ProfileView(client: client, addingProfile: $addingProfile)
+                            ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
                                 .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
                         }
                         .tabItem { Label("Profile", systemImage: "person.crop.circle") }
@@ -55,6 +63,10 @@ struct AppWorkspace: View {
         #endif
         .tint(Noora.primary)
         .task { await client.perform("snapshot") }
+        .task(id: client.view.active?.id) { await updater.check() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await updater.check() } }
+        }
         .sheet(isPresented: $addingProfile) {
             NavigationStack {
                 LogInView(client: client)
@@ -112,6 +124,7 @@ struct AppWorkspace: View {
 /// navigation bar on iOS and the window toolbar on macOS.
 private struct ProfileView: View {
     let client: AppClient
+    let updater: PreviewUpdater
     @Binding var addingProfile: Bool
     @State private var confirmingDelete = false
 
@@ -166,6 +179,7 @@ private struct ProfileView: View {
                     "App version",
                     value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
                 )
+                PreviewUpdateRow(updater: updater)
             }
 
             #if os(macOS)

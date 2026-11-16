@@ -87,6 +87,7 @@ when an operation reports an error.
 | `tracks` | `project` | raw full-project `{total_count,tracks:[{name,count}]}` |
 | `preview` | `project`, preview `id` | raw preview response |
 | `delete_preview` | `project`, preview `id` | null on 204 |
+| `preview_update` | `platform`: `ios`, `macos` or `android`; `binary_id`: the running build's Mach-O UUID (Apple) or APK SHA-256 (Android) | `{update:null}` or `{update:{id,version,commit,inserted_at,release_notes,url,install_url}}`: the newest `internal`-track preview of `tuist/guild` on tuist.dev whose build for that platform has a binary ID, unless it is the running build. Uses the selected profile when it is on tuist.dev, otherwise the first tuist.dev profile; no tuist.dev profile, 401/403 and 404 all return `update:null`. `install_url` is the preview's `itms-services` manifest on iOS and the build download elsewhere |
 | `delete_account` | none | null; deletes personal account and removes active profile |
 
 Project requests must match the selected organization, or personal account when

@@ -68,3 +68,8 @@
 "Thinking…" = "Thinking…";
 "Reply" = "Reply";
 "Send" = "Send";
+"New version available" = "New version available";
+"Build %@" = "Build %@";
+"Update" = "Update";
+"Updating…" = "Updating…";
+"The update could not be installed." = "The update could not be installed.";

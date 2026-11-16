@@ -77,4 +77,7 @@
     <string name="thinking">"Thinking…"</string>
     <string name="reply">"Reply"</string>
     <string name="send">"Send"</string>
+    <string name="update_available">"New version available"</string>
+    <string name="update_build">"Build %1$s"</string>
+    <string name="update">"Update"</string>
 </resources>

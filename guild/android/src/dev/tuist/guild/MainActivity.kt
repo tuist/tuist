@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var conversation: JSONObject? = null
     private var reply = ""
     private var follow: Runnable? = null
+    private var update: JSONObject? = null
     private val searchInputId = View.generateViewId()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +77,12 @@ class MainActivity : Activity() {
         outState.putString("screen", screen)
         outState.putBoolean("adding_profile", addingProfile)
         super.onSaveInstanceState(outState)
+    }
+
+    // Coming back from the browser or another app is when a new build may have landed.
+    override fun onResume() {
+        super.onResume()
+        checkForUpdate()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -143,6 +150,7 @@ class MainActivity : Activity() {
     /** Loads the current screen's data. */
     private fun load() {
         if (active() == null) return
+        checkForUpdate()
         when (screen) {
             "previews" -> loadProjects()
             "threads" -> conversation?.let { openThread(it.optString("id")) } ?: loadThreads()
@@ -286,6 +294,7 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         text(getString(R.string.version, version))
+        update?.let { updateRow(it) }
         if (active() != null && !browserPending) {
             button(R.string.sign_out) { call("sign_out") { reset(); render() } }
             button(R.string.delete_account) {
@@ -536,6 +545,69 @@ class MainActivity : Activity() {
             button(listOf(item.string("title").ifBlank { item.string("goal") }, threadState(item.string("state")))
                 .filter { it.isNotBlank() }.joinToString(" · ")) { openThread(item.getString("id")) }
         }
+    }
+
+    /**
+     * Asks the core whether tuist.dev has a newer internal preview than this APK. It
+     * runs beside screen requests rather than through [call], so it never cancels them,
+     * and a failed check only delays the banner.
+     */
+    private fun checkForUpdate() {
+        if (active() == null) return
+        val apk = applicationInfo.sourceDir
+        Thread {
+            // The APK's SHA-256 is the binary ID its preview records.
+            val binaryId = try {
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                java.io.File(apk).inputStream().use { input ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+                }
+                digest.digest().joinToString("") { "%02x".format(it) }
+            } catch (_: Exception) { return@Thread }
+            AppCore.submit("preview_update", JSONObject().put("platform", "android").put("binary_id", binaryId), host) { result ->
+                val next = result.optJSONObject("data")?.optJSONObject("update")
+                runOnUiThread {
+                    if (isDestroyed || result.has("error")) return@runOnUiThread
+                    update = next
+                    if (!busy && screen == "profile") render()
+                }
+            }
+        }.start()
+    }
+
+    /** Profile's row under App version: Android downloads the APK and asks to install it. */
+    private fun updateRow(item: JSONObject) {
+        val url = item.string("install_url")
+        content.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(12), dp(12), dp(12))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(noora("surface-background-secondary"))
+                setStroke(dp(1), noora("surface-border-primary"))
+            }
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(TextView(context).apply {
+                    setText(R.string.update_available); textSize = 16f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(noora("surface-label-primary"))
+                })
+                item.string("commit").takeIf { it.isNotBlank() }?.let { commit ->
+                    addView(TextView(context).apply {
+                        text = getString(R.string.update_build, commit); textSize = 13f
+                        typeface = Typeface.MONOSPACE
+                        setTextColor(noora("surface-label-secondary"))
+                    })
+                }
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(styled(Button(context), primary = true).apply {
+                setText(R.string.update)
+                setOnClickListener { open(url) }
+            })
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(8) })
     }
 
     private fun threadState(state: String): String = when (state) {

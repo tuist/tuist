@@ -596,6 +596,112 @@ fn detail_and_delete_paths_are_project_scoped() {
     assert!(c.vault.profiles.is_empty());
 }
 
+fn preview(id: &str, kind: &str, platform: &str, binary_id: Value) -> Value {
+    json!({"id":id, "version":"0.1.0", "git_commit_sha":format!("{id}0123456789"),
+        "url":format!("https://tuist.dev/tuist/guild/previews/{id}"),
+        "device_url":format!("itms-services://?action=download-manifest&url=https%3A%2F%2Ftuist.dev%2F{id}"),
+        "builds":[{"type":kind, "supported_platforms":[platform], "binary_id":binary_id,
+            "url":format!("https://storage.test/{id}")}]})
+}
+
+#[test]
+fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://tuist.dev", 1, i64::MAX);
+    // The selected profile is self-hosted; Guild's previews still come from tuist.dev.
+    login(&mut c, &mut h, "https://one.test", 2, i64::MAX);
+    let page = json!({"previews":[
+        // Newest first: an unidentifiable build and another platform's build are skipped.
+        preview("unidentified", "apk", "android", Value::Null),
+        preview("ios", "ipa", "ios", json!("ios-id")),
+        preview("newer", "apk", "android", json!("abc123")),
+        preview("running", "apk", "android", json!("def456")),
+    ]});
+    h.responses.push_back((200, page.clone()));
+    let result = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"android","binary_id":"def456"}),
+    );
+    assert!(result.get("error").is_none(), "{result}");
+    let update = &result["data"]["update"];
+    assert_eq!(update["id"], "newer");
+    assert_eq!(update["commit"], "newer01");
+    assert_eq!(update["install_url"], "https://storage.test/newer");
+    let request = h.actions.last().unwrap();
+    assert_eq!(
+        request["url"],
+        "https://tuist.dev/api/projects/tuist/guild/previews?track=internal&supported_platforms=android&page=1&page_size=20"
+    );
+    assert_eq!(
+        request["headers"]["Authorization"],
+        format!("Bearer {}", token(i64::MAX, 1))
+    );
+
+    // Running the newest identified build, even with different hex case, is current.
+    h.responses.push_back((200, page.clone()));
+    let current = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"android","binary_id":"ABC123"}),
+    );
+    assert_eq!(current["data"], json!({"update":null}));
+
+    // iOS installs through the preview's over-the-air manifest.
+    h.responses.push_back((200, page));
+    let ios = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"ios","binary_id":"other"}),
+    );
+    assert_eq!(
+        ios["data"]["update"]["install_url"],
+        "itms-services://?action=download-manifest&url=https%3A%2F%2Ftuist.dev%2Fios"
+    );
+
+    // Without access to the project there is nothing to install, and nothing to report.
+    h.responses.push_back((403, json!({})));
+    let denied = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"android","binary_id":"def456"}),
+    );
+    assert!(denied.get("error").is_none(), "{denied}");
+    assert_eq!(denied["data"], json!({"update":null}));
+}
+
+#[test]
+fn preview_updates_need_a_tuist_dev_profile() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let requests = h.actions.len();
+    let result = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"macos","binary_id":"id"}),
+    );
+    assert_eq!(result["data"], json!({"update":null}));
+    assert_eq!(
+        h.actions.len(),
+        requests,
+        "no request leaves for another server"
+    );
+    assert!(
+        call(
+            &mut c,
+            &mut h,
+            "preview_update",
+            json!({"platform":"linux","binary_id":"id"})
+        )["error"]
+            .is_string()
+    );
+}
+
 #[test]
 fn proactive_refresh_for_discovery_never_uses_the_active_issuer_for_another_profile() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
