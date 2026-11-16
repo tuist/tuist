@@ -11,6 +11,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
@@ -728,6 +729,118 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
       assert %{"commands" => [%{"id" => ^id, "status" => "exited", "exit_code" => 0}]} =
                conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands") |> json_response(:ok)
+    end
+
+    # The environment the next command launches with.
+    defp command_env(conn, account, sandbox, body) do
+      test = self()
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        send(test, {:env, env})
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      %{"id" => id} =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", body)
+        |> json_response(:accepted)
+
+      assert_received {:env, env}
+      {id, env}
+    end
+
+    defp exchange(token) do
+      build_conn()
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/auth/oidc/token", %{token: token})
+    end
+
+    test "a member's command signs in to the account's cache while it runs", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      {id, env} = command_env(conn, account, sandbox, %{command: "tuist cache", timeout_ms: 600_000})
+
+      assert env["TUIST_URL"] == Environment.app_url()
+      assert "tuist-sandbox-" <> _ = token = env["TUIST_OIDC_TOKEN"]
+      refute inspect(Repo.get!(SandboxCommand, id)) =~ token
+
+      response = token |> exchange() |> json_response(:ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["sub"] == to_string(account.id)
+      assert claims["scopes"] == ["ci"]
+      assert claims["all_projects"] == true
+      # Never past the command's deadline.
+      assert response["expires_in"] in 590..601
+
+      # A forged or altered token is refused.
+      assert token |> String.slice(0..-2//1) |> exchange() |> json_response(:unauthorized)
+
+      # Once the command ended, its token no longer exchanges.
+      SandboxCommand |> Repo.get!(id) |> Ecto.Changeset.change(status: :exited) |> Repo.update!()
+      assert token |> exchange() |> json_response(:unauthorized)
+
+      # Variables the caller sends win.
+      {_id, env} = command_env(conn, account, Repo.reload!(sandbox), %{command: "true", env: %{"TUIST_URL" => "x"}})
+      assert env["TUIST_URL"] == "x"
+      assert env["TUIST_OIDC_TOKEN"] != token
+    end
+
+    test "a command's credential is never broader than its starter's cache access", %{conn: conn} do
+      {member, account} = member_conn(conn, :user)
+      {:ok, account} = Tuist.Accounts.update_account(account, %{cache_write_policy: :tokens_only})
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      # Members of an account whose cache only tokens write only read it.
+      {_id, env} = command_env(member, account, sandbox, %{command: "true"})
+
+      {:ok, claims} =
+        env["TUIST_OIDC_TOKEN"]
+        |> exchange()
+        |> json_response(:ok)
+        |> then(&Tuist.Guardian.decode_and_verify(&1["access_token"]))
+
+      assert claims["scopes"] == ["account:cache:read", "project:cache:read"]
+
+      # A token without cache access gets the environment but no credential.
+      sandbox = Repo.reload!(sandbox)
+      {_id, env} = command_env(token_conn(account, ["account:sandboxes:write"]), account, sandbox, %{command: "true"})
+      assert env["TUIST_URL"]
+      refute Map.has_key?(env, "TUIST_OIDC_TOKEN")
+
+      # A token keeps its own projects and the CI scopes it holds, never the sandboxes scope.
+      project_token =
+        build_conn()
+        |> assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["account:sandboxes:write", "account:cache:write", "project:cache:write"],
+          all_projects: false,
+          project_ids: [42]
+        })
+        |> put_req_header("content-type", "application/json")
+
+      {_id, env} = command_env(project_token, account, Repo.reload!(sandbox), %{command: "true"})
+
+      {:ok, claims} =
+        env["TUIST_OIDC_TOKEN"]
+        |> exchange()
+        |> json_response(:ok)
+        |> then(&Tuist.Guardian.decode_and_verify(&1["access_token"]))
+
+      assert claims["scopes"] == ["account:cache:write", "project:cache:write"]
+      assert claims["project_ids"] == [42]
+      refute claims["all_projects"]
+    end
+
+    test "an administrator's command in an agent's sandbox gets no Tuist credential", %{conn: conn, account: account} do
+      environment = agent_environment_fixture(account: account)
+
+      sandbox =
+        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
+
+      {_id, env} = command_env(conn, account, sandbox, %{command: "true"})
+      refute Map.has_key?(env, "TUIST_OIDC_TOKEN")
+      refute Map.has_key?(env, "TUIST_URL")
     end
 
     @tag :tmp_dir

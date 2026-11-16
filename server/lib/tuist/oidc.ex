@@ -9,6 +9,8 @@ defmodule Tuist.OIDC do
   - Amp orbs, through account-connected Amp workspaces
   - Claude Code cloud sessions, through account-connected Claude Code
     environments (session tokens, `sk-ant-cc-<JWT>`)
+  - Commands in member sandboxes, through the identity token Tuist minted
+    for each (`Tuist.Sandboxes.CommandCredentials`)
   - Configured workload identity providers
   """
 
@@ -17,6 +19,7 @@ defmodule Tuist.OIDC do
   alias Tuist.KeyValueStore
   alias Tuist.OIDC.Workload
   alias Tuist.ReportActor
+  alias Tuist.Sandboxes.CommandCredentials
 
   @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)
@@ -44,6 +47,14 @@ defmodule Tuist.OIDC do
     do: claude_code_claims(token)
 
   def claims(token, account_handle) when is_binary(token) and byte_size(token) <= 16_384 do
+    if CommandCredentials.token?(token),
+      do: CommandCredentials.claims(token),
+      else: issuer_claims(token, account_handle)
+  end
+
+  def claims(_, _), do: {:error, :invalid_token}
+
+  defp issuer_claims(token, account_handle) do
     with {:ok, issuer} <- peek_issuer(token) do
       case provider(issuer) do
         {:ok, provider} ->
@@ -54,8 +65,6 @@ defmodule Tuist.OIDC do
       end
     end
   end
-
-  def claims(_, _), do: {:error, :invalid_token}
 
   # A session token proves a session in one environment, named in `aud` and
   # `ccr:pool_id`; other tokens of self-hosted environments (environment

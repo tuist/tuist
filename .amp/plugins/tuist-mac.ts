@@ -10,7 +10,8 @@
 // - Authentication is the CLI's: in an orb of an Amp workspace connected to the Tuist account it
 //   signs in on its own; otherwise `tuist auth login` or `TUIST_TOKEN`. TUIST_MAC_TOKEN, an account
 //   token with the `account:sandboxes:write` scope, takes precedence over TUIST_TOKEN for these
-//   tools only.
+//   tools only. Commands on the Mac get their own short-lived Tuist sign-in from the server, no
+//   broader than this credential's cache access; never pass credentials to the Mac.
 // - The account comes from tuist.toml's `project`, the start tool's `account` input,
 //   TUIST_MAC_ACCOUNT or TUIST_OIDC_ACCOUNT. On Linux the CLI cannot read Tuist.swift.
 // - TUIST_MAC_CLI runs another CLI binary, such as a preview build.
@@ -31,7 +32,9 @@ export const description =
 
 const DOCS = 'https://tuist.dev/en/docs/guides/features/sandboxes/amp#remote-mac'
 const CLI = process.env.TUIST_MAC_CLI ?? 'tuist'
-const PATH_PREFIX = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH" PAGER=cat GIT_PAGER=cat\n'
+// mise's shims first, so `tuist` and other tools the repository pins resolve to its versions.
+const PATH_PREFIX =
+	'export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH" PAGER=cat GIT_PAGER=cat\n'
 const MAX_OUTPUT = 30_000
 
 const SKILL = `---
@@ -52,10 +55,11 @@ These tools give this thread a Tuist macOS sandbox: a Mac with Xcode, iOS simula
 ## Workflow
 
 1. \`tuist_mac_start\` once per thread. It creates the Mac (or reuses the thread's), mirrors the worktree and reports the macOS and Xcode versions.
-2. \`tuist_mac_shell\` for every command. It runs bash in the repository root on the Mac (or \`cwd\`, relative to it) and streams output however long the command takes. Sync is one way: never edit tracked files on the Mac, because the next sync overwrites them. Ignored files the Mac creates, such as \`DerivedData\`, survive, so builds stay incremental.
-3. \`tuist_mac_screenshot\` returns the booted simulator (or \`target: "screen"\`) as an image.
-4. \`tuist_mac_download\` copies a file or directory, such as a built \`.app\` or an \`.xcresult\`, back here.
-5. \`tuist_mac_stop\` when the task is done, so the Mac does not hold capacity. Tuist pauses an idle Mac and the next command resumes it, so stop only when the work is finished.
+2. Then \`tuist_mac_shell\` with \`mise install\`, in the repository root. The Mac has no Tuist CLI of its own; this installs the version the repository pins (and its other mise tools), and \`tuist_mac_shell\` puts mise's shims on \`PATH\`. Without a mise config, install the repository's pinned Tuist another way rather than the latest. Each command on the Mac is signed in to the account's Tuist cache: Tuist 4.218.0 or later does it on its own (every command gets \`TUIST_OIDC_TOKEN\`, \`TUIST_URL\` and, where available, the in-rack \`TUIST_CACHE_ENDPOINT\`); with 4.215.0 to 4.217.x, start the command with \`tuist auth login &&\`. Don't pass Tuist credentials to the Mac yourself.
+3. \`tuist_mac_shell\` for every command. It runs bash in the repository root on the Mac (or \`cwd\`, relative to it) and streams output however long the command takes. Sync is one way: never edit tracked files on the Mac, because the next sync overwrites them. Ignored files the Mac creates, such as \`DerivedData\`, survive, so builds stay incremental.
+4. \`tuist_mac_screenshot\` returns the booted simulator (or \`target: "screen"\`) as an image.
+5. \`tuist_mac_download\` copies a file or directory, such as a built \`.app\` or an \`.xcresult\`, back here.
+6. \`tuist_mac_stop\` when the task is done, so the Mac does not hold capacity. Tuist pauses an idle Mac and the next command resumes it, so stop only when the work is finished.
 
 ## Simulator tips
 
@@ -68,8 +72,8 @@ These tools give this thread a Tuist macOS sandbox: a Mac with Xcode, iOS simula
 The tools' errors say what is missing. Setup is described at ${DOCS}.
 
 - **Account**: when the repository has no \`tuist.toml\` with \`project = "<account>/<project>"\`, call \`tuist_mac_start\` with \`account\`: the account part of \`fullHandle\` in \`Tuist.swift\`, or ask the user for their Tuist account handle.
-- **CLI missing or too old**: install the latest Tuist CLI, for example \`mise use -g tuist@latest\`, and tell the user to add it to the environment's setup script.
-- **Authentication**: in an Amp orb, a workspace admin connects the Amp workspace to the Tuist account (Tuist dashboard, Settings, Integrations, Amp). Elsewhere, \`tuist auth login\`, or a \`TUIST_MAC_TOKEN\` secret with an account token that has the \`account:sandboxes:write\` scope. Ask the user; don't work around it.
+- **CLI missing or too old here** (where Amp runs, not on the Mac): install the latest Tuist CLI, for example \`mise use -g tuist@latest\`, and tell the user to add it to the environment's setup script.
+- **Authentication**: in an Amp orb, a workspace admin connects the Amp workspace to the Tuist account (Tuist dashboard, Settings, Integrations, Amp). Elsewhere, \`tuist auth login\`, or a \`TUIST_MAC_TOKEN\` secret with an account token that has the \`account:sandboxes:write\` scope (plus \`ci\` for builds on the Mac to use the cache). Ask the user; don't work around it.
 `
 
 interface SessionRecord {
@@ -202,7 +206,8 @@ export default async function (amp: PluginAPI) {
 					const info = await run(record, ['exec', record.sandboxId, '--', `${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1`], ctx.signal)
 					return (
 						`Mac ready (sandbox ${created.id} on ${created.node_name ?? 'a Tuist host'}): booted in ${Math.round((booted - started) / 1000)}s, ` +
-						`synced ${synced} in ${Math.round((Date.now() - booted) / 1000)}s.\n${info.stdout.trim()}\nRepository: ${record.root}`
+						`synced ${synced} in ${Math.round((Date.now() - booted) / 1000)}s.\n${info.stdout.trim()}\nRepository: ${record.root}\n` +
+						'The Mac has no Tuist CLI: run `mise install` with tuist_mac_shell next to install the versions the repository pins.'
 					)
 				} catch (error) {
 					await stop(thread).catch(() => {})

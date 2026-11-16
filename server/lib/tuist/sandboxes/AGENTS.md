@@ -548,7 +548,20 @@ socket, the poller and the caller share a replica:
   A caller that already holds a residency, such as a thread run
   (`Tuist.Threads.Sandbox`), passes it as `:residency`: the command joins it
   instead of `commands`, and `release_if_idle/2` leaves it to its holder.
-  `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
+  `pause_idle/2` skips a sandbox with running commands.
+  A command the API starts (`:started_by`, the caller) in a member sandbox
+  gets `Sandboxes.tuist_env/2` and, as `TUIST_OIDC_TOKEN`, an identity token
+  from `CommandCredentials`, minted at each launch: signed with the token
+  secret under its own salt (not a JWT any API accepts), bound to the
+  command, its sandbox and account, expiring at the command's deadline, and
+  exchanged by `Tuist.OIDC`/`OIDCController` only while that command's row is
+  `running` in a member sandbox of a flagged account. Its grant is computed at
+  mint and never exceeds the starter's own cache access (`ci` when they may
+  write the account cache, the CI preset scopes an account token holds and its
+  projects; cache read when they may only read; no token otherwise), and
+  never includes `account:sandboxes:write`. The caller's `env` overrides
+  these variables. Keep it out of rows, logs and responses; nothing is cached,
+  so any replica verifies it. `CommandWatchWorker`
   kills each command at its deadline and records commands no client reads.
   The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,
   under proxy idle timeouts. Starting a command and writing stdin are

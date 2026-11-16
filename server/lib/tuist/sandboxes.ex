@@ -122,7 +122,9 @@ defmodule Tuist.Sandboxes do
   `TUIST_CACHE_ENDPOINT` when the account has an in-cluster cache, the same
   URL a runner on the sandbox's Node would use (absent without one). It
   holds no credential: Tuist clients in the guest sign in by exchanging the
-  agent's own identity token (an Amp Orb's, or a Claude Code session's).
+  agent's own identity token (an Amp Orb's, or a Claude Code session's), or
+  in a member sandbox the one each command gets from
+  `Tuist.Sandboxes.CommandCredentials`.
   """
   def tuist_env(%Account{} = account, %Sandbox{} = sandbox) do
     env = %{"TUIST_URL" => Tuist.Environment.app_url()}
