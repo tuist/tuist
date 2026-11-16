@@ -2,12 +2,12 @@
 {
   "title": "Kararsız Testler",
   "titleTemplate": ":title · Test İçgörüleri · Özellikler · Kılavuzlar · Tuist",
-  "description": "CI işlem hatlarınızda kararsız testleri otomatik olarak tespit edin ve izleyin."
+  "description": "CI hatlarınızda kararsız testleri otomatik olarak tespit edin ve takip edin."
 }
 ---
 # Kararsız Testler {#flaky-tests}
 
-Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni azaltır ve geliştiricilerin yanlış hataları incelemek için zaman kaybetmesine neden olur. Tuist, kararsız testleri otomatik olarak algılar ve bunları zaman içinde takip etmenize yardımcı olur. Bir ekip olarak bunları nasıl araştıracağınız ve kontrol altına alacağınız hakkında bilgi için [Kararsız testler](https://tuist.dev/solutions/flaky-tests) sayfasına bakın.
+Kararsız testler, aynı kodla birden çok kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni zedeler ve geliştiricilerin sahte hataları araştırmak için zaman kaybetmesine neden olur. Tuist, kararsız testleri otomatik olarak algılar ve bunları zaman içinde takip etmenize yardımcı olur. Bir ekip olarak bunları nasıl araştıracağınızı ve sınırlayacağınızı öğrenmek için [Kararsız testler](https://tuist.dev/solutions/flaky-tests) sayfasına bakın. Yaygın nedenler ve kararsızlığı nasıl ölçeceğinize dair araçtan bağımsız bir açıklama için <.localized_link href="/references/concepts/flaky-test">Kararsız test nedir?</.localized_link> sayfasına bakın.
 
 <.home_cards>
   <.home_card
@@ -42,7 +42,7 @@ Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farkl�
 />
   <.home_card
     title="Once"
-    details="Bildirilen yeniden deneme girişimleri ve CI geçmişi aracılığıyla tutarsız test sonuçlarını araştırın."
+    details="Raporlanan yeniden deneme girişimleri ve CI geçmişi aracılığıyla tutarsız test sonuçlarını araştırın."
     link="/guides/features/test-insights/flaky-tests/once"
 />
 </.home_cards>

@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Кэш Elixir" },
-      "entire": { "text": "Весь проект" },
+      "entire": { "text": "Полностью" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -35,7 +35,7 @@
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
       "new-project": { "text": "Новый проект" },
-      "once": { "text": "Один раз" },
+      "once": { "text": "Once" },
       "once-cache": { "text": "Кэш Once" },
       "once-project": { "text": "Проект Once" },
       "once-remote-execution": { "text": "Удалённое выполнение Once" },
@@ -51,7 +51,7 @@
       "rust-project": { "text": "Проект на Rust" },
       "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
-      "server-api": { "text": "Server API" },
+      "server-api": { "text": "API сервера" },
       "single-sign-on": { "text": "Единый вход (SSO)" },
       "supported-types": { "text": "Поддерживаемые типы" },
       "webhooks": { "text": "Вебхуки" },
@@ -66,7 +66,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist добавить поддержку новых языков или улучшить рекомендации по локализации для этой страницы."
+        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить рекомендации по переводу для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -106,7 +106,7 @@
           "search-by-text": "Поисковый провайдер"
         },
         "no-results-screen": {
-          "no-results-text": "Релевантные результаты не найдены",
+          "no-results-text": "Релевантных результатов не найдено",
           "suggested-query-text": "Попробуйте другой запрос",
           "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
@@ -177,6 +177,17 @@
         },
         "examples": {
           "text": "Примеры"
+        },
+        "concepts": {
+          "text": "Концепции",
+          "items": {
+            "flaky-test": {
+              "text": "Нестабильные тесты"
+            },
+            "build-cache": {
+              "text": "Кэш сборок"
+            }
+          }
         },
         "libraries": {
           "text": "Библиотеки"
@@ -267,7 +278,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное размещение",
+          "text": "Локальная установка",
           "items": {
             "install": {
               "text": "Установка"
@@ -382,7 +393,7 @@
                           "text": "Проект Xcode"
                         },
                         "swift-package": {
-                          "text": "Пакет Swift"
+                          "text": "Swift-пакет"
                         },
                         "xcodegen-project": {
                           "text": "Проект XcodeGen"
@@ -481,7 +492,7 @@
                   "text": "Интеграция на основе XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Пакет Swift"
+                  "text": "Swift-пакет"
                 },
                 "continuous-integration": {
                   "text": "Непрерывная интеграция"
@@ -489,7 +500,7 @@
               }
             },
             "selective-testing": {
-              "text": "Выборочный запуск",
+              "text": "Выборочное тестирование",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -513,7 +524,7 @@
               }
             },
             "test-insights": {
-              "text": "Аналитика",
+              "text": "Аналитика тестов",
               "items": {
                 "flaky-tests": {
                   "text": "Нестабильность",
@@ -526,7 +537,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Аналитика",
+              "text": "Аналитика бандлов",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -595,7 +606,7 @@
               "text": "Сеть"
             },
             "self-hosting": {
-              "text": "Самостоятельное размещение",
+              "text": "Самостоятельный хостинг",
               "items": {
                 "server": {
                   "text": "Сервер"

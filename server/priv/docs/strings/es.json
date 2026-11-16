@@ -42,22 +42,22 @@
       "origin": { "text": "Origen" },
       "profiles": { "text": "Perfiles" },
       "project-description": { "text": "Descripción del proyecto" },
-      "release": { "text": "Versión" },
-      "release-calendar": { "text": "Calendario de versiones" },
+      "release": { "text": "Lanzamiento" },
+      "release-calendar": { "text": "Calendario de lanzamientos" },
       "release-channels": { "text": "Canales de lanzamiento" },
       "run-previews": { "text": "Ejecutar previsualizaciones" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Caché de Rust" },
       "rust-project": { "text": "Proyecto de Rust" },
-      "sandboxes": { "text": "Entornos aislados" },
+      "sandboxes": { "text": "Sandboxes" },
       "scim-provisioning": { "text": "Aprovisionamiento SCIM" },
       "server-api": { "text": "API del servidor" },
       "single-sign-on": { "text": "Inicio de sesión único" },
-      "supported-types": { "text": "Tipos admitidos" },
+      "supported-types": { "text": "Tipos compatibles" },
       "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "Proyecto de XcodeGen" },
       "xcodeproj-integration": { "text": "Integración con Xcodeproj" },
-      "ufeatures-architecture": { "text": "Arquitectura de uFeatures" }
+      "ufeatures-architecture": { "text": "Arquitectura uFeatures" }
     }
   },
   "aside": {
@@ -96,8 +96,8 @@
           "remove-favorite-search-button-title": "Eliminar de favoritos"
         },
         "error-screen": {
-          "title-text": "No se han podido obtener los resultados",
-          "help-text": "Es posible que debas comprobar tu conexión de red"
+          "title-text": "No se han podido recuperar los resultados",
+          "help-text": "Es posible que necesites comprobar tu conexión de red"
         },
         "footer": {
           "select-text": "Seleccionar",
@@ -107,9 +107,9 @@
         },
         "no-results-screen": {
           "no-results-text": "No se han encontrado resultados relevantes",
-          "suggested-query-text": "Puedes intentar buscar",
+          "suggested-query-text": "Prueba a buscar",
           "report-missing-results-text": "¿Crees que esta consulta debería tener resultados?",
-          "report-missing-results-link-text": "Haz clic para enviar comentarios"
+          "report-missing-results-link-text": "Haz clic para dar tu opinión"
         }
       }
     }
@@ -155,7 +155,7 @@
               "text": "Directorios"
             },
             "shell-completions": {
-              "text": "Completado de shell"
+              "text": "Completado del shell"
             }
           }
         },
@@ -177,6 +177,17 @@
         },
         "examples": {
           "text": "Ejemplos"
+        },
+        "concepts": {
+          "text": "Conceptos",
+          "items": {
+            "flaky-test": {
+              "text": "Tests inestables"
+            },
+            "build-cache": {
+              "text": "Caché de compilación"
+            }
+          }
         },
         "libraries": {
           "text": "Librerías"
@@ -235,7 +246,7 @@
           "text": "Idiomas"
         },
         "releases": {
-          "text": "Versiones"
+          "text": "Lanzamientos"
         },
         "cli": {
           "text": "CLI",
@@ -305,10 +316,10 @@
       "text": "Guías",
       "items": {
         "get-started": {
-          "text": "Empezar",
+          "text": "Primeros pasos",
           "items": {
             "choose-your-path": {
-              "text": "Empezar"
+              "text": "Primeros pasos"
             },
             "existing-xcode-project": {
               "text": "Proyecto de Xcode"
@@ -334,7 +345,7 @@
           "text": "Tuist",
           "items": {
             "about": {
-              "text": "Acerca de Tuist"
+              "text": "Sobre Tuist"
             }
           }
         },
@@ -345,7 +356,7 @@
               "text": "Instalar Tuist"
             },
             "get-started": {
-              "text": "Empezar"
+              "text": "Primeros pasos"
             }
           }
         },
@@ -373,7 +384,7 @@
                       "text": "Crear un nuevo proyecto"
                     },
                     "swift-package": {
-                      "text": "Probar con un paquete de Swift"
+                      "text": "Probar con un paquete Swift"
                     },
                     "migrate": {
                       "text": "Migrar",
@@ -382,7 +393,7 @@
                           "text": "Un proyecto de Xcode"
                         },
                         "swift-package": {
-                          "text": "Un paquete de Swift"
+                          "text": "Un paquete Swift"
                         },
                         "xcodegen-project": {
                           "text": "Un proyecto de XcodeGen"
@@ -407,7 +418,7 @@
                   "text": "Dependencias"
                 },
                 "code-sharing": {
-                  "text": "Compartición de código"
+                  "text": "Compartir código"
                 },
                 "synthesized-files": {
                   "text": "Archivos sintetizados"
@@ -481,7 +492,7 @@
                   "text": "Integración basada en XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Paquete de Swift"
+                  "text": "Paquete Swift"
                 },
                 "continuous-integration": {
                   "text": "Integración continua"

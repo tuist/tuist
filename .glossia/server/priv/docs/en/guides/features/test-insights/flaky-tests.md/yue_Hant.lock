@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ab6188c9f84b3d6c5def54b9064a980aa6939846b3ec930a3dcf0042fd168b56",
+  "hash": "246cbcdbc3bdc267cb31ce13179d02ef72b919e5a98afea7e98431ba412eefd1",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Flaky Tests {#flaky-tests}": {
-                  "content_hash": "06ce0bd0f84bf834e558a2a76447bd3f6b7c8fe453a8292123bafd933e8bc2b1"
+                  "content_hash": "2c7e1797c6e778428b1616fdbccd83a68ba0c34407d55a0f86b8092994d9e2d6"
                 },
                 "Preamble": {
                   "content_hash": "214db998733c34015b2168896daf94dc56415e1ace7c2a6831f5af8873700dbe"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "036e55fde542209dd3404039e955407d116e9a91aca8fd09ca0dc50f5c8a3b1f",
+          "hash": "bc77c1b0a974abf017a9a6ec6eaafbf2fb1d068b4133d33c1ebccd4118394e4f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests.md",
           "metadata": {
-            "content_hash": "7a7e9aaba150d957fbe69f2a360433336ec83bf7acf95e3f8142957b141b0022"
+            "content_hash": "3cc894a19866f8474f18deaea1bf6bbc831c5dc4882bd3ee1a3f939bdb9d0a4e"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "ab6188c9f84b3d6c5def54b9064a980aa6939846b3ec930a3dcf0042fd168b56",
+      "hash": "246cbcdbc3bdc267cb31ce13179d02ef72b919e5a98afea7e98431ba412eefd1",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/flaky-tests.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "da92840c690e0443883cd3f995a72acbcbb69b2bb2d79e2e7dc932980962f5e8",
+  "output_hash": "1ff2383394c7e63148daceb9915f158d040797369b814f045c4cf1c1da668329",
   "output_path": "server/priv/docs/yue_Hant/guides/features/test-insights/flaky-tests.md",
   "protection_state": "recorded",
   "provider": "",
@@ -262,8 +262,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
+  "source_commit_sha": "e34c2b2e666a4bef3d175496607e23bf42df9303",
   "source_path": "server/priv/docs/en/guides/features/test-insights/flaky-tests.md",
-  "translated_at": "2026-11-13T16:38:13.977491Z",
-  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
+  "translated_at": "2026-11-16T17:45:05.473261Z",
+  "translation_session_id": "01a1e574-d38e-783c-a1b1-0830804a21e3"
 }

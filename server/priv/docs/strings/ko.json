@@ -52,9 +52,9 @@
       "sandboxes": { "text": "샌드박스" },
       "scim-provisioning": { "text": "SCIM 프로비저닝" },
       "server-api": { "text": "서버 API" },
-      "single-sign-on": { "text": "SSO" },
+      "single-sign-on": { "text": "Single Sign-On" },
       "supported-types": { "text": "지원 유형" },
-      "webhooks": { "text": "웹훅" },
+      "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "XcodeGen 프로젝트" },
       "xcodeproj-integration": { "text": "Xcodeproj 통합" },
       "ufeatures-architecture": { "text": "uFeatures 아키텍처" }
@@ -91,9 +91,9 @@
           "recent-searches-title": "검색 기록",
           "no-recent-searches-text": "검색 기록 없음",
           "save-recent-search-button-title": "검색 기록에 저장",
-          "remove-recent-search-button-title": "검색 기록에서 삭제",
+          "remove-recent-search-button-title": "검색 기록에서 제거",
           "favorite-searches-title": "즐겨찾기",
-          "remove-favorite-search-button-title": "즐겨찾기에서 삭제"
+          "remove-favorite-search-button-title": "즐겨찾기에서 제거"
         },
         "error-screen": {
           "title-text": "결과를 가져올 수 없습니다",
@@ -137,7 +137,7 @@
           "text": "기여자"
         },
         "changelog": {
-          "text": "변경 로그"
+          "text": "변경 내역"
         }
       }
     }
@@ -178,6 +178,17 @@
         "examples": {
           "text": "예제"
         },
+        "concepts": {
+          "text": "개념",
+          "items": {
+            "flaky-test": {
+              "text": "불안정한 테스트"
+            },
+            "build-cache": {
+              "text": "빌드 캐시"
+            }
+          }
+        },
         "libraries": {
           "text": "라이브러리"
         },
@@ -190,7 +201,7 @@
           }
         },
         "configuration": {
-          "text": "구성",
+          "text": "설정",
           "items": {
             "tuist-toml": {
               "text": "tuist.toml"
@@ -253,7 +264,7 @@
           "text": "소개",
           "items": {
             "why-server": {
-              "text": "왜 서버인가?"
+              "text": "왜 서버인가요?"
             },
             "accounts-and-projects": {
               "text": "계정 및 프로젝트"
@@ -410,10 +421,10 @@
                   "text": "코드 공유"
                 },
                 "synthesized-files": {
-                  "text": "생성된 파일"
+                  "text": "합성 파일"
                 },
                 "dynamic-configuration": {
-                  "text": "동적 구성"
+                  "text": "동적 설정"
                 },
                 "templates": {
                   "text": "템플릿"
@@ -428,7 +439,7 @@
                   "text": "검사",
                   "items": {
                     "implicit-imports": {
-                      "text": "암시적 임포트"
+                      "text": "암시적 import"
                     }
                   }
                 },

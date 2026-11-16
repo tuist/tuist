@@ -3,7 +3,7 @@
     "groups": {
       "builds": { "text": "构建" },
       "tests": { "text": "测试" },
-      "compute": { "text": "计算" },
+      "compute": { "text": "计算资源" },
       "bundles": { "text": "应用包" },
       "other-features": { "text": "其他功能" }
     },
@@ -34,12 +34,12 @@
       "implicit-dependencies": { "text": "隐式依赖" },
       "iphone-app": { "text": "iPhone 应用" },
       "macos-app": { "text": "macOS 应用" },
-      "new-project": { "text": "新项目" },
+      "new-project": { "text": "新建项目" },
       "once": { "text": "Once" },
       "once-cache": { "text": "Once 缓存" },
       "once-project": { "text": "Once 项目" },
       "once-remote-execution": { "text": "Once 远程执行" },
-      "origin": { "text": "源" },
+      "origin": { "text": "来源" },
       "profiles": { "text": "配置" },
       "project-description": { "text": "项目描述" },
       "release": { "text": "发布" },
@@ -66,7 +66,7 @@
         "text": "语言 🌍"
       },
       "description": {
-        "text": "你可以帮助 Tuist 支持更多语言，或改进本页的语言指引。"
+        "text": "你可以帮助 Tuist 支持更多语言，或改进本页面的语言指引。"
       },
       "cta": {
         "text": "贡献"
@@ -108,7 +108,7 @@
         "no-results-screen": {
           "no-results-text": "未找到相关结果",
           "suggested-query-text": "你可以尝试查询",
-          "report-missing-results-text": "你认为此查询应有结果？",
+          "report-missing-results-text": "你认为此查询应该有结果吗？",
           "report-missing-results-link-text": "点击提供反馈"
         }
       }
@@ -177,6 +177,17 @@
         },
         "examples": {
           "text": "示例"
+        },
+        "concepts": {
+          "text": "概念",
+          "items": {
+            "flaky-test": {
+              "text": "不稳定测试"
+            },
+            "build-cache": {
+              "text": "构建缓存"
+            }
+          }
         },
         "libraries": {
           "text": "库"
@@ -305,10 +316,10 @@
       "text": "指南",
       "items": {
         "get-started": {
-          "text": "入门",
+          "text": "开始使用",
           "items": {
             "choose-your-path": {
-              "text": "入门"
+              "text": "开始使用"
             },
             "existing-xcode-project": {
               "text": "Xcode 项目"
@@ -339,13 +350,13 @@
           }
         },
         "quick-start": {
-          "text": "快速开始",
+          "text": "快速入门",
           "items": {
             "install-tuist": {
               "text": "安装 Tuist"
             },
             "get-started": {
-              "text": "入门"
+              "text": "开始使用"
             }
           }
         },
@@ -373,7 +384,7 @@
                       "text": "创建新项目"
                     },
                     "swift-package": {
-                      "text": "使用 Swift Package 试用"
+                      "text": "使用 Swift Package 尝试"
                     },
                     "migrate": {
                       "text": "迁移",
@@ -410,7 +421,7 @@
                   "text": "代码共享"
                 },
                 "synthesized-files": {
-                  "text": "生成文件"
+                  "text": "合成文件"
                 },
                 "dynamic-configuration": {
                   "text": "动态配置"

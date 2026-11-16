@@ -7,7 +7,7 @@
 ---
 # Tests inestables {#flaky-tests}
 
-Los tests inestables son tests que producen resultados diferentes (aprobado o fallido) al ejecutarse varias veces con el mismo código. Minan la confianza en tu suite de tests y hacen perder tiempo a los desarrolladores investigando fallos falsos. Tuist detecta automáticamente los tests inestables y te ayuda a seguirlos a lo largo del tiempo. Para saber cómo investigarlos y contenerlos como equipo, consulta [Tests inestables](https://tuist.dev/solutions/flaky-tests).
+Los tests inestables son tests que producen resultados diferentes (éxito o fallo) al ejecutarse varias veces con el mismo código. Minan la confianza en tu suite de tests y hacen perder tiempo a los desarrolladores investigando fallos falsos. Tuist detecta automáticamente los tests inestables y te ayuda a seguirlos a lo largo del tiempo. Para saber cómo investigarlos y contenerlos como equipo, consulta [Tests inestables](https://tuist.dev/solutions/flaky-tests). Para una explicación independiente de la herramienta sobre las causas comunes y cómo medir la inestabilidad, consulta <.localized_link href="/references/concepts/flaky-test">¿Qué es un test inestable?</.localized_link>.
 
 <.home_cards>
   <.home_card
@@ -32,17 +32,17 @@ Los tests inestables son tests que producen resultados diferentes (aprobado o fa
 />
   <.home_card
     title="Elixir"
-    details="Detecta y gestiona tests inestables en proyectos de Elixir con reintentos de test."
+    details="Detecta y gestiona tests inestables en proyectos de Elixir con reintentos de tests."
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
   <.home_card
     title="Rust"
-    details="Detecta e investiga tests inestables de Cargo usando resultados entre ejecuciones de CI."
+    details="Detecta e investiga tests inestables de Cargo usando los resultados de varias ejecuciones de CI."
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
     title="Once"
-    details="Investiga resultados de test inconsistentes a través de los intentos de reintento reportados y el historial de CI."
+    details="Investiga resultados de tests inconsistentes a través de los intentos de reintento reportados y el historial de CI."
     link="/guides/features/test-insights/flaky-tests/once"
 />
 </.home_cards>
