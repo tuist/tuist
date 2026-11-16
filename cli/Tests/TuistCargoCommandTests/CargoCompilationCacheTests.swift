@@ -560,6 +560,154 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.cache(invocation: narrow).restoreLocally())
     }
 
+    @Test(.inTemporaryDirectory) func renderedDiagnosticsKeepAnEntryPerWidth() async throws {
+        let fixture = try await fixture()
+        let warning = #"{"$message_type":"diagnostic","rendered":"warning: unused variable"}"#
+        func cache(_ width: String?) async throws -> CargoCompilationCache {
+            let options = width.map { ["--diagnostic-width=\($0)"] } ?? []
+            return try fixture.cache(invocation: try #require(await fixture.prepare(
+                arguments: fixture.invocation.arguments + options
+            )))
+        }
+        // A piped build and terminals of two widths render the same warning; none replaces another's entry.
+        for width in [nil, "80", "140"] {
+            try await cache(width).store(stdout: Data(), stderr: Data(warning.utf8))
+        }
+        for width in [nil, "80", "140"] {
+            try fixture.removeOutputs()
+            var restoring = try await cache(width)
+            var replayed = Data()
+            restoring.replay = { _, stderr in replayed = stderr }
+            #expect(try await restoring.restoreLocally())
+            #expect(String(decoding: replayed, as: UTF8.self) == warning)
+        }
+        try fixture.removeOutputs()
+        #expect(try await cache("100").restoreLocally() == false)
+
+        // A future-incompatibility report holds rendered warnings too.
+        let reported = try await self.fixture()
+        let narrow = try #require(await reported.prepare(arguments: reported.invocation.arguments + ["--diagnostic-width=80"]))
+        let report = #"{"$message_type":"future_incompat","future_incompat_report":[{"diagnostic":{"rendered":"warning: x"}}]}"#
+        try await reported.cache(invocation: narrow).store(stdout: Data(), stderr: Data(report.utf8))
+        try reported.removeOutputs()
+        #expect(try await reported.cache().restoreLocally() == false)
+        #expect(try await reported.cache(invocation: narrow).restoreLocally())
+    }
+
+    @Test(.inTemporaryDirectory) func frontEndThreadCountsShareEntries() async throws {
+        let fixture = try await fixture()
+        func prepared(_ options: [String]) async throws -> CargoCacheInvocation? {
+            try await fixture.prepare(arguments: fixture.invocation.arguments + options)
+        }
+        let eight = try #require(await prepared(["-Zthreads=8"]))
+        try await fixture.cache(invocation: eight).store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        for options in [["-Zthreads=1"], ["-Z", "threads=0"], ["-Zthreads=255"]] {
+            #expect(try await prepared(options)?.key == eight.key)
+        }
+        #expect(try await fixture.cache(invocation: try #require(await prepared(["-Z", "threads=16"]))).restoreLocally())
+        // A toolchain that rejects `-Z` fails with the option, so builds without it keep their own entries.
+        #expect(eight.key != fixture.invocation.key)
+        // rustc rejects these, and a cached success must not hide that; other unstable options stay unsupported.
+        for options in [
+            ["-Zthreads=256"], ["-Zthreads=x"], ["-Zthreads"], ["-Z", "threads"], ["-Zthreads=8", "-Zthreads=8"],
+            ["-Zthreads=8", "-Zshare-generics=y"],
+        ] {
+            #expect(try await prepared(options) == nil)
+        }
+        // Recorded compilations admit other unstable options and key the same arguments.
+        let keyed = CargoCacheInputs.keyArguments
+        #expect(keyed(["-Zthreads=8", "-Zfoo"]) == keyed(["-Z", "threads=3", "-Zfoo"]))
+        #expect(keyed(["-Zthreads=x"]) != keyed(["-Zthreads=8"]))
+        #expect(keyed(["-Zthreads=8", "-Zthreads=8"]) != keyed(["-Zthreads=8"]))
+        // rustc fails when the count exceeds a job limit, which `-Z unstable-options` makes available.
+        for jobs in [["-j4"], ["-j", "4"], ["--jobs=4"], ["--jobs", "4"], ["--jobs-frontend=4"]] {
+            let limited = ["-Zunstable-options"] + jobs
+            #expect(keyed(limited + ["-Zthreads=2"]) != keyed(limited + ["-Zthreads=8"]))
+            #expect(try await prepared(["-Zthreads=2"] + jobs) == nil)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func packageMetadataKeysOnlyCratesThatReadIt() async throws {
+        let fixture = try await fixture()
+        var environment = fixture.invocation.environment
+        // Outside Cargo home's registry, a crate is keyed by the sources and variables its dep-info names.
+        environment["CARGO_HOME"] = fixture.root.appendingPathComponent("home").path
+        environment["CARGO_PKG_DESCRIPTION"] = "first"
+        environment["CARGO_PKG_AUTHORS"] = "someone"
+        // A module other than the crate root, so editing it keeps the remembered source list.
+        let module = fixture.source.deletingLastPathComponent().appendingPathComponent("about.rs")
+        try Data("pub fn about() {}".utf8).write(to: module)
+        let paths = [fixture.source, module].map { $0.path.replacingOccurrences(of: " ", with: "\\ ") }
+        var depInfo = "artifact: \(paths.joined(separator: " "))\n"
+        func writeOutputs() throws {
+            try Data("library".utf8).write(to: fixture.output.appendingPathComponent(fixture.invocation.files[0]))
+            try Data("metadata".utf8).write(to: fixture.output.appendingPathComponent(fixture.invocation.files[1]))
+            try depInfo.write(
+                to: fixture.output.appendingPathComponent(fixture.invocation.files[2]), atomically: true, encoding: .utf8
+            )
+        }
+        func compile() async throws {
+            try writeOutputs()
+            let prepared = try #require(await fixture.prepare(environment: environment))
+            let refreshed = prepared.refreshed()
+            if let sources = refreshed.sources { await prepared.remember(sources, remote: nil) }
+            try await fixture.cache(invocation: try #require(refreshed.keyed))
+                .store(stdout: Data(), stderr: Data(), keyedAfterCompiling: true)
+        }
+        func restores() async throws -> Bool {
+            let prepared = try #require(await fixture.prepare(environment: environment))
+            for file in fixture.invocation.files {
+                try? FileManager.default.removeItem(at: fixture.output.appendingPathComponent(file))
+            }
+            return try await fixture.cache(invocation: prepared).restoreLocally()
+        }
+        try await compile()
+        environment["CARGO_PKG_DESCRIPTION"] = "second"
+        environment["CARGO_PKG_AUTHORS"] = "someone else"
+        environment["CARGO_PRIMARY_PACKAGE"] = "1"
+        #expect(try await restores())
+        // The crate starts embedding its description: the remembered sources are the same, the variables are not.
+        try Data(#"pub const ABOUT: &str = env!("CARGO_PKG_DESCRIPTION");"#.utf8).write(to: module)
+        depInfo += "# env-dep:CARGO_PKG_DESCRIPTION=second\n"
+        // Keyed by the remembered list, which does not name the variable rustc says the crate read: never published.
+        try writeOutputs()
+        let stale = try #require(await fixture.prepare(environment: environment))
+        #expect(!stale.isDeferred)
+        await #expect(throws: CargoCacheInvocation.CacheError.self) {
+            try await fixture.cache(invocation: stale).store(stdout: Data(), stderr: Data())
+        }
+        try await compile()
+        environment["CARGO_PKG_DESCRIPTION"] = "third"
+        #expect(try await restores() == false)
+        environment["CARGO_PKG_DESCRIPTION"] = "second"
+        #expect(try await restores())
+        // rustc reads the version itself.
+        environment["CARGO_PKG_VERSION_MINOR"] = "2"
+        #expect(try await restores() == false)
+    }
+
+    @Test(.inTemporaryDirectory) func recordedCompilationsKeyPackageMetadataTheyRead() async throws {
+        let fixture = try await fixture()
+        func key(description: String, reading: Bool) async throws -> REAPI.Digest {
+            var environment = fixture.invocation.environment
+            environment["TUIST_CARGO_RECORDER"] = fixture.root.appendingPathComponent("recorder.dylib").path
+            environment["CARGO_PKG_DESCRIPTION"] = description
+            let invocation = try #require(await CargoRecordedInvocation.prepare(
+                fixture.invocation.arguments, environment: environment, directory: fixture.invocation.directory,
+                process: CargoProcess(runner: CommandRunner())
+            ))
+            // What the recorder logs when a proc macro calls `std::env::var("CARGO_PKG_DESCRIPTION")`.
+            let events = ["100\tP\t\(fixture.invocation.compiler.path)"]
+                + (reading ? ["100\tE\tCARGO_PKG_DESCRIPTION"] : []) + ["100\tF\t"]
+            let log = fixture.root.appendingPathComponent(UUID().uuidString + ".log")
+            try Data((events.joined(separator: "\n") + "\n").utf8).write(to: log)
+            return try #require(invocation.recorded(log: log, started: Date())).key
+        }
+        #expect(try await key(description: "first", reading: false) == key(description: "second", reading: false))
+        #expect(try await key(description: "first", reading: true) != key(description: "second", reading: true))
+    }
+
     @Test(.inTemporaryDirectory) func cachesAndReplaysUnusedExternReports() async throws {
         let fixture = try await fixture()
         let report = #"{"$message_type":"unused_extern","lint_level":"force-warn","unused_extern_names":["itoa"]}"#
@@ -584,6 +732,33 @@ struct CargoCompilationCacheTests {
             await remote.setCompilerStreams(stdout: stdout, stderr: stderr)
             #expect(try await fixture.cache(remote: remote, directory: "consumer").restore() == false)
         }
+    }
+
+    @Test(.inTemporaryDirectory) func remoteLookupsFindDiagnosticsRenderedAtTheirWidth() async throws {
+        let fixture = try await fixture()
+        let remote = CargoMemoryCache()
+        let narrow = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + ["--diagnostic-width=80"]))
+        let piped = #"{"$message_type":"diagnostic","rendered":"warning: piped"}"#
+        let rendered = #"{"$message_type":"diagnostic","rendered":"warning: at 80 columns"}"#
+        func restores(_ invocation: CargoCacheInvocation, _ expected: String) async throws {
+            // A machine with nothing local.
+            try fixture.removeOutputs()
+            var cache = try fixture.cache(invocation: invocation, remote: remote, directory: UUID().uuidString)
+            var replayed = Data()
+            cache.replay = { _, stderr in replayed = stderr }
+            #expect(try await cache.restoreRemotely())
+            #expect(String(decoding: replayed, as: UTF8.self) == expected)
+        }
+        try await fixture.cache(invocation: narrow, remote: remote).store(stdout: Data(), stderr: Data(rendered.utf8))
+        // The key's own entry is missing, not merely unusable.
+        try await restores(narrow, rendered)
+        try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data(piped.utf8))
+        // The key's entry holds the piped rendering, which a terminal build skips.
+        try await restores(narrow, rendered)
+        try await restores(fixture.invocation, piped)
+        try fixture.removeOutputs()
+        let wide = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + ["--diagnostic-width=140"]))
+        #expect(try await fixture.cache(invocation: wide, remote: remote, directory: "wide").restoreRemotely() == false)
     }
 
     @Test(.inTemporaryDirectory) func readOnlyGrantHintSkipsUploadsWithoutDisablingLocalCaching() async throws {
@@ -1225,7 +1400,7 @@ private struct LinkedBinary: CargoCacheAction {
 }
 
 private actor CargoMemoryCache: REAPICacheStoring {
-    private var result: REAPI.ActionResult?
+    private var results: [REAPI.Digest: REAPI.ActionResult] = [:]
     private var blobs: [REAPI.Digest: Data] = [:]
     private let rejectUploads: Bool
     private let denyWrites: Bool
@@ -1240,15 +1415,15 @@ private actor CargoMemoryCache: REAPICacheStoring {
         self.denyWrites = denyWrites
     }
 
-    func actionResult(for _: REAPI.Digest) async throws -> REAPI.ActionResult? {
+    func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         reads += 1
-        return result
+        return results[digest]
     }
 
-    func containsActionResult(for _: REAPI.Digest) async throws -> Bool { result != nil }
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool { results[digest] != nil }
 
-    func storeActionResult(_ result: REAPI.ActionResult, for _: REAPI.Digest) async throws {
-        self.result = result
+    func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
+        results[digest] = result
         publications += 1
     }
 
@@ -1275,11 +1450,17 @@ private actor CargoMemoryCache: REAPICacheStoring {
     }
 
     func setCompilerStreams(stdout: Data, stderr: Data) {
-        result?.stdoutRaw = stdout
-        result?.stderrRaw = stderr
+        for digest in results.keys {
+            results[digest]?.stdoutRaw = stdout
+            results[digest]?.stderrRaw = stderr
+        }
     }
 
     func corruptDownloads(_ enabled: Bool = true) { corrupt = enabled }
     func failDownloads() { unavailable = true }
-    func escapeOutputPath() { result?.outputFiles[0].path = "../escape" }
+    func escapeOutputPath() {
+        for digest in results.keys {
+            results[digest]?.outputFiles[0].path = "../escape"
+        }
+    }
 }

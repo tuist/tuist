@@ -48,9 +48,32 @@ struct CargoCompilationCache {
         FileHandle.standardError.write(stderr)
     }
 
-    private let command: Data
-    private let action: Data
-    private let actionDigest: REAPI.Digest
+    /// The entry for output that reads the same at every width: no rendered diagnostics, or diagnostics rendered
+    /// without a width (a piped build), which a terminal build skips.
+    private let shared: Entry
+    /// The entry for diagnostics rendered at this compilation's terminal width, so builds at different widths each keep
+    /// theirs instead of replacing one another's. `nil` without a width.
+    private let rendered: Entry?
+
+    /// An action result's index: the key, and the width of the diagnostics it holds, if any.
+    private struct Entry {
+        let command: Data
+        let action: Data
+        let digest: REAPI.Digest
+
+        init(_ invocation: any CargoCacheAction, width: String?) throws {
+            command = try REAPI.Command.with {
+                $0.arguments = [invocation.cacheVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
+                    + (width.map { ["diagnostic-width=" + $0] } ?? [])
+            }.serializedData()
+            let commandDigest = REAPI.digest(command)
+            action = try REAPI.Action.with {
+                $0.commandDigest = commandDigest
+                $0.inputRootDigest = REAPI.emptyBlob
+            }.serializedData()
+            digest = REAPI.digest(action)
+        }
+    }
 
     init(
         invocation: any CargoCacheAction, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement
@@ -59,18 +82,15 @@ struct CargoCompilationCache {
         self.root = root
         self.remote = remote
         self.measurement = measurement
-        command = try REAPI.Command.with {
-            $0.arguments = [invocation.cacheVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
-        }.serializedData()
-        let commandDigest = REAPI.digest(command)
-        action = try REAPI.Action.with {
-            $0.commandDigest = commandDigest
-            $0.inputRootDigest = REAPI.emptyBlob
-        }.serializedData()
-        actionDigest = REAPI.digest(action)
+        shared = try Entry(invocation, width: nil)
+        let width = Self.diagnosticWidth(invocation.arguments)
+        rendered = width.isEmpty ? nil : try Entry(invocation, width: width)
     }
 
-    private var index: URL { root.appendingPathComponent("actions/" + actionDigest.hash) }
+    /// The entries a lookup tries, in order: most output reads the same at every width.
+    private var entries: [Entry] { [shared] + (rendered.map { [$0] } ?? []) }
+
+    private func index(_ entry: Entry) -> URL { root.appendingPathComponent("actions/" + entry.digest.hash) }
 
     func restore() async throws -> Bool {
         if try await restoreLocally() { return true }
@@ -78,38 +98,43 @@ struct CargoCompilationCache {
     }
 
     func restoreLocally() async throws -> Bool {
-        try Task.checkCancellation()
-        let localStarted = Date()
-        let data = try? boundedData(index, maximum: 2_000_000)
-        measurement.timing("read", duration: Date().timeIntervalSince(localStarted))
-        if let data, let result = try? REAPI.ActionResult(serializedBytes: data),
-           (try? await materialize(result, downloadMissing: false)) == true { return true }
+        for entry in entries {
+            try Task.checkCancellation()
+            let localStarted = Date()
+            let data = try? boundedData(index(entry), maximum: 2_000_000)
+            measurement.timing("read", duration: Date().timeIntervalSince(localStarted))
+            if let data, let result = try? REAPI.ActionResult(serializedBytes: data),
+               (try? await materialize(result, entry: entry, downloadMissing: false)) == true { return true }
+        }
         try Task.checkCancellation()
         return false
     }
 
     func restoreRemotely() async throws -> Bool {
-        try Task.checkCancellation()
         guard let remote else { return false }
-        let result: REAPI.ActionResult?
-        do {
-            let started = Date()
-            result = try await remote.actionResult(for: actionDigest)
-            measurement.timing("read", duration: Date().timeIntervalSince(started))
-        } catch {
-            if error is CancellationError || Task.isCancelled { throw error }
-            debug(error)
-            if !CargoRemoteCache.isOverloaded(error) { measurement.failure() }
-            return false
+        for entry in entries {
+            try Task.checkCancellation()
+            let result: REAPI.ActionResult?
+            do {
+                let started = Date()
+                result = try await remote.actionResult(for: entry.digest)
+                measurement.timing("read", duration: Date().timeIntervalSince(started))
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                debug(error)
+                if !CargoRemoteCache.isOverloaded(error) { measurement.failure() }
+                return false
+            }
+            guard let result else { continue }
+            do {
+                if try await materialize(result, entry: entry, downloadMissing: true) { return true }
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                debug(error)
+                return false
+            }
         }
-        guard let result else { return false }
-        do {
-            return try await materialize(result, downloadMissing: true)
-        } catch {
-            if error is CancellationError || Task.isCancelled { throw error }
-            debug(error)
-            return false
-        }
+        return false
     }
 
     /// Publishes the compilation's outputs. `keyedAfterCompiling` says the key was computed from inputs read once the
@@ -135,8 +160,10 @@ struct CargoCompilationCache {
         guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else {
             return refuse("its output is not only rustc's messages")
         }
-        // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them.
+        // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them, and keep
+        // them under that width's own entry.
         let widthMarker = messages.diagnostics ? Self.widthMarker(invocation.arguments) : Data()
+        let entry = messages.diagnostics ? rendered ?? shared : shared
         guard let storedStderr = invocation.storedOutput(widthMarker + stderr) else {
             return refuse("its messages name a path outside the known roots")
         }
@@ -180,15 +207,15 @@ struct CargoCompilationCache {
         guard try invocation.fingerprint() == invocation.key else { return refuse("an input changed while it was stored") }
         try Task.checkCancellation()
         let localStarted = Date()
-        try CargoBlobStore.write(try result.serializedData(), to: index)
+        try CargoBlobStore.write(try result.serializedData(), to: index(entry))
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
-        CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
+        CargoCacheJournal.use("actions/" + entry.digest.hash, environment: invocation.environment)
         guard let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: invocation.environment),
            FileManager.default.fileExists(atPath: marker.path) { return }
         let started = Date()
         do {
-            for data in [command, action, Data()] {
+            for data in [entry.command, entry.action, Data()] {
                 let digest = REAPI.digest(data)
                 let file = blobStore.path(digest)
                 try CargoBlobStore.write(data, to: file)
@@ -196,7 +223,7 @@ struct CargoCompilationCache {
             }
             // Inside a session the outer command uploads once Cargo exits, so no compilation waits on the network.
             if CargoCacheJournal.defersPublication(invocation.environment),
-               CargoCacheJournal.deferPublication(result, for: actionDigest, blobs: blobs, environment: invocation.environment)
+               CargoCacheJournal.deferPublication(result, for: entry.digest, blobs: blobs, environment: invocation.environment)
             { return }
             let upload = try await remote.uploadAvailableBlobs(blobs)
             let elapsed = Date().timeIntervalSince(started)
@@ -217,7 +244,7 @@ struct CargoCompilationCache {
                 return
             }
             let publicationStarted = Date()
-            try await remote.storeActionResult(result, for: actionDigest)
+            try await remote.storeActionResult(result, for: entry.digest)
             measurement.timing("write", duration: Date().timeIntervalSince(publicationStarted))
         } catch {
             if error is CancellationError || Task.isCancelled { throw error }
@@ -227,8 +254,8 @@ struct CargoCompilationCache {
     }
 
     /// Whether a stream holds only rustc's JSON messages (artifact notifications, diagnostics, future-incompatibility
-    /// reports, unused-extern reports, and this cache's width marker), and whether any are diagnostics; `nil` for
-    /// anything else. Cargo 1.100 asks for unused-extern reports (`--json=unused-externs-silent`) for its
+    /// reports, unused-extern reports, and this cache's width marker), and whether any holds rendered diagnostics;
+    /// `nil` for anything else. Cargo 1.100 asks for unused-extern reports (`--json=unused-externs-silent`) for its
     /// `unused_dependencies` lint; a hit replays them like diagnostics, so the lint still sees cached crates.
     static func messages(_ data: Data) -> (diagnostics: Bool, width: String?)? {
         var diagnostics = false
@@ -237,8 +264,11 @@ struct CargoCompilationCache {
             guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
                   let type = message["$message_type"] as? String else { return nil }
             switch type {
-            case "artifact", "future_incompat", "unused_extern": continue
+            case "artifact", "unused_extern": continue
             case "diagnostic": diagnostics = true
+            // A report holds the diagnostics Cargo shows for future incompatibilities, rendered like any other.
+            case "future_incompat":
+                if (message["future_incompat_report"] as? [Any])?.isEmpty != true { diagnostics = true }
             case widthMessage:
                 guard width == nil, let value = message["width"] as? String else { return nil }
                 width = value
@@ -284,7 +314,7 @@ struct CargoCompilationCache {
         }
     }
 
-    private func materialize(_ result: REAPI.ActionResult, downloadMissing: Bool) async throws -> Bool {
+    private func materialize(_ result: REAPI.ActionResult, entry: Entry, downloadMissing: Bool) async throws -> Bool {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
@@ -404,11 +434,11 @@ struct CargoCompilationCache {
         try invocation.certifyOutputs(metadataOnly: false)
         // A remote entry is kept locally; a local one, read from the index just now, renews its use like a blob.
         if downloadMissing {
-            try CargoBlobStore.write(try result.serializedData(), to: index)
+            try CargoBlobStore.write(try result.serializedData(), to: index(entry))
         } else {
-            CargoBlobStore.markUsed(index.path)
+            CargoBlobStore.markUsed(index(entry).path)
         }
-        CargoCacheJournal.use("actions/" + actionDigest.hash, environment: invocation.environment)
+        CargoCacheJournal.use("actions/" + entry.digest.hash, environment: invocation.environment)
         replay(result.stdoutRaw, restoredStderr)
         return true
     }
