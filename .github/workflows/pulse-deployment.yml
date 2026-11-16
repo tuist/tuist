@@ -468,8 +468,10 @@ jobs:
           dir="$RUNNER_TEMP/pulse-deploy"
           read -ra chart_args <<< "$PULSE_CHART_ARGS"
           upgrade() {
+            # pulse-datanode-rollout.sh patches the datanode partition; after an
+            # interrupted drain the chart must take it back, and the script resumes.
             if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" "${chart_args[@]}" "$@" \
-              -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+              -n observability --force-conflicts --timeout 20m --wait > "$dir/helm.log" 2>&1; then
               # Helm's error line names the failing step, not rendered values.
               grep -m1 '^Error' "$dir/helm.log" || true
               echo '::error::Pulse rollout failed; state retained for diagnosis.'
@@ -570,7 +572,7 @@ jobs:
           read -ra chart_args <<< "$PULSE_CHART_ARGS"
           echo 'MIGRATION_PHASE=retiring' >> "$GITHUB_ENV"
           if ! helm upgrade pulse "$dir/tuist-pulse-0.1.0.tgz" "${chart_args[@]}" \
-            -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+            -n observability --force-conflicts --timeout 20m --wait > "$dir/helm.log" 2>&1; then
             grep -m1 '^Error' "$dir/helm.log" || true
             echo '::error::Removing the standalone backend failed; readers stay on the cluster.'
             exit 1
