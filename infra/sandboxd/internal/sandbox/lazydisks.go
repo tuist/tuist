@@ -31,11 +31,16 @@ import (
 const (
 	lazyDiskSuffix      = ".fill"
 	lazyDiskFillWorkers = 4
-	// lazyDiskSettle bounds how long a pause waits for the disks of a
-	// restore still filling, which it must hold whole before it can save
-	// the sandbox.
-	lazyDiskSettle = 10 * time.Minute
+	// lazyDiskPauseWait bounds how long a pause waits, with the guest still
+	// running, for the disks of a restore still filling, which it must hold
+	// whole before it can save the sandbox. With the guest sync (up to 60 s)
+	// and the snapshot it stays inside the server's 120 s pause call.
+	lazyDiskPauseWait = 30 * time.Second
 )
+
+// ErrDisksLoading refuses a pause while a restore's disks still arrive from
+// its archive; the guest keeps running and a later pause succeeds.
+var ErrDisksLoading = errors.New("sandbox disks are still loading from its archive")
 
 var lazyDiskNames = []string{firecracker.RootfsPath, firecracker.WorkspacePath}
 
@@ -278,8 +283,31 @@ func (m *Manager) serveLazyDisks(sb *Sandbox, ld *lazyDisks, inst vm.Instance, l
 	m.restorePartLoaded(sb, false)
 }
 
-// settleLazyDisks completes the disks of a restore still filling once its
-// VM is gone, for a pause, which must save them whole.
+// awaitLazyDisks waits, for a pause, until a restore's disks are complete,
+// up to lazyDiskPauseWait. It runs before the pause stops the guest and
+// outside opMu, so a fill that takes longer refuses the pause and leaves the
+// guest running rather than stopping it on disks it may never get whole, and
+// a delete meanwhile is not held up.
+func (m *Manager) awaitLazyDisks(ctx context.Context, id string, sb *Sandbox) error {
+	sb.mu.Lock()
+	ld := sb.lazy
+	sb.mu.Unlock()
+	if ld == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, lazyDiskPauseWait)
+	defer cancel()
+	select {
+	case <-ld.filled:
+		// A failed fill stops the VM through serveLazyDisks.
+		return ld.err
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %s", ErrDisksLoading, id)
+	}
+}
+
+// settleLazyDisks installs the disks of a restore, which awaitLazyDisks saw
+// complete, once its VM is gone, for a pause, which must save them whole.
 func (m *Manager) settleLazyDisks(ctx context.Context, sb *Sandbox) error {
 	sb.mu.Lock()
 	ld := sb.lazy
@@ -287,8 +315,6 @@ func (m *Manager) settleLazyDisks(ctx context.Context, sb *Sandbox) error {
 	if ld == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, lazyDiskSettle)
-	defer cancel()
 	err := ld.wait(ctx)
 	if err == nil {
 		err = ld.install(sb.root)
