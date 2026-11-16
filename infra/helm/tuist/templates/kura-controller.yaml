@@ -416,6 +416,9 @@ spec:
             {{- if .Values.kuraController.privateReplication.enabled }}
             - --private-replication=true
             {{- end }}
+            {{- if and .Values.egressTreeAgent.enabled .Values.egressTreeAgent.nodePools }}
+            - {{ printf "--egress-tree-node-pools=%s" (join "," .Values.egressTreeAgent.nodePools) | quote }}
+            {{- end }}
             {{- if .Values.kuraController.stableDNS.enabled }}
             - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}
             - --stable-dns-owner={{ required "kuraController.stableDNS.ownerId is required" .Values.kuraController.stableDNS.ownerId }}
