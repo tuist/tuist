@@ -11,6 +11,7 @@ defmodule Tuist.Accounts.UserNotifier do
   alias Tuist.Locale
   alias Tuist.Mailer
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
@@ -497,6 +498,53 @@ defmodule Tuist.Accounts.UserNotifier do
 
   def deliver_air_usage_notification(user, account, notification) do
     user |> air_usage_email(account, notification) |> Mailer.deliver_now()
+  end
+
+  def deliver_runner_prepaid_notification(user, account, notification) do
+    Gettext.with_locale(TuistWeb.Gettext, user.preferred_locale || "en", fn ->
+      subject =
+        dgettext("dashboard_account", "%{account_name}: prepaid runner credits %{threshold}% consumed",
+          account_name: account.name,
+          threshold: notification.threshold
+        )
+
+      status =
+        if notification.threshold == 100 do
+          dgettext(
+            "dashboard_account",
+            "Your prepaid runner credits are exhausted. Further billable runner usage continues at the standard on-demand rates; jobs are not blocked."
+          )
+        else
+          dgettext(
+            "dashboard_account",
+            "You have consumed 80% of your prepaid runner credits. Jobs will continue at the standard on-demand rates after the credits are exhausted."
+          )
+        end
+
+      paid_cents = notification.activation.request["paid_cents"]
+
+      # The ledger and thresholds stay in Stripe's standard-rate units. The
+      # customer sees only the purchase's dollars, capped at the prepaid total;
+      # usage beyond exhaustion is on-demand, not additional prepaid spending.
+      remaining_cents =
+        Prepaid.purchased_value(
+          max(notification.budget_cents - notification.usage_cents, 0),
+          paid_cents,
+          notification.budget_cents
+        )
+
+      usage = Money.to_string(Money.new(paid_cents - remaining_cents, :USD))
+      budget = Money.to_string(Money.new(paid_cents, :USD))
+
+      summary =
+        dgettext("dashboard_account", "%{usage} of %{budget} in runner credits consumed.", usage: usage, budget: budget)
+
+      url = Environment.app_url(path: "/#{account.name}/billing")
+
+      user.email
+      |> build_email(subject, nil, Enum.join([status, summary, url], "\n\n"))
+      |> Mailer.deliver_now()
+    end)
   end
 
   @doc """

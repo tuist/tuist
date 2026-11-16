@@ -94,6 +94,103 @@ defmodule Atlas.TuistAccounts do
   def plan_schema, do: @limits_schema
   def update_plan_schema, do: @update_plan_schema
 
+  def runner_billing_schema, do: @limits_schema
+
+  def activate_runner_prepaid_pool_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "account_id" => @account_id,
+        "paid_cents" => %{"type" => "integer", "minimum" => 1},
+        "credit_multiplier" => %{"type" => "string", "pattern" => "^[0-9]+(\\.[0-9]+)?$"},
+        "platforms" => %{
+          "type" => "array",
+          "items" => %{"type" => "string", "enum" => ~w(linux macos)},
+          "minItems" => 1,
+          "uniqueItems" => true
+        },
+        "starts_on" => %{"type" => "string", "format" => "date"},
+        "expires_on" => %{"type" => "string", "format" => "date"},
+        "invoice_id" => %{"type" => "string", "pattern" => "^in_[A-Za-z0-9]+$"},
+        "expected_revision" => %{"type" => "string", "minLength" => 1},
+        "reason" => %{"type" => "string", "minLength" => 1, "maxLength" => 1000},
+        "change_id" => %{"type" => "string", "format" => "uuid"}
+      },
+      "required" =>
+        ~w(account_id paid_cents credit_multiplier platforms starts_on expires_on invoice_id expected_revision reason change_id),
+      "additionalProperties" => false
+    }
+  end
+
+  def runner_billing_output_schema do
+    string = %{"type" => "string"}
+    nullable_string = %{"type" => ["string", "null"]}
+    integer = %{"type" => "integer"}
+
+    trial_properties = %{
+      "active" => %{"type" => "boolean"},
+      "started_at" => nullable_string,
+      "ended_at" => nullable_string
+    }
+
+    grant_properties = %{
+      "id" => string,
+      "currency" => string,
+      "amount_cents" => integer,
+      "available_cents" => integer,
+      "expires_at" => nullable_string,
+      "metadata" => %{"type" => "object"}
+    }
+
+    activation_properties = %{
+      "change_id" => string,
+      "status" => string,
+      "error" => nullable_string,
+      "grant_id" => nullable_string,
+      "subscription_schedule_id" => nullable_string,
+      "starts_on" => string,
+      "expires_on" => string,
+      "platforms" => %{"type" => "array", "items" => string},
+      "paid_cents" => integer,
+      "credit_multiplier" => string
+    }
+
+    properties = %{
+      "account_id" => integer,
+      "account_handle" => string,
+      "stripe_customer_id" => nullable_string,
+      "revision" => string,
+      "runner_trial" => %{
+        "type" => "object",
+        "properties" => trial_properties,
+        "required" => Map.keys(trial_properties),
+        "additionalProperties" => false
+      },
+      "prepaid_grants" => %{
+        "type" => "array",
+        "items" => %{
+          "type" => "object",
+          "properties" => grant_properties,
+          "required" => Map.keys(grant_properties),
+          "additionalProperties" => false
+        }
+      },
+      "activation" => %{
+        "type" => ["object", "null"],
+        "properties" => activation_properties,
+        "required" => Map.keys(activation_properties),
+        "additionalProperties" => false
+      }
+    }
+
+    %{
+      "type" => "object",
+      "properties" => properties,
+      "required" => Map.keys(properties),
+      "additionalProperties" => false
+    }
+  end
+
   def account_schema do
     %{
       "type" => "object",
@@ -278,6 +375,60 @@ defmodule Atlas.TuistAccounts do
       end
 
     record("tuist_account_plan.updated", user, account_id(args), metadata, result, opts)
+  end
+
+  def get_runner_billing(user, args, opts \\ []) do
+    result =
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:read"),
+           :ok <- validate(@limits_schema, args) do
+        TuistServer.get_runner_billing(args["account_id"])
+      end
+
+    record("tuist_runner_billing.inspected", user, account_id(args), %{}, result, opts)
+  end
+
+  def activate_runner_prepaid_pool(user, args, opts \\ []) do
+    result =
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:write"),
+           :ok <- validate(activate_runner_prepaid_pool_schema(), args),
+           :ok <- validate_update(args),
+           :ok <- validate_prepaid_term(args),
+           :ok <- TuistFeatureFlags.approve_write(user, "activate-runner-prepaid-pool", args, opts) do
+        attrs =
+          args
+          |> Map.delete("account_id")
+          |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+          |> Map.put("interface", Keyword.get(opts, :interface, "mcp"))
+
+        TuistServer.activate_runner_prepaid_pool(args["account_id"], attrs)
+      end
+
+    metadata =
+      if is_map(args),
+        do:
+          Map.take(
+            args,
+            ~w(paid_cents credit_multiplier platforms starts_on expires_on invoice_id expected_revision reason change_id)
+          ),
+        else: %{}
+
+    record("tuist_runner_billing.activated", user, account_id(args), metadata, result, opts)
+  end
+
+  defp validate_prepaid_term(args) do
+    with {:ok, starts_on} <- Date.from_iso8601(args["starts_on"]),
+         {:ok, expires_on} <- Date.from_iso8601(args["expires_on"]),
+         true <- Date.compare(starts_on, expires_on) != :gt,
+         {multiplier, ""} <- Decimal.parse(args["credit_multiplier"]),
+         true <- Decimal.positive?(multiplier),
+         true <- Regex.match?(~r/\Ain_[A-Za-z0-9]+\z/, args["invoice_id"]),
+         true <- String.trim(args["expected_revision"]) != "" do
+      :ok
+    else
+      _ -> {:error, "Invalid prepaid term, credit multiplier or expected revision."}
+    end
   end
 
   defp authorize(%User{} = user, scope) do
