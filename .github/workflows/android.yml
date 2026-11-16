@@ -62,7 +62,12 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
+      - run: ./gradlew testDebugUnitTest assembleDebugAndroidTest --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: configuration-cache-report-test
+          path: android/build/reports/configuration-cache
 
   test-fork:
     name: Test Fork
