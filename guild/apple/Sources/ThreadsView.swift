@@ -27,6 +27,8 @@ struct ThreadsView: View {
     @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
     @State private var error: String?
+    @State private var starting = false
+    @State private var opened: ThreadRoute?
 
     var body: some View {
         List {
@@ -52,6 +54,8 @@ struct ThreadsView: View {
         #if os(macOS)
         .listStyle(.inset)
         #endif
+        .scrollContentBackground(.hidden)
+        .background(Noora.backgroundPrimary)
         // Overlays center in the content area; list rows would stack at the top.
         .overlay {
             if error == nil {
@@ -71,16 +75,36 @@ struct ThreadsView: View {
                             description: Text("Archived threads will live here. You can come back to them anytime.")
                         )
                     } else {
-                        ContentUnavailableView(
-                            "Big things start here",
-                            systemImage: "bubble.left.and.bubble.right",
-                            description: Text("Ask a question, explore an idea, or solve a problem with Tuist.")
-                        )
+                        ContentUnavailableView {
+                            Label("Big things start here", systemImage: "bubble.left.and.bubble.right")
+                        } description: {
+                            Text("Ask a question, explore an idea, or solve a problem with Tuist.")
+                        } actions: {
+                            Button("Start conversation") { starting = true }.buttonStyle(.borderedProminent)
+                        }
                     }
                 }
             }
         }
         .navigationTitle("Threads")
+        .toolbar {
+            if available {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Start conversation", systemImage: "square.and.pencil") { starting = true }
+                        .keyboardShortcut("n", modifiers: .command)
+                        .help("Start conversation")
+                }
+            }
+        }
+        .sheet(isPresented: $starting) {
+            NavigationStack {
+                StartConversationView(client: client) { thread in
+                    opened = ThreadRoute(id: thread.id)
+                    Task { await reload() }
+                }
+            }
+        }
+        .navigationDestination(item: $opened) { route in ConversationView(client: client, id: route.id) }
         #if os(macOS)
             .toolbar {
                 if available { ToolbarItem(placement: .principal) { archivePicker } }
@@ -113,22 +137,31 @@ struct ThreadsView: View {
         if !values.isEmpty {
             Section(title) {
                 ForEach(values) { thread in
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: thread.section == "archived" ? "archivebox"
-                            : thread.section == "in_progress" ? "circle.dotted" : "bubble.left")
-                            .foregroundStyle(thread.section == "in_progress" ? Color.accentColor : .secondary)
-                            .frame(width: 20)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(verbatim: thread.title ?? thread.goal ?? "").font(.body.weight(.medium)).lineLimit(2)
-                            Text(verbatim: [thread.repository, statusLabel(thread.state)]
-                                .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · "))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 2)
+                    Button { opened = ThreadRoute(id: thread.id) } label: { row(thread) }
+                        .buttonStyle(.plain)
+                    .listRowBackground(Noora.backgroundTertiary)
                 }
             }
         }
+    }
+
+    private func row(_ thread: AppThread) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: thread.section == "archived" ? "archivebox"
+                : thread.section == "in_progress" ? "circle.dotted" : "bubble.left")
+                .foregroundStyle(thread.section == "in_progress" ? Noora.primary : Noora.labelSecondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: thread.title ?? thread.goal ?? "").font(.body.weight(.medium)).lineLimit(2)
+                    .foregroundStyle(Noora.labelPrimary)
+                Text(verbatim: [thread.repository, statusLabel(thread.state)]
+                    .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+            }
+        }
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private func statusLabel(_ state: String?) -> String? {

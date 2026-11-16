@@ -34,7 +34,7 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
     private var view = JSONObject()
-    private var screen = "previews"
+    private var screen = "threads"
     // Adding another profile shows the login screen over the signed-in workspace.
     private var addingProfile = false
     private var ticket = 0L
@@ -52,18 +52,22 @@ class MainActivity : Activity() {
     private var tracks: JSONObject? = null
     private var detail: JSONObject? = null
     private var debounce: Runnable? = null
+    private var threads = emptyList<JSONObject>()
+    private var conversation: JSONObject? = null
+    private var reply = ""
+    private var follow: Runnable? = null
     private val searchInputId = View.generateViewId()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         host = AppHost(applicationContext)
-        screen = savedInstanceState?.getString("screen") ?: "previews"
+        screen = savedInstanceState?.getString("screen") ?: "threads"
         addingProfile = savedInstanceState?.getBoolean("adding_profile") ?: false
         call("snapshot") {
             render()
             if (!callback(intent)) {
                 if (AppCore.pendingAuthorization != null) launchPendingSignIn()
-                else if (active() != null && screen == "previews") loadProjects()
+                else load()
             }
         }
     }
@@ -95,7 +99,7 @@ class MainActivity : Activity() {
         if (uri.scheme != "tuist-guild" || uri.host != "oauth-callback" || !uri.path.isNullOrEmpty()) return false
         browserPending = false
         call("finish_sign_in", JSONObject().put("url", uri.toString())) {
-            reset(); addingProfile = false; screen = "previews"; render(); loadProjects()
+            reset(); addingProfile = false; screen = "threads"; render(); load()
         }
         return true
     }
@@ -130,8 +134,19 @@ class MainActivity : Activity() {
 
     private fun reset() {
         debounce?.let(handler::removeCallbacks)
+        follow?.let(handler::removeCallbacks)
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
+        threads = emptyList(); conversation = null; reply = ""
+    }
+
+    /** Loads the current screen's data. */
+    private fun load() {
+        if (active() == null) return
+        when (screen) {
+            "previews" -> loadProjects()
+            "threads" -> conversation?.let { openThread(it.optString("id")) } ?: loadThreads()
+        }
     }
 
     @Deprecated("Activity predates OnBackPressedDispatcher")
@@ -142,7 +157,6 @@ class MainActivity : Activity() {
 
     private fun render() {
         val login = active() == null || addingProfile
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         // Dark status bar icons, except over the login screen's dark artwork.
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = if (login && night) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
@@ -159,18 +173,33 @@ class MainActivity : Activity() {
                 insets
             }
         }
+        root.setBackgroundColor(noora("surface-background-primary"))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        text(getString(if (screen == "profile") R.string.profile else R.string.previews), 28f)
+        text(getString(when (screen) {
+            "profile" -> R.string.profile
+            "threads" -> R.string.threads
+            else -> R.string.previews
+        }), 28f)
         if (busy) text(getString(R.string.loading))
-        if (screen == "profile") profileScreen() else previewScreen()
-        root.addView(Button(this).apply {
+        when (screen) {
+            "profile" -> profileScreen()
+            "threads" -> threadsScreen()
+            else -> previewScreen()
+        }
+        root.addView(styled(Button(this)).apply {
+            setText(R.string.threads)
+            setOnClickListener {
+                if (!busy && !browserPending) { screen = "threads"; conversation = null; render(); loadThreads() }
+            }
+        })
+        root.addView(styled(Button(this)).apply {
             setText(R.string.previews)
             setOnClickListener {
                 if (!busy && !browserPending) { screen = "previews"; render(); if (projects.isEmpty()) loadProjects() }
             }
         })
-        root.addView(Button(this).apply {
+        root.addView(styled(Button(this)).apply {
             setText(R.string.profile)
             setOnClickListener {
                 if (!busy) {
@@ -187,16 +216,37 @@ class MainActivity : Activity() {
         }
     }
 
+    private val night: Boolean
+        get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    /** A Noora token for the current appearance. */
+    private fun noora(name: String) = AppCore.color(name, night)
+
     private fun text(value: String, size: Float = 16f) {
-        content.addView(TextView(this).apply { text = value; textSize = size; setPadding(0, 8, 0, 8) })
+        content.addView(TextView(this).apply {
+            text = value; textSize = size; setPadding(0, 8, 0, 8)
+            setTextColor(noora("surface-label-primary"))
+        })
     }
 
-    private fun button(label: Int, action: () -> Unit) = button(getString(label), action)
-    private fun button(label: String, action: () -> Unit) {
-        content.addView(Button(this).apply {
+    private fun button(label: Int, primary: Boolean = false, action: () -> Unit) = button(getString(label), primary, action)
+    private fun button(label: String, primary: Boolean = false, action: () -> Unit) {
+        content.addView(styled(Button(this).apply {
             text = label
             setOnClickListener { if (!busy) action() }
-        })
+        }, primary), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+    }
+
+    /** Noora's primary or secondary button. */
+    private fun styled(button: Button, primary: Boolean = false): Button = button.apply {
+        isAllCaps = false
+        stateListAnimator = null
+        setTextColor(noora(if (primary) "button-primary-label" else "button-secondary-label"))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(8).toFloat()
+            setColor(noora(if (primary) "button-primary-background" else "button-secondary-background"))
+            if (!primary) setStroke(dp(1), noora("surface-border-primary"))
+        }
     }
 
     private fun profileScreen() {
@@ -249,7 +299,7 @@ class MainActivity : Activity() {
             .setItems((profiles.map { "@${it.optString("handle")} · ${it.optString("server")}" } + getString(R.string.add_profile)).toTypedArray()) { _, i ->
                 if (i == profiles.size) signIn()
                 else call("switch_profile", JSONObject().put("id", profiles[i].getString("id"))) {
-                    reset(); render(); if (screen == "previews") loadProjects()
+                    reset(); render(); load()
                 }
             }.setNegativeButton(R.string.cancel, null).show()
     }
@@ -460,6 +510,127 @@ class MainActivity : Activity() {
         call("projects") { data ->
             projects = (data as? JSONObject)?.optJSONArray("projects").objects()
             render()
+        }
+    }
+
+    private fun loadThreads() {
+        if (active() == null) return
+        call("threads") { data ->
+            threads = (data as? JSONObject)?.optJSONArray("threads").objects()
+                .filter { it.optString("section") != "archived" }
+            render()
+        }
+    }
+
+    /** The inbox, or one conversation. Conversations run on the server; there is nothing to pick. */
+    private fun threadsScreen() {
+        if (active() == null) return
+        conversation?.let { conversationScreen(it); return }
+        button(R.string.start_conversation, primary = true) { startConversation() }
+        button(R.string.refresh) { loadThreads() }
+        if (threads.isEmpty() && !busy) text(getString(R.string.no_threads))
+        threads.forEach { item ->
+            button(listOf(item.string("title").ifBlank { item.string("goal") }, threadState(item.string("state")))
+                .filter { it.isNotBlank() }.joinToString(" · ")) { openThread(item.getString("id")) }
+        }
+    }
+
+    private fun threadState(state: String): String = when (state) {
+        "queued" -> getString(R.string.thread_queued)
+        "running" -> getString(R.string.thread_running)
+        "completed" -> getString(R.string.thread_completed)
+        "failed" -> getString(R.string.thread_failed)
+        "outcome_unknown" -> getString(R.string.thread_outcome_unknown)
+        else -> ""
+    }
+
+    private fun startConversation() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.conversation_prompt)
+            minLines = 3
+            gravity = Gravity.TOP or Gravity.START
+        }
+        AlertDialog.Builder(this).setTitle(R.string.new_conversation).setMessage(R.string.conversation_runs_on_server)
+            .setView(input)
+            .setPositiveButton(R.string.start) { _, _ ->
+                val text = input.text.toString()
+                if (text.isBlank()) return@setPositiveButton
+                call("start_thread", JSONObject().put("content", text), onFailure = {
+                    toast(R.string.start_failed); render()
+                }) { data -> show(data as? JSONObject) }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun openThread(id: String) {
+        call("thread", JSONObject().put("id", id)) { data -> show(data as? JSONObject) }
+    }
+
+    /** Shows a conversation and keeps it current while the server is answering. */
+    private fun show(thread: JSONObject?) {
+        follow?.let(handler::removeCallbacks)
+        conversation = thread
+        render()
+        if (thread == null || !thread.optBoolean("working")) return
+        val id = thread.optString("id")
+        follow = Runnable {
+            if (isDestroyed || screen != "threads" || conversation?.optString("id") != id) return@Runnable
+            if (busy) handler.postDelayed(follow!!, 2000) else openThread(id)
+        }
+        handler.postDelayed(follow!!, 2000)
+    }
+
+    private fun conversationScreen(thread: JSONObject) {
+        button(R.string.back) {
+            follow?.let(handler::removeCallbacks)
+            conversation = null; reply = ""; render(); loadThreads()
+        }
+        text(thread.string("title").ifBlank { thread.string("goal") }, 22f)
+        thread.optJSONArray("messages").objects().forEach { message ->
+            val body = message.string("content")
+            when (message.optString("role")) {
+                "user" -> content.addView(TextView(this).apply {
+                    text = body
+                    textSize = 16f
+                    setTextIsSelectable(true)
+                    gravity = Gravity.END
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                    setTextColor(noora("surface-label-primary"))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(noora("button-neutral-background-hover"))
+                        setStroke(dp(1), noora("surface-border-primary"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(-2, -2).apply {
+                        gravity = Gravity.END; leftMargin = dp(48); topMargin = dp(8); bottomMargin = dp(8)
+                    }
+                })
+                "assistant" -> content.addView(TextView(this).apply {
+                    text = body; textSize = 16f; setTextIsSelectable(true); setPadding(0, dp(8), dp(24), dp(8))
+                    setTextColor(noora("surface-label-primary"))
+                })
+                else -> content.addView(TextView(this).apply {
+                    text = body; textSize = 12f; setPadding(0, dp(4), 0, dp(4))
+                    setTextColor(noora("surface-label-secondary"))
+                })
+            }
+        }
+        if (thread.optBoolean("working")) { text(getString(R.string.thinking)); return }
+        content.addView(EditText(this).apply {
+            setTextColor(noora("surface-label-primary"))
+            setHintTextColor(noora("surface-label-tertiary"))
+            hint = getString(R.string.reply)
+            setText(reply)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { reply = s.toString() }
+                override fun afterTextChanged(s: Editable?) {}
+            })
+        })
+        button(R.string.send, primary = true) {
+            if (reply.isBlank()) return@button
+            call("send_message", JSONObject().put("id", thread.optString("id")).put("content", reply)) { data ->
+                reply = ""; show(data as? JSONObject)
+            }
         }
     }
 

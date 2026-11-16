@@ -1,4 +1,5 @@
 use super::*;
+use crate::THREADS_UNAVAILABLE;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -379,6 +380,115 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
         )["error"]
             .is_string()
     );
+}
+#[test]
+fn conversations_start_on_the_server_without_a_repository_and_retry_idempotently() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let models = json!({"models":[
+        {"provider":"chatgpt","id":"gpt-a","name":"A"},
+        {"provider":"chatgpt","id":"gpt-b","name":"B"}
+    ],"errors":[]});
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    h.responses.extend([
+        (200, models.clone()),
+        (503, json!({})),
+        (200, models.clone()),
+        (
+            200,
+            json!({"id":id,"status":"queued","archive_status":"active","repository":"",
+                "messages":[{"role":"user","content":"Plan the release"}]}),
+        ),
+    ]);
+    let posts = |h: &Fake| -> Vec<Value> {
+        h.actions
+            .iter()
+            .filter(|a| a["method"] == "POST" && a["url"].as_str().unwrap().contains("/threads"))
+            .map(|a| serde_json::from_str(a["body"].as_str().unwrap()).unwrap())
+            .collect()
+    };
+    let content = json!({"content":"Plan the release"});
+    assert!(call(&mut c, &mut h, "start_thread", content.clone())["error"].is_string());
+    let started = call(&mut c, &mut h, "start_thread", content.clone());
+    assert!(started.get("error").is_none(), "{started}");
+    assert_eq!(started["data"]["working"], true);
+    assert_eq!(started["data"]["section"], "in_progress");
+    let sent = posts(&h);
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/accounts/ana/threads"
+    );
+    assert_eq!(sent.len(), 2);
+    // The first model answers, no repository is chosen, and a retry of the
+    // failed request reuses its key so the server cannot create two threads.
+    assert_eq!(sent[1]["model"], "gpt-a");
+    assert_eq!(sent[1]["provider"], "chatgpt");
+    assert!(sent[1].get("repository").is_none());
+    assert_eq!(sent[0]["request_id"], sent[1]["request_id"]);
+    let key = sent[0]["request_id"].as_str().unwrap();
+    assert_eq!(key.len(), 36);
+    assert_eq!(&key[14..15], "4");
+    assert!("89ab".contains(&key[19..20]));
+
+    // A new conversation, even with the same text, gets a new key once the first succeeded.
+    h.responses.extend([
+        (200, models.clone()),
+        (
+            200,
+            json!({"id":id,"status":"idle","archive_status":"active","messages":[]}),
+        ),
+    ]);
+    call(&mut c, &mut h, "start_thread", content.clone());
+    assert_ne!(posts(&h)[2]["request_id"], sent[1]["request_id"]);
+
+    h.responses.extend([
+        (
+            200,
+            json!({"id":id,"status":"idle","archive_status":"active","messages":[]}),
+        ),
+        (
+            200,
+            json!({"id":id,"status":"queued","archive_status":"active","messages":[]}),
+        ),
+    ]);
+    let thread = call(&mut c, &mut h, "thread", json!({"id":id,"before":40}));
+    assert_eq!(thread["data"]["working"], false);
+    assert_eq!(thread["data"]["state"], "completed");
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        format!("https://one.test/api/accounts/ana/threads/{id}?before=40")
+    );
+    let replied = call(
+        &mut c,
+        &mut h,
+        "send_message",
+        json!({"id":id,"content":"And the changelog?"}),
+    );
+    assert_eq!(replied["data"]["working"], true);
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        format!("https://one.test/api/accounts/ana/threads/{id}/messages")
+    );
+    assert_eq!(posts(&h)[3]["content"], "And the changelog?");
+
+    let count = h.actions.len();
+    for args in [
+        json!({"id":"../../projects","content":"x"}),
+        json!({"id":id,"content":"  "}),
+    ] {
+        assert!(call(&mut c, &mut h, "send_message", args)["error"].is_string());
+    }
+    assert_eq!(h.actions.len(), count);
+
+    h.responses.extend([
+        (200, json!({"models":[],"errors":[{"provider":"claude"}]})),
+        (404, json!({"message":"Not found."})),
+    ]);
+    let no_model = call(&mut c, &mut h, "start_thread", content.clone());
+    assert!(no_model["error"].as_str().unwrap().contains("ChatGPT"));
+    let disabled = call(&mut c, &mut h, "start_thread", content);
+    assert_eq!(disabled["error"], THREADS_UNAVAILABLE);
+    assert_eq!(posts(&h).len(), 4);
 }
 #[test]
 fn complete_project_enumeration_detects_repeated_pages_and_filters_account() {

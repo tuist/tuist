@@ -64,6 +64,7 @@ struct AppWorkspace: View {
         #if os(macOS)
         .frame(minWidth: 720, minHeight: 520)
         #endif
+        .tint(Noora.primary)
         .task { await client.perform("snapshot") }
         .sheet(isPresented: $addingProfile) {
             NavigationStack {
@@ -132,7 +133,7 @@ private struct ProfileView: View {
                         Image(systemName: "person.crop.circle.fill")
                             .font(.system(size: 72))
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Noora.primary)
                         Text(verbatim: "@\(account.handle ?? account.email ?? "")")
                             .font(.body.weight(.medium))
                             .foregroundStyle(.secondary)

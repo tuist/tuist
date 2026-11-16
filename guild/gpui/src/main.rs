@@ -1,6 +1,7 @@
 mod accessibility;
 mod accounts;
 mod assets;
+mod components;
 mod input;
 mod instance;
 mod keyboard;

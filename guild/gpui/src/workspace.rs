@@ -2,14 +2,18 @@ use gpui::{
     Context, Entity, EventEmitter, FocusHandle, FontWeight, IntoElement, Pixels, Render,
     ScrollHandle, SharedString, Subscription, Window, div, prelude::*, px, svg,
 };
+use std::sync::Arc;
 use tuist_navigation::{Navigation, Tab as Destination};
-use tuist_session::Account;
+use tuist_session::{Account, Session};
 
 use crate::assets;
 use crate::keyboard::KeyboardControl;
 use crate::theme::Theme;
 
 mod preview;
+mod threads;
+
+use threads::ThreadsPanel;
 
 pub enum WorkspaceEvent {
     SignOut,
@@ -61,6 +65,7 @@ pub struct Workspace {
     account: Account,
     server: SharedString,
     scroll: ScrollHandle,
+    threads: Entity<ThreadsPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
@@ -74,16 +79,20 @@ impl Workspace {
     pub fn new(
         account: Account,
         server: SharedString,
+        session: Arc<Session>,
         navigation: Entity<Navigation>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let handle = account.handle.clone();
+        let threads = cx.new(|cx| ThreadsPanel::new(session, handle, cx));
         let observer = cx.observe(&navigation, |_, _, cx| cx.notify());
         Self {
             navigation,
             account,
             server,
             scroll: ScrollHandle::new(),
+            threads,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
@@ -158,31 +167,6 @@ impl Workspace {
                         });
                     }))
             }))
-    }
-
-    fn threads(&self, theme: Theme) -> impl IntoElement {
-        div()
-            .flex()
-            .flex_col()
-            .items_center()
-            .justify_center()
-            .gap_2()
-            .size_full()
-            .min_h(px(320.))
-            .child(
-                svg()
-                    .path(assets::THREADS_ICON)
-                    .size(px(32.))
-                    .text_color(theme.text_muted),
-            )
-            .child(
-                div()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(gpui::text!("Threads aren't available here yet")),
-            )
-            .child(div().text_color(theme.text_muted).child(gpui::text!(
-                "Use Tuist Guild on iOS or macOS to see your threads."
-            )))
     }
 
     /// The shipping apps' Profile page (`app/Sources/TuistProfile/ProfileView.swift`),
@@ -366,23 +350,27 @@ impl Workspace {
                     .font_weight(FontWeight::MEDIUM)
                     .child(SharedString::from(heading)),
             )
-            .child(
-                div()
+            .child(match (preview, selected) {
+                // Threads scrolls its own body so its composer stays docked at the bottom.
+                (None, Destination::Threads) => div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.threads.clone())
+                    .into_any_element(),
+                (preview, _) => div()
                     .id("workspace-scroll")
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
                     .track_scroll(&self.scroll)
-                    .child(match (preview, selected) {
-                        (Some(preview), _) => self
+                    .child(match preview {
+                        Some(preview) => self
                             .preview_detail(preview, theme, window, cx)
                             .into_any_element(),
-                        (None, Destination::Threads) => self.threads(theme).into_any_element(),
-                        (None, Destination::Profile) => {
-                            self.profile(theme, window, cx).into_any_element()
-                        }
-                    }),
-            )
+                        None => self.profile(theme, window, cx).into_any_element(),
+                    })
+                    .into_any_element(),
+            })
     }
 }
 

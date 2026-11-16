@@ -111,6 +111,17 @@ mod android {
         }
     }
 
+    /// Noora's semantic colors as the JSON `tuist_app_theme` returns.
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_dev_tuist_guild_AppCore_theme(
+        env: JNIEnv,
+        _instance: JObject,
+    ) -> jstring {
+        env.new_string(crate::theme::json().to_str().unwrap_or("{}"))
+            .map(JString::into_raw)
+            .unwrap_or(std::ptr::null_mut())
+    }
+
     #[unsafe(no_mangle)]
     pub extern "system" fn Java_dev_tuist_guild_AppCore_request(
         mut env: JNIEnv,

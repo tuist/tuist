@@ -307,7 +307,14 @@ impl Root {
                     cx.notify();
                 });
                 let view = cx.new(|cx| {
-                    Workspace::new(account.clone(), server, navigation.clone(), window, cx)
+                    Workspace::new(
+                        account.clone(),
+                        server,
+                        session.clone(),
+                        navigation.clone(),
+                        window,
+                        cx,
+                    )
                 });
                 let events = cx.subscribe_in(&view, window, |this, _, event, window, cx| {
                     this.perform(
