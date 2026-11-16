@@ -1,5 +1,5 @@
 defmodule Atlas.MCP.Tools.UpdateTuistFeatureFlag do
-  @moduledoc "Updates allowlisted Tuist feature flags through the audited internal domain API."
+  @moduledoc "Updates or creates Tuist feature flags through the audited internal domain API."
 
   use Atlas.MCP.Tool,
     name: "update_tuist_feature_flag",
@@ -11,7 +11,8 @@ defmodule Atlas.MCP.Tools.UpdateTuistFeatureFlag do
 
   @impl EMCP.Tool
   def description do
-    "Change persisted Tuist feature flag rules. Requires feature_flags:write. Inspect first and supply expected_revision, a reason " <>
+    "Change persisted Tuist feature flag rules. Requires feature_flags:write. Any name of letters, digits and underscores works; " <>
+      "the first write to a new name creates the flag. Inspect first and supply expected_revision, a reason " <>
       "and a unique change_id UUID. Account/project scopes use positive Tuist IDs, not Atlas UUIDs or organization IDs; " <>
       "get_tuist_account resolves a handle to its account_id. " <>
       "Percentage enable sets a deterministic actor rollout strictly between 0 and 100; percentage clear takes no percentage. " <>

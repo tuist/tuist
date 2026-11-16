@@ -2,7 +2,7 @@ defmodule Atlas.TuistFeatureFlags do
   @moduledoc """
   Authorized, audited access to Tuist's persisted feature flag rules.
 
-  Tuist owns flag allowlisting, actor resolution, revision checks, idempotency
+  Tuist owns flag name and actor validation, actor resolution, revision checks, idempotency
   and the atomic rule/change audit. Atlas records request outcomes, not proof
   that a failed remote request had no effect.
   """
@@ -60,7 +60,7 @@ defmodule Atlas.TuistFeatureFlags do
       "type" => "object",
       "properties" => %{
         "name" => %{"type" => "string"},
-        "actor_type" => %{"type" => "string", "enum" => ~w(global account project)},
+        "actor_type" => %{"type" => "string", "enum" => ~w(global account project any)},
         "description" => %{"type" => "string"},
         "revision" => %{"type" => "string"},
         "gates" => %{

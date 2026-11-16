@@ -67,11 +67,12 @@ defmodule Atlas.TuistFeatureFlagsTest do
     user = insert_user!(%{scopes: ["feature_flags:read"]})
     conn = mcp_conn(user)
     result = flag()
+    uncataloged = %{result | "name" => "operator_created", "actor_type" => "any"}
 
-    expect(TuistServer, :list_feature_flags, fn -> {:ok, %{"flags" => [result]}} end)
+    expect(TuistServer, :list_feature_flags, fn -> {:ok, %{"flags" => [result, uncataloged]}} end)
     expect(TuistServer, :get_feature_flag, fn "rollout" -> {:ok, result} end)
 
-    assert {:ok, %{"flags" => [^result]}} = execute_tool(ListTuistFeatureFlags, conn, %{})
+    assert {:ok, %{"flags" => [^result, ^uncataloged]}} = execute_tool(ListTuistFeatureFlags, conn, %{})
     assert {:ok, ^result} = execute_tool(GetTuistFeatureFlag, conn, %{"name" => "rollout"})
 
     {activities, _} = Audit.list_activities(actor_id: user.id)
