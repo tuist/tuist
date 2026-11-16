@@ -31,8 +31,17 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @OptionGroup var options: SandboxOptions
 
-    @Option(name: .long, help: "linux or macos. Defaults to linux.")
-    var platform: Platform = .linux
+    @Option(name: .long, help: "linux or macos. Defaults to linux, or macos with --xcode.")
+    var platform: Platform?
+
+    @Option(
+        name: .long,
+        help: """
+        macOS: the exact Xcode version to boot, such as 26.1.1, from those the server's macOS sandboxes serve. \
+        Implies --platform macos. Defaults to the server's default Xcode. A sandbox keeps its Xcode.
+        """
+    )
+    var xcode: String?
 
     @Option(name: .long, help: "Template name. Defaults to the server's default template for the platform.")
     var template: String?
@@ -51,7 +60,16 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
 
     public var jsonThroughNoora: Bool { true }
 
+    /// The platform the sandbox boots: --platform, else macOS when an Xcode is named, else Linux.
+    var resolvedPlatform: Platform {
+        platform ?? (xcode == nil ? .linux : .macos)
+    }
+
     public func validate() throws {
+        if xcode != nil, platform == .linux {
+            throw ValidationError("--xcode picks a macOS sandbox's Xcode; drop --platform linux.")
+        }
+        let platform = resolvedPlatform
         switch (vcpus, memoryGB) {
         case (nil, nil): break
         case let (vcpus?, memory?) where platform.shapes[memory] == vcpus: break
@@ -69,8 +87,9 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     public func run() async throws {
         try await SandboxCommandService().create(
             options: options.values,
-            platform: platform.server,
+            platform: resolvedPlatform.server,
             template: template,
+            xcodeVersion: xcode,
             vcpus: vcpus,
             memoryGB: memoryGB,
             workspaceGB: workspaceGb

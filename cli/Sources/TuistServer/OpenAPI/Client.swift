@@ -27742,7 +27742,7 @@ public struct Client: APIProtocol {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.

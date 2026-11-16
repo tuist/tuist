@@ -1043,9 +1043,9 @@ components:
           x-struct:
           x-validate:
       required:
+        - page_size
         - page
         - end_at
-        - page_size
         - total_count
         - total_pages
         - has_next_page
@@ -2883,6 +2883,12 @@ components:
           x-validate:
         updated_at:
           format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -6163,8 +6169,8 @@ components:
         - id
         - unit
         - value
-        - previous_value
         - points
+        - previous_value
       title: PulseWidget
       type: object
       x-struct:
@@ -6405,9 +6411,9 @@ components:
               x-struct:
               x-validate:
           required:
+            - page_size
             - page
             - end_at
-            - page_size
             - total_count
             - total_pages
             - has_next_page
@@ -8289,11 +8295,18 @@ components:
           type: integer
           x-struct:
           x-validate:
+        xcode_version:
+          description: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - anthropic_environment_id
         - platform
         - template
+        - xcode_version
         - vcpus
         - memory_mb
         - workspace_gb
@@ -8455,7 +8468,7 @@ components:
           x-struct:
           x-validate:
         platform:
-          default: linux
+          description: 'Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.'
           enum:
             - linux
             - darwin
@@ -8487,6 +8500,12 @@ components:
           maximum: 100
           minimum: 1
           type: integer
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          nullable: true
+          type: string
           x-struct:
           x-validate:
       required:
@@ -9410,7 +9429,7 @@ components:
           x-struct:
           x-validate:
         platform:
-          default: linux
+          description: 'Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.'
           enum:
             - linux
             - darwin
@@ -9442,6 +9461,12 @@ components:
           maximum: 100
           minimum: 1
           type: integer
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          nullable: true
+          type: string
           x-struct:
           x-validate:
       required:
@@ -13004,7 +13029,7 @@ components:
           x-struct:
           x-validate:
         platform:
-          default: linux
+          description: 'Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.'
           enum:
             - linux
             - darwin
@@ -13030,6 +13055,12 @@ components:
           maximum: 100
           minimum: 1
           type: integer
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          nullable: true
+          type: string
           x-struct:
           x-validate:
       title: CreateSandbox
@@ -13484,6 +13515,12 @@ components:
               x-validate:
           title: SandboxAgentSessionUsage
           type: object
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+          nullable: true
+          type: string
           x-struct:
           x-validate:
       required:
@@ -14038,8 +14075,8 @@ components:
               - id
               - unit
               - value
-              - previous_value
               - points
+              - previous_value
             title: PulseWidget
             type: object
             x-struct:
@@ -15610,6 +15647,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        xcode_version:
+          description: "The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       required:
         - prompt
       title: CreateSandboxAgentSession
@@ -16821,6 +16864,12 @@ components:
           x-validate:
         setup_script:
           description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        xcode_version:
+          description: "A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs."
           nullable: true
           type: string
           x-struct:
@@ -20906,7 +20955,7 @@ paths:
                   x-struct:
                   x-validate:
                 platform:
-                  default: linux
+                  description: 'Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.'
                   enum:
                     - linux
                     - darwin
@@ -20932,6 +20981,12 @@ paths:
                   maximum: 100
                   minimum: 1
                   type: integer
+                  x-struct:
+                  x-validate:
+                xcode_version:
+                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+                  nullable: true
+                  type: string
                   x-struct:
                   x-validate:
               title: CreateSandbox
@@ -21928,7 +21983,7 @@ paths:
                   x-struct:
                   x-validate:
                 platform:
-                  default: linux
+                  description: 'Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.'
                   enum:
                     - linux
                     - darwin
@@ -21960,6 +22015,12 @@ paths:
                   maximum: 100
                   minimum: 1
                   type: integer
+                  x-struct:
+                  x-validate:
+                xcode_version:
+                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+                  nullable: true
+                  type: string
                   x-struct:
                   x-validate:
               required:
@@ -27340,8 +27401,8 @@ paths:
                         - id
                         - unit
                         - value
-                        - previous_value
                         - points
+                        - previous_value
                       title: PulseWidget
                       type: object
                       x-struct:
@@ -42258,11 +42319,18 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        xcode_version:
+                          description: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
                         - anthropic_environment_id
                         - platform
                         - template
+                        - xcode_version
                         - vcpus
                         - memory_mb
                         - workspace_gb
@@ -42433,7 +42501,7 @@ paths:
                   x-struct:
                   x-validate:
                 platform:
-                  default: linux
+                  description: 'Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.'
                   enum:
                     - linux
                     - darwin
@@ -42465,6 +42533,12 @@ paths:
                   maximum: 100
                   minimum: 1
                   type: integer
+                  x-struct:
+                  x-validate:
+                xcode_version:
+                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+                  nullable: true
+                  type: string
                   x-struct:
                   x-validate:
               required:
@@ -42605,11 +42679,18 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  xcode_version:
+                    description: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - id
                   - anthropic_environment_id
                   - platform
                   - template
+                  - xcode_version
                   - vcpus
                   - memory_mb
                   - workspace_gb
@@ -43204,9 +43285,9 @@ paths:
                         x-struct:
                         x-validate:
                     required:
+                      - page_size
                       - page
                       - end_at
-                      - page_size
                       - total_count
                       - total_pages
                       - has_next_page
@@ -43550,6 +43631,12 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  xcode_version:
+                    description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - id
                   - anthropic_session_id
@@ -43718,6 +43805,12 @@ paths:
                     x-validate:
                   updated_at:
                     format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+                    nullable: true
                     type: string
                     x-struct:
                     x-validate:
@@ -48242,7 +48335,7 @@ paths:
         - Sandboxes
     patch:
       callbacks: {}
-      description: Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+      description: "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one."
       operationId: updateSandboxAgentEnvironment
       parameters:
         - description: The account handle.
@@ -48311,6 +48404,12 @@ paths:
                   x-validate:
                 setup_script:
                   description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                xcode_version:
+                  description: "A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs."
                   nullable: true
                   type: string
                   x-struct:
@@ -48450,11 +48549,18 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  xcode_version:
+                    description: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - id
                   - anthropic_environment_id
                   - platform
                   - template
+                  - xcode_version
                   - vcpus
                   - memory_mb
                   - workspace_gb
@@ -55205,6 +55311,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        xcode_version:
+                          description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
                         - anthropic_session_id
@@ -55340,6 +55452,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                xcode_version:
+                  description: "The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode."
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
               required:
                 - prompt
               title: CreateSandboxAgentSession
@@ -55431,6 +55549,12 @@ paths:
                     x-validate:
                   updated_at:
                     format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+                    nullable: true
                     type: string
                     x-struct:
                     x-validate:
