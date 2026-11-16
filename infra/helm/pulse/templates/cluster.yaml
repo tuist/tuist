@@ -82,6 +82,11 @@ spec:
     - name: http
       port: 4000
       targetPort: http
+    {{- if include "pulse.postgres" . }}
+    - name: postgres
+      port: 4003
+      targetPort: postgres
+    {{- end }}
 {{- if .Values.migration.standalone }}
 ---
 # Qualifies the frontends before Service `pulse` moves to them.
@@ -500,6 +505,9 @@ spec:
           ports:
             - {name: http, containerPort: 4000}
             - {name: grpc, containerPort: 4001}
+            {{- if include "pulse.postgres" . }}
+            - {name: postgres, containerPort: 4003}
+            {{- end }}
           securityContext:
             {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:

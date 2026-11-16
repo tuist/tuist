@@ -87,7 +87,12 @@ bind_addr = "0.0.0.0:4001"
 [mysql]
 enable = false
 [postgres]
+{{- if include "pulse.postgres" . }}
+enable = true
+addr = "0.0.0.0:4003"
+{{- else }}
 enable = false
+{{- end }}
 [meta_client]
 metasrv_addrs = {{ $metasrv }}
 {{ include "pulse.logging" . }}
