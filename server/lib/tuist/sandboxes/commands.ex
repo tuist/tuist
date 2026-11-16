@@ -32,6 +32,7 @@ defmodule Tuist.Sandboxes.Commands do
 
   alias Tuist.Repo
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.CommandCredentials
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.Workers.CommandWatchWorker
@@ -204,9 +205,12 @@ defmodule Tuist.Sandboxes.Commands do
   `commands` one; it outlives the command and its holder ends it),
   `:env`, `:cwd` (default the workspace), `:timeout_ms` (default one hour, at
   most six), `:stdin` (`true` to keep stdin open for `write_stdin/5`;
-  otherwise the command reads an empty stdin) and `:id` (a UUID the client
+  otherwise the command reads an empty stdin), `:id` (a UUID the client
   chose, so that sending the request again answers the command it started
-  instead of starting another).
+  instead of starting another) and `:started_by` (the API caller: in a
+  member sandbox the command then also gets the Tuist environment and a
+  credential no broader than the caller's cache access, see
+  `Tuist.Sandboxes.CommandCredentials`; `:env` overrides it).
 
   While CI holds the sandbox's host, admission refuses the resume of a
   paused sandbox; a running one needs no grant. The start then tries again every second for up to
@@ -348,10 +352,16 @@ defmodule Tuist.Sandboxes.Commands do
 
     with {:ok, held} <- Sandboxes.begin_shared_residency(sandbox, residency),
          :ok <- Sandboxes.hold_host_residency(held, residency),
-         :ok <- launch(held, command, env) do
+         :ok <- launch(held, command, Map.merge(tuist_env(held, command, params), env)) do
       {:ok, held}
     end
   end
+
+  # Minted at each launch, on the node the sandbox runs on now, so a command
+  # never gets a stale credential or another site's cache. The caller's own
+  # variables win.
+  defp tuist_env(sandbox, command, %{started_by: subject}), do: CommandCredentials.env(subject, sandbox, command)
+  defp tuist_env(_sandbox, _command, _params), do: %{}
 
   defp launch(sandbox, command, env) do
     exec_opts = [

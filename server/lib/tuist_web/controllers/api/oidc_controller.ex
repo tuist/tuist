@@ -15,6 +15,7 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.OIDC
   alias Tuist.Projects
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.CommandCredentials
   alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
@@ -169,6 +170,11 @@ defmodule TuistWeb.API.OIDCController do
             "This Claude Code environment is not connected to a Tuist account. Connect it to a Tuist account with sandboxes to run its sessions on Tuist."
         })
 
+      {:error, :sandbox_command_not_running} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "The sandbox command this token was minted for is no longer running."})
+
       {:error, :ambiguous_amp_workspace, account_handles} ->
         conn
         |> put_status(:forbidden)
@@ -228,6 +234,11 @@ defmodule TuistWeb.API.OIDCController do
       {:ok, account, %{"all_projects" => true, "scopes" => ["ci", "account:sandboxes:write"]}}
     end
   end
+
+  # A command in a member sandbox exchanges the identity token Tuist minted
+  # for it, while it runs, for the grant its starter's cache access allowed.
+  defp authorized_account(%{sandbox_command: claims}, _token, _account_handle),
+    do: CommandCredentials.account_grant(claims)
 
   defp authorized_account(identity, _token, _account_handle), do: authorized_account(identity)
 

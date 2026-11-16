@@ -66,6 +66,17 @@ Add `--json` for machine-readable output. See the <.localized_link href="/cli/sa
 
 Tools that can't log in interactively, such as an agent plugin that builds in a macOS sandbox, can authenticate with an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope instead. It can create sandboxes, run commands in them, and pause, resume and delete them, like a member of the account. Sandboxes that serve an Amp or Claude integration, analytics and integration settings stay with account administrators.
 
+### Tuist inside the sandbox {#tuist-in-sandbox}
+
+Sandbox images don't ship the Tuist CLI, so your project's own pinned version is the one that runs. After the first `tuist sandbox sync`, run `mise install` in the repository root on the sandbox (`mise` and `brew` are installed), then run `tuist` through mise, for example with `$HOME/.local/share/mise/shims` on `PATH`.
+
+Every command you start with `tuist sandbox exec` also gets what a Tuist runner gets, so builds in the sandbox use your account's <.localized_link href="/guides/features/cache">cache</.localized_link> without you passing credentials:
+
+- `TUIST_URL` and, where the sandbox's host reaches it, such as on macOS, the `TUIST_CACHE_ENDPOINT` of the cache in the same rack.
+- `TUIST_OIDC_TOKEN`, a short-lived identity token for that command. Tuist CLI 4.218.0 and later sign in with it on their own; with 4.215.0 to 4.217.x, run `tuist auth login` first in the same command.
+
+The token is minted for each command and can only be exchanged for a Tuist token while that command runs, so a sandbox never holds a long-lived credential. It never grants more than the person or token that started the command can do with the cache: members of an account whose cache only tokens can write get read access, and an account token needs cache scopes, such as `ci`, alongside `account:sandboxes:write` for the sandbox to use the cache at all. Variables you pass with `--env` take precedence.
+
 ## Build on a Mac from a coding agent {#coding-agents}
 
 A coding agent that runs on Linux, such as a cloud agent session, can build, test and run Apple-platform code on a macOS sandbox while it keeps editing files where it runs. In Amp, install the <.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac plugin</.localized_link>. For other agents, such as Claude Code or Cursor:
@@ -75,7 +86,7 @@ A coding agent that runs on Linux, such as a cloud agent session, can build, tes
 3. Authenticate the CLI. The MCP server's sign-in doesn't carry over to it, so either run `tuist auth login` as an account member, or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope.
 4. If the environment restricts network access, allow `tuist.dev`. The CLI uploads files to the Mac through it, so it needs no other domain.
 
-The agent creates one Mac per task and, before each command, runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses and is deleted after 14 days paused.
+The agent creates one Mac per task and, before each command, runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. After the first sync it runs `mise install` in the repository root on the Mac, so the [project's pinned Tuist](#tuist-in-sandbox) is there, signed in to your account's cache. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses and is deleted after 14 days paused.
 
 ## Linux and macOS {#platforms}
 

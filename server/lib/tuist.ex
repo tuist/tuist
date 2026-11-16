@@ -350,6 +350,7 @@ defmodule Tuist do
       Sandboxes.AgentSession,
       Sandboxes.ClaudeCodeRunners,
       Sandboxes.ClaudeCodeRuntime,
+      Sandboxes.CommandCredentials,
       Sandboxes.Commands,
       Sandboxes.Anthropic.Client,
       Sandboxes.Anthropic.Federation,

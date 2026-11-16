@@ -659,7 +659,10 @@ defmodule TuistWeb.API.SandboxesController do
         _params
       ) do
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      params = Map.take(body_params, [:command, :args, :env, :cwd, :stdin, :timeout_ms, :id])
+      params =
+        body_params
+        |> Map.take([:command, :args, :env, :cwd, :stdin, :timeout_ms, :id])
+        |> Map.put(:started_by, TuistWeb.Authentication.authenticated_subject(conn))
 
       case Commands.start(sandbox, params) do
         {:ok, command} -> conn |> put_status(:accepted) |> json(command)
