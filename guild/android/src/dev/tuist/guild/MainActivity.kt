@@ -152,6 +152,7 @@ class MainActivity : Activity() {
     @Deprecated("Activity predates OnBackPressedDispatcher")
     override fun onBackPressed() {
         if (addingProfile && active() != null) cancelAddingProfile()
+        else if (screen == "threads" && conversation != null) closeConversation()
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
@@ -187,6 +188,8 @@ class MainActivity : Activity() {
             "threads" -> threadsScreen()
             else -> previewScreen()
         }
+        // A conversation takes the whole screen, as on iOS; Back returns to the inbox.
+        if (screen == "threads" && conversation != null) { setContentView(root); return }
         root.addView(styled(Button(this)).apply {
             setText(R.string.threads)
             setOnClickListener {
@@ -579,11 +582,13 @@ class MainActivity : Activity() {
         handler.postDelayed(follow!!, 2000)
     }
 
+    private fun closeConversation() {
+        follow?.let(handler::removeCallbacks)
+        conversation = null; reply = ""; render(); loadThreads()
+    }
+
     private fun conversationScreen(thread: JSONObject) {
-        button(R.string.back) {
-            follow?.let(handler::removeCallbacks)
-            conversation = null; reply = ""; render(); loadThreads()
-        }
+        button(R.string.back) { closeConversation() }
         text(thread.string("title").ifBlank { thread.string("goal") }, 22f)
         thread.optJSONArray("messages").objects().forEach { message ->
             val body = message.string("content")

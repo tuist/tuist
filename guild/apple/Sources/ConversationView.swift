@@ -31,11 +31,12 @@ extension AppClient {
 /// Asks what to talk about and starts a conversation on the server. There is
 /// no repository, machine or model to choose: the core picks what runs it.
 struct StartConversationView: View {
-    @ObservedObject var client: AppClient
+    let client: AppClient
     let started: (AppConversation) -> Void
     @State private var content = ""
     @State private var starting = false
     @State private var error: String?
+    @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -43,6 +44,7 @@ struct StartConversationView: View {
             Section {
                 TextField("What do you want to talk about?", text: $content, axis: .vertical)
                     .lineLimit(4 ... 12)
+                    .focused($focused)
                     .disabled(starting)
             } footer: {
                 Text("Tuist answers on its servers. You don't need a repository or a machine.")
@@ -69,6 +71,7 @@ struct StartConversationView: View {
                 }
             }
             .interactiveDismissDisabled(starting)
+            .onAppear { focused = true }
     }
 
     private func start() async {
@@ -85,7 +88,7 @@ struct StartConversationView: View {
 
 /// One conversation, kept current while the server is answering.
 struct ConversationView: View {
-    @ObservedObject var client: AppClient
+    let client: AppClient
     let id: String
     @State private var thread: AppConversation?
     @State private var reply = ""
@@ -112,6 +115,7 @@ struct ConversationView: View {
                 }
                 .padding()
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: thread?.messages.count) { _, _ in
                 withAnimation { proxy.scrollTo(thread?.working == true ? "working" : thread?.messages.last?.id) }
             }
@@ -122,29 +126,37 @@ struct ConversationView: View {
         .navigationTitle(Text(verbatim: thread?.title ?? thread?.goal ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .tabBar)
         #endif
             .task(id: id) { await follow() }
     }
 
+    /// Floats over the conversation, like the system's own message fields.
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 8) {
             TextField("Reply", text: $reply, axis: .vertical)
                 .lineLimit(1 ... 6)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .interactiveGlass(in: RoundedRectangle(cornerRadius: 22))
                 .disabled(sending || thread?.working != false)
                 .onSubmit { Task { await send() } }
-            Button("Send", systemImage: "arrow.up.circle.fill") { Task { await send() } }
-                .labelStyle(.iconOnly)
-                .font(.title2)
-                .foregroundStyle(Noora.primary)
-                .buttonStyle(.plain)
-                .disabled(sending || thread?.working != false
-                    || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .keyboardShortcut(.return, modifiers: .command)
+            Button { Task { await send() } } label: {
+                Label("Send", systemImage: "arrow.up")
+                    .labelStyle(.iconOnly)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 28, height: 28)
+            }
+            .prominentGlassButtonStyle()
+            .buttonBorderShape(.circle)
+            .disabled(sending || thread?.working != false
+                || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .keyboardShortcut(.return, modifiers: .command)
         }
-        .padding()
-        .background(Noora.backgroundTertiary)
-        .overlay(alignment: .top) { Divider().overlay(Noora.border) }
+        .glassGroup(spacing: 8)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     /// Loads the conversation, then polls while the server is answering.

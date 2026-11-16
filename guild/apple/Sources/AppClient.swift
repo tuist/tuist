@@ -146,15 +146,15 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
     }
 }
 
-@MainActor
-final class AppClient: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
-    @Published private(set) var view = AppSessionView()
-    @Published var error: String?
-    @Published private(set) var signingIn = false
-    private let host = NativeHost()
-    private let queue = DispatchQueue(label: "dev.tuist.code.core", qos: .userInitiated)
-    private var browser: ASWebAuthenticationSession?
-    private var browserAttempt: UUID?
+@MainActor @Observable
+final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding {
+    private(set) var view = AppSessionView()
+    var error: String?
+    private(set) var signingIn = false
+    @ObservationIgnored private let host = NativeHost()
+    @ObservationIgnored private let queue = DispatchQueue(label: "dev.tuist.code.core", qos: .userInitiated)
+    @ObservationIgnored private var browser: ASWebAuthenticationSession?
+    @ObservationIgnored private var browserAttempt: UUID?
 
     func call(_ operation: String, _ args: [String: Any] = [:]) async throws -> [String: Any] {
         let request = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
