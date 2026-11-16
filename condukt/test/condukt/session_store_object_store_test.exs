@@ -101,6 +101,41 @@ defmodule Condukt.SessionStore.ObjectStoreTest do
       assert ObjectStore.append_journal([{:resume, 2, nil}], old) == {:error, :fenced}
     end
 
+    # The older writer can commit its next manifest between the new writer's
+    # read of the latest one and its claim. The claim then retries after it,
+    # rather than failing the new writer's load.
+    test "a claim that loses to the older writer's save claims after it", %{memory: memory} do
+      parent = self()
+      old = [bucket: {HookedBucket, {memory, fn _key -> :ok end}}, key: "a", epoch: 1]
+      assert :ok = ObjectStore.append_journal([{:resume, 1, nil}], old)
+      saved = Snapshot.new(%{messages: [Message.user("saved by the older writer")]})
+
+      hook = fn key ->
+        if String.contains?(key, "/manifest/") and Process.get(:raced) == nil and self() == parent do
+          Process.put(:raced, true)
+          assert :ok = ObjectStore.save(saved, old)
+        end
+      end
+
+      new = [bucket: {HookedBucket, {memory, hook}}, key: "a", epoch: 2]
+
+      assert ObjectStore.load(new) == {:ok, saved}
+      assert ObjectStore.append_journal([{:resume, 2, nil}], old) == {:error, :fenced}
+    end
+
+    test "manifests do not pile up as the session changes owners", %{store_opts: opts, memory: memory} do
+      for epoch <- 1..8 do
+        writer = Keyword.put(opts, :epoch, epoch)
+        assert {:ok, _} = ObjectStore.load_journal(writer)
+        assert :ok = ObjectStore.append_journal([{:resume, epoch, nil}], writer)
+        assert :ok = ObjectStore.save(Snapshot.new(%{messages: [Message.user("turn #{epoch}")]}), writer)
+        assert :ok = ObjectStore.clear_journal(writer)
+      end
+
+      {:ok, manifests} = Memory.list(memory, "condukt/sessions/a/manifest/", nil)
+      assert length(manifests) <= 3
+    end
+
     test "a write at an epoch older than the session's is refused", %{store_opts: opts} do
       assert :ok = ObjectStore.save(Snapshot.new(%{}), Keyword.put(opts, :epoch, 5))
       assert ObjectStore.append_journal([{:resume, 1, nil}], Keyword.put(opts, :epoch, 4)) == {:error, :fenced}

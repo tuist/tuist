@@ -65,19 +65,22 @@ defmodule Condukt.SessionStore.ObjectStore do
   An append costs one create and one `HEAD`. A save costs a segment create
   and a manifest create.
 
-  `load/1` and `load_journal/1` fence first when `:epoch` is given, and are
-  plain reads of the current state otherwise, for readers that never write.
+  `load/1` and `load_journal/1` take the session over first when `:epoch` is
+  given, as a write would, and are plain reads of the current state otherwise,
+  for readers that never write. A read at an epoch must not run alongside a
+  write at the same epoch from another process: its fence object takes the
+  writer's next journal position. Read before writing, or from the writer.
 
   The writer's position (current manifest and next journal object) is cached
-  in the calling process, which is the session. Correctness does not depend on
-  that cache: a write from a stale position is refused like a stale writer's,
-  and the cache is dropped after any failed write.
+  in the writing process, which is the session, and only by writes. A write
+  from a stale position is refused like a stale writer's, and the cache is
+  dropped after any failed write.
 
-  Each writer deletes the manifests it replaced, except the first one it
-  wrote, which an older writer's check reads. That one, the last manifest of
-  the writer before it, objects a fenced writer created before it found out,
-  and anything a failed delete left behind are not referenced and stay in the
-  bucket: a few small objects per change of owner.
+  A writer that takes the session over deletes the manifests before its
+  claim, and later the ones it replaced except its first, which the previous
+  writer's check reads. Objects a fenced writer created before it found out,
+  the journal's fence objects until the journal is cleared, and anything a
+  failed delete left behind are not referenced and stay in the bucket.
   """
 
   @behaviour Condukt.SessionStore
@@ -85,6 +88,7 @@ defmodule Condukt.SessionStore.ObjectStore do
   @prefix "condukt/sessions"
   @max_segments 32
   @read_attempts 3
+  @claim_attempts 3
 
   @impl true
   def load(opts) do
@@ -212,9 +216,17 @@ defmodule Condukt.SessionStore.ObjectStore do
 
   ## Writer
 
+  # A read at an epoch takes the session over like a write, so it sees every
+  # record an older writer can still have made durable, but leaves no writer
+  # cached: the reading process, such as the supervisor that starts the
+  # session, is often not the one that writes, and a position it kept would be
+  # stale by the time it read again at the same epoch.
   defp read_manifest(ctx, opts) do
     if Keyword.has_key?(opts, :epoch) do
-      with {:ok, writer} <- open(ctx), do: {:ok, writer.manifest}
+      with {:ok, writer} <- fence(ctx) do
+        forget(ctx)
+        {:ok, writer.manifest}
+      end
     else
       with {:ok, {_seq, manifest}} <- latest(ctx), do: {:ok, manifest}
     end
@@ -231,13 +243,18 @@ defmodule Condukt.SessionStore.ObjectStore do
   # manifest is refused, then the journal, so its next append is refused too.
   # The fence is written by a writer that already holds the epoch as well, in
   # case it stopped between the two.
-  defp fence(ctx) do
+  # A claim that loses to the older writer's own next manifest reads the new
+  # latest one and claims after it.
+  defp fence(ctx, attempt \\ 1) do
     with {:ok, {seq, manifest}} <- latest(ctx),
          :ok <- check_epoch(ctx, manifest),
          {:ok, writer} <- claim(ctx, %{seq: seq, manifest: manifest, wal_next: nil, opened: nil}),
          {:ok, keys} <- list(ctx, "wal/", wal_key(ctx, manifest.wal_from - 1)),
          {:ok, wal_next} <- create_fence(ctx, next_number(keys, manifest.wal_from)) do
       {:ok, remember(ctx, %{writer | wal_next: wal_next, opened: writer.seq})}
+    else
+      {:error, :conflict} when attempt < @claim_attempts -> fence(ctx, attempt + 1)
+      error -> error
     end
   end
 
@@ -246,9 +263,25 @@ defmodule Condukt.SessionStore.ObjectStore do
   end
 
   defp claim(ctx, writer) do
-    if writer.manifest.epoch < ctx.epoch,
-      do: commit(ctx, writer, %{writer.manifest | epoch: ctx.epoch}),
-      else: {:ok, writer}
+    if writer.manifest.epoch < ctx.epoch do
+      with {:ok, writer} <- commit(ctx, writer, %{writer.manifest | epoch: ctx.epoch}) do
+        delete_manifests_before(ctx, writer.seq)
+        {:ok, writer}
+      end
+    else
+      {:ok, writer}
+    end
+  end
+
+  # The manifests before a claim are no longer read: the previous writer
+  # checks for the claim's own manifest, which stays. Only a writer two or
+  # more owners back, whose lease ended long before, would check for one of
+  # them, and the journal's fence objects still refuse its appends.
+  defp delete_manifests_before(ctx, seq) do
+    case list(ctx, "manifest/", nil) do
+      {:ok, keys} -> delete_all(ctx, Enum.filter(keys, &(&1 < manifest_key(ctx, seq))))
+      {:error, _reason} -> :ok
+    end
   end
 
   # The older writer may create the object we aimed at first, which leaves
