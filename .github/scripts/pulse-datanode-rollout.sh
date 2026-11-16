@@ -183,6 +183,13 @@ if [[ "$mode" == rebalance ]]; then
       AND p.table_schema = t.table_schema AND p.table_name = t.table_name
     LEFT JOIN information_schema.region_statistics s ON s.region_id = p.region_id
     WHERE p.is_leader = 'Yes' AND t.create_options NOT LIKE '%on_physical_table=%'")
+  jq -s -r --argjson replicas "$replicas" '
+    "Datanode leader regions and stored bytes: " + ([range(0; $replicas) as $peer
+      | [.[] | select(.[1] == $peer)] | "\($peer)=\(length)/\(map(.[2]) | add // 0)"] | join(" "))' <<< "$rows"
+  if jq -s -e 'length > 0 and (map(.[2] // 0) | add) == 0' <<< "$rows" > /dev/null; then
+    echo "::warning::Region statistics report no stored bytes; not rebalancing from them."
+    exit 0
+  fi
   mapfile -t moves < <(plan_moves <<< "$rows")
   for move in "${moves[@]}"; do
     read -r region from to <<< "$move"
