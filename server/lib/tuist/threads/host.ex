@@ -30,6 +30,8 @@ defmodule Tuist.Threads.Host do
 
   use GenServer, restart: :temporary
 
+  import Ecto.Query, only: [from: 2]
+
   alias Tuist.Accounts
   alias Tuist.Agents.Kind
   alias Tuist.Agents.Lease
@@ -38,6 +40,7 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Threads
   alias Tuist.Threads.Agent
   alias Tuist.Threads.Cards
+  alias Tuist.Threads.Clients
   alias Tuist.Threads.MCP
   alias Tuist.Threads.Message
   alias Tuist.Threads.ModelFence
@@ -89,6 +92,9 @@ defmodule Tuist.Threads.Host do
   # Under the previous release's recovery sweep's 60 seconds, which still runs
   # on its pods during a rolling deploy (`Tuist.Threads.keep_alive/1`).
   @heartbeat_ms 15_000
+  # How long a thread's first run waits, by default, for the app that
+  # started it to open it and offer its tools (`Tuist.Threads.Clients`).
+  @client_wait_ms 2_000
 
   @impl Kind
   def start(id, epoch), do: DynamicSupervisor.start_child(@supervisor, {__MODULE__, {id, epoch}})
@@ -294,7 +300,7 @@ defmodule Tuist.Threads.Host do
             id: "#{thread.id}:#{run.id}",
             session_store: SessionStore.store("thread", thread.id, epoch),
             system_prompt: Agent.prompt(thread, context),
-            tools: tools(run, context) ++ mcp_tools,
+            tools: tools(run, context) ++ mcp_tools ++ client_tools(run, thread),
             hooks: [{ToolLog, run: run, tools: @logged_tools}],
             load_project_instructions: false,
             max_tokens: 8192
@@ -380,6 +386,33 @@ defmodule Tuist.Threads.Host do
       {:error, _} -> {:ok, []}
     end
   end
+
+  # The tools the person's app offers while it shows the thread, run there.
+  # A thread's first run waits briefly for the app that started it. Their
+  # effects stay on the device, so they are not reserved like the built-in
+  # tools: a call cut short by a drain or crash leaves nothing open that
+  # could block the thread, and only an answered call is recorded.
+  defp client_tools(run, thread) do
+    first = Repo.aggregate(from(m in Message, where: m.thread_id == ^thread.id and m.kind == "human"), :count) <= 1
+    tools = if first, do: Clients.await_tools(thread.id, client_wait_ms()), else: Clients.tools(thread.id)
+
+    Enum.map(tools, fn tool ->
+      name = Clients.prefix() <> tool.name
+
+      Condukt.tool(
+        name: name,
+        description: "Runs in the person's app, on the device showing this thread. " <> tool.description,
+        parameters: tool.parameters,
+        call: fn args, _ ->
+          result = Clients.call(thread.id, tool.name, args)
+          _ = Threads.record_client_tool(run, name, result)
+          result
+        end
+      )
+    end)
+  end
+
+  defp client_wait_ms, do: Keyword.get(Application.get_env(:tuist, __MODULE__, []), :client_wait_ms, @client_wait_ms)
 
   defp tools(run, context) do
     naming =

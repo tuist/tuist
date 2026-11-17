@@ -118,6 +118,8 @@ config :tuist, Tuist.Sandboxes.Capacity, grow_wait_ms: 300, admission_grow_wait_
 config :tuist, Tuist.Sandboxes.Commands, host_poll_ms: 10
 config :tuist, Tuist.Sandboxes.Nodes, presence_wait_ms: 0
 config :tuist, Tuist.Tasks, sync: true
+# Threads start without waiting for an app to offer its tools.
+config :tuist, Tuist.Threads.Host, client_wait_ms: 0
 
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
 config :tuist, TuistCommon.Ingestion.Bufferable, write_through_repo: true

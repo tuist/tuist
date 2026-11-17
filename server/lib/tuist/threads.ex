@@ -603,6 +603,25 @@ defmodule Tuist.Threads do
   end
 
   @doc """
+  Records a call to a tool the person's app ran (`Tuist.Threads.Clients`)
+  as a completed tool message, once the app answered. Unlike the other tools,
+  no call is reserved before it runs: its effect stays on the device, so a
+  call cut short leaves nothing that could block the thread.
+  """
+  def record_client_tool(run, name, result) do
+    with_attempt(run, fn thread, _ ->
+      append!(thread, %{
+        kind: "tool",
+        body: result |> tool_output() |> String.slice(0, 8000),
+        tool_name: name,
+        tool_state: "complete"
+      })
+
+      :ok
+    end)
+  end
+
+  @doc """
   Reserves a built-in tool call of the run's Condukt session before it runs,
   as `Tuist.Threads.ToolLog` asks: records its intent and the thread's
   running tool message. Returns `:ok`, or `{:block, reason}` for a call that

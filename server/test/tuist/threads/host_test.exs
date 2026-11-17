@@ -15,6 +15,7 @@ defmodule Tuist.Threads.HostTest do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Threads
   alias Tuist.Threads.Cards
+  alias Tuist.Threads.Clients
   alias Tuist.Threads.Host
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
@@ -137,6 +138,173 @@ defmodule Tuist.Threads.HostTest do
     assert card.ui == %{size: "medium", source: "compiled card"}
     assert reply.content == "TuistKit misses the cache most."
     refute Map.has_key?(reply, :ui)
+  end
+
+  test "the agent calls a tool the app showing the thread offers, and the thread records its answer" do
+    user = AccountsFixtures.user_fixture()
+    calls = start_supervised!({Agent, fn -> 0 end})
+    assert {:ok, thread} = Threads.create(user, user.account, request("Make the app dark purple"))
+    test = self()
+
+    tool = %{
+      name: "set_theme",
+      description: "Restyles the app.",
+      parameters: %{"type" => "object", "properties" => %{"appearance" => %{"type" => "string"}}}
+    }
+
+    # The app's channel, as `TuistWeb.ThreadsChannel` tracks it on join.
+    app =
+      spawn_link(fn ->
+        {:ok, _} = Clients.join(thread.id, [tool])
+        send(test, :joined)
+
+        receive do
+          {:client_tool_call, ref, from, "set_theme", args, _timeout} ->
+            send(test, {:called, args})
+            send(from, {:client_tool_result, ref, {:ok, "Applied a dark theme."}})
+        end
+
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive :joined
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(calls, &{&1, &1 + 1})
+
+      message =
+        case turn do
+          0 ->
+            assert Enum.any?(request["tools"], &(&1["function"]["name"] == "client_set_theme"))
+
+            %{
+              role: "assistant",
+              content: nil,
+              tool_calls: [
+                %{
+                  id: "theme",
+                  type: "function",
+                  function: %{name: "client_set_theme", arguments: JSON.encode!(%{appearance: "dark"})}
+                }
+              ]
+            }
+
+          1 ->
+            assert Enum.find(request["messages"], &(&1["tool_call_id"] == "theme"))["content"] =~ "Applied"
+            %{role: "assistant", content: JSON.encode!(%{reply: "Done.", suggestions: []})}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: if(turn < 1, do: "tool_calls", else: "stop")}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    host_until_idle(thread.id)
+    assert_received {:called, %{"appearance" => "dark"}}
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    messages = fresh |> Threads.serialize() |> Map.fetch!(:messages)
+    assert Enum.any?(messages, &(&1[:toolName] == "client_set_theme" and &1.content == "Applied a dark theme."))
+    assert List.last(messages).content == "Done."
+    # Its effect stays on the device, so nothing was reserved that could block the thread.
+    assert Repo.all(ToolCall) == []
+    Process.unlink(app)
+    Process.exit(app, :kill)
+  end
+
+  test "a client tool call cut short by a drain doesn't block the thread once the app is gone" do
+    user = AccountsFixtures.user_fixture()
+    requests = start_supervised!({Agent, fn -> 0 end})
+    {:ok, thread} = Threads.create(user, user.account, request("Make the app dark"))
+    run = Repo.one!(Run)
+    test = self()
+
+    tool = %{name: "set_theme", description: "Restyles the app.", parameters: %{"type" => "object"}}
+
+    # The app receives the call and never answers, then goes away.
+    app =
+      spawn(fn ->
+        {:ok, _} = Clients.join(thread.id, [tool])
+        send(test, :joined)
+
+        receive do
+          {:client_tool_call, _ref, _from, "set_theme", _args, _timeout} -> send(test, :called)
+        end
+
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive :joined
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(requests, &{&1, &1 + 1})
+
+      {message, finish} =
+        case turn do
+          0 ->
+            call = %{id: "theme", type: "function", function: %{name: "client_set_theme", arguments: "{}"}}
+            {%{role: "assistant", content: nil, tool_calls: [call]}, "tool_calls"}
+
+          1 ->
+            assert Enum.any?(request["messages"], &(&1["tool_call_id"] == "theme"))
+            {%{role: "assistant", content: JSON.encode!(%{reply: "The app went away.", suggestions: []})}, "stop"}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: finish}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    first = host(thread.id)
+    assert_receive :called, 5_000
+    drain(first)
+    ref = Process.monitor(app)
+    Process.exit(app, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^app, :killed}
+    assert Clients.tools(thread.id) == []
+
+    lapse(thread.id)
+    host_until_idle(thread.id)
+
+    assert Repo.reload!(run).status == "succeeded"
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert fresh.agent_status != "outcome_unknown"
+    assert Repo.all(ToolCall) == []
   end
 
   test "a hosted thread searches a large MCP catalog, calls its tool and persists its final reply" do

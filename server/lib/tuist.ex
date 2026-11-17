@@ -13,6 +13,7 @@ defmodule Tuist do
     exports: [
       Threads,
       Threads.Thread,
+      Threads.Clients,
       Threads.RecoveryWorker,
       # Marketing
       # -----
