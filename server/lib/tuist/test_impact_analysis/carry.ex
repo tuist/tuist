@@ -3,9 +3,13 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   Coverage carry from snapshots (`Tuist.TestImpactAnalysis.Snapshots`):
   where each test a commit's runs skipped carries its coverage from, and the
   lines it carries. `Tuist.Tests.Coverage.Reported` decides which tests were
-  skipped and applies the result (`source: :snapshots`); this module replaces
-  where the evidence comes from, and which tests an impact run skipped
-  (`skipped_tests/2`).
+  skipped and applies the result; this module is where the evidence comes
+  from, and says which tests an impact run skipped (`skipped_tests/2`). Tests
+  and lines come from the snapshots' tables (`test_impact_snapshot_*`,
+  `test_impact_line_*`, `test_impact_run_decisions`), never from the runs'
+  `test`, `suite` and `target` evidence in `coverage_files`, which expires
+  long before the snapshots do; blobs come from the runs' reports (their
+  `run` scope, through `context.run_blobs`).
 
   A test module selective testing skipped carries whole from the snapshot of
   the run recorded under the hash it was skipped with
@@ -20,7 +24,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   this one: the same bitmap check selection makes (`Candidate`). Its lines
   are its own and its suite's setup's. A test the baseline can't carry
   that the commit's impact run skipped through another snapshot, the
-  branch's previous run (`Tuist.TestImpactAnalysis.Shadow`), carries from
+  branch's previous run (`Tuist.TestImpactAnalysis.Decision`), carries from
   that overlay when its files are unchanged since that run.
 
   Both keep `Reported`'s guards: the test passed there, the tracked files
@@ -71,7 +75,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
 
   @doc """
   The tests the impact run `run_id`'s stored decision skipped
-  (`Tuist.TestImpactAnalysis.Shadow`), with `test_case_id`, `module_name`
+  (`Tuist.TestImpactAnalysis.Decision`), with `test_case_id`, `module_name`
   and `suite_name`, read from its bitmaps and the snapshots that numbered
   them; nil when the run has no stored decision.
   """
@@ -387,7 +391,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   # What the baseline can't carry an overlay may: only a test it carries is
   # taken from it, and the baseline's reason stays otherwise. A failure at
   # the baseline stands against evidence that ran before it, such as a row
-  # an overlay keeps from an older checkpoint, as `Shadow` decides it.
+  # an overlay keeps from an older checkpoint, as `Decision` decides it.
   defp or_overlay(baseline, overlays, test_case_id) do
     {result, failed_at} = baseline || {nil, nil}
 

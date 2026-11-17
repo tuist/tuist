@@ -1,10 +1,10 @@
-defmodule Tuist.TestImpactAnalysis.ShadowTest do
+defmodule Tuist.TestImpactAnalysis.DecisionTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.TestImpactAnalysis.Candidate
   alias Tuist.TestImpactAnalysis.Carry
+  alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Runs
-  alias Tuist.TestImpactAnalysis.Shadow
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage.Reported
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -97,7 +97,13 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
 
   defp decide(project, head_sha, changed_files, baseline_sha \\ "c1") do
     {:ok, %{run: run}} = Runs.create(project, params(head_sha, changed_files, baseline_sha))
-    {:ok, result} = Shadow.decide(project, run)
+    %{tests: tests} = Decision.stored(project.id, run.id)
+
+    result = %{
+      decisions: Map.new(tests, &{&1.test_case_id, &1}),
+      evidence: tests |> Enum.map(& &1.evidence_snapshot_id) |> Enum.uniq()
+    }
+
     {run, result}
   end
 
@@ -112,8 +118,12 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     Map.new(decisions, fn {id, d} -> {names[id], {d.decision, d.reason}} end)
   end
 
-  test "a full run writes a checkpoint that decides as the version pipeline does", %{project: project} do
-    {_run, result} = decide(project, "c2", [changed("Sources/Math.swift", "m2")])
+  test "a full run writes a checkpoint that decides each test with its reason", %{project: project} do
+    {_run, result} = decide(project, "c2", [changed("Sources/Math.swift", "m2"), changed("Sources/Zeta.swift", "z2", [])])
+
+    # The changed file that selected it, and none for a test no file decided.
+    assert result.decisions |> Map.values() |> Enum.map(& &1.matched_path) |> Enum.frequencies() ==
+             %{"Sources/Math.swift" => 1, nil => 4}
 
     assert by_name(project, result) == %{
              "testAdd()" => {:selected, :impacted},
@@ -122,8 +132,6 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
              "sum()" => {:selected, :no_evidence},
              "testCore()" => {:skipped, :unaffected}
            }
-
-    assert result.comparison == %{only_shadow_skipped: [], only_run_skipped: []}
   end
 
   test "selects a changed test file's whole suite, a module's target-level evidence and files no evidence includes",
@@ -161,8 +169,7 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     {:ok, %{run: run}} = Runs.create(project, %{params("c2", nil) | modules: modules})
     assert %{outcome: "selected", requested_modules: []} = run
 
-    assert Shadow.decide(project, run) ==
-             {:ok, %{decisions: %{}, candidates: [], comparison: %{only_shadow_skipped: [], only_run_skipped: []}}}
+    assert Decision.stored(project.id, run.id) == nil
   end
 
   # A run's fold at its creation comes before its results are processed:
@@ -245,7 +252,8 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     })
 
     {_run, result} = decide(project, "c3", changes)
-    assert length(result.candidates) == 2
+    # The branch's previous run is a candidate, and loses to the image.
+    assert %{overlay: %{commit_sha: "c2"}} = Snapshots.at(project.id, "c2", "App", "")
 
     assert by_name(project, result) == %{
              # The previous run ran it with the same Math.swift, but the image is
@@ -337,7 +345,7 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     })
 
     {run, result} = decide(project, "c3", previous, "c2")
-    assert length(result.candidates) == 2
+    assert length(result.evidence) == 2
 
     assert by_name(project, result, "c2") == %{
              # Ran on the previous push's tree, with the same Math.swift.
@@ -432,7 +440,7 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     # c3 carries the same two blobs and changes Sub.swift too.
     {_run, result} = decide(project, "c3", previous ++ [changed("Sources/Sub.swift", "b3")])
 
-    assert length(result.candidates) == 2
+    assert length(result.evidence) == 2
 
     assert by_name(project, result) == %{
              # Ran on c2's tree with Math.swift at m2 and passed.
@@ -511,7 +519,7 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
       ]
     })
 
-    reported = Reported.compute(project, "c3", source: :snapshots)
+    reported = Reported.compute(project, "c3")
 
     assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2, carried_from: ["c1", "c2"]} =
              reported
@@ -520,8 +528,6 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
              "Sources/Core.swift" => [[1, 1]],
              "Sources/Math.swift" => [[1, 2]]
            }
-
-    assert reported == Reported.compute(project, "c3", source: :versions)
   end
 
   describe "compose/3" do
@@ -530,7 +536,7 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
       between = [%{path: "D", from: "d1", to: "d2"}, %{path: "B", from: "b1", to: "b1"}]
       current = [changed("A", "a2"), changed("B", "b3")]
 
-      assert previous |> Shadow.compose(between, current) |> Enum.map(&{&1.path, &1.status, &1.blob}) == [
+      assert previous |> Decision.compose(between, current) |> Enum.map(&{&1.path, &1.status, &1.blob}) == [
                # B moved on; C was deleted only in the previous tree; D changed between the checkpoints.
                {"B", "M", "b3"},
                {"C", "M", nil},

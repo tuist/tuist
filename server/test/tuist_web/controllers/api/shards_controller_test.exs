@@ -5,10 +5,10 @@ defmodule TuistWeb.API.ShardsControllerTest do
   import OpenApiSpex.TestAssertions, only: [assert_schema: 3]
 
   alias Tuist.Shards
-  alias Tuist.TestImpactAnalysis.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistWeb.API.Spec
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
@@ -57,25 +57,15 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "plans the suites with selected tests of the impact run", %{conn: conn, user: user, project: project} do
-      {:ok, run} =
-        Storage.create_run(
-          %{project_id: project.id, head_sha: "head", commit_sha: "head", build_system: "xcode", outcome: "selected"},
-          [
-            %{
-              test_case_id: UUIDv7.generate(),
-              module_name: "AppTests",
-              suite_name: "LoginTests",
-              name: "testLogin",
-              reason: "impacted"
-            },
-            %{
-              test_case_id: UUIDv7.generate(),
-              module_name: "CoreTests",
-              suite_name: "CoreSuite",
-              name: "testCore",
-              reason: "no_evidence"
-            }
-          ]
+      run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          requested_modules: ["AppTests", "CoreTests"],
+          selected: [
+            %{module_name: "AppTests", suite_name: "LoginTests", name: "testLogin", reason: "impacted"},
+            %{module_name: "CoreTests", suite_name: "CoreSuite", name: "testCore", reason: "no_evidence"}
+          ],
+          skipped: [%{module_name: "AppTests", suite_name: "SignupTests", name: "testSignup"}]
         )
 
       response =

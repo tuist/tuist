@@ -40,7 +40,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
@@ -130,10 +129,9 @@ defmodule Tuist.Tests.Coverage.Commits do
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
 
-      # The targets the commit's runs executed whole, and the versions of the
-      # tests they ran, become carry sources for the commits that skip them.
+      # The targets the commit's runs executed whole become carry sources for
+      # the commits that skip them.
       TargetSources.record(project.id, runs)
-      TestSources.record(project.id, runs)
 
       # The test maps coverage-based test selection and coverage carry
       # will read, for every project with coverage.
