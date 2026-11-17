@@ -18,9 +18,10 @@ defmodule Tuist.Agents.Runner do
       with the want count the renewal read; a session that stops replies, and
       is released as no longer wanted unless a want arrived since.
     * Its process ended. It is released as still wanted, and a host resumes
-      it from its journal. One that ended with `{:shutdown, :unavailable}` could
-      not reach its session store or the database; it is claimable again only after
-      `:store_retry_ms`, so an outage is not retried at the pace of the poll.
+      it from its journal. One that crashed, or ended with
+      `{:shutdown, :unavailable}` because it could not reach its session
+      store or the database, is claimable again only after `:retry_ms`, so a
+      failure is not retried at the pace of the poll.
     * Its lease was lost on renewal. The runner asks it to drain and forgets
       it without releasing it: another host already holds it, and the store
       fences its writes.
@@ -58,7 +59,7 @@ defmodule Tuist.Agents.Runner do
       memory_ratio: Keyword.get(opts, :memory_ratio, 0.7),
       memory: Keyword.get(opts, :memory, fn -> :erlang.memory(:total) end),
       drain_ms: Keyword.get(opts, :drain_ms, 25_000),
-      store_retry_ms: Keyword.get(opts, :store_retry_ms, 30_000),
+      retry_ms: Keyword.get(opts, :retry_ms, 30_000),
       sessions: %{}
     }
 
@@ -112,7 +113,7 @@ defmodule Tuist.Agents.Runner do
         if reason not in [:normal, :shutdown] and not match?({:shutdown, _}, reason),
           do: Logger.warning("agent session #{id} exited: #{inspect(reason, limit: 5)}")
 
-        delay_ms = if reason == {:shutdown, :unavailable}, do: state.store_retry_ms, else: 0
+        delay_ms = if handed_on?(reason), do: 0, else: state.retry_ms
         safely(fn -> Lease.release(id, session.epoch, delay_ms: delay_ms) end)
         {:noreply, forget(state, id)}
 
@@ -122,6 +123,14 @@ defmodule Tuist.Agents.Runner do
   end
 
   def handle_info(_message, state), do: {:noreply, state}
+
+  # A session that drained or stopped by design goes to the next host at
+  # once. One that crashed or could not reach what it needs would likely do
+  # the same on every host, so it waits `:retry_ms` first.
+  defp handed_on?(reason) when reason in [:normal, :shutdown], do: true
+  defp handed_on?({:shutdown, :unavailable}), do: false
+  defp handed_on?({:shutdown, _reason}), do: true
+  defp handed_on?(_reason), do: false
 
   defp renewed(state, held) do
     Enum.reduce(state.sessions, state, fn {id, session}, state ->
@@ -182,6 +191,20 @@ defmodule Tuist.Agents.Runner do
   end
 
   defp host(%{id: id, kind: kind, epoch: epoch}, state) do
+    # A session this runner hosts whose lease lapsed, as during a long
+    # database outage, and that it claimed back before a renewal noticed: its
+    # host is at the old epoch and must go, not run beside the new one.
+    state =
+      case state.sessions do
+        %{^id => old} ->
+          Process.demonitor(old.ref, [:flush])
+          old.kind.drain(old.pid)
+          forget(state, id)
+
+        _ ->
+          state
+      end
+
     with {:ok, module} <- Map.fetch(state.kinds, kind),
          {:ok, pid} <- module.start(id, epoch) do
       session = %{epoch: epoch, kind: module, pid: pid, ref: Process.monitor(pid)}
@@ -196,7 +219,7 @@ defmodule Tuist.Agents.Runner do
         # Wanted again by the next host to poll, which may have what this
         # one lacked; a session that can never start is the kind's to end.
         Logger.warning("agent session #{id} failed to start: #{inspect(reason, limit: 5)}")
-        safely(fn -> Lease.release(id, epoch) end)
+        safely(fn -> Lease.release(id, epoch, delay_ms: state.retry_ms) end)
         state
     end
   end

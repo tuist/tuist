@@ -138,13 +138,15 @@ defmodule Tuist.Threads.Host do
 
             {:noreply, %{state | task: task, run: run}}
 
-          # A revoked thread's run was ended by the claim; look for the next.
-          {:error, :forbidden} ->
+          # A revoked thread's run, or one past its age, was ended by the
+          # claim; look for the next.
+          {:error, reason} when reason in [:forbidden, :expired] ->
             send(self(), :work)
             {:noreply, state}
 
-          # The run is active but not claimable at this epoch: this host
-          # already ran it and could not end it. The next host's claim does.
+          # The run is active but not claimable at this epoch: this host lost
+          # its lease, or already ran it and could not end it. The next host's
+          # claim does.
           {:error, :stale_run} ->
             {:stop, {:shutdown, :stale}, state}
         end
