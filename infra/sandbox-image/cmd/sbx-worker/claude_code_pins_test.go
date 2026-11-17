@@ -12,6 +12,11 @@ import (
 // tart-kubelet's macOS tools share repeat them, because each is built
 // separately; this keeps every copy on the build sbx-worker expects.
 func TestClaudeCodePinsMatchSbxWorker(t *testing.T) {
+	// The image build runs the tests with only this module copied in; the
+	// repository checkout (CI's Test step) holds the other copies.
+	if _, err := os.Stat(filepath.FromSlash("../../../AGENTS.md")); err != nil {
+		t.Skip("needs the repository checkout:", err)
+	}
 	copies := []struct {
 		path, platform, version, sha string
 	}{
