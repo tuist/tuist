@@ -13,6 +13,7 @@ defmodule TuistWeb.RemoteExecutionController do
           image: settings.image_tag,
           endpoint: settings.executor_endpoint,
           cas_endpoint: settings.cas_endpoint,
+          execution_root: "/workspace/action",
           max_concurrency: settings.max_concurrency,
           leases: true
         })

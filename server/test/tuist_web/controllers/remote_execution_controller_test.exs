@@ -34,7 +34,11 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     {:ok, token, _claims} = Cache.issue_cache_token(project, scope: "#{project.account.name}/#{project.name}")
     conn = put_req_header(conn, "authorization", "Bearer " <> token)
 
-    assert %{"cas_endpoint" => "grpcs://cache.example:443", "max_concurrency" => 8} =
+    assert %{
+             "cas_endpoint" => "grpcs://cache.example:443",
+             "max_concurrency" => 8,
+             "execution_root" => "/workspace/action"
+           } =
              conn
              |> get("/api/remote-execution/#{project.account.name}/#{project.name}/capabilities")
              |> json_response(:ok)
