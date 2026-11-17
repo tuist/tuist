@@ -8,6 +8,7 @@ pub struct Navigation {
     pub tab: Tab,
     pub preview: Option<Preview>,
     pub error: Option<RouteError>,
+    pub guild: tuist_app_core::navigation::Navigation,
     pending: Option<Route>,
 }
 
@@ -47,18 +48,30 @@ impl Navigation {
             Route::Previews => self.select(Tab::Threads),
             Route::Profile => self.select(Tab::Profile),
             Route::Preview(preview) => self.preview = Some(preview),
+            Route::Guild(destination) => {
+                self.guild.navigate(destination);
+                self.tab = if self.guild.tab == "profile" {
+                    Tab::Profile
+                } else {
+                    Tab::Threads
+                };
+                self.preview = None;
+            }
         }
     }
 
     pub fn select(&mut self, tab: Tab) {
         self.tab = tab;
         self.preview = None;
+        let _ = self.guild.select(tab.id());
     }
 
     pub fn reset(&mut self) {
         self.tab = Tab::Threads;
         self.preview = None;
         self.error = None;
+        self.pending = None;
+        self.guild.reset();
     }
 }
 

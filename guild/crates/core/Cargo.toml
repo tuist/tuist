@@ -14,6 +14,10 @@ serde_json.workspace = true
 url.workspace = true
 tuist-jwt.workspace = true
 tuist-oauth = { path = "../oauth", default-features = false }
+# The local store. Bundled so every platform runs the same SQLite: Android's NDK
+# has none to link, and in the browser rusqlite switches to sqlite-wasm-rs.
+rusqlite = { version = "0.43", features = ["bundled"] }
+web-time = "1.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

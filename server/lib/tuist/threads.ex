@@ -29,8 +29,15 @@ defmodule Tuist.Threads do
   # How long an inference run may take across every host it is handed to.
   @run_max_hours 3
 
+  # Threads always need the user's `:guild` flag: they run on the user's own AI
+  # subscriptions, which that flag gates. An organization must also opt in with
+  # its own flag, as its AI routing does.
   def authorize(%User{active: true, disabled_at: nil} = user, account) when not is_nil(account) do
-    if FeatureFlags.guild_enabled?(user) and Authorization.authorize(:account_update, user, account) == :ok,
+    enabled? =
+      FeatureFlags.guild_enabled?(user) and
+        (not Accounts.organization?(account) or FeatureFlags.organization_guild_enabled?(account))
+
+    if enabled? and Authorization.authorize(:account_update, user, account) == :ok,
       do: :ok,
       else: {:error, :forbidden}
   end

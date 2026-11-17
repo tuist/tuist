@@ -2,11 +2,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
+// `std::time` natively; `Date.now()` in the browser, where std's clock panics.
 use tuist_jwt::Claims;
 use tuist_oauth::{Pkce, Provider, authorization_url, endpoint};
 use url::Url;
+use web_time::{SystemTime, UNIX_EPOCH};
 
+use crate::store::{self, OFFLINE, Store};
 use crate::threads::{Threads, Transport};
 use crate::updates;
 
@@ -58,6 +60,9 @@ pub struct MobileClient {
     dirty: bool,
     attempt: Option<Attempt>,
     threads: Threads,
+    navigation: crate::navigation::Navigation,
+    /// The open local store and the profile it belongs to.
+    store: Option<(String, Store)>,
 }
 
 impl MobileClient {
@@ -66,7 +71,16 @@ impl MobileClient {
     }
 
     pub fn call(&mut self, input: &str, host: &mut dyn Host) -> String {
-        let result = self.run(input, host);
+        let result = self.run(input, host).and_then(|data| {
+            if let Some(profile) = self.vault.profiles.iter().find(|p| {
+                Some(&p.id) == self.vault.active_profile_id.as_ref()
+                    && !p.rejected
+                    && !p.memberships_rejected
+            }) {
+                self.navigation.resume(&server_url(&profile.server)?)?;
+            }
+            Ok(data)
+        });
         let (data, error) = match result {
             Ok(data) => (data, None),
             Err(error) => (Value::Null, Some(error)),
@@ -84,8 +98,10 @@ impl MobileClient {
             })
             .collect();
         let mut response = json!({"view":{
-            "profiles":profiles, "active_profile_id":self.vault.active_profile_id,
+            "profiles":profiles, "accounts":self.accounts(),
+            "active_profile_id":self.vault.active_profile_id,
             "generation":self.vault.generation,
+            "navigation":self.navigation,
         },"data":data});
         if let Some(error) = error {
             response["error"] = json!(error);
@@ -120,6 +136,44 @@ impl MobileClient {
         let args = &request["args"];
         match text(&request, "operation")? {
             "snapshot" => Ok(Value::Null),
+            "routes" => Ok(json!({"routes":crate::navigation::ROUTES})),
+            "navigate" => {
+                // Async completions must not replace a newer route or session,
+                // including requests already queued by a native edge.
+                if args
+                    .get("if_generation")
+                    .is_some_and(|v| v.as_u64() != Some(self.vault.generation))
+                    || args
+                        .get("if_revision")
+                        .is_some_and(|v| v.as_u64() != Some(self.navigation.revision))
+                {
+                    return Ok(Value::Null);
+                }
+                let server = self
+                    .vault
+                    .profiles
+                    .iter()
+                    .find(|p| {
+                        Some(&p.id) == self.vault.active_profile_id.as_ref()
+                            && !p.rejected
+                            && !p.memberships_rejected
+                    })
+                    .map(|p| server_url(&p.server))
+                    .transpose()?;
+                self.navigation
+                    .receive(text(args, "url")?, server.as_ref())?;
+                Ok(Value::Null)
+            }
+            "select_tab" => {
+                self.navigation.select(text(args, "tab")?)?;
+                Ok(Value::Null)
+            }
+            "navigation_back" => {
+                self.navigation
+                    .navigate(crate::navigation::Destination::Threads);
+                Ok(Value::Null)
+            }
+            "boot" => self.boot(host),
             "cancel_sign_in" => {
                 self.attempt = None;
                 Ok(Value::Null)
@@ -151,30 +205,30 @@ impl MobileClient {
                 Ok(Value::Null)
             }
             "sign_out" => {
+                let profile = self.vault.active_profile_id.clone();
                 self.remove_active(host)?;
+                if let Some(profile) = profile {
+                    self.clear_store(&profile, host)?;
+                }
                 Ok(Value::Null)
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
             op @ ("threads" | "start_thread" | "thread" | "send_message") => {
-                let index = self.active()?;
-                let server = server_url(&self.vault.profiles[index].server)?;
-                let handle = self.vault.profiles[index].handle.clone();
-                let mut threads = std::mem::take(&mut self.threads);
-                let result = threads.call(
-                    &server,
-                    &handle,
-                    op,
-                    args,
-                    &mut Authorized {
-                        client: self,
-                        index,
-                        host,
-                    },
-                );
-                self.threads = threads;
-                result
+                self.threads_operation(op, args, host)
             }
+            // Answer from the store without the network, so screens render at once.
+            op @ ("cached_threads" | "cached_thread") => {
+                let index = self.active()?;
+                let account = self.account(index).to_string();
+                let store = self.store(index, host)?;
+                if op == "cached_threads" {
+                    store.inbox(&account)
+                } else {
+                    store.conversation(text(args, "id")?)
+                }
+            }
+            "flush_outbox" => self.flush_outbox(host),
             "previews" | "tracks" | "preview" | "delete_preview" => {
                 let index = self.active()?;
                 let project = text(args, "project")?;
@@ -257,12 +311,199 @@ impl MobileClient {
         }
     }
 
+    fn thread_call(
+        &mut self,
+        index: usize,
+        account: &str,
+        op: &str,
+        args: &Value,
+        host: &mut dyn Host,
+    ) -> Result<Value> {
+        let server = server_url(&self.vault.profiles[index].server)?;
+        let mut threads = std::mem::take(&mut self.threads);
+        let result = threads.call(
+            &server,
+            account,
+            op,
+            args,
+            &mut Authorized {
+                client: self,
+                index,
+                host,
+            },
+        );
+        self.threads = threads;
+        result
+    }
+
+    /// Runs a thread operation against the server and records it in the
+    /// local store, which answers instead when the server can't be reached.
+    fn threads_operation(&mut self, op: &str, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let account = self.account(index).to_string();
+        let mut args = args.clone();
+        let mut unsent = false;
+        if let Some(id) = args.get("id").and_then(Value::as_str)
+            && let Ok(store) = self.store(index, host)
+        {
+            // A thread started offline is reached by its local id until the
+            // server has it, and by the server's id after.
+            let id = store.resolve(id)?;
+            unsent = store.unsent(&id)?;
+            args["id"] = json!(id);
+        }
+        if matches!(op, "start_thread" | "send_message") && args.get("request_id").is_none() {
+            let server = server_url(&self.vault.profiles[index].server)?;
+            args["request_id"] = json!(self.threads.request_key(&server, &account, op, &args)?);
+        }
+        // The server doesn't have an unsent thread yet: read it from the
+        // store and queue replies behind it, as if offline.
+        let result = if unsent {
+            Err(OFFLINE)
+        } else {
+            self.thread_call(index, &account, op, &args, host)
+        };
+        let now = now()?;
+        let recorded = match self.store(index, host) {
+            Ok(store) => store::record(store, op, &account, &args, result.clone(), now),
+            Err(error) => Err(error),
+        };
+        match (recorded, result) {
+            (Ok(view), _) => {
+                self.threads.settle();
+                Ok(view)
+            }
+            // The server answered; a local store that can't keep it (full
+            // disk, a database from a newer build) mustn't turn that into an error.
+            (Err(error), Ok(mut data)) => {
+                log(host, &format!("store: {error}"));
+                self.threads.settle();
+                data["freshness"] = json!({"state": "live"});
+                Ok(data)
+            }
+            (Err(error), Err(_)) => Err(error),
+        }
+    }
+
+    /// Sends the active profile's queued writes in order, each under the
+    /// `request_id` it was queued with, so a replay never creates a duplicate.
+    /// Stops at the first failure that may clear up (no network, a server
+    /// error, a busy thread, credentials) and keeps the rest for the next
+    /// flush; a write the server refuses for good is marked failed.
+    fn flush_outbox(&mut self, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let outbox = self.store(index, host)?.outbox()?;
+        let mut sent = 0;
+        for entry in outbox.iter().filter(|e| e["failed"] != true) {
+            let op = entry["operation"].as_str().ok_or("Invalid outbox")?;
+            let account = entry["account"].as_str().ok_or("Invalid outbox")?;
+            let request_id = entry["request_id"].as_str().ok_or("Invalid outbox")?;
+            let mut args = json!({"content": entry["content"], "request_id": request_id});
+            if op == "send_message" {
+                let store = self.store(index, host)?;
+                // Earlier entries may have sent the thread this replies to.
+                let id = store.resolve(entry["thread_id"].as_str().ok_or("Invalid outbox")?)?;
+                if store.unsent(&id)? {
+                    // The thread itself failed, so its replies can't be sent.
+                    store.settle(request_id, true)?;
+                    continue;
+                }
+                args["id"] = json!(id);
+            }
+            let result = self.thread_call(index, account, op, &args, host);
+            let store = self.store(index, host)?;
+            match result {
+                Ok(thread) => {
+                    store.sent(request_id, &thread, now()?)?;
+                    sent += 1;
+                }
+                Err(error) if retryable(error) => break,
+                Err(_) => store.settle(request_id, true)?,
+            }
+        }
+        Ok(json!({"sent": sent}))
+    }
+
+    /// The first call at launch: the vault is loaded by now, and every
+    /// profile's store is migrated before any screen reads it. Each step is
+    /// logged; a store that fails to open is logged and opened again on use.
+    fn boot(&mut self, host: &mut dyn Host) -> Result<Value> {
+        log(
+            host,
+            &format!("boot: vault loaded, {} profiles", self.vault.profiles.len()),
+        );
+        let directory = store_directory(host)?;
+        let mut stores = Vec::new();
+        for profile in self.vault.profiles.iter().map(|p| p.id.clone()) {
+            match open_store(&directory, &profile, host) {
+                Ok((store, migrated)) => {
+                    stores.push(json!({"profile": profile, "migrated": migrated}));
+                    if self.vault.active_profile_id.as_ref() == Some(&profile) {
+                        self.store = Some((profile, store));
+                    }
+                }
+                Err(error) => log(host, &format!("store {profile}: {error}")),
+            }
+        }
+        log(host, "boot: ready");
+        Ok(json!({"stores": stores}))
+    }
+
+    /// The profile's local store, opened (and migrated) on first use in the
+    /// directory the host keeps it in.
+    fn store(&mut self, index: usize, host: &mut dyn Host) -> Result<&mut Store> {
+        let profile = &self.vault.profiles[index].id;
+        if !self.store.as_ref().is_some_and(|(p, _)| p == profile) {
+            self.store = None;
+            let (store, _) = open_store(&store_directory(host)?, profile, host)?;
+            self.store = Some((profile.clone(), store));
+        }
+        Ok(&mut self.store.as_mut().expect("store was just opened").1)
+    }
+
+    /// Forgets everything stored for a profile, for sign-out. Rows are deleted
+    /// through SQLite on every platform, then native hosts remove the files,
+    /// even when the database couldn't be opened or cleared.
+    fn clear_store(&mut self, profile: &str, host: &mut dyn Host) -> Result<()> {
+        let files = store::files(&store_directory(host)?, profile)?;
+        let store = match self.store.take() {
+            Some((p, store)) if p == profile => Ok(store),
+            _ => Store::open(files.last().expect("the database file")).map(|(store, _)| store),
+        };
+        if let Err(error) = store.and_then(Store::clear) {
+            log(host, &format!("store {profile}: {error}"));
+        }
+        for file in files {
+            // The browser's VFS has no files to remove; its rows are gone.
+            let _ = std::fs::remove_file(file);
+        }
+        Ok(())
+    }
+
     fn commit(&mut self, mut candidate: Vault, host: &mut dyn Host) -> Result<()> {
         if candidate == self.vault {
             return Ok(());
         }
         candidate.generation = self.vault.generation + 1;
         write(host, &candidate)?;
+        // Metadata refresh and same-profile reauthentication retain navigation.
+        // Only a change to an existing active account/server/organization resets it.
+        if self.vault.active_profile_id.is_some()
+            && (self.vault.active_profile_id != candidate.active_profile_id
+                || self
+                    .vault
+                    .profiles
+                    .iter()
+                    .find(|p| Some(&p.id) == self.vault.active_profile_id.as_ref())
+                    .map(|p| (&p.server, &p.organization))
+                    != candidate
+                        .profiles
+                        .iter()
+                        .find(|p| Some(&p.id) == candidate.active_profile_id.as_ref())
+                        .map(|p| (&p.server, &p.organization)))
+        {
+            self.navigation.reset();
+        }
         self.vault = candidate;
         Ok(())
     }
@@ -285,6 +526,46 @@ impl MobileClient {
             .iter()
             .position(|p| Some(&p.id) == self.vault.active_profile_id.as_ref() && !p.rejected)
             .ok_or("Sign in required")
+    }
+
+    /// Every personal account and organization across saved profiles, for one
+    /// switcher. A membership shared by several profiles on the same server is
+    /// listed once, through the active profile when it is one of them.
+    fn accounts(&self) -> Vec<Value> {
+        let active = self.vault.active_profile_id.as_deref();
+        let ordered = self
+            .vault
+            .profiles
+            .iter()
+            .filter(|p| Some(p.id.as_str()) == active)
+            .chain(
+                self.vault
+                    .profiles
+                    .iter()
+                    .filter(|p| Some(p.id.as_str()) != active),
+            );
+        let mut seen = HashSet::new();
+        let mut accounts = Vec::new();
+        for p in ordered {
+            let rejected = p.rejected || p.memberships_rejected;
+            let organizations: &[String] = if rejected { &[] } else { &p.organizations };
+            for name in std::iter::once(&p.handle).chain(organizations) {
+                if !seen.insert((p.server.as_str(), name.as_str())) {
+                    continue;
+                }
+                accounts.push(json!({
+                    "profile_id":p.id, "name":name, "server":p.server, "handle":p.handle,
+                    "personal":*name == p.handle, "rejected":rejected,
+                    "selected":Some(p.id.as_str()) == active
+                        && p.organization.as_deref().unwrap_or(&p.handle) == name,
+                }));
+            }
+        }
+        accounts.sort_by(|a, b| {
+            (a["name"].as_str(), a["server"].as_str())
+                .cmp(&(b["name"].as_str(), b["server"].as_str()))
+        });
+        accounts
     }
 
     fn account(&self, index: usize) -> &str {
@@ -334,7 +615,7 @@ impl MobileClient {
         )?)?;
         let client_id = text(&registered, "client_id")?.to_string();
         let pkce = Pkce::generate();
-        let url = authorization_url(
+        let mut url = authorization_url(
             &server,
             provider,
             &client_id,
@@ -342,6 +623,15 @@ impl MobileClient {
             &pkce.challenge,
             &pkce.state,
         );
+        // Threads need their own scope, which also keeps the default grant.
+        // Servers that predate it would reject the whole sign-in, so ask only
+        // where the metadata advertises it.
+        if metadata["scopes_supported"]
+            .as_array()
+            .is_some_and(|scopes| scopes.iter().any(|s| s == "threads"))
+        {
+            url.query_pairs_mut().append_pair("scope", "threads");
+        }
         self.attempt = Some(Attempt {
             server,
             client_id,
@@ -628,6 +918,37 @@ impl Transport for Authorized<'_> {
     }
 }
 
+/// Opens a profile's store, logging the migrations it ran.
+fn open_store(
+    directory: &str,
+    profile: &str,
+    host: &mut dyn Host,
+) -> Result<(Store, Vec<&'static str>)> {
+    let files = store::files(directory, profile)?;
+    let (store, migrated) = Store::open(files.last().expect("the database file"))?;
+    for name in &migrated {
+        log(host, &format!("store {profile}: migrated {name}"));
+    }
+    Ok((store, migrated))
+}
+
+/// Tells the host what the core is doing, for its system log. Messages never
+/// carry tokens or server text; a host that can't log is ignored.
+fn log(host: &mut dyn Host, message: &str) {
+    let _ = host.perform(json!({"type":"log","message":message}));
+}
+
+/// Where the host keeps local stores: Application Support on Apple
+/// platforms, no-backup files on Android, an OPFS directory in the browser.
+fn store_directory(host: &mut dyn Host) -> Result<String> {
+    let response =
+        action(host, json!({"type":"store_directory"})).map_err(|_| "Could not read local data")?;
+    response["path"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or("Could not read local data")
+}
+
 fn action(host: &mut dyn Host, value: Value) -> Result<Value> {
     let response = host.perform(value).map_err(|_| "Native operation failed")?;
     if response.get("error").is_some() {
@@ -725,7 +1046,15 @@ fn http(
     if let Some(body) = body {
         request["body"] = json!(body);
     }
-    let response = action(host, request)?;
+    let response = host
+        .perform(request)
+        .map_err(|_| "Native operation failed")?;
+    if response["error"] == "offline" {
+        return Err(OFFLINE);
+    }
+    if response.get("error").is_some() {
+        return Err("Native operation failed");
+    }
     let status = response["status"].as_u64().ok_or("Invalid HTTP response")?;
     let body = response["body"].as_str().ok_or("Invalid HTTP response")?;
     let data = if body.is_empty() {
@@ -737,13 +1066,36 @@ fn http(
 }
 
 pub(crate) const NOT_FOUND: &str = "Resource not found or server unsupported";
+const BUSY: &str = "The thread is busy; try again when it finishes";
+const REFUSED: &str = "The server refused the request";
 pub(crate) fn successful((status, data): (u64, Value)) -> Result<Value> {
     match status {
         200..=299 => Ok(data),
+        400 | 422 => Err(REFUSED),
         401 | 403 => Err("Access denied"),
         404 => Err(NOT_FOUND),
+        409 => Err(BUSY),
         _ => Err("Server request failed"),
     }
+}
+
+/// Whether a queued write that failed with `error` may succeed later, so the
+/// flush stops and keeps it, rather than marking it failed. Only answers that
+/// say the write itself is wrong (refused, not found, threads off, no model)
+/// fail it.
+fn retryable(error: &str) -> bool {
+    matches!(
+        error,
+        OFFLINE
+            | BUSY
+            | "Server request failed"
+            | "Native operation failed"
+            | "Token service unavailable"
+            | "Access denied"
+            | "Credentials rejected"
+            | "Sign in required"
+            | "Could not save private vault"
+    )
 }
 
 fn token_pair((status, data): (u64, Value)) -> Result<(String, String)> {

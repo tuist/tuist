@@ -49,8 +49,12 @@ defmodule TuistWeb.TestSelectionsLiveTest do
                 module_name: "SearchTests",
                 suite_name: "SearchViewModelTests",
                 name: "test_load()",
-                matched_path: "Sources/Search/SearchViewModel.swift"
+                matched_path: "Sources/Search/SearchViewModel.swift",
+                files: ["Sources/Networking/APIClient.swift", "Sources/Search/SearchViewModel.swift"]
               }
+            ],
+            skipped: [
+              %{test_case_id: refresh, module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
             ]
           ],
           attrs
@@ -577,6 +581,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#test-selection-test-reason", "Selected: Executed a changed file")
       assert has_element?(lv, "#test-selection-test-reason", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-executed-files-table", "SearchViewModel.swift")
+      assert has_element?(lv, "#selection-executed-files-table", "APIClient.swift")
     end
 
     test "is absent for a test run without a selection", %{conn: conn, organization: organization, project: project} do

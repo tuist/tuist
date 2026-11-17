@@ -33,7 +33,7 @@ defmodule Tuist.Kura.LifecycleTest do
   # us-east co-locates an account's two replicas on one box, so an instance
   # reserves its plan's claim twice.
   @replicas 2
-  @air_resident_gib 8 * @replicas
+  @air_resident_gib 6 * @replicas
   @enterprise_resident_gib 16 * @replicas
   # What a Pro instance holds once sizing has grown it. Plans no longer start
   # apart, so a footprint that differs from Air's is one sizing produced.
@@ -629,7 +629,7 @@ defmodule Tuist.Kura.LifecycleTest do
       under_pressure()
 
       {:ok, region} = Regions.fetch(@region)
-      assert :ok = Admission.admit?(region, %Server{region: @region, status: :provisioning, storage_claim_size: "8Gi"})
+      assert :ok = Admission.admit?(region, %Server{region: @region, status: :provisioning, storage_claim_size: "6Gi"})
 
       assert :ok = Lifecycle.sweep()
 

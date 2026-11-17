@@ -1,8 +1,11 @@
 import AuthenticationServices
 import Foundation
+import OSLog
 import Security
 import SwiftUI
 import TuistGuildCore
+
+private let coreLog = Logger(subsystem: "dev.tuist.guild", category: "core")
 
 struct AppProfile: Decodable, Identifiable {
     let id: String
@@ -12,10 +15,37 @@ struct AppProfile: Decodable, Identifiable {
     let rejected: Bool
 }
 
+struct AppNavigation: Decodable {
+    enum Tab: String, Decodable, Hashable {
+        case threads, profile
+    }
+
+    var tab: Tab = .threads
+    var thread_id: String?
+    var path: String = "/threads"
+    var revision: UInt64 = 0
+}
+
+/// A personal account or organization from any saved profile; selecting it
+/// switches to the profile that owns it.
+struct AppAccount: Decodable, Identifiable {
+    let profile_id: String
+    let name: String
+    let server: String
+    let handle: String
+    let personal: Bool
+    let rejected: Bool
+    let selected: Bool
+
+    var id: String { "\(profile_id)/\(name)" }
+}
+
 struct AppSessionView: Decodable {
     var profiles: [AppProfile] = []
+    var accounts: [AppAccount] = []
     var active_profile_id: String?
     var generation: UInt64 = 0
+    var navigation = AppNavigation()
 
     var active: AppProfile? { profiles.first { $0.id == active_profile_id } }
 }
@@ -80,8 +110,21 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
                     )
                 }
                 result = ["ok": true]
+            case "log":
+                // The core's own messages: boot steps and migrations, never tokens.
+                let message = action["message"] as? String ?? ""
+                coreLog.info("\(message, privacy: .public)")
+                result = ["ok": true]
+            case "store_directory":
+                result = ["path": try storeDirectory().path]
             case "http":
-                result = try http(action)
+                do {
+                    result = try http(action)
+                } catch let error as URLError where Self.offline.contains(error.code) {
+                    // Only connectivity counts as offline; the core then answers
+                    // from its store. TLS and other failures stay errors.
+                    result = ["error": "offline"]
+                }
             default:
                 throw AppClientError(message: "Invalid host operation")
             }
@@ -93,6 +136,28 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
         response = strdup(String(decoding: data, as: UTF8.self))
         return response
     }
+
+    /// Where the core keeps its SQLite stores, one per profile: Application
+    /// Support, out of backups because the server holds the authoritative copy.
+    /// Files get the default protection class, so background wakes after the
+    /// first unlock can open them.
+    private func storeDirectory() throws -> URL {
+        var directory = try FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        ).appendingPathComponent("dev.tuist.guild/store", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try directory.setResourceValues(values)
+        }
+        return directory
+    }
+
+    private static let offline: Set<URLError.Code> = [
+        .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost,
+        .dnsLookupFailed, .timedOut, .dataNotAllowed, .internationalRoamingOff, .callIsActive,
+    ]
 
     private func http(_ action: [String: Any]) throws -> [String: Any] {
         guard let text = action["url"] as? String, let url = URL(string: text),
@@ -140,6 +205,26 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     @ObservationIgnored private let queue = DispatchQueue(label: "dev.tuist.code.core", qos: .userInitiated)
     @ObservationIgnored private var browser: ASWebAuthenticationSession?
     @ObservationIgnored private var browserAttempt: UUID?
+    @ObservationIgnored private var started = false
+
+    /// Launch arguments are consumed once, after the core boots.
+    func start() async {
+        guard !started else { return }
+        started = true
+        // Loads profiles and migrates local stores before any screen reads them.
+        await perform("boot")
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "--navigate"), index + 1 < arguments.count {
+            await perform("navigate", ["url": arguments[index + 1]])
+        }
+    }
+
+    func openURL(_ url: URL) async {
+        // ASWebAuthenticationSession owns OAuth completion and state validation.
+        // All other URLs go to the core, including validation of server origins.
+        guard !(url.scheme?.lowercased() == "tuist-guild" && url.host?.lowercased() == "oauth-callback") else { return }
+        await perform("navigate", ["url": url.absoluteString])
+    }
 
     func call(_ operation: String, _ args: [String: Any] = [:]) async throws -> [String: Any] {
         let request = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
@@ -165,7 +250,9 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
         let response = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         if let value = response["view"], !(value is NSNull) {
             let next = try JSONDecoder().decode(AppSessionView.self, from: JSONSerialization.data(withJSONObject: value))
-            if next.generation >= view.generation { view = next }
+            if next.generation > view.generation ||
+                (next.generation == view.generation && next.navigation.revision >= view.navigation.revision)
+            { view = next }
         }
         if let error = response["error"] as? String { throw AppClientError(message: error) }
         return response["data"] as? [String: Any] ?? [:]

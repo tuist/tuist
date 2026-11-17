@@ -24,7 +24,7 @@ if (stamp "$temp/project" "$key" appimage) >/dev/null 2>&1; then fail 'Accepted 
 echo 'PASS updater stamping and version/key rejection'
 
 config "$temp/config" windows-x86_64 1.2.3 false
-jq -e '.nsis.installMode == "currentUser" and .deepLinkProtocols == [{schemes:["tuist"]}] and .resources[0].target == "tuist-installation" and (.nsis.preinstallSection | contains("Function un.onUninstSuccess")) and (has("beforePackagingCommand") | not)' "$temp/config/packager.json" >/dev/null
+jq -e '.nsis.installMode == "currentUser" and .deepLinkProtocols == [{schemes:["tuist","tuist-guild"]}] and .resources[0].target == "tuist-installation" and (.nsis.preinstallSection | contains("Function un.onUninstSuccess")) and (has("beforePackagingCommand") | not)' "$temp/config/packager.json" >/dev/null
 if (unset DESKTOP_WINDOWS_CERTIFICATE_THUMBPRINT DESKTOP_WINDOWS_TIMESTAMP_URL; config "$temp/config" windows-x86_64 1.2.3 true) >/dev/null 2>&1; then fail 'Accepted missing Authenticode config'; fi
 (export DESKTOP_WINDOWS_CERTIFICATE_THUMBPRINT=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA DESKTOP_WINDOWS_TIMESTAMP_URL=https://timestamp.example; config "$temp/config" windows-x86_64 1.2.3 true)
 jq -e '.windows.certificateThumbprint == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" and .windows.tsp == true' "$temp/config/packager.json" >/dev/null

@@ -1046,10 +1046,10 @@ defmodule Tuist.Kura.ClaimSizingTest do
       rollups =
         fitting_days(30, @today,
           max_live_segment_bytes: div(@gibibyte, 2),
-          last_ring_budget_bytes: 6 * @gibibyte
+          last_ring_budget_bytes: 3 * @gibibyte
         )
 
-      context = context(plan: :air, current_claim_size: "8Gi", rollups: rollups)
+      context = context(plan: :air, current_claim_size: "6Gi", rollups: rollups)
 
       assert ClaimSizing.evaluate(context) == :none
     end
@@ -1199,8 +1199,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
       assert ClaimSizing.evaluate(retention_context(current_claim_size: "16Gi", rollups: rollups)) == :none
 
-      assert {:shrink, "8Gi", _evidence} =
-               ClaimSizing.evaluate(retention_context(plan: :pro, current_claim_size: "12Gi", rollups: rollups))
+      assert {:shrink, "6Gi", _evidence} =
+               ClaimSizing.evaluate(retention_context(plan: :pro, current_claim_size: "10Gi", rollups: rollups))
     end
 
     test "a day under three floors of retention breaks the window" do

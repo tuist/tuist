@@ -26,23 +26,27 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   any of those files is `no_evidence`, which always selects it. A map is
   written under an id derived from what it's built from, so a fold that
   repeats writes nothing, and it's indexed in PostgreSQL only once its rows
-  are in.
+  are in. The evidence expires two days after its report
+  (`Tuist.Tests.Coverage.Evidence.retention_days/0`), so a run close to that
+  age writes nothing: a commit folded again days later keeps the maps it
+  has rather than writing them again from what's left.
   """
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.TestImpactAnalysis.Candidate
-  alias Tuist.TestImpactAnalysis.Input
+  alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.CoverageCommit
+  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
@@ -56,6 +60,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # URL-encoded value.
   @param_bytes 120_000
   @zero_uuid "00000000-0000-0000-0000-000000000000"
+  # How long before its evidence starts expiring a run stops being written.
+  @evidence_margin_seconds 3_600
   # A checkpoint of a large suite takes tens of seconds to write, beyond the
   # connection's default of 15.
   @write_timeout to_timeout(minute: 5)
@@ -81,18 +87,78 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       runs = Enum.reject(runs, &MapSet.member?(uninstrumented, &1.test_run_id))
       details = details(project.id, Enum.map(runs, & &1.test_run_id))
       runs = Enum.map(runs, &Map.merge(&1, Map.get(details, &1.test_run_id, %{platform: "", test_impact_run_id: nil})))
+      whole = whole_evidence(project.id, runs)
       {full, partial} = Enum.split_with(runs, &(Map.get(&1, :partial) == false))
 
       # A scope's checkpoint holds every full run of it at the commit: a run
       # repeated without evidence doesn't hide the one that collected it.
+      # Nor does one whose evidence may be gone: the scope's checkpoint that
+      # has it stays the newest, and only a scope without one is written
+      # from the runs whose evidence is whole.
       full
       |> Enum.group_by(&{&1.git_repository_id, &1.git_commit_sha, &1.scheme || "", &1.platform})
-      |> Enum.each(fn {_scope, runs} -> write_checkpoint(project, runs) end)
+      |> Enum.each(fn {scope, runs} ->
+        write_scope_checkpoint(project, scope, Enum.split_with(runs, &MapSet.member?(whole, &1.test_run_id)))
+      end)
 
-      for run <- partial, run.test_impact_run_id, do: write_overlay(project, run)
+      for run <- partial, run.test_impact_run_id, MapSet.member?(whole, run.test_run_id), do: write_overlay(project, run)
     end
 
     :ok
+  end
+
+  # A scope's runs as `{whole, expired}` by their evidence (`whole_evidence/2`).
+  defp write_scope_checkpoint(_project, _scope, {[], _expired}), do: :ok
+  defp write_scope_checkpoint(project, _scope, {kept, []}), do: write_checkpoint(project, kept)
+
+  defp write_scope_checkpoint(project, scope, {kept, _expired}) do
+    if !checkpoint?(project.id, scope), do: write_checkpoint(project, kept)
+  end
+
+  # The runs whose evidence is still whole. Evidence expires
+  # `Evidence.retention_days/0` after its report was inserted (the
+  # `coverage_files` time-to-live), deleted part by part as merges reach it,
+  # so a run past that age may have lost any of it, and a snapshot built from
+  # what's left would read its tests as without evidence or with fewer files.
+  # A report's rows share one `inserted_at` and its `run` scope outlives the
+  # evidence, so a run's oldest report is read there; a run without such
+  # rows counts from when it ran. The margin covers a write's minutes and
+  # the clocks.
+  defp whole_evidence(project_id, runs) do
+    cutoff = DateTime.add(DateTime.utc_now(), @evidence_margin_seconds - Evidence.retention_days() * 86_400, :second)
+
+    reported =
+      runs
+      |> Enum.map(& &1.test_run_id)
+      |> Coverage.id_chunks(1)
+      |> Enum.flat_map(fn ids ->
+        ClickHouseRepo.all(
+          from(f in CoverageFile,
+            where: f.project_id == ^project_id and f.test_run_id in ^ids and f.scope_kind == "run",
+            group_by: f.test_run_id,
+            select: {f.test_run_id, min(f.inserted_at)}
+          ),
+          settings: [select_sequential_consistency: 1]
+        )
+      end)
+      |> Map.new()
+
+    for run <- runs,
+        reported_at = Map.get(reported, run.test_run_id, run.ran_at),
+        DateTime.after?(utc(reported_at), cutoff),
+        into: MapSet.new(),
+        do: run.test_run_id
+  end
+
+  defp checkpoint?(project_id, {repository_id, commit_sha, scheme, platform}) do
+    Repo.exists?(
+      from(s in Snapshot,
+        where:
+          s.project_id == ^project_id and s.repository_id == ^repository_id and s.commit_sha == ^commit_sha and
+            s.kind == :checkpoint and s.scheme == ^scheme and s.platform == ^platform and
+            s.expires_at > ^DateTime.utc_now()
+      )
+    )
   end
 
   @doc """
@@ -399,8 +465,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   defp whole_diff(project, commit_sha, baseline_sha) do
     with {:ok, diff} <- Storage.get_diff(project.id, commit_sha, baseline_sha),
          true <- diff.changed_files_count == length(diff.changed_files) do
-      tracked = Input.new(%{tracked_file_globs: GitHistory.settings(project).tracked_file_globs})
-      if Enum.any?(diff.changed_files, &Input.tracked?(tracked, &1.path)), do: :tracked, else: {:ok, diff.changed_files}
+      if Decision.tracked_path(project, diff.changed_files), do: :tracked, else: {:ok, diff.changed_files}
     end
   end
 

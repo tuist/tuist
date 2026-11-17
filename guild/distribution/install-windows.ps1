@@ -7,15 +7,17 @@ $destination = Join-Path $installDir 'TuistGuild.exe'
 Copy-Item -LiteralPath $Binary -Destination $destination -Force
 
 # Never claim http/https, and never require elevation or alter HKLM.
-$protocol = 'HKCU:\Software\Classes\tuist'
-New-Item -Path $protocol -Force | Out-Null
-Set-Item -Path $protocol -Value 'URL:Tuist'
-New-ItemProperty -Path $protocol -Name 'URL Protocol' -Value '' -Force | Out-Null
-$command = New-Item -Path "$protocol\shell\open\command" -Force
-Set-Item -Path $command.PSPath -Value ('"{0}" "%1"' -f $destination)
+foreach ($scheme in @('tuist', 'tuist-guild')) {
+    $protocol = "HKCU:\Software\Classes\$scheme"
+    New-Item -Path $protocol -Force | Out-Null
+    Set-Item -Path $protocol -Value 'URL:Tuist Guild'
+    New-ItemProperty -Path $protocol -Name 'URL Protocol' -Value '' -Force | Out-Null
+    $command = New-Item -Path "$protocol\shell\open\command" -Force
+    Set-Item -Path $command.PSPath -Value ('"{0}" "%1"' -f $destination)
+}
 
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'Tuist.lnk'))
 $shortcut.TargetPath = $destination
 $shortcut.Save()
-Write-Output "Installed Tuist in $installDir and registered tuist: links."
+Write-Output "Installed Tuist in $installDir and registered tuist: and tuist-guild: links."

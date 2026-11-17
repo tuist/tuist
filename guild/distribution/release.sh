@@ -101,7 +101,7 @@ config() {
       {name:"tuist-guild",productName:"Tuist Guild",version:$version,identifier:"dev.tuist.guild",publisher:"Tuist",
        description:"Tuist Guild",category:"DeveloperTool",homepage:"https://tuist.dev",formats:[$fmt],
        binaries:[{path:"TuistGuild",main:true}],binariesDir:($stage+"/bin"),outDir:($stage+"/packages"),
-       icons:[($stage+"/icon.png"),($stage+"/icon.ico")],deepLinkProtocols:[{schemes:["tuist"]}]}' > "$stage/packager.json"
+       icons:[($stage+"/icon.png"),($stage+"/icon.ico")],deepLinkProtocols:[{schemes:["tuist","tuist-guild"]}]}' > "$stage/packager.json"
     if test "$fmt" = nsis; then
         jq --arg stage "$stage" --rawfile hook "$ROOT/distribution/nsis-hooks.nsh" '
           . + {resources:[{src:($stage+"/tuist-installation"),target:"tuist-installation"}],

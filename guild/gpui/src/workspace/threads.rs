@@ -6,7 +6,9 @@ use gpui::{
     Subscription, Task, Window, div, prelude::*, px,
 };
 use serde_json::{Value, json};
+use tuist_app_core::navigation::Destination;
 use tuist_app_core::{Threads, Transport};
+use tuist_navigation::{Navigation, Route};
 use tuist_session::Session;
 use url::Url;
 
@@ -58,6 +60,9 @@ impl Transport for Http<'_> {
 pub struct ThreadsPanel {
     session: Arc<Session>,
     handle: Option<String>,
+    navigation: Entity<Navigation>,
+    route_id: Option<String>,
+    _navigation: Subscription,
     threads: Arc<Mutex<Threads>>,
     list: Vec<Value>,
     available: bool,
@@ -74,7 +79,12 @@ pub struct ThreadsPanel {
 }
 
 impl ThreadsPanel {
-    pub fn new(session: Arc<Session>, handle: Option<String>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        session: Arc<Session>,
+        handle: Option<String>,
+        navigation: Entity<Navigation>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let prompt = cx.new(|cx| TextInput::new("What do you want to talk about?", cx));
         let reply = cx.new(|cx| TextInput::new("Reply", cx));
         let submitted = [
@@ -84,6 +94,9 @@ impl ThreadsPanel {
         let mut panel = Self {
             session,
             handle,
+            _navigation: cx.observe(&navigation, |this, _, cx| this.sync_navigation(cx)),
+            navigation,
+            route_id: None,
             threads: Arc::new(Mutex::new(Threads::new())),
             list: Vec::new(),
             available: true,
@@ -98,8 +111,35 @@ impl ThreadsPanel {
             follow: None,
             _submitted: submitted,
         };
-        panel.request("threads", json!({}), cx);
+        if panel.navigation.read(cx).guild.thread_id.is_some() {
+            panel.sync_navigation(cx);
+        } else {
+            panel.request("threads", json!({}), cx);
+        }
         panel
+    }
+
+    fn sync_navigation(&mut self, cx: &mut Context<Self>) {
+        let id = self.navigation.read(cx).guild.thread_id.clone();
+        if id == self.route_id && (id.is_none() || self.open.is_some() || self.busy) {
+            return;
+        }
+        self.route_id = id.clone();
+        self.open = None;
+        self.follow = None;
+        self.reply
+            .update(cx, |input, cx| input.set_value(String::new(), cx));
+        match id {
+            Some(id) => self.request("thread", json!({"id":id}), cx),
+            None => self.request("threads", json!({}), cx),
+        }
+    }
+
+    fn navigate(&mut self, destination: Destination, cx: &mut Context<Self>) {
+        self.navigation.update(cx, |nav, cx| {
+            nav.navigate(Route::Guild(destination));
+            cx.notify();
+        });
     }
 
     /// Runs one core operation off the UI thread.
@@ -112,6 +152,7 @@ impl ThreadsPanel {
         self.error = None;
         let session = self.session.clone();
         let threads = self.threads.clone();
+        let navigation_revision = self.navigation.read(cx).guild.revision;
         let work = cx.background_executor().spawn(async move {
             let mut threads = threads.lock().map_err(|_| "Threads are unavailable")?;
             threads.call(
@@ -126,7 +167,7 @@ impl ThreadsPanel {
             let result = work.await;
             let _ = this.update(cx, |this, cx| {
                 this.busy = false;
-                this.finish(operation, result, cx);
+                this.finish(operation, result, navigation_revision, cx);
                 cx.notify();
             });
         }));
@@ -137,6 +178,7 @@ impl ThreadsPanel {
         &mut self,
         operation: &'static str,
         result: Result<Value, &'static str>,
+        navigation_revision: u64,
         cx: &mut Context<Self>,
     ) {
         let data = match result {
@@ -172,6 +214,17 @@ impl ThreadsPanel {
                 }
                 let working = data["working"] == true;
                 let id = data["id"].as_str().map(str::to_owned);
+                if operation == "start_thread" {
+                    // Creating a conversation is not permission to replace a
+                    // destination selected while the request was in flight.
+                    if navigation_revision != self.navigation.read(cx).guild.revision {
+                        return;
+                    }
+                    if let Some(id) = &id {
+                        self.route_id = Some(id.clone());
+                        self.navigate(Destination::Thread(id.clone()), cx);
+                    }
+                }
                 let grew = self.open.as_ref().is_none_or(|open| {
                     open["id"] != data["id"] || open["messages"] != data["messages"]
                 });
@@ -222,9 +275,7 @@ impl ThreadsPanel {
     }
 
     fn close(&mut self, cx: &mut Context<Self>) {
-        self.open = None;
-        self.follow = None;
-        self.request("threads", json!({}), cx);
+        self.navigate(Destination::Threads, cx);
     }
 
     /// Above the list: what conversations are, and a refresh control.
@@ -232,7 +283,11 @@ impl ThreadsPanel {
         let refresh = Button::new("refresh-threads", "Refresh", Variant::Secondary)
             .enabled(!self.busy)
             .render(Some(&self.scroll), window, cx, |this, _, cx| {
-                this.request("threads", json!({}), cx)
+                if let Some(id) = this.route_id.clone() {
+                    this.request("thread", json!({"id":id}), cx);
+                } else {
+                    this.request("threads", json!({}), cx);
+                }
             });
         let mut rows = Vec::new();
         for thread in &self.list {
@@ -261,7 +316,7 @@ impl ThreadsPanel {
                 )
                 .enabled(!self.busy)
                 .render(Some(&self.scroll), window, cx, move |this, _, cx| {
-                    this.request("thread", json!({ "id": id }), cx)
+                    this.navigate(Destination::Thread(id.clone()), cx)
                 })
                 .w_full()
                 .min_h(px(44.))

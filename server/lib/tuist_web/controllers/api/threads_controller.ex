@@ -3,6 +3,7 @@ defmodule TuistWeb.API.ThreadsController do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Threads
   alias TuistWeb.Authentication
@@ -88,13 +89,23 @@ defmodule TuistWeb.API.ThreadsController do
   end
 
   defp load_scope(conn, _opts) do
-    with %User{} = user <- Authentication.app_user(conn) || {:error, :app_required},
+    with %User{} = user <- threads_user(conn) || {:error, :app_required},
          %Account{} = account <- Accounts.get_account_by_handle(conn.path_params["account_handle"]),
          :ok <- Threads.authorize(user, account) do
       conn |> assign(:app_user, user) |> assign(:thread_account, account)
     else
       nil -> conn |> error(:not_found) |> halt()
       {:error, reason} -> conn |> error(reason) |> halt()
+    end
+  end
+
+  # A signed-in user, or an active OAuth grant the user approved with the
+  # `threads` scope, such as Tuist Guild's. Account and project tokens never count.
+  defp threads_user(conn) do
+    case Authentication.authenticated_subject(conn) do
+      %User{} = user -> user
+      %AuthenticatedAccount{scopes: scopes} -> if "threads" in scopes, do: Authentication.oauth_user(conn)
+      _ -> nil
     end
   end
 

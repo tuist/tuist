@@ -200,8 +200,8 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       proposal = ClaimProposals.open_proposal_for(account)
       assert proposal.direction == :grow
       assert proposal.region == "us-east"
-      assert proposal.current_claim_size == "8Gi"
-      assert proposal.recommended_claim_size == "20Gi"
+      assert proposal.current_claim_size == "6Gi"
+      assert proposal.recommended_claim_size == "15Gi"
       assert proposal.evidence["signal"] == "shed_age_below_retention_floor"
     end
 
@@ -255,7 +255,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     } do
       # Instances keep the claim they were built at, so lowering a plan
       # constant leaves running instances above it. Baselining on the plan
-      # would read this 50Gi instance as 8Gi and call a move to 16Gi a grow,
+      # would read this 50Gi instance as 6Gi and call a move to 16Gi a grow,
       # which on apply shrinks the volume and throws the cache away.
       server |> Ecto.Changeset.change(%{storage_claim_size: "50Gi"}) |> Repo.update!()
       seed_churn_rollups(account, 14, @today)
@@ -431,7 +431,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert dismissed.status == :dismissed
       assert dismissed.resolved_by == "ops@tuist.dev"
       assert PlacerClaims.claim_for(account) == nil
-      assert PlacerClaims.effective_claim_size(account) == "8Gi"
+      assert PlacerClaims.effective_claim_size(account) == "6Gi"
     end
 
     test "a stale struct cannot dismiss an already applied proposal", %{account: account} do
@@ -482,7 +482,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       end)
 
       stub(Capacity, :resident_gib, fn
-        _region, %Server{storage_claim_size: "20Gi"} -> 40
+        _region, %Server{storage_claim_size: "15Gi"} -> 30
         _region, %Server{} -> 16
       end)
 
@@ -500,12 +500,12 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
       assert {:ok, result} = Kura.apply_claim_proposal(proposal, "ops@tuist.dev")
 
-      assert result.claim_size == "20Gi"
+      assert result.claim_size == "15Gi"
       assert [raised_server] = result.raised
       assert raised_server.id == server.id
-      assert Repo.get!(Server, server.id).storage_claim_size == "20Gi"
-      assert PlacerClaims.claim_for(account) == "20Gi"
-      assert PlacerClaims.effective_claim_size(account) == "20Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "15Gi"
+      assert PlacerClaims.claim_for(account) == "15Gi"
+      assert PlacerClaims.effective_claim_size(account) == "15Gi"
 
       resolved = Repo.get!(ClaimProposal, proposal.id)
       assert resolved.status == :applied

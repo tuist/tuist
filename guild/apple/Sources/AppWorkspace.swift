@@ -1,13 +1,8 @@
 import SwiftUI
 
-private enum Destination: Hashable {
-    case threads, profile
-}
-
 struct AppWorkspace: View {
     @State private var client: AppClient
     @State private var updater: PreviewUpdater
-    @State private var selection = Destination.threads
     @State private var addingProfile = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,33 +20,33 @@ struct AppWorkspace: View {
                 #if os(macOS)
                     // On the Mac, a source-list sidebar takes the place of the tab bar.
                     NavigationSplitView {
-                        List(selection: $selection) {
-                            Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(Destination.threads)
-                            Label("Profile", systemImage: "person.crop.circle").tag(Destination.profile)
+                        List(selection: selection) {
+                            Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
+                            Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
                         }
                         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
                     } detail: {
-                        NavigationStack {
-                            if selection == .profile {
+                        if client.view.navigation.tab == .profile {
+                            NavigationStack {
                                 ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
-                            } else {
-                                ThreadsView(client: client)
                             }
+                        } else {
+                            threadsStack
                         }
                     }
                     .toolbar { ToolbarItem(placement: .primaryAction) { profilesMenu } }
                     .id(client.view.generation)
                 #else
-                    TabView(selection: $selection) {
-                        NavigationStack { ThreadsView(client: client) }
+                    TabView(selection: selection) {
+                        threadsStack
                             .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right") }
-                            .tag(Destination.threads)
+                            .tag(AppNavigation.Tab.threads)
                         NavigationStack {
                             ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
                                 .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
                         }
                         .tabItem { Label("Profile", systemImage: "person.crop.circle") }
-                        .tag(Destination.profile)
+                        .tag(AppNavigation.Tab.profile)
                     }
                     .minimizingTabBarOnScroll()
                     .id(client.view.generation)
@@ -64,10 +59,19 @@ struct AppWorkspace: View {
         .tint(Noora.primary)
         // Omarchy themes have one appearance; system controls and bars follow it.
         .preferredColorScheme(Themes.shared.selected.appearance)
-        .task { await client.perform("snapshot") }
+        .task { await client.start() }
+        .onOpenURL { url in Task { await client.openURL(url) } }
+        // Memberships fill the account menu; a failed refresh keeps the saved ones quietly.
+        .task(id: client.view.profiles.map(\.id)) {
+            if !client.view.profiles.isEmpty { _ = try? await client.call("organizations") }
+        }
         .task(id: client.view.active?.id) { await updater.check() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await updater.check() } }
+            if phase == .active {
+                Task { await updater.check() }
+                // Send what was written offline, such as threads started on a plane.
+                Task { _ = try? await client.call("flush_outbox") }
+            }
         }
         .sheet(isPresented: $addingProfile) {
             NavigationStack {
@@ -84,6 +88,7 @@ struct AppWorkspace: View {
             #endif
         }
         .onChange(of: client.view.generation) { _, _ in addingProfile = false }
+        .onChange(of: client.view.navigation.revision) { _, _ in addingProfile = false }
         .alert("Something went wrong", isPresented: Binding(
             get: { client.error != nil }, set: { if !$0 { client.error = nil } }
         )) {
@@ -91,38 +96,72 @@ struct AppWorkspace: View {
         } message: { Text(verbatim: client.error ?? "") }
     }
 
-    /// Switches between saved profiles and adds new ones: in the window toolbar
-    /// on the Mac, and in the Profile tab's navigation bar on iOS.
+    private var selection: Binding<AppNavigation.Tab> {
+        Binding(
+            get: { client.view.navigation.tab },
+            set: { tab in Task { await client.perform("select_tab", ["tab": tab.rawValue]) } }
+        )
+    }
+
+    private var threadsStack: some View {
+        NavigationStack(path: Binding(
+            get: { client.view.navigation.thread_id.map { [ThreadRoute(id: $0)] } ?? [] },
+            set: { routes in
+                if let route = routes.last, route.id != client.view.navigation.thread_id {
+                    Task { await client.perform("navigate", ["url": "/threads/\(route.id)"]) }
+                }
+                // Native Back/swipe changes the same core state as a URL does.
+                if routes.isEmpty, client.view.navigation.tab == .threads, client.view.navigation.thread_id != nil {
+                    Task { await client.perform("navigation_back") }
+                }
+            }
+        )) {
+            ThreadsView(client: client)
+                .navigationDestination(for: ThreadRoute.self) { route in
+                    ConversationView(client: client, id: route.id)
+                        .id(route.id)
+                }
+        }
+    }
+
+    /// Switches between the personal accounts and organizations of every saved
+    /// profile, adds profiles and signs out: in the window toolbar on the Mac,
+    /// and in the Profile tab's navigation bar on iOS.
     private var profilesMenu: some View {
         Menu {
-            ForEach(client.view.profiles) { profile in
+            ForEach(client.view.accounts) { account in
                 Toggle(isOn: Binding(
-                    get: { profile.id == client.view.active_profile_id },
-                    set: { if $0 { Task { await client.perform("switch_profile", ["id": profile.id]) } } }
+                    get: { account.selected },
+                    set: { if $0 { Task { await client.perform(
+                        "select_organization", ["id": account.profile_id, "name": account.name]
+                    ) } } }
                 )) {
-                    Text(verbatim: profile.handle ?? profile.email ?? profile.server)
-                    Text(verbatim: profile.server)
+                    Text(verbatim: account.name)
+                    Text(verbatim: account.personal ? account.server : "@\(account.handle) · \(account.server)")
                 }
-                .disabled(profile.rejected)
+                .disabled(account.rejected)
             }
             Divider()
             #if os(macOS)
                 Button("Add Profile…", systemImage: "person.badge.plus") { addingProfile = true }
-                Button("View Profile") { selection = .profile }
+                Button("View Profile") { Task { await client.perform("select_tab", ["tab": "profile"]) } }
                 Divider()
                 Button("Sign Out") { Task { await client.perform("sign_out") } }
             #else
                 Button("Add profile", systemImage: "person.badge.plus") { addingProfile = true }
+                Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                    Task { await client.perform("sign_out") }
+                }
             #endif
         } label: {
-            Label("Profiles", systemImage: "person.2.circle")
+            Label("Accounts", systemImage: "person.2.circle")
         }
-        .help("Switch profile")
+        .help("Switch account")
     }
 }
 
 /// The shipping app's Profile page (`app/Sources/TuistProfile/ProfileView.swift`).
-/// Switching and adding profiles live in the profiles menu: the Profile tab's
+/// Switching accounts and adding profiles live in the account menu: the Profile tab's
 /// navigation bar on iOS and the window toolbar on macOS.
 private struct ProfileView: View {
     let client: AppClient

@@ -49,10 +49,24 @@ const QUIT_KEYSTROKE: &str = "cmd-q";
 const QUIT_KEYSTROKE: &str = "ctrl-q";
 
 fn main() -> anyhow::Result<()> {
-    let urls = std::env::args()
-        .skip(1)
-        .filter(|value| value != "--")
-        .collect();
+    let mut urls = Vec::new();
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--list-routes" => {
+                for route in tuist_app_core::navigation::ROUTES {
+                    println!("{route}");
+                }
+                return Ok(());
+            }
+            "--navigate" => urls.push(
+                args.next()
+                    .ok_or_else(|| anyhow::anyhow!("--navigate requires a URL or path"))?,
+            ),
+            "--" => {}
+            _ => urls.push(arg),
+        }
+    }
     let Some(instance) = Instance::start(&tuist_credentials::Directories::from_env().state, urls)?
     else {
         return Ok(());

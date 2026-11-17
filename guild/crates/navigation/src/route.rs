@@ -19,6 +19,7 @@ pub enum Route {
     Previews,
     Profile,
     Preview(Preview),
+    Guild(tuist_app_core::navigation::Destination),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,6 +41,12 @@ impl std::error::Error for RouteError {}
 
 impl Route {
     pub fn parse(value: &str, server: &Url) -> Result<Self, RouteError> {
+        if let Ok(link) = tuist_app_core::navigation::Link::parse(value) {
+            return link
+                .resolve(server)
+                .map(Self::Guild)
+                .map_err(|_| RouteError::DifferentServer);
+        }
         let (url, raw_path) = parse_url(value)?;
         if url.fragment().is_some() {
             return Err(RouteError::InvalidUrl);
@@ -102,6 +109,12 @@ impl Route {
         match self {
             Self::Previews => Ok(Url::parse("tuist://app/previews").unwrap()),
             Self::Profile => Ok(Url::parse("tuist://app/profile").unwrap()),
+            Self::Guild(destination) => Url::parse(&format!(
+                "{}/guild{}",
+                server_base(server.as_str())?.as_str().trim_end_matches('/'),
+                destination.path()
+            ))
+            .map_err(|_| RouteError::InvalidUrl),
             Self::Preview(preview) => {
                 let base = server_base(server.as_str())?;
                 Url::parse(&format!(

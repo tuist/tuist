@@ -18,8 +18,7 @@
     <string name="loading">"Loading…"</string>
     <string name="request_failed">"The request could not be completed. Please try again."</string>
     <string name="sign_in_required">"Sign in to browse previews."</string>
-    <string name="organizations">"Organizations"</string>
-    <string name="switch_profile">"Switch profile"</string>
+    <string name="switch_account">"Switch account"</string>
     <string name="add_profile">"Add profile"</string>
     <string name="theme">"Theme"</string>
     <string name="theme_value">"Theme: %1$s"</string>
@@ -67,9 +66,9 @@
     <string name="start_conversation">"Start conversation"</string>
     <string name="new_conversation">"New conversation"</string>
     <string name="conversation_prompt">"What do you want to talk about?"</string>
-    <string name="conversation_runs_on_server">"Tuist answers on its servers. You don't need a repository or a machine."</string>
     <string name="start">"Start"</string>
     <string name="start_failed">"The conversation could not be started. Make sure threads are enabled and a ChatGPT subscription is connected in your Tuist account settings."</string>
+    <string name="threads_admins_only">"Only admins can use threads in %1$s. Ask an admin for access, or switch to another account."</string>
     <string name="no_threads">"No conversations yet. Start one to ask a question, explore an idea, or solve a problem with Tuist."</string>
     <string name="thread_queued">"Queued"</string>
     <string name="thread_running">"Running"</string>

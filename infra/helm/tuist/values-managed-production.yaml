@@ -2465,12 +2465,21 @@ runnersFleetLinux:
     actionsCache:
       enabled: true
   name: runners-linux
-  # Run the kvm-nri-plugin DaemonSet ahead of exclusive CPUs. It injects
-  # /dev/kvm only into Pods the controller annotates, which it does only for
-  # exclusive-CPU pools, so until then every Pod keeps the device plugin.
+  # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet. It
+  # injects the device only into Pods the controller annotates, which it does
+  # only for exclusive-CPU pools; odd shapes keep the device plugin.
   nestedVirtualization:
     nri:
       enabled: true
+  # Whole cores per runner Pod for every even shape; the 1 vCPU shape keeps
+  # shared cores. All runners-linux hosts run kubelet v1.36.6 with
+  # tuist.dev/pod-level-resource-managers=true, and these Pods get /dev/kvm
+  # from the kvm-nri-plugin above, not the device plugin
+  # (kubernetes/kubernetes#143490). Never restart the kubelet on a host
+  # running them: it leaks their cores (kubernetes/kubernetes#140989, see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+  exclusiveCPUs:
+    defaultEnabled: true
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
@@ -2528,16 +2537,7 @@ runnersFleetLinux:
       autoscaling:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
-    # The first shape on whole cores per Pod (two cores each), while every
-    # other shape stays on shared cores. All runners-linux hosts run kubelet
-    # v1.36.6 with tuist.dev/pod-level-resource-managers=true, and these Pods
-    # get /dev/kvm from the kvm-nri-plugin, not the device plugin
-    # (kubernetes/kubernetes#143490). Never restart the kubelet on a host
-    # running them: it leaks their cores (kubernetes/kubernetes#140989, see
-    # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
-    - vcpus: 4
-      memoryGb: 16
-      exclusiveCPUs: true
+    - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     # Each idle 32 GiB runner reserves 34.5 GiB with the kata overhead.
     - vcpus: 8
