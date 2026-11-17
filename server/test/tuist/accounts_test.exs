@@ -2443,6 +2443,23 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
+    test "issues no legacy token" do
+      # When: two users, so their missing digests do not collide on the unique index
+      {:ok, first} = Accounts.create_user(unique_user_email(), password: valid_user_password())
+      {:ok, second} = Accounts.create_user(unique_user_email(), password: valid_user_password())
+
+      # Then
+      assert is_nil(first.token)
+      assert is_nil(second.token)
+
+      assert Repo.all(
+               from(u in "users",
+                 where: u.id in ^[first.id, second.id],
+                 select: {u.token, u.token_hash}
+               )
+             ) == [{nil, nil}, {nil, nil}]
+    end
+
     test "suffixes reserved email-derived handles and retries collisions" do
       stub(Environment, :tuist_hosted?, fn -> false end)
 

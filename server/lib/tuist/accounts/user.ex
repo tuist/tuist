@@ -68,7 +68,7 @@ defmodule Tuist.Accounts.User do
       :email_verified_at
     ])
     |> update_change(:email, &String.downcase/1)
-    |> validate_required([:token, :email])
+    |> validate_required([:email])
     |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
     |> validate_password_strength()
     |> encrypt_password()

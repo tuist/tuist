@@ -1218,8 +1218,11 @@ defmodule Tuist.Accounts do
   @doc """
   Creates a user with the given attributes and its associated account.
   """
+  # New users get no legacy CLI token: CLI sign-ins, account tokens and OIDC
+  # replace it, and it was never shown to anyone. `token:` sets one, for tests
+  # of users that still have one.
   def create_user(email, opts \\ []) do
-    token = Tuist.Tokens.generate_token()
+    token = Keyword.get(opts, :token)
 
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())

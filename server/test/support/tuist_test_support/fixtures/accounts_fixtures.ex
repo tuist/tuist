@@ -13,6 +13,9 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
 
     create_opts =
       [
+        # A legacy token, as users created before they stopped being issued
+        # have, so tests can still cover authenticating with one.
+        token: Keyword.get_lazy(opts, :token, &Tuist.Tokens.generate_token/0),
         password: Keyword.get(opts, :password, valid_user_password()),
         confirmed_at: Keyword.get(opts, :confirmed_at, DateTime.utc_now()),
         email_verified_at: Keyword.get(opts, :email_verified_at),
