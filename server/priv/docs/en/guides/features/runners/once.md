@@ -57,4 +57,8 @@ Replace the target and image tag with your own. Once checks the advertised image
 
 Once respects the account's advertised action concurrency and backs off when the service queue is full. Changing the image separates build configuration and cached results, preventing reuse across incompatible worker images.
 
+## Inspect remote execution {#inspect-remote-execution}
+
+The project sidebar has a **Remote execution** page, but Once run telemetry does not yet distinguish remote execution from local actions. The page explains this gap and links to **Build Runs** for recorded action details; it does not infer remote activity from worker lanes or show those actions as remote usage.
+
 See [Once's remote execution guide](https://buildonce.dev/docs/guide/infrastructure/tuist#run-actions-on-tuist-workers) for queueing, authentication refresh, and cache-endpoint overrides. Follow <.localized_link href="/guides/features/build-insights/once">Once build insights</.localized_link> to inspect the resulting runs.

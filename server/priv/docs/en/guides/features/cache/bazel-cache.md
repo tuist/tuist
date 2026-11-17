@@ -53,6 +53,36 @@ Setup also sets `--jobs` to twice the number of remote actions your account can 
 
 To use a different value, pass `--jobs` on the command line, or set it in `.bazelrc` after the `try-import` line. Bazel uses the last value it reads, so a `--jobs` before that line is replaced by the generated one.
 
+### Executor sizes {#executor-sizes}
+
+Actions use 4 GB of memory and 2 vCPUs by default. Set the `tuist-memory-gb` execution property to request a larger VM:
+
+| `tuist-memory-gb` | Memory | vCPUs | Workspace disk |
+| --- | --- | --- | --- |
+| `4` (default) | 4 GB | 2 | 30 GB |
+| `8` | 8 GB | 4 | 30 GB |
+| `16` | 16 GB | 8 | 30 GB |
+
+For example, add this **after** the `try-import` line in `.bazelrc` to request 8 GB by default:
+
+```text
+build --remote_default_exec_properties=tuist-memory-gb=8
+```
+
+For one target, use `exec_properties = {"tuist-memory-gb": "8"}` in its Bazel rule instead. Only `4`, `8` and `16` are supported. Larger actions consume proportionately more of the account's allocated vCPU and memory limits, reducing how many can run simultaneously. A shape must fit both limits. The generated `--jobs` uses the default shape; override it if needed when requesting larger shapes.
+
+Executors currently use Tuist's Linux amd64 image. Arbitrary container images, other execution operating systems and architectures, persistent action workers and bring-your-own executors are not configurable through setup. Rerun setup to obtain the current image and endpoint.
+
+### Remote action timings {#remote-action-timings}
+
+Open **Remote execution** in the project sidebar for invocations and actions with recorded remote phases, average and p50/p90/p99 queue and execution times with changes since the previous period, trend charts, and links to each invocation's phase timings. Filter by environment (CI or local) and date (up to 90 days). The invocations table shows each invocation's average, p50 and p90 execution time. Search it by command, target or invocation ID, filter by status, command, targets or number of remote actions, and sort by any column except Invocation. Search and table filters apply only to the invocations table, not the analytics.
+
+Open an invocation's **Remote execution** tab for its remote actions, sorted by duration (longest first) or by start time: one row per remote action with when it started relative to the profile, its duration and a bar split into queue, input-fetch, execution and output-upload time, scaled to the longest action on the page. Hover a bar for each phase's duration. The table uses uploaded Bazel profiles and associates server phases only with an unambiguous action on the same profile thread.
+
+Missing timings mean **Not recorded**, not zero. Older profiles, missing action intervals and short phases omitted by Bazel may leave the table empty even when remote work occurred. Recorded retries are summed within each action. Server metadata can describe a cached result, so these timings are neither proof of fresh execution nor billable usage. Client input uploads and uploads of locally executed outputs are excluded from output-upload time.
+
+The same data is available from the build-step REST endpoint with `remote_execution=true` and the `list_bazel_build_steps` / `get_bazel_build_step` MCP tools. Timings are retained for 90 days with the profile steps.
+
 ## Build insights {#build-insights}
 
 By default, `tuist bazel setup` also configures Bazel's Build Event Service so completed commands appear on the **Invocations** dashboard. See <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link> for what the dashboard shows and how to attach custom metadata.

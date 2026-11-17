@@ -221,6 +221,15 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.bazel_project?(@selected_project) or once?}
+        label={dgettext("dashboard", "Remote execution")}
+        icon="cloud_computing"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/remote-execution"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/remote-execution"
+        }
+      />
+      <.sidebar_item
         :if={Project.cargo_project?(@selected_project)}
         label={dgettext("dashboard", "Cargo Cache")}
         icon="server"

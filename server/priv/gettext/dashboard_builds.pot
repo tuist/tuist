@@ -94,7 +94,7 @@ msgid "Branch"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
-#: lib/tuist_web/live/bazel_invocation_live.ex:63
+#: lib/tuist_web/live/bazel_invocation_live.ex:64
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/cargo_build_live.html.heex:47
 #: lib/tuist_web/live/mix_build_live.html.heex:383
@@ -119,7 +119,7 @@ msgstr ""
 msgid "Build Runs"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:249
+#: lib/tuist_web/live/bazel_invocation_live.ex:390
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -182,7 +182,7 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:258
+#: lib/tuist_web/live/bazel_invocation_live.ex:399
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -191,7 +191,7 @@ msgstr ""
 msgid "Built at"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:244
+#: lib/tuist_web/live/bazel_invocation_live.ex:385
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -361,7 +361,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:225
+#: lib/tuist_web/live/bazel_invocation_live.ex:366
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
@@ -505,6 +505,7 @@ msgstr ""
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
+#: lib/tuist_web/live/bazel_invocation_live.ex:1212
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
 #: lib/tuist_web/live/cargo_build_live.ex:131
@@ -518,6 +519,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
+#: lib/tuist_web/live/remote_execution_live.ex:611
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -984,7 +986,7 @@ msgid "Overview"
 msgstr ""
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:964
+#: lib/tuist_web/live/bazel_invocation_live.ex:1105
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
@@ -1056,6 +1058,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
+#: lib/tuist_web/live/remote_execution_live.ex:617
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1137,7 +1140,7 @@ msgstr ""
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:596
+#: lib/tuist_web/live/bazel_invocation_live.ex:737
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1176,6 +1179,7 @@ msgstr ""
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
+#: lib/tuist_web/live/bazel_invocation_live.ex:238
 #: lib/tuist_web/live/bazel_invocations_live.ex:524
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
@@ -1187,6 +1191,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
+#: lib/tuist_web/live/remote_execution_live.ex:394
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1207,7 +1212,7 @@ msgstr ""
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:234
+#: lib/tuist_web/live/bazel_invocation_live.ex:375
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
@@ -1225,6 +1230,7 @@ msgstr ""
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
+#: lib/tuist_web/live/remote_execution_live.ex:616
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -1949,7 +1955,7 @@ msgstr ""
 msgid "Succeeded"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:195
+#: lib/tuist_web/live/bazel_invocation_live.ex:199
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/mix_build_live.html.heex:60
@@ -2546,6 +2552,7 @@ msgstr ""
 msgid "Not found in this project."
 msgstr ""
 
+#: lib/tuist_web/live/bazel_invocation_live.ex:1253
 #: lib/tuist_web/live/build_entity_live.ex:518
 #: lib/tuist_web/live/build_entity_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:675
@@ -2556,6 +2563,7 @@ msgstr ""
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
+#: lib/tuist_web/live/remote_execution_live.ex:583
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr ""
@@ -3336,4 +3344,192 @@ msgstr ""
 #: lib/tuist_web/helpers/cargo_cache.ex:75
 #, elixir-autogen, elixir-format
 msgid "Compiled without consulting the cache because it could not be cached."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1218
+#, elixir-autogen, elixir-format
+msgid "Execution"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1217
+#, elixir-autogen, elixir-format
+msgid "Input fetch"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1219
+#, elixir-autogen, elixir-format
+msgid "Output upload"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1216
+#, elixir-autogen, elixir-format
+msgid "Queue"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:209
+#, elixir-autogen, elixir-format
+msgid "Remote execution"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "Execution diagnostics"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:194
+#, elixir-autogen, elixir-format
+msgid "Open build runs"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:279
+#, elixir-autogen, elixir-format
+msgid "Actions with recorded remote execution phases. A cached result can carry these phases, so this is not billable usage."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:471
+#: lib/tuist_web/live/remote_execution_live.ex:613
+#, elixir-autogen, elixir-format
+msgid "Avg. execution"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Avg. execution time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Avg. queue time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:361
+#, elixir-autogen, elixir-format
+msgid "No remote execution timings in this period"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:187
+#, elixir-autogen, elixir-format
+msgid "Once run telemetry does not yet distinguish remote actions from local ones, so none are counted here."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:216
+#: lib/tuist_web/live/remote_execution_live.ex:276
+#: lib/tuist_web/live/remote_execution_live.ex:463
+#: lib/tuist_web/live/remote_execution_live.ex:612
+#: lib/tuist_web/live/remote_execution_live.ex:656
+#: lib/tuist_web/live/remote_execution_live.ex:712
+#, elixir-autogen, elixir-format
+msgid "Remote actions"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:175
+#, elixir-autogen, elixir-format
+msgid "Remote execution telemetry is not available for Once yet"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:320
+#, elixir-autogen, elixir-format
+msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:297
+#, elixir-autogen, elixir-format
+msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:577
+#, elixir-autogen, elixir-format
+msgid "p50 execution time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:573
+#, elixir-autogen, elixir-format
+msgid "p50 queue time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "p90 execution time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:572
+#, elixir-autogen, elixir-format
+msgid "p90 queue time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:575
+#, elixir-autogen, elixir-format
+msgid "p99 execution time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:571
+#, elixir-autogen, elixir-format
+msgid "p99 queue time"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:374
+#: lib/tuist_web/live/remote_execution_live.ex:709
+#, elixir-autogen, elixir-format
+msgid "Invocations"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Invocations could not be loaded."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Invocations whose uploaded Bazel profile records at least one remote execution phase. Invocations without a profile are not counted."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "Invocations with remote actions"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:512
+#, elixir-autogen, elixir-format
+msgid "No invocations match your search"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:508
+#, elixir-autogen, elixir-format
+msgid "No invocations with remote execution timings in this period"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Search invocations..."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:614
+#, elixir-autogen, elixir-format
+msgid "p50 execution"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:615
+#, elixir-autogen, elixir-format
+msgid "p90 execution"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:330
+#, elixir-autogen, elixir-format
+msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "No remote action timings"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:281
+#, elixir-autogen, elixir-format
+msgid "Phases"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:275
+#: lib/tuist_web/live/bazel_invocation_live.ex:1211
+#, elixir-autogen, elixir-format
+msgid "Started at"
 msgstr ""

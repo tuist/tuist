@@ -60,6 +60,7 @@ defmodule TuistWeb.DashboardNavigationTest do
       refute Enum.any?(pages, &(String.downcase(&1.title) == String.downcase(&1.description)))
       assert (root <> "/notifications") in paths == (system == :xcode)
       assert (root <> "/automations") in paths == system in [:xcode, :bazel, :mix, :cargo]
+      assert "/#{user.account.name}/#{project.name}/remote-execution" in paths == system in [:bazel, :once]
     end
   end
 end

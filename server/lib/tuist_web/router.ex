@@ -1968,6 +1968,7 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks, metadata: @public_project_route_metadata
       live "/builds/tasks/:name", GradleTasksLive, :task, metadata: @public_project_route_metadata
       live "/bazel-cache", BazelCacheLive, metadata: @public_project_route_metadata
+      live "/remote-execution", RemoteExecutionLive, metadata: @public_project_route_metadata
       get "/once", RedirectPlug, to: "/once/builds"
       get "/once/runs", RedirectPlug, to: "/once/build-runs"
       live "/once/runs/:once_run_id", OnceRunLive, :overview, metadata: @public_project_route_metadata

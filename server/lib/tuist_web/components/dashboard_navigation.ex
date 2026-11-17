@@ -169,6 +169,12 @@ defmodule TuistWeb.DashboardNavigation do
       ),
       page(dgettext("dashboard", "Bazel Cache"), root <> "/bazel-cache", project.name, Project.bazel_project?(project)),
       page(dgettext("dashboard", "Once Cache"), root <> "/once-cache", project.name, once?),
+      page(
+        dgettext("dashboard", "Remote execution"),
+        root <> "/remote-execution",
+        project.name,
+        Project.bazel_project?(project) or once?
+      ),
       page(dgettext("dashboard", "Cargo Cache"), root <> "/cargo-cache", project.name, Project.cargo_project?(project)),
       page(dgettext("dashboard", "Mix Cache"), root <> "/mix-cache", project.name, Project.mix_project?(project)),
       page(dgettext("dashboard", "Xcode Cache"), root <> "/xcode-cache", project.name, Project.xcode_project?(project)),
@@ -261,6 +267,7 @@ defmodule TuistWeb.DashboardNavigation do
           "/module-cache/modules" -> "apps"
           "/previews" -> "devices"
           "/bundles" -> "package"
+          "/remote-execution" -> "cloud_computing"
           "/settings" <> _ -> "settings"
           "/" <> cache when cache in ~w(bazel-cache once-cache cargo-cache mix-cache xcode-cache gradle-cache) -> "server"
           _ -> "subtask"
