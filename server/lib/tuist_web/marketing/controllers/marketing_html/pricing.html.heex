@@ -412,7 +412,7 @@ runner_terms = [
             </div>
             <ul data-part="traits">
               <li :for={trait <- plan.traits} data-part="trait">
-                <.system_check />
+                <.check />
                 <span>{trait}</span>
               </li>
             </ul>
@@ -541,9 +541,9 @@ runner_terms = [
                   >
                     <%= cond do %>
                       <% value == :available -> %>
-                        <.system_check />
+                        <.check />
                       <% value == :unavailable -> %>
-                        <.math_x />
+                        <.close />
                       <% is_map(value) and Map.has_key?(value, :price) -> %>
                         <div data-part="value">{value.price}</div>
                         <div data-part="description">{value.description}</div>
@@ -807,7 +807,7 @@ runner_terms = [
               <span data-part="label">{question}</span>
               <span
                 data-part="chevron"
-                class="noora-neutral-button"
+                class="noora-ghost-button"
                 data-size="medium"
                 data-icon-only
                 aria-hidden="true"

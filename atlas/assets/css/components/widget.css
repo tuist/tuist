@@ -140,7 +140,7 @@ container.
 [data-part="widget-link"][data-selected] [data-part="widget"] {
   background-color: var(--noora-surface-background-secondary);
   box-shadow:
-    var(--noora-border-light-default),
+    var(--noora-border-small-default),
     inset 0 0 0 1px var(--noora-surface-border-hover);
 }
 
@@ -177,10 +177,10 @@ container.
 }
 
 [data-part="widget-link"][data-variant="analytics"][data-selected] [data-part="widget"] {
-  box-shadow: var(--noora-border-light-focus);
+  box-shadow: var(--noora-border-small-focus);
   background-color: var(--noora-surface-background-primary);
 }
 
 [data-part="widget-link"]:focus-visible [data-part="widget"] {
-  box-shadow: var(--noora-border-light-focus);
+  box-shadow: var(--noora-border-small-focus);
 }

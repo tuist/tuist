@@ -10,6 +10,17 @@ import {
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
+// Flips a Noora.Menu checkbox item: its state, which the next render reads,
+// what it announces, and its checkbox.
+const setMenuItemChecked = (item, checked) => {
+  const state = checked ? "checked" : "unchecked";
+  item.dataset.checked = String(checked);
+  item.dataset.state = state;
+  item.setAttribute("aria-checked", String(checked));
+  const control = item.querySelector(".noora-checkbox-control");
+  if (control) control.dataset.state = state;
+};
+
 class Menu extends Component {
   initMachine(context) {
     return new VanillaMachine(menu.machine, context);
@@ -27,11 +38,28 @@ class Menu extends Component {
       "positioner:content",
     ];
     for (const part of parts) renderPart(this.el, part, this.api);
+    this.syncMenuDisabled();
     this.syncFixedPositionerSize();
     this.renderItemGroupLabels();
     this.renderItemGroups();
     this.renderItems();
     this.renderSeparators();
+  }
+
+  // Noora.Menu's root carries its disabled and empty states, which LiveView
+  // keeps current even though the root ignores updates to its children. A
+  // menu without items can't open; a split button's main action stays usable.
+  syncMenuDisabled() {
+    if (!this.el.classList.contains("noora-menu")) return;
+
+    const disabled = this.el.hasAttribute("data-disabled");
+    const empty = this.el.hasAttribute("data-empty");
+    const trigger = this.el.querySelector(getPartSelector("trigger"));
+    const mainButton = this.el.querySelector(getPartSelector("main-button"));
+
+    if (trigger) trigger.disabled = disabled || empty;
+    if (mainButton) mainButton.disabled = disabled;
+    if ((disabled || empty) && this.api.open) this.api.setOpen(false);
   }
 
   syncFixedPositionerSize() {
@@ -73,6 +101,7 @@ class Menu extends Component {
     const content = this.el.querySelector('[data-part="content"]');
     if (!content) return;
 
+    const menuValues = new Set();
     for (const item of content.querySelectorAll('[data-part="item"]')) {
       const value = item.dataset.value;
       if (!value) {
@@ -80,12 +109,41 @@ class Menu extends Component {
         return;
       }
 
+      // Items are identified by value, so a repeated one would highlight and
+      // select the wrong item.
+      if (item.classList.contains("noora-menu-item")) {
+        if (menuValues.has(value)) {
+          console.warn(
+            `Noora.Menu "${this.el.id}" has more than one item with value "${value}". Values must be unique within a menu.`,
+          );
+        }
+        menuValues.add(value);
+      }
+
       // Skip spreading props if item is inside breadcrumbs as that leads to issues on LiveView >= 1.1 due to conflicting state management between LiveView and JS layers.
       if (item.closest(".noora-breadcrumbs")) {
         continue;
       }
 
-      spreadProps(item, this.api.getItemProps({ value }));
+      const disabled = item.hasAttribute("data-disabled");
+      // Noora.Menu checkbox items toggle in place and keep the menu open, so
+      // several can be toggled in a row. A re-render with a new `checked`
+      // from the LiveView still wins. Dropdown checkbox items keep their own
+      // behavior.
+      const menuCheckbox =
+        item.classList.contains("noora-menu-item") &&
+        item.hasAttribute("data-checkbox");
+      const props = menuCheckbox
+        ? this.api.getOptionItemProps({
+            type: "checkbox",
+            value,
+            checked: item.dataset.checked === "true",
+            disabled,
+            closeOnSelect: false,
+            onCheckedChange: (checked) => setMenuItemChecked(item, checked),
+          })
+        : this.api.getItemProps({ value, disabled });
+      spreadProps(item, props);
     }
   }
 
@@ -140,7 +198,12 @@ export default {
           const el = this.el;
           return {
             getAnchorRect: () => {
-              const anchorEl = el.querySelector(`[data-part="${anchorPart}"]`);
+              // "root" anchors to the whole component, such as both halves
+              // of a split button.
+              const anchorEl =
+                anchorPart === "root"
+                  ? el
+                  : el.querySelector(`[data-part="${anchorPart}"]`);
               return anchorEl ? anchorEl.getBoundingClientRect() : null;
             },
           };
@@ -153,15 +216,22 @@ export default {
         }
       },
       onHighlightChange: (details) => {
+        this.scrollToHighlightedItem(details.highlightedValue);
         if (this.el.dataset.onHighlightChange) {
           this.pushEvent(this.el.dataset.onHighlightChange, details);
         }
       },
       onSelect: (details) => {
         if (this.el.dataset.onSelect) {
+          // A Noora.Menu checkbox item also sends the state it's toggling
+          // to; the select fires just before the item flips.
+          const checkbox = this.el.querySelector(
+            `.noora-menu-item[data-checkbox][data-value="${CSS.escape(details.value)}"]`,
+          );
           this.pushEvent(this.el.dataset.onSelect, {
             ...this.metadata,
             ...details,
+            ...(checkbox && { checked: checkbox.dataset.checked !== "true" }),
           });
         }
       },
@@ -205,6 +275,13 @@ export default {
     this.el.addEventListener("keydown", this.handleSearchKeydown);
     this.applySearchFilter();
 
+    // Whether the highlight is moving from the keyboard; see
+    // scrollToHighlightedItem.
+    this.trackKeyboard = () => (this.keyboardNavigation = true);
+    this.trackPointer = () => (this.keyboardNavigation = false);
+    this.el.addEventListener("keydown", this.trackKeyboard, true);
+    this.el.addEventListener("pointermove", this.trackPointer);
+
     // Portaled options can be patched after this hook's updated callback.
     const items = this.el.querySelector('[data-part="items"]');
     if (items) {
@@ -234,6 +311,10 @@ export default {
       // Capture phase so zag's content keydown handler doesn't consume the
       // arrow keys before we move focus.
       this.el.addEventListener("keydown", this.breadcrumbKeydown, true);
+      // The pointer takes over from the keyboard, so only one item looks
+      // highlighted at a time.
+      this.breadcrumbPointerMove = () => this.clearBreadcrumbHighlight();
+      this.el.addEventListener("pointermove", this.breadcrumbPointerMove);
     }
   },
 
@@ -254,8 +335,11 @@ export default {
         );
         (selected || items[0]).focus();
       });
-    } else if (this.el.contains(document.activeElement)) {
-      this.el.querySelector('[data-part="trigger"]')?.focus();
+    } else {
+      this.clearBreadcrumbHighlight();
+      if (this.el.contains(document.activeElement)) {
+        this.el.querySelector('[data-part="trigger"]')?.focus();
+      }
     }
   },
 
@@ -323,7 +407,36 @@ export default {
 
     event.preventDefault();
     event.stopPropagation();
-    items[next].focus();
+    this.highlightBreadcrumbItem(items[next]);
+  },
+
+  // Keeps the item highlighted from the keyboard in view. zag only scrolls
+  // when the content itself scrolls, and here the list inside it does. The
+  // list's scroll padding sets how far from its edge the item stops. A
+  // pointer highlights what's under it, which must not scroll the list.
+  scrollToHighlightedItem(value) {
+    if (!this.keyboardNavigation || value == null) return;
+    const item = this.el.querySelector(
+      `[data-part="items"] [data-part="item"][data-value="${CSS.escape(value)}"]`,
+    );
+    item?.scrollIntoView({ block: "nearest" });
+  },
+
+  // Moves keyboard focus to an item and marks it highlighted, the way zag
+  // marks Noora.Menu items. Focus alone doesn't highlight: opening the menu
+  // focuses the selected item, which shows only its check.
+  highlightBreadcrumbItem(item) {
+    this.clearBreadcrumbHighlight();
+    item.setAttribute("data-highlighted", "");
+    item.focus();
+  },
+
+  clearBreadcrumbHighlight() {
+    for (const item of this.el.querySelectorAll(
+      '[data-part="item"][data-highlighted]',
+    )) {
+      item.removeAttribute("data-highlighted");
+    }
   },
 
   breadcrumbTypeahead(char, items) {
@@ -340,7 +453,7 @@ export default {
       items.find((item) => labelOf(item).startsWith(this.typeaheadQuery)) ||
       items.find((item) => labelOf(item).includes(this.typeaheadQuery));
 
-    if (match) match.focus();
+    if (match) this.highlightBreadcrumbItem(match);
   },
 
   applySearchFilter() {
@@ -390,8 +503,11 @@ export default {
   destroyed() {
     this.el.removeEventListener("input", this.handleSearchInput);
     this.el.removeEventListener("keydown", this.handleSearchKeydown);
+    this.el.removeEventListener("keydown", this.trackKeyboard, true);
+    this.el.removeEventListener("pointermove", this.trackPointer);
     if (this.breadcrumbKeydown) {
       this.el.removeEventListener("keydown", this.breadcrumbKeydown, true);
+      this.el.removeEventListener("pointermove", this.breadcrumbPointerMove);
     }
     clearTimeout(this.typeaheadTimer);
     window.removeEventListener("phx:open-dropdown", this.handleOpenDropdown);

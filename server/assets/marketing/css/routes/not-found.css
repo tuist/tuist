@@ -84,8 +84,8 @@
         }
 
         &:focus-visible {
-          outline: 2px solid var(--noora-surface-label-primary);
-          outline-offset: 4px;
+          outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+          outline-offset: var(--noora-focus-ring-offset);
         }
 
         @media (prefers-reduced-motion: reduce) {

@@ -138,7 +138,7 @@ defmodule TuistWeb.LayoutLive do
      })
      |> append_breadcrumb(%{
        label: selected_project.name,
-       build_tool: build_tool(selected_project.build_system),
+       image: build_system_image(selected_project.build_system),
        items:
          Enum.map(selected_projects, fn project ->
            %{
@@ -146,7 +146,7 @@ defmodule TuistWeb.LayoutLive do
              value: project.id,
              selected: selected_project.id == project.id,
              href: ~p"/#{account_handle}/#{project.name}",
-             build_tool: build_tool(project.build_system)
+             image: build_system_image(project.build_system)
            }
          end),
        footer_items: [
@@ -334,9 +334,12 @@ defmodule TuistWeb.LayoutLive do
     {:ok, %{latest_app_release: latest_app_release}}
   end
 
-  # Noora ships logos for these build systems; others (Cargo) show no icon.
-  defp build_tool(build_system) when build_system in [:xcode, :gradle, :bazel, :mix, :once],
-    do: Atom.to_string(build_system)
-
-  defp build_tool(_), do: nil
+  # The build system's logo, shown in the project breadcrumb in the avatar's
+  # place. Cargo has no logo yet.
+  defp build_system_image(:xcode), do: ~p"/images/build-systems/xcode.png"
+  defp build_system_image(:gradle), do: ~p"/images/build-systems/gradle.png"
+  defp build_system_image(:bazel), do: ~p"/images/build-systems/bazel.png"
+  defp build_system_image(:mix), do: ~p"/images/build-systems/mix.png"
+  defp build_system_image(:once), do: ~p"/images/build-systems/once.png"
+  defp build_system_image(_), do: nil
 end

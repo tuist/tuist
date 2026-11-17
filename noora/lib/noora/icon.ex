@@ -103,6 +103,13 @@ defmodule Noora.Icon do
                         trending_up
                       ))
 
+  @icon_names Enum.map(@icon_files, &(&1 |> Path.basename(".svg") |> String.replace("-", "_")))
+
+  @doc """
+  Returns the names of every icon, sorted, as `icon/1` takes them.
+  """
+  def names, do: @icon_names
+
   @doc """
   Whether an icon depicts horizontal direction and mirrors in right-to-left documents.
   """

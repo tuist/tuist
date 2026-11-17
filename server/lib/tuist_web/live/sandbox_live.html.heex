@@ -13,7 +13,7 @@
     <div data-part="title">
       <h1>{display_name(@sandbox)}</h1>
       <% status = status(@sandbox) %>
-      <.badge label={status.label} color={status.color} style="light-fill" size="large" />
+      <.badge label={status.label} color={status.color} style="light-fill" size="medium" />
     </div>
     <div :if={@can_manage} data-part="actions">
       <.button

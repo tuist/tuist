@@ -104,7 +104,7 @@
     & > [data-part="image"] {
       margin-top: var(--noora-spacing-10);
       /* Same hairline treatment as the prose images below (prose.css). */
-      box-shadow: var(--noora-light-border-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       background: var(--noora-surface-background-tertiary);
       width: 100%;
@@ -281,7 +281,7 @@
         }
 
         & > [data-part="cover"] {
-          box-shadow: var(--noora-light-border-default);
+          box-shadow: var(--noora-border-small-default);
           /* Same ground as the blog index cards (blog.css). */
           background: var(--noora-surface-background-tertiary);
           aspect-ratio: 16 / 9;

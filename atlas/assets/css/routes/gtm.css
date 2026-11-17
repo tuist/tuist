@@ -554,7 +554,7 @@
   & [data-part="post-revision-card"] {
     background: var(--noora-surface-background-primary);
     border-radius: var(--noora-radius-4);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -1144,7 +1144,7 @@
   & [data-part="recommendation-draft"] {
     background: var(--noora-surface-background-secondary);
     border-radius: var(--noora-radius-3);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     padding: var(--noora-spacing-4);
   }
 
@@ -1187,7 +1187,7 @@
   & [data-part="timeline-screenshot-tray"] {
     background: var(--noora-surface-background-secondary);
     border-radius: var(--noora-radius-3);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-3);
@@ -1234,7 +1234,7 @@
     aspect-ratio: 4 / 3;
     background: var(--noora-surface-background-primary);
     border-radius: var(--noora-radius-3);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     flex: 0 0 auto;
     overflow: hidden;
     position: relative;

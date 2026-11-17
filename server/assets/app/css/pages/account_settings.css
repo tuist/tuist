@@ -157,7 +157,7 @@
   & > [data-part="delete-organization-card-section"],
   & > [data-part="delete-user-card-section"] {
     & {
-      box-shadow: var(--noora-border-light-error);
+      box-shadow: var(--noora-border-small-error);
     }
   }
 

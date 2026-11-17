@@ -1,6 +1,6 @@
 #mfa-recovery-modal {
   box-sizing: border-box;
-  box-shadow: var(--noora-border-heavy);
+  box-shadow: var(--noora-border-large);
   border: 0;
   border-radius: var(--noora-radius-8);
   background: var(--noora-surface-background-primary);

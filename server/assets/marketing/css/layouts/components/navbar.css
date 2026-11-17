@@ -263,17 +263,12 @@
         }
       }
 
-      /* Slack/GitHub neutral buttons: 20px icons + the button's 6px padding
-         match the 32px height of the text buttons. Hover comes from the
-         neutral button itself. */
+      /* Slack/GitHub ghost buttons, sized and styled by the ghost button
+         itself: a 16px icon in a 32px square, the height of the text
+         buttons. */
       & > [data-part="icon"] {
         @media (max-width: 960px) {
           display: none;
-        }
-
-        & > svg {
-          width: 20px;
-          height: 20px;
         }
       }
 
@@ -332,7 +327,7 @@
           margin-top: 0;
           /* Noora hairline ring; its [data-theme="dark"] override swaps in
              the dark-scheme ring. */
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           border-radius: var(--noora-radius-6);
           background: var(--noora-surface-background-primary);
 
@@ -376,7 +371,7 @@
           display: none;
         }
 
-        /* Unlike other neutral buttons, the burger has no hover or press
+        /* Unlike other ghost buttons, the burger has no hover or press
            fill, and no native tap highlight either. */
         -webkit-tap-highlight-color: transparent;
 
@@ -512,7 +507,7 @@
           justify-content: center;
           align-items: center;
           padding: 0 var(--noora-spacing-3);
-          color: var(--noora-button-neutral-label);
+          color: var(--noora-button-ghost-secondary-label);
 
           & svg {
             transform: rotate(-90deg);
@@ -936,7 +931,7 @@
     /* Hairline ring from Noora + the Figma depth layer (0 8px 32px #08090a)
        rebuilt from the Noora neutral ramp at 10% alpha. */
     box-shadow:
-      var(--noora-border-light-default),
+      var(--noora-border-small-default),
       0 8px 32px
         color-mix(
           in oklch,
@@ -1020,7 +1015,7 @@
        global focus ring (see marketing.css) inward so the clip can't
        shave it. */
     &:focus-visible {
-      outline-offset: -2px;
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
       border-radius: var(--noora-radius-2);
     }
 

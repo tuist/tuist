@@ -12,8 +12,10 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.GoogleOneTap
   alias TuistWeb.LiveHooks.PublicPageChallenge
+  alias TuistWeb.Marketing.Layouts
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Noora.NooraLive
   alias TuistWeb.Plugs.AtlasRateLimitPlug
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
@@ -236,6 +238,25 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
   end
 
+  # The Noora documentation is English-only, so unlike the marketing pages it
+  # neither redirects to a localized route nor stores a locale preference.
+  pipeline :browser_noora do
+    plug :put_request_kind, "marketing"
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug :assign_current_path
+    plug :content_security_policy
+    plug :google_one_tap_content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
+  end
+
   # The newsletter signup form submits with `Accept: application/json`.
   pipeline :browser_marketing_form do
     plug :put_request_kind, "marketing"
@@ -248,7 +269,7 @@ defmodule TuistWeb.Router do
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
+    plug :put_root_layout, html: {Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
@@ -545,6 +566,22 @@ defmodule TuistWeb.Router do
     # Build traces for agents. The token is the authorization: the MCP server
     # signs it for one build after authorizing the caller.
     get "/build-traces/:token", BuildController, :signed_trace, metadata: %{robots_txt: false}
+  end
+
+  scope "/" do
+    pipe_through [:open_api, :browser_noora]
+
+    # The status badge moved into the badge page.
+    redirect("/noora/status-badge", "/noora/badge", :permanent)
+    # The inline and button dropdowns moved into the dropdown page.
+    redirect("/noora/inline-dropdown", "/noora/dropdown", :permanent)
+    redirect("/noora/button-dropdown", "/noora/dropdown", :permanent)
+    redirect("/noora/neutral-button", "/noora/button", :permanent)
+
+    live_session :noora do
+      live "/noora", NooraLive, metadata: %{type: :marketing, robots_txt: false}
+      live "/noora/:page", NooraLive, metadata: %{type: :marketing, robots_txt: false}
+    end
   end
 
   scope "/" do

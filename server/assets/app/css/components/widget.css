@@ -7,7 +7,7 @@
   }
 
   &[data-selected] .tuist-widget {
-    box-shadow: var(--noora-border-light-focus);
+    box-shadow: var(--noora-border-small-focus);
   }
 }
 

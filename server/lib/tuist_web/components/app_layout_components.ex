@@ -740,7 +740,7 @@ defmodule TuistWeb.AppLayoutComponents do
           label={Tuist.Environment.server_version_identifier()}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         >
           <:icon><.git_branch /></:icon>
         </.badge>
@@ -834,9 +834,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
-          badge_label={breadcrumb[:badge] && breadcrumb.badge.label}
-          badge_color={breadcrumb[:badge] && breadcrumb.badge.color}
-          build_tool={breadcrumb[:build_tool]}
+          image={Map.get(breadcrumb, :image)}
         >
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
@@ -849,9 +847,7 @@ defmodule TuistWeb.AppLayoutComponents do
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             icon={Map.get(breadcrumb_item, :icon)}
-            badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
-            badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
-            build_tool={breadcrumb_item[:build_tool]}
+            image={Map.get(breadcrumb_item, :image)}
           />
           <:footer :if={Map.get(breadcrumb, :footer_items)}>
             <.breadcrumb_item
@@ -864,9 +860,7 @@ defmodule TuistWeb.AppLayoutComponents do
               show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
               avatar_color={Map.get(breadcrumb_item, :avatar_color)}
               icon={Map.get(breadcrumb_item, :icon)}
-              badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
-              badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
-              build_tool={breadcrumb_item[:build_tool]}
+              image={Map.get(breadcrumb_item, :image)}
             />
           </:footer>
         </.breadcrumb>

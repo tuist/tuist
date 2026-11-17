@@ -139,7 +139,7 @@ function statusBadge(status: ComponentStatus): Renderable {
 
 function severityBadge(severity: IncidentSeverity): Renderable {
   const color = SEVERITY_TO_BADGE_COLOR[severity];
-  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="large"
+  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="medium"
     ><span>${SEVERITY_LABEL[severity]}</span></span
   >`;
 }
@@ -191,7 +191,7 @@ function stateBadge(status: ComponentStatus): Renderable {
     class="noora-badge"
     data-style="light-fill"
     data-color="${color}"
-    data-size="large"
+    data-size="medium"
     data-icon="true"
   >
     <div data-part="icon">${raw(glyph)}</div>

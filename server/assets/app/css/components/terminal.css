@@ -1,8 +1,10 @@
+@import "../../../shared/css/copy-sweep.css";
+
 .tuist-terminal {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-3);
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-6);
   padding: var(--noora-spacing-2);
 
@@ -19,11 +21,17 @@
     }
   }
 
+  /* Copy confirmation sweep (see copy-sweep.css); the padding gives back the
+     border's 1px. */
   & > [data-part="body"] {
     box-shadow: var(--noora-border-section);
+    border: 1px solid transparent;
     border-radius: var(--noora-radius-4);
-    background: var(--noora-surface-background-tertiary);
-    padding: var(--noora-spacing-6) var(--noora-spacing-5);
+    background:
+      linear-gradient(var(--noora-surface-background-tertiary), var(--noora-surface-background-tertiary)) padding-box,
+      var(--copy-sweep),
+      linear-gradient(var(--noora-surface-background-tertiary), var(--noora-surface-background-tertiary)) border-box;
+    padding: calc(var(--noora-spacing-6) - 1px) calc(var(--noora-spacing-5) - 1px);
     line-break: anywhere;
     /* Commands read left to right in every locale. */
     direction: ltr;
@@ -33,5 +41,11 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tuist-terminal:has(> [data-part="header"] [data-copied]) > [data-part="body"] {
+    animation: copy-sweep var(--copy-sweep-duration) var(--ease-out-cubic);
   }
 }

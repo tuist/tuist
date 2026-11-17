@@ -10,8 +10,8 @@
 }
 
 [data-part="demo-layout"] a:focus-visible {
-  outline: 2px solid var(--noora-purple-500);
-  outline-offset: 2px;
+  outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+  outline-offset: var(--noora-focus-ring-offset);
 }
 
 [data-part="demo-content"] {

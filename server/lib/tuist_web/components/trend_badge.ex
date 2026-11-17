@@ -25,7 +25,7 @@ defmodule TuistWeb.Components.TrendBadge do
 
     ~H"""
     <.badge
-      size="large"
+      size="medium"
       label={
         @label ||
           cond do

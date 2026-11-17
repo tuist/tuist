@@ -6,7 +6,7 @@
 
   & > [data-part="wrapper"] {
     padding: var(--noora-spacing-5);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     display: flex;
@@ -24,16 +24,16 @@
       &:hover,
       &:focus-visible {
         background: var(--noora-surface-background-secondary);
-        box-shadow: var(--noora-light-border-focus);
+        box-shadow: var(--noora-border-small-focus);
       }
     }
   }
 
   &[data-error] > [data-part="wrapper"] {
-    box-shadow: var(--noora-border-light-error);
+    box-shadow: var(--noora-border-small-error);
 
     &:hover {
-      box-shadow: var(--noora-border-light-error-focus);
+      box-shadow: var(--noora-border-small-error-focus);
     }
   }
 

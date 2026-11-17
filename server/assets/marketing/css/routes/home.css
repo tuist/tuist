@@ -687,7 +687,7 @@
             justify-content: center;
             align-items: center;
             box-sizing: border-box;
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
             border-radius: 8px;
             background: var(--noora-surface-background-primary);
 
@@ -1897,8 +1897,8 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-500);
-        outline-offset: 6px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       &:hover {
@@ -2214,8 +2214,8 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-500);
-        outline-offset: 6px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       & > img {
@@ -2354,7 +2354,7 @@
       justify-content: center;
       align-items: flex-start;
       gap: var(--noora-spacing-7);
-      box-shadow: var(--noora-light-border-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-6);
 
       @media (min-width: 1024px) {
@@ -2371,8 +2371,8 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-500);
-        outline-offset: 6px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
 
       & > [data-part="background"] {
@@ -2494,7 +2494,7 @@
         justify-content: center;
         align-items: center;
         box-sizing: border-box;
-        box-shadow: var(--noora-light-border-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-6);
         padding: var(--noora-spacing-9) var(--noora-spacing-10);
 
@@ -2744,8 +2744,8 @@
           }
 
           &:focus-visible {
-            outline: 2px solid var(--noora-purple-500);
-            outline-offset: -2px;
+            outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+            outline-offset: calc(-1 * var(--noora-focus-ring-width));
           }
         }
 
@@ -3080,4 +3080,9 @@
       margin-top: var(--noora-spacing-9);
     }
   }
+}
+
+/* On the home page only, the footer's "Ask about Tuist on" icons are 20px. */
+body:has(#marketing-home) #marketing-footer [data-part="ask-assistants"] > .noora-button {
+  --noora-button-icon-size: 20px;
 }

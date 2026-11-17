@@ -208,13 +208,17 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
       .edge-graph-lab__edge-toggle {
         display: inline-flex;
         align-items: center;
-        gap: var(--noora-spacing-3);
+        gap: var(--noora-spacing-4);
         padding: 0;
         border: 0;
         background: none;
         cursor: pointer;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+
+      .edge-graph-lab__edge-toggle > .noora-checkbox-control {
+        margin-block: calc(-1 * var(--noora-spacing-1));
       }
 
       .edge-graph-lab__graph {

@@ -190,7 +190,7 @@ defmodule TuistWeb.DocsLiveTest do
 
         assert has_element?(
                  view,
-                 ~s(a[href="/en/docs/guides/get-started/rust-project"] svg[fill="currentColor"])
+                 ~s(a[href="/en/docs/guides/get-started/rust-project"] svg path[fill="currentColor"])
                )
       end
     end

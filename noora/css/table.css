@@ -3,7 +3,7 @@
 .noora-table {
   box-sizing: border-box;
   position: relative;
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-4);
   background: var(--noora-surface-table-header);
   padding: var(--noora-spacing-0);
@@ -20,17 +20,16 @@
     overscroll-behavior-x: none;
 
     /* Browsers make a horizontally scrollable region keyboard-focusable so it can be scrolled
-     * with the arrow keys. Replace the default full-bleed focus ring with a restrained inset
-     * one that follows the table's rounded corners, so a focused scroll area reads as a focused
-     * control rather than a selected table. */
+     * with the arrow keys. Its focus ring is drawn around the whole table (below): inside the
+     * scroll area, the header and rows would paint over it. */
     &:focus-visible {
-      outline: 2px solid
-        light-dark(
-          var(--noora-neutral-light-1000),
-          var(--noora-neutral-dark-1200)
-        );
-      outline-offset: -2px;
+      outline: none;
     }
+  }
+
+  /* The focused scroll area's ring, outside the table and following its rounded corners. */
+  &:has(> [data-part="scroll-container"]:focus-visible) {
+    box-shadow: var(--noora-focus-ring), var(--noora-border-small-default);
   }
 
   /* Floating horizontal scrollbar, driven by the `NooraTable` hook. While the table is on screen
@@ -151,7 +150,7 @@
       bottom: 0;
       inset-inline-start: 0;
       z-index: 1;
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       pointer-events: none;
       content: "";
@@ -212,7 +211,7 @@
 
               &:focus-visible {
                 outline: none;
-                box-shadow: var(--noora-button-border-secondary-focus);
+                box-shadow: var(--noora-button-border-focus);
               }
 
               /* The chevron is a 16px icon; the crossfade transition wraps it in a span, so the
@@ -425,12 +424,8 @@
     }
 
     &:focus-visible {
-      outline: 2px solid
-        light-dark(
-          var(--noora-neutral-light-1000),
-          var(--noora-neutral-dark-1200)
-        );
-      outline-offset: -2px;
+      outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
     }
   }
 
@@ -507,7 +502,7 @@
         color: var(--noora-surface-label-primary);
 
         &:not(:has(img)) {
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           padding: 10px;
         }
 
@@ -581,7 +576,7 @@
 
   & > [data-part="icon"] {
     margin-bottom: var(--noora-spacing-8);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-3);

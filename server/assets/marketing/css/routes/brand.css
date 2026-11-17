@@ -160,7 +160,7 @@
           width: auto;
         }
 
-        /* Hover affordance: a Noora neutral button in the cell's corner.
+        /* Hover affordance: a Noora ghost button in the cell's corner.
            The cells are theme-fixed while the button's tokens are
            theme-aware, so each surface pins the button variables to its
            own ramp. */
@@ -186,20 +186,20 @@
           }
         }
 
-        /* The cells are theme-fixed while the neutral button tokens are
+        /* The cells are theme-fixed while the ghost button tokens are
            light-dark(); pin each surface to the corresponding half of the
            component's own token values so the button renders exactly as it
            would on a page in that theme. */
         &[data-surface="light"] > [data-part="download"] {
-          --noora-button-neutral-label: var(--noora-neutral-light-1200);
-          --noora-button-neutral-background-hover: var(--noora-neutral-light-200);
-          --noora-button-neutral-background-active: var(--noora-neutral-light-300);
+          --noora-button-ghost-secondary-label: var(--noora-neutral-light-1200);
+          --noora-button-ghost-secondary-hover: var(--noora-neutral-light-200);
+          --noora-button-ghost-secondary-selected: var(--noora-neutral-light-300);
         }
 
         &[data-surface="dark"] > [data-part="download"] {
-          --noora-button-neutral-label: var(--noora-neutral-light-50);
-          --noora-button-neutral-background-hover: var(--noora-neutral-dark-1000);
-          --noora-button-neutral-background-active: var(--noora-neutral-dark-900);
+          --noora-button-ghost-secondary-label: var(--noora-neutral-light-50);
+          --noora-button-ghost-secondary-hover: var(--noora-neutral-dark-1000);
+          --noora-button-ghost-secondary-selected: var(--noora-neutral-dark-900);
         }
 
         &:hover > [data-part="download"],

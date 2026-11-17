@@ -197,7 +197,7 @@
     align-items: center;
     justify-content: center;
     border-radius: var(--noora-radius-3);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     width: 2.5rem;
     height: 2.5rem;
     background: var(--noora-surface-background-primary);
@@ -229,7 +229,7 @@
 
   & [data-part="expense"] {
     border-radius: var(--noora-radius-4);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     background: var(--noora-surface-background-primary);
     overflow: hidden;
   }

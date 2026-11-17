@@ -326,14 +326,14 @@ defmodule TuistWeb.PulseErrorLive do
             label={@record["service"]}
             color="primary"
             style="light-fill"
-            size="large"
+            size="medium"
           />
           <.badge
             :if={@record["level"]}
             label={@record["level"]}
             color={PulseLive.error_level_color(@record["level"])}
             style="light-fill"
-            size="large"
+            size="medium"
           />
         </div>
       </div>

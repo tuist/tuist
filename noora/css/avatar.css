@@ -267,6 +267,11 @@
     display: block;
   }
 
+  /* Once the image loads, it replaces the initials. */
+  & [data-part="image"][data-state="visible"] ~ [data-part="initials"] {
+    display: none;
+  }
+
   & [data-part="fallback"][data-state="hidden"] {
     display: none;
   }
@@ -277,11 +282,97 @@
     text-align: center;
   }
 
-  & [data-part="fallback-image-background"] {
-    fill: var(--noora-avatar-gray-background);
+  /* Placeholder: an animated ordered-dither texture (see Noora.Avatar).
+     Four layers of dots on a 4px grid, offset within each 2x2 cell, together
+     fill a 2px grid. Ripples spreading from just off the bottom-left corner
+     reveal each layer, with a narrower ring for each successive layer, so
+     dot density swells toward the middle of each ring like an ordered
+     dither. Ring spacing is half the gradient's reach, so every avatar size
+     shows one to two broad waves; they roll outward slowly, by exactly one ring
+     spacing per 6s loop, so the motion is seamless. */
+  & [data-part="fallback"] {
+    --noora-avatar-dither-phase: 0%;
+    display: block;
+    position: relative;
+    animation: noora-avatar-dither 6s linear infinite;
+    background: var(--noora-avatar-gray-background);
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+
+    & [data-part="dither"] {
+      --noora-avatar-dither-edge: 0%;
+      position: absolute;
+      inset: 0;
+      opacity: 0.4;
+      mask-image: repeating-radial-gradient(
+        circle at 10% 130%,
+        transparent var(--noora-avatar-dither-phase),
+        transparent
+          calc(
+            var(--noora-avatar-dither-phase) + var(--noora-avatar-dither-edge)
+          ),
+        #000
+          calc(
+            var(--noora-avatar-dither-phase) + var(--noora-avatar-dither-edge)
+          ),
+        #000
+          calc(
+            var(--noora-avatar-dither-phase) + 50% -
+              var(--noora-avatar-dither-edge)
+          ),
+        transparent
+          calc(
+            var(--noora-avatar-dither-phase) + 50% -
+              var(--noora-avatar-dither-edge)
+          ),
+        transparent calc(var(--noora-avatar-dither-phase) + 50%)
+      );
+      background-image: radial-gradient(
+        circle,
+        var(--noora-avatar-gray-label) 0.75px,
+        transparent 1px
+      );
+      background-size: 4px 4px;
+
+      &:nth-child(1) {
+        --noora-avatar-dither-edge: 3.125%;
+        background-position: 0 0;
+      }
+
+      &:nth-child(2) {
+        --noora-avatar-dither-edge: 9.375%;
+        background-position: 2px 2px;
+      }
+
+      &:nth-child(3) {
+        --noora-avatar-dither-edge: 15.625%;
+        background-position: 2px 0;
+      }
+
+      &:nth-child(4) {
+        --noora-avatar-dither-edge: 21.875%;
+        background-position: 0 2px;
+      }
+    }
+  }
+}
+
+/* The ripple phase is registered so it can animate; one ring spacing (half
+   the gradient's reach) per loop. */
+@property --noora-avatar-dither-phase {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0%;
+}
+
+@keyframes noora-avatar-dither {
+  from {
+    --noora-avatar-dither-phase: 0%;
   }
 
-  & [data-part="fallback-image-label"] {
-    fill: var(--noora-avatar-gray-label);
+  to {
+    --noora-avatar-dither-phase: 50%;
   }
 }

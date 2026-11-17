@@ -78,7 +78,7 @@
     & [data-part="project"] {
       justify-content: space-between;
       cursor: pointer;
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       background: var(--noora-surface-background-primary);
 
       &:hover {
@@ -86,7 +86,7 @@
       }
 
       &:active {
-        box-shadow: var(--noora-border-light-focus);
+        box-shadow: var(--noora-border-small-focus);
       }
 
       & > [data-part="title"] {

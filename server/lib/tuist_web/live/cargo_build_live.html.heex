@@ -67,7 +67,7 @@
               }
               color={if @build.status == "success", do: "success", else: "destructive"}
               style="fill"
-              size="large"
+              size="medium"
             />
           </div>
           <div data-part="metadata">
@@ -250,14 +250,14 @@
             }
           >
             <:trigger :let={attrs}>
-              <.neutral_button
+              <.ghost_button
                 variant="secondary"
                 size="medium"
                 aria-label={dgettext("dashboard_builds", "About compiler jobs")}
                 {attrs}
               >
                 <.info_circle />
-              </.neutral_button>
+              </.ghost_button>
             </:trigger>
           </.tooltip>
         </:actions>

@@ -440,7 +440,7 @@
               justify-content: center;
               align-items: center;
               z-index: var(--noora-z-index-1);
-              box-shadow: var(--noora-border-light-default);
+              box-shadow: var(--noora-border-small-default);
               border-radius: var(--noora-radius-3);
               background: var(--noora-surface-background-primary);
               padding: var(--noora-spacing-3);

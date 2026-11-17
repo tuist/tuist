@@ -15,15 +15,16 @@
   }
 
   &[data-dot] {
+    padding-inline-end: var(--noora-spacing-3);
     padding-inline-start: var(--noora-spacing-0);
-  }
-
-  &[data-icon-only] {
-    padding: var(--noora-spacing-1);
   }
 
   &[data-size="small"] {
     font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    /* Optical balance: the xsmall step (10px) plus 1px reads as better
+       centered in the small badge. Only the size changes; the token's 12px
+       line height, and so the badge's height, stay as they are. */
+    font-size: calc(0.625rem + 1px);
 
     &[data-icon] {
       gap: var(--noora-spacing-1);
@@ -40,15 +41,44 @@
     }
   }
 
-  &[data-size="large"] {
+  &[data-size="medium"] {
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     &[data-icon] {
       gap: var(--noora-spacing-2);
     }
 
-    &[data-icon-only] {
-      padding: var(--noora-spacing-2);
+    &[data-dot] {
+      padding-inline-start: var(--noora-spacing-1);
+    }
+
+    /* Icons and dots sit in a 14px box, between Noora's 12px and 16px
+       icon sizes. */
+    & [data-part="icon"] {
+      width: 14px;
+      height: 14px;
+
+      & svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+  }
+
+  &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    /* Optical balance, as in the small badge: the medium step (14px) minus
+       1px. Only the size changes; the token's 20px line height, and so the
+       badge's height, stay as they are. */
+    font-size: calc(0.875rem - 1px);
+
+    &[data-icon] {
+      gap: var(--noora-spacing-2);
+    }
+
+    &[data-dot] {
+      padding-inline-end: var(--noora-spacing-4);
+      padding-inline-start: var(--noora-spacing-1);
     }
 
     & [data-part="icon"] {
@@ -63,7 +93,7 @@
   }
 
   &[data-style="fill"] {
-    color: var(--noora-badge-fill-label);
+    color: var(--noora-badge-fill-primary-label);
 
     &[data-color="neutral"] {
       background: var(--noora-badge-fill-neutral);
@@ -77,8 +107,15 @@
       background: var(--noora-badge-fill-warning);
     }
 
+    /* Yellow is too light for the white label, so the attention badge uses
+       the dark secondary label, for its text and its icon or dot. */
     &[data-color="attention"] {
       background: var(--noora-badge-fill-attention);
+      color: var(--noora-badge-fill-secondary-label);
+
+      & [data-part="icon"] rect {
+        fill: currentColor;
+      }
     }
 
     &[data-color="success"] {
@@ -102,103 +139,90 @@
     }
   }
 
+  /* The tint is drawn on a layer behind the content and blended with the
+     surface under the badge; blending the badge itself would blend its label
+     too. Where an ancestor isolates blending, the tint shows as it is. */
   &[data-style="light-fill"] {
+    position: relative;
+
+    &::before {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--noora-badge-light-fill-background);
+      content: "";
+      mix-blend-mode: var(--noora-badge-light-fill-blend-mode);
+    }
+
+    & > * {
+      position: relative;
+    }
+
+    &[data-disabled]::before {
+      display: none;
+    }
+
     &[data-color="neutral"] {
-      background: var(--noora-badge-light-fill-neutral-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-neutral-background
+      );
       color: var(--noora-badge-light-fill-neutral-label);
-      box-shadow: 0 0 0 1px
-        light-dark(
-          color-mix(in oklch, var(--noora-neutral-light-1100) 40%, transparent),
-          color-mix(in oklch, var(--noora-neutral-light-100) 20%, transparent)
-        );
     }
 
     &[data-color="destructive"] {
-      background: var(--noora-badge-light-fill-destructive-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-destructive-background
+      );
       color: var(--noora-badge-light-fill-destructive-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-destructive-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="warning"] {
-      background: var(--noora-badge-light-fill-warning-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-warning-background
+      );
       color: var(--noora-badge-light-fill-warning-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-warning-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="attention"] {
-      background: var(--noora-badge-light-fill-attention-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-attention-background
+      );
       color: var(--noora-badge-light-fill-attention-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-attention-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="success"] {
-      background: var(--noora-badge-light-fill-success-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-success-background
+      );
       color: var(--noora-badge-light-fill-success-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-success-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="information"] {
-      background: var(--noora-badge-light-fill-information-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-information-background
+      );
       color: var(--noora-badge-light-fill-information-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-information-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="focus"] {
-      background: var(--noora-badge-light-fill-focus-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-focus-background
+      );
       color: var(--noora-badge-light-fill-focus-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-focus-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="primary"] {
-      background: var(--noora-badge-light-fill-primary-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-primary-background
+      );
       color: var(--noora-badge-light-fill-primary-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-primary-label) 40%,
-          transparent
-        );
     }
 
     &[data-color="secondary"] {
-      background: var(--noora-badge-light-fill-secondary-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-secondary-background
+      );
       color: var(--noora-badge-light-fill-secondary-label);
-      box-shadow: 0 0 0 1px
-        color-mix(
-          in oklch,
-          var(--noora-badge-light-fill-secondary-label) 40%,
-          transparent
-        );
     }
   }
 }
@@ -208,11 +232,11 @@
   justify-content: center;
   align-items: center;
   gap: var(--noora-spacing-2);
-  box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-3);
+  box-shadow: var(--noora-border-small-default);
+  border-radius: var(--noora-radius-2);
   background: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
-    var(--noora-spacing-2);
+  padding-block: var(--noora-spacing-1);
+  padding-inline: var(--noora-spacing-2) var(--noora-spacing-4);
 
   & [data-part="icon"] {
     display: inline-flex;
@@ -225,8 +249,11 @@
     }
   }
 
+  /* Matches the large badge: the medium font step (14px) minus 1px, keeping
+     the token's 20px line height. */
   & [data-part="label"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    font-size: calc(0.875rem - 1px);
   }
 
   &:not([data-status="disabled"]) {
@@ -251,5 +278,28 @@
   }
   &[data-status="in_progress"] [data-part="icon"] {
     color: var(--noora-badge-status-in-progress);
+  }
+
+  /* A running dot blinks, between half and full opacity. */
+  &[data-status="in_progress"][data-type="dot"] [data-part="icon"] {
+    animation: noora-status-badge-blink 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes noora-status-badge-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noora-status-badge[data-status="in_progress"][data-type="dot"]
+    [data-part="icon"] {
+    animation: none;
   }
 }
