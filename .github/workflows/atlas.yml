@@ -43,10 +43,10 @@ defaults:
 
 jobs:
   staging-remote-execution:
-    name: Once production qualification
+    name: Once staging qualification
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 80
     permissions:
       contents: read
       id-token: write
@@ -54,7 +54,8 @@ jobs:
       run:
         working-directory: .
     env:
-      ONCE_CACHE_PROVIDER: production
+      TUIST_URL: https://staging.tuist.dev
+      ONCE_CACHE_PROVIDER: staging
       MIX_HOME: /opt/mix
       MIX_REBAR3: /opt/mix/rebar3
       ERL_FLAGS: '+S 4:4'
@@ -75,12 +76,12 @@ jobs:
           echo /opt/elixir/bin >> "$GITHUB_PATH"
       - name: Install both published candidates
         run: |
-          for candidate in 8; do
+          for candidate in 8 9; do
             version="0.82.6-once-re.$candidate"
             archive="once-$version-x86_64-unknown-linux-gnu.tar.gz"
             case "$candidate" in
-              7) checksum=5657d06d07fca6806deb1a7e0bd4aa45d39b99f73db7bef2c1eda9ffedc21624 ;;
               8) checksum=335a74ebf150ce0d0acfc800b985c285e77e1687e2a72009a44f5dedd4b3a545 ;;
+              9) checksum=4282415f1d67107d7525d53796427d5ea3644438c7752863c5d2539ba820b92f ;;
             esac
             curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/$version/$archive" -o "$RUNNER_TEMP/$archive"
             echo "$checksum  $RUNNER_TEMP/$archive" | sha256sum -c -
@@ -88,23 +89,24 @@ jobs:
             tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/once-bin-$candidate"
             "$RUNNER_TEMP/once-bin-$candidate/once" --version
           done
-          echo "$RUNNER_TEMP/once-bin-8" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/once-bin-9" >> "$GITHUB_PATH"
       - name: Configure staging without production credentials
         run: |
           cat >> once.toml <<'EOF'
 
-          [infrastructures.production]
+          [infrastructures.staging]
           kind = "tuist"
           account = "tuist"
-          project = "atlas"
-          execution_image = "sha-75b269855aac"
+          project = "kura"
+          url = "https://staging.tuist.dev"
+          execution_image = "sha-4f5b165bf63c"
 
           [infrastructure.execution]
-          provider = "production"
+          provider = "staging"
 
           [infrastructure.execution.properties.elixir]
           schema_version = 1
-          environment = "sha-75b269855aac"
+          environment = "sha-4f5b165bf63c"
           os = "linux"
           arch = "x86_64"
           elixir_bin = "/opt/elixir/bin"
@@ -116,7 +118,7 @@ jobs:
           cp once.toml "$RUNNER_TEMP/once-evidence/once.toml"
           nproc | tee "$RUNNER_TEMP/once-evidence/coordinator-cpus.txt"
           free -b > "$RUNNER_TEMP/once-evidence/coordinator-memory.txt"
-          once auth login --provider production --no-browser
+          once auth login --provider staging --no-browser
       - name: Materialize locked dependency sources
         working-directory: atlas
         run: mix deps.get --check-locked
@@ -124,20 +126,29 @@ jobs:
         run: |
           set -euo pipefail
           coordinator_path="$PATH"
-          for trial in 1; do
-            candidates="8"
-            for candidate in $candidates; do
+          # Each mode builds cold, then warm from the remote cache, on this
+          # runner; modes rotate so no mode always runs first.
+          for trial in 1 2 3; do
+            case "$trial" in
+              1) modes="local remote-9 remote-8" ;;
+              2) modes="remote-9 remote-8 local" ;;
+              3) modes="remote-8 local remote-9" ;;
+            esac
+            for mode in $modes; do
+              candidate="${mode#remote-}"
+              remote_flags=(--remote --compute staging)
+              if [ "$mode" = local ]; then candidate=9; remote_flags=(); fi
               export PATH="$RUNNER_TEMP/once-bin-$candidate:$coordinator_path"
-              token="once-production-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$candidate"
-              evidence="$RUNNER_TEMP/once-evidence/candidate-$candidate/trial-$trial"
+              token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$mode"
+              evidence="$RUNNER_TEMP/once-evidence/$mode/trial-$trial"
               mkdir -p "$evidence"
               once --version | tee "$evidence/version.txt"
               for phase in cold warm; do
                 rm -rf .once
-                export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$candidate-$trial-$phase"
+                export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$mode-$trial-$phase"
                 export XDG_STATE_HOME="$evidence/$phase-state"
                 /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
-                  once -vv build --remote --compute production --config "token=$token" atlas/mix_application_test \
+                  once -vv build "${remote_flags[@]}" --config "token=$token" atlas/mix_application_test \
                   2>&1 | tee "$evidence/$phase.log"
                 once --format json cache stats > "$evidence/$phase-cache-stats.json"
                 find .once/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
@@ -146,7 +157,14 @@ jobs:
               done
               diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
               diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
-              grep -q 'remote action completed' "$evidence/cold.log"
+              if [ "$mode" = local ]; then
+                if grep -q 'remote action completed' "$evidence/cold.log"; then
+                  echo 'The local baseline dispatched worker actions' >&2
+                  exit 1
+                fi
+              else
+                  grep -q 'remote action completed' "$evidence/cold.log"
+              fi
               if grep -q 'remote execution response' "$evidence/warm.log"; then
                 echo 'Warm restoration unexpectedly dispatched worker actions' >&2
                 exit 1
@@ -156,7 +174,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: once-production-evidence
+          name: once-staging-evidence
           path: ${{ runner.temp }}/once-evidence
 
   automation-contracts:
