@@ -50,15 +50,13 @@ defmodule Tuist.Kura.Placement do
 
   @default_policy %{
     air: %{
-      # Two, so an account whose work is genuinely split is not forced to serve
-      # half of it from the wrong side of an ocean. The floors are higher than
-      # Pro's rather than lower: a second instance is the expensive thing, so a
-      # plan that funds fewer of them should take more traffic to open one, not
-      # less. Without a second slot every Air relocation also tore the source
-      # down unconditionally (`retire_source?` has no other answer at
-      # `max_instances: 1`), which is the destroy-and-cold-refill that rung
-      # exists to avoid.
-      max_instances: 2,
+      # One. Air is free, and a second instance reserves the account's whole
+      # claim in another region, so Air never expands: an account whose
+      # traffic moves has its primary moved after it, and the region it leaves
+      # is given up. That is a cold refill on every Air relocation, which a free
+      # cache can take. An Air account still holding a second region from when
+      # Air had two gives it up through `retire_over_cap`.
+      max_instances: 1,
       correct_initial: %{
         window_days: 7,
         majority_share: 0.8,
@@ -72,7 +70,7 @@ defmodule Tuist.Kura.Placement do
         min_runs_per_day: 10,
         min_active_days: 5
       },
-      expand: %{window_days: 14, min_runs_per_day: 100, min_active_days: 7},
+      expand: nil,
       retire: %{window_days: 90, max_runs_per_day: 20},
       relocation_window_days: 90,
       max_relocations_per_window: 1
@@ -219,6 +217,7 @@ defmodule Tuist.Kura.Placement do
       relocate_to_hits(context, plan_policy, served, served_policy) ||
       relocate_to_origin_hits(context, plan_policy, served, served_policy) ||
       relocate(context, plan_policy, runs, served, served_policy) ||
+      retire_over_cap(context, plan_policy, runs, served, served_policy) ||
       expand(context, plan_policy, runs, served, served_policy) ||
       retire_zero_hits(context, served, served_policy) ||
       retire_idle(context, served, served_policy) ||
@@ -361,7 +360,10 @@ defmodule Tuist.Kura.Placement do
         evidence =
           "majority_of_hits_moved"
           |> served_evidence(rung.window_days, region_hits, total, active)
-          |> Map.put("retire_source", idle?(context, served, served_policy.retire, context.primary))
+          |> Map.put(
+            "retire_source",
+            over_cap?(context, plan_policy, 0) or idle?(context, served, served_policy.retire, context.primary)
+          )
 
         {:relocate, context.primary, region, evidence}
       else
@@ -403,7 +405,10 @@ defmodule Tuist.Kura.Placement do
         evidence =
           "majority_of_origin_hits_moved"
           |> served_evidence(rung.window_days, region_hits, total, active)
-          |> Map.put("retire_source", idle?(context, served, served_policy.retire, context.primary))
+          |> Map.put(
+            "retire_source",
+            over_cap?(context, plan_policy, 1) or idle?(context, served, served_policy.retire, context.primary)
+          )
           |> Map.put("origin_map_version", OriginMap.version())
 
         {:relocate, context.primary, region, evidence}
@@ -620,6 +625,48 @@ defmodule Tuist.Kura.Placement do
     case Map.get(served.given_up, region) do
       nil -> false
       given_up_on -> Date.diff(context.today, given_up_on) < rung.reopen_after_days
+    end
+  end
+
+  # Whether the account would hold more regions than its plan funds once it
+  # opens `opening` more. Retiring regions are already on their way out.
+  defp over_cap?(context, plan_policy, opening) do
+    length(context.serving -- context.retiring) + opening > plan_policy.max_instances
+  end
+
+  # An account holding more regions than its plan funds gives up a secondary,
+  # the one that carried the least of its traffic, without waiting for the
+  # retirement floors: its plan does not fund the region however busy it is.
+  # This is how Air accounts let go of the second region Air used to fund. It
+  # runs after the relocation rungs, so an account whose traffic moved to its
+  # secondary moves its primary there first and gives up the old one with it.
+  defp retire_over_cap(context, plan_policy, runs, served, served_policy) do
+    if over_cap?(context, plan_policy, 0) do
+      {traffic, window_days} =
+        if served == nil,
+          do: {runs, plan_policy.retire.window_days},
+          else: {served.hits, served_policy.retire.window_days}
+
+      window = window_range(context.today, window_days)
+      totals = totals_in(traffic, window)
+
+      context.serving
+      |> Enum.reject(&(&1 == context.primary or &1 in context.retiring))
+      |> Enum.min_by(&Map.get(totals, &1, 0), fn -> nil end)
+      |> case do
+        nil ->
+          nil
+
+        region ->
+          {:retire, region,
+           %{
+             "signal" => "over_instance_cap",
+             "window_days" => window_days,
+             "region_traffic" => Map.get(totals, region, 0),
+             "total_traffic" => totals |> Map.values() |> Enum.sum(),
+             "max_instances" => plan_policy.max_instances
+           }}
+      end
     end
   end
 
