@@ -22,6 +22,7 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 
 // objectStore stands in for presigned multipart uploads and downloads.
@@ -569,8 +570,20 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 	}
 	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256, LazyDisks: true}
 
-	for _, tc := range []struct{ id, compat string }{{"warm", "zen5"}, {"cold", "zen4"}} {
+	// "stuck" is a guest that never answers once its memory loaded: its
+	// synced disks cold boot instead.
+	for _, tc := range []struct{ id, compat string }{{"warm", "zen5"}, {"cold", "zen4"}, {"stuck", "zen5"}} {
 		other := node(tc.compat)
+		if tc.id == "stuck" {
+			other.m.cfg.BootTimeout = 300 * time.Millisecond
+			agent, calls := other.m.agent, 0
+			other.m.agent = func(path string) vsock.Agent {
+				if calls++; calls == 1 {
+					return silentAgent{}
+				}
+				return agent(path)
+			}
+		}
 		restore := args
 		restore.SandboxID, restore.FromArchive = tc.id, source
 		created, err := other.m.Create(ctx, restore)
@@ -582,6 +595,15 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 				t.Fatal("a warm restore must report its memory as pending")
 			}
 			other.events.wait(t, protocol.EventMemoryLoaded, 10*time.Second)
+		}
+		if tc.id == "stuck" {
+			booted := false
+			for _, call := range other.launcher.Last().Calls() {
+				booted = booted || call.Path == "/actions"
+			}
+			if !booted {
+				t.Fatal("a guest that never answered must cold boot its disks")
+			}
 		}
 		restored := vm.RootDir(other.jailBase, tc.id)
 		gotWorkspace, _ := os.ReadFile(filepath.Join(restored, "workspace.ext4"))
@@ -610,4 +632,11 @@ func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 		t.Fatal("an archive with lazy disks must not restore as one without")
 	}
 	_ = store
+}
+
+// silentAgent is a guest agent that never answers.
+type silentAgent struct{ vsock.Agent }
+
+func (silentAgent) Ping(context.Context) (vsock.Pong, error) {
+	return vsock.Pong{}, errors.New("no answer")
 }

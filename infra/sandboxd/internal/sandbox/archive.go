@@ -21,6 +21,7 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/uffd"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 
 // Archiving uploads a paused sandbox's kernel and disks to object storage so
@@ -391,7 +392,15 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	log = log.With("slot", slot, "from_archive", true)
 	if header.Memory != nil {
 		if header.Memory.Compat == m.cfg.SnapshotCompat && header.Memory.Size == int64(args.MemoryMB)<<20 {
-			return m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
+			res, err = m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
+			// A guest that never answers after its memory loaded would
+			// fail every restore the same way; synced disks hold its files
+			// without the memory, so they cold boot instead.
+			if err == nil || !header.DisksSynced || !errors.Is(err, vsock.ErrAgentNotReady) || ctx.Err() != nil {
+				return res, err
+			}
+			log.Warn("archived memory did not resume; cold booting the disks", "error", err)
+			return m.coldCreateAfterWarm(ctx, sb, log)
 		}
 		// Its disks miss what the guest had not synced; only the memory
 		// image holds it.
@@ -574,6 +583,30 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	log.Info("sandbox resumed from its archived memory", "restore", time.Since(started), "pid", inst.PID(),
 		"chunks", stats.Chunks, "stored_chunks", memory.StoredChunks(), "faulted", stats.Faulted, "filled", stats.Filled)
 	return protocol.CreateResult{BootMs: time.Since(started).Milliseconds(), MemoryPending: true}, nil
+}
+
+// coldCreateAfterWarm boots the kernel on a restore's disks once its
+// archived memory did not resume. Disks still arriving through their mounts
+// keep arriving as after a warm restore, so the archive stays until they are
+// all on the node.
+func (m *Manager) coldCreateAfterWarm(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
+	for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName, memSocket} {
+		_ = os.Remove(filepath.Join(sb.root, name))
+	}
+	sb.mu.Lock()
+	sb.memoryPending = false
+	disks := sb.lazy
+	sb.mu.Unlock()
+	res, err := m.coldCreate(ctx, sb, log)
+	if err != nil || disks == nil {
+		return res, err
+	}
+	sb.mu.Lock()
+	inst := sb.inst
+	sb.mu.Unlock()
+	go m.serveLazyDisks(sb, disks, inst, log)
+	res.MemoryPending = true
+	return res, nil
 }
 
 // memoryLoaded reports that a warm restore's memory is all on the node.

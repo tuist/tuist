@@ -198,7 +198,10 @@ memory image until they cold boot.
   SHA-256) ahead of a two-stream fill of the rest, answers
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
-  fetched kills the VM. Elsewhere it cold boots the disks. With
+  fetched kills the VM. Elsewhere it cold boots the disks, and so does a
+  warm restore of synced disks whose guest agent never answers (`agent not
+  ready`): the memory image is dropped, processes are lost, and lazy disks
+  keep arriving through their mounts. With
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or
