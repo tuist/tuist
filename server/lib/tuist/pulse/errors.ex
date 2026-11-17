@@ -5,8 +5,9 @@ defmodule Tuist.Pulse.Errors do
   Rows are written by the `sentry_errors` pipeline
   (`infra/helm/pulse/sentry-errors.yaml`), which computes Atlas's
   fingerprint and scrubs each event before storage. An issue is
-  `(service, fingerprint)`; its title, culprit, level and platform are those
-  of its latest event in the window. Timestamps are Unix nanoseconds as strings,
+  `(service, fingerprint)`; its title, culprit, level, platform and
+  environment are those of its latest event in the window, and `environments`
+  counts the distinct environments it occurred in. Timestamps are Unix nanoseconds as strings,
   like logs and traces. Occurrence series divide the window into 60 equal
   buckets labelled by their start in Unix seconds.
   """
@@ -21,6 +22,8 @@ defmodule Tuist.Pulse.Errors do
                    ~s|last_value(culprit ORDER BY timestamp) AS culprit, | <>
                    ~s|last_value("level" ORDER BY timestamp) AS "level", | <>
                    ~s|last_value(platform ORDER BY timestamp) AS platform, | <>
+                   ~s|last_value(environment ORDER BY timestamp) AS environment, | <>
+                   "count(DISTINCT nullif(environment, '')) AS environments, " <>
                    ~s|last_value(event_id ORDER BY timestamp) AS latest_event_id|
 
   @event_columns ~s|arrow_cast(timestamp, 'Int64') AS timestamp, event_id, title, "level", environment, "release", | <>
@@ -208,8 +211,8 @@ defmodule Tuist.Pulse.Errors do
 
   defp valid_issue?(row) do
     Enum.all?(~w(service fingerprint), &is_binary(row[&1])) and
-      Enum.all?(~w(title culprit level platform latest_event_id), &(is_binary(row[&1]) or is_nil(row[&1]))) and
-      Enum.all?(~w(events accounts first_seen last_seen), &(is_integer(row[&1]) and row[&1] >= 0))
+      Enum.all?(~w(title culprit level platform environment latest_event_id), &(is_binary(row[&1]) or is_nil(row[&1]))) and
+      Enum.all?(~w(events accounts environments first_seen last_seen), &(is_integer(row[&1]) and row[&1] >= 0))
   end
 
   defp valid_bucket?(row), do: is_integer(row["bucket"]) and is_integer(row["events"]) and row["events"] >= 0

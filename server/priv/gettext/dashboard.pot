@@ -220,7 +220,7 @@ msgstr ""
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
 #: lib/tuist_web/live/pulse_error_live.ex:299
-#: lib/tuist_web/live/pulse_live.ex:588
+#: lib/tuist_web/live/pulse_live.ex:602
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -272,7 +272,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:53
 #: lib/tuist_web/live/pulse_error_live.ex:290
-#: lib/tuist_web/live/pulse_live.ex:579
+#: lib/tuist_web/live/pulse_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -3018,7 +3018,7 @@ msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:279
 #: lib/tuist_web/live/mix_build_live.ex:320
-#: lib/tuist_web/live/pulse_live.ex:615
+#: lib/tuist_web/live/pulse_live.ex:629
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"

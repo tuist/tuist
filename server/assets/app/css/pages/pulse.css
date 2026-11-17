@@ -163,7 +163,7 @@
     gap: var(--noora-spacing-3);
     padding: var(--noora-spacing-3) var(--noora-spacing-7);
     min-width: 260px;
-    max-width: 480px;
+    max-width: 400px;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
   }
@@ -187,13 +187,8 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
-    & > .noora-badge,
-    & > [data-part="issue-service"] {
+    & > .noora-badge {
       flex-shrink: 0;
-    }
-
-    & > [data-part="issue-service"] {
-      white-space: nowrap;
     }
   }
 

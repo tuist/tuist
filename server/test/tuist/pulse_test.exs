@@ -376,7 +376,7 @@ defmodule Tuist.PulseTest do
     end
   end
 
-  @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id)
+  @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id environment environments)
   @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle sdk)
   @fingerprint String.duplicate("a1", 32)
 
@@ -398,7 +398,15 @@ defmodule Tuist.PulseTest do
              })
 
     assert Enum.map(rows, & &1["fingerprint"]) == [@fingerprint, String.duplicate("c3", 32)]
-    assert %{"first_seen" => "1794329254000000001", "last_seen" => "1794329255000000002", "accounts" => 1} = hd(rows)
+
+    assert %{
+             "first_seen" => "1794329254000000001",
+             "last_seen" => "1794329255000000002",
+             "accounts" => 1,
+             "environment" => "production",
+             "environments" => 2
+           } = hd(rows)
+
     assert meta["total_count"] == 2
 
     # The worker's events under the same fingerprint stay out of the server issue's trend.
@@ -456,6 +464,8 @@ defmodule Tuist.PulseTest do
     assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
     assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 GROUP BY service, fingerprint ORDER BY last_seen DESC"
     assert sql =~ "count(DISTINCT nullif(account_handle, '')) AS accounts"
+    assert sql =~ "last_value(environment ORDER BY timestamp) AS environment, "
+    assert sql =~ "count(DISTINCT nullif(environment, '')) AS environments"
     assert String.ends_with?(sql, " LIMIT 100")
 
     response(
@@ -471,7 +481,9 @@ defmodule Tuist.PulseTest do
           "f/1",
           "error",
           "elixir",
-          "aa"
+          "aa",
+          "production",
+          2
         ],
         [
           "worker",
@@ -484,7 +496,9 @@ defmodule Tuist.PulseTest do
           nil,
           "warning",
           nil,
-          "bb"
+          "bb",
+          "staging",
+          1
         ],
         [
           "server",
@@ -497,7 +511,9 @@ defmodule Tuist.PulseTest do
           nil,
           "fatal",
           nil,
-          "cc"
+          "cc",
+          nil,
+          0
         ]
       ])
     )
@@ -533,7 +549,9 @@ defmodule Tuist.PulseTest do
                 "f/1",
                 "error",
                 "elixir",
-                "ee"
+                "ee",
+                "production",
+                1
               ]
             ])
           )

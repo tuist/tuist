@@ -132,6 +132,8 @@ defmodule Tuist.Pulse.Schemas do
       title: string(true),
       culprit: string(true),
       platform: string(true),
+      environment: string(true),
+      environments: %Schema{type: :integer, description: "Errors: distinct environments in the window."},
       events: %Schema{type: :integer},
       accounts: %Schema{type: :integer, description: "Distinct impacted account handles."},
       first_seen: string(),

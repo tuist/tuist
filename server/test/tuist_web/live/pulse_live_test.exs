@@ -346,8 +346,8 @@ defmodule TuistWeb.PulseLiveTest do
     refute has_element?(view, "#pulse-analytics", "vs previous")
   end
 
-  test "error rows and trends preserve distinct service identity", ctx do
-    rows = [issue(), Map.put(issue(), "service", "cache")]
+  test "error rows show service and environment and keep distinct service identity", ctx do
+    rows = [issue(), %{issue() | "service" => "cache", "environment" => "staging", "environments" => 1}]
     stub(Pulse, :query, fn _, _, "errors", _ -> {:ok, %{result("errors") | rows: rows}} end)
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/errors")
     document = view |> render_async() |> Floki.parse_document!()
@@ -358,6 +358,14 @@ defmodule TuistWeb.PulseLiveTest do
     links = document |> Floki.find("#pulse-table [data-part='row-link']") |> Floki.attribute("href")
     assert Enum.map(links, &URI.decode_query(URI.parse(&1).query)["service"]) == ["server", "cache"]
     assert Enum.all?(links, &(URI.parse(&1).path == "/#{ctx.account.name}/pulse/errors/issues/#{fingerprint()}"))
+
+    column =
+      &(document
+        |> Floki.find("#pulse-table [data-column='#{&1}']")
+        |> Enum.map(fn cell -> cell |> Floki.text() |> String.trim() end))
+
+    assert column.("service") == ["server", "cache"]
+    assert column.("environment") == ["production +1", "staging"]
   end
 
   test "grouped errors link through issue and occurrence details without losing their window", ctx do
@@ -439,7 +447,17 @@ defmodule TuistWeb.PulseLiveTest do
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/errors")
     html = render_async(view)
     headers = html |> Floki.parse_document!() |> Floki.find("#pulse-table th") |> Enum.map(&Floki.text/1)
-    assert Enum.map(headers, &String.trim/1) == ["Issue", "Last seen", "First seen", "Trend", "Events"]
+
+    assert Enum.map(headers, &String.trim/1) == [
+             "Issue",
+             "Service",
+             "Environment",
+             "Last seen",
+             "First seen",
+             "Trend",
+             "Events"
+           ]
+
     assert has_element?(view, "#pulse-table [data-part='issue-context']", "error")
     assert has_element?(view, "#pulse-table [data-part='issue-culprit']", "MyApp.Worker.run/1")
     assert has_element?(view, "#pulse-table [title='Elixir'] svg")
@@ -765,6 +783,8 @@ defmodule TuistWeb.PulseLiveTest do
       "title" => "<script>not executable</script>",
       "level" => "error",
       "platform" => "elixir",
+      "environment" => "production",
+      "environments" => 2,
       "culprit" => "MyApp.Worker.run/1",
       "occurrence_series" => [[1_790_000_000, 40], [1_790_000_060, 0], [1_790_000_120, 3]],
       "events" => 43,

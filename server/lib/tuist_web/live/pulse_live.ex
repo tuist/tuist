@@ -514,9 +514,23 @@ defmodule TuistWeb.PulseLive do
                         <span :if={row["culprit"]} data-part="issue-culprit" title={row["culprit"]}>
                           {row["culprit"]}
                         </span>
-                        <span data-part="issue-service">· {row["service"]}</span>
                       </div>
                     </div>
+                  </:col>
+                  <:col
+                    :let={row}
+                    label={dgettext("dashboard_pulse", "Service")}
+                    patch={sort_patch(assigns, "service")}
+                    sort_order={@sort_by == "service" && @sort_order}
+                  >
+                    <.text_cell label={row["service"]} data-column="service" />
+                  </:col>
+                  <:col :let={row} label={dgettext("dashboard_pulse", "Environment")}>
+                    <.text_cell
+                      label={issue_environment(row)}
+                      title={issue_environment_title(row)}
+                      data-column="environment"
+                    />
                   </:col>
                   <:col
                     :let={row}
@@ -723,6 +737,22 @@ defmodule TuistWeb.PulseLive do
   def error_level_color(level) when level in ~w(error fatal), do: "destructive"
   def error_level_color(level) when level in ~w(warning warn), do: "warning"
   def error_level_color(_), do: "neutral"
+
+  # An issue shows its latest event's environment, and how many others it
+  # also occurred in within the window.
+  defp issue_environment(%{"environment" => environment} = row) when environment not in [nil, ""] do
+    case row["environments"] do
+      count when is_integer(count) and count > 1 -> "#{environment} +#{count - 1}"
+      _ -> environment
+    end
+  end
+
+  defp issue_environment(_row), do: "—"
+
+  defp issue_environment_title(%{"environments" => count}) when is_integer(count) and count > 1,
+    do: dngettext("dashboard_pulse", "Seen in %{count} environment", "Seen in %{count} environments", count)
+
+  defp issue_environment_title(_row), do: nil
 
   defp error_time_columns,
     do: [
