@@ -19,7 +19,9 @@ tunnel to `*`. Production's live sources, all on the production PDC network:
 
 Staging and canary each have a metrics source on their own PDC network:
 `Tuist Pulse Metrics (staging)` (`pulse-metrics-staging`) and `(canary)`
-(`pulse-metrics-canary`), same endpoint. Management has no PDC network yet.
+(`pulse-metrics-canary`), same endpoint. Management's own Pulse is
+`Tuist Pulse Metrics (management)` (`pulse-metrics-management`) on the
+`pdc-tuist-management` network, served by `infra/flux/pulse-pdc`.
 
 [`pulse-datasources.json`](pulse-datasources.json) holds their Grafana HTTP API
 bodies (`PUT /api/datasources/uid/<uid>`); Grafana Cloud does not import it.
@@ -116,20 +118,36 @@ run this way once per environment, with a static `cluster` label, and
 `Remote processing queue telemetry missing` (`bg1ewhe80qosgc`) counts each
 queue in its own query and fires when either is 0.
 
+### Management
+
+Management's CAPI, Flux, node-memory and control-plane rules, and Pod
+CrashLoop (whose only non-workload series were management's), read
+`pulse-metrics-management` since November 17. Management's Pulse is one pod on
+`tuist-mgmt`, so its three telemetry-missing rules (`cfxcyc9xtvlkwc`,
+`efxczczr9xlhcd`, `efxdevi9ry5mob`) keep **Error: Alerting**: an unreachable
+Pulse pages instead of silencing them. Like the workload copies, they count
+the series with `(sum(count_over_time(sel[w])) or vector(0)) + 0 < 1`,
+because Pulse's `absent_over_time` returns nothing for a missing series.
+
 ### Still on Grafana Cloud
 
-- The Cloud originals of split rules, for clusters outside Pulse (see above).
-- `kura-thin-pool-metrics-missing`, whose `unless` against a missing right side
-  Pulse fails to plan.
+- The Cloud originals of split rules whose selectors still match series
+  outside Pulse (see above). On November 17 the 13 halves that matched no
+  series anywhere were deleted.
 - `Pulse datanode telemetry missing` and `Pulse rejecting scans for lack of
   memory`, which must not depend on Pulse.
 - Long windows Pulse does not hold yet: `cfyi8f0lyqayof`, `dfygid92hevi8d` (3
   days) and `fg1c6ql650pvka` (7 days, also `label_replace(vector(...))`, which
   Pulse rejects).
-- `Kura - egress shaping integrity` (`afx2w05l6se0wc`), whose ten-way `or`
-  chain has joins on the right.
 - Senders that write only to Grafana Cloud (the external cache VMs, Synthetic
   Monitoring) and the Grafana Cloud usage rules.
+
+On November 17 two rules left this list. `kura-thin-pool-metrics-missing` became
+one rule per environment (`-stg` and `-can` copies), whose `unless` gets its
+label columns from a never-matching `or (READY < -1)` branch while Pulse
+images without the `and`/`unless` fix in `FORK.md` still run. `Kura - egress
+shaping integrity` (`afx2w05l6se0wc`) reads production Pulse with the
+`kura:node_region` recording inlined.
 
 The silent copies in the `pulse-shadow` folder were deleted on November 16
 once their originals were cut over or split.
