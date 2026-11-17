@@ -13,6 +13,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
@@ -20,6 +21,21 @@ defmodule Tuist.SandboxesTest do
 
   defp events(%Sandbox{id: id}) do
     ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
+  end
+
+  test "a thread's sandbox is left out of the account's sandbox list and lookup" do
+    account = account_fixture()
+    thread = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{Ecto.UUID.generate()}"})
+    other = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "orb-provider/1"})
+    hidden = sandbox_fixture(account: account, provider_environment_id: thread.id)
+    shown = sandbox_fixture(account: account, provider_environment_id: other.id)
+    plain = sandbox_fixture(account: account)
+
+    assert Enum.sort(Enum.map(Sandboxes.list_sandboxes(account), & &1.id)) == Enum.sort([shown.id, plain.id])
+    assert Sandboxes.count_sandboxes(account) == 2
+    assert Sandboxes.count_sandboxes_by_state(account).running == 2
+    assert {:error, :not_found} = Sandboxes.get_sandbox(account, hidden.id)
+    assert {:ok, _} = Sandboxes.get_sandbox(account, shown.id)
   end
 
   test "creator matching excludes organizations, disabled users and fallback labels" do

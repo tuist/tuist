@@ -124,6 +124,15 @@ defmodule TuistWeb.API.ThreadsController do
 
   defp error(conn, %Ecto.Changeset{}), do: error(conn, :invalid)
 
+  defp error(conn, reason) when reason in [:repository_access_denied, :github_identity_missing] do
+    message =
+      if reason == :github_identity_missing,
+        do: "Link your GitHub account to use repositories in threads.",
+        else: "Your GitHub account does not have access to this repository."
+
+    conn |> put_status(:forbidden) |> json(%{code: reason, message: message})
+  end
+
   defp error(conn, reason) do
     # Never render upstream errors or changeset values, which may contain prompts or credentials.
     status =

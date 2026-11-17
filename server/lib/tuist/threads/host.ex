@@ -42,6 +42,7 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Threads.Message
   alias Tuist.Threads.ModelFence
   alias Tuist.Threads.Provider
+  alias Tuist.Threads.Repository
   alias Tuist.Threads.ToolLog
   alias Tuist.Threads.Workspace
 
@@ -69,6 +70,22 @@ defmodule Tuist.Threads.Host do
   @run_ms 3_600_000
   @finish_ms 30_000
   @answer_ms 60_000
+  # Workspace preparation that waited on a lock another process holds.
+  @busy [:workspace_busy, :sandbox_account_busy]
+  @busy_attempts 5
+  @busy_retry_ms 2_000
+  # Why no sandbox can be had now, as opposed to a broken checkout or a run
+  # this host no longer owns.
+  @unavailable [
+    :no_capacity,
+    :no_node,
+    :not_connected,
+    :node_disconnected,
+    :timeout,
+    :sandbox_concurrency_limit,
+    :workspace_unavailable
+  ]
+
   # Under the previous release's recovery sweep's 60 seconds, which still runs
   # on its pods during a rolling deploy (`Tuist.Threads.keep_alive/1`).
   @heartbeat_ms 15_000
@@ -232,15 +249,37 @@ defmodule Tuist.Threads.Host do
   defp unreadable?({:unsupported_snapshot_version, _version}), do: true
   defp unreadable?(_reason), do: false
 
-  defp execute(run, %{repository: nil} = thread, epoch, host), do: infer(run, thread, nil, epoch, host)
+  # Every run works in the thread's sandbox. A thread without a repository
+  # has nothing there the conversation depends on yet, so when no sandbox can
+  # be had (capacity, quota, no nodes in development, a sandbox that broke)
+  # it still answers, without workspace tools, instead of failing. Contention
+  # on the workspace or the account's quota row is brief: it is retried, and
+  # never turns into a tool-less answer.
+  defp execute(run, thread, epoch, host, attempts \\ @busy_attempts) do
+    case Workspace.prepare(thread, run) do
+      {:ok, context} ->
+        result = infer(run, context.thread, context, epoch, host)
+        Workspace.release(context)
+        result
 
-  defp execute(run, thread, epoch, host) do
-    with {:ok, context} <- Workspace.prepare(thread, run) do
-      result = infer(run, context.thread, context, epoch, host)
-      Workspace.release(context)
-      result
+      {:error, reason} when reason in @busy and attempts > 1 ->
+        Process.sleep(@busy_retry_ms)
+        execute(run, thread, epoch, host, attempts - 1)
+
+      {:error, reason} = error ->
+        if is_nil(thread.repository) and unavailable?(reason) do
+          Logger.warning("thread #{thread.id} runs without a workspace: #{inspect(reason)}")
+          infer(run, thread, nil, epoch, host)
+        else
+          error
+        end
     end
   end
+
+  defp unavailable?({:invalid_state, _state}), do: true
+  # CI took the node holding the paused sandbox.
+  defp unavailable?({:host_busy, _}), do: true
+  defp unavailable?(reason), do: reason in @unavailable
 
   defp infer(run, thread, context, epoch, host) do
     user = Accounts.get_user_by_id(thread.owner_id)
@@ -254,7 +293,7 @@ defmodule Tuist.Threads.Host do
           [
             id: "#{thread.id}:#{run.id}",
             session_store: SessionStore.store("thread", thread.id, epoch),
-            system_prompt: if(context, do: Agent.prompt(thread), else: Agent.system_prompt()),
+            system_prompt: Agent.prompt(thread, context),
             tools: tools(run, context) ++ mcp_tools,
             hooks: [{ToolLog, run: run, tools: @logged_tools}],
             load_project_instructions: false,
@@ -315,15 +354,19 @@ defmodule Tuist.Threads.Host do
 
   defp sandbox(_thread, nil, _deadline), do: []
 
+  # A checked-out thread works in its checkout, as its history's relative
+  # paths expect; one without a repository works in the workspace.
   defp sandbox(thread, context, deadline) do
+    cwd = if context.thread.workspace_ready, do: "/workspace/repository", else: "/workspace"
+
     [
-      cwd: "/workspace/repository",
+      cwd: cwd,
       sandbox:
         {Tuist.Threads.Sandbox,
          sandbox_id: context.sandbox.id,
          account_id: thread.account_id,
          residency: context.residency,
-         cwd: "/workspace/repository",
+         cwd: cwd,
          commands_end_by: System.os_time(:millisecond) + left(deadline, @finish_ms + @answer_ms)}
     ]
   end
@@ -348,8 +391,125 @@ defmodule Tuist.Threads.Host do
         replay_safe: true
       )
 
-    tools = if Cards.available?(), do: [naming, card(run)], else: [naming]
-    if context, do: tools ++ @repository_tools, else: tools
+    workspace = if context, do: @repository_tools, else: []
+
+    # Only a thread without a repository may ask for one. Its run is the
+    # thread's, not the checkout's: these need no sandbox.
+    requesting =
+      if context && context.thread.repository do
+        []
+      else
+        [
+          Condukt.tool(
+            name: "list_repositories",
+            description:
+              "List the account's GitHub repositories request_repository can ask for, with their default branches.",
+            parameters: schema(%{}),
+            call: fn _args, _ -> list_repositories(run) end,
+            replay_safe: true
+          ),
+          Condukt.tool(
+            name: "request_repository",
+            description: """
+            Check out a GitHub repository this request needs at /workspace/repository, on this thread's own branch.
+            It becomes the thread's one repository, which Ship publishes to, so pick the one the person means; it
+            is refused when the person cannot read it on GitHub. base_branch defaults to the repository's default
+            branch.
+            """,
+            parameters: %{
+              type: "object",
+              properties: %{
+                repository: %{type: "string", description: "owner/name, as list_repositories shows it"},
+                base_branch: %{type: "string"}
+              },
+              required: ["repository"],
+              additionalProperties: false
+            },
+            call: fn args, _ -> request_repository(run, context, args) end,
+            replay_safe: true
+          )
+        ]
+      end
+
+    base = if Cards.available?(), do: [naming, card(run)], else: [naming]
+    base ++ requesting ++ workspace
+  end
+
+  defp list_repositories(run) do
+    thread = Repo.get!(Tuist.Threads.Thread, run.thread_id)
+
+    with true <- Threads.owns_run?(run.id, run.attempt),
+         {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
+         {:ok, repositories} <- Repository.list(account) do
+      shown = Enum.take(repositories, 500)
+      lines = Enum.map_join(shown, "\n", &"#{&1.full_name} (default branch #{&1.default_branch})")
+
+      cond do
+        repositories == [] -> {:ok, "No repositories are available. The account's GitHub App installation has none."}
+        length(repositories) > 500 -> {:ok, lines <> "\n(The first 500 of #{length(repositories)} repositories.)"}
+        true -> {:ok, lines}
+      end
+    else
+      false -> {:error, "This run no longer owns the thread."}
+      _ -> {:error, "The repositories could not be listed. The account may not have the Tuist GitHub App installed."}
+    end
+  end
+
+  defp request_repository(run, context, args) do
+    case Threads.request_repository(run, Map.take(args, ["repository", "base_branch"])) do
+      {:ok, {:attached, name, branch}} ->
+        check_out(context, name, branch)
+
+      {:error, :repository_attached} ->
+        {:error, "This thread already works on another repository. Ask the person to start a new thread for this one."}
+
+      {:error, reason} when reason in [:repository_access_denied, :github_identity_missing] ->
+        {:error,
+         "The person this thread belongs to cannot read that repository on GitHub " <>
+           "(or has not linked a GitHub account), so it cannot be checked out."}
+
+      {:error, :repository_too_large} ->
+        {:error, "That repository is too large to check out in a thread."}
+
+      {:error, reason} when reason in [:repository_not_authorized, :invalid_arguments, :repository_unavailable] ->
+        {:error, "That repository or branch is not available to this account. list_repositories shows the repositories."}
+
+      {:error, :stale_run} ->
+        {:error, "This run no longer owns the thread."}
+
+      {:error, _} ->
+        {:error, "The repository could not be attached."}
+    end
+  end
+
+  # Commands keep this run's working directory, /workspace: the checkout
+  # becomes the working directory from the next run.
+  defp check_out(nil, name, branch),
+    do: {:ok, "#{name} (#{branch}) is the thread's repository. It is checked out at /workspace/repository next turn."}
+
+  defp check_out(context, name, branch, attempts \\ @busy_attempts) do
+    case Workspace.attach(context) do
+      {:ok, thread} ->
+        {:ok,
+         "Checked out #{name} (#{branch}) at /workspace/repository on branch #{thread.branch}. " <>
+           "Your working directory stays /workspace for this turn, so cd /workspace/repository in commands."}
+
+      {:error, :stale_run} ->
+        {:error, "This run no longer owns the thread."}
+
+      # Another tool of this turn, such as an MCP call, holds the workspace.
+      {:error, :workspace_busy} when attempts > 1 ->
+        Process.sleep(@busy_retry_ms)
+        check_out(context, name, branch, attempts - 1)
+
+      {:error, :repository_too_large} ->
+        {:error, "#{name} is too large to check out in a thread, so it is no longer the thread's repository."}
+
+      {:error, _} ->
+        {:error,
+         "#{name} is the thread's repository, but checking it out did not finish. " <>
+           "It is checked out again at the start of the next turn."}
+    end
   end
 
   # Tuist Guild runs the card natively; other clients show its summary.

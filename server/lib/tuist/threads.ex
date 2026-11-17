@@ -16,6 +16,7 @@ defmodule Tuist.Threads do
   alias Tuist.Sandboxes
   alias Tuist.Threads.Agent
   alias Tuist.Threads.Approval
+  alias Tuist.Threads.Checkout
   alias Tuist.Threads.Message
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Repository
@@ -100,7 +101,7 @@ defmodule Tuist.Threads do
     with :ok <- authorize(user, account),
          {:ok, request_id} <- uuid(attrs["request_id"]),
          {:ok, body} <- content(attrs["content"]),
-         {:ok, repository, branch} <- repository(account, attrs),
+         {:ok, repository, branch} <- repository(account, user, attrs),
          hash = fingerprint({body, repository, branch, provider, model}),
          :ok <- creation_model(user, account, request_id, hash, provider, model) do
       fn ->
@@ -518,9 +519,23 @@ defmodule Tuist.Threads do
     end)
   end
 
-  def bind_workspace(thread_id, run_id, attempt, sandbox_id, base_sha) do
-    with_attempt(%{thread_id: thread_id, id: run_id, attempt: attempt}, fn thread, _ ->
-      update_thread!(thread, %{sandbox_id: sandbox_id, base_sha: base_sha, workspace_ready: true})
+  @doc """
+  Records `thread`'s checkout as ready, with its repository, branches and
+  base. A thread works on one repository: one bound meanwhile to another
+  refuses the binding.
+  """
+  def bind_workspace(thread, run_id, attempt, sandbox_id, base_sha) do
+    with_attempt(%{thread_id: thread.id, id: run_id, attempt: attempt}, fn fresh, _ ->
+      if fresh.repository not in [nil, thread.repository], do: Repo.rollback(:repository_attached)
+
+      update_thread!(fresh, %{
+        repository: thread.repository,
+        base_branch: thread.base_branch,
+        branch: thread.branch,
+        sandbox_id: sandbox_id,
+        base_sha: base_sha,
+        workspace_ready: true
+      })
     end)
   end
 
@@ -960,10 +975,62 @@ defmodule Tuist.Threads do
     }
   end
 
-  defp repository(_account, %{"repository" => value}) when value in [nil, ""], do: {:ok, nil, nil}
+  @doc """
+  Clears the repository of a thread whose checkout can never succeed, such
+  as one too large to check out, while nothing is checked out. Fenced to the
+  run's attempt like `bind_workspace/5`.
+  """
+  def unbind_repository(thread, run_id, attempt) do
+    with_attempt(%{thread_id: thread.id, id: run_id, attempt: attempt}, fn fresh, _ ->
+      if fresh.workspace_ready, do: Repo.rollback(:workspace_ready)
+      update_thread!(fresh, %{repository: nil, base_branch: nil, branch: nil})
+    end)
+  end
 
-  defp repository(account, %{"repository" => name} = attrs) do
-    with {:ok, repository} <- Repository.authorize(account, name) do
+  @doc """
+  Makes the repository `attrs` names (`repository/3`) the thread's one
+  repository, on the agent's request during `run`, when the thread's owner
+  can read it on GitHub and its base branch exists. The caller checks it
+  out (`Workspace.attach/1`), or the next run's `Workspace.prepare/2` does.
+  """
+  def request_repository(run, attrs) do
+    thread = Repo.get!(Thread, run.thread_id)
+
+    with {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
+         owner when not is_nil(owner) <- Accounts.get_user_by_id(thread.owner_id),
+         {:ok, name, base_branch} when is_binary(name) <- repository(account, owner, attrs),
+         {:ok, _sha} <- Repository.branch_head(account, name, base_branch) do
+      with_attempt(run, fn thread, _ ->
+        cond do
+          thread.repository == name ->
+            {:attached, name, thread.base_branch}
+
+          not is_nil(thread.repository) ->
+            Repo.rollback(:repository_attached)
+
+          true ->
+            update_thread!(thread, %{repository: name, base_branch: base_branch, branch: "threads/#{thread.id}"})
+            {:attached, name, base_branch}
+        end
+      end)
+    else
+      {:ok, nil, nil} -> {:error, :invalid_arguments}
+      nil -> {:error, :forbidden}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  The account's repository `attrs["repository"]` names, canonicalized, if
+  `owner` can read it on GitHub (`Repository.authorize/4`), and
+  its base branch (`attrs["base_branch"]`, else the default branch), or nil
+  for none.
+  """
+  def repository(_account, _owner, %{"repository" => value}) when value in [nil, ""], do: {:ok, nil, nil}
+
+  def repository(account, owner, %{"repository" => name} = attrs) do
+    with {:ok, repository} <- Repository.authorize(account, owner, name),
+         :ok <- Checkout.fits(repository) do
       branch = attrs["base_branch"] || repository.default_branch
 
       if is_binary(branch) and byte_size(branch) <= 255 and Regex.match?(~r/\A[\w][\w.\/-]*\z/u, branch) and
@@ -973,7 +1040,7 @@ defmodule Tuist.Threads do
     end
   end
 
-  defp repository(_, _), do: {:ok, nil, nil}
+  def repository(_, _, _), do: {:ok, nil, nil}
 
   defp require_access!(user, account, thread) do
     if thread.owner_id != user.id or authorize(user, account) != :ok, do: Repo.rollback(:forbidden)

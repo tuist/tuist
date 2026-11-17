@@ -11,6 +11,7 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
 
   test "CPU and RAM independently reject starts before placement and do not insert failed rows" do
@@ -38,6 +39,20 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     |> Repo.update!()
 
     assert Concurrency.usage(account.id) == %{vcpus: agent.vcpus, memory_mb: 4096}
+  end
+
+  test "Tuist threads' sandboxes, hidden from the account, do not use its limits" do
+    account = account_fixture()
+    agent = sandbox_fixture(account: account, state: :running, vcpus: 2, memory_mb: 4096)
+    other = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "orb-environment"})
+    sandbox_fixture(account: account, state: :running, vcpus: 4, memory_mb: 8192, provider_environment_id: other.id)
+
+    for _ <- 1..2 do
+      thread = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{Ecto.UUID.generate()}"})
+      sandbox_fixture(account: account, state: :running, vcpus: 8, memory_mb: 16_384, provider_environment_id: thread.id)
+    end
+
+    assert Concurrency.usage(account.id) == %{vcpus: agent.vcpus + 4, memory_mb: 4096 + 8192}
   end
 
   test "in-flight starts reserve quota on different nodes; paused and failed starts release it" do

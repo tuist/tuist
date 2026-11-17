@@ -377,7 +377,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   builder and fails the build. Never save a sandbox a session used: every
   later session of the environment boots from the snapshot.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs,
-  Claude Code sessions' sandboxes and, on macOS, every evicted paused
+  Claude Code sessions' sandboxes, Tuist threads' sandboxes (provider
+  environment `threads/<id>`, restored by the thread's next run through
+  `prepare_residency/3`) and, on macOS, every evicted paused
   sandbox, whose disk the Mac shares with CI (other Linux sandboxes are
   archived only off a node CI takes or that refused their resume; their next
   spawn restores them too, since `Router.find_or_create_sandbox/3` keeps an
@@ -475,7 +477,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
-  retryable). Disk is not an account limit: each node's disk budget bounds
+  retryable). Tuist threads' sandboxes are hidden from the account and use
+  none of it (`Sandboxes.not_thread/0`). Disk is not an account limit: each node's disk budget bounds
   it, and archiving frees it, so concurrency analytics chart no disk.
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
   than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or

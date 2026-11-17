@@ -19,6 +19,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxNode
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
@@ -668,6 +669,49 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       sandbox_id = sandbox.id
       expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
       expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: ^sandbox_id}, _opts -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(sandbox)
+      assert %Sandbox{state: :paused, node_name: "node-a"} = Repo.reload!(other)
+    end
+
+    test "archives a thread's sandbox paused past the threshold, not another provider environment's",
+         %{account: account} do
+      thread_environment =
+        Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{Ecto.UUID.generate()}"})
+
+      provider_environment = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "orb-provider/1"})
+
+      # Paused longer, so it would go first if other provider environments' sandboxes qualified.
+      other =
+        sandbox_fixture(
+          account: account,
+          provider_environment_id: provider_environment.id,
+          state: :paused,
+          node_name: "node-a",
+          paused_at: hours_ago(48)
+        )
+
+      sandbox =
+        sandbox_fixture(
+          account: account,
+          provider_environment_id: thread_environment.id,
+          state: :paused,
+          node_name: "node-a",
+          paused_at: hours_ago(25)
+        )
+
+      sandbox_id = sandbox.id
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: ^sandbox_id, memory: true}, _opts ->
+        archive_result()
+      end)
+
       expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
       expect(Storage, :object_exists?, fn _key, _account -> true end)
       expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)

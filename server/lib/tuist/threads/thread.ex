@@ -1,5 +1,9 @@
 defmodule Tuist.Threads.Thread do
-  @moduledoc "An owner-private conversation with an optional repository workspace."
+  @moduledoc """
+  An owner-private conversation. Its runs work in the thread's sandbox; a
+  repository is checked out there once the owner names one or the agent
+  asks for one the owner can read (`Tuist.Threads.request_repository/2`).
+  """
   use Ecto.Schema
 
   @primary_key {:id, :binary_id, autogenerate: true}

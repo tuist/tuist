@@ -172,7 +172,7 @@ defmodule Tuist.Threads.Shipping do
            true <- thread.owner_id == user.id,
            :ok <- Threads.authorize(user, account),
            :ok <- ready(thread),
-           {:ok, repository} <- Repository.authorize(account, thread.repository) do
+           {:ok, repository} <- Repository.authorize(account, user, thread.repository, :write) do
         request_id = Ecto.UUID.generate()
 
         with_residency(thread, "preview:#{thread.id}", fn sandbox ->
@@ -223,7 +223,7 @@ defmodule Tuist.Threads.Shipping do
            {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
            user when not is_nil(user) <- Accounts.get_user_by_id(approval.approved_by_id),
            :ok <- Threads.authorize(user, account),
-           {:ok, _} <- Repository.authorize(account, approval.repository) do
+           {:ok, _} <- Repository.authorize(account, user, approval.repository, :write) do
         with_residency(thread, approval.request_id, fn sandbox ->
           publish_reviewed(account, sandbox, thread, approval, run)
         end)

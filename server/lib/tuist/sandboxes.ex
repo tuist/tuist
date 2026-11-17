@@ -33,6 +33,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -412,7 +413,11 @@ defmodule Tuist.Sandboxes do
   end
 
   defp filtered_sandboxes(%Account{id: account_id}, opts) do
-    from(s in Sandbox, where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent)
+    from(s in Sandbox,
+      as: :sandbox,
+      where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent
+    )
+    |> where(^not_thread())
     |> where_search(Keyword.get(opts, :search))
     |> where_status(Keyword.get(opts, :status))
     |> where_vcpus(Keyword.get(opts, :vcpus))
@@ -457,7 +462,9 @@ defmodule Tuist.Sandboxes do
   def sandbox_vcpus(%Account{id: account_id}) do
     Repo.all(
       from s in Sandbox,
+        as: :sandbox,
         where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent,
+        where: ^not_thread(),
         distinct: true,
         order_by: s.vcpus,
         select: s.vcpus
@@ -472,7 +479,9 @@ defmodule Tuist.Sandboxes do
     counts =
       Repo.all(
         from s in Sandbox,
+          as: :sandbox,
           where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent,
+          where: ^not_thread(),
           group_by: s.state,
           select: {s.state, count(s.id)}
       )
@@ -518,9 +527,33 @@ defmodule Tuist.Sandboxes do
       is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and
         is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
+  @doc """
+  A query condition that leaves out Tuist threads' sandboxes (provider
+  environment `threads/<id>`). Each belongs to its owner's private thread,
+  which reaches it through `Tuist.Threads`: the account's sandbox list,
+  dashboard, API, MCP and concurrency usage never show, touch or count it.
+  Correlated, so each row is one primary-key lookup of its own environment.
+  The query names the sandbox binding `:sandbox`.
+  """
+  def not_thread do
+    thread =
+      from(e in ProviderEnvironment,
+        where: e.id == parent_as(:sandbox).provider_environment_id and like(e.external_key, "threads/%"),
+        select: 1
+      )
+
+    dynamic([sandbox: s], is_nil(s.provider_environment_id) or not exists(subquery(thread)))
+  end
+
   def get_sandbox(%Account{id: account_id}, id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
-         %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id, purpose: :agent) do
+         %Sandbox{} = sandbox <-
+           from(s in Sandbox,
+             as: :sandbox,
+             where: s.id == ^uuid and s.account_id == ^account_id and s.purpose == :agent
+           )
+           |> where(^not_thread())
+           |> Repo.one() do
       {:ok, sandbox}
     else
       _ -> {:error, :not_found}

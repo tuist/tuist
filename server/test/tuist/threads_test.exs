@@ -560,6 +560,50 @@ defmodule Tuist.ThreadsTest do
     assert {:error, :tool_outcome_unknown} = Threads.message(user, account, thread.id, request("Continue"))
   end
 
+  test "an agent's request binds only a repository the owner can read, on a branch that exists",
+       %{user: user, account: account} do
+    stub(Threads.Repository, :authorize, fn _, owner, name ->
+      assert owner.id == user.id
+
+      case String.downcase(name) do
+        "tuist/example" -> {:ok, %{name: "Tuist/Example", default_branch: "main"}}
+        "tuist/other" -> {:ok, %{name: "Tuist/Other", default_branch: "main"}}
+        "tuist/private" -> {:error, :repository_access_denied}
+        _ -> {:error, :repository_not_authorized}
+      end
+    end)
+
+    stub(Threads.Repository, :branch_head, fn
+      _, _, "main" -> {:ok, String.duplicate("a", 40)}
+      _, _, _ -> {:error, :repository_unavailable}
+    end)
+
+    {:ok, thread} = Threads.create(user, account, request("Fix the login bug"))
+    {:ok, {claimed, _}} = claim(Repo.one!(Run).id)
+
+    assert {:error, :repository_not_authorized} = Threads.request_repository(claimed, %{"repository" => "tuist/secret"})
+    assert {:error, :repository_access_denied} = Threads.request_repository(claimed, %{"repository" => "tuist/private"})
+
+    # A missing branch binds nothing, rather than a repository no run can check out.
+    assert {:error, :repository_unavailable} =
+             Threads.request_repository(claimed, %{"repository" => "tuist/example", "base_branch" => "gone"})
+
+    assert is_nil(Repo.get!(Thread, thread.id).repository)
+
+    assert {:ok, {:attached, "Tuist/Example", "main"}} =
+             Threads.request_repository(claimed, %{"repository" => "tuist/example"})
+
+    bound = Repo.get!(Thread, thread.id)
+    assert {bound.repository, bound.base_branch, bound.branch} == {"Tuist/Example", "main", "threads/#{thread.id}"}
+    refute bound.workspace_ready
+
+    # Asking again is idempotent; another repository is refused.
+    assert {:ok, {:attached, "Tuist/Example", "main"}} =
+             Threads.request_repository(claimed, %{"repository" => "Tuist/Example"})
+
+    assert {:error, :repository_attached} = Threads.request_repository(claimed, %{"repository" => "tuist/other"})
+  end
+
   # Takes the thread's session lease as an agents host does, then claims the
   # run at its epoch. A lease that is still held keeps its epoch.
   defp claim(run_id) do

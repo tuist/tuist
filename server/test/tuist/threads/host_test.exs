@@ -11,12 +11,15 @@ defmodule Tuist.Threads.HostTest do
   alias Tuist.Agents.SessionStore
   alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.OAuth2.SSRFGuard
+  alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Sandbox
   alias Tuist.Threads
   alias Tuist.Threads.Cards
   alias Tuist.Threads.Host
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
   alias Tuist.Threads.ToolCall
+  alias Tuist.Threads.Workspace
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defmodule UnreachableBucket do
@@ -42,6 +45,18 @@ defmodule Tuist.Threads.HostTest do
     stub(MCPServers, :list, fn _ -> [] end)
     # Whether `show_ui` is offered depends on the machine having NSH.
     stub(Cards, :available?, fn -> false end)
+
+    # Every run works in its thread's sandbox (`Workspace`, covered by its own
+    # tests); here it is a row no node holds.
+    stub(Workspace, :prepare, fn thread, run ->
+      sandbox = Repo.insert!(%Sandbox{account_id: thread.account_id, state: :running})
+      residency = "threads:#{run.id}:#{run.attempt}"
+      {:ok, %{thread: thread, sandbox: sandbox, residency: residency, run_id: run.id, attempt: run.attempt}}
+    end)
+
+    stub(Workspace, :release, fn _ -> :ok end)
+    stub(Sandboxes, :prepare_shared_residency, fn sandbox, _ -> {:ok, sandbox} end)
+    stub(Sandboxes, :end_residency, fn _, _ -> :ok end)
     :ok
   end
 
@@ -171,7 +186,9 @@ defmodule Tuist.Threads.HostTest do
         case turn do
           0 ->
             assert Enum.any?(request["tools"], &(&1["function"]["name"] == "set_thread_name"))
-            assert length(request["tools"]) == 3
+            names = Enum.map(request["tools"], & &1["function"]["name"])
+            assert "request_repository" in names
+            assert length(Enum.filter(names, &String.starts_with?(&1, "mcp_"))) == 2
 
             %{
               role: "assistant",
@@ -601,6 +618,135 @@ defmodule Tuist.Threads.HostTest do
 
     eventually(fn -> Repo.aggregate(from(r in Run, where: r.status == "succeeded"), :count) == 2 end)
     assert idle?(pid)
+  end
+
+  test "a thread without a repository answers without workspace tools when no sandbox can be had" do
+    user = AccountsFixtures.user_fixture()
+    # CI took the node holding the thread's paused sandbox.
+    stub(Workspace, :prepare, fn _, _ -> {:error, {:host_busy, :ci}} end)
+
+    answer_with(user, fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      names = Enum.map(JSON.decode!(raw)["tools"] || [], & &1["function"]["name"])
+      refute "Bash" in names
+      assert "request_repository" in names
+      reply_plug("Answered without a workspace.").(conn)
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("What is a monorepo?"))
+    host_until_idle(thread.id)
+
+    assert Repo.one!(Run).status == "succeeded"
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert List.last(fresh.messages).body == "Answered without a workspace."
+  end
+
+  test "a repository the agent asks for is checked out in the same turn" do
+    user = AccountsFixtures.user_fixture()
+    calls = start_supervised!({Agent, fn -> 0 end})
+
+    stub(Threads, :request_repository, fn run, %{"repository" => "tuist/example"} ->
+      Repo.update_all(from(t in Threads.Thread, where: t.id == ^run.thread_id),
+        set: [repository: "Tuist/Example", base_branch: "main", branch: "threads/#{run.thread_id}"]
+      )
+
+      {:ok, {:attached, "Tuist/Example", "main"}}
+    end)
+
+    expect(Workspace, :attach, fn context ->
+      assert context.sandbox
+      {:ok, %{Repo.reload!(context.thread) | workspace_ready: true}}
+    end)
+
+    answer_with(user, fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+
+      message =
+        case Agent.get_and_update(calls, &{&1, &1 + 1}) do
+          0 ->
+            %{
+              role: "assistant",
+              content: nil,
+              tool_calls: [
+                %{
+                  id: "checkout",
+                  type: "function",
+                  function: %{name: "request_repository", arguments: ~s({"repository":"tuist/example"})}
+                }
+              ]
+            }
+
+          1 ->
+            result = Enum.find(request["messages"], &(&1["tool_call_id"] == "checkout"))
+            assert result["content"] =~ "Checked out Tuist/Example (main) at /workspace/repository"
+            %{role: "assistant", content: JSON.encode!(%{reply: "Looked at the code.", suggestions: []})}
+        end
+
+      response = %{
+        id: "completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: if(message.content, do: "stop", else: "tool_calls")}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Fix the login bug in tuist/example"))
+    host_until_idle(thread.id)
+
+    assert Agent.get(calls, & &1) == 2
+    assert Repo.one!(Run).status == "succeeded"
+  end
+
+  test "a thread with a repository fails its run rather than answering without its checkout" do
+    user = AccountsFixtures.user_fixture()
+    stub(Workspace, :prepare, fn _, _ -> {:error, :workspace_unavailable} end)
+    calls = start_supervised!({Agent, fn -> 0 end})
+
+    answer_with(user, fn conn ->
+      Agent.update(calls, &(&1 + 1))
+      reply_plug("Answered without the checkout.").(conn)
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Fix the build"))
+    Repo.update_all(from(t in Threads.Thread, where: t.id == ^thread.id), set: [repository: "Tuist/Example"])
+    host_until_idle(thread.id)
+
+    assert Agent.get(calls, & &1) == 0
+    refute Repo.one!(Run).status == "succeeded"
+  end
+
+  test "a busy workspace is retried, not answered without tools" do
+    user = AccountsFixtures.user_fixture()
+    attempts = start_supervised!({Agent, fn -> 0 end})
+
+    stub(Workspace, :prepare, fn thread, run ->
+      case Agent.get_and_update(attempts, &{&1, &1 + 1}) do
+        0 ->
+          {:error, :workspace_busy}
+
+        _ ->
+          sandbox = Repo.insert!(%Sandbox{account_id: thread.account_id, state: :running})
+          residency = "threads:#{run.id}:#{run.attempt}"
+          {:ok, %{thread: thread, sandbox: sandbox, residency: residency, run_id: run.id, attempt: run.attempt}}
+      end
+    end)
+
+    answer_with(user, fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      assert "Bash" in Enum.map(JSON.decode!(raw)["tools"] || [], & &1["function"]["name"])
+      reply_plug("Answered in the sandbox.").(conn)
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Look around"))
+    host_until_idle(thread.id)
+
+    assert Agent.get(attempts, & &1) == 2
+    assert Repo.one!(Run).status == "succeeded"
   end
 
   defp answer_with(user, plug) do

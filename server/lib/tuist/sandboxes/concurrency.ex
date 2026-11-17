@@ -33,10 +33,14 @@ defmodule Tuist.Sandboxes.Concurrency do
   # Used only by the operator UI, never by account settings/API changesets.
   def update_limits(account, attrs), do: account |> change_limits(attrs) |> Repo.update()
 
+  # Tuist threads' sandboxes are hidden from the account and so do not use
+  # its limits (`Tuist.Sandboxes.not_thread/0`).
   def usage(account_id) do
     Repo.one(
       from s in Sandbox,
+        as: :sandbox,
         where: s.account_id == ^account_id and s.purpose == :agent and s.state in [:creating, :resuming, :running],
+        where: ^Tuist.Sandboxes.not_thread(),
         select: %{vcpus: coalesce(sum(s.vcpus), 0), memory_mb: coalesce(sum(s.memory_mb), 0)}
     )
   end

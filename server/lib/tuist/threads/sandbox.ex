@@ -5,8 +5,9 @@ defmodule Tuist.Threads.Sandbox do
   thread's VM.
 
   Files and short commands go through `Sandboxes.exec/3`. File paths are
-  relative to the checkout: Read, Write, Edit, Glob and Grep refuse absolute
-  paths, `..` and `.git`, never follow a symlink out of the checkout, and a
+  relative to the working directory (`:cwd`): Read, Write, Edit, Glob and
+  Grep refuse other absolute paths, `..` and `.git`, never follow a symlink
+  out of it, and a
   write validates its target before truncating it (see `@files`). Bash is a
   shell in the VM and is not confined. Processes, which a
   parked Bash call follows and a deploy leaves running, are

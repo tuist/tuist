@@ -81,6 +81,14 @@ defmodule Tuist.Threads.ShippingTest do
       ]
     }
 
+    # The owner's own GitHub access (`Repository.authorize/4`).
+    oauth2_identity_fixture(user: user, provider: :github, id_in_provider: "42")
+    stub(Client, :get_user_by_id, fn %{id: "42"} -> {:ok, %Tuist.VCS.User{username: "owner"}} end)
+
+    stub(Client, :get_repository_permission, fn %{username: "owner", repository_full_handle: "Tuist/Example"} ->
+      {:ok, "write"}
+    end)
+
     stub(Repository, :review, fn _, _, ^objects -> {:ok, "reviewed diff"} end)
 
     {:ok, remote} = Agent.start_link(fn -> @base end)
@@ -190,6 +198,14 @@ defmodule Tuist.Threads.ShippingTest do
     assert {:ok, %{head_sha: @head, actor: "GitHub App installation"}} = Shipping.execute(c.thread, c.approval, c.run)
     assert Agent.get(c.remote, & &1) == @head
     assert Repo.reload!(c.sandbox).residency_work_id == nil
+  end
+
+  test "an owner who can only read the repository cannot ship to it", c do
+    stub(Client, :get_repository_permission, fn _ -> {:ok, "read"} end)
+    reject(Sandboxes, :exec, 3)
+    assert {:error, :repository_access_denied} = Shipping.preview(c.user, c.thread)
+    assert {:error, :repository_access_denied} = Shipping.execute(c.thread, c.approval, c.run)
+    assert Agent.get(c.remote, & &1) == @base
   end
 
   test "retry reconciles a remotely completed Ship without snapshotting or writing again", c do

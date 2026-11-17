@@ -91,6 +91,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
@@ -443,17 +444,20 @@ defmodule Tuist.Sandboxes.Archives do
              s.archive_attempted_at < s.paused_at)
   end
 
-  # Orbs and Claude Code sessions' sandboxes: their next spawn restores an
-  # archived one (`AmpOrbs`, `Router.find_or_create_sandbox/3`). On macOS,
+  # Orbs, Claude Code sessions' and Tuist threads' sandboxes: their next
+  # spawn or run restores an archived one (`AmpOrbs`,
+  # `Router.find_or_create_sandbox/3`, `Tuist.Threads.Workspace`). On macOS,
   # every source's: a paused VM holds its disk on a Mac it shares with CI,
   # and a resume restores an archived one (`Sandboxes.resume/1`).
   defp idle_paused_sessions do
     claude_code = from(e in AgentEnvironment, where: e.kind == :claude_code, select: e.id)
+    threads = from(e in ProviderEnvironment, where: like(e.external_key, "threads/%"), select: e.id)
 
     where(
       idle_paused(),
       [s],
-      s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code)
+      s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code) or
+        s.provider_environment_id in subquery(threads)
     )
   end
 
