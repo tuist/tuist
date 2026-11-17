@@ -140,9 +140,6 @@ still read Cloud:
   Usage Watermark; cache-nginx 502) and Synthetic Monitoring.
 - The Grafana Cloud usage rules (`Global Spend`, usage anomalies, cardinality
   explosion, duplicate timestamps), which now measure only those senders.
-- `CNPG Replication Link Break` (`cfsogt8cgh14wc`) for staging and canary,
-  until those environments have a Pulse SQL source (below). It is silent until
-  then, since their logs no longer reach Cloud.
 
 The long-window rules moved with less history than they look back over:
 `cfyi8f0lyqayof` (3-day trend) and `dfygid92hevi8d` (3 days) read a few hours
@@ -239,14 +236,32 @@ Nine log rules read Pulse SQL. Only production's Pulse serves SQL, so these
 target production, as do the 15 web-vitals rules (groups **Browser RUM
 quality** and **Web performance**), which read `tuist_web_logs` since November
 17. Filtering every log line in `opentelemetry_logs` for Faro's had overrun
-Pulse's datanode scan memory and failed other reads. Two groups stay on
-Grafana Cloud Loki:
+Pulse's datanode scan memory and failed other reads. Cache-nginx 502 and
+Synthetic Monitoring failures stay on Grafana Cloud Loki, since their logs never
+reach Pulse (above).
 
-- `CNPG Replication Link Break` (`cfsogt8cgh14wc`) for staging and canary,
-  which have no SQL source yet. Production's half is `cfsogt8cgh14wc-prod` on
-  Pulse SQL, and the Cloud rule excludes `k8s_cluster_name="tuist-production"`.
-- Cache-nginx 502 and Synthetic Monitoring failures, whose logs never reach
-  Pulse (above).
+`CNPG Replication Link Break` reads Pulse SQL in production
+(`cfsogt8cgh14wc-prod`). Staging and canary have no SQL source, so their copies
+(`-stg`, `-can`) read Pulse metrics instead: a replica's walsender on the
+primary started in the last five minutes while neither instance's postmaster
+restarted in the last fifteen.
+
+```promql
+sum by (k8s_cluster_name) (
+  (time() - max by (k8s_cluster_name, application_name) (cnpg_pg_stat_replication_backend_start) < bool 300)
+  * on (k8s_cluster_name, application_name)
+  (time() - max by (k8s_cluster_name, application_name) (label_replace(cnpg_pg_postmaster_start_time, "application_name", "$1", "pod", "(.*)")) > bool 900)
+  * on (k8s_cluster_name) group_left ()
+  (time() - max by (k8s_cluster_name) (cnpg_pg_postmaster_start_time{instance_role="primary"}) > bool 900)
+)
+```
+
+A reconnect shows up as a new `cnpg_pg_stat_replication_backend_start` series,
+because the series carries the replica's `client_port`, so `changes()` never
+sees it. Over the 7 days before November 17 this fired exactly for the two
+staging timeouts on November 12 (07:06 and 08:26, as logged) and for none of
+the five restarts in that week. A switchover can still fire it. The Cloud rule
+was deleted.
 
 Paging log rules follow the error states above, and `pulse-sql-unavailable`
 watches the SQL path.
