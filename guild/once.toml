@@ -112,7 +112,7 @@ header_dirs = ["crates/core/include"]
 name = "TuistGuildIOS"
 kind = "apple_application"
 srcs = ["apple/Sources/**/*.swift"]
-deps = ["./TuistGuildCoreIOS", "./TuistGuildCoreFFI"]
+deps = ["./TuistGuildCoreIOS", "./TuistGuildCoreFFI", "./TuistGuildNSHSimulator"]
 [target.attrs]
 platform = "ios"
 bundle_id = "dev.tuist.code"
@@ -124,13 +124,13 @@ info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator" }
 entitlements = "ios/Simulator.entitlements"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
-resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
+resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js"]
 
 [[target]]
 name = "TuistGuildIOSDevice"
 kind = "apple_application"
 srcs = ["apple/Sources/**/*.swift"]
-deps = ["./TuistGuildCoreIOSDevice", "./TuistGuildCoreFFI"]
+deps = ["./TuistGuildCoreIOSDevice", "./TuistGuildCoreFFI", "./TuistGuildNSHDevice"]
 [target.attrs]
 platform = "ios"
 bundle_id = "dev.tuist.code"
@@ -157,6 +157,20 @@ minimum_os = "14.0"
 info_plist = "macos/Info.plist"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "macos/Resources/AppIcon.icns"]
+
+# NSH's iOS runtime, which shows the cards models write in conversations
+# (modules/nsh.star). macOS has no NSH slice yet; it shows the cards' text.
+[[target]]
+name = "TuistGuildNSHSimulator"
+kind = "guild_nsh_apple"
+[target.attrs]
+sdk = "simulator"
+
+[[target]]
+name = "TuistGuildNSHDevice"
+kind = "guild_nsh_apple"
+[target.attrs]
+sdk = "device"
 
 [[target]]
 name = "TuistGuildAndroid"

@@ -24,6 +24,8 @@ struct AppMessage: Decodable, Identifiable {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+    /// A card the model wrote, sized by the Rust core; `content` is its text.
+    var ui: AppCard?
 }
 
 struct AppConversation: Decodable {
@@ -163,7 +165,9 @@ struct ConversationView: View {
                     }
                     ForEach(MessageGroup.groups(messages)) { group in
                         switch group {
-                        case let .message(message): MessageRow(message: message).id(message.id)
+                        // A card can call `reply` without a tap (on mount, from a timer),
+                        // so its text goes to the composer and the person sends it.
+                        case let .message(message): MessageRow(message: message) { text in reply = text }.id(message.id)
                         case let .tools(tools): ToolActivity(tools: tools).id(tools[0].id)
                         }
                     }
@@ -295,6 +299,7 @@ struct ConversationView: View {
         }
     }
 
+    /// Sends the composer's text.
     private func send() async {
         let text = reply
         guard !sending, !voice.busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -464,10 +469,21 @@ private struct ToolStatusIcon: View {
     }
 }
 
-private struct MessageRow: View {
+struct MessageRow: View {
     let message: AppMessage
+    /// Puts a card's reply in the composer.
+    let reply: (String) -> Void
 
     var body: some View {
+        if let card = message.ui {
+            CardView(card: card, fallback: message.content, reply: reply)
+        } else {
+            text
+        }
+    }
+
+    @ViewBuilder
+    private var text: some View {
         switch message.role {
         case "user":
             HStack {

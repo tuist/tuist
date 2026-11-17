@@ -1535,3 +1535,49 @@ fn an_inbox_the_server_refuses_keeps_what_was_stored() {
     let cached = call(&mut c, &mut h, "cached_threads", json!({}));
     assert_eq!(cached["data"]["threads"][0]["title"], "Release plan");
 }
+
+#[test]
+fn cards_get_the_height_of_their_size_class_and_unshowable_ones_fall_back_to_text() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let card = |size: Value, source: &str| json!({"role":"assistant","content":"Fallback","ui":{"size":size,"source":source}});
+    h.responses.push_back((
+        200,
+        server_thread(json!([
+            card(json!("compact"), "mount()"),
+            card(json!("tall"), "mount()"),
+            card(json!("huge"), "mount()"),
+            card(json!(null), "mount()"),
+            card(json!("medium"), ""),
+            card(json!("medium"), &"x".repeat(256 * 1024 + 1)),
+        ])),
+    ));
+    let shown = |thread: &Value| -> Vec<Value> {
+        thread["data"]["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m.get("ui").map_or(Value::Null, |ui| ui["height"].clone()))
+            .collect()
+    };
+    let expected = vec![
+        json!(120),
+        json!(400),
+        Value::Null,
+        Value::Null,
+        Value::Null,
+        Value::Null,
+    ];
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(shown(&thread), expected, "{thread}");
+    assert!(
+        thread["data"]["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|m| m["content"] == "Fallback")
+    );
+    // Offline, the stored conversation keeps the same frames.
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}));
+    assert_eq!(shown(&cached), expected, "{cached}");
+}

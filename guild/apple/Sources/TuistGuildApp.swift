@@ -5,7 +5,15 @@ import SwiftUI
 struct TuistGuildApp: App {
     var body: some Scene {
         WindowGroup {
-            AppWorkspace()
+            #if targetEnvironment(simulator)
+                if ProcessInfo.processInfo.arguments.contains("-GuildCardPreview") {
+                    CardPreview()
+                } else {
+                    AppWorkspace()
+                }
+            #else
+                AppWorkspace()
+            #endif
         }
         #if os(macOS)
         .defaultSize(width: 960, height: 640)

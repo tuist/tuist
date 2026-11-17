@@ -235,6 +235,33 @@ fn present(thread: &mut Value) {
     thread["state"] = json!(state);
     thread["section"] = json!(section);
     thread["working"] = json!(working && !archived);
+    for message in thread["messages"].as_array_mut().into_iter().flatten() {
+        present_card(message);
+    }
+}
+
+/// A message's `ui` is a card the model wrote: NSH JavaScript `source` shown
+/// in a frame of its `size` class. The core turns the class into the frame's
+/// `height` in points, so every edge lays the card out at the same size
+/// before it runs, and the card fills that frame instead of measuring
+/// itself. A card this core can't show is dropped, and the edge shows the
+/// message's `content` as it would any other.
+fn present_card(message: &mut Value) {
+    let Some(ui) = message.get_mut("ui") else {
+        return;
+    };
+    let height = match ui["size"].as_str() {
+        Some("compact") => 120,
+        Some("medium") => 240,
+        Some("tall") => 400,
+        _ => 0,
+    };
+    let source = ui["source"].as_str().unwrap_or_default();
+    if height == 0 || source.is_empty() || source.len() > 256 * 1024 {
+        message.as_object_mut().map(|m| m.remove("ui"));
+    } else {
+        ui["height"] = json!(height);
+    }
 }
 
 fn thread_id(args: &Value) -> Result<&str> {
