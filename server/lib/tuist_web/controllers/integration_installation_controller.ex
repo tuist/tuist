@@ -11,6 +11,8 @@ defmodule TuistWeb.IntegrationInstallationController do
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.BadRequestError
 
+  @pending_ttl 600
+
   @doc """
   Stores verified provider proof for the chooser. `github_account` is the GitHub account that owns
   the installation, as verified by `Tuist.GitHub.InstallationAuthorization`.
@@ -32,15 +34,7 @@ defmodule TuistWeb.IntegrationInstallationController do
   def show(conn, _params) do
     pending = pending!(conn)
     user = Authentication.current_user(conn)
-    {:ok, account} = Accounts.get_account_by_id(user.account.id)
-
-    accounts =
-      user
-      |> Accounts.get_user_organization_accounts()
-      |> Enum.map(& &1.account)
-      |> Enum.concat([account])
-      |> Enum.filter(&(Authorization.authorize(:account_update, user, &1) == :ok))
-      |> Enum.sort_by(&String.downcase(&1.name))
+    accounts = eligible_accounts(user)
 
     conn =
       conn
@@ -56,7 +50,7 @@ defmodule TuistWeb.IntegrationInstallationController do
         complete_installation(conn, pending, user, account)
 
       _ ->
-        render_chooser(conn, pending, accounts)
+        render_chooser(conn, pending)
     end
   end
 
@@ -78,14 +72,30 @@ defmodule TuistWeb.IntegrationInstallationController do
     conn |> delete_session(:integration_installation) |> redirect(to: ~p"/dashboard")
   end
 
-  defp render_chooser(conn, pending, accounts) do
+  @doc """
+  The accounts the user can connect an installation to: the organizations they administer and their
+  personal account. Shared with `TuistWeb.IntegrationInstallationAccountsLive`, which refreshes the
+  list while the chooser is open.
+  """
+  def eligible_accounts(user) do
+    {:ok, account} = Accounts.get_account_by_id(user.account.id)
+
+    user
+    |> Accounts.get_user_organization_accounts()
+    |> Enum.map(& &1.account)
+    |> Enum.concat([account])
+    |> Enum.filter(&(Authorization.authorize(:account_update, user, &1) == :ok))
+    |> Enum.sort_by(&String.downcase(&1.name))
+  end
+
+  defp render_chooser(conn, pending) do
     conn
     |> put_view(html: TuistWeb.IntegrationInstallationHTML)
     |> render(:show,
       head_title: dgettext("dashboard_auth", "Choose an organization · Tuist"),
       provider: provider_name(pending.provider),
       github_account: Map.get(pending, :github_account),
-      accounts: accounts
+      expires_at: pending.issued_at + @pending_ttl
     )
   end
 
@@ -111,7 +121,7 @@ defmodule TuistWeb.IntegrationInstallationController do
     case get_session(conn, :integration_installation) do
       %{user_id: user_id, issued_at: issued_at, provider: provider} = pending
       when user_id == user.id and provider in [:github, :origin] and is_integer(issued_at) ->
-        if (System.system_time(:second) - issued_at) in -60..600, do: pending, else: invalid_request!()
+        if (System.system_time(:second) - issued_at) in -60..@pending_ttl, do: pending, else: invalid_request!()
 
       _ ->
         invalid_request!()

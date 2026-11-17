@@ -2,6 +2,8 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Phoenix.LiveViewTest
+
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Environment
@@ -12,6 +14,7 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Errors.BadRequestError
+  alias TuistWeb.IntegrationInstallationAccountsLive
 
   setup :register_and_log_in_user
 
@@ -66,6 +69,31 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert html =~ ~s(href="/organizations/new?return_to=integration_installation")
     assert get_session(conn, :integration_installation)
     assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
+  end
+
+  test "the open chooser lists organizations the user becomes an admin of, with CSRF-protected forms", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, view, html} =
+      live_isolated(conn, IntegrationInstallationAccountsLive,
+        session: %{"integration_installation_expires_at" => System.system_time(:second) + 600}
+      )
+
+    assert html =~ user.account.name
+    refute html =~ "late-admin-org"
+
+    admin = AccountsFixtures.organization_fixture(name: "late-admin-org")
+    Accounts.add_user_to_organization(user, admin, role: :admin)
+    member = AccountsFixtures.organization_fixture(name: "late-member-org")
+    Accounts.add_user_to_organization(user, member)
+    send(view.pid, :refresh)
+
+    html = render(view)
+    assert html =~ "late-admin-org"
+    refute html =~ "late-member-org"
+    assert html =~ ~s(name="account_id" value="#{admin.account.id}")
+    assert html =~ ~r/name="_csrf_token" value="[^"]+"/
   end
 
   test "connects a GitHub organization installation to the personal account only when chosen", %{

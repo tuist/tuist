@@ -282,6 +282,14 @@
     text-align: center;
   }
 
+  & [data-part="accounts"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+    width: 100%;
+  }
+
   & [data-part="organizations"] {
     display: flex;
     flex-direction: column;

@@ -573,7 +573,7 @@ msgstr ""
 #: lib/tuist_web/components/user_security.ex:225
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:37
 #: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
@@ -705,27 +705,27 @@ msgstr ""
 msgid "Choose an organization"
 msgstr ""
 
-#: lib/tuist_web/controllers/integration_installation_controller.ex:53
+#: lib/tuist_web/controllers/integration_installation_controller.ex:95
 #, elixir-autogen, elixir-format
 msgid "Choose an organization · Tuist"
 msgstr ""
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:27
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:55
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr ""
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:28
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Personal account"
 msgstr ""
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:12
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Select the Tuist organization to connect to %{provider}."
 msgstr ""
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
 msgstr ""
@@ -1363,4 +1363,24 @@ msgstr ""
 #: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client}?"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Create an organization"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Don't see your organization?"
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you, and it will appear here."
+msgstr ""
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Select the Tuist organization to connect to the %{github_organization} GitHub organization."
 msgstr ""
