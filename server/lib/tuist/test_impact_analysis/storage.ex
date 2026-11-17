@@ -12,8 +12,10 @@ defmodule Tuist.TestImpactAnalysis.Storage do
   alias Tuist.IngestRepo
   alias Tuist.TestImpactAnalysis.Diff
   alias Tuist.TestImpactAnalysis.Run
+  alias Tuist.TestImpactAnalysis.RunTest
 
   @changed_files_limit 5_000
+  @insert_chunk_size 10_000
   @build_context_keys ~w(scheme test_plan destination)
   @build_context_value_limit 1_024
 
@@ -84,12 +86,20 @@ defmodule Tuist.TestImpactAnalysis.Storage do
   Records an impact run. `rule_trace` entries are maps with `rule`,
   `selected`, `skipped` and `verdict`; `build_context` keeps only the keys
   the server knows, each value capped in length.
+
+  `selected_tests` (`test_case_id`, `module_name`, `suite_name`, `name`,
+  `reason`, `matched_path`) are also written to `test_impact_run_tests`, for
+  one release only: servers of the previous release read a run's selected
+  tests from there, and a rollout runs both releases at once. Nothing reads
+  them anymore; the next release stops writing them and drops the table.
   """
-  def create_run(attrs) do
+  def create_run(attrs, selected_tests \\ []) do
+    now = NaiveDateTime.utc_now()
+
     attrs =
       attrs
       |> Map.put_new_lazy(:id, &UUIDv7.generate/0)
-      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+      |> Map.put(:inserted_at, now)
       |> Map.update(:build_context, %{}, &build_context/1)
       |> Map.update(:rule_trace, [], fn trace ->
         Enum.map(trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict})
@@ -97,6 +107,24 @@ defmodule Tuist.TestImpactAnalysis.Storage do
 
     with {:ok, run} <- attrs |> Run.create_changeset() |> Ecto.Changeset.apply_action(:insert) do
       {:ok, _} = IngestRepo.insert(run)
+
+      selected_tests
+      |> Stream.map(fn test ->
+        %{
+          test_impact_run_id: run.id,
+          project_id: run.project_id,
+          test_case_id: test.test_case_id,
+          module_name: test.module_name,
+          suite_name: test.suite_name || "",
+          name: test.name,
+          reason: to_string(test.reason),
+          matched_path: test.matched_path || "",
+          inserted_at: now
+        }
+      end)
+      |> Stream.chunk_every(@insert_chunk_size)
+      |> Enum.each(&IngestRepo.insert_all(RunTest, &1))
+
       {:ok, with_rule_trace_maps(run)}
     end
   end

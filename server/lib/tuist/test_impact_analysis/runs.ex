@@ -325,7 +325,12 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     :ok = Decision.store(project.id, attrs.id, baseline.checkpoint, decisions)
 
     module_skipped = total(attrs.skipped_modules)
-    {selected, skipped} = decisions |> Map.values() |> Enum.split_with(&(&1.decision == :selected))
+
+    {selected, skipped} =
+      decisions
+      |> Map.values()
+      |> Enum.map(&Map.put(&1, :name, get_in(names, [&1.idx, :name]) || ""))
+      |> Enum.split_with(&(&1.decision == :selected))
 
     attrs =
       Map.merge(attrs, %{
@@ -337,17 +342,17 @@ defmodule Tuist.TestImpactAnalysis.Runs do
         skipped_count: length(skipped) + module_skipped
       })
 
-    with {:ok, run} <- Storage.create_run(attrs) do
-      tests = Enum.map(selected ++ skipped, &Map.put(&1, :name, get_in(names, [&1.idx, :name])))
-      {:ok, %{run: run, skipped_tests: skip_entries(tests, MapSet.new(selected, & &1.test_case_id))}}
+    with {:ok, run} <- Storage.create_run(attrs, selected) do
+      {:ok, %{run: run, skipped_tests: skip_entries(selected ++ skipped, MapSet.new(selected, & &1.test_case_id))}}
     end
   end
 
-  # The names of the tests the decision skips. One `test_cases` doesn't name
-  # can't go on a skip list, so it runs.
+  # The names of the decided tests: a skipped one `test_cases` doesn't name
+  # can't go on a skip list, so it runs. Selected tests are named only for
+  # `test_impact_run_tests` (`Storage.create_run/2`).
   defp with_names(project_id, checkpoint, decisions) do
-    skipped = for {_id, %{decision: :skipped} = test} <- decisions, do: test.idx
-    names = Snapshots.names(project_id, %{checkpoint: checkpoint, overlay: nil}, skipped)
+    idxs = for {_id, test} <- decisions, do: test.idx
+    names = Snapshots.names(project_id, %{checkpoint: checkpoint, overlay: nil}, idxs)
 
     decisions =
       Map.new(decisions, fn
