@@ -87,3 +87,7 @@ tuist cargo test --doc
 ```
 
 Read more in <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link> and <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Rust Flaky Tests</.localized_link>.
+
+## Trademarks {#trademarks}
+
+Rust and Cargo are trademarks of the Rust Foundation. Tuist isn't affiliated with or endorsed by the Rust Project or the Rust Foundation. The Rust logo in these guides is © the Rust Foundation, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and shown in a single color that follows the page theme.

@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Rust cache",
+  "title": "Cargo build cache for Rust",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Reuse supported Rust compilation outputs locally and through Tuist's remote cache with Cargo."
+  "description": "Cut Rust compile time in CI and fresh clones with Tuist's Cargo build cache, which reuses compilation outputs locally and through a remote cache."
 }
 ---
-# Rust cache {#rust-cache}
+# Cargo build cache for Rust {#rust-cache}
 
-Tuist caches supported Rust compilation outputs so Cargo can reuse them after its build outputs have been removed. The cache is built into the Tuist CLI. There is no separate cache executable or Cargo plugin to install.
+Tuist caches supported Rust compilation outputs so Cargo can reuse them after its build outputs have been removed, such as after `cargo clean`, a branch switch, or in another checkout. You might also see this called a Cargo build cache or a Rust compile cache: it shortens Rust compile times by reusing what an earlier build compiled, including your workspace's incrementally compiled crates. The cache is built into the Tuist CLI. There is no separate cache executable or Cargo plugin to install.
 
 <!-- @snippet: ./_rust-experimental -->
 
