@@ -2528,7 +2528,16 @@ runnersFleetLinux:
       autoscaling:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 16 }
+    # The first shape on whole cores per Pod (two cores each), while every
+    # other shape stays on shared cores. All runners-linux hosts run kubelet
+    # v1.36.6 with tuist.dev/pod-level-resource-managers=true, and these Pods
+    # get /dev/kvm from the kvm-nri-plugin, not the device plugin
+    # (kubernetes/kubernetes#143490). Never restart the kubelet on a host
+    # running them: it leaks their cores (kubernetes/kubernetes#140989, see
+    # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    - vcpus: 4
+      memoryGb: 16
+      exclusiveCPUs: true
     - { vcpus: 8, memoryGb: 16 }
     # Each idle 32 GiB runner reserves 34.5 GiB with the kata overhead.
     - vcpus: 8
