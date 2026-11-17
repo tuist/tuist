@@ -488,7 +488,9 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     |> Enum.group_by(& &1.snapshot_id)
     |> Enum.reduce(MapSet.new(), fn {snapshot_id, snapshot_units}, unlined ->
       # A suite's and a module's rows are numbered as their lowest test, whose
-      # module and suite are theirs.
+      # module and suite are theirs. Only the paths of the patterns without
+      # lines are read: grouping every path of the snapshot's weeks peaked at
+      # 2 GiB at 200k tests while those parts were unmerged, against 130 MiB.
       rows =
         """
         WITH tests AS (
@@ -501,10 +503,19 @@ defmodule Tuist.TestImpactAnalysis.Carry do
           SELECT scope, test_idx, epoch, line_set FROM test_impact_snapshot_lines
           WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
         ),
-        #{Snapshots.set_patterns_sql()},
         unlined AS (
           SELECT epoch, pattern, path_id FROM test_impact_line_patterns
           WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs) AND empty(line_ranges)
+        ),
+        set_patterns AS (
+          SELECT epoch, line_set, pattern FROM test_impact_line_sets
+          ARRAY JOIN patterns AS pattern
+          WHERE project_id = {project_id:Int64} AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs)
+        ),
+        line_paths AS (
+          SELECT epoch, path_id, any(path) AS path FROM test_impact_line_paths
+          WHERE project_id = {project_id:Int64} AND (epoch, path_id) IN (SELECT epoch, path_id FROM unlined)
+          GROUP BY epoch, path_id
         )
         SELECT p.path, toString(r.scope), t.module_name, t.suite_name, r.test_idx FROM set_patterns AS s
         INNER JOIN unlined AS u ON u.epoch = s.epoch AND u.pattern = s.pattern
