@@ -60,7 +60,8 @@ defmodule TuistWeb.Noora.Pages.Avatar do
     """
   end
 
-  example "Placeholder", description: "With `fallback=\"placeholder\"`, an animated dither texture replaces the initials." do
+  example "Placeholder",
+    description: "With `fallback=\"placeholder\"`, an animated dither texture replaces the initials." do
     ~H"""
     <.avatar id="avatar-placeholder-small" name="Unknown author" fallback="placeholder" size="small" />
     <.avatar id="avatar-placeholder-medium" name="Unknown author" fallback="placeholder" />
