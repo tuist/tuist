@@ -204,7 +204,8 @@ pub struct Store {
     data_dir: PathBuf,
     segment_ring_limits: SegmentRingLimits,
     // The configured ring is a ceiling. Metadata and staging share the quota,
-    // so pressure can reduce the number of segments we can actually retain.
+    // so each rotation sizes the ring it keeps from measured free space, and
+    // pressure reclamation can lower it further between rotations.
     disk_pressure_segment_limit: AtomicUsize,
     disk_pressure_requested: AtomicU64,
     disk_pressure_notify: Notify,
@@ -4823,18 +4824,38 @@ impl Store {
         let Some(available) = self.available_segment_disk_bytes() else {
             return Ok(());
         };
-        if available < target {
+        // Size the ring this rotation keeps from the free space it measures, so
+        // a RocksDB index or staging that outgrows its reserve is paid for by
+        // ordinary rotation eviction rather than by pressure reclamation.
+        // Segments handed to the worker but not yet deleted are free space the
+        // ring already gave up.
+        let retiring: u64 = self
+            .deferred_capacity_retirements
+            .lock()
+            .expect("deferred capacity retirements poisoned")
+            .iter()
+            .map(|retirement| retirement.bytes)
+            .sum();
+        let free = available.saturating_add(retiring);
+        let segments = self.segment_state_snapshot().generations.len();
+        let limit = disk_fitted_segment_limit(segments, free, target).clamp(
+            SegmentRingLimits::legacy_floor().total_segments(),
+            self.segment_ring_limits.total_segments(),
+        );
+        self.disk_pressure_segment_limit
+            .store(limit, Ordering::Release);
+        // Reclamation covers only the deficit this rotation's extra eviction
+        // does not: waking it for that too would evict a second segment for
+        // the same shortfall.
+        let rotation_frees = if limit < segments {
+            MAX_SEGMENT_BYTES
+        } else {
+            0
+        };
+        if free.saturating_add(rotation_frees) < target {
             self.disk_pressure_requested
                 .fetch_max(incoming_size.max(1), Ordering::AcqRel);
             self.disk_pressure_notify.notify_one();
-        } else if available >= target.saturating_add(2 * MAX_SEGMENT_BYTES) {
-            let current = self.disk_pressure_segment_limit.load(Ordering::Acquire);
-            self.disk_pressure_segment_limit.store(
-                current
-                    .saturating_add(1)
-                    .min(self.segment_ring_limits.total_segments()),
-                Ordering::Release,
-            );
         }
         if available < required {
             return Err(format!(
@@ -12477,6 +12498,23 @@ fn segment_headroom_target_bytes(incoming_size: u64) -> u64 {
     segment_rotation_required_bytes(incoming_size).saturating_add(2 * MAX_SEGMENT_BYTES)
 }
 
+/// Segments a rotation may keep, the incoming one included, so the next
+/// rotation still finds `target` free: by then the incoming segment has spent
+/// a segment of free space and each segment retired has returned one. Below
+/// `target` a rotation retires one segment beyond its usual eviction and no
+/// more, so a request never evicts a burst inline; a deeper deficit, such as
+/// a staging spike, is left to pressure reclamation, which retires one
+/// segment per pass and stops once space returns.
+fn disk_fitted_segment_limit(segments: usize, available: u64, target: u64) -> usize {
+    if available >= target {
+        segments.saturating_add(
+            usize::try_from((available - target) / MAX_SEGMENT_BYTES).unwrap_or(usize::MAX),
+        )
+    } else {
+        segments.saturating_sub(1)
+    }
+}
+
 /// Components `Store::data_dir_usage_bytes` reports, in order.
 const DATA_DIR_USAGE_COMPONENTS: [&str; 7] = [
     "ring_segments",
@@ -12629,7 +12667,8 @@ impl SegmentRingLimits {
 /// from the claim with those reserves already taken out; a flat percentage of
 /// the filesystem on top of that stranded a fifth of every large thin volume,
 /// whose filesystem is the claim plus a fixed workspace. Actual free space is
-/// still checked at rotation: metadata and staging can outgrow any estimate.
+/// still checked at rotation, which retires extra segments when metadata or
+/// staging outgrow the estimate (see `disk_fitted_segment_limit`).
 /// Floored at the legacy 1/2/2 ring so small disks (or hosts where the
 /// filesystem size cannot be determined) keep the pre-existing behavior.
 /// Generations keep the legacy 1:2:2 old/current/new proportions.
@@ -25121,6 +25160,10 @@ mod tests {
                 expected_count
             );
         }
+        // With a segment of room past the target for the incoming one, the
+        // rotation keeps the ring reclamation left and retires nothing more.
+        let reclaimed = store.disk_available_override.take().unwrap();
+        store.disk_available_override = Some(Arc::new(move || reclaimed() + MAX_SEGMENT_BYTES));
         let mut writer = store.segment_write_lock.lock().await;
         let (_, evicted) = store
             .active_segment(MAX_SEGMENT_BYTES, &mut writer)
@@ -25176,6 +25219,64 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn rotation_fits_the_ring_to_free_space_before_pressure_reclaims() {
+        let (_temp, _config, mut store) = temp_store_with(|config| {
+            config.cas_capacity_bytes = Some(12 * MAX_SEGMENT_BYTES);
+        });
+        seed_pressure_segments(&store, 8).await;
+        let target = segment_headroom_target_bytes(1);
+        let free = Arc::new(AtomicU64::new(0));
+        let observed = free.clone();
+        store.disk_available_override = Some(Arc::new(move || observed.load(Ordering::Acquire)));
+
+        // Room past the target grows the ring a segment per segment of room,
+        // up to its budget; a shortfall shrinks it by one segment, which the
+        // rotation's extra eviction pays without waking reclamation.
+        for (available, limit) in [
+            (target + 9 * MAX_SEGMENT_BYTES, 12),
+            (target + MAX_SEGMENT_BYTES, 9),
+            (target, 8),
+            (target - 1, 7),
+        ] {
+            free.store(available, Ordering::Release);
+            store.check_segment_headroom(1).unwrap();
+            assert_eq!(
+                store.effective_segment_ring_limits().total_segments(),
+                limit,
+                "{available} bytes free"
+            );
+        }
+        assert_eq!(store.disk_pressure_requested.load(Ordering::Acquire), 0);
+
+        // An index that grew past its reserve costs ordinary rotation
+        // eviction: two segments leave a ring the budget still has room for.
+        let mut writer = store.segment_write_lock.lock().await;
+        let (_, evicted) = store
+            .active_segment(MAX_SEGMENT_BYTES, &mut writer)
+            .await
+            .unwrap();
+        drop(writer);
+        assert_eq!(evicted.remaining.len(), 2);
+        store.evict_segments(evicted).await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 7);
+        let reports = store.take_pending_capacity_evictions();
+        assert_eq!(reports.len(), 2);
+        assert!(reports.iter().all(|event| event.reason == "capacity"));
+        assert_eq!(store.disk_pressure_requested.load(Ordering::Acquire), 0);
+
+        // A shortfall deeper than one segment still shrinks by one per
+        // rotation and leaves the rest to reclamation.
+        free.store(target - MAX_SEGMENT_BYTES - 1, Ordering::Release);
+        store.check_segment_headroom(1).unwrap();
+        assert_eq!(store.effective_segment_ring_limits().total_segments(), 6);
+        assert!(store.disk_pressure_requested.load(Ordering::Acquire) > 0);
+        assert_eq!(
+            store.storage_snapshot().ring_budget_bytes,
+            12 * MAX_SEGMENT_BYTES
+        );
     }
 
     #[tokio::test]
