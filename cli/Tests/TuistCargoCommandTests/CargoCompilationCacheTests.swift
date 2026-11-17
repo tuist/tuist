@@ -56,6 +56,33 @@ struct CargoCompilationCacheTests {
         #expect(!CargoRecordedInvocation.hasDebugMap(unpacked + ["--codegen", "split_debuginfo=packed"]))
     }
 
+    @Test(.inTemporaryDirectory) func compilesAUnitWithoutIncrementalCompilationOnlyTheFirstTimeItsTargetCompilesIt() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        func unit(_ name: String, _ hash: String) -> [String] {
+            ["rustc", "--crate-name", name, "-C", "incremental=target/debug/incremental", "-C", "extra-filename=-\(hash)"]
+                + ["lib.rs"]
+        }
+        let library = unit("app", "0123456789abcdef")
+        #expect(
+            CargoCacheInputs.withoutFirstIncrementalSession(library, directory: directory)
+                == ["rustc", "--crate-name", "app", "-C", "extra-filename=-0123456789abcdef", "lib.rs"]
+        )
+        // Its next compilation is the one an edit starts, which builds the session the following edits reuse.
+        #expect(CargoCacheInputs.withoutFirstIncrementalSession(library, directory: directory) == library)
+        // Another unit of the same crate, such as its tests, has its own first compilation.
+        let tests = unit("app", "fedcba9876543210")
+        #expect(CargoCacheInputs.withoutFirstIncrementalSession(tests, directory: directory) != tests)
+        // A session from an earlier build is reused, including one of a crate whose name another crate's starts with.
+        let sessions = URL(fileURLWithPath: directory.pathString).appendingPathComponent("target/debug/incremental")
+        try FileManager.default.createDirectory(
+            at: sessions.appendingPathComponent("core-1z2y3x"), withIntermediateDirectories: true
+        )
+        let core = unit("core", "00000000000000aa")
+        #expect(CargoCacheInputs.withoutFirstIncrementalSession(core, directory: directory) == core)
+        let plugins = unit("core_plugins", "00000000000000bb")
+        #expect(CargoCacheInputs.withoutFirstIncrementalSession(plugins, directory: directory) != plugins)
+    }
+
     @Test(.inTemporaryDirectory) func leavesOnlyTheDebugBundleOutOfTheRootScan() throws {
         let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
         let workspace = root.appendingPathComponent("ws")

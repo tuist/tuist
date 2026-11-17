@@ -215,13 +215,17 @@ struct CargoRecordedInvocation: CargoCacheAction {
         guard let debugBundle, let binary = files.first, let directory = try? AbsolutePath(validating: output.path)
         else { return true }
         let bundle = output.appendingPathComponent(debugBundle)
-        do {
+        // The parallel DWARF linker bundles a binary such as Codex's 1 GB `codex` in about half the time, with the same
+        // functions, inlined calls, line tables and located variables. Toolchains without it get the classic one.
+        var linked = false
+        for linker in [["--linker", "parallel"], []] where !linked {
             // From the output directory, by name: the relocation map records the binary's path as given.
-            _ = try await process.captureOutput(
-                "/usr/bin/xcrun", arguments: ["dsymutil", binary, "-o", debugBundle], environment: environment,
+            linked = (try? await process.captureOutput(
+                "/usr/bin/xcrun", arguments: ["dsymutil"] + linker + [binary, "-o", debugBundle], environment: environment,
                 directory: directory
-            )
-        } catch {
+            )) != nil
+        }
+        guard linked else {
             try? FileManager.default.removeItem(at: bundle)
             return false
         }
