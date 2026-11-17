@@ -4,6 +4,10 @@ struct AppWorkspace: View {
     @State private var client: AppClient
     @State private var updater: PreviewUpdater
     @State private var addingProfile = false
+    /// The selected tab, shown as soon as the person picks it. The core's
+    /// `navigation.tab` stays the source of truth; waiting for its answer
+    /// would make the tab view render the old tab for a frame.
+    @State private var tab = AppNavigation.Tab.threads
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -20,13 +24,13 @@ struct AppWorkspace: View {
                 #if os(macOS)
                     // On the Mac, a source-list sidebar takes the place of the tab bar.
                     NavigationSplitView {
-                        List(selection: selection) {
+                        List(selection: $tab) {
                             Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
                             Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
                         }
                         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
                     } detail: {
-                        if client.view.navigation.tab == .profile {
+                        if tab == .profile {
                             NavigationStack {
                                 ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
                             }
@@ -37,7 +41,7 @@ struct AppWorkspace: View {
                     .toolbar { ToolbarItem(placement: .primaryAction) { profilesMenu } }
                     .id(client.view.generation)
                 #else
-                    TabView(selection: selection) {
+                    TabView(selection: $tab) {
                         threadsStack
                             .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right") }
                             .tag(AppNavigation.Tab.threads)
@@ -56,6 +60,13 @@ struct AppWorkspace: View {
         #if os(macOS)
         .frame(minWidth: 720, minHeight: 520)
         #endif
+        .onChange(of: tab) { _, tab in
+            if tab != client.view.navigation.tab {
+                Task { await client.perform("select_tab", ["tab": tab.rawValue]) }
+            }
+        }
+        // Deep links, notification taps and profile switches change the tab in the core.
+        .onChange(of: client.view.navigation.tab, initial: true) { _, coreTab in tab = coreTab }
         .tint(Noora.primary)
         // Omarchy themes have one appearance; system controls and bars follow it.
         .preferredColorScheme(Themes.shared.selected.appearance)
@@ -104,13 +115,6 @@ struct AppWorkspace: View {
         )) {
             Button("OK") { client.error = nil }
         } message: { Text(verbatim: client.error ?? "") }
-    }
-
-    private var selection: Binding<AppNavigation.Tab> {
-        Binding(
-            get: { client.view.navigation.tab },
-            set: { tab in Task { await client.perform("select_tab", ["tab": tab.rawValue]) } }
-        )
     }
 
     private var threadsStack: some View {
