@@ -274,8 +274,12 @@ func TestSegmentedDownloadFetchesInParallelAndRetriesASegment(t *testing.T) {
 		fail := !failed && r.Header.Get("Range") == "bytes=4500-5499"
 		failed = failed || fail
 		mu.Unlock()
-		defer func() { mu.Lock(); inFlight--; mu.Unlock() }()
 		time.Sleep(20 * time.Millisecond)
+		// Leave the count before answering: once the client has the body it
+		// may start its next request before this handler returns.
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
 		if fail {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
