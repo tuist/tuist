@@ -17,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -843,13 +844,26 @@ func (r *AutoscalerReconciler) now() time.Time {
 	return time.Now()
 }
 
+// autoscalerWorkers is how many pools reconcile at once. One worker could not
+// keep the 5 s poll: in production 40 pools at ~0.3 s each kept it busy all
+// the time with 28 pools queued, so each pool ran about every 12 s. The macOS
+// sandbox grants, which the fleet's first pool renews and which expire after
+// 15 s, then went stale fleet-wide between renewals, and a sandbox waiting for
+// an idle runner's slot outlived its grant before that runner was retired.
+// The workqueue never runs one pool twice at once, and each reconcile writes
+// only its own pool and Pods, from preemption plans every pool computes the
+// same way. Grant publication keeps its own lock, and host reservations stay
+// in the RunnerPool reconciler's single worker.
+const autoscalerWorkers = 4
+
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		// Different controller name so it doesn't collide with
 		// the RunnerPoolReconciler — both watch the same For()
 		// type but maintain independent workqueues.
 		Named("autoscaler").
-		For(&tuistv1.RunnerPool{})
+		For(&tuistv1.RunnerPool{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: autoscalerWorkers})
 	if r.ReservationsNamespace != "" {
 		// A new macOS sandbox reservation may be waiting for an idle CI
 		// runner's slot. Reconcile the darwin pools now rather than on the

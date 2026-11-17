@@ -52,6 +52,13 @@ cancellable and leaves the reserve intact. See
   `holdRecentPeak`) live in the `RunnerPool` spec, so a tuning change is
   helm-only.
 
+  It runs `autoscalerWorkers` pools at once. Its work is cross-pool reads
+  and per-pool writes from deterministic plans, so it does not need the
+  RunnerPool reconciler's single worker. Keep each pool's tick near
+  5 seconds (average reconcile time times the pool count, divided by the
+  workers): one pool's tick renews the macOS sandbox grants, which expire
+  after 15 seconds.
+
   The server also learns a floor per pool (`learned_warm_floor`,
   `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
   the pool has had a job in the last day. The pool keeps that many runners
