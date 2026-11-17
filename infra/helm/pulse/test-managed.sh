@@ -54,6 +54,9 @@ for environment in staging canary; do
       (.spec.target.template.data.passwd | contains("sentry")) and
       .spec.target.template.data["ingest-username"] == "tuist" and
       (.spec.target.template.data["ingest-password"] | contains(".token"))) and
+    # Grafana reads every workload Pulse over PostgreSQL through the PDC agent,
+    # which alone may reach 4003 (ingress[2] below).
+    (one("Service"; "pulse") | any(.spec.ports[]; .name == "postgres" and .port == 4003)) and
     (one("Deployment"; "pulse-frontend").spec.template.spec |
       .initContainers[0].name == "combine-auth" and
       any(.volumes[]; .name == "auth-inputs" and (.projected.sources | length) == 2)) and
@@ -62,7 +65,7 @@ for environment in staging canary; do
         podSelector:{matchLabels:{"app.kubernetes.io/component":"server"}}}] and
       .ingress[2].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
         podSelector:{matchLabels:{"app.kubernetes.io/name":"tuist","app.kubernetes.io/instance":"tuist","app.kubernetes.io/component":"pdc-agent"}}}] and
-      .ingress[2].ports == [{port:4000,protocol:"TCP"}] and
+      .ingress[2].ports == [{port:4000,protocol:"TCP"},{port:4003,protocol:"TCP"}] and
       .ingress[3] == {ports:[{port:4000,protocol:"TCP"}], from:[
         {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"kura"}},
          podSelector:{matchLabels:{"app.kubernetes.io/name":"kura"}}}]} and

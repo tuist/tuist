@@ -60,7 +60,7 @@ PostgreSQL data source (SQL alert rules over logs); only the PDC agent may
 reach it. The list lives here rather than in values so adding an environment
 changes only that environment's config checksums and restarts. */}}
 {{- define "pulse.postgres" -}}
-{{- if and (eq .Values.topology "cluster") (has .Values.environment (list "production")) }}true{{ end }}
+{{- if and (eq .Values.topology "cluster") (has .Values.environment (list "staging" "canary" "production")) }}true{{ end }}
 {{- end }}
 
 {{- define "pulse.readerNamespace" -}}
