@@ -132,12 +132,17 @@ fn account_menu_keyboard_exit_restore_settings_and_sign_out(cx: &mut TestAppCont
     root.read_with(cx, |root, _| assert!(root.menu.is_some()));
     press(cx, "tab"); // Close and leave, rather than trap focus on the opener.
     root.read_with(cx, |root, _| assert!(root.menu.is_none()));
-    press(cx, "tab");
+    // Threads, Halls, DMs, then Profile.
+    for _ in 0..3 {
+        press(cx, "tab");
+    }
     press(cx, "enter");
     root.read_with(cx, |root, cx| {
         assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Profile)
     });
-    press(cx, "shift-tab");
+    for _ in 0..3 {
+        press(cx, "shift-tab");
+    }
     press(cx, "space");
     root.read_with(cx, |root, cx| {
         assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Threads)
@@ -189,10 +194,59 @@ fn closing_a_preview_returns_focus_to_the_sidebar(cx: &mut TestAppContext) {
     root.read_with(cx, |root, cx| {
         assert!(root.navigation.read(cx).preview.is_none())
     });
-    // Focus sits on the Threads row, so the next stop is the Profile row.
-    press(cx, "tab");
+    // Focus sits on the Threads row; Halls and DMs come before Profile.
+    for _ in 0..3 {
+        press(cx, "tab");
+    }
     press(cx, "enter");
     root.read_with(cx, |root, cx| {
         assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Profile)
+    });
+}
+
+#[gpui::test]
+fn destination_shortcuts_select_and_focus_the_dock_row(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        crate::keyboard::init(cx);
+        crate::input::init(cx);
+        init(cx);
+        crate::workspace::init(cx);
+    });
+    let directory = tempfile::tempdir().unwrap();
+    let (accounts, session) = accounts(directory.path(), true);
+    let status = session.status().map_err(|error| error.to_string());
+    let (root, cx) =
+        cx.add_window_view(|window, cx| Root::new(session, accounts, status, window, cx));
+    cx.update(|window, _| window.activate_window());
+    draw(cx);
+    let modifier = if cfg!(target_os = "macos") {
+        "cmd"
+    } else {
+        "ctrl"
+    };
+    for (key, tab) in [
+        ("2", tuist_navigation::Tab::Halls),
+        ("3", tuist_navigation::Tab::Dms),
+        ("4", tuist_navigation::Tab::Profile),
+        ("1", tuist_navigation::Tab::Threads),
+    ] {
+        cx.simulate_keystrokes(&format!("{modifier}-{key}"));
+        draw(cx);
+        root.read_with(cx, |root, cx| assert_eq!(root.navigation.read(cx).tab, tab));
+    }
+    // A shortcut also works from the account menu, which it closes.
+    cx.dispatch_action(ToggleAccountMenu);
+    draw(cx);
+    cx.simulate_keystrokes(&format!("{modifier}-2"));
+    draw(cx);
+    root.read_with(cx, |root, cx| {
+        assert!(root.menu.is_none());
+        assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Halls)
+    });
+    // Focus moved to the Halls row: the next stop is DMs.
+    press(cx, "tab");
+    press(cx, "enter");
+    root.read_with(cx, |root, cx| {
+        assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Dms)
     });
 }

@@ -68,6 +68,8 @@ pub struct MobileClient {
     dirty: bool,
     attempt: Option<Attempt>,
     threads: Threads,
+    halls: crate::Halls,
+    presence: crate::Presence,
     navigation: crate::navigation::Navigation,
     /// The live sockets of the threads the edge shows.
     live: crate::live::Live,
@@ -180,8 +182,7 @@ impl MobileClient {
                 Ok(Value::Null)
             }
             "navigation_back" => {
-                self.navigation
-                    .navigate(crate::navigation::Destination::Threads);
+                self.navigation.back();
                 Ok(Value::Null)
             }
             "boot" => self.boot(host),
@@ -216,6 +217,7 @@ impl MobileClient {
                 Ok(Value::Null)
             }
             "sign_out" => {
+                self.presence.disconnect(&mut HostSocket { host });
                 let push_unregister_failed = !self.push_unregister(host);
                 let profile = self.vault.active_profile_id.clone();
                 self.remove_active(host)?;
@@ -271,6 +273,61 @@ impl MobileClient {
             }
             "live_close" => {
                 self.live.close(text(args, "socket")?);
+                Ok(Value::Null)
+            }
+            op @ ("halls" | "hall" | "send_hall_message" | "read_hall" | "create_hall"
+            | "start_direct" | "hall_people") => {
+                let index = self.active()?;
+                let account = self.account(index).to_string();
+                let organization = self.vault.profiles[index].organization.is_some();
+                let server = server_url(&self.vault.profiles[index].server)?;
+                let mut halls = std::mem::take(&mut self.halls);
+                let result = halls.call(
+                    &server,
+                    &account,
+                    organization,
+                    op,
+                    args,
+                    &mut Authorized {
+                        client: self,
+                        index,
+                        host,
+                    },
+                );
+                self.halls = halls;
+                // People connected now, which is fresher than the server's answer.
+                let mut result = result;
+                if let (Ok(data), Some(online)) = (&mut result, self.presence.online_ids(&account))
+                {
+                    crate::presence::mark_online(data, &online);
+                }
+                result
+            }
+            "presence" => {
+                let index = self.active()?;
+                let profile = &self.vault.profiles[index];
+                if profile.organization.is_none() {
+                    self.presence.disconnect(&mut HostSocket { host });
+                    return Ok(
+                        json!({"available":false,"reason":"personal","connected":false,"online":[]}),
+                    );
+                }
+                let account = self.account(index).to_string();
+                let server = server_url(&profile.server)?;
+                // Connects with a token valid for at least 30 s; the server checks it
+                // again every 30 s, and a later reconnect refreshes it again.
+                self.refresh(index, host)?;
+                let access = self.vault.profiles[index].access.clone();
+                self.presence.poll(
+                    &server,
+                    &account,
+                    &mut || Ok(access.clone()),
+                    &mut HostSocket { host },
+                    now()?,
+                )
+            }
+            "presence_disconnect" => {
+                self.presence.disconnect(&mut HostSocket { host });
                 Ok(Value::Null)
             }
             "previews" | "tracks" | "preview" | "delete_preview" => {
@@ -1109,6 +1166,44 @@ impl MobileClient {
             page = page.checked_add(1).ok_or("Invalid pagination")?;
         }
         Ok(json!({"projects":projects}))
+    }
+}
+
+/// The platform's WebSocket, reached through `socket_*` host actions.
+struct HostSocket<'a> {
+    host: &'a mut dyn Host,
+}
+
+impl crate::Socket for HostSocket<'_> {
+    fn open(&mut self, url: &Url, protocols: &[String]) -> Result<()> {
+        let response = action(
+            self.host,
+            json!({"type":"socket_open","url":url.as_str(),"protocols":protocols}),
+        )?;
+        if response["ok"] == true {
+            Ok(())
+        } else {
+            Err("Native operation failed")
+        }
+    }
+
+    fn send(&mut self, text: &str) -> Result<()> {
+        action(self.host, json!({"type":"socket_send","text":text})).map(|_| ())
+    }
+
+    fn read(&mut self) -> Result<(Vec<String>, bool)> {
+        let response = action(self.host, json!({"type":"socket_read"}))?;
+        let frames = response["frames"]
+            .as_array()
+            .ok_or("Native operation failed")?
+            .iter()
+            .filter_map(|f| f.as_str().map(str::to_string))
+            .collect();
+        Ok((frames, response["closed"] == true))
+    }
+
+    fn close(&mut self) {
+        let _ = action(self.host, json!({"type":"socket_close"}));
     }
 }
 

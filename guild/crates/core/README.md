@@ -38,8 +38,8 @@ the colors it overrides, and `live_receive` hands it to the edge with ID
 `custom`. Edges keep that one custom theme beside the catalog, select it at
 once, and show it as **Custom** until the person picks another.
 
-The tab catalog is `threads` (index 0, the default) then `profile`; its C/JNI symbols are unchanged.
-Rust callers can instantiate `MobileClient` and implement `Host` independently. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
+The tab catalog is `threads` (index 0, the default), `halls`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
+Rust callers can instantiate `MobileClient` and implement `Host` independently. The hall operations live in `Halls`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 
 ## Native host actions
 
@@ -48,6 +48,10 @@ Rust callers can instantiate `MobileClient` and implement `Host` independently. 
 | `{"type":"read"}` | `{"value":null}` or `{"value":"<opaque vault JSON>"}` |
 | `{"type":"write","value":"<opaque vault JSON>"}` | `{"ok":true}` |
 | `{"type":"http","method":"GET","url":"https://…","headers":{"Accept":"application/json",…},"body":"optional string"}` | `{"status":200,"body":"<response text>"}`; `{"error":"offline"}` only when the server is unreachable (no connection, DNS, connect failure, timeout), which makes thread operations answer from the local store. Any other error (TLS, size) stays an error |
+| `{"type":"socket_open","url":"wss://…","protocols":["phoenix","base64url.bearer.phx.…"]}` | `{"ok":true}`; opens the presence WebSocket, replacing any open one, and starts buffering its text frames. The second protocol carries the access token: never log it |
+| `{"type":"socket_send","text":"…"}` | `{"ok":true}`, or an error once closed |
+| `{"type":"socket_read"}` | `{"frames":["…",…],"closed":false}`: the text frames received since the last read, without blocking, and whether the connection has closed |
+| `{"type":"socket_close"}` | `{"ok":true}` |
 | `{"type":"store_directory"}` | `{"path":"/absolute/directory"}` |
 | `{"type":"log","message":"…"}` | `{"ok":true}`; any failure is ignored |
 
@@ -109,10 +113,10 @@ when an operation reports an error.
 | Operation | Args | Data |
 | --- | --- | --- |
 | `snapshot` | none | null |
-| `routes` | none | `{routes:["/threads","/threads/{id}","/profile"]}`; the shared addressable screen catalog |
+| `routes` | none | `{routes:["/threads","/threads/{id}","/halls","/halls/{id}","/dms","/dms/{id}","/profile"]}`; the shared addressable screen catalog |
 | `navigate` | `url`: internal path, `tuist-guild://app/…`, or HTTPS `{server}/guild/…`; optional `if_generation` and `if_revision` | null; updates navigation, or queues a signed-out link until sign-in; a mismatched version makes an async completion a no-op |
-| `select_tab` | `tab`: `threads` or `profile` | null; preserves the conversation stack across tab changes |
-| `navigation_back` | none | null; returns to the Threads root |
+| `select_tab` | `tab`: `threads`, `halls`, `dms` or `profile` | null; each conversation tab keeps its own open conversation across tab changes |
+| `navigation_back` | none | null; returns to the selected tab's list (Threads from Profile) |
 | `boot` | none | `{stores:[{profile,migrated:[…]},…]}`. Call it first at launch: it migrates every profile's local store and logs each step; a store that fails to open is logged, left out of `stores`, and retried when used |
 | `begin_sign_in` | `server`, optional `provider`: `tuist` (default), `github`, `google`, `apple` | `{url,callback_scheme:"tuist-guild"}`; the URL uses the Tuist Guild client (`tuist_oauth::GUILD_CLIENT_ID`) and requests no scope; it first reads `/.well-known/tuist.json` and fails with an update-the-server error unless `guild_oauth_client_id` names that client |
 | `finish_sign_in` | `url` | null |
@@ -133,6 +137,15 @@ when an operation reports an error.
 | `live_tick` | `socket` | `{send,reconnect}`: frames to send (the heartbeat), or `reconnect: true` to close the socket and start again with `live_wait`, because the server never answered the last heartbeat, as when a network change leaves the socket half open. The edge also closes the socket when a send fails |
 | `live_receive` | `socket`, thread `id`, `message`: one text frame | `{refresh,reconnect,replies,theme}`: `refresh` asks the edge to load the thread again, `reconnect` to close the socket and start again, `replies` are frames to send back as they are, and `theme` is a custom theme to apply and select before sending them, in the theme catalog's shape with `id` `custom` (Profile lists it as **Custom**). A frame for another account's topic, after an account switch, reconnects, and a tool call on it is answered with an error at once |
 | `live_close` | `socket` | null; forgets the socket once its screen is gone |
+| `halls` | none | `{available,reason,halls:[…],directs:[…]}` from `/api/accounts/{account}/halls`. Halls are long-lived conversations between people, with no agent: `halls` are the organization's named halls by name, which every member reads and writes, and `directs` are the person's direct conversations (2 to 8 people) by latest activity. Each has `id`, `kind` (`hall` or `direct`), `title` (`#name`, or the other people's handles), `name`, `topic`, `members` (the other people, `[{id,handle,online}]`, directs only; `online` means they have Guild open in this organization), `last_position`, `read_position`, `unread`, `updated_at` and `last_message`. A personal account answers `available:false`, `reason:"personal"` without a request; a 404 (flags off or not a member) `reason:"disabled"`; a 401/403 `reason:"sign_in_required"`. Not stored offline yet |
+| `hall` | `id`, optional `before` message position | the hall as `halls` describes it, plus its latest 50 `messages` (`{id,position,body,author:{id,handle,online},mine,inserted_at}`, oldest first), `has_more` and `next_before`. Frontends poll it every few seconds while it is visible |
+| `send_hall_message` | `id`, `content` (nonempty, at most 16,000 bytes) | the updated hall; a retry of the same text after a failure reuses its `request_id` |
+| `read_hall` | `id`, `position` | `{read_position}`; moves the person's read position forward (never back). Call it with `last_position` when a hall is shown |
+| `create_hall` | `name`, optional `topic` (at most 250 characters) | the new hall. The name is lowercased, a leading `#` dropped and spaces become `-`; it then must be letters, digits, `-` or `_`, at most 64 characters. A taken name fails with "A hall with this name already exists" |
+| `start_direct` | `user_ids`: one to seven people from `hall_people` | the direct conversation with them, created the first time; the same people always reach the same conversation |
+| `hall_people` | none | `{people:[{id,handle,online}]}`: the organization's other members, to pick for `start_direct` |
+| `presence` | none | `{available,reason,connected,online:[{id,handle}]}`. Keeps the person joined to the selected organization's presence (`presence:<organization>` on `/threads/socket`, Phoenix's channel protocol, over the `socket_*` host actions), so the organization sees them online, and returns who else is. Call it every few seconds while the app is in front, and `presence_disconnect` when it leaves: the person shows online only while it is called. It reconnects after drops (5 s) and refusals (60 s, `reason:"disabled"`), heartbeats every 25 s, and follows organization changes. A personal account answers `reason:"personal"` and opens nothing. While joined, `halls`, `hall` and `hall_people` responses get `online` from this live state instead of the server's answer |
+| `presence_disconnect` | none | null; closes the presence connection, so the person shows offline. `sign_out` also closes it |
 | `projects` | none | `{projects:[…]}`; complete enumeration, deduplicated and account-scoped |
 | `previews` | `project`: `account/project`, optional nullable `track`, `search`, `page` (default 1), `page_size` (default 20, maximum 100) | raw previews response |
 | `tracks` | `project` | raw full-project `{total_count,tracks:[{name,count}]}` |
@@ -155,7 +168,7 @@ are rejected when returned rows do not match, never repaired into partial totals
 Track discovery does not derive choices/counts from downloaded previews. An older
 server's missing discovery is an error for that operation; browsing still works.
 
-Every view also contains `navigation: {tab,thread_id,path,revision}`. `thread_id` is nullable and survives tab selection; `path` describes the visible destination. Revision is process-local and increases on navigation changes; ignore older view revisions within the same session generation. Edges bind native tab/stack controls to this state, send user actions back through the operations above, and fetch conversation data through `thread` (navigation itself performs no network requests). See the workspace README's Deep links section for URL scoping, launch examples and reserved web URLs. Navigation is in memory only, never in the credential vault.
+Every view also contains `navigation: {tab,thread_id,hall_id,dm_id,path,revision}`. `thread_id`, `hall_id` (the Halls tab's open hall) and `dm_id` (the DMs tab's) are nullable and survive tab selection; `path` describes the visible destination. Revision is process-local and increases on navigation changes; ignore older view revisions within the same session generation. Edges bind native tab/stack controls to this state, send user actions back through the operations above, and fetch conversation data through `thread`, or `hall` for `hall_id` and `dm_id` (DMs use the same hall operations; navigation itself performs no network requests). See the workspace README's Deep links section for URL scoping, launch examples and reserved web URLs. Navigation is in memory only, never in the credential vault.
 
 Sign-in uses the server's static Tuist Guild client, a public PKCE client, with
 the distinct `tuist-guild://oauth-callback` redirect.

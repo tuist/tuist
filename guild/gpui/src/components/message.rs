@@ -1,4 +1,4 @@
-use gpui::{Div, div, prelude::*};
+use gpui::{Div, ElementId, Stateful, div, prelude::*, px, rgb};
 
 use crate::theme::Theme;
 
@@ -18,4 +18,58 @@ pub fn message(role: &str, content: String, theme: Theme) -> Div {
         "assistant" => div().pr_16().line_height(gpui::rems(1.5)).child(text),
         _ => div().text_xs().text_color(theme.text_muted).child(text),
     }
+}
+
+/// The green dot chat apps put next to someone who has the app open. Noora
+/// has no presence token, so it uses the same green in every theme.
+pub fn presence_dot(id: impl Into<ElementId>) -> Stateful<Div> {
+    div()
+        .id(id)
+        .role(gpui::Role::Image)
+        .aria_label("Online")
+        .size(px(8.))
+        .flex_none()
+        .rounded_full()
+        .bg(rgb(0x22c55e))
+}
+
+/// One message between people, as in chat apps: who wrote it, whether they
+/// are online, and when, above the text. Nobody's messages sit apart, since
+/// nobody is an assistant.
+pub fn chat_message(
+    id: impl Into<ElementId>,
+    author: String,
+    online: bool,
+    time: String,
+    body: String,
+    theme: Theme,
+) -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .gap_0p5()
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap_2()
+                .child(
+                    div()
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .child(gpui::text!(author)),
+                )
+                .when(online, |row| row.child(presence_dot(id)))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.text_muted)
+                        .child(gpui::text!(time)),
+                ),
+        )
+        .child(
+            div()
+                .whitespace_normal()
+                .line_height(gpui::rems(1.5))
+                .child(gpui::text!(body)),
+        )
 }

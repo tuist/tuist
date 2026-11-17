@@ -11,7 +11,7 @@ struct TuistGuildApp: App {
     #endif
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: WorkspaceCommands.window) {
             #if targetEnvironment(simulator)
                 if ProcessInfo.processInfo.arguments.contains("-GuildCardPreview") {
                     CardPreview()
@@ -22,6 +22,7 @@ struct TuistGuildApp: App {
                 AppWorkspace()
             #endif
         }
+        .commands { WorkspaceCommands() }
         #if os(macOS)
         .defaultSize(width: 960, height: 640)
         #endif

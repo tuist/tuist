@@ -4,14 +4,14 @@ use gpui::{
     AnyView, Context, Entity, FocusHandle, IntoElement, Render, ScrollHandle, SharedString,
     Subscription, Task, Window, div, prelude::*,
 };
-use tuist_navigation::{Navigation, Route};
+use tuist_navigation::{Navigation, Route, Tab};
 use tuist_session::{Accounts, SavedAccount, Session, Status};
 use url::Url;
 
 use crate::accounts::{AccountAction, AccountsPanel};
 use crate::keyboard::KeyboardControl;
 use crate::login::{LogIn, LoginEvent};
-use crate::workspace::{Workspace, WorkspaceEvent};
+use crate::workspace::{ShowDms, ShowHalls, ShowProfile, ShowThreads, Workspace, WorkspaceEvent};
 
 mod titlebar;
 pub use titlebar::{ToggleAccountMenu, init};
@@ -110,6 +110,22 @@ impl Root {
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _updates: cx.observe_global::<crate::updates::UpdateState>(|_, cx| cx.notify()),
         }
+    }
+
+    /// A destination shortcut: leaves the account menu or settings for the
+    /// signed-in workspace's destination. Signed out, there is none.
+    fn show(&mut self, destination: Tab, window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy || self.editing_accounts || !matches!(self.status, Some(Status::SignedIn(_))) {
+            return;
+        }
+        if self.menu.is_some() {
+            self.close_menu(window, cx);
+        }
+        self.settings_open = false;
+        if let Ok(workspace) = self.screen.clone().downcast::<Workspace>() {
+            workspace.update(cx, |workspace, cx| workspace.show(destination, window, cx));
+        }
+        cx.notify();
     }
 
     pub fn receive_urls(&mut self, urls: Vec<String>, cx: &mut Context<Self>) {
@@ -387,6 +403,18 @@ impl Render for Root {
             .text_sm()
             .on_action(cx.listener(|this, _: &ToggleAccountMenu, window, cx| {
                 this.toggle_account_menu(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ShowThreads, window, cx| {
+                this.show(Tab::Threads, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ShowHalls, window, cx| {
+                this.show(Tab::Halls, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ShowDms, window, cx| {
+                this.show(Tab::Dms, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ShowProfile, window, cx| {
+                this.show(Tab::Profile, window, cx);
             }))
             .on_action(
                 cx.listener(|this, _: &crate::keyboard::NextFocus, window, cx| {

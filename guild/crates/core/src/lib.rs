@@ -2,14 +2,18 @@ use core::ffi::{c_char, c_void};
 
 mod bridge;
 mod client;
+mod halls;
 mod live;
 pub mod navigation;
+mod presence;
 pub mod store;
 pub mod theme;
 mod threads;
 mod updates;
 pub use bridge::{tuist_app_call, tuist_app_free};
 pub use client::{Host, MobileClient};
+pub use halls::{Halls, organizations};
+pub use presence::{Presence, Socket};
 pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};
 
 /// Stable destinations shared by the native frontends and GPUI navigation.
@@ -18,24 +22,34 @@ pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};
 pub enum Tab {
     #[default]
     Threads = 0,
-    Profile = 1,
+    Halls = 1,
+    Dms = 2,
+    Profile = 3,
 }
 
 impl Tab {
-    pub const ALL: [Self; 2] = [Self::Threads, Self::Profile];
+    pub const ALL: [Self; 4] = [Self::Threads, Self::Halls, Self::Dms, Self::Profile];
 
     pub fn id(self) -> &'static str {
         match self {
             Self::Threads => "threads",
+            Self::Halls => "halls",
+            Self::Dms => "dms",
             Self::Profile => "profile",
         }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|tab| tab.id() == id)
     }
 }
 
 fn tab_id(index: i32) -> Option<&'static core::ffi::CStr> {
     match index {
         0 => Some(c"threads"),
-        1 => Some(c"profile"),
+        1 => Some(c"halls"),
+        2 => Some(c"dms"),
+        3 => Some(c"profile"),
         _ => None,
     }
 }
@@ -81,7 +95,7 @@ mod tests {
 
     #[test]
     fn native_frontends_share_the_navigation_catalog() {
-        assert_eq!(tuist_app_tab_count(), 2);
+        assert_eq!(tuist_app_tab_count(), 4);
         for (index, tab) in Tab::ALL.iter().enumerate() {
             let id = tab_id(index as i32).unwrap().to_str().unwrap();
             assert_eq!(id, tab.id());
@@ -98,8 +112,8 @@ mod tests {
             assert_eq!(bytes, id.as_bytes());
         }
         assert!(tuist_app_tab_id(-1).is_null());
-        assert!(tuist_app_tab_id(2).is_null());
-        for (index, offset) in [(-1, 0), (2, 0), (0, -1), (0, 8)] {
+        assert!(tuist_app_tab_id(4).is_null());
+        for (index, offset) in [(-1, 0), (4, 0), (0, -1), (0, 8)] {
             assert_eq!(
                 Java_dev_tuist_guild_AppCore_tabIdByte(
                     core::ptr::null_mut(),

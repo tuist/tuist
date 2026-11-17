@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.URL
@@ -20,6 +21,12 @@ class AppHost(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("tuist_secure_prefs", Context.MODE_PRIVATE)
     // Where the core keeps its SQLite stores, outside Auto Backup: the server holds the authoritative copy.
     private val store = File(context.applicationContext.noBackupFilesDir, "store").apply { mkdirs() }
+
+    private companion object {
+        // The core's one presence connection. It lives as long as the Rust engine, not an Activity's
+        // host, so recreation keeps it; only AppCore's executor touches it.
+        var socket: WebSocket? = null
+    }
 
     // Called by JNI on AppCore's single background executor. Never return exception text containing URLs or tokens.
     fun perform(action: String): String = try {
@@ -48,6 +55,25 @@ class AppHost(context: Context) {
                 JSONObject().put("ok", true)
             }
             "store_directory" -> JSONObject().put("path", store.absolutePath)
+            // The core's presence connection. The second protocol carries the access token: never log the action.
+            "socket_open" -> {
+                socket?.close()
+                socket = null
+                val protocols = input.getJSONArray("protocols").let { array -> (0 until array.length()).map(array::getString) }
+                socket = WebSocket.connect(input.getString("url"), protocols)
+                JSONObject().put("ok", true)
+            }
+            "socket_send" -> socket?.let { it.send(input.getString("text")); JSONObject().put("ok", true) }
+                ?: JSONObject().put("error", "socket_closed")
+            "socket_read" -> {
+                val (frames, closed) = socket?.read() ?: (emptyList<String>() to true)
+                JSONObject().put("frames", JSONArray(frames)).put("closed", closed)
+            }
+            "socket_close" -> {
+                socket?.close()
+                socket = null
+                JSONObject().put("ok", true)
+            }
             // Only connectivity counts as offline; the core then answers from its
             // store. TLS and other failures stay errors.
             "http" -> try { http(input) } catch (_: java.net.UnknownHostException) { offline() }

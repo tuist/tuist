@@ -12,7 +12,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
+import android.text.style.TtsSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -40,6 +44,10 @@ class MainActivity : Activity() {
         get() = if (previewsSelected) "previews" else view.optJSONObject("navigation")?.optString("tab", "threads") ?: "threads"
     private val threadId: String?
         get() = view.optJSONObject("navigation")?.string("thread_id")?.takeIf { it.isNotBlank() }
+    /** The hall or direct conversation open in the selected Halls or DMs tab. */
+    private val roomId: String?
+        get() = when (screen) { "halls" -> "hall_id"; "dms" -> "dm_id"; else -> null }
+            ?.let { view.optJSONObject("navigation")?.string(it) }?.takeIf { it.isNotBlank() }
     private var intentConsumed = false
     // Adding another profile shows the login screen over the signed-in workspace.
     private var addingProfile = false
@@ -62,8 +70,23 @@ class MainActivity : Activity() {
     private var conversation: JSONObject? = null
     private var reply = ""
     private var follow: Runnable? = null
+    private var halls: JSONObject? = null
+    private var room: JSONObject? = null
+    private var poll: Runnable? = null
+    private var readSent = 0L
+    /** Messages before the open hall's latest page, oldest first, and where the next earlier page starts. */
+    private var older = emptyList<JSONObject>()
+    private var olderBefore: Any? = null
+    /** The last rendered scroll view and the Halls or DMs screen it showed, and how the next render places it. */
+    private var lastScroll: ScrollView? = null
+    private var scrolledPlace: String? = null
+    private var scrollToLatest = false
+    private var keepBottomOffset = false
+    private var presence: Runnable? = null
+    private var visible = false
     private var update: JSONObject? = null
     private val searchInputId = View.generateViewId()
+    private val replyInputId = View.generateViewId()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,9 +114,70 @@ class MainActivity : Activity() {
     // Coming back from the browser or another app is when a new build may have landed.
     override fun onResume() {
         super.onResume()
+        visible = true
         checkForUpdate()
         // Send what was written offline, such as threads started on a plane.
         if (active() != null) AppCore.submit("flush_outbox", JSONObject(), host) { }
+        if (room != null) { markRead(); schedulePoll() }
+        schedulePresence(0)
+    }
+
+    // Halls are only polled, and the person only shows online, while someone can see them.
+    override fun onPause() {
+        visible = false
+        poll?.let(handler::removeCallbacks)
+        presence?.let(handler::removeCallbacks)
+        // Recreation resumes right away and keeps the connection.
+        if (!isChangingConfigurations) AppCore.submit("presence_disconnect", JSONObject(), host) { }
+        super.onPause()
+    }
+
+    /**
+     * Keeps the person joined to their organization's presence about every 5 s. The core
+     * owns the connection and marks people online in halls answers; when who is online
+     * changes, the open Halls or DMs list is fetched again for its dots.
+     */
+    private fun schedulePresence(delay: Long) {
+        presence?.let(handler::removeCallbacks)
+        if (!visible) return
+        presence = Runnable {
+            if (!visible || isDestroyed) return@Runnable
+            if (active() == null) { schedulePresence(5000); return@Runnable }
+            AppCore.submit("presence", JSONObject(), host) { result ->
+                val ids = result.optJSONObject("data")?.optJSONArray("online")?.objects()?.map { it.optLong("id") }?.toSet()
+                runOnUiThread {
+                    if (!visible || isDestroyed) return@runOnUiThread
+                    if (ids != null && ids != online) {
+                        val changed = online != null
+                        online = ids
+                        if (changed) { roomStale = true; refreshHalls() }
+                    }
+                    schedulePresence(5000)
+                }
+            }
+        }
+        handler.postDelayed(presence!!, delay)
+    }
+
+    /** Who the last presence answer said is online; null before the first. The open hall's dots wait for its next poll. */
+    private var online: Set<Long>? = null
+    private var roomStale = false
+
+    /** Fetches the Halls or DMs list beside screen requests, like the hall poll, so it never cancels them. */
+    private fun refreshHalls() {
+        if (screen != "halls" && screen != "dms" || roomId != null || halls == null || busy) return
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        AppCore.submit("halls", JSONObject(), host) { result ->
+            runOnUiThread {
+                if (isDestroyed || busy || roomId != null || generation != view.optLong("generation", -1) ||
+                    profile != view.optString("active_profile_id") ||
+                    revision != view.optJSONObject("navigation")?.optLong("revision")) return@runOnUiThread
+                halls = result.optJSONObject("data") ?: return@runOnUiThread
+                render()
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -163,7 +247,9 @@ class MainActivity : Activity() {
                         next.optString("active_profile_id") != view.optString("active_profile_id"))) reset()
                     if (nextNavigation?.optLong("revision") != oldNavigation?.optLong("revision")) {
                         follow?.let(handler::removeCallbacks)
-                        conversation = null; reply = ""
+                        poll?.let(handler::removeCallbacks)
+                        conversation = null; room = null; readSent = 0; reply = ""
+                        older = emptyList(); olderBefore = null
                     }
                     view = next
                 }
@@ -191,10 +277,12 @@ class MainActivity : Activity() {
     private fun reset() {
         debounce?.let(handler::removeCallbacks)
         follow?.let(handler::removeCallbacks)
+        poll?.let(handler::removeCallbacks)
         previewsSelected = false
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
         threads = emptyList(); threadsSignInRequired = false; conversation = null; reply = ""
+        halls = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
     }
 
     /** Loads the current screen's data. */
@@ -204,13 +292,14 @@ class MainActivity : Activity() {
         when (screen) {
             "previews" -> loadProjects()
             "threads" -> threadId?.let { fetchThread(it) } ?: loadThreads()
+            "halls", "dms" -> roomId?.let { fetchHall(it) } ?: loadHalls()
         }
     }
 
     @Deprecated("Activity predates OnBackPressedDispatcher")
     override fun onBackPressed() {
         if (addingProfile && active() != null) cancelAddingProfile()
-        else if (screen == "threads" && threadId != null) closeConversation()
+        else if ((screen == "threads" && threadId != null) || roomId != null) closeConversation()
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
@@ -220,8 +309,15 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = if (if (login) night else dark) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         if (login) { setContentView(loginScreen(night)); return }
-        val focusedSearch = (currentFocus as? EditText)?.takeIf { it.id == searchInputId }
-        val selection = focusedSearch?.selectionStart ?: -1
+        // Rendering rebuilds the screen; keep typing in the search or reply field going.
+        val focusedInput = (currentFocus as? EditText)?.takeIf { it.id == searchInputId || it.id == replyInputId }
+        val selection = focusedInput?.selectionStart ?: -1
+        // Halls and DMs re-render as messages and presence arrive; keep the reader where they were.
+        val place = if (screen == "halls" || screen == "dms") "$screen/${roomId.orEmpty()}" else null
+        val previous = lastScroll?.takeIf { place != null && place == scrolledPlace }
+        val previousY = previous?.scrollY ?: 0
+        val previousBottom = (previous?.getChildAt(0)?.height ?: 0) - previousY
+        val atLatest = previous == null || previousBottom - previous.height <= dp(16)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
@@ -234,49 +330,73 @@ class MainActivity : Activity() {
         }
         root.setBackgroundColor(noora("surface-background-primary"))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        text(getString(when (screen) {
-            "profile" -> R.string.profile
-            "threads" -> R.string.threads
-            else -> R.string.previews
-        }), 28f)
+        val scroll = ScrollView(this).apply { addView(content) }
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        text(getString(tabLabel(screen) ?: R.string.previews), 28f)
         if (busy) text(getString(R.string.loading))
         when (screen) {
             "profile" -> profileScreen()
             "threads" -> threadsScreen()
+            "halls" -> hallsScreen(direct = false)
+            "dms" -> hallsScreen(direct = true)
             else -> previewScreen()
         }
         // A conversation takes the whole screen, as on iOS; Back returns to the inbox.
-        if (screen == "threads" && threadId != null) { setContentView(root); return }
-        root.addView(styled(Button(this)).apply {
-            setText(R.string.threads)
-            setOnClickListener {
-                if (!busy && !browserPending) navigate("select_tab", JSONObject().put("tab", "threads"))
-            }
-        })
-        root.addView(styled(Button(this)).apply {
-            setText(R.string.previews)
-            setOnClickListener {
-                if (!busy && !browserPending) {
-                    follow?.let(handler::removeCallbacks)
-                    previewsSelected = true; render(); if (projects.isEmpty()) loadProjects()
-                }
-            }
-        })
-        root.addView(styled(Button(this)).apply {
-            setText(R.string.profile)
-            setOnClickListener {
-                if (!busy) {
-                    if (screen == "profile" && !browserPending) chooseProfile()
-                    else navigate("select_tab", JSONObject().put("tab", "profile"))
-                }
-            }
-            setOnLongClickListener { if (!busy && !browserPending) chooseProfile(); true }
-        })
+        if (!(screen == "threads" && threadId != null) && roomId == null) root.addView(tabBar())
         setContentView(root)
-        if (selection >= 0) findViewById<EditText>(searchInputId)?.let {
+        // Halls read like a chat: the newest messages are at the bottom. Follow them only when
+        // the reader was already there or just sent one; earlier messages load above the reader.
+        val shown = content
+        when {
+            room != null && (scrollToLatest || (atLatest && !keepBottomOffset)) -> scroll.post { scroll.scrollTo(0, shown.height) }
+            keepBottomOffset -> scroll.post { scroll.scrollTo(0, shown.height - previousBottom) }
+            previous != null -> scroll.post { scroll.scrollTo(0, previousY) }
+        }
+        scrollToLatest = false; keepBottomOffset = false
+        lastScroll = scroll
+        scrolledPlace = place
+        if (selection >= 0) findViewById<EditText>(focusedInput!!.id)?.let {
             it.requestFocus()
             it.setSelection(selection.coerceIn(0, it.text.length))
+        }
+    }
+
+    private fun tabLabel(tab: String): Int? = when (tab) {
+        "threads" -> R.string.threads
+        "halls" -> R.string.halls
+        "dms" -> R.string.dms
+        "previews" -> R.string.previews
+        "profile" -> R.string.profile
+        else -> null
+    }
+
+    /** One row of tabs: the core's destinations, with the local preview browser before Profile. */
+    private fun tabBar(): View = LinearLayout(this).apply {
+        (AppCore.destinations.filter { it != "profile" } + "previews" + "profile").forEach { tab ->
+            val label = tabLabel(tab) ?: return@forEach
+            val first = childCount == 0
+            addView(styled(Button(context), primary = tab == screen).apply {
+                setText(label)
+                textSize = 13f
+                minWidth = 0; minimumWidth = 0
+                setPadding(dp(4), paddingTop, dp(4), paddingBottom)
+                setOnClickListener { selectTab(tab) }
+                if (tab == "profile") setOnLongClickListener { if (!busy && !browserPending) chooseProfile(); true }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { if (!first) leftMargin = dp(4) })
+        }
+    }
+
+    private fun selectTab(tab: String) {
+        if (busy) return
+        when (tab) {
+            "previews" -> if (!browserPending) {
+                follow?.let(handler::removeCallbacks)
+                poll?.let(handler::removeCallbacks)
+                previewsSelected = true; render(); if (projects.isEmpty()) loadProjects()
+            }
+            "profile" -> if (screen == "profile" && !browserPending) chooseProfile()
+                else navigate("select_tab", JSONObject().put("tab", "profile"))
+            else -> if (!browserPending) navigate("select_tab", JSONObject().put("tab", tab))
         }
     }
 
@@ -304,7 +424,7 @@ class MainActivity : Activity() {
     }
 
     private fun button(label: Int, primary: Boolean = false, action: () -> Unit) = button(getString(label), primary, action)
-    private fun button(label: String, primary: Boolean = false, action: () -> Unit) {
+    private fun button(label: CharSequence, primary: Boolean = false, action: () -> Unit) {
         content.addView(styled(Button(this).apply {
             text = label
             setOnClickListener { if (!busy) action() }
@@ -822,6 +942,292 @@ class MainActivity : Activity() {
                 reply = ""; show(data as? JSONObject)
             }
         }
+    }
+
+    private fun loadHalls() {
+        if (active() == null) return
+        call("halls") { data ->
+            halls = data as? JSONObject
+            render()
+        }
+    }
+
+    /** Halls or DMs: an organization's conversations between people, with no agent. */
+    private fun hallsScreen(direct: Boolean) {
+        if (active() == null) return
+        if (roomId != null && room == null) {
+            button(R.string.back) { closeConversation() }
+            if (!busy) button(R.string.refresh) { load() }
+            return
+        }
+        room?.let { roomScreen(it); return }
+        val data = halls
+        if (data != null && !data.optBoolean("available")) {
+            when (data.string("reason")) {
+                "personal" -> text(getString(if (direct) R.string.dms_personal else R.string.halls_personal))
+                "sign_in_required" -> {
+                    text(getString(R.string.halls_sign_in_required))
+                    active()?.let { profile ->
+                        if (!browserPending) button(R.string.sign_in_again, primary = true) { launchSignIn(profile.getString("server"), "tuist") }
+                    }
+                }
+                else -> {
+                    text(getString(R.string.halls_disabled))
+                    button(R.string.refresh) { loadHalls() }
+                }
+            }
+            return
+        }
+        if (direct) button(R.string.new_message, primary = true) { startDirect() }
+        else button(R.string.new_hall, primary = true) { createHall() }
+        button(R.string.refresh) { loadHalls() }
+        val rows = data?.optJSONArray(if (direct) "directs" else "halls").objects()
+        if (data != null && rows.isEmpty() && !busy) text(getString(if (direct) R.string.no_dms else R.string.no_halls))
+        rows.forEach { item ->
+            val unread = item.optInt("unread")
+            val online = item.optJSONArray("members").objects().any { it.optBoolean("online") }
+            val heading = SpannableStringBuilder(onlineMark(item.string("title"), online))
+            if (unread > 0) heading.append(" · ").append(getString(R.string.unread, unread))
+            val latest = item.optJSONObject("last_message")?.let { message ->
+                val body = message.string("body").lineSequence().firstOrNull { it.isNotBlank() }?.take(100) ?: ""
+                val author = message.optJSONObject("author")?.string("handle").orEmpty()
+                if (author.isBlank()) body else getString(R.string.message_preview, author, body)
+            } ?: item.string("topic")
+            button(if (latest.isBlank()) heading else heading.append("\n").append(latest)) {
+                openRoom(direct, item.getString("id"))
+            }
+        }
+    }
+
+    /** Captures the screen a dialog opened on, so its answer is dropped once the person has moved on. */
+    private fun unchanged(): () -> Boolean {
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        val tab = screen
+        return {
+            !busy && generation == view.optLong("generation", -1) && profile == view.optString("active_profile_id") &&
+                revision == view.optJSONObject("navigation")?.optLong("revision") && screen == tab && roomId == null
+        }
+    }
+
+    private fun createHall() {
+        val unchanged = unchanged()
+        val name = EditText(this).apply { hint = getString(R.string.hall_name); setSingleLine(true) }
+        val topic = EditText(this).apply { hint = getString(R.string.hall_topic); setSingleLine(true) }
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(name); addView(topic)
+        }
+        AlertDialog.Builder(this).setTitle(R.string.new_hall).setView(form)
+            .setPositiveButton(R.string.create) { _, _ ->
+                val value = name.text.toString().trim()
+                if (value.isBlank() || !unchanged()) return@setPositiveButton
+                call("create_hall", JSONObject().put("name", value).put("topic", topic.text.toString().trim()), onFailure = {
+                    toast(R.string.create_hall_failed); render()
+                }) { data ->
+                    val id = (data as? JSONObject)?.string("id")
+                    if (!id.isNullOrBlank()) openRoom(false, id) else { render(); load() }
+                }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    /** Picks people from the organization, then opens the conversation with them. */
+    private fun startDirect() {
+        val unchanged = unchanged()
+        call("hall_people") { data ->
+            render()
+            val people = (data as? JSONObject)?.optJSONArray("people").objects()
+            if (people.isEmpty()) { toast(R.string.no_people); return@call }
+            val chosen = BooleanArray(people.size)
+            AlertDialog.Builder(this).setTitle(R.string.new_message)
+                .setMultiChoiceItems(people.map { onlineMark("@${it.string("handle")}", it.optBoolean("online")) }.toTypedArray(), chosen) { _, i, checked -> chosen[i] = checked }
+                .setPositiveButton(R.string.start) { _, _ ->
+                    val ids = people.filterIndexed { i, _ -> chosen[i] }.map { it.optLong("id") }
+                    if (ids.isEmpty() || !unchanged()) return@setPositiveButton
+                    if (ids.size > 7) { toast(R.string.too_many_people); return@setPositiveButton }
+                    call("start_direct", JSONObject().put("user_ids", JSONArray(ids)), onFailure = {
+                        toast(R.string.start_direct_failed); render()
+                    }) { result ->
+                        val id = (result as? JSONObject)?.string("id")
+                        if (!id.isNullOrBlank()) openRoom(true, id) else { render(); load() }
+                    }
+                }.setNegativeButton(R.string.cancel, null).show()
+        }
+    }
+
+    private fun openRoom(direct: Boolean, id: String) {
+        navigate("navigate", JSONObject().put("url", if (direct) "/dms/$id" else "/halls/$id"))
+    }
+
+    /** Whether a hall answer still belongs to the conversation on screen. */
+    private fun showing(id: String, generation: Long, profile: String, revision: Long?): Boolean =
+        !isDestroyed && roomId == id && generation == view.optLong("generation", -1) &&
+            profile == view.optString("active_profile_id") && revision == view.optJSONObject("navigation")?.optLong("revision")
+
+    private fun fetchHall(id: String) {
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        call("hall", JSONObject().put("id", id)) { data ->
+            if (showing(id, generation, profile, revision)) showRoom(data as? JSONObject)
+        }
+    }
+
+    /** Shows a hall's latest page, marks what it shows as read while it is visible, and keeps polling it. */
+    private fun showRoom(hall: JSONObject?) {
+        val id = roomId ?: return
+        if (hall == null || hall.optString("id") != id) return
+        // Messages that left the latest page stay below the earlier ones already loaded.
+        if (older.isNotEmpty()) room?.let { previous ->
+            val kept = (hall.optJSONArray("messages").objects() + older).map { it.optString("id") }.toSet()
+            older = older + previous.optJSONArray("messages").objects().filter { it.optString("id") !in kept }
+        }
+        room = hall
+        render()
+        markRead()
+        schedulePoll()
+    }
+
+    /** Moves the read position to the open hall's latest message, only while someone can see it. */
+    private fun markRead() {
+        val id = roomId ?: return
+        val hall = room?.takeIf { it.optString("id") == id } ?: return
+        if (!visible) return
+        val position = hall.optLong("last_position")
+        if (position > hall.optLong("read_position") && position > readSent) {
+            readSent = position
+            AppCore.submit("read_hall", JSONObject().put("id", id).put("position", position), host) { }
+        }
+    }
+
+    /** The page before the earliest message shown, or null when there is none. */
+    private fun earlierBefore(): Any? = olderBefore
+        ?: room?.takeIf { older.isEmpty() && it.optBoolean("has_more") }?.opt("next_before")?.takeIf { it != JSONObject.NULL }
+
+    private fun loadEarlier() {
+        val id = roomId ?: return
+        val before = earlierBefore() ?: return
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        call("hall", JSONObject().put("id", id).put("before", before)) { data ->
+            if (!showing(id, generation, profile, revision)) return@call
+            val page = data as? JSONObject
+            if (page != null && page.optString("id") == id) {
+                val known = (older + room?.optJSONArray("messages").objects()).map { it.optString("id") }.toSet()
+                older = page.optJSONArray("messages").objects().filter { it.optString("id") !in known } + older
+                olderBefore = page.opt("next_before")?.takeIf { page.optBoolean("has_more") && it != JSONObject.NULL }
+                keepBottomOffset = true
+            }
+            render()
+        }
+    }
+
+    /**
+     * Fetches the open hall every few seconds while it is visible. Like the update
+     * check, it runs beside screen requests rather than through [call], so it never
+     * cancels them or blocks the reply button, and it re-renders only for new messages.
+     */
+    private fun schedulePoll() {
+        poll?.let(handler::removeCallbacks)
+        val id = roomId ?: return
+        if (!visible) return
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        poll = Runnable {
+            if (!showing(id, generation, profile, revision)) return@Runnable
+            AppCore.submit("hall", JSONObject().put("id", id), host) { result ->
+                runOnUiThread {
+                    if (!visible || !showing(id, generation, profile, revision)) return@runOnUiThread
+                    val hall = result.optJSONObject("data")?.takeIf { it.optString("id") == id }
+                    when {
+                        hall == null -> schedulePoll()
+                        roomStale || hall.optLong("last_position") > (room?.optLong("last_position") ?: -1) -> {
+                            roomStale = false; showRoom(hall)
+                        }
+                        else -> schedulePoll()
+                    }
+                }
+            }
+        }
+        handler.postDelayed(poll!!, 3000)
+    }
+
+    private fun roomScreen(hall: JSONObject) {
+        button(R.string.back) { closeConversation() }
+        text(hall.string("title"), 22f)
+        hall.string("topic").takeIf { it.isNotBlank() }?.let { topic ->
+            content.addView(TextView(this).apply {
+                text = topic; textSize = 14f; setPadding(0, 0, 0, dp(8))
+                setTextColor(noora("surface-label-secondary"))
+            })
+        }
+        if (hall.optString("kind") == "direct") {
+            val members = hall.optJSONArray("members").objects()
+            if (members.isNotEmpty()) content.addView(TextView(this).apply {
+                text = members.fold(SpannableStringBuilder()) { line, member ->
+                    if (line.isNotEmpty()) line.append(", ")
+                    line.append(onlineMark(getString(R.string.handle, member.string("handle")), member.optBoolean("online")))
+                }
+                textSize = 14f; setPadding(0, 0, 0, dp(8))
+                setTextColor(noora("surface-label-secondary"))
+            })
+        }
+        val latest = hall.optJSONArray("messages").objects()
+        val ids = latest.map { it.optString("id") }.toSet()
+        val messages = older.filter { it.optString("id") !in ids } + latest
+        if (earlierBefore() != null) button(R.string.load_earlier) { loadEarlier() }
+        else if (messages.isEmpty()) text(getString(R.string.no_hall_messages))
+        messages.forEach { message ->
+            content.addView(TextView(this).apply {
+                val author = message.optJSONObject("author")
+                text = onlineMark(getString(R.string.handle, author?.string("handle").orEmpty()),
+                    !message.optBoolean("mine") && author?.optBoolean("online") == true)
+                textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(8), 0, 0)
+                setTextColor(noora(if (message.optBoolean("mine")) "surface-label-primary" else "surface-label-secondary"))
+            })
+            content.addView(TextView(this).apply {
+                text = message.string("body"); textSize = 16f; setTextIsSelectable(true); setPadding(0, dp(2), 0, dp(4))
+                setTextColor(noora("surface-label-primary"))
+            })
+        }
+        content.addView(EditText(this).apply {
+            id = replyInputId
+            setTextColor(noora("surface-label-primary"))
+            setHintTextColor(noora("surface-label-tertiary"))
+            hint = getString(R.string.reply)
+            setText(reply)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { reply = s.toString() }
+                override fun afterTextChanged(s: Editable?) {}
+            })
+        })
+        button(R.string.send, primary = true) {
+            if (reply.isBlank()) return@button
+            val id = hall.optString("id")
+            val generation = view.optLong("generation", -1)
+            val profile = view.optString("active_profile_id")
+            val revision = view.optJSONObject("navigation")?.optLong("revision")
+            call("send_hall_message", JSONObject().put("id", id).put("content", reply)) { data ->
+                if (!showing(id, generation, profile, revision)) return@call
+                reply = ""; scrollToLatest = true; showRoom(data as? JSONObject)
+            }
+        }
+    }
+
+    /** A green dot after someone who has Tuist Guild open in this organization, read aloud as Online. */
+    private fun onlineMark(label: CharSequence, online: Boolean): CharSequence {
+        if (!online) return label
+        val text = SpannableStringBuilder(label).append(" ")
+        val start = text.length
+        text.append("●")
+        text.setSpan(ForegroundColorSpan(0xFF34C759.toInt()), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(TtsSpan.TextBuilder(getString(R.string.online)).build(), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return text
     }
 
     private fun projectName(item: JSONObject): String = item.optString("full_name").ifBlank {

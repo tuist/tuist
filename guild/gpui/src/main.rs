@@ -90,6 +90,7 @@ fn main() -> anyhow::Result<()> {
         input::init(cx);
         keyboard::init(cx);
         root::init(cx);
+        workspace::init(cx);
         #[cfg(target_os = "macos")]
         set_dock_icon();
         cx.on_action(|_: &Quit, cx| cx.quit());

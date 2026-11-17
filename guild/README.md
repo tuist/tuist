@@ -85,6 +85,8 @@ Once (0.81.0 and later) publishes each Apple and Android bundle's icon and displ
 
 Build the Linux/Windows frontend through Once with `mise run build`, then launch with `mise run run`. macOS remains a GPUI development host; the native Swift macOS target is the new Apple frontend. This is an early shell, not a replacement for the shipping Swift app's preview browsing or installation features.
 
+The dock lists **Threads**, **Halls**, **DMs** and **Profile**, the core's tab catalog. Halls are an organization's named, long-lived conversations (`#name`) that every member reads and writes; DMs are direct conversations between 2 to 8 people. Neither has an agent. Both lists show each conversation's title, latest message and unread count; **New hall** asks for a name and an optional topic, and **New message** picks people from the organization. An open conversation shows its messages oldest first with author and time (UTC), rereads the server every 3 seconds while it is visible in the active window, and marks what it shows read only then. They run through the core's `Halls` operations (`gpui/src/workspace/halls.rs`); reads each use their own `Halls`, so they never wait behind a send, which keeps its idempotency key in a shared one. Because the desktop account menu selects profiles rather than organizations, Halls and DMs share their own organization choice from the core's `organizations`, the person's first organization by default, with a picker when there are several; a failed lookup retries on the next poll or from **Refresh**, and a personal account without organizations sees that halls belong to organizations. While the window is active, the app stays joined to the organization's presence through the core's `Presence` over a WebSocket on its own thread (`gpui/src/workspace/socket.rs`, tungstenite with rustls and the platform's root certificates, like the app's HTTPS), and leaves it when the window deactivates, on sign-out and when switching accounts. A green dot marks people who have Tuist Guild open: in DM rows, a DM's members, message authors and the New message picker; without a live presence connection, the server's `online` stands. Ctrl+1 to Ctrl+4 (Cmd on the macOS development host) select the dock's destinations in order, also from the account menu or settings, and move focus to that destination's dock row.
+
 The GPUI source layout uses Once's `build_script_sources` support, included in
 Once 0.77.5 and later; the workspace pins [Once 0.81.1](https://github.com/tuist/once/releases/tag/0.81.1).
 That support also aligns build-script debug assertions with optimized crates,
@@ -128,7 +130,8 @@ Enter submits the server form. Escape cancels browser sign-in or closes the acco
 form/settings. These screens are pages, not modal dialogs.
 
 The account menu uses arrows and Home/End, Enter/Space activation, Escape to
-restore the opener, and Tab/Shift-Tab to close and leave the menu. Application
+restore the opener, and Tab/Shift-Tab to close and leave the menu. Ctrl+1 to
+Ctrl+4 select Threads, Halls, DMs and Profile and focus that dock row. Application
 shortcuts use Ctrl on Linux/Windows and Cmd on macOS. Native system window-management
 shortcuts remain platform-owned.
 

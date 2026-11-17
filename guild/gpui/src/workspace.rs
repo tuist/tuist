@@ -1,6 +1,6 @@
 use gpui::{
-    Context, Entity, EventEmitter, FocusHandle, FontWeight, IntoElement, Pixels, Render,
-    ScrollHandle, SharedString, Subscription, Window, div, prelude::*, px, svg,
+    App, Context, Entity, EventEmitter, FocusHandle, FontWeight, IntoElement, KeyBinding, Pixels,
+    Render, ScrollHandle, SharedString, Subscription, Window, actions, div, prelude::*, px, svg,
 };
 use std::sync::Arc;
 use tuist_navigation::{Navigation, Tab as Destination};
@@ -11,10 +11,44 @@ use crate::keyboard::KeyboardControl;
 use crate::theme::{Theme, ThemeState};
 use tuist_app_core::theme as theme_catalog;
 
+mod halls;
 mod preview;
+mod socket;
 mod threads;
 
+use halls::{HallsPanel, Scope};
 use threads::ThreadsPanel;
+
+actions!(
+    tuist_workspace,
+    [ShowThreads, ShowHalls, ShowDms, ShowProfile]
+);
+
+/// Modifier+1 to 4 select the dock's destinations in order, as in chat apps.
+/// Application shortcuts use Cmd on the macOS development host.
+pub fn init(cx: &mut App) {
+    let keys = if cfg!(target_os = "macos") {
+        ["cmd-1", "cmd-2", "cmd-3", "cmd-4"]
+    } else {
+        ["ctrl-1", "ctrl-2", "ctrl-3", "ctrl-4"]
+    };
+    cx.bind_keys([
+        KeyBinding::new(keys[0], ShowThreads, None),
+        KeyBinding::new(keys[1], ShowHalls, None),
+        KeyBinding::new(keys[2], ShowDms, None),
+        KeyBinding::new(keys[3], ShowProfile, None),
+    ]);
+}
+
+/// The shortcut shown next to a destination in the dock.
+fn shortcut(destination: Destination) -> String {
+    let modifier = if cfg!(target_os = "macos") {
+        "⌘"
+    } else {
+        "Ctrl+"
+    };
+    format!("{modifier}{}", destination as usize + 1)
+}
 
 pub enum WorkspaceEvent {
     SignOut,
@@ -23,6 +57,8 @@ pub enum WorkspaceEvent {
 fn title(destination: Destination) -> &'static str {
     match destination {
         Destination::Threads => "Threads",
+        Destination::Halls => "Halls",
+        Destination::Dms => "DMs",
         Destination::Profile => "Profile",
     }
 }
@@ -30,6 +66,8 @@ fn title(destination: Destination) -> &'static str {
 fn icon(destination: Destination) -> &'static str {
     match destination {
         Destination::Threads => assets::THREADS_ICON,
+        Destination::Halls => assets::HALLS_ICON,
+        Destination::Dms => assets::DMS_ICON,
         Destination::Profile => assets::PROFILE_ICON,
     }
 }
@@ -67,6 +105,8 @@ pub struct Workspace {
     server: SharedString,
     scroll: ScrollHandle,
     threads: Entity<ThreadsPanel>,
+    halls: Entity<HallsPanel>,
+    dms: Entity<HallsPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
@@ -86,6 +126,12 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Self {
         let handle = account.handle.clone();
+        let scope = cx.new(|cx| Scope::new(session.clone(), handle.clone(), window, cx));
+        let [halls, dms] = [Destination::Halls, Destination::Dms].map(|tab| {
+            cx.new(|cx| {
+                HallsPanel::new(tab, session.clone(), scope.clone(), navigation.clone(), cx)
+            })
+        });
         let threads = cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), cx));
         let observer = cx.observe(&navigation, |_, _, cx| cx.notify());
         Self {
@@ -94,11 +140,23 @@ impl Workspace {
             server,
             scroll: ScrollHandle::new(),
             threads,
+            halls,
+            dms,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
             _theme: cx.observe_global::<crate::theme::ThemeState>(|_, cx| cx.notify()),
         }
+    }
+
+    /// Selects a destination from the keyboard and focuses its dock row, so
+    /// focus never stays on a control of the destination it left.
+    pub fn show(&mut self, destination: Destination, window: &mut Window, cx: &mut Context<Self>) {
+        self.navigation.update(cx, |navigation, cx| {
+            navigation.select(destination);
+            cx.notify();
+        });
+        window.focus(&self.destination_focus[destination as usize], cx);
     }
 
     fn sidebar(
@@ -161,6 +219,13 @@ impl Workspace {
                             }),
                     )
                     .child(title(destination))
+                    .child(
+                        div()
+                            .ml_auto()
+                            .text_xs()
+                            .text_color(theme.text_muted)
+                            .child(shortcut(destination)),
+                    )
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.navigation.update(cx, |navigation, cx| {
                             navigation.select(destination);
@@ -460,11 +525,21 @@ impl Workspace {
                     .child(SharedString::from(heading)),
             )
             .child(match (preview, selected) {
-                // Threads scrolls its own body so its composer stays docked at the bottom.
+                // Conversations scroll their own body so its composer stays docked at the bottom.
                 (None, Destination::Threads) => div()
                     .flex_1()
                     .min_h_0()
                     .child(self.threads.clone())
+                    .into_any_element(),
+                (None, Destination::Halls) => div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.halls.clone())
+                    .into_any_element(),
+                (None, Destination::Dms) => div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.dms.clone())
                     .into_any_element(),
                 (preview, _) => div()
                     .id("workspace-scroll")

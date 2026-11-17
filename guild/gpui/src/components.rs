@@ -8,4 +8,4 @@ mod message;
 
 pub use button::{Button, Variant};
 pub use composer::composer;
-pub use message::message;
+pub use message::{chat_message, message, presence_dot};

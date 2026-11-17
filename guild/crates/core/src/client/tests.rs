@@ -15,6 +15,8 @@ struct Fake {
     offline: bool,
     /// What the core logged, kept out of `actions` like `store_directory`.
     logs: Vec<String>,
+    /// Frames the presence socket receives on its next read.
+    frames: Vec<String>,
 }
 impl Drop for Fake {
     fn drop(&mut self) {
@@ -63,6 +65,8 @@ impl Host for Fake {
                     _ => Ok(json!({"status":status,"body":body.to_string()})),
                 }
             }
+            "socket_open" | "socket_send" | "socket_close" => Ok(json!({"ok":true})),
+            "socket_read" => Ok(json!({"frames":std::mem::take(&mut self.frames),"closed":false})),
             _ => panic!("unexpected host action"),
         }
     }
@@ -1074,10 +1078,15 @@ fn guild_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
     let server = Url::parse("https://one.test/base/").unwrap();
     for (path, destination) in [
         ("/profile", Destination::Profile),
-        ("/threads", Destination::Threads),
+        ("/threads", Destination::THREADS),
         (
             "/threads/12345678-1234-5678-9abc-123456789abc",
-            Destination::Thread("12345678-1234-5678-9abc-123456789abc".into()),
+            Destination::Conversation("threads", "12345678-1234-5678-9abc-123456789abc".into()),
+        ),
+        ("/halls", Destination::List("halls")),
+        (
+            "/dms/12345678-1234-5678-9abc-123456789abc",
+            Destination::Conversation("dms", "12345678-1234-5678-9abc-123456789abc".into()),
         ),
     ] {
         for value in [
@@ -1094,6 +1103,8 @@ fn guild_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
         "/threads/invalid",
         "/threads/------------------------------------",
         "/threads/",
+        "/halls/not-an-id",
+        "/channels",
         "/profile?",
         "/profile#fragment",
         "//profile",
@@ -1534,6 +1545,109 @@ fn an_inbox_the_server_refuses_keeps_what_was_stored() {
     assert_eq!(refused["data"]["reason"], "sign_in_required");
     let cached = call(&mut c, &mut h, "cached_threads", json!({}));
     assert_eq!(cached["data"]["threads"][0]["title"], "Release plan");
+}
+
+#[test]
+fn each_conversation_tab_keeps_its_own_stack_and_back_stays_in_it() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let hall = "aaaaaaaa-1234-5678-9abc-123456789abc";
+    let thread = "bbbbbbbb-1234-5678-9abc-123456789abc";
+    call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":format!("/threads/{thread}")}),
+    );
+    let nav = call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":format!("/halls/{hall}")}),
+    )["view"]["navigation"]
+        .clone();
+    assert_eq!(
+        (nav["tab"].as_str(), nav["hall_id"].as_str()),
+        (Some("halls"), Some(hall))
+    );
+    assert_eq!(nav["thread_id"], thread);
+
+    let dms =
+        call(&mut c, &mut h, "select_tab", json!({"tab":"dms"}))["view"]["navigation"].clone();
+    assert_eq!(dms["path"], "/dms");
+    let back = call(&mut c, &mut h, "select_tab", json!({"tab":"halls"}));
+    assert_eq!(back["view"]["navigation"]["path"], format!("/halls/{hall}"));
+
+    // Back leaves the hall for the halls list; the thread stays open in its tab.
+    let nav = call(&mut c, &mut h, "navigation_back", json!({}))["view"]["navigation"].clone();
+    assert_eq!(
+        (nav["path"].as_str(), nav["hall_id"].is_null()),
+        (Some("/halls"), true)
+    );
+    let threads = call(&mut c, &mut h, "select_tab", json!({"tab":"threads"}));
+    assert_eq!(
+        threads["view"]["navigation"]["path"],
+        format!("/threads/{thread}")
+    );
+    assert!(call(&mut c, &mut h, "select_tab", json!({"tab":"channels"}))["error"].is_string());
+}
+
+#[test]
+fn presence_joins_the_selected_organization_and_marks_halls_people_online() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    // A personal account has no presence and opens nothing.
+    let personal = call(&mut c, &mut h, "presence", json!({}));
+    assert_eq!(personal["data"]["reason"], "personal");
+    assert!(h.actions.iter().all(|a| a["type"] != "socket_open"));
+
+    h.responses
+        .push_back((200, json!({"organizations":[{"name":"team"}]})));
+    call(&mut c, &mut h, "organizations", json!({}));
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":"team"}),
+    );
+    call(&mut c, &mut h, "presence", json!({}));
+    let open = h
+        .actions
+        .iter()
+        .find(|a| a["type"] == "socket_open")
+        .unwrap()
+        .clone();
+    assert_eq!(
+        open["url"],
+        "wss://one.test/threads/socket/websocket?vsn=2.0.0"
+    );
+    assert!(
+        open["protocols"][1]
+            .as_str()
+            .unwrap()
+            .starts_with("base64url.bearer.phx.")
+    );
+    // Credentials go to the host action only, never into a response.
+    h.frames = vec![
+        r#"["1","1","presence:team","phx_reply",{"status":"ok","response":{}}]"#.into(),
+        r#"["1",null,"presence:team","presence_state",{"2":{"metas":[{"handle":"ben","phx_ref":"x"}]}}]"#.into(),
+    ];
+    let joined = call(&mut c, &mut h, "presence", json!({}));
+    assert_eq!(joined["data"]["online"], json!([{"id":2,"handle":"ben"}]));
+    assert!(!joined.to_string().contains("base64url.bearer"));
+
+    h.responses.push_back((200, json!({"people":[{"id":2,"handle":"ben","online":false},{"id":3,"handle":"cai","online":true}]})));
+    let people = call(&mut c, &mut h, "hall_people", json!({}));
+    assert_eq!(people["data"]["people"][0]["online"], true);
+    assert_eq!(people["data"]["people"][1]["online"], false);
+
+    let before = h.actions.len();
+    call(&mut c, &mut h, "sign_out", json!({}));
+    assert!(
+        h.actions[before..]
+            .iter()
+            .any(|a| a["type"] == "socket_close")
+    );
 }
 
 #[test]

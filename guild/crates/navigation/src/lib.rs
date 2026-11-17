@@ -50,11 +50,7 @@ impl Navigation {
             Route::Preview(preview) => self.preview = Some(preview),
             Route::Guild(destination) => {
                 self.guild.navigate(destination);
-                self.tab = if self.guild.tab == "profile" {
-                    Tab::Profile
-                } else {
-                    Tab::Threads
-                };
+                self.tab = Tab::from_id(self.guild.tab).unwrap_or_default();
                 self.preview = None;
             }
         }

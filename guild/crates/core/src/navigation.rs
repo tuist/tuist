@@ -6,44 +6,60 @@ const INVALID: &str = "This link is not a supported Guild destination";
 const WRONG_SERVER: &str = "This link belongs to a different Guild server";
 
 /// The complete addressable screen catalog. Adding a screen starts here.
-pub const ROUTES: &[&str] = &["/threads", "/threads/{id}", "/profile"];
+pub const ROUTES: &[&str] = &[
+    "/threads",
+    "/threads/{id}",
+    "/halls",
+    "/halls/{id}",
+    "/dms",
+    "/dms/{id}",
+    "/profile",
+];
+
+/// The tabs that hold a stack of one conversation, in catalog order.
+const STACKS: [&str; 3] = ["threads", "halls", "dms"];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
-    Threads,
-    Thread(String),
+    /// A tab's root (`threads`, `halls` or `dms`), or one conversation in it.
+    List(&'static str),
+    Conversation(&'static str, String),
     Profile,
 }
 
 impl Destination {
+    pub const THREADS: Self = Self::List("threads");
+
     pub fn path(&self) -> String {
         match self {
-            Self::Threads => "/threads".into(),
-            Self::Thread(id) => format!("/threads/{id}"),
+            Self::List(tab) => format!("/{tab}"),
+            Self::Conversation(tab, id) => format!("/{tab}/{id}"),
             Self::Profile => "/profile".into(),
         }
     }
 
     fn parse(path: &str) -> Result<Self, &'static str> {
-        match path {
-            "/threads" => Ok(Self::Threads),
-            "/profile" => Ok(Self::Profile),
-            _ => {
-                let id = path.strip_prefix("/threads/").ok_or(INVALID)?;
-                if id.len() != 36
-                    || !id.bytes().enumerate().all(|(i, b)| {
-                        if [8, 13, 18, 23].contains(&i) {
-                            b == b'-'
-                        } else {
-                            b.is_ascii_hexdigit()
-                        }
-                    })
-                {
-                    return Err(INVALID);
-                }
-                Ok(Self::Thread(id.to_ascii_lowercase()))
-            }
+        if path == "/profile" {
+            return Ok(Self::Profile);
         }
+        let rest = path.strip_prefix('/').ok_or(INVALID)?;
+        let (tab, id) = rest.split_once('/').unwrap_or((rest, ""));
+        let tab = STACKS.into_iter().find(|t| *t == tab).ok_or(INVALID)?;
+        if id.is_empty() && !rest.ends_with('/') {
+            return Ok(Self::List(tab));
+        }
+        if id.len() != 36
+            || !id.bytes().enumerate().all(|(i, b)| {
+                if [8, 13, 18, 23].contains(&i) {
+                    b == b'-'
+                } else {
+                    b.is_ascii_hexdigit()
+                }
+            })
+        {
+            return Err(INVALID);
+        }
+        Ok(Self::Conversation(tab, id.to_ascii_lowercase()))
     }
 }
 
@@ -152,7 +168,10 @@ fn base(value: &str) -> Result<Url, &'static str> {
 #[derive(Clone, Debug, Serialize)]
 pub struct Navigation {
     pub tab: &'static str,
+    /// Each tab's open conversation, kept while another tab is selected.
     pub thread_id: Option<String>,
+    pub hall_id: Option<String>,
+    pub dm_id: Option<String>,
     pub path: String,
     pub revision: u64,
     #[serde(skip)]
@@ -164,6 +183,8 @@ impl Default for Navigation {
         Self {
             tab: "threads",
             thread_id: None,
+            hall_id: None,
+            dm_id: None,
             path: "/threads".into(),
             revision: 0,
             pending: None,
@@ -190,28 +211,45 @@ impl Navigation {
     }
 
     pub fn navigate(&mut self, destination: Destination) {
-        match &destination {
+        match destination {
             Destination::Profile => self.tab = "profile",
-            Destination::Threads => {
-                self.tab = "threads";
-                self.thread_id = None;
+            Destination::List(tab) => {
+                self.tab = tab;
+                *self.stack(tab) = None;
             }
-            Destination::Thread(id) => {
-                self.tab = "threads";
-                self.thread_id = Some(id.clone());
+            Destination::Conversation(tab, id) => {
+                self.tab = tab;
+                *self.stack(tab) = Some(id);
             }
         }
         self.changed();
     }
 
+    /// Returns from the selected tab's conversation to its list.
+    pub fn back(&mut self) {
+        let tab = if self.tab == "profile" {
+            "threads"
+        } else {
+            self.tab
+        };
+        self.navigate(Destination::List(tab));
+    }
+
     pub fn select(&mut self, tab: &str) -> Result<(), &'static str> {
         self.tab = match tab {
-            "threads" => "threads",
             "profile" => "profile",
-            _ => return Err(INVALID),
+            _ => STACKS.into_iter().find(|t| *t == tab).ok_or(INVALID)?,
         };
         self.changed();
         Ok(())
+    }
+
+    fn stack(&mut self, tab: &str) -> &mut Option<String> {
+        match tab {
+            "halls" => &mut self.hall_id,
+            "dms" => &mut self.dm_id,
+            _ => &mut self.thread_id,
+        }
     }
 
     pub fn reset(&mut self) {
@@ -223,13 +261,13 @@ impl Navigation {
     }
 
     fn changed(&mut self) {
-        self.path = if self.tab == "profile" {
-            "/profile".into()
-        } else {
-            self.thread_id
-                .as_ref()
-                .map(|id| format!("/threads/{id}"))
-                .unwrap_or("/threads".into())
+        let tab = self.tab;
+        self.path = match tab {
+            "profile" => "/profile".into(),
+            _ => match self.stack(tab) {
+                Some(id) => format!("/{tab}/{id}"),
+                None => format!("/{tab}"),
+            },
         };
         self.revision += 1;
     }

@@ -8,9 +8,10 @@ Once workspace: Cargo owns the dependency graph and `once.toml` seeds it with a
 `tuist/guild` for caching and insights;
 sign in once per machine with `once auth login --provider tuist`.
 
-The app signs in with the browser and shows a Threads/Profile shell laid out like
-Zed's workspace; Threads lists, starts and continues server-side conversations
-through the core's `Threads` operations (`gpui/src/workspace/threads.rs`).
+The app signs in with the browser and shows a Threads/Halls/DMs/Profile shell laid
+out like Zed's workspace; Threads lists, starts and continues server-side conversations
+through the core's `Threads` operations (`gpui/src/workspace/threads.rs`), and
+Halls and DMs use its `Halls` operations (`gpui/src/workspace/halls.rs`).
 
 ## Crates
 

@@ -19,11 +19,14 @@ struct AppProfile: Decodable, Identifiable {
 
 struct AppNavigation: Decodable {
     enum Tab: String, Decodable, Hashable {
-        case threads, profile
+        case threads, halls, dms, profile
     }
 
     var tab: Tab = .threads
     var thread_id: String?
+    /// The Halls and DMs tabs' open conversations, kept while another tab is selected.
+    var hall_id: String?
+    var dm_id: String?
     var path: String = "/threads"
     var revision: UInt64 = 0
 }
@@ -66,6 +69,7 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
         kSecAttrSynchronizable as String: false,
     ]
     private lazy var session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
+    private lazy var socket = PresenceSocket(session: session)
 
     deinit { free(response) }
 
@@ -119,6 +123,8 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
                 result = ["ok": true]
             case "store_directory":
                 result = ["path": try storeDirectory().path]
+            case "socket_open", "socket_send", "socket_read", "socket_close":
+                result = try socket.perform(action)
             case "http":
                 do {
                     result = try http(action)
@@ -195,6 +201,86 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
 
     private final class HTTPResult: @unchecked Sendable {
         var result: Result<[String: Any], Error>?
+    }
+}
+
+/// The core's presence WebSocket (`socket_*` host actions): one connection at a
+/// time, whose text frames are buffered until the core reads them. The core
+/// owns Phoenix's protocol; this only moves frames.
+private final class PresenceSocket: @unchecked Sendable {
+    private let session: URLSession
+    private let lock = NSLock()
+    private var task: URLSessionWebSocketTask?
+    private var frames: [String] = []
+    private var closed = true
+
+    init(session: URLSession) { self.session = session }
+
+    func perform(_ action: [String: Any]) throws -> [String: Any] {
+        switch action["type"] as? String {
+        case "socket_open":
+            guard let text = action["url"] as? String, let url = URL(string: text),
+                  url.scheme == "wss" || (url.scheme == "ws" && ["localhost", "127.0.0.1", "::1"].contains(url.host ?? "")),
+                  let protocols = action["protocols"] as? [String]
+            else { throw AppClientError(message: String(localized: "A secure server URL is required.")) }
+            close()
+            // The protocols carry the bearer credential; they are never logged.
+            let task = session.webSocketTask(with: url, protocols: protocols)
+            task.maximumMessageSize = 1024 * 1024
+            lock.withLock {
+                self.task = task
+                frames = []
+                closed = false
+            }
+            task.resume()
+            receive(task)
+            return ["ok": true]
+        case "socket_send":
+            guard let text = action["text"] as? String,
+                  let task = lock.withLock({ closed ? nil : self.task }) else { throw AppClientError(message: "Closed") }
+            task.send(.string(text)) { [weak self] error in
+                if error != nil { self?.finish(task) }
+            }
+            return ["ok": true]
+        case "socket_read":
+            return lock.withLock {
+                defer { frames = [] }
+                return ["frames": frames, "closed": closed]
+            }
+        default:
+            close()
+            return ["ok": true]
+        }
+    }
+
+    private func receive(_ task: URLSessionWebSocketTask) {
+        task.receive { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case let .success(.string(text)):
+                lock.withLock {
+                    // Bound what piles up while nobody reads, such as a suspended app.
+                    if self.task === task, self.frames.count < 1000 { self.frames.append(text) }
+                }
+                receive(task)
+            case .success:
+                receive(task)
+            case .failure:
+                finish(task)
+            }
+        }
+    }
+
+    private func finish(_ task: URLSessionWebSocketTask) {
+        lock.withLock { if self.task === task { closed = true } }
+    }
+
+    private func close() {
+        let task = lock.withLock {
+            defer { self.task = nil; closed = true; frames = [] }
+            return self.task
+        }
+        task?.cancel(with: .normalClosure, reason: nil)
     }
 }
 

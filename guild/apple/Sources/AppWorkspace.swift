@@ -26,16 +26,20 @@ struct AppWorkspace: View {
                     NavigationSplitView {
                         List(selection: $tab) {
                             Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
+                            Label("Halls", systemImage: "number").tag(AppNavigation.Tab.halls)
+                            Label("DMs", systemImage: "bubble.left.and.text.bubble.right").tag(AppNavigation.Tab.dms)
                             Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
                         }
                         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
                     } detail: {
-                        if tab == .profile {
+                        switch tab {
+                        case .profile:
                             NavigationStack {
                                 ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
                             }
-                        } else {
-                            threadsStack
+                        case .halls: hallsStack(.halls)
+                        case .dms: hallsStack(.dms)
+                        case .threads: threadsStack
                         }
                     }
                     .toolbar { ToolbarItem(placement: .primaryAction) { profilesMenu } }
@@ -45,6 +49,12 @@ struct AppWorkspace: View {
                         threadsStack
                             .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right") }
                             .tag(AppNavigation.Tab.threads)
+                        hallsStack(.halls)
+                            .tabItem { Label("Halls", systemImage: "number") }
+                            .tag(AppNavigation.Tab.halls)
+                        hallsStack(.dms)
+                            .tabItem { Label("DMs", systemImage: "bubble.left.and.text.bubble.right") }
+                            .tag(AppNavigation.Tab.dms)
                         NavigationStack {
                             ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
                                 .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
@@ -67,6 +77,7 @@ struct AppWorkspace: View {
         }
         // Deep links, notification taps and profile switches change the tab in the core.
         .onChange(of: client.view.navigation.tab, initial: true) { _, coreTab in tab = coreTab }
+        .focusedSceneValue(\.selectTab, client.view.active == nil ? nil : SelectTabAction { tab = $0 })
         .tint(Noora.primary)
         // Omarchy themes have one appearance; system controls and bars follow it.
         .preferredColorScheme(Themes.shared.selected.appearance)
@@ -82,6 +93,17 @@ struct AppWorkspace: View {
             guard client.view.active != nil else { return }
             await PushNotifications.shared.refresh()
             await PushNotifications.shared.sync()
+        }
+        // Keeps the person online in their organization while the app is in front.
+        .task(id: PresenceKey(generation: client.view.generation, active: scenePhase == .active)) {
+            guard scenePhase == .active, client.view.active != nil else {
+                _ = try? await client.call("presence_disconnect")
+                return
+            }
+            while !Task.isCancelled {
+                _ = try? await client.call("presence")
+                try? await Task.sleep(for: .seconds(4))
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
@@ -115,6 +137,27 @@ struct AppWorkspace: View {
         )) {
             Button("OK") { client.error = nil }
         } message: { Text(verbatim: client.error ?? "") }
+    }
+
+    /// The Halls or DMs tab: its list, and the conversation the core says is open in it.
+    private func hallsStack(_ tab: AppNavigation.Tab) -> some View {
+        let open = tab == .halls ? client.view.navigation.hall_id : client.view.navigation.dm_id
+        return NavigationStack(path: Binding(
+            get: { open.map { [HallRoute(id: $0)] } ?? [] },
+            set: { routes in
+                if let route = routes.last, route.id != open {
+                    Task { await client.perform("navigate", ["url": "/\(tab.rawValue)/\(route.id)"]) }
+                }
+                if routes.isEmpty, client.view.navigation.tab == tab, open != nil {
+                    Task { await client.perform("navigation_back") }
+                }
+            }
+        )) {
+            HallsView(client: client, tab: tab.rawValue)
+                .navigationDestination(for: HallRoute.self) { route in
+                    HallConversationView(client: client, id: route.id).id(route.id)
+                }
+        }
     }
 
     private var threadsStack: some View {
@@ -172,6 +215,11 @@ struct AppWorkspace: View {
         }
         .help("Switch account")
     }
+}
+
+private struct PresenceKey: Equatable {
+    let generation: UInt64
+    let active: Bool
 }
 
 /// The shipping app's Profile page (`app/Sources/TuistProfile/ProfileView.swift`).

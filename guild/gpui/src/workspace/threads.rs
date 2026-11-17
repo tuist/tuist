@@ -16,9 +16,9 @@ use crate::components::{Button, Variant, composer, message};
 use crate::input::{Submitted, TextInput};
 use crate::theme::Theme;
 
-/// Sends the core's thread requests with the desktop session's token.
-struct Http<'a> {
-    session: &'a Session,
+/// Sends the core's thread and hall requests with the desktop session's token.
+pub(super) struct Http<'a> {
+    pub(super) session: &'a Session,
 }
 
 impl Transport for Http<'_> {
@@ -31,7 +31,7 @@ impl Transport for Http<'_> {
         let token = self
             .session
             .access_token()
-            .map_err(|_| "Sign in again to use threads")?;
+            .map_err(|_| "Sign in again to continue")?;
         let client = reqwest::blocking::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(30))
@@ -226,7 +226,7 @@ impl ThreadsPanel {
                     }
                     if let Some(id) = &id {
                         self.route_id = Some(id.clone());
-                        self.navigate(Destination::Thread(id.clone()), cx);
+                        self.navigate(Destination::Conversation("threads", id.clone()), cx);
                     }
                 }
                 let grew = self.open.as_ref().is_none_or(|open| {
@@ -279,7 +279,7 @@ impl ThreadsPanel {
     }
 
     fn close(&mut self, cx: &mut Context<Self>) {
-        self.navigate(Destination::Threads, cx);
+        self.navigate(Destination::THREADS, cx);
     }
 
     /// Above the list: what conversations are, and a refresh control.
@@ -320,7 +320,7 @@ impl ThreadsPanel {
                 )
                 .enabled(!self.busy)
                 .render(Some(&self.scroll), window, cx, move |this, _, cx| {
-                    this.navigate(Destination::Thread(id.clone()), cx)
+                    this.navigate(Destination::Conversation("threads", id.clone()), cx)
                 })
                 .w_full()
                 .min_h(px(44.))

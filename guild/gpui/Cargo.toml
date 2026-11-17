@@ -24,6 +24,7 @@ tuist-credentials.workspace = true
 tuist-navigation.workspace = true
 tuist-session.workspace = true
 tuist-updater.workspace = true
+tungstenite = { version = "0.28", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
 url.workspace = true
 
 [dev-dependencies]

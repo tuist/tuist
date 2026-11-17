@@ -191,6 +191,14 @@ version_name = "0.1.0"
 launch_activity = ".MainActivity"
 signing = "debug"
 
+# The Android WebSocket client uses only the JDK, so its framing and handshake run on the host JVM.
+[[target]]
+name = "TuistGuildAndroidWebSocketTests"
+kind = "kotlin_jvm_test"
+srcs = ["android/src/dev/tuist/guild/WebSocket.kt", "android/test/**/*.kt"]
+[target.attrs]
+labels = ["unit"]
+
 [[target]]
 name = "TuistGuildOAuth"
 kind = "rust_library"
