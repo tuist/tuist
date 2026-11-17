@@ -388,6 +388,12 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  # Sentry SDKs send the DSN key, an account token, in X-Sentry-Auth instead of
+  # an Authorization header. Runs before :authenticated_api.
+  pipeline :sentry_auth do
+    plug TuistWeb.SentryAuthPlug
+  end
+
   pipeline :threads_no_store do
     plug :put_threads_no_store
   end
@@ -917,6 +923,14 @@ defmodule TuistWeb.Router do
       post "/:id/ship", ThreadsController, :ship, log: false
       post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
     end
+  end
+
+  # Sentry's envelope endpoint, which SDKs derive from a DSN ending in
+  # /pulse/sentry/:service/:project_id.
+  scope "/api/accounts/:account_handle/pulse/sentry", TuistWeb.API do
+    pipe_through [:open_api, :sentry_auth, :authenticated_api, :on_premise_api]
+
+    post "/:service/api/:project_id/envelope", PulseSentryController, :envelope
   end
 
   scope path: "/api",

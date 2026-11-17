@@ -624,6 +624,15 @@ defmodule Tuist.Authorization do
     end
   end
 
+  # Pulse holds one organization's telemetry, so only that account's own
+  # producers write to it; reading stays with `account_dashboard`.
+  object :pulse do
+    action :write do
+      desc("Allows an account token with account:pulse:write scope to send its producers' errors to Pulse.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:pulse:write"])
+    end
+  end
+
   object :organization do
     action :read do
       desc("Allows users of an account to read organization info.")

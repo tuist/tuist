@@ -71,6 +71,54 @@ defmodule Tuist.Pulse do
 
   def authorized?(_user, _account), do: false
 
+  @doc """
+  Forwards a Sentry envelope, posted to the API by one of the enrolled
+  account's producers (see `available?/1`), to Pulse's Sentry endpoint and
+  returns Pulse's status and body.
+
+  Pulse's endpoint is internal to the cluster, so the server writes as the
+  write-only identity in its own `sentry_pulse_dsn` (the one its web
+  instances copy their errors with). `service` names the producer, as the
+  service segment of a Pulse DSN does, and `project_id` is passed through.
+  Only `content-type` and `content-encoding` of `headers` are forwarded.
+  """
+  def forward_sentry_envelope(service, project_id, body, headers) do
+    with {:ok, writer} <- sentry_writer() do
+      request =
+        Req.new(
+          method: :post,
+          url: "#{writer.base_url}/v1/sentry/#{service}/api/#{project_id}/envelope/",
+          headers: [
+            {"x-sentry-auth", "Sentry sentry_version=7, sentry_key=#{writer.key}, sentry_secret=#{writer.secret}"}
+            | Enum.filter(headers, fn {name, _} -> name in ["content-type", "content-encoding"] end)
+          ],
+          body: body,
+          compressed: false,
+          decode_body: false,
+          redirect: false,
+          retry: false,
+          receive_timeout: 10_000,
+          connect_options: [timeout: 5_000]
+        )
+
+      case Req.request(request) do
+        {:ok, %Req.Response{status: status, body: body}} -> {:ok, status, body}
+        {:error, _reason} -> {:error, :unavailable}
+      end
+    end
+  end
+
+  defp sentry_writer do
+    with dsn when is_binary(dsn) <- Environment.sentry_pulse_dsn(),
+         %URI{scheme: scheme, host: host, port: port, userinfo: userinfo}
+         when scheme in ["http", "https"] and is_binary(host) and is_binary(userinfo) <- URI.parse(dsn),
+         [key, secret] <- String.split(userinfo, ":", parts: 2) do
+      {:ok, %{base_url: "#{scheme}://#{host}:#{port}", key: key, secret: secret}}
+    else
+      _ -> {:error, :not_configured}
+    end
+  end
+
   def query(user, account, signal, params) do
     with true <- authorized?(user, account),
          {:ok, opts} <- Table.validate(signal, params),
