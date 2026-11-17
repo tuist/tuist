@@ -38,6 +38,7 @@ jq -e '
   any(.[]; .kind == "Ingress" and .spec.tls[0].secretName == "staging-tls" and
     .metadata.annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"] == "false" and
     .metadata.annotations["cert-manager.io/cluster-issuer"] == "letsencrypt-cloudflare" and
+    .metadata.annotations["nginx.ingress.kubernetes.io/client-body-buffer-size"] == "1m" and
     .metadata.annotations["nginx.ingress.kubernetes.io/proxy-request-buffering"] == "off") and
   any(.[]; .kind == "ConfigMap" and
     (.data["default.conf"] | contains("proxy_set_header Host $http_host;") and

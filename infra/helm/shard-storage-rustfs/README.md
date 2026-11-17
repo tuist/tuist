@@ -30,6 +30,17 @@ the RustFS pods. Normal server credentials must have `shards-policy.json`, not
 root/admin rights. NetworkPolicy permits peer traffic only inside this release
 and gateway ingress only from the configured ingress-controller namespace.
 
+The shard Ingress uses a 1 MiB client-body buffer while keeping request
+buffering **off**. NGINX uses this buffer to size unbuffered HTTP/2 stream
+receive windows; the default 8 KiB body buffer leaves roughly a 64 KiB window
+and throttles uploads over higher-latency links. This is not full-body buffering
+or an HTTP/2 disable switch. Budget roughly 1 MiB per active upload stream
+(about 10 MiB for the CLI's ten concurrent parts), plus proxy/TLS overhead,
+on the ingress controllers. It is not a global concurrency or memory cap.
+Keep the override scoped to this Ingress, not the shared controller ConfigMap.
+See [NGINX's directive](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_buffer_size)
+and [HTTP/2 upload flow control](https://blog.cloudflare.com/delivering-http-2-upload-speed-improvements/).
+
 ## Approval boundary and bootstrap
 
 Everything below that creates resources, buckets, users, flags, plans or objects

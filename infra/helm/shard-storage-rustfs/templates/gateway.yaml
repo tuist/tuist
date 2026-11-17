@@ -119,6 +119,9 @@ metadata:
     cert-manager.io/cluster-issuer: {{ . | quote }}
     {{- end }}
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    # Unbuffered HTTP/2 stream receive windows otherwise stay near 64 KiB.
+    # Keep streaming; bound the larger receive buffer to this bucket's locations.
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "1m"
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
