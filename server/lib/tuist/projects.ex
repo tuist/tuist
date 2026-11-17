@@ -358,8 +358,11 @@ defmodule Tuist.Projects do
     end
   end
 
+  # New projects get no legacy token: `ProjectToken`s and OIDC replace it, and
+  # it was never shown to anyone. `token:` sets one, for tests of projects
+  # that still have one.
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
+    token = Keyword.get(opts, :token)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
 
@@ -390,7 +393,7 @@ defmodule Tuist.Projects do
   end
 
   def create_project!(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
+    token = Keyword.get(opts, :token)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
     preload = Keyword.get(opts, :preload, [])

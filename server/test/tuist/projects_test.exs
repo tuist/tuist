@@ -306,6 +306,27 @@ defmodule Tuist.ProjectsTest do
   end
 
   describe "create_project!/2" do
+    test "issues no legacy token" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When: two projects, so their missing digests do not collide on the unique index
+      first = Projects.create_project!(%{name: "first", account: %{id: account.id}})
+      {:ok, second} = Projects.create_project(%{name: "second", account: %{id: account.id}})
+
+      # Then
+      assert is_nil(first.token)
+      assert is_nil(second.token)
+
+      assert Repo.all(
+               from(p in "projects",
+                 where: p.id in ^[first.id, second.id],
+                 select: {p.token, p.token_hash}
+               )
+             ) == [{nil, nil}, {nil, nil}]
+    end
+
     test "seeds a default 'Flaky test detection' alert" do
       # Given
       organization = AccountsFixtures.organization_fixture()

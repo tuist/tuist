@@ -92,7 +92,7 @@ defmodule Tuist.Projects.Project do
       :build_system
     ])
     |> validate_inclusion(:visibility, [:private, :public])
-    |> validate_required([:token, :account_id, :name])
+    |> validate_required([:account_id, :name])
     |> then(fn changeset ->
       case get_change(changeset, :token) do
         nil -> changeset
