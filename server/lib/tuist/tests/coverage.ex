@@ -551,7 +551,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: ["coverage_files", "test_impact_diffs", "test_impact_run_tests"],
+    files: ["coverage_files", "test_impact_diffs"],
     runs: ["coverage_runs", "test_impact_runs"]
   }
 
