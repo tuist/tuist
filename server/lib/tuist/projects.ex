@@ -58,6 +58,10 @@ defmodule Tuist.Projects do
     Repo.aggregate(maybe_filter_visibility(query, opts), :count, :id)
   end
 
+  def has_remote_execution_projects?(%Account{id: account_id}) do
+    Repo.exists?(from p in Project, where: p.account_id == ^account_id and p.build_system in [:bazel, :once])
+  end
+
   def legacy_token?(token) do
     not String.starts_with?(token, "tuist_")
   end

@@ -15,6 +15,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.Billing.UsagePricing
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.CacheVolumeBilling
@@ -151,9 +152,11 @@ defmodule Tuist.Billing do
     # so neither Meter exists yet, and reporting to an unprovisioned meter
     # just errors the job and adds Sentry noise. Each platform turns on
     # independently, the moment its key lands in config.
+    # Remote execution rides on the Linux meter, so its time is part of
+    # that platform's value rather than a meter of its own.
     runner_values =
       account_id
-      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
+      |> RemoteExecutionUsage.metered_units_by_platform(period_start, period_end)
       |> Enum.map(fn usage ->
         %{event_name: RunnerBilling.meter_event_name(usage.platform), value: usage.total_units}
       end)
@@ -1116,7 +1119,8 @@ defmodule Tuist.Billing do
         lookback = DateTime.add(now, -@runner_price_swap_lookback_days, :day)
         since = Enum.min([DateTime.from_unix!(period_start), lookback], DateTime)
 
-        RunnerBilling.compute_milliseconds(account_id, since, now) > 0
+        RunnerBilling.compute_milliseconds(account_id, since, now) > 0 or
+          RemoteExecutionUsage.compute_units(account_id, since, now) > 0
 
       _ ->
         true

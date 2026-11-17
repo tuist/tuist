@@ -11,6 +11,8 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
+  alias Tuist.Projects
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
@@ -46,6 +48,10 @@ defmodule TuistWeb.UsageLive do
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
      |> assign(
+       :remote_execution_enabled,
+       FeatureFlags.bazel_remote_execution_enabled?(account) and Projects.has_remote_execution_projects?(account)
+     )
+     |> assign(
        :sandboxes_enabled,
        FeatureFlags.sandboxes_enabled?(account) and
          Authorization.authorize(:sandboxes_read, current_user, account) == :ok
@@ -79,7 +85,17 @@ defmodule TuistWeb.UsageLive do
      |> assign_async(:storage, fn ->
        {:ok, %{storage: CacheVolumeBilling.period_breakdown(account, period)}}
      end)
-     |> assign_sandbox_usage(account, period)}
+     |> assign_sandbox_usage(account, period)
+     |> assign_remote_execution_usage(account, period)}
+  end
+
+  defp assign_remote_execution_usage(%{assigns: %{remote_execution_enabled: false}} = socket, _account, _period),
+    do: socket
+
+  defp assign_remote_execution_usage(socket, account, period) do
+    assign_async(socket, :remote_execution_usage, fn ->
+      {:ok, %{remote_execution_usage: RemoteExecutionUsage.period_breakdown(account, period)}}
+    end)
   end
 
   defp assign_sandbox_usage(%{assigns: %{sandboxes_enabled: false}} = socket, _account, _period), do: socket
@@ -365,10 +381,10 @@ defmodule TuistWeb.UsageLive do
       )
 
     case previous do
-      0 when minutes > 0 ->
+      previous when previous == 0 and minutes > 0 ->
         pace <> " " <> dgettext("dashboard_usage", "Nothing ran last period.")
 
-      0 ->
+      previous when previous == 0 ->
         pace
 
       _ ->
@@ -595,6 +611,19 @@ defmodule TuistWeb.UsageLive do
     [bar_series(dgettext("dashboard_usage", "Sandboxes"), "primary", dates, days, :dollars)] ++
       projected_series(projected_days, dates, :dollars)
   end
+
+  @doc """
+  The daily value of the period's remote execution time by project, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def remote_execution_chart_series(%{days: days, projected_days: projected_days} = usage) do
+    dates = usage_chart_dates(usage)
+
+    project_series(days, dates, :dollars) ++ projected_series(projected_days, dates, :dollars)
+  end
+
+  def execution_minutes(value) when value < 10, do: CldrHelpers.format_number(value, fractional_digits: 1)
+  def execution_minutes(value), do: CldrHelpers.format_number(round(value))
 
   def vcpu_hour_rate_label,
     do:

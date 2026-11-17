@@ -19,6 +19,7 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.RemoteExecution.Settings
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Repo
+  alias Tuist.Runners.Allowance
   alias Tuist.Sandboxes.Capacity
 
   @max_wait_ms 5_000
@@ -165,7 +166,7 @@ defmodule Tuist.RemoteExecution do
         memory_gb: memory_gb
       }
 
-      Scheduler.submit(project.account_id, attrs, wait(opts))
+      with :ok <- admit(project), do: Scheduler.submit(project.account_id, attrs, wait(opts))
     else
       {:error, :invalid_request}
     end
@@ -195,7 +196,15 @@ defmodule Tuist.RemoteExecution do
   """
   def lease(project, opts \\ []) do
     attrs = %{project_id: project.id, account_name: project.account.name, project_name: project.name}
-    Scheduler.lease(project.account_id, attrs, wait(opts))
+    with :ok <- admit(project), do: Scheduler.lease(project.account_id, attrs, wait(opts))
+  end
+
+  # Remote execution is billed on the Linux runner meter, so it spends the
+  # same free minutes runners do. An account without a paid plan or a runner
+  # trial has nothing to bill past them, so, like runner dispatch, it is
+  # refused new work once they are spent. Paid and trial accounts never are.
+  defp admit(project) do
+    if Allowance.exhausted?(project.account), do: {:error, :allowance_exhausted}, else: :ok
   end
 
   def maintain, do: VMs.reap()

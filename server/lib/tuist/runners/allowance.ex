@@ -33,6 +33,7 @@ defmodule Tuist.Runners.Allowance do
   alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.KeyValueStore
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
@@ -141,8 +142,11 @@ defmodule Tuist.Runners.Allowance do
         now = DateTime.utc_now()
         month_start = %{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}
 
+        # Remote execution is metered on the Linux runner Price, so it
+        # spends the same free minutes.
         account_id
-        |> milliseconds_by_platform(month_start, now)
+        |> RemoteExecutionUsage.metered_units_by_platform(month_start, now)
+        |> Map.new(&{&1.platform, &1.total_units})
         |> allowance_minutes()
       end
     )
@@ -225,6 +229,39 @@ defmodule Tuist.Runners.Allowance do
       platforms: platform_rows(account_id, period_start, period_end, usage_end, trial_window)
     }
   end
+
+  @doc """
+  What remote execution adds to `account`'s Linux charge over
+  `[period_start, usage_end]`.
+
+  Remote execution is reported on the Linux runner meter, so it shares that
+  Price's free minutes, and a runner trial, which takes the runner Prices
+  off the subscription, covers it too. Runner usage is taken to spend the
+  free minutes first and remote execution what is left. That leaves the
+  runner figures in `period_breakdown/2` as they were, and the two charges
+  add up to what the Linux meter bills.
+  """
+  def remote_execution_billed(%Account{id: account_id} = account, period_start, usage_end) do
+    trial_window = trial_window(account, period_start, usage_end)
+
+    runner_ms =
+      billable_units(trial_window, period_start, usage_end, fn from, to ->
+        account_id |> milliseconds_by_platform(from, to) |> Map.get(:linux, 0)
+      end)
+
+    remote_execution_ms =
+      billable_units(trial_window, period_start, usage_end, &RemoteExecutionUsage.compute_units(account_id, &1, &2))
+
+    Money.subtract(
+      Prepaid.on_demand_cost_for_milliseconds(:linux, billed_milliseconds(:linux, runner_ms + remote_execution_ms)),
+      Prepaid.on_demand_cost_for_milliseconds(:linux, billed_milliseconds(:linux, runner_ms))
+    )
+  end
+
+  defp billable_units(nil, from, to, units), do: units.(from, to)
+
+  defp billable_units({covered_from, covered_to}, from, to, units),
+    do: units.(from, to) - units.(covered_from, covered_to)
 
   # `%{date => %{platform => ms}}`, one query per platform because each
   # platform's compute units are priced at its own rate and cannot be

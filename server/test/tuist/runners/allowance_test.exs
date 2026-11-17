@@ -3,8 +3,11 @@ defmodule Tuist.Runners.AllowanceTest do
   use Mimic
 
   alias Tuist.Billing
+  alias Tuist.IngestRepo
+  alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Trials
@@ -95,6 +98,57 @@ defmodule Tuist.Runners.AllowanceTest do
     |> Repo.update!()
   end
 
+  describe "remote_execution_billed/3" do
+    setup %{account: account} do
+      now = DateTime.utc_now()
+
+      # 1,000 minutes on 8 vCPU / 16 GB, $8.00 at $0.008 a minute.
+      IngestRepo.insert_all(RemoteExecutionUsageEvent, [
+        %{
+          id: UUIDv7.generate(),
+          account_id: account.id,
+          project_id: 1,
+          sandbox_id: UUIDv7.generate(),
+          mode: "scheduled",
+          vcpus: 8,
+          memory_mb: 16_384,
+          duration_ms: 1_000 * 60_000,
+          inserted_at: now |> DateTime.add(-1, :hour) |> DateTime.to_naive()
+        }
+      ])
+
+      %{period: {DateTime.add(now, -1, :day), now}}
+    end
+
+    defp runner_linux_minutes(minutes) do
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _from, _to ->
+        [%{platform: :linux, total_units: minutes * 60_000}]
+      end)
+    end
+
+    test "draws on the free Linux minutes runner usage left over", %{account: account, period: {from, to}} do
+      # 2,000 of the 2,500 free baseline minutes went on runners, worth $1.20
+      # of the $6.00 allowance; remote execution's $8.00 leaves $6.80, less the
+      # cent the 8 vCPU / 16 GB multiplier's whole basis points round away.
+      runner_linux_minutes(2_000)
+
+      assert Allowance.remote_execution_billed(account, from, to) == Money.new(679, :USD)
+    end
+
+    test "is billed in full once runners spent the free minutes", %{account: account, period: {from, to}} do
+      runner_linux_minutes(3_000)
+
+      assert Allowance.remote_execution_billed(account, from, to) == Money.new(799, :USD)
+    end
+
+    test "costs nothing while a runner trial covers it", %{account: account, period: {from, to}} do
+      runner_linux_minutes(3_000)
+      account = on_trial_since(account, DateTime.add(from, -1, :day))
+
+      assert Allowance.remote_execution_billed(account, from, to) == Money.new(0, :USD)
+    end
+  end
+
   describe "exhausted?/1" do
     # Usage is back-dated a couple of hours and counted per calendar month,
     # so against the real clock it falls in the previous month during the
@@ -111,6 +165,29 @@ defmodule Tuist.Runners.AllowanceTest do
 
       refute Allowance.exhausted?(account)
       assert Allowance.minutes_remaining(account) == 60
+    end
+
+    test "remote execution spends the same free minutes", %{account: account} do
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+
+      # 1,000 minutes on 8 vCPU / 16 GB are about 3,333 Linux baseline
+      # minutes, past the 2,500 free ones.
+      IngestRepo.insert_all(RemoteExecutionUsageEvent, [
+        %{
+          id: UUIDv7.generate(),
+          account_id: account.id,
+          project_id: 1,
+          sandbox_id: UUIDv7.generate(),
+          mode: "leased",
+          vcpus: 8,
+          memory_mb: 16_384,
+          duration_ms: 1_000 * 60_000,
+          inserted_at: ~N[2024-01-17 10:00:00.000000]
+        }
+      ])
+
+      assert Allowance.exhausted?(account)
     end
 
     test "a free account is cut off once the allowance is spent", %{account: account} do

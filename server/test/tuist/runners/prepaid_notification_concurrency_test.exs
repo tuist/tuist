@@ -20,6 +20,11 @@ defmodule Tuist.Runners.PrepaidNotificationConcurrencyTest do
   setup do
     stub(UserNotifier, :deliver_runner_prepaid_notification, fn _, _, _ -> flunk("unexpected email delivery") end)
     :ok = Sandbox.checkout(Repo, sandbox: false)
+    # The notifications count remote execution usage too, read from
+    # ClickHouse by the independent sessions, so they need an unsandboxed
+    # connection. The account is fresh, so it reads no other test's rows.
+    ingest_repo = Sandbox.start_owner!(Tuist.IngestRepo, shared: true, sandbox: false)
+    on_exit(fn -> Sandbox.stop_owner(ingest_repo) end)
     user = AccountsFixtures.user_fixture()
     account = user.account |> Ecto.Changeset.change(runner_trial_started_at: nil) |> Repo.update!()
     now = DateTime.truncate(DateTime.utc_now(), :second)

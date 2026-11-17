@@ -11,7 +11,9 @@ defmodule Tuist.RemoteExecutionTest do
   alias Tuist.Kura
   alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Scheduler
+  alias Tuist.RemoteExecution.UsageEvent
   alias Tuist.RemoteExecution.VMs
+  alias Tuist.Runners.Allowance
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
@@ -79,8 +81,12 @@ defmodule Tuist.RemoteExecutionTest do
           receive do: ({:claim, outcome} -> outcome)
 
         "exec" ->
-          if args.cmd == ["/usr/local/bin/sbx-executor"], do: run_action(test, call_opts, result, opts)
-          {:ok, %{"exit_code" => 0}}
+          if args.cmd == ["/usr/local/bin/sbx-executor"] do
+            run_action(test, call_opts, result, opts)
+            {:ok, %{"exit_code" => 0, "duration_ms" => 1_500}}
+          else
+            {:ok, %{"exit_code" => 0}}
+          end
 
         "delete" ->
           Keyword.get(opts, :delete, {:ok, %{}})
@@ -99,6 +105,9 @@ defmodule Tuist.RemoteExecutionTest do
 
     call_opts[:on_stream].({:stdout, JSON.encode!(result) <> "\n"})
   end
+
+  defp usage_events(project),
+    do: Tuist.ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^project.account_id))
 
   defp vm_rows(project),
     do: Repo.all(from(s in Sandbox, where: s.account_id == ^project.account_id and s.purpose == :remote_execution))
@@ -119,6 +128,15 @@ defmodule Tuist.RemoteExecutionTest do
 
   defp submit(project, params \\ %{}, opts \\ [wait: 5_000]),
     do: RemoteExecution.submit(project, Map.merge(%{"hash" => @hash, "size" => 10}, params), opts)
+
+  test "refuses new work once a free account has spent its free minutes", %{project: project} do
+    account_id = project.account_id
+    stub(Allowance, :exhausted?, fn %{id: ^account_id} -> true end)
+    reject(&Nodes.call/4)
+
+    assert {:error, :allowance_exhausted} = submit(project)
+    assert {:error, :allowance_exhausted} = RemoteExecution.lease(project, wait: 100)
+  end
 
   test "runs an action in a fresh VM and returns the result before deleting it", %{project: project} do
     stub_node()
@@ -517,6 +535,36 @@ defmodule Tuist.RemoteExecutionTest do
 
       assert_received {:node, "exec",
                        %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^id, env: %{"SBX_EXECUTION_REQUEST" => _}}}
+    end
+
+    test "scheduled and claimed leased actions record the node-measured execution time", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{done: true}} = submit(project)
+
+      eventually(fn ->
+        match?([%{mode: "scheduled", duration_ms: 1_500, vcpus: 2, memory_mb: 4096}], usage_events(project))
+      end)
+
+      assert {:ok, %{sandbox_id: id}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, node_call}
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0, "duration_ms" => 2_500}}})
+
+      eventually(fn ->
+        Enum.any?(usage_events(project), &(&1.mode == "leased" and &1.duration_ms == 2_500 and &1.sandbox_id == id))
+      end)
+    end
+
+    test "an unclaimed lease records no usage, only the action that later took its VM", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, node_call}
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+      assert {:ok, %{done: true}} = submit(project)
+
+      eventually(fn -> usage_events(project) != [] end)
+      assert [%{mode: "scheduled"}] = usage_events(project)
     end
 
     test "a lease that finds no VM in time returns none", %{project: project} do

@@ -10,9 +10,9 @@ defmodule Tuist.Runners.PrepaidNotifications do
   alias Tuist.Billing
   alias Tuist.Billing.AirUsageNotifications
   alias Tuist.Billing.Subscription
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
-  alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.PrepaidActivation
   alias Tuist.Runners.PrepaidNotification
@@ -198,7 +198,7 @@ defmodule Tuist.Runners.PrepaidNotifications do
 
   defp units_by_platform(account_id, from, until) do
     if DateTime.before?(from, until) do
-      account_id |> RunnerBilling.compute_units_by_platform(from, until) |> Map.new(&{&1.platform, &1.total_units})
+      account_id |> RemoteExecutionUsage.metered_units_by_platform(from, until) |> Map.new(&{&1.platform, &1.total_units})
     else
       %{}
     end

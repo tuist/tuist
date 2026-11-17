@@ -357,6 +357,7 @@ defmodule Tuist do
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
       Sandboxes.Pricing,
+      RemoteExecution.Usage,
       Sandboxes.Query,
       Sandboxes.Router,
       Sandboxes.Sandbox,

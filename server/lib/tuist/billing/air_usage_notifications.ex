@@ -11,9 +11,9 @@ defmodule Tuist.Billing.AirUsageNotifications do
   alias Tuist.Billing.UsagePricing
   alias Tuist.Billing.Workers.AirUsageNotificationWorker
   alias Tuist.CommandEvents
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
-  alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
 
   @metrics [:cache_egress_megabytes, :cache_requests, :runner_minutes]
@@ -44,7 +44,7 @@ defmodule Tuist.Billing.AirUsageNotifications do
 
     minutes =
       account.id
-      |> RunnerBilling.compute_units_by_platform(period_start, now)
+      |> RemoteExecutionUsage.metered_units_by_platform(period_start, now)
       |> Map.new(&{&1.platform, &1.total_units})
       |> Allowance.allowance_minutes()
 

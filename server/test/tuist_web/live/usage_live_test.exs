@@ -10,6 +10,7 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
+  alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.CacheVolumes.SavedSize
@@ -17,6 +18,7 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.UsageLive
 
   @render_async_timeout 1_000
@@ -197,6 +199,137 @@ defmodule TuistWeb.UsageLiveTest do
         projected_days: []
       }
     }
+  end
+
+  describe "remote execution usage" do
+    test "prices execution time at the Linux rate of each VM size, independently of CI runners", %{
+      conn: conn,
+      account: account
+    } do
+      project = ProjectsFixtures.project_fixture(account: account, build_system: :bazel)
+      once_project = ProjectsFixtures.project_fixture(account: account, build_system: :once)
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> true end)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(DateTime, :utc_now, fn -> ~U[2026-01-17 12:00:00.000000Z] end)
+
+      event = fn account_id, vcpus, memory_mb, minutes, at ->
+        %{
+          id: UUIDv7.generate(),
+          account_id: account_id,
+          project_id: project.id,
+          sandbox_id: UUIDv7.generate(),
+          mode: "scheduled",
+          vcpus: vcpus,
+          memory_mb: memory_mb,
+          duration_ms: minutes * 60_000,
+          inserted_at: at
+        }
+      end
+
+      IngestRepo.insert_all(RemoteExecutionUsageEvent, [
+        # 30 minutes on 2 vCPU / 4 GB at $0.002 and 10 on 8 vCPU / 16 GB at $0.008.
+        event.(account.id, 2, 4096, 20, ~N[2026-01-16 10:00:00.000000]),
+        event.(account.id, 2, 4096, 10, ~N[2026-01-17 09:00:00.000000]),
+        Map.put(event.(account.id, 8, 16_384, 10, ~N[2026-01-17 09:30:00.000000]), :project_id, once_project.id),
+        # The previous period and another account count for nothing here.
+        event.(account.id, 2, 4096, 500, ~N[2025-12-31 23:00:00.000000]),
+        event.(other_account.id, 8, 16_384, 500, ~N[2026-01-17 09:00:00.000000])
+      ])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#widget-re-execution-minutes", "40")
+      assert has_element?(lv, "#widget-re-execution-minutes", "3 actions")
+      assert has_element?(lv, "#widget-re-gross", "0.14")
+      assert has_element?(lv, "#widget-re-billed", "0.00")
+      receipt = ~s([data-kind="remote-execution"])
+      assert has_element?(lv, receipt, "30 minutes on 2 vCPU / 4 GB")
+      assert has_element?(lv, receipt, "0.06")
+      assert has_element?(lv, receipt, "10 minutes on 8 vCPU / 16 GB")
+      assert has_element?(lv, receipt, "0.08")
+      refute has_element?(lv, ~s(#{receipt} [data-kind="credit"]))
+      refute has_element?(lv, "[data-part=remote-execution-usage-card] a[href='/pricing#compute']")
+      refute has_element?(lv, "[data-part=remote-execution-usage-card]", "early access")
+
+      assert has_element?(
+               lv,
+               "[data-part=remote-execution-usage-card]",
+               "Minutes include input fetch, execution, and output upload"
+             )
+
+      assert has_element?(lv, receipt, "On track for about 75 minutes this period.")
+      assert has_element?(lv, "#remote-execution-spend-chart")
+
+      chart =
+        lv
+        |> element("#remote-execution-spend-chart [data-part=data]")
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.text()
+        |> JSON.decode!()
+
+      refute chart["legend"]["show"] == false
+      assert chart["legend"]["top"] == "bottom"
+      assert [once_series, bazel_series, projected] = chart["series"]
+      assert once_series["name"] == once_project.name
+      assert bazel_series["name"] == project.name
+      assert projected["name"] == "Projected"
+      assert Enum.take(once_series["data"], 2) == [["2026-01-16", 0.0], ["2026-01-17", 0.08]]
+      assert Enum.take(bazel_series["data"], 2) == [["2026-01-16", 0.04], ["2026-01-17", 0.02]]
+      assert once_series["stack"] == bazel_series["stack"]
+      refute once_series["color"] == bazel_series["color"]
+      refute has_element?(lv, "[data-part=runner-usage-card]")
+    end
+
+    test "shows an empty state when no actions ran", %{conn: conn, account: account} do
+      ProjectsFixtures.project_fixture(account: account, build_system: :once)
+      stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part=remote-execution-usage-empty]")
+      assert has_element?(lv, "#widget-re-gross", "0.00")
+    end
+
+    test "does not advertise enabled RE to accounts without access", %{conn: conn, account: account} do
+      ProjectsFixtures.project_fixture(account: account, build_system: :once)
+      stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> false end)
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      refute has_element?(lv, "[data-part=remote-execution-usage-card]")
+      assert has_element?(lv, "[data-part=runner-usage-card]")
+    end
+
+    for build_system <- [:bazel, :once] do
+      @build_system build_system
+      test "shows #{@build_system} remote execution below runner usage", %{conn: conn, account: account} do
+        ProjectsFixtures.project_fixture(account: account, build_system: @build_system)
+        stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> true end)
+        stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+
+        {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+        assert has_element?(lv, "[data-part=runner-usage-card] + [data-part=remote-execution-usage-card]")
+      end
+    end
+
+    test "hides RE without an eligible project in the selected account", %{conn: conn, account: account} do
+      ProjectsFixtures.project_fixture(build_system: :bazel)
+      stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _account -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      refute has_element?(lv, "[data-part=remote-execution-usage-card]")
+
+      ProjectsFixtures.project_fixture(account: account, build_system: :xcode)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      refute has_element?(lv, "[data-part=remote-execution-usage-card]")
+    end
   end
 
   describe "cache and test insights usage" do
@@ -656,7 +789,7 @@ defmodule TuistWeb.UsageLiveTest do
     test "scopes the page to a billing period rather than a free range", %{conn: conn, account: account} do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/usage")
 
-      assert html =~ "Runner time, cache volume storage, and cache traffic billed to this account"
+      assert html =~ "Compute, cache, and test usage for this account"
       assert html =~ "Billing period:"
       # Both the free-range and project controls are gone: the page
       # reports one period, and everything on it follows that period.
@@ -703,15 +836,17 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "1.00"
     end
 
-    test "renders a pace for a projected runner receipt" do
-      pace =
-        UsageLive.pace_label(%{
-          minutes: 120,
-          projected_minutes: 1_800,
-          previous_minutes: 0
-        })
+    test "renders the same pace for runner and remote execution receipts" do
+      for previous <- [0, 0.0] do
+        pace =
+          UsageLive.pace_label(%{
+            minutes: 120,
+            projected_minutes: 1_800,
+            previous_minutes: previous
+          })
 
-      assert pace =~ "On track for about"
+        assert pace == "On track for about 1,800 minutes this period. Nothing ran last period."
+      end
     end
   end
 

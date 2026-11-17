@@ -70,6 +70,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     for {error, status} <- [
           invalid_request: :bad_request,
+          allowance_exhausted: :payment_required,
           queue_full: :too_many_requests,
           unavailable: :service_unavailable
         ] do
@@ -96,6 +97,9 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     expect(RemoteExecution, :lease, fn _ -> {:ok, nil} end)
     assert conn |> post(prefix <> "/leases") |> response(:no_content)
+
+    expect(RemoteExecution, :lease, fn _ -> {:error, :allowance_exhausted} end)
+    assert conn |> post(prefix <> "/leases") |> json_response(:payment_required)
 
     expect(RemoteExecution, :lease, fn _ -> {:error, :unsupported} end)
     assert conn |> post(prefix <> "/leases") |> json_response(:not_found)

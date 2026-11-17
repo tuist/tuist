@@ -12,6 +12,8 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.UsagePricing
   alias Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorker
   alias Tuist.Environment
+  alias Tuist.IngestRepo
+  alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.CacheVolumes.SavedSize
@@ -1542,6 +1544,48 @@ defmodule Tuist.BillingTest do
                %{event_name: "passing_test_cases", value: 42},
                %{event_name: "runner_macos_compute_unit_milliseconds", value: 750_125}
              ]
+    end
+
+    test "adds remote execution to the Linux runner meter" do
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer-#{UUIDv7.generate()}")
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      stub(Environment, :stripe_prices, fn -> %{"runners" => %{"runner_linux_compute_unit_milliseconds" => ""}} end)
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _from, _to -> [] end)
+
+      event = fn inserted_at ->
+        %{
+          id: UUIDv7.generate(),
+          account_id: account.id,
+          project_id: 1,
+          sandbox_id: UUIDv7.generate(),
+          mode: "leased",
+          vcpus: 4,
+          memory_mb: 8_192,
+          duration_ms: 60_000,
+          inserted_at: inserted_at
+        }
+      end
+
+      # The second action finished after the window, so it belongs to the
+      # next report.
+      IngestRepo.insert_all(RemoteExecutionUsageEvent, [
+        event.(~N[2026-07-16 10:00:00.000000]),
+        event.(~N[2026-07-17 00:00:00.000000])
+      ])
+
+      # A minute on 4 vCPU / 8 GB ($0.004) is 1.66 baseline minutes ($0.0024).
+      assert [%{event_name: "runner_linux_compute_unit_milliseconds", value: value}] =
+               Billing.customer_meter_values(account, period_start, period_end)
+
+      assert value in 99_990..100_000
+
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _from, _to ->
+        [%{platform: :linux, total_units: 400_000}]
+      end)
+
+      assert [%{value: combined}] = Billing.customer_meter_values(account, period_start, period_end)
+      assert combined == value + 400_000
     end
 
     test "reports a platform whose Meter exists but whose Price is not set yet" do
