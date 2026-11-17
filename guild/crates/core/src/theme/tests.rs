@@ -173,3 +173,10 @@ fn built_in_themes_resolve_with_their_own_appearance() {
         }
     }
 }
+
+#[test]
+fn every_token_says_what_it_colors() {
+    for (name, _, _) in TOKENS {
+        assert!(!role(name).is_empty(), "{name} needs a role in theme::role");
+    }
+}

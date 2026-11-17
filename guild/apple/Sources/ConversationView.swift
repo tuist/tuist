@@ -241,6 +241,8 @@ struct ConversationView: View {
                 )
             }
             .task(id: id) { await follow() }
+            // The live socket: server changes and the agent's calls to this app's tools.
+            .task(id: id) { await client.live(id) { await reload() } }
             // Unaccepted dictation never survives leaving the conversation or the app.
             .onChange(of: scenePhase) { _, phase in
                 // Permission alerts briefly deactivate the scene before their callbacks return.
@@ -281,6 +283,11 @@ struct ConversationView: View {
             }
             try? await Task.sleep(for: thread?.working == true ? .seconds(2) : .seconds(15))
         }
+    }
+
+    /// Loads the conversation again when the server says it changed.
+    private func reload() async {
+        if let latest = try? await client.conversation("thread", ["id": id]) { show(latest) }
     }
 
     /// Loads the page before the earliest message shown. Only the latest page is kept offline.

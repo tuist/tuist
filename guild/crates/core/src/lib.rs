@@ -2,6 +2,7 @@ use core::ffi::{c_char, c_void};
 
 mod bridge;
 mod client;
+mod live;
 pub mod navigation;
 pub mod store;
 pub mod theme;

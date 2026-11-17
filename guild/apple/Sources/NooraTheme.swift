@@ -37,7 +37,8 @@ final class Themes {
 
     static let shared = Themes()
 
-    let all: [Theme]
+    /// The catalog's themes, then the custom one the agent made, if any.
+    var all: [Theme] { catalog + [custom].compactMap { $0 } }
     var selectedID: String {
         didSet { UserDefaults.standard.set(selectedID, forKey: Self.key) }
     }
@@ -47,25 +48,41 @@ final class Themes {
         all.first { $0.id == selectedID } ?? all[0]
     }
 
+    private let catalog: [Theme]
+    /// The theme a thread's agent made with `set_theme` (`id` `custom`); it
+    /// stays on this device and in Profile as Custom.
+    private var custom: Theme?
+
     private static let key = "theme"
+    private static let customKey = "custom_theme"
 
     private init() {
         let catalog = tuist_app_theme()
             .flatMap { try? JSONSerialization.jsonObject(with: Data(String(cString: $0).utf8)) } as? [String: Any]
-        let themes = (catalog?["themes"] as? [[String: Any]] ?? []).map { theme in
-            Theme(
-                id: theme["id"] as? String ?? "",
-                name: theme["name"] as? String ?? "",
-                appearance: (theme["appearance"] as? String).map { $0 == "dark" ? .dark : .light },
-                light: theme["light"] as? [String: String] ?? [:],
-                dark: theme["dark"] as? [String: String] ?? [:],
-                card: theme["card"] as? [String: Any] ?? [:]
-            )
-        }
-        all = themes.isEmpty
-            ? [Theme(id: "noora", name: "Tuist", appearance: nil, light: [:], dark: [:], card: [:])]
-            : themes
+        let themes = (catalog?["themes"] as? [[String: Any]] ?? []).map(Self.theme)
+        self.catalog = themes.isEmpty ? [Theme(id: "noora", name: "Tuist", appearance: nil, light: [:], dark: [:], card: [:])] : themes
+        custom = UserDefaults.standard.dictionary(forKey: Self.customKey).map(Self.theme)
         selectedID = UserDefaults.standard.string(forKey: Self.key) ?? catalog?["default"] as? String ?? "noora"
+    }
+
+    /// Applies and selects a custom theme the core built from the agent's
+    /// `set_theme` call. Every view drawing with `Noora` redraws at once.
+    func apply(custom value: [String: Any]) {
+        UserDefaults.standard.set(value, forKey: Self.customKey)
+        custom = Self.theme(value)
+        selectedID = custom!.id
+    }
+
+    private static func theme(_ theme: [String: Any]) -> Theme {
+        Theme(
+            id: theme["id"] as? String ?? "",
+            // Profile shows the custom theme under its localized name.
+            name: theme["id"] as? String == "custom" ? String(localized: "Custom") : theme["name"] as? String ?? "",
+            appearance: (theme["appearance"] as? String).map { $0 == "dark" ? .dark : .light },
+            light: theme["light"] as? [String: String] ?? [:],
+            dark: theme["dark"] as? [String: String] ?? [:],
+            card: theme["card"] as? [String: Any] ?? [:]
+        )
     }
 }
 

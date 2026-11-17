@@ -30,6 +30,14 @@ follows the system (`appearance` null); Omarchy themes have one appearance, and
 edges should force it on system chrome. Edges store only the chosen `id` and fall
 back to `default` for an unknown one.
 
+A thread's agent can restyle the app with the `set_theme` tool the live socket
+offers (`live_connect`). Its schema lists every token with what it colors and
+Noora's values; the core builds the theme from a base theme, an appearance
+(required for Noora; an Omarchy base keeps its own and refuses the other) and
+the colors it overrides, and `live_receive` hands it to the edge with ID
+`custom`. Edges keep that one custom theme beside the catalog, select it at
+once, and show it as **Custom** until the person picks another.
+
 The tab catalog is `threads` (index 0, the default) then `profile`; its C/JNI symbols are unchanged.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 
@@ -120,6 +128,11 @@ when an operation reports an error.
 | `start_thread` | `content` (nonempty, at most 16,000 bytes) | the created thread, as `thread` returns it; starts a server-side conversation with no repository (its agent checks one out in the thread's workspace when the conversation needs it), using the first model from `/threads/models`. A 404 reports threads unavailable; no available model asks to connect a ChatGPT subscription. A retry of the same text after a failure reuses its `request_id`, so it never creates two threads |
 | `thread` | thread `id` (UUID), optional `before` message position | the server's thread with its latest messages, plus `state`, `section` and `working` (queued or running, and not archived); frontends poll it while `working`. A message's optional `ui` is a card the model wrote: NSH JavaScript `source` and a `size` of `compact`, `medium` or `tall`, to which the core adds the frame `height` in points (120, 240, 400). Edges show the card at that height and its `content` when they can't run it; the core drops a `ui` with an unknown size or an empty or larger than 256 KiB source |
 | `send_message` | thread `id`, `content` | the updated thread; retries reuse the request ID like `start_thread` |
+| `live_wait` | `socket`: a handle the edge picks for one screen's live socket | `{delay_ms}`: how long to wait before the next `live_connect` of that socket. Call it before every attempt: it is 0 at first and after a connection that joined, and backs off to 30 s while attempts fail, whether to connect, to join, or after a socket that stopped answering |
+| `live_connect` | `socket`, thread `id` (UUID) | `{url,protocols,join,tick_ms}`: how to open the live socket of the thread a screen shows. The edge opens a WebSocket to `url` with `protocols` (the bearer travels as Phoenix's `base64url.bearer.phx.` subprotocol, standard unpadded base64 as Phoenix decodes it, never in the URL), sends `join` first, then calls `live_tick` every `tick_ms`. The join offers the thread's agent the tools Guild exposes (`set_theme`); the core refreshes the access token first |
+| `live_tick` | `socket` | `{send,reconnect}`: frames to send (the heartbeat), or `reconnect: true` to close the socket and start again with `live_wait`, because the server never answered the last heartbeat, as when a network change leaves the socket half open. The edge also closes the socket when a send fails |
+| `live_receive` | `socket`, thread `id`, `message`: one text frame | `{refresh,reconnect,replies,theme}`: `refresh` asks the edge to load the thread again, `reconnect` to close the socket and start again, `replies` are frames to send back as they are, and `theme` is a custom theme to apply and select before sending them, in the theme catalog's shape with `id` `custom` (Profile lists it as **Custom**). A frame for another account's topic, after an account switch, reconnects, and a tool call on it is answered with an error at once |
+| `live_close` | `socket` | null; forgets the socket once its screen is gone |
 | `projects` | none | `{projects:[…]}`; complete enumeration, deduplicated and account-scoped |
 | `previews` | `project`: `account/project`, optional nullable `track`, `search`, `page` (default 1), `page_size` (default 20, maximum 100) | raw previews response |
 | `tracks` | `project` | raw full-project `{total_count,tracks:[{name,count}]}` |

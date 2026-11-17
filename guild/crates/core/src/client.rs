@@ -69,6 +69,8 @@ pub struct MobileClient {
     attempt: Option<Attempt>,
     threads: Threads,
     navigation: crate::navigation::Navigation,
+    /// The live sockets of the threads the edge shows.
+    live: crate::live::Live,
     /// The open local store and the profile it belongs to.
     store: Option<(String, Store)>,
 }
@@ -239,6 +241,38 @@ impl MobileClient {
                 }
             }
             "flush_outbox" => self.flush_outbox(host),
+            // The live sockets of the threads screens show (`crate::live`),
+            // by a handle the edge picks for each. Opening one refreshes the
+            // bearer first, which the edge needs to open it.
+            "live_connect" => {
+                let index = self.active()?;
+                let id = text(args, "id")?;
+                if !is_uuid(id) {
+                    return Err("Invalid thread ID");
+                }
+                self.refresh(index, host)?;
+                let server = server_url(&self.vault.profiles[index].server)?;
+                let account = self.account(index).to_string();
+                let access = self.vault.profiles[index].access.clone();
+                self.live
+                    .connect(text(args, "socket")?, &server, &account, id, &access)
+            }
+            "live_wait" => Ok(json!({"delay_ms": self.live.wait(text(args, "socket")?)})),
+            "live_tick" => Ok(self.live.tick(text(args, "socket")?)),
+            "live_receive" => {
+                let index = self.active()?;
+                let account = self.account(index).to_string();
+                self.live.receive(
+                    text(args, "socket")?,
+                    &account,
+                    text(args, "id")?,
+                    text(args, "message")?,
+                )
+            }
+            "live_close" => {
+                self.live.close(text(args, "socket")?);
+                Ok(Value::Null)
+            }
             "previews" | "tracks" | "preview" | "delete_preview" => {
                 let index = self.active()?;
                 let project = text(args, "project")?;
