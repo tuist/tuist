@@ -76,9 +76,9 @@ jobs:
           echo /opt/elixir/bin >> "$GITHUB_PATH"
       - name: Install the published candidate
         run: |
-          archive=once-0.82.6-once-re.7-x86_64-unknown-linux-gnu.tar.gz
-          curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/0.82.6-once-re.7/$archive" -o "$RUNNER_TEMP/$archive"
-          echo "5657d06d07fca6806deb1a7e0bd4aa45d39b99f73db7bef2c1eda9ffedc21624  $RUNNER_TEMP/$archive" | sha256sum -c -
+          archive=once-0.82.6-once-re.8-x86_64-unknown-linux-gnu.tar.gz
+          curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/0.82.6-once-re.8/$archive" -o "$RUNNER_TEMP/$archive"
+          echo "335a74ebf150ce0d0acfc800b985c285e77e1687e2a72009a44f5dedd4b3a545  $RUNNER_TEMP/$archive" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/once-bin"
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/once-bin"
           echo "$RUNNER_TEMP/once-bin" >> "$GITHUB_PATH"
