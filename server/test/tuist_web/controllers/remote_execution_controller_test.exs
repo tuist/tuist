@@ -16,6 +16,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     stub(Capacity, :execution_image_tag, fn -> "sha-" <> String.duplicate("a", 40) end)
     stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
+    stub(Kura, :managed_cache_endpoint_urls, fn _account -> ["https://client-cache.example"] end)
 
     %{
       conn: put_req_header(conn, "authorization", "Bearer test-token"),
@@ -36,6 +37,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     assert %{
              "cas_endpoint" => "grpcs://cache.example:443",
+             "client_cas_endpoint" => "grpcs://client-cache.example:443",
              "max_concurrency" => 8,
              "execution_root" => "/workspace/action"
            } =
