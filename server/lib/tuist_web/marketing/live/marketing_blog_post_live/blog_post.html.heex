@@ -4,7 +4,7 @@
       <header data-part="header">
         <div data-part="breadcrumb">
           <a href={~p"/blog"}>{dgettext("marketing", "Blog")}</a>
-          <.math_slash aria-hidden="true" />
+          <.slash aria-hidden="true" />
           <span>{@post.category |> to_string() |> String.capitalize()}</span>
         </div>
 
