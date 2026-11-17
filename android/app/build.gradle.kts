@@ -205,6 +205,7 @@ openApiGenerate {
 // With "original" enum naming, an empty-string enum value generates a constant without a name,
 // and `name` and `value` entries clash with Kotlin's `Enum.name` and the generated `value`
 // property. The plugin ignores `enumNameMappings`, so rename them here; JSON values are unchanged.
+// A nested enum puts each entry on its annotation's line, a top-level one on the next line.
 tasks.named("openApiGenerate") {
     val generatedSources = layout.buildDirectory.dir("generated/openapi/src/main/kotlin")
     doLast {
@@ -213,9 +214,9 @@ tasks.named("openApiGenerate") {
             .forEach { file ->
                 val source = file.readText()
                 val patched = source
-                    .replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
-                    .replace("@Json(name = \"name\") name(\"name\")", "@Json(name = \"name\") name_(\"name\")")
-                    .replace("@Json(name = \"value\") `value`(\"value\")", "@Json(name = \"value\") value_(\"value\")")
+                    .replace(Regex("""(@Json\(name = ""\)\s+)\(""\)"""), "$1EMPTY(\"\")")
+                    .replace(Regex("""(@Json\(name = "name"\)\s+)name\("name"\)"""), "$1name_(\"name\")")
+                    .replace(Regex("""(@Json\(name = "value"\)\s+)`value`\("value"\)"""), "$1value_(\"value\")")
                 if (patched != source) file.writeText(patched)
             }
     }
