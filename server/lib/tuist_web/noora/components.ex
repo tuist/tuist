@@ -4,12 +4,17 @@ defmodule TuistWeb.Noora.Components do
   """
   use Phoenix.Component
   use Noora
+  use TuistWeb, :verified_routes
+
+  import TuistWeb.AccountDropdown
 
   alias Phoenix.LiveView.JS
   alias TuistWeb.Noora.Code
   alias TuistWeb.Noora.Pages
 
   attr :page, :atom, required: true
+  attr :current_user, :map, default: nil
+  attr :current_path, :string, default: "/noora"
   slot :inner_block, required: true
 
   def docs_shell(assigns) do
@@ -55,6 +60,21 @@ defmodule TuistWeb.Noora.Components do
               <.moon />
             </.button_group_item>
           </.button_group>
+          <.button
+            :if={is_nil(@current_user)}
+            label="Sign in"
+            variant="secondary"
+            size="medium"
+            href={~p"/docs/login?#{%{return_to: @current_path}}"}
+          />
+          <.account_dropdown
+            :if={@current_user}
+            id="noora-docs-account-dropdown"
+            current_user={@current_user}
+            log_out_return_to={@current_path}
+            primary_action="dashboard"
+            show_theme_switcher={false}
+          />
           <button
             type="button"
             data-part="menu-toggle"
@@ -82,7 +102,7 @@ defmodule TuistWeb.Noora.Components do
               />
               <kbd>⌘K</kbd>
             </div>
-            <div :for={{group, pages} <- Pages.groups()} data-part="group">
+            <div :for={{group, pages} <- Pages.groups(@current_user)} data-part="group">
               <span data-part="group-title">{group}</span>
               <.link
                 :for={page <- pages}
@@ -536,9 +556,10 @@ defmodule TuistWeb.Noora.Components do
   end
 
   attr :page, :atom, required: true
+  attr :current_user, :map, default: nil
 
   def docs_page_footer(assigns) do
-    assigns = assign(assigns, :neighbors, Pages.neighbors(assigns.page))
+    assigns = assign(assigns, :neighbors, Pages.neighbors(assigns.page, assigns.current_user))
 
     ~H"""
     <nav data-part="page-footer" aria-label="Pages">

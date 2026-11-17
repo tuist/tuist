@@ -43,6 +43,8 @@
 @import "css/routes/not-found.css";
 @import "css/routes/newsletter.css";
 @import "css/routes/noora.css";
+/* The account menu in the Noora documentation's header. */
+@import "../shared/css/components/account_dropdown.css";
 @import "css/outline-mode.css";
 @import "css/layouts/components/dropdown.css";
 @import "css/layouts/components/navbar.css";

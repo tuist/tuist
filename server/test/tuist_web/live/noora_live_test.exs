@@ -1,9 +1,12 @@
 defmodule TuistWeb.Noora.NooraLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase, async: true
+  use Mimic
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Noora.Pages
   alias TuistWeb.Noora.Tokens
@@ -96,14 +99,50 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     end
   end
 
-  test "lists every icon on the icons page, which only development registers" do
+  test "lists every icon on the icons page" do
     html = render_component(&Pages.Icons.content/1, %{})
 
     for name <- Noora.Icon.names() do
       assert html =~ ~s(title="#{name}")
     end
+  end
 
-    refute Pages.Icons in Pages.all()
+  describe "team pages" do
+    test "aren't listed, and ask visitors to sign in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/noora")
+
+      refute Pages.Icons in Pages.all()
+      refute has_element?(view, ~s(#noora-docs-nav a[href="/noora/icons"]))
+      assert has_element?(view, ~s(a[href="/docs/login?return_to=%2Fnoora"]), "Sign in")
+
+      assert {:error, {:redirect, %{to: "/docs/login?return_to=%2Fnoora%2Ficons"}}} =
+               live(conn, ~p"/noora/icons")
+    end
+
+    test "don't exist for people outside the Tuist team", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      stub(Accounts, :tuist_operator?, fn _user -> false end)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, ~p"/noora")
+
+      refute has_element?(view, ~s(#noora-docs-nav a[href="/noora/icons"]))
+      assert has_element?(view, "#noora-docs-account-dropdown")
+      assert_raise NotFoundError, fn -> live(conn, ~p"/noora/icons") end
+    end
+
+    test "are listed and open for the Tuist team", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      stub(Accounts, :tuist_operator?, fn _user -> true end)
+      conn = log_in_user(conn, user)
+
+      # The credit card input artwork carries its own clip and filter ids, so
+      # showing it at every size repeats them.
+      {:ok, view, _html} = live(conn, ~p"/noora/icons", on_error: :warn)
+
+      assert has_element?(view, ~s(#noora-docs-nav a[href="/noora/icons"]), "Icons")
+      assert has_element?(view, "[data-part=page-header] h1", "Icons")
+    end
   end
 
   describe "tokens" do

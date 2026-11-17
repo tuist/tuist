@@ -25,13 +25,29 @@ defmodule TuistWeb.Noora.NooraLive do
         _ -> Pages.introduction()
       end
 
-    {:noreply,
-     socket
-     |> assign(:page, page)
-     |> assign(:current_path, URI.parse(url).path)
-     |> assign(:head_title, head_title(page))
-     |> assign(:head_description, page.description())}
+    path = URI.parse(url).path
+    user = socket.assigns.current_user
+
+    cond do
+      not Pages.team_only?(page) or Pages.team_member?(user) ->
+        {:noreply,
+         socket
+         |> assign(:page, page)
+         |> assign(:current_path, path)
+         |> assign(:head_title, head_title(page))
+         |> assign(:head_description, page.description())}
+
+      # Team pages ask visitors to sign in, and come back here after.
+      is_nil(user) ->
+        {:noreply, redirect(socket, to: sign_in_path(path))}
+
+      # Signed in, but not on the team: the page doesn't exist for them.
+      true ->
+        raise NotFoundError, "Noora page not found"
+    end
   end
+
+  defp sign_in_path(return_to), do: ~p"/docs/login?#{%{return_to: return_to}}"
 
   # Examples render real components, some of which emit events (a dismissed
   # alert, a changed toggle). The documentation has no state to update.
@@ -39,14 +55,14 @@ defmodule TuistWeb.Noora.NooraLive do
 
   def render(assigns) do
     ~H"""
-    <.docs_shell page={@page}>
+    <.docs_shell page={@page} current_user={@current_user} current_path={@current_path}>
       <article id={"noora-page-#{@page.slug()}"} data-part="article">
         <.docs_page_header page={@page} />
         {if function_exported?(@page, :content, 1), do: @page.content(%{__changed__: nil})}
         <.docs_example :for={example <- @page.examples()} page={@page} example={example} />
         <.docs_guidelines page={@page} />
         <.docs_api_reference page={@page} />
-        <.docs_page_footer page={@page} />
+        <.docs_page_footer page={@page} current_user={@current_user} />
       </article>
     </.docs_shell>
     """
