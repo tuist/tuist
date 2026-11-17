@@ -143,6 +143,7 @@ pub struct MetricsInner {
     multipart_upload_admissions: Family<MultipartAdmissionLabels, Counter>,
     multipart_upload_admission_duration: Histogram,
     tmp_dir_bytes: Gauge,
+    data_dir_bytes: Family<DataDirComponentLabels, Gauge>,
     discovered_peer_nodes: Gauge,
     backfill_horizon_age_ms: Gauge,
     backfill_listing_pages: Counter,
@@ -746,6 +747,7 @@ impl Metrics {
         let multipart_upload_admission_duration =
             Histogram::new(exponential_buckets(0.001, 2.0, 14));
         let tmp_dir_bytes = Gauge::default();
+        let data_dir_bytes = Family::<DataDirComponentLabels, Gauge>::default();
         let discovered_peer_nodes = Gauge::default();
         let backfill_horizon_age_ms = Gauge::default();
         let backfill_listing_pages = Counter::default();
@@ -1435,6 +1437,11 @@ impl Metrics {
             tmp_dir_bytes.clone(),
         );
         registry.register(
+            "kura_data_dir_bytes",
+            "Bytes allocated on the data volume by component (ring_segments, retired_segments, rocksdb, multipart, blobs, tmp, other)",
+            data_dir_bytes.clone(),
+        );
+        registry.register(
             "kura_discovered_peer_nodes",
             "Peer nodes currently discovered through health checks and DNS",
             discovered_peer_nodes.clone(),
@@ -2048,6 +2055,7 @@ impl Metrics {
                 multipart_upload_admissions,
                 multipart_upload_admission_duration,
                 tmp_dir_bytes,
+                data_dir_bytes,
                 discovered_peer_nodes,
                 backfill_horizon_age_ms,
                 backfill_listing_pages,
@@ -2960,6 +2968,14 @@ impl Metrics {
         self.tmp_dir_bytes.set(bytes as i64);
     }
 
+    pub fn update_data_dir_bytes(&self, component: &str, bytes: u64) {
+        self.data_dir_bytes
+            .get_or_create(&DataDirComponentLabels {
+                component: component.to_owned(),
+            })
+            .set(bytes as i64);
+    }
+
     pub fn update_discovered_peer_nodes(&self, count: usize) {
         self.discovered_peer_nodes.set(count as i64);
     }
@@ -3812,6 +3828,11 @@ struct SegmentHandleEvictionLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct SegmentGenerationLabels {
     generation: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct DataDirComponentLabels {
+    component: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -4825,6 +4846,7 @@ mod tests {
         metrics.record_manifest_cache_evictions("capacity", 1);
         metrics.record_manifest_index_rebuild("ok", Duration::from_millis(3));
         metrics.update_multipart_uploads(2, 256);
+        metrics.update_data_dir_bytes("rocksdb", 4096);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
@@ -4951,6 +4973,7 @@ mod tests {
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_multipart_upload_capacity 256"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
+        assert!(rendered.contains("kura_data_dir_bytes{component=\"rocksdb\"} 4096"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
         assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
         assert!(rendered.contains("kura_replication_bandwidth_effective_limit_bytes_per_second"));

@@ -4584,6 +4584,65 @@ impl Store {
         available_disk_bytes(&self.data_dir)
     }
 
+    /// Allocated bytes under each area of the data dir, in
+    /// `DATA_DIR_USAGE_COMPONENTS` order: what the volume's quota and free space
+    /// count, so a sparse or preallocated file reads at its real footprint.
+    /// Segment files the ring references are `ring_segments`; any other file in
+    /// `segments/` (retired and awaiting cleanup, or orphaned) is
+    /// `retired_segments`. Anything outside the known areas, including files at
+    /// the top of the data dir, is `other`.
+    ///
+    /// Blocking: walks the whole tree. Best effort, like `kura_tmp_dir_bytes`:
+    /// an entry that vanishes or cannot be read mid-walk is skipped.
+    pub fn data_dir_usage_bytes(&self) -> [(&'static str, u64); 7] {
+        let mut usage = DATA_DIR_USAGE_COMPONENTS.map(|component| (component, 0_u64));
+        let mut add = |component: &str, bytes: u64| {
+            if let Some((_, total)) = usage.iter_mut().find(|(name, _)| *name == component) {
+                *total = total.saturating_add(bytes);
+            }
+        };
+        let mut segments = Vec::new();
+        for entry in std::fs::read_dir(&self.data_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let path = entry.path();
+            match entry.file_name().to_str() {
+                Some("segments") => {
+                    for segment in std::fs::read_dir(&path).into_iter().flatten().flatten() {
+                        let segment_id = segment
+                            .file_name()
+                            .to_str()
+                            .and_then(|name| name.strip_suffix(".seg"))
+                            .map(str::to_owned);
+                        segments.push((segment_id, allocated_tree_bytes(&segment.path())));
+                    }
+                }
+                Some(component @ ("rocksdb" | "multipart" | "blobs" | "tmp")) => {
+                    add(component, allocated_tree_bytes(&path));
+                }
+                _ => add("other", allocated_tree_bytes(&path)),
+            }
+        }
+        // Classify against the ring as it stands after the walk. A rotation
+        // drops a segment from the ring before unlinking it, so a segment
+        // retired mid-walk reads as retired rather than as ring.
+        let snapshot = self.segment_state_snapshot();
+        for (segment_id, bytes) in segments {
+            let in_ring = segment_id.is_some_and(|id| snapshot.generations.contains_key(&id));
+            add(
+                if in_ring {
+                    "ring_segments"
+                } else {
+                    "retired_segments"
+                },
+                bytes,
+            );
+        }
+        usage
+    }
+
     fn effective_segment_ring_limits(&self) -> SegmentRingLimits {
         SegmentRingLimits::with_total(self.disk_pressure_segment_limit.load(Ordering::Acquire))
     }
@@ -12416,6 +12475,52 @@ fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
 /// Free space below which a rotation requests disk-pressure reclamation.
 fn segment_headroom_target_bytes(incoming_size: u64) -> u64 {
     segment_rotation_required_bytes(incoming_size).saturating_add(2 * MAX_SEGMENT_BYTES)
+}
+
+/// Components `Store::data_dir_usage_bytes` reports, in order.
+const DATA_DIR_USAGE_COMPONENTS: [&str; 7] = [
+    "ring_segments",
+    "retired_segments",
+    "rocksdb",
+    "multipart",
+    "blobs",
+    "tmp",
+    "other",
+];
+
+/// Allocated bytes of `path` and everything under it, without following
+/// symlinks. Entries that vanish or cannot be read mid-walk are skipped.
+fn allocated_tree_bytes(path: &Path) -> u64 {
+    let mut total = 0_u64;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        total = total.saturating_add(allocated_bytes(&metadata));
+        if metadata.is_dir() {
+            stack.extend(
+                std::fs::read_dir(&path)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .map(|entry| entry.path()),
+            );
+        }
+    }
+    total
+}
+
+#[cfg(unix)]
+fn allocated_bytes(metadata: &std::fs::Metadata) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    // st_blocks is always in 512-byte units, whatever the filesystem block size.
+    metadata.blocks().saturating_mul(512)
+}
+
+#[cfg(not(unix))]
+fn allocated_bytes(metadata: &std::fs::Metadata) -> u64 {
+    metadata.len()
 }
 
 #[cfg(unix)]
@@ -25867,6 +25972,52 @@ mod tests {
             "handover",
         );
         assert_eq!(store.retained_loss_evictions(), 2);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn data_dir_usage_attributes_allocated_bytes_by_component() {
+        let (_temp_dir, config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                &[7_u8; 256 * 1024],
+            )
+            .await
+            .expect("artifact should persist");
+        let data = |path: &str| config.data_dir.join(path);
+        // A segment file the ring no longer references, a multipart part, a
+        // file in the staging dir and one at the top of the data dir.
+        std::fs::write(data("segments/retired.seg"), [1_u8; 192 * 1024]).unwrap();
+        std::fs::create_dir_all(data("multipart/upload")).unwrap();
+        std::fs::write(data("multipart/upload/part-1"), [2_u8; 128 * 1024]).unwrap();
+        std::fs::create_dir_all(data("tmp/uploads")).unwrap();
+        std::fs::write(data("tmp/uploads/staged"), [3_u8; 64 * 1024]).unwrap();
+        std::fs::write(data("stray"), [4_u8; 96 * 1024]).unwrap();
+        // A sparse file: its length is not what it occupies on the volume.
+        std::fs::File::create(data("blobs/sparse"))
+            .unwrap()
+            .set_len(1 << 30)
+            .unwrap();
+
+        let usage = HashMap::from(store.data_dir_usage_bytes());
+        let allocated = |path: &str| allocated_bytes(&std::fs::metadata(data(path)).unwrap());
+        assert!(
+            usage["ring_segments"] >= 256 * 1024,
+            "the persisted artifact's segment is in the ring: {usage:?}"
+        );
+        assert_eq!(usage["retired_segments"], allocated("segments/retired.seg"));
+        assert!(usage["multipart"] >= allocated("multipart/upload/part-1"));
+        assert!(usage["tmp"] >= allocated("tmp/uploads/staged"));
+        assert!(usage["other"] >= allocated("stray"));
+        assert!(usage["rocksdb"] > 0);
+        assert!(
+            usage["blobs"] < 1 << 20,
+            "a sparse file counts its allocated blocks, not its length: {usage:?}"
+        );
     }
 
     #[tokio::test]

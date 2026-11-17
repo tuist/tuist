@@ -376,7 +376,7 @@ async fn initialize_and_serve(
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
-    spawn_tmp_dir_metrics_task(state.clone());
+    spawn_disk_usage_metrics_task(state.clone());
     spawn_segment_promotion_task(state.clone());
     spawn_supervised("segment_reclamation", state.clone(), |state| async move {
         state.store.run_segment_reclamation_worker().await;
@@ -1337,7 +1337,7 @@ fn spawn_multipart_janitor_task(state: Arc<AppState>) {
     );
 }
 
-fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
+fn spawn_disk_usage_metrics_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
             loop {
@@ -1347,6 +1347,14 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
                     .await
                     .unwrap_or(0);
                 state.metrics.update_tmp_dir_bytes(bytes);
+                let store = state.store.clone();
+                if let Ok(usage) =
+                    tokio::task::spawn_blocking(move || store.data_dir_usage_bytes()).await
+                {
+                    for (component, bytes) in usage {
+                        state.metrics.update_data_dir_bytes(component, bytes);
+                    }
+                }
             }
         }
         .in_current_span(),
