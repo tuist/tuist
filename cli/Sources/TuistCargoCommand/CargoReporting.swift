@@ -34,7 +34,7 @@ struct CargoReporting {
     let environment: [String: String]
     let handle: String
     let serverURL: URL
-    /// Whether test runs collect code coverage (`tuist.toml`'s `[test_insights.coverage] upload`, or
+    /// Whether test runs collect code coverage (the configuration's `[test_insights.coverage] upload`, or
     /// `TUIST_COVERAGE_UPLOAD`).
     var uploadsCoverage = false
 

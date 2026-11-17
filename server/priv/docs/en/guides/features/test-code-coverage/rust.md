@@ -20,12 +20,14 @@ Code coverage tells you which lines of your code your tests executed. Tuist meas
 
 ### Turn coverage on {#turn-coverage-on}
 
-Add this to the `tuist.toml` at your repository root:
+Add this to the workspace's root `Cargo.toml`:
 
 ```toml
-[test_insights.coverage]
+[workspace.metadata.tuist.test_insights.coverage]
 upload = true
 ```
+
+If you configure Tuist in a `tuist.toml` instead, add `[test_insights.coverage]` with `upload = true` there.
 
 Then run your tests as usual:
 

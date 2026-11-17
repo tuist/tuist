@@ -38,7 +38,8 @@ struct CargoCoverage {
     /// Whether each test process is recorded, which is what attributes profiles to binaries and tests.
     let attributes: Bool
 
-    /// `tuist.toml`'s `[test_insights.coverage] upload`, unless `TUIST_COVERAGE_UPLOAD` says otherwise.
+    /// The configuration's `[test_insights.coverage] upload` (`tuist.toml` or `Cargo.toml`'s `metadata.tuist`), unless
+    /// `TUIST_COVERAGE_UPLOAD` says otherwise.
     static func requested(upload: Bool, environment: [String: String]) -> Bool {
         guard let value = environment[uploadVariable] else { return upload }
         return ["1", "true", "yes"].contains(value.lowercased())
@@ -231,7 +232,9 @@ extension CargoCoverage {
     static func complete(arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
         let config = try? await ConfigLoader().loadCargoConfig(path: directory)
         guard let handle = environment["TUIST_PROJECT"] ?? config?.fullHandle else {
-            throw CargoReportError(message: "Configure a project in tuist.toml or TUIST_PROJECT to complete a commit's coverage.")
+            throw CargoReportError(
+                message: "Configure a project in tuist.toml, Cargo.toml's [workspace.metadata.tuist] or TUIST_PROJECT to complete a commit's coverage."
+            )
         }
         guard let serverURL = URL(string: environment["TUIST_URL"] ?? config?.url.absoluteString ?? "https://tuist.dev"),
               ["https", "http"].contains(serverURL.scheme ?? "")
