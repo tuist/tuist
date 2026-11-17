@@ -692,8 +692,7 @@
         place-items: center;
         translate: calc(100% / 6) -50%;
         z-index: -1;
-        mask-image:
-          linear-gradient(
+        mask-image: linear-gradient(
             to right,
             transparent 17%,
             rgb(0 0 0 / 0.15) 27%,
