@@ -704,11 +704,7 @@ defmodule Tuist.Docs.Sidebar do
           %Item{label: "Changelog", url: "/changelog"},
           %Item{label: "Releases", url: "https://github.com/tuist/tuist/releases"},
           %Item{label: "API documentation", url: "https://tuist.dev/api/docs"},
-          %Item{label: "Status", url: "https://status.tuist.io"},
-          %Item{
-            label: "Metrics dashboard",
-            url: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9"
-          }
+          %Item{label: "Status", url: "https://status.tuist.io"}
         ]
       },
       %Group{

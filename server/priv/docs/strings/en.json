@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "Status"
-        },
-        "metrics-dashboard": {
-          "text": "Metrics dashboard"
         }
       }
     },
