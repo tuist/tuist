@@ -154,8 +154,13 @@ plan ID, checks the destination host, streams multipart parts, and verifies full
 SHA-256, exact size, HTTP 206 and unaligned Range bytes. Failures are nonzero;
 timeouts are bounded (120-second socket inactivity, 30-minute overall deadline).
 It deliberately does not retry away an outage. Output includes per-object bytes
-and elapsed seconds. Synthetic bytes test transport, not Apple archive validity
-or successful execution. Failed uploads remain for the one-day abort lifecycle;
+and elapsed seconds. Uploads use sequential 8 MiB parts; their timing includes
+per-part API signing and completion, but not payload generation or upload start.
+This is a controlled provider comparison, not CLI throughput: the Swift client
+uploads up to ten 10 MiB parts concurrently and reuses connections. Qualify large
+artifacts through that client too before drawing customer performance conclusions.
+Synthetic bytes test transport, not Apple archive validity or successful execution.
+Failed uploads remain for the one-day abort lifecycle;
 completed artifacts expire after three days. Plan metadata follows ordinary
 server retention. Stop if disk use exceeds 60%; the tiny pool is not a soak
 capacity target. Policy readback alone does not prove reclamation.
@@ -173,7 +178,9 @@ two disjoint fresh workers, no compilation, and server reporting. It requires
 Rust/Cargo/nextest. Xcode reuses `generated_ios_app_with_tests` and runs
 `MacFrameworkTests` from a source-only worker after removing the build products.
 Both additionally require the server's signed download host to match the
-specified store. Raw CLI logs remain temporary/private and are removed on exit.
+specified store. Raw CLI logs remain temporary/private and are removed on success.
+On failure the harness prints their private directory for diagnosis; remove it
+after inspection and never publish raw logs containing signed URLs.
 Use a 45-minute CI job timeout around either wrapper. The Xcode fixture proves
 archive consumption, not a UI-test simulator workload: also qualify an isolated
 representative UI-test project before customer rollout.
