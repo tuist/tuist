@@ -20,15 +20,21 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   @mib 1024 * 1024
   @free_disk_reserve_bytes 20 * 1024 * @mib
 
-  def place(sandbox, node_filter \\ fn _node -> true end) do
+  @doc """
+  Reserves the first macOS host that takes the sandbox. `claims_warm: false`
+  is for a create that cannot claim a warm VM (a restore): the warm VM keeps
+  one of the host's slots, so hosts without one are tried first.
+  """
+  def place(sandbox, node_filter \\ fn _node -> true end, opts \\ []) do
     darwin = Enum.filter(Nodes.connected_nodes(), &(&1[:platform] == "darwin"))
+    claims_warm = Keyword.get(opts, :claims_warm, true)
 
     # A host with a booted warm VM of this shape claims it instead of
     # cold-booting, so it is tried first.
     nodes =
       darwin
       |> Enum.filter(&(ready?(&1, sandbox.template) and node_filter.(&1)))
-      |> Enum.sort_by(&(not warm?(&1, sandbox)))
+      |> Enum.sort_by(&(warm?(&1, sandbox) != claims_warm))
 
     {result, refused} =
       Enum.reduce_while(nodes, {{:error, :no_capacity}, %{}}, fn node, {_result, refused} ->

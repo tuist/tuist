@@ -439,7 +439,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   memory: its checkpoint is encrypted for that Mac, so a moved session
   always cold boots. A restore goes to a Mac with `archives` and the
   template (`MacosCapacity.restores?/2`), one already running the archived
-  `template_tag` first (`runs_image?/2`); it passes that tag in the create,
+  `template_tag` first (`runs_image?/2`), then Macs without a warm VM (a
+  restore cannot claim one, and it holds one of the host's two slots); a Mac
+  that refuses it passes it to the next, as a new create does. It passes that tag in the create,
   so a host on a newer release pulls the archived digest, and waits up to
   31 minutes (not reverted as stuck before 35). Hosts without `archives` back
   their sessions off like a failed upload. Disk pressure is Linux-only.

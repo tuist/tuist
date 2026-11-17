@@ -1409,6 +1409,34 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                Sandboxes.resume(session)
     end
 
+    test "an archived session a Mac refuses restores on the next one, trying Macs without a warm VM first",
+         %{account: account} do
+      warm = mac("mac-w")
+      warm = %{warm | templates: Enum.map(warm.templates, &Map.put(&1, :warm, ["4x8192"]))}
+      connect([warm, mac("mac-x"), mac("mac-y")])
+
+      session =
+        evicted(account, mac("mac-a"),
+          state: :archived,
+          node_name: nil,
+          archive_key: "k",
+          archive_bytes: 1,
+          archive_sha256: "s",
+          archived_at: hours_ago(1)
+        )
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      stub(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      # A restore cannot claim the warm VM, which holds one of its host's slots.
+      expect(Nodes, :call, 2, fn
+        "mac-x", "create", %{node_uid: "uid-mac-x"}, _opts -> {:error, "macOS sandbox capacity unavailable"}
+        "mac-y", "create", %{node_uid: "uid-mac-y"}, _opts -> {:ok, %{"template_tag" => "image:26.1"}}
+      end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "mac-y", node_uid: "uid-mac-y"}} = Sandboxes.resume(session)
+    end
+
     test "an archived session waits while no Mac restores archives", %{account: account} do
       connect([mac("mac-b", archives: false)])
 

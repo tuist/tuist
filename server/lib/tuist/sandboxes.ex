@@ -668,7 +668,7 @@ defmodule Tuist.Sandboxes do
   defp place_and_create(sandbox, args, source, prefer \\ [])
 
   defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, nil, _prefer),
-    do: create_on_macos_host(sandbox, args, [])
+    do: create_on_macos_host(sandbox, args, &place_macos_create/2, @create_timeout, [])
 
   defp place_and_create(sandbox, args, nil, prefer) do
     placed =
@@ -688,13 +688,7 @@ defmodule Tuist.Sandboxes do
   # boots, within the host's own 30 minutes.
   defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, {:archive, source}, _prefer) do
     args = Map.merge(args, %{from_archive: source, template_tag: sandbox.template_tag})
-
-    # Placement recorded the host's incarnation, which the host checks.
-    with {:ok, node_name} <- place_restore(sandbox),
-         sandbox = Repo.reload!(sandbox),
-         {:ok, data} <- node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @macos_restore_timeout) do
-      {:ok, node_name, data}
-    end
+    create_on_macos_host(sandbox, args, &place_macos_restore/2, @macos_restore_timeout, [])
   end
 
   defp place_and_create(sandbox, args, {:archive, source}, _prefer) do
@@ -764,17 +758,14 @@ defmodule Tuist.Sandboxes do
 
   # A macOS host's own checks (its CI grant, its disk) are final and can
   # refuse a create the server placed, after which the host discards the
-  # VM itself. The create moves on to the next host instead of failing.
-  defp create_on_macos_host(sandbox, args, refused) do
-    placed =
-      if refused == [],
-        do: Capacity.place(sandbox),
-        else: Capacity.place(sandbox, &(&1.name not in refused))
-
-    with {:ok, node_name} <- placed do
+  # VM itself. The create, or the restore, moves on to the next host
+  # instead of failing. Placement recorded the host's incarnation, which
+  # the host checks.
+  defp create_on_macos_host(sandbox, args, place, timeout, refused) do
+    with {:ok, node_name} <- place.(sandbox, refused) do
       sandbox = Repo.reload!(sandbox)
 
-      case node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @create_timeout) do
+      case node_call(%{sandbox | node_name: node_name}, "create", args, timeout: timeout) do
         {:ok, data} ->
           {:ok, node_name, data}
 
@@ -786,13 +777,16 @@ defmodule Tuist.Sandboxes do
               reason: inspect(reason)
             )
 
-            sandbox |> release_node() |> create_on_macos_host(args, [node_name | refused])
+            sandbox |> release_node() |> create_on_macos_host(args, place, timeout, [node_name | refused])
           else
             error
           end
       end
     end
   end
+
+  defp place_macos_create(sandbox, []), do: Capacity.place(sandbox)
+  defp place_macos_create(sandbox, refused), do: Capacity.place(sandbox, &(&1.name not in refused))
 
   # A capacity refusal, plain or with the host's reason. One joined with
   # another error (a line break) is not only a refusal.
@@ -899,20 +893,6 @@ defmodule Tuist.Sandboxes do
   # not synced (`Archives.warm_only?/1`), which waits for one.
   defp place_restore(sandbox, archive \\ nil)
 
-  # A Mac already running the archived image restores without a pull.
-  defp place_restore(%Sandbox{platform: :darwin} = sandbox, nil) do
-    site = Archives.restore_site(sandbox)
-
-    restores = fn node ->
-      (is_nil(site) or Sites.shard_storage_site(node.name) == site) and MacosCapacity.restores?(node, sandbox)
-    end
-
-    case Capacity.place(sandbox, &(restores.(&1) and MacosCapacity.runs_image?(&1, sandbox))) do
-      {:error, :no_capacity} -> Capacity.place(sandbox, restores)
-      placed -> placed
-    end
-  end
-
   defp place_restore(sandbox, archive) do
     subject = archive || sandbox
     site = Archives.restore_site(subject)
@@ -922,6 +902,22 @@ defmodule Tuist.Sandboxes do
       nil when is_nil(site) -> Capacity.place(sandbox)
       nil -> Capacity.place(sandbox, on_site)
       compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(subject), Archives.warm_only?(subject))
+    end
+  end
+
+  # A Mac already running the archived image restores without a pull. A
+  # restore never claims a warm VM.
+  defp place_macos_restore(sandbox, refused) do
+    site = Archives.restore_site(sandbox)
+
+    restores = fn node ->
+      (is_nil(site) or Sites.shard_storage_site(node.name) == site) and MacosCapacity.restores?(node, sandbox) and
+        node.name not in refused
+    end
+
+    case MacosCapacity.place(sandbox, &(restores.(&1) and MacosCapacity.runs_image?(&1, sandbox)), claims_warm: false) do
+      {:error, :no_capacity} -> MacosCapacity.place(sandbox, restores, claims_warm: false)
+      placed -> placed
     end
   end
 
