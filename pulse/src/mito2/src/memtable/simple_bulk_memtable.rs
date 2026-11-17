@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(any(test, feature = "test"))]
 mod test_only;
 
@@ -247,7 +249,7 @@ impl Memtable for SimpleBulkMemtable {
             }
         };
 
-        let values = self.series.read().unwrap().read_to_values();
+        let values = self.series.read().unwrap().read_to_values(&projection);
         let batch_to_record_batch = Arc::new(BatchToRecordBatchContext::new(
             self.region_metadata.clone(),
             read_column_ids.clone(),
@@ -565,6 +567,48 @@ mod tests {
     }
 
     #[test]
+    fn test_projection_does_not_copy_unselected_payloads() {
+        let allocated = |string_len| {
+            let memtable = new_test_memtable(false, MergeMode::LastRow);
+            let data = (0..64)
+                .map(|i| (i, i as f64, "x".repeat(string_len)))
+                .collect::<Vec<_>>();
+            memtable
+                .write(&build_key_values(
+                    &memtable.region_metadata,
+                    0,
+                    &data,
+                    OpType::Put,
+                ))
+                .unwrap();
+            // Warm shared metrics and the Rayon pool outside the measurement.
+            drop(
+                memtable
+                    .ranges(Some(&[2]), RangesOptions::default())
+                    .unwrap(),
+            );
+            allocation_counter::measure(|| {
+                let ranges = memtable
+                    .ranges(Some(&[2]), RangesOptions::default())
+                    .unwrap();
+                let batches = ranges
+                    .build(None)
+                    .unwrap()
+                    .collect::<error::Result<Vec<_>>>()
+                    .unwrap();
+                assert_eq!(64, batches.iter().map(Batch::num_rows).sum::<usize>());
+                assert!(batches.iter().all(|batch| batch.fields().len() == 1));
+            })
+            .bytes_total
+        };
+        let small = allocated(16);
+        let large = allocated(64 * 1024);
+        // Increasing an unselected column by 4 MiB must not add a payload-sized
+        // allocation. Leave room for unrelated scan metadata allocations.
+        assert!(large < small + 64 * 1024, "small={small}, large={large}");
+    }
+
+    #[test]
     fn test_projection() {
         let memtable = new_test_memtable(false, MergeMode::LastRow);
         memtable
@@ -604,6 +648,48 @@ mod tests {
         assert_eq!(1, batch.num_rows());
         assert_eq!(1, batch.fields().len()); // only f1
         assert_eq!(2, batch.fields()[0].column_id);
+
+        // Keep one frozen chunk and one active chunk. Projecting must not
+        // consume or replace the underlying data used by later full reads.
+        memtable
+            .series
+            .write()
+            .unwrap()
+            .freeze(&memtable.region_metadata);
+        memtable
+            .write(&build_key_values(
+                &memtable.region_metadata,
+                1,
+                &[(2, 7.5, "second".to_string())],
+                OpType::Put,
+            ))
+            .unwrap();
+        for projection in [vec![], vec![3], vec![2, 3]] {
+            let batches = memtable
+                .ranges(Some(&projection), RangesOptions::default())
+                .unwrap()
+                .ranges
+                .into_values()
+                .flat_map(|range| range.build_iter().unwrap())
+                .collect::<error::Result<Vec<_>>>()
+                .unwrap();
+            assert_eq!(2, batches.iter().map(Batch::num_rows).sum::<usize>());
+            for batch in batches {
+                assert_eq!(projection.len(), batch.fields().len());
+                for row in 0..batch.num_rows() {
+                    let first = batch.timestamps().get(row)
+                        == Value::Timestamp(Timestamp::new_millisecond(1));
+                    for field in batch.fields() {
+                        let expected = match field.column_id {
+                            2 => Value::Float64(if first { 1.0 } else { 7.5 }.into()),
+                            3 => Value::String(if first { "a" } else { "second" }.into()),
+                            _ => unreachable!(),
+                        };
+                        assert_eq!(expected, field.data.get(row));
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -805,6 +891,53 @@ mod tests {
 
         let forked = memtable.fork(2, &memtable.region_metadata);
         assert!(forked.is_empty());
+    }
+
+    #[test]
+    fn test_projection_with_nulls_and_sequence() {
+        for merge_mode in [MergeMode::LastRow, MergeMode::LastNonNull] {
+            let memtable = new_test_memtable(true, merge_mode);
+            let older = build_key_values(
+                &memtable.region_metadata,
+                0,
+                &[(1, 1.0, "older".to_string())],
+                OpType::Put,
+            );
+            memtable.write(&older).unwrap();
+            let mut newer = build_key_values(
+                &memtable.region_metadata,
+                1,
+                &[(1, 2.0, "newer".to_string())],
+                OpType::Put,
+            );
+            newer.mutation.rows.as_mut().unwrap().rows[0].values[2].value_data = None;
+            memtable.write(&newer).unwrap();
+
+            for max in [0, 1] {
+                let mut iter = memtable
+                    .ranges(
+                        Some(&[3]),
+                        RangesOptions {
+                            sequence: Some(SequenceRange::LtEq { max }),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap()
+                    .build(None)
+                    .unwrap();
+                let batch = iter.next().unwrap().unwrap();
+                assert_eq!(1, batch.num_rows());
+                assert_eq!(1, batch.fields().len());
+                assert_eq!(3, batch.fields()[0].column_id);
+                let expected = if max == 0 || merge_mode == MergeMode::LastNonNull {
+                    Value::String("older".into())
+                } else {
+                    Value::Null
+                };
+                assert_eq!(expected, batch.fields()[0].data.get(0));
+                assert!(iter.next().is_none());
+            }
+        }
     }
 
     #[test]

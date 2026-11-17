@@ -37,6 +37,16 @@ line under its license header, or a `Tuist:` comment at the change. Files
 without a license header, such as test expectations and configuration, are
 covered by this list.
 
+- **Lower write and projected-scan allocation.** The cached-size WAL encoder
+  reserves its first length cache from the message shape rather than repeatedly
+  growing it; reused encoders keep amortized geometric growth. The encoded bytes
+  are unchanged. Simple bulk memtable snapshots copy only selected active field
+  buffers, retaining zero-buffer placeholders for unselected positions and
+  sharing frozen buffers as before. Allocation-budget regression tests use the
+  test-only `allocation-counter` dependency, and the WAL benchmark includes a
+  fresh-encoder case matching the write-group lifecycle. These changes live in
+  `src/mito2/src/wal/encoder.rs`, `src/mito2/src/memtable/{time_series,simple_bulk_memtable}.rs`
+  and `src/mito2/benches/bench_wal_encode.rs`.
 - **Renamed to Pulse.** Every upstream name in the code is now a Pulse name:
   crates (`common-pulse-telemetry`), types, modules and files, the `pulse`
   binary and the image's entrypoint, comments, and the names Pulse stores or
