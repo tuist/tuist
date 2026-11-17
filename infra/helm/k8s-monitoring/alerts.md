@@ -3249,8 +3249,11 @@ and the file together.
 | Runner execution token disagrees with GitHub | `runner-execution-token-disagrees` | policy tree (`#notifications`) |
 
 All six are production only. The warm-rate rule reads Postgres (see its
-section); the other five read Loki (`grafanacloud-logs`), because the metric
-that carries the same fields undercounts.
+section); the other five read logs through Pulse SQL (the runner hosts' and
+the Linux agent's, and the server's for the token rule; `pulse-sql`,
+queries in `pulse-log-alert-queries.json`; they read Loki `grafanacloud-logs`
+before the move to Pulse), because the metric that carries the same fields
+undercounts.
 `tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
 removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
@@ -4760,8 +4763,10 @@ reach `cacheable_tasks`.
 
 ### Kura ingress returning malformed or 502 responses
 
-Data source: Loki `grafanacloud-logs`. This is rule `bfybzuvqgyzggc`, folder
-`Alerts`, group `Cache` (5-minute interval).
+Data source: Pulse SQL (`pulse-sql`), with the SQL in
+`pulse-log-alert-queries.json`; the LogQL below is the query it replaced, kept
+because it reads more easily. This is rule `bfybzuvqgyzggc`, folder `Alerts`,
+group `Cache` (5-minute interval).
 
 ```logql
 sum by (service_name, upstream) (
@@ -8409,7 +8414,7 @@ bundled into the server's own JavaScript, so there is no third-party script and
 no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which a
 dedicated Ingress routes at the `faro.receiver` on the `alloy-receiver`
 collector through an ExternalName Service (`server.faro` in `infra/helm/tuist`).
-Alloy forwards to Grafana Cloud Loki.
+Alloy forwards to Grafana Cloud Loki and to Pulse's `tuist_web_logs` table.
 
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and

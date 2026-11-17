@@ -217,7 +217,10 @@ Evaluate these instant PromQL queries at `2026-09-25T15:35:00Z` in
 `grafanacloud-prom` to reproduce the host-memory and public-transmit peaks and
 the pod request inventory. For a refresh, also verify that the node selector
 still identifies precisely the public EU-West fleet; it will no longer do so
-after moving that fleet to OVH.
+after moving that fleet to OVH. Grafana Cloud's metrics storage is being
+retired and production Pulse holds metrics only from 2026-11-14 23:00 UTC, so
+once Cloud is gone these figures cannot be reproduced at their original
+timestamp; run a refresh against the Tuist Pulse Metrics data source instead.
 
 ```promql
 # Simultaneous regional host-memory peak, GiB.

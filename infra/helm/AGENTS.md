@@ -193,11 +193,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
 - `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
-  **Runner cache volumes** group (five Loki rules and one Postgres rule,
+  **Runner cache volumes** group (five log rules on Pulse SQL and one Postgres rule,
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
   the backtests. The warm-rate rule reads the production database as
   `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
-  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` undercounts:
+  allowlist. The log rules read agent and server logs because `tuist_runner_cache_volume_operations_total` undercounts:
   its `sum:counter` Adaptive Metrics rule (2026-10-22) makes it rate-able, but
   both agents create series on first increment, so isolated failures vanish. Keep the macOS
   queries line-filtered and the windows short: that stream carries the runner
