@@ -52,10 +52,10 @@ defmodule TuistWeb.DashboardNavigation do
           Accounts.organization?(account) and Authorization.authorize(:organization_read, user, account) == :ok
         ),
         group(Tuist.Pulse.authorized?(user, account), "sidebar-pulse", "Pulse", nil, "chart_arcs", [
-          item(dgettext("dashboard", "Metrics"), root <> "/~/pulse/metrics", "chart_arcs"),
-          item(dgettext("dashboard", "Logs"), root <> "/~/pulse/logs", "file_text"),
-          item(dgettext("dashboard", "Traces"), root <> "/~/pulse/traces", "list_tree"),
-          item(dgettext("dashboard", "Errors"), root <> "/~/pulse/errors", "alert_circle")
+          item(dgettext("dashboard", "Metrics"), root <> "/pulse/metrics", "chart_arcs"),
+          item(dgettext("dashboard", "Logs"), root <> "/pulse/logs", "file_text"),
+          item(dgettext("dashboard", "Traces"), root <> "/pulse/traces", "list_tree"),
+          item(dgettext("dashboard", "Errors"), root <> "/pulse/errors", "alert_circle")
         ]),
         item(dgettext("dashboard", "Webhooks"), root <> "/webhooks", "webhook", admin?),
         item(dgettext("dashboard", "Cache"), root <> "/cache", "database", admin?),

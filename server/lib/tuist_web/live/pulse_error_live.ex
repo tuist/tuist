@@ -667,17 +667,17 @@ defmodule TuistWeb.PulseErrorLive do
   end
 
   defp back_path(%{event_id: nil} = assigns),
-    do: ~p"/#{assigns.selected_account.name}/~/pulse/errors?#{Map.take(assigns.params, ~w(range end_at))}"
+    do: ~p"/#{assigns.selected_account.name}/pulse/errors?#{Map.take(assigns.params, ~w(range end_at))}"
 
   defp back_path(assigns), do: tab_path(assigns, "occurrences")
 
   defp tab_path(assigns, tab),
     do:
-      ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{assigns.fingerprint}?#{Map.put(assigns.params, "tab", tab)}"
+      ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{assigns.fingerprint}?#{Map.put(assigns.params, "tab", tab)}"
 
   defp event_path(assigns, event),
     do:
-      ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{assigns.fingerprint}/events/#{event["event_id"]}?#{Map.drop(assigns.params, ~w(page page_size))}"
+      ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{assigns.fingerprint}/events/#{event["event_id"]}?#{Map.drop(assigns.params, ~w(page page_size))}"
 
   defp page_path(assigns, direction) do
     params =
@@ -685,7 +685,7 @@ defmodule TuistWeb.PulseErrorLive do
       |> Map.put("page", max(1, assigns.detail.result.meta["page"] + direction))
       |> Map.put("tab", "occurrences")
 
-    ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{assigns.fingerprint}?#{params}"
+    ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{assigns.fingerprint}?#{params}"
   end
 
   defp detail_error({:error, :not_found}),

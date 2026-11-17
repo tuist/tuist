@@ -822,15 +822,15 @@ defmodule TuistWeb.PulseLive do
       |> Map.put("end_at", assigns.telemetry.result.meta["end_at"])
       |> Map.put("service", row["service"])
 
-    ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{row["fingerprint"]}?#{params}"
+    ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{row["fingerprint"]}?#{params}"
   end
 
   defp live_table?(assigns), do: assigns.params["page"] in [nil, "1", 1] && !assigns.params["end_at"]
 
-  defp signal_path(account, "metrics", params), do: ~p"/#{account.name}/~/pulse/metrics?#{params}"
-  defp signal_path(account, "logs", params), do: ~p"/#{account.name}/~/pulse/logs?#{params}"
-  defp signal_path(account, "traces", params), do: ~p"/#{account.name}/~/pulse/traces?#{params}"
-  defp signal_path(account, "errors", params), do: ~p"/#{account.name}/~/pulse/errors?#{params}"
+  defp signal_path(account, "metrics", params), do: ~p"/#{account.name}/pulse/metrics?#{params}"
+  defp signal_path(account, "logs", params), do: ~p"/#{account.name}/pulse/logs?#{params}"
+  defp signal_path(account, "traces", params), do: ~p"/#{account.name}/pulse/traces?#{params}"
+  defp signal_path(account, "errors", params), do: ~p"/#{account.name}/pulse/errors?#{params}"
   defp title("metrics"), do: dgettext("dashboard_pulse", "Metrics")
   defp title("logs"), do: dgettext("dashboard_pulse", "Logs")
   defp title("traces"), do: dgettext("dashboard_pulse", "Traces")
