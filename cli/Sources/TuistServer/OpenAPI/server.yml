@@ -22,6 +22,39 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AuthenticationTokens
       x-validate:
+    CoverageCursorPagination:
+      properties:
+        end_cursor:
+          description: The cursor of the page's oldest row.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        has_next_page:
+          description: Whether older rows follow (read them with `after`).
+          type: boolean
+          x-struct:
+          x-validate:
+        has_previous_page:
+          description: Whether newer rows precede (read them with `before`).
+          type: boolean
+          x-struct:
+          x-validate:
+        start_cursor:
+          description: The cursor of the page's newest row.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - has_next_page
+        - has_previous_page
+        - start_cursor
+        - end_cursor
+      title: CoverageCursorPagination
+      type: object
+      x-struct:
+      x-validate:
     WebhookRunnerJobCompletedEvent:
       description: Fires once a job created through the runners API completes, fails or is cancelled. The `object` carries the final `conclusion`.
       properties:
@@ -912,6 +945,83 @@ components:
       type: integer
       x-struct:
       x-validate:
+    SelectiveTestingTest:
+      properties:
+        decision:
+          enum:
+            - selected
+            - skipped
+          type: string
+          x-struct:
+          x-validate:
+        estimated_duration:
+          description: The test's duration in the baseline, in milliseconds; 0 when unknown.
+          type: integer
+          x-struct:
+          x-validate:
+        matched_path:
+          description: The changed file that selected the test, when one did.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        module_name:
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        outcome:
+          description: "The test's outcome in this run (`success`, `failure` or `skipped`), null when it didn't run here."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        reason:
+          description: "Why: for a selected test, the rule that kept it (such as `impacted` or `test_file_changed`) or a fallback's reason (such as `tracked_file_changed`); for a skipped one, `unaffected` (no changed file in its coverage) or `module_skipped` (its module's hash already passed). More values can be added."
+          type: string
+          x-struct:
+          x-validate:
+        shard_index:
+          description: The shard a selected test was planned on, for a sharded run.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        suite_name:
+          type: string
+          x-struct:
+          x-validate:
+        test_case_id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        test_case_run_id:
+          description: The test case run in this run, null when it didn't run here.
+          format: uuid
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_case_id
+        - module_name
+        - suite_name
+        - name
+        - decision
+        - reason
+        - matched_path
+        - shard_index
+        - estimated_duration
+        - outcome
+        - test_case_run_id
+      title: SelectiveTestingTest
+      type: object
+      x-struct:
+      x-validate:
     TestCaseRun:
       description: A single test case run.
       properties:
@@ -1043,13 +1153,13 @@ components:
           x-struct:
           x-validate:
       required:
-        - end_at
         - page
-        - page_size
-        - total_count
         - total_pages
+        - total_count
+        - page_size
         - has_next_page
         - has_previous_page
+        - end_at
       title: PulsePagination
       type: object
       x-struct:
@@ -1159,6 +1269,105 @@ components:
         - inserted_at
         - updated_at
       title: NotificationRule
+      type: object
+      x-struct:
+      x-validate:
+    CoverageRuns:
+      description: A page of the test runs with coverage behind a commit or a branch, newest first.
+      properties:
+        pagination:
+          properties:
+            end_cursor:
+              description: The cursor of the page's oldest row.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            has_next_page:
+              description: Whether older rows follow (read them with `after`).
+              type: boolean
+              x-struct:
+              x-validate:
+            has_previous_page:
+              description: Whether newer rows precede (read them with `before`).
+              type: boolean
+              x-struct:
+              x-validate:
+            start_cursor:
+              description: The cursor of the page's newest row.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - has_next_page
+            - has_previous_page
+            - start_cursor
+            - end_cursor
+          title: CoverageCursorPagination
+          type: object
+          x-struct:
+          x-validate:
+        runs:
+          items:
+            properties:
+              coverage:
+                description: Line coverage the run measured, in percent.
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                type: string
+                x-struct:
+                x-validate:
+              ran_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              scheme:
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: "`full`: the run measured everything it was asked to. `partial`: it skipped tests on purpose, such as through selective testing, so it measured only what it ran. `discarded`: it ran from a dirty checkout, so its coverage doesn't join its commit's. More values can be added."
+                type: string
+                x-struct:
+                x-validate:
+              test_run_id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - test_run_id
+              - git_commit_sha
+              - scheme
+              - status
+              - covered_lines
+              - executable_lines
+              - coverage
+              - ran_at
+            title: CoverageRunRow
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - runs
+        - pagination
+      title: CoverageRuns
       type: object
       x-struct:
       x-validate:
@@ -2746,6 +2955,58 @@ components:
       type: object
       x-struct:
       x-validate:
+    CoverageRunRow:
+      properties:
+        coverage:
+          description: Line coverage the run measured, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        ran_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: "`full`: the run measured everything it was asked to. `partial`: it skipped tests on purpose, such as through selective testing, so it measured only what it ran. `discarded`: it ran from a dirty checkout, so its coverage doesn't join its commit's. More values can be added."
+          type: string
+          x-struct:
+          x-validate:
+        test_run_id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_run_id
+        - git_commit_sha
+        - scheme
+        - status
+        - covered_lines
+        - executable_lines
+        - coverage
+        - ran_at
+      title: CoverageRunRow
+      type: object
+      x-struct:
+      x-validate:
     GradleBuildStepDetail:
       properties:
         category:
@@ -3840,6 +4101,68 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CoverageCommitRow:
+      properties:
+        change:
+          description: Percentage points the commit moved coverage from the complete commit before it. Only complete commits have one.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        committed_at:
+          description: When the commit was made, or when its runs ran for a branch the commit graph doesn't hold.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        coverage:
+          description: Line coverage, in percent. Null when not measured.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        schemes:
+          description: The schemes that measured the commit.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        status:
+          description: '`complete`: its pipeline signalled it finished and its figure is whole. `incomplete`: signalled, its figure a lower bound. `in_progress`: measured, not signalled yet. `not_measured`: on the branch, no run measured it. More values can be added.'
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - git_commit_sha
+        - committed_at
+        - status
+        - coverage
+        - covered_lines
+        - executable_lines
+        - change
+        - schemes
+      title: CoverageCommitRow
+      type: object
+      x-struct:
+      x-validate:
     AutomationAlert:
       description: An automation alert — a rule that evaluates a monitor condition and runs trigger/recovery actions.
       properties:
@@ -4104,6 +4427,58 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestRunCoverage:
+      description: The coverage the test run itself gathered.
+      properties:
+        coverage:
+          description: Line coverage, in percent.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        enabled:
+          description: Whether the run was set up to collect coverage; null for clients that didn't say.
+          nullable: true
+          type: boolean
+          x-struct:
+          x-validate:
+        executable_lines:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        git_dirty:
+          description: Whether the run ran from a dirty checkout, whose coverage never joins its commit's.
+          type: boolean
+          x-struct:
+          x-validate:
+        measured:
+          description: Whether the run reported any coverage.
+          type: boolean
+          x-struct:
+          x-validate:
+        partial:
+          description: Whether the run skipped tests on purpose.
+          type: boolean
+          x-struct:
+          x-validate:
+      required:
+        - enabled
+        - git_dirty
+        - measured
+        - partial
+        - covered_lines
+        - executable_lines
+        - coverage
+      title: TestRunCoverage
+      type: object
+      x-struct:
+      x-validate:
     CacheActionItem:
       description: Represents an action item stored in the cache.
       properties:
@@ -4117,6 +4492,43 @@ components:
       title: CacheActionItem
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
+      x-validate:
+    TestCaseRunSelectiveTesting:
+      description: Why the run's coverage-based selection kept the test, null when the run had no such selection.
+      nullable: true
+      properties:
+        decision:
+          enum:
+            - selected
+            - skipped
+          type: string
+          x-struct:
+          x-validate:
+        matched_path:
+          description: The changed file that selected the test, when one did.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        reason:
+          description: "Why: for a selected test, the rule that kept it (such as `impacted` or `test_file_changed`) or a fallback's reason (such as `tracked_file_changed`); for a skipped one, `unaffected` (no changed file in its coverage) or `module_skipped` (its module's hash already passed). More values can be added."
+          type: string
+          x-struct:
+          x-validate:
+        shard_index:
+          description: The shard a selected test was planned on, for a sharded run.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - decision
+        - reason
+        - matched_path
+        - shard_index
+      title: TestCaseRunSelectiveTesting
+      type: object
+      x-struct:
       x-validate:
     SandboxCommandLogLine:
       description: One line of the ND-JSON log stream. `stdout` and `stderr` lines carry output and `offset`, the byte offset the stream reached, which a reconnect passes back as `stdout_offset` or `stderr_offset`. The last line is `exit`, with the command's final state, or `error`.
@@ -5564,6 +5976,52 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestRunSelectiveTesting:
+      description: "The run's selective testing, null when it had none. Its counts are the run's own (a shard's, for a sharded run) and the ones the test selection effectiveness figures are computed from. For a few seconds after the run arrives, before they're recorded, a coverage selection's counts are its whole invocation's, which its shards share."
+      nullable: true
+      properties:
+        baseline_sha:
+          description: The commit coverage compared against, null when there was none.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        estimated:
+          description: "How many of the skipped tests are estimated: tests of a module skipped by hash, counted from an earlier run of the module (such as coverage's baseline) rather than from the run that stored the module's hash."
+          type: integer
+          x-struct:
+          x-validate:
+        requested:
+          description: 'The tests in scope: those the run executed and those the selection skipped.'
+          type: integer
+          x-struct:
+          x-validate:
+        selected:
+          description: The tests in scope the run executed.
+          type: integer
+          x-struct:
+          x-validate:
+        skipped:
+          description: The tests the selection skipped.
+          type: integer
+          x-struct:
+          x-validate:
+        strategy:
+          description: "`coverage`: coverage-based test selection, a fallback included (its tests' reason says why coverage couldn't decide). `module_hash`: the default, which skips the test modules whose hash already passed. More values can be added."
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - strategy
+        - baseline_sha
+        - requested
+        - selected
+        - skipped
+        - estimated
+      title: TestRunSelectiveTesting
+      type: object
+      x-struct:
+      x-validate:
     NotificationEvents:
       properties:
         events:
@@ -5981,6 +6439,52 @@ components:
       type: object
       x-struct:
       x-validate:
+    SelectiveTestingChangedFiles:
+      properties:
+        changed_files:
+          items:
+            properties:
+              path:
+                description: "The file's path, relative to the repository's root."
+                type: string
+                x-struct:
+                x-validate:
+              selected_tests_count:
+                description: How many tests the file selected.
+                type: integer
+                x-struct:
+                x-validate:
+              status:
+                description: The change, as `git diff --raw` reports it.
+                type: string
+                x-struct:
+                x-validate:
+              tracked:
+                description: Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back.
+                type: boolean
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - status
+              - tracked
+              - selected_tests_count
+            title: SelectiveTestingChangedFile
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - changed_files
+        - pagination_metadata
+      title: SelectiveTestingChangedFiles
+      type: object
+      x-struct:
+      x-validate:
     CacheStatus:
       enum:
         - miss
@@ -5988,6 +6492,213 @@ components:
         - remote
       title: CacheStatus
       type: string
+      x-struct:
+      x-validate:
+    CoverageCommits:
+      description: A page of a branch's commits, newest first.
+      properties:
+        branch:
+          description: The branch the commits were read from.
+          type: string
+          x-struct:
+          x-validate:
+        commits:
+          items:
+            properties:
+              change:
+                description: Percentage points the commit moved coverage from the complete commit before it. Only complete commits have one.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              committed_at:
+                description: When the commit was made, or when its runs ran for a branch the commit graph doesn't hold.
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              coverage:
+                description: Line coverage, in percent. Null when not measured.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                type: string
+                x-struct:
+                x-validate:
+              schemes:
+                description: The schemes that measured the commit.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              status:
+                description: '`complete`: its pipeline signalled it finished and its figure is whole. `incomplete`: signalled, its figure a lower bound. `in_progress`: measured, not signalled yet. `not_measured`: on the branch, no run measured it. More values can be added.'
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - git_commit_sha
+              - committed_at
+              - status
+              - coverage
+              - covered_lines
+              - executable_lines
+              - change
+              - schemes
+            title: CoverageCommitRow
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination:
+          properties:
+            end_cursor:
+              description: The cursor of the page's oldest row.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            has_next_page:
+              description: Whether older rows follow (read them with `after`).
+              type: boolean
+              x-struct:
+              x-validate:
+            has_previous_page:
+              description: Whether newer rows precede (read them with `before`).
+              type: boolean
+              x-struct:
+              x-validate:
+            start_cursor:
+              description: The cursor of the page's newest row.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - has_next_page
+            - has_previous_page
+            - start_cursor
+            - end_cursor
+          title: CoverageCursorPagination
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - branch
+        - commits
+        - pagination
+      title: CoverageCommits
+      type: object
+      x-struct:
+      x-validate:
+    SelectiveTestingTests:
+      properties:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        tests:
+          items:
+            properties:
+              decision:
+                enum:
+                  - selected
+                  - skipped
+                type: string
+                x-struct:
+                x-validate:
+              estimated_duration:
+                description: The test's duration in the baseline, in milliseconds; 0 when unknown.
+                type: integer
+                x-struct:
+                x-validate:
+              matched_path:
+                description: The changed file that selected the test, when one did.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              module_name:
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+              outcome:
+                description: "The test's outcome in this run (`success`, `failure` or `skipped`), null when it didn't run here."
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              reason:
+                description: "Why: for a selected test, the rule that kept it (such as `impacted` or `test_file_changed`) or a fallback's reason (such as `tracked_file_changed`); for a skipped one, `unaffected` (no changed file in its coverage) or `module_skipped` (its module's hash already passed). More values can be added."
+                type: string
+                x-struct:
+                x-validate:
+              shard_index:
+                description: The shard a selected test was planned on, for a sharded run.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              suite_name:
+                type: string
+                x-struct:
+                x-validate:
+              test_case_id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              test_case_run_id:
+                description: The test case run in this run, null when it didn't run here.
+                format: uuid
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - test_case_id
+              - module_name
+              - suite_name
+              - name
+              - decision
+              - reason
+              - matched_path
+              - shard_index
+              - estimated_duration
+              - outcome
+              - test_case_run_id
+            title: SelectiveTestingTest
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - tests
+        - pagination_metadata
+      title: SelectiveTestingTests
+      type: object
       x-struct:
       x-validate:
     PreviewIndexPageSize:
@@ -6193,8 +6904,8 @@ components:
         - id
         - unit
         - value
-        - previous_value
         - points
+        - previous_value
       title: PulseWidget
       type: object
       x-struct:
@@ -6435,13 +7146,13 @@ components:
               x-struct:
               x-validate:
           required:
-            - end_at
             - page
-            - page_size
-            - total_count
             - total_pages
+            - total_count
+            - page_size
             - has_next_page
             - has_previous_page
+            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -6463,6 +7174,16 @@ components:
               duration_ms:
                 nullable: true
                 type: number
+                x-struct:
+                x-validate:
+              environment:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              environments:
+                description: 'Errors: distinct environments in the window.'
+                type: integer
                 x-struct:
                 x-validate:
               events:
@@ -6706,6 +7427,14 @@ components:
       type: object
       x-struct:
       x-validate:
+    CommitCoverageTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: CommitCoverageTargetsPage
+      type: integer
+      x-struct:
+      x-validate:
     TestCaseRunsList:
       description: A paginated list of test case runs.
       properties:
@@ -6908,6 +7637,15 @@ components:
       title: BundleArtifact
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
+      x-validate:
+    CommitCoverageTargetsSortOrder:
+      default: asc
+      enum:
+        - asc
+        - desc
+      title: CommitCoverageTargetsSortOrder
+      type: string
+      x-struct:
       x-validate:
     CoverageUploadRequest:
       properties:
@@ -9237,6 +9975,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadURL
       x-validate:
+    SelectiveTestingChangedFilesPageSize:
+      default: 20
+      description: The maximum number of files to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: SelectiveTestingChangedFilesPageSize
+      type: integer
+      x-struct:
+      x-validate:
     WebhookRunnerJob:
       description: Snapshot of the runner job, created through the runners API, that triggered the webhook event.
       properties:
@@ -9526,7 +10273,7 @@ components:
           x-struct:
           x-validate:
         setup_script:
-          description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+          description: "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
           nullable: true
           type: string
           x-struct:
@@ -9768,6 +10515,15 @@ components:
       type: object
       x-struct:
       x-validate:
+    CommitCoverageTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: CommitCoverageTargetsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     User:
       description: A user.
       properties:
@@ -9896,9 +10652,9 @@ components:
         - server_name
         - release
         - environment
-        - trace_id
-        - account_handle
         - event_id
+        - account_handle
+        - trace_id
       title: PulseErrorEvent
       type: object
       x-struct:
@@ -10045,6 +10801,7 @@ components:
               - account:cache:write
               - account:members:read
               - account:members:write
+              - account:pulse:write
               - account:registry:read
               - account:registry:write
               - account:runners:read
@@ -11185,6 +11942,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.DurationMetrics
       x-validate:
+    CoverageHistoryPageSize:
+      default: 20
+      description: The maximum number of rows to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: CoverageHistoryPageSize
+      type: integer
+      x-struct:
+      x-validate:
     CacheAccess:
       description: Account-scoped and project-scoped cache access handles
       properties:
@@ -11295,6 +12061,16 @@ components:
         duration_ms:
           nullable: true
           type: number
+          x-struct:
+          x-validate:
+        environment:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        environments:
+          description: 'Errors: distinct environments in the window.'
+          type: integer
           x-struct:
           x-validate:
         events:
@@ -11611,8 +12387,16 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestRunSelectiveTestingStrategy:
+      enum:
+        - coverage
+        - module_hash
+      title: TestRunSelectiveTestingStrategy
+      type: string
+      x-struct:
+      x-validate:
     TestImpactBaseline:
-      description: The nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, or the reason there's none.
+      description: The nearest ancestor of the checked-out commit with a full run of the scheme on the same platform in the last 31 days, or the reason there's none.
       properties:
         baseline_sha:
           description: The baseline commit. Null when there's none, and `reason` says why.
@@ -11626,7 +12410,7 @@ components:
           x-struct:
           x-validate:
         reason:
-          description: "Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
+          description: "Why there's no baseline: `history_unknown`, `no_baseline` or `not_enabled` (older servers also sent `baseline_too_old`). `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
           type: string
           x-struct:
           x-validate:
@@ -12552,9 +13336,9 @@ components:
               - server_name
               - release
               - environment
-              - trace_id
-              - account_handle
               - event_id
+              - account_handle
+              - trace_id
             title: PulseErrorEvent
             type: object
             x-struct:
@@ -12578,6 +13362,16 @@ components:
             duration_ms:
               nullable: true
               type: number
+              x-struct:
+              x-validate:
+            environment:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            environments:
+              description: 'Errors: distinct environments in the window.'
+              type: integer
               x-struct:
               x-validate:
             events:
@@ -12731,13 +13525,13 @@ components:
               x-struct:
               x-validate:
           required:
-            - end_at
             - page
-            - page_size
-            - total_count
             - total_pages
+            - total_count
+            - page_size
             - has_next_page
             - has_previous_page
+            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -13337,6 +14131,67 @@ components:
         - content_upload_bytes
         - content_saved_bytes
       title: OnceRunCache
+      type: object
+      x-struct:
+      x-validate:
+    CommitCoverageTargets:
+      properties:
+        git_commit_sha:
+          description: The commit the targets were read at.
+          type: string
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        targets:
+          items:
+            properties:
+              coverage:
+                description: Line coverage, in percent. Null when not measured.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              files_count:
+                type: integer
+                x-struct:
+                x-validate:
+              measured:
+                description: "False for a target the commit's runs took from the binary cache without coverage counters: it has no figure."
+                type: boolean
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - files_count
+              - covered_lines
+              - executable_lines
+              - coverage
+              - measured
+            title: CoverageTargetRow
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - git_commit_sha
+        - targets
+        - pagination_metadata
+      title: CommitCoverageTargets
       type: object
       x-struct:
       x-validate:
@@ -14268,6 +15123,37 @@ components:
       type: object
       x-struct:
       x-validate:
+    SelectiveTestingChangedFile:
+      properties:
+        path:
+          description: "The file's path, relative to the repository's root."
+          type: string
+          x-struct:
+          x-validate:
+        selected_tests_count:
+          description: How many tests the file selected.
+          type: integer
+          x-struct:
+          x-validate:
+        status:
+          description: The change, as `git diff --raw` reports it.
+          type: string
+          x-struct:
+          x-validate:
+        tracked:
+          description: Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back.
+          type: boolean
+          x-struct:
+          x-validate:
+      required:
+        - path
+        - status
+        - tracked
+        - selected_tests_count
+      title: SelectiveTestingChangedFile
+      type: object
+      x-struct:
+      x-validate:
     Invitation:
       properties:
         id:
@@ -14604,8 +15490,8 @@ components:
               - id
               - unit
               - value
-              - previous_value
               - points
+              - previous_value
             title: PulseWidget
             type: object
             x-struct:
@@ -14903,6 +15789,16 @@ components:
         - clang
         - swift
       title: CacheTaskType
+      type: string
+      x-struct:
+      x-validate:
+    CommitCoverageTargetsSortBy:
+      default: coverage
+      enum:
+        - coverage
+        - name
+        - files
+      title: CommitCoverageTargetsSortBy
       type: string
       x-struct:
       x-validate:
@@ -15725,6 +16621,14 @@ components:
       type: integer
       x-struct:
       x-validate:
+    SelectiveTestingChangedFilesPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: SelectiveTestingChangedFilesPage
+      type: integer
+      x-struct:
+      x-validate:
     CoverageReported:
       description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
       nullable: true
@@ -16330,6 +17234,7 @@ components:
                     - account:cache:write
                     - account:members:read
                     - account:members:write
+                    - account:pulse:write
                     - account:registry:read
                     - account:registry:write
                     - account:runners:read
@@ -17180,6 +18085,14 @@ components:
       type: string
       x-struct:
       x-validate:
+    SelectiveTestingTestsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: SelectiveTestingTestsPage
+      type: integer
+      x-struct:
+      x-validate:
     RunnerProfile:
       properties:
         cache_writer_all_branches:
@@ -17304,6 +18217,46 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CoverageTargetRow:
+      properties:
+        coverage:
+          description: Line coverage, in percent. Null when not measured.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        files_count:
+          type: integer
+          x-struct:
+          x-validate:
+        measured:
+          description: "False for a target the commit's runs took from the binary cache without coverage counters: it has no figure."
+          type: boolean
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - files_count
+        - covered_lines
+        - executable_lines
+        - coverage
+        - measured
+      title: CoverageTargetRow
+      type: object
+      x-struct:
+      x-validate:
     MixCompiledModuleObservation:
       properties:
         cache_status:
@@ -17416,7 +18369,7 @@ components:
           x-struct:
           x-validate:
         setup_script:
-          description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+          description: "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
           nullable: true
           type: string
           x-struct:
@@ -17515,6 +18468,28 @@ components:
         - time_origin
         - coverage
       title: GradleBuildStepsList
+      type: object
+      x-struct:
+      x-validate:
+    CoverageBranches:
+      description: 'The branches with coverage: those whose runs never named a pull request, the most recently measured first, the default branch leading.'
+      properties:
+        branches:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        default_branch:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - default_branch
+        - branches
+      title: CoverageBranches
       type: object
       x-struct:
       x-validate:
@@ -18524,6 +19499,7 @@ components:
               - account:cache:write
               - account:members:read
               - account:members:write
+              - account:pulse:write
               - account:registry:read
               - account:registry:write
               - account:runners:read
@@ -18572,6 +19548,34 @@ components:
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
       x-validate:
+    SelectiveTestingDecision:
+      enum:
+        - selected
+        - skipped
+      title: SelectiveTestingDecision
+      type: string
+      x-struct:
+      x-validate:
+    PulseSentryEnvelopeResponse:
+      properties:
+        id:
+          description: The envelope's event ID, without dashes.
+          type: string
+          x-struct:
+          x-validate:
+      title: PulseSentryEnvelopeResponse
+      type: object
+      x-struct:
+      x-validate:
+    SelectiveTestingTestsPageSize:
+      default: 20
+      description: The maximum number of tests to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: SelectiveTestingTestsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     ArtifactMultipartUploadURL:
       description: The URL to upload a multipart part
       properties:
@@ -18600,6 +19604,19 @@ components:
       title: ArtifactMultipartUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+      x-validate:
+    CoverageCommitsStatus:
+      default: measured
+      enum:
+        - measured
+        - any
+        - complete
+        - incomplete
+        - in_progress
+        - not_measured
+      title: CoverageCommitsStatus
+      type: string
+      x-struct:
       x-validate:
     SandboxResourceLimits:
       additionalProperties: false
@@ -24071,7 +25088,7 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.
+        - description: Search query for richer filtering over `git_branch`, `scheme`, `status` and `selective_testing`. Supports exact matches with `field:"value"` and substring matches with `field~"value"`, except on `selective_testing`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.
           in: query
           name: query
           required: false
@@ -24097,6 +25114,18 @@ paths:
           name: scheme
           required: false
           schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Filter by selective testing strategy: `coverage` (coverage-based test selection, fallbacks included) or `module_hash` (the default, which skips the test modules whose hash already passed).'
+          in: query
+          name: selective_testing
+          required: false
+          schema:
+            enum:
+              - coverage
+              - module_hash
+            title: TestRunSelectiveTestingStrategy
             type: string
             x-struct:
             x-validate:
@@ -24185,6 +25214,12 @@ paths:
                           x-validate:
                         scheme:
                           description: Build scheme.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        selective_testing_strategy:
+                          description: "`coverage`: coverage-based test selection, a fallback included (its tests' reason says why coverage couldn't decide). `module_hash`: the default, which skips the test modules whose hash already passed. More values can be added."
                           nullable: true
                           type: string
                           x-struct:
@@ -27951,8 +28986,8 @@ paths:
                         - id
                         - unit
                         - value
-                        - previous_value
                         - points
+                        - previous_value
                       title: PulseWidget
                       type: object
                       x-struct:
@@ -35857,9 +36892,9 @@ paths:
                         - server_name
                         - release
                         - environment
-                        - trace_id
-                        - account_handle
                         - event_id
+                        - account_handle
+                        - trace_id
                       title: PulseErrorEvent
                       type: object
                       x-struct:
@@ -35883,6 +36918,16 @@ paths:
                       duration_ms:
                         nullable: true
                         type: number
+                        x-struct:
+                        x-validate:
+                      environment:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      environments:
+                        description: 'Errors: distinct environments in the window.'
+                        type: integer
                         x-struct:
                         x-validate:
                       events:
@@ -36036,13 +37081,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - end_at
                       - page
-                      - page_size
-                      - total_count
                       - total_pages
+                      - total_count
+                      - page_size
                       - has_next_page
                       - has_previous_page
+                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -38004,6 +39049,76 @@ paths:
       summary: List cache runs associated with a given project.
       tags:
         - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/branches:
+    get:
+      callbacks: {}
+      description: The branches whose runs never named a pull request and that have a measured commit, the most recently measured first, at most 100. The project's default branch leads, whether or not it has coverage.
+      operationId: listCoverageBranches
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: 'The branches with coverage: those whose runs never named a pull request, the most recently measured first, the default branch leading.'
+                properties:
+                  branches:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  default_branch:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - default_branch
+                  - branches
+                title: CoverageBranches
+                type: object
+                x-struct:
+                x-validate:
+          description: The branches
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List the branches with code coverage.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics:
     get:
       callbacks: {}
@@ -39548,6 +40663,7 @@ paths:
                               - account:cache:write
                               - account:members:read
                               - account:members:write
+                              - account:pulse:write
                               - account:registry:read
                               - account:registry:write
                               - account:runners:read
@@ -39666,6 +40782,7 @@ paths:
                       - account:cache:write
                       - account:members:read
                       - account:members:write
+                      - account:pulse:write
                       - account:registry:read
                       - account:registry:write
                       - account:runners:read
@@ -43471,7 +44588,7 @@ paths:
                   x-struct:
                   x-validate:
                 setup_script:
-                  description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+                  description: "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
                   nullable: true
                   type: string
                   x-struct:
@@ -44276,13 +45393,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - end_at
                       - page
-                      - page_size
-                      - total_count
                       - total_pages
+                      - total_count
+                      - page_size
                       - has_next_page
                       - has_previous_page
+                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -44304,6 +45421,16 @@ paths:
                         duration_ms:
                           nullable: true
                           type: number
+                          x-struct:
+                          x-validate:
+                        environment:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        environments:
+                          description: 'Errors: distinct environments in the window.'
+                          type: integer
                           x-struct:
                           x-validate:
                         events:
@@ -46063,7 +47190,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline:
     post:
       callbacks: {}
-      description: "Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing."
+      description: "Returns the nearest ancestor of the checked-out commit with a full run of the scheme on the same platform in the last 31 days, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing."
       operationId: resolveTestImpactBaseline
       parameters:
         - description: The handle of the project's account.
@@ -46350,6 +47477,183 @@ paths:
       summary: Get one recorded Gradle build step.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/targets:
+    get:
+      callbacks: {}
+      description: "One page of the targets the commit's runs measured, least covered first by default, followed by those its runs took from the binary cache without coverage counters (`measured: false`), which have no figure."
+      operationId: listCommitCoverageTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit SHA.
+          in: path
+          name: git_commit_sha
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: CommitCoverageTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: CommitCoverageTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Keeps the targets whose name contains it, ignoring case.
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: What to sort the measured targets by.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: coverage
+            enum:
+              - coverage
+              - name
+              - files
+            title: CommitCoverageTargetsSortBy
+            type: string
+            x-struct:
+            x-validate:
+        - description: The order to sort the measured targets in.
+          in: query
+          name: sort_order
+          required: false
+          schema:
+            default: asc
+            enum:
+              - asc
+              - desc
+            title: CommitCoverageTargetsSortOrder
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  git_commit_sha:
+                    description: The commit the targets were read at.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        coverage:
+                          description: Line coverage, in percent. Null when not measured.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        files_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        measured:
+                          description: "False for a target the commit's runs took from the binary cache without coverage counters: it has no figure."
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - files_count
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                        - measured
+                      title: CoverageTargetRow
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - git_commit_sha
+                  - targets
+                  - pagination_metadata
+                title: CommitCoverageTargets
+                type: object
+                x-struct:
+                x-validate:
+          description: A page of the commit's targets
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run or commit was not found, or gathered no coverage
+      summary: List the targets of a commit's code coverage.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values:
     get:
       callbacks: {}
@@ -48039,6 +49343,58 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  coverage:
+                    description: The coverage the test run itself gathered.
+                    properties:
+                      coverage:
+                        description: Line coverage, in percent.
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      enabled:
+                        description: Whether the run was set up to collect coverage; null for clients that didn't say.
+                        nullable: true
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      git_dirty:
+                        description: Whether the run ran from a dirty checkout, whose coverage never joins its commit's.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      measured:
+                        description: Whether the run reported any coverage.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      partial:
+                        description: Whether the run skipped tests on purpose.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                    required:
+                      - enabled
+                      - git_dirty
+                      - measured
+                      - partial
+                      - covered_lines
+                      - executable_lines
+                      - coverage
+                    title: TestRunCoverage
+                    type: object
+                    x-struct:
+                    x-validate:
                   device_name:
                     description: Human-readable device name.
                     nullable: true
@@ -48111,6 +49467,52 @@ paths:
                     description: Build scheme.
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  selective_testing:
+                    description: "The run's selective testing, null when it had none. Its counts are the run's own (a shard's, for a sharded run) and the ones the test selection effectiveness figures are computed from. For a few seconds after the run arrives, before they're recorded, a coverage selection's counts are its whole invocation's, which its shards share."
+                    nullable: true
+                    properties:
+                      baseline_sha:
+                        description: The commit coverage compared against, null when there was none.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      estimated:
+                        description: "How many of the skipped tests are estimated: tests of a module skipped by hash, counted from an earlier run of the module (such as coverage's baseline) rather than from the run that stored the module's hash."
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      requested:
+                        description: 'The tests in scope: those the run executed and those the selection skipped.'
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      selected:
+                        description: The tests in scope the run executed.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      skipped:
+                        description: The tests the selection skipped.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      strategy:
+                        description: "`coverage`: coverage-based test selection, a fallback included (its tests' reason says why coverage couldn't decide). `module_hash`: the default, which skips the test modules whose hash already passed. More values can be added."
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - strategy
+                      - baseline_sha
+                      - requested
+                      - selected
+                      - skipped
+                      - estimated
+                    title: TestRunSelectiveTesting
+                    type: object
                     x-struct:
                     x-validate:
                   status:
@@ -48595,6 +49997,157 @@ paths:
       summary: List recorded history for a Mix compiled module across builds.
       tags:
         - MixCompiledModule
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/changed-files:
+    get:
+      callbacks: {}
+      description: The files coverage-based selection compared against its baseline, the ones that selected the most tests first, each with whether it's a tracked file whose change makes selection fall back. Empty when the run had no baseline, ran from a dirty checkout, or its diff expired.
+      operationId: listTestRunSelectiveTestingChangedFiles
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Part of the file's path.
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: SelectiveTestingChangedFilesPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of files to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: SelectiveTestingChangedFilesPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  changed_files:
+                    items:
+                      properties:
+                        path:
+                          description: "The file's path, relative to the repository's root."
+                          type: string
+                          x-struct:
+                          x-validate:
+                        selected_tests_count:
+                          description: How many tests the file selected.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The change, as `git diff --raw` reports it.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tracked:
+                          description: Whether it's a tracked file, such as a dependency pin or build setting, whose change makes selection fall back.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                      required:
+                        - path
+                        - status
+                        - tracked
+                        - selected_tests_count
+                      title: SelectiveTestingChangedFile
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - changed_files
+                  - pagination_metadata
+                title: SelectiveTestingChangedFiles
+                type: object
+                x-struct:
+                x-validate:
+          description: The run's changed files
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the files that changed since a test run's selection baseline.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -48913,6 +50466,206 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project was not found
       summary: Upload a commit's file listing.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/runs:
+    get:
+      callbacks: {}
+      description: "One page of the runs with coverage of a commit (`git_commit_sha`) or, otherwise, of those that named a branch, newest first. Runs from a dirty checkout are listed as `discarded`: their coverage doesn't join the commit's."
+      operationId: listCoverageRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit whose runs to list. Takes precedence over branch.
+          in: query
+          name: git_commit_sha
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The branch whose runs to list. The project's default branch when neither is given.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Keeps one scheme's runs.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: "Read the page older than this cursor: a previous page's `end_cursor`."
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: "Read the page newer than this cursor: a previous page's `start_cursor`."
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of rows to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: CoverageHistoryPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A page of the test runs with coverage behind a commit or a branch, newest first.
+                properties:
+                  pagination:
+                    properties:
+                      end_cursor:
+                        description: The cursor of the page's oldest row.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        description: Whether older rows follow (read them with `after`).
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        description: Whether newer rows precede (read them with `before`).
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      start_cursor:
+                        description: The cursor of the page's newest row.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - has_next_page
+                      - has_previous_page
+                      - start_cursor
+                      - end_cursor
+                    title: CoverageCursorPagination
+                    type: object
+                    x-struct:
+                    x-validate:
+                  runs:
+                    items:
+                      properties:
+                        coverage:
+                          description: Line coverage the run measured, in percent.
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: "`full`: the run measured everything it was asked to. `partial`: it skipped tests on purpose, such as through selective testing, so it measured only what it ran. `discarded`: it ran from a dirty checkout, so its coverage doesn't join its commit's. More values can be added."
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_run_id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - test_run_id
+                        - git_commit_sha
+                        - scheme
+                        - status
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                        - ran_at
+                      title: CoverageRunRow
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - runs
+                  - pagination
+                title: CoverageRuns
+                type: object
+                x-struct:
+                x-validate:
+          description: A page of the runs
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List the test runs with code coverage behind a commit or a branch.
       tags:
         - Tests
   /api/auth/device_code/{device_code}:
@@ -49455,7 +51208,7 @@ paths:
                   x-struct:
                   x-validate:
                 setup_script:
-                  description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+                  description: "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
                   nullable: true
                   type: string
                   x-struct:
@@ -57199,6 +58952,7 @@ paths:
                         - account:cache:write
                         - account:members:read
                         - account:members:write
+                        - account:pulse:write
                         - account:registry:read
                         - account:registry:write
                         - account:runners:read
@@ -58160,6 +59914,231 @@ paths:
       summary: List Once actions across builds.
       tags:
         - OnceAction
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits:
+    get:
+      callbacks: {}
+      description: One page of the branch's commits, newest first, each with its status, its figure and the change from the complete commit before it. A branch the commit graph holds lists its unmeasured commits too (`not_measured`); otherwise its commits are the measured ones its runs were labelled with, by when they ran.
+      operationId: listCoverageCommits
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The branch to read. The project's default branch when omitted.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Which commits to list: `measured` (every status but `not_measured`), `any`, or one status.'
+          in: query
+          name: status
+          required: false
+          schema:
+            default: measured
+            enum:
+              - measured
+              - any
+              - complete
+              - incomplete
+              - in_progress
+              - not_measured
+            title: CoverageCommitsStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Keeps the commits whose SHA starts with it.
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: "Read the page older than this cursor: a previous page's `end_cursor`."
+          in: query
+          name: after
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: "Read the page newer than this cursor: a previous page's `start_cursor`."
+          in: query
+          name: before
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of rows to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: CoverageHistoryPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A page of a branch's commits, newest first.
+                properties:
+                  branch:
+                    description: The branch the commits were read from.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  commits:
+                    items:
+                      properties:
+                        change:
+                          description: Percentage points the commit moved coverage from the complete commit before it. Only complete commits have one.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        committed_at:
+                          description: When the commit was made, or when its runs ran for a branch the commit graph doesn't hold.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        coverage:
+                          description: Line coverage, in percent. Null when not measured.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        schemes:
+                          description: The schemes that measured the commit.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: '`complete`: its pipeline signalled it finished and its figure is whole. `incomplete`: signalled, its figure a lower bound. `in_progress`: measured, not signalled yet. `not_measured`: on the branch, no run measured it. More values can be added.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - git_commit_sha
+                        - committed_at
+                        - status
+                        - coverage
+                        - covered_lines
+                        - executable_lines
+                        - change
+                        - schemes
+                      title: CoverageCommitRow
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination:
+                    properties:
+                      end_cursor:
+                        description: The cursor of the page's oldest row.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        description: Whether older rows follow (read them with `after`).
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        description: Whether newer rows precede (read them with `before`).
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      start_cursor:
+                        description: The cursor of the page's newest row.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - has_next_page
+                      - has_previous_page
+                      - start_cursor
+                      - end_cursor
+                    title: CoverageCursorPagination
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - branch
+                  - commits
+                  - pagination
+                title: CoverageCommits
+                type: object
+                x-struct:
+                x-validate:
+          description: A page of the branch's commits
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List a branch's commits with their code coverage.
+      tags:
+        - Tests
   /api/auth/apple:
     post:
       callbacks: {}
@@ -61145,7 +63124,7 @@ paths:
   /api/me/feature-flags:
     get:
       callbacks: {}
-      description: Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+      description: Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Tuist Guild) can read them.
       operationId: listFeatureFlags
       parameters: []
       responses:
@@ -65599,6 +67578,115 @@ paths:
       summary: Create an upload for a sandbox.
       tags:
         - Sandboxes
+  /api/accounts/{account_handle}/pulse/sentry/{service}/api/{project_id}/envelope:
+    post:
+      callbacks: {}
+      description: Sentry SDKs post here when their DSN is `https://<account token>@<host>/api/accounts/<handle>/pulse/sentry/<service>/1`. The token goes in the DSN key, which SDKs send in `X-Sentry-Auth` (or the `sentry_key` query parameter), and needs the `account:pulse:write` scope. Event items become errors of `<service>`; other items are accepted and dropped.
+      operationId: sendPulseSentryEnvelope
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The producer the errors belong to.
+          in: path
+          name: service
+          required: true
+          schema:
+            pattern: ^[A-Za-z0-9._-]{1,64}$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The DSN's project number, which Sentry SDKs require. It is not used.
+          in: path
+          name: project_id
+          required: true
+          schema:
+            pattern: ^[0-9]{1,20}$
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/x-sentry-envelope:
+            schema:
+              format: binary
+              type: string
+              x-struct:
+              x-validate:
+        description: A Sentry envelope, optionally gzip- or deflate-encoded
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The envelope's event ID, without dashes.
+                    type: string
+                    x-struct:
+                    x-validate:
+                title: PulseSentryEnvelopeResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: Envelope accepted
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid service, project number or envelope
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Authentication required
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An account:pulse:write token of an account enrolled in Pulse is required
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account not found
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Envelope larger than 1 MiB
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Pulse rate limited
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Pulse rejected the forwarded envelope
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Pulse unavailable
+      summary: Send a Sentry envelope to the account's Pulse errors.
+      tags:
+        - Pulse
   /api/projects/{account_handle}/{project_handle}/bazel/invocations:
     get:
       callbacks: {}
@@ -66414,6 +68502,43 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  selective_testing:
+                    description: Why the run's coverage-based selection kept the test, null when the run had no such selection.
+                    nullable: true
+                    properties:
+                      decision:
+                        enum:
+                          - selected
+                          - skipped
+                        type: string
+                        x-struct:
+                        x-validate:
+                      matched_path:
+                        description: The changed file that selected the test, when one did.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      reason:
+                        description: "Why: for a selected test, the rule that kept it (such as `impacted` or `test_file_changed`) or a fallback's reason (such as `tracked_file_changed`); for a skipped one, `unaffected` (no changed file in its coverage) or `module_skipped` (its module's hash already passed). More values can be added."
+                        type: string
+                        x-struct:
+                        x-validate:
+                      shard_index:
+                        description: The shard a selected test was planned on, for a sharded run.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - decision
+                      - reason
+                      - matched_path
+                      - shard_index
+                    title: TestCaseRunSelectiveTesting
+                    type: object
+                    x-struct:
+                    x-validate:
                   status:
                     description: Run status.
                     enum:
@@ -67142,6 +69267,223 @@ paths:
       summary: Create an automation alert.
       tags:
         - Automation Alerts
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing/tests:
+    get:
+      callbacks: {}
+      description: Every test the selection was asked about, selected and skipped, with the reason for each decision, the changed file that selected it, its shard and its outcome in this run. Empty when the run had no coverage-based selection.
+      operationId: listTestRunSelectiveTestingTests
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Only the selected or only the skipped tests.
+          in: query
+          name: decision
+          required: false
+          schema:
+            enum:
+              - selected
+              - skipped
+            title: SelectiveTestingDecision
+            type: string
+            x-struct:
+            x-validate:
+        - description: Only the tests with this reason, such as `impacted`, `unaffected` or `tracked_file_changed`.
+          in: query
+          name: reason
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Part of the module, suite or test name.
+          in: query
+          name: search
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: SelectiveTestingTestsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of tests to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: SelectiveTestingTestsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  tests:
+                    items:
+                      properties:
+                        decision:
+                          enum:
+                            - selected
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        estimated_duration:
+                          description: The test's duration in the baseline, in milliseconds; 0 when unknown.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        matched_path:
+                          description: The changed file that selected the test, when one did.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        module_name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        outcome:
+                          description: "The test's outcome in this run (`success`, `failure` or `skipped`), null when it didn't run here."
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        reason:
+                          description: "Why: for a selected test, the rule that kept it (such as `impacted` or `test_file_changed`) or a fallback's reason (such as `tracked_file_changed`); for a skipped one, `unaffected` (no changed file in its coverage) or `module_skipped` (its module's hash already passed). More values can be added."
+                          type: string
+                          x-struct:
+                          x-validate:
+                        shard_index:
+                          description: The shard a selected test was planned on, for a sharded run.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        suite_name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_case_id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_case_run_id:
+                          description: The test case run in this run, null when it didn't run here.
+                          format: uuid
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - test_case_id
+                        - module_name
+                        - suite_name
+                        - name
+                        - decision
+                        - reason
+                        - matched_path
+                        - shard_index
+                        - estimated_duration
+                        - outcome
+                        - test_case_run_id
+                      title: SelectiveTestingTest
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - tests
+                  - pagination_metadata
+                title: SelectiveTestingTests
+                type: object
+                x-struct:
+                x-validate:
+          description: The run's selection tests
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the tests a test run's coverage-based selection decided.
+      tags:
+        - Tests
   /api/cache/token:
     post:
       callbacks: {}

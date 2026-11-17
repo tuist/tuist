@@ -189,6 +189,8 @@ defmodule Tuist do
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.Selections,
+      Tests.Selections.Query,
+      Tests.Selections.Schemas,
       Tests.RunSelections,
       Tests.TestRunStressCandidate,
       TestImpactAnalysis.Baselines,

@@ -1141,7 +1141,11 @@ defmodule TuistWeb.Router do
           scope "/coverage" do
             get "/", CoverageController, :show
             get "/settings", CoverageController, :settings
+            get "/branches", CoverageController, :list_branches
+            get "/commits", CoverageController, :list_commits
+            get "/runs", CoverageController, :list_runs
             get "/commits/:git_commit_sha", CoverageController, :show_commit
+            get "/commits/:git_commit_sha/targets", CoverageController, :list_targets
             get "/commits/:git_commit_sha/files", CoverageController, :list_files
             get "/commits/:git_commit_sha/file", CoverageController, :show_file
             post "/uploads", CoverageController, :create_upload
@@ -1156,6 +1160,8 @@ defmodule TuistWeb.Router do
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
+          get "/:test_run_id/selective-testing/tests", SelectiveTestingController, :tests
+          get "/:test_run_id/selective-testing/changed-files", SelectiveTestingController, :changed_files
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/stress-new-tests/plan", StressNewTestsController, :plan

@@ -180,6 +180,12 @@ The `tuist coverage` commands read what the dashboard shows. Without `--commit`,
 tuist coverage show                          # the project's coverage and its targets
 tuist coverage files --commit <sha>          # files, least covered first
 tuist coverage file Sources/Cart.swift --lines  # a file's functions, with per-line counts
+tuist coverage targets                       # targets, least covered first, then those taken from the binary cache without coverage
+tuist coverage commits --branch main         # a branch's commits with their status and change, newest first
+tuist coverage runs --commit <sha>           # the test runs behind a commit, marked full, partial or discarded
+tuist coverage branches                      # the branches with coverage
 ```
+
+A test run's own coverage shows in `tuist test show <test-run-id>`.
 
 All of them accept `--json` for scripting. The same data is available to agents through the <.localized_link href="/guides/features/agentic-coding/mcp">Model Context Protocol server</.localized_link>.

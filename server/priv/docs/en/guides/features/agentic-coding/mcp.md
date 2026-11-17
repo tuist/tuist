@@ -587,21 +587,27 @@ New observations are indexed after deployment; this feature does not backfill ex
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_test_runs` | List test runs for a project. The `query` fields are `git_branch`, `scheme`, and `status`: `field:"value"` matches exactly, `field~"value"` matches a case-insensitive substring, and a leading `-` negates either operator. For example, `-git_branch~"gh-readonly-queue"` excludes merge-queue branches. Whitespace-separated query filters and explicit arguments combine with AND semantics. | `account_handle`, `project_handle` |
-| `get_test_run` | Get detailed metrics for a test run, including temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
+| `list_test_runs` | List test runs for a project, each with its `selective_testing_strategy`. Filter by `selective_testing` (`coverage`, which includes coverage-based selection's fallbacks, or `module_hash`). The `query` fields are `git_branch`, `scheme`, `status`, and `selective_testing`: `field:"value"` matches exactly, `field~"value"` matches a case-insensitive substring (not on `selective_testing`), and a leading `-` negates either operator. For example, `-git_branch~"gh-readonly-queue"` excludes merge-queue branches. Whitespace-separated query filters and explicit arguments combine with AND semantics. | `account_handle`, `project_handle` |
+| `get_test_run` | Get detailed metrics for a test run, including its own code coverage (`coverage`: whether it measured any, its lines and figure, and whether it was partial or ran from a dirty checkout), its selective testing summary (`selective_testing`: strategy, baseline commit, and requested, selected, skipped and estimated test counts, the ones test selection effectiveness is computed from), and temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
 | `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
 | `list_test_case_runs` | List test case runs, optionally filtered by test case or test run. | `account_handle`, `project_handle` |
-| `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
+| `get_test_case_run` | Get failure details and repetitions for a specific test case run and, when its run's coverage-based selection kept the test, why (`selective_testing`: decision, reason, the changed file that matched, and shard). | `test_case_run_id` |
 | `list_test_case_run_attachments` | List attachments for a test case run. Each attachment includes a temporary download URL. | `test_case_run_id` |
 | `list_test_case_events` | List state changes for a test case, such as muting or skipping it. | `test_case_id` |
 | `update_test_case` | Update a test case's state or flaky classification. A change can dispatch an event to configured webhook endpoints, including external services. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
 | `list_xcode_test_targets` | List selective-testing target results for a test run. | `test_run_id` |
+| `list_selective_testing_tests` | List the tests a test run's coverage-based selection decided, selected and skipped, with each decision's reason, the changed file that selected it, its shard, and its outcome in the run. Filter by `decision`, `reason`, or `search`. | `test_run_id` |
+| `list_selective_testing_changed_files` | List the files that changed since a test run's coverage-based selection baseline, with how many tests each selected and whether it's a tracked file whose change makes selection fall back. | `test_run_id` |
 | `get_coverage` | Get a project's code coverage with its targets, at a commit or at a branch's latest complete commit. Without `git_commit_sha` or `branch`, it reads the default branch. | `account_handle`, `project_handle` |
 | `list_coverage_files` | List the files a commit's code coverage measured, with their line coverage, at a commit or at a branch's latest complete commit. Supports `search`, sorting, and pagination. | `account_handle`, `project_handle` |
 | `get_coverage_file` | Get a file's code coverage and its functions at a commit or at a branch's latest complete commit. Set `include_lines` to get each line's execution count. | `account_handle`, `project_handle`, `path` |
+| `list_coverage_branches` | List the branches with code coverage, the default branch first. | `account_handle`, `project_handle` |
+| `list_coverage_commits` | List a branch's commits with their coverage status (`complete`, `incomplete`, `in_progress`, `not_measured`), figure, and change from the complete commit before, newest first. Pages with cursors. | `account_handle`, `project_handle` |
+| `list_coverage_runs` | List the test runs with code coverage behind a commit or a branch, each marked `full`, `partial`, or `discarded` (a dirty checkout). Pages with cursors. | `account_handle`, `project_handle` |
+| `list_coverage_targets` | List a commit's coverage per target, followed by the targets its runs took from the binary cache without coverage counters (`measured: false`). Supports `search`, sorting, and pagination. | `account_handle`, `project_handle` |
 
 The code coverage tools are available to accounts with code coverage enabled.
 

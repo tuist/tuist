@@ -14,6 +14,10 @@ public struct CoverageCommand: AsyncParsableCommand {
                 CoverageShowCommand.self,
                 CoverageFilesCommand.self,
                 CoverageFileCommand.self,
+                CoverageTargetsCommand.self,
+                CoverageCommitsCommand.self,
+                CoverageRunsCommand.self,
+                CoverageBranchesCommand.self,
             ]
         )
     }

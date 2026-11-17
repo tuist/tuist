@@ -395,7 +395,17 @@ defmodule Tuist.Tests do
   end
 
   def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test)
+    # The `selective_testing` filter reads only the project's selection rows.
+    project_id =
+      attrs
+      |> Map.get(:filters, [])
+      |> Enum.find_value(fn
+        %{field: :project_id, op: :==, value: value} -> value
+        _filter -> nil
+      end)
+
+    {results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test, extra_opts: [project_id: project_id])
 
     results = Repo.preload(results, [:ran_by_account, :actor_account])
 
