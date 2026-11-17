@@ -377,7 +377,7 @@ defmodule Tuist.Environment do
     end
   end
 
-  @coverage_retention_defaults %{files: 90, runs: 365}
+  @coverage_retention_defaults %{files: 31, runs: 365}
   @coverage_retention_environment_variables %{
     files: "TUIST_COVERAGE_FILE_RETENTION_DAYS",
     runs: "TUIST_COVERAGE_RUN_RETENTION_DAYS"
@@ -385,8 +385,10 @@ defmodule Tuist.Environment do
 
   @doc """
   How long coverage rows are kept in ClickHouse, in days: `files` for the
-  per-file detail (`coverage_files`) and `runs` for the run totals the trend
-  reads (`coverage_runs`). The tables' time-to-live is set from these when
+  per-file detail (`coverage_files`, 31 by default) and `runs` for the run
+  totals the trend reads (`coverage_runs`, 365 by default). A commit's totals
+  and per-file figures (`coverage_commits`, `coverage_file_deltas`) outlive
+  the detail. The tables' time-to-live is set from these when
   they are created, or when `mix tuist.coverage.retention` (in a release,
   `Tuist.Release.apply_coverage_retention/0`) re-applies them.
   """

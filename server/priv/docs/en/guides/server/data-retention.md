@@ -63,6 +63,9 @@ Bazel indexed profile steps include nullable per-action remote queue, input-fetc
 | Task, declared Once action, Bazel BEP action, compiled file and module observations on persistent detail pages | 90 days, except Xcode modules above |
 | Persistent task/action/module/file identity metadata | 365 days without an observation |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
+| Code coverage line detail (per-line and per-function coverage of each test run, shown on a file's coverage page) | 31 days |
+| Code coverage totals of each test run | 365 days |
+| Code coverage of a commit (its totals, targets and per-file figures) | 3 years; 90 days for commits only a pull request added |
 | Webhook delivery history | No fixed deletion schedule |
 
 Persistent detail URLs do not depend on a particular build remaining available. Their identity metadata can outlive individual observations, so a detail page may have no history in the selected period. New history is indexed from reports received after the feature is deployed; existing run-level history is not retroactively copied.

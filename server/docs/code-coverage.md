@@ -152,7 +152,7 @@ Scopes exist only in the raw per-run rows. Everything kept for longer is derived
 
 | Table | Database | What it holds | Retention |
 | --- | --- | --- | --- |
-| `coverage_files` | ClickHouse | The raw rows of every scope, one set per run and shard report. | `run` rows: `TUIST_COVERAGE_FILE_RETENTION_DAYS` (90); evidence rows: two days, by insertion |
+| `coverage_files` | ClickHouse | The raw rows of every scope, one set per run and shard report. | `run` rows: `TUIST_COVERAGE_FILE_RETENTION_DAYS` (31); evidence rows: two days, by insertion |
 | `coverage_runs` | ClickHouse | Each run's totals. | `TUIST_COVERAGE_RUN_RETENTION_DAYS` (365) |
 | `coverage_commits` | PostgreSQL | Each commit's figure and totals: the union of its runs' `run` rows, with carried coverage applied. | `TUIST_COVERAGE_COMMIT_RETENTION_DAYS` (1095), or `TUIST_COVERAGE_PULL_REQUEST_COMMIT_RETENTION_DAYS` (90) for a pull request's own commits |
 | `coverage_file_deltas` | ClickHouse | A complete commit's per-file `covered_lines` and `executable_lines`, carried coverage applied, stored only where they differ from the previous complete commit on its ref. No lines and no scopes. | `TUIST_COVERAGE_COMMIT_RETENTION_DAYS`, by commit date |
