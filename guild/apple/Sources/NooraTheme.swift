@@ -1,31 +1,80 @@
+import Observation
 import SwiftUI
 import TuistGuildCore
 
-/// Noora's semantic colors, the tokens the server's components use, read from
-/// the Rust core (`tuist_app_theme`) so every client shares one source. Each
-/// color follows the system light/dark appearance.
-enum Noora {
-    static let backgroundPrimary = color("surface-background-primary")
-    static let backgroundSecondary = color("surface-background-secondary")
-    static let backgroundTertiary = color("surface-background-tertiary")
-    static let labelPrimary = color("surface-label-primary")
-    static let labelSecondary = color("surface-label-secondary")
-    static let labelDestructive = color("surface-label-destructive")
-    static let border = color("surface-border-primary")
-    static let primary = color("button-primary-background")
-    static let primaryLabel = color("button-primary-label")
-    static let neutralHover = color("button-neutral-background-hover")
+/// The themes the Rust core offers (`tuist_app_theme`): Noora, the tokens the
+/// server's components use, then Omarchy's palettes mapped to the same tokens.
+/// Profile picks one; the choice stays on this device.
+@Observable
+final class Themes {
+    struct Theme: Identifiable {
+        let id: String
+        let name: String
+        /// The appearance an Omarchy theme imposes; nil follows the system.
+        let appearance: ColorScheme?
+        fileprivate let light: [String: String]
+        fileprivate let dark: [String: String]
 
-    private static let tokens: [String: [String: String]] = {
-        guard let pointer = tuist_app_theme(),
-              let value = try? JSONSerialization.jsonObject(with: Data(String(cString: pointer).utf8))
-        else { return [:] }
-        return value as? [String: [String: String]] ?? [:]
-    }()
+        fileprivate func hex(_ token: String, dark isDark: Bool) -> String? {
+            (isDark ? dark : light)[token]
+        }
+
+        /// A token's color in this theme for an appearance, for previews.
+        func color(_ token: String, dark isDark: Bool) -> Color {
+            let (r, g, b) = Noora.rgb(hex(token, dark: isDark))
+            return Color(red: r, green: g, blue: b)
+        }
+    }
+
+    static let shared = Themes()
+
+    let all: [Theme]
+    var selectedID: String {
+        didSet { UserDefaults.standard.set(selectedID, forKey: Self.key) }
+    }
+
+    /// The chosen theme, or the default when a saved one no longer exists.
+    var selected: Theme {
+        all.first { $0.id == selectedID } ?? all[0]
+    }
+
+    private static let key = "theme"
+
+    private init() {
+        let catalog = tuist_app_theme()
+            .flatMap { try? JSONSerialization.jsonObject(with: Data(String(cString: $0).utf8)) } as? [String: Any]
+        let themes = (catalog?["themes"] as? [[String: Any]] ?? []).map { theme in
+            Theme(
+                id: theme["id"] as? String ?? "",
+                name: theme["name"] as? String ?? "",
+                appearance: (theme["appearance"] as? String).map { $0 == "dark" ? .dark : .light },
+                light: theme["light"] as? [String: String] ?? [:],
+                dark: theme["dark"] as? [String: String] ?? [:]
+            )
+        }
+        all = themes.isEmpty ? [Theme(id: "noora", name: "Tuist", appearance: nil, light: [:], dark: [:])] : themes
+        selectedID = UserDefaults.standard.string(forKey: Self.key) ?? catalog?["default"] as? String ?? "noora"
+    }
+}
+
+/// Noora's semantic colors in the selected theme. Each color follows the
+/// system light/dark appearance, and views redraw when the theme changes.
+enum Noora {
+    static var backgroundPrimary: Color { color("surface-background-primary") }
+    static var backgroundSecondary: Color { color("surface-background-secondary") }
+    static var backgroundTertiary: Color { color("surface-background-tertiary") }
+    static var labelPrimary: Color { color("surface-label-primary") }
+    static var labelSecondary: Color { color("surface-label-secondary") }
+    static var labelDestructive: Color { color("surface-label-destructive") }
+    static var border: Color { color("surface-border-primary") }
+    static var primary: Color { color("button-primary-background") }
+    static var primaryLabel: Color { color("button-primary-label") }
+    static var neutralHover: Color { color("button-neutral-background-hover") }
 
     private static func color(_ name: String) -> Color {
-        let light = rgb(tokens["light"]?[name])
-        let dark = rgb(tokens["dark"]?[name])
+        let theme = Themes.shared.selected
+        let light = rgb(theme.hex(name, dark: false))
+        let dark = rgb(theme.hex(name, dark: true))
         #if os(iOS)
             return Color(uiColor: UIColor { traits in
                 let (r, g, b) = traits.userInterfaceStyle == .dark ? dark : light
@@ -40,8 +89,40 @@ enum Noora {
         #endif
     }
 
-    private static func rgb(_ hex: String?) -> (CGFloat, CGFloat, CGFloat) {
+    fileprivate static func rgb(_ hex: String?) -> (CGFloat, CGFloat, CGFloat) {
         let value = UInt32(hex?.dropFirst() ?? "", radix: 16) ?? 0
         return (CGFloat((value >> 16) & 255) / 255, CGFloat((value >> 8) & 255) / 255, CGFloat(value & 255) / 255)
+    }
+}
+
+/// Profile's theme choice: each theme's name beside a preview of its colors.
+struct ThemePicker: View {
+    @Bindable var themes = Themes.shared
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Picker("Theme", selection: $themes.selectedID) {
+            ForEach(themes.all) { theme in
+                Label {
+                    Text(verbatim: theme.name)
+                } icon: {
+                    swatch(theme)
+                }
+                .tag(theme.id)
+            }
+        }
+        #if os(iOS)
+        .pickerStyle(.navigationLink)
+        #endif
+    }
+
+    private func swatch(_ theme: Themes.Theme) -> some View {
+        let dark = theme.appearance.map { $0 == .dark } ?? (colorScheme == .dark)
+        return ZStack {
+            Circle().fill(theme.color("surface-background-primary", dark: dark))
+            Circle().strokeBorder(theme.color("surface-border-primary", dark: dark), lineWidth: 1)
+            Circle().fill(theme.color("button-primary-background", dark: dark)).padding(6)
+        }
+        .frame(width: 22, height: 22)
     }
 }

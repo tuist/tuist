@@ -21,10 +21,14 @@ and the callback method from obfuscation. JNI callback exceptions become sanitiz
 errors, not exception messages. The JNI dependency is Android-only for normal
 builds, and also a test dependency to compile-check marshalling on Linux.
 
-The Noora theme is `tuist_app_theme()` on Apple (static process-lifetime JSON;
+The theme catalog is `tuist_app_theme()` on Apple (static process-lifetime JSON;
 never free it) and `AppCore.theme()` on Android
 (`Java_dev_tuist_guild_AppCore_theme`). Both return `theme::json()`:
-`{"light": {"<token>": "#rrggbb", ...}, "dark": {...}}`.
+`{"default": "noora", "themes": [{"id", "name", "appearance": null | "light" | "dark",
+"light": {"<token>": "#rrggbb", ...}, "dark": {...}}, ...]}`. Noora comes first and
+follows the system (`appearance` null); Omarchy themes have one appearance, and
+edges should force it on system chrome. Edges store only the chosen `id` and fall
+back to `default` for an unknown one.
 
 The tab catalog is `threads` (index 0, the default) then `profile`; its C/JNI symbols are unchanged.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.

@@ -8,7 +8,8 @@ use tuist_session::{Account, Session};
 
 use crate::assets;
 use crate::keyboard::KeyboardControl;
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeState};
+use tuist_app_core::theme as theme_catalog;
 
 mod preview;
 mod threads;
@@ -235,6 +236,7 @@ impl Workspace {
         let terms = link("terms", "Terms of Service", "https://tuist.dev/terms");
         let privacy = link("privacy", "Privacy Policy", "https://tuist.dev/privacy");
         let help = link("help", "Get help", "mailto:contact@tuist.dev");
+        let themes = self.themes(theme, window, cx);
         div()
             .flex()
             .flex_col()
@@ -279,6 +281,8 @@ impl Workspace {
                 email.unwrap_or_else(|| "Not provided".into()),
             ))
             .child(value("server", "Server", self.server.to_string()))
+            .child(section("Theme"))
+            .child(themes)
             .child(section("Legal"))
             .child(terms)
             .child(privacy)
@@ -313,6 +317,111 @@ impl Workspace {
                         .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspaceEvent::SignOut))),
                 ),
             )
+    }
+
+    /// One previewed choice per theme: the desktop's Omarchy theme while one is
+    /// active, then the core's catalog, Noora first.
+    fn themes(
+        &self,
+        theme: Theme,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let state = cx.try_global::<ThemeState>().cloned().unwrap_or_default();
+        let dark = matches!(
+            window.appearance(),
+            gpui::WindowAppearance::Dark | gpui::WindowAppearance::VibrantDark
+        );
+        let choices = state
+            .omarchy
+            .map(|palette| (crate::theme::OMARCHY, "Desktop", palette))
+            .into_iter()
+            .chain(
+                theme_catalog::themes()
+                    .iter()
+                    .map(|choice| (choice.id, choice.name, choice.palette(dark).into())),
+            );
+        let mut tiles = Vec::new();
+        for (id, name, palette) in choices {
+            let selected = id == state.current();
+            let swatch = Theme::from_palette(palette);
+            let line = |width: f32, color| div().h(px(4.)).w(px(width)).rounded_full().bg(color);
+            tiles.push(
+                div()
+                    .id(SharedString::from(format!("theme-{id}")))
+                    .flex()
+                    .flex_col()
+                    .gap_1p5()
+                    .w(px(136.))
+                    .p_1p5()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(if selected { theme.accent } else { theme.border })
+                    .when(selected, |tile| tile.bg(theme.row_selected))
+                    .when(!selected, |tile| {
+                        tile.hover(|tile| tile.bg(theme.row_hover))
+                    })
+                    .cursor_pointer()
+                    .keyboard_control(name, theme, Some(&self.scroll), window, cx)
+                    .role(gpui::Role::RadioButton)
+                    .aria_toggled(if selected {
+                        gpui::Toggled::True
+                    } else {
+                        gpui::Toggled::False
+                    })
+                    .on_a11y_action(gpui::AccessibleAction::Click, move |_, _, cx| {
+                        crate::theme::select(id, cx)
+                    })
+                    .on_click(move |_, _, cx| crate::theme::select(id, cx))
+                    .child(
+                        div()
+                            .flex()
+                            .h(px(48.))
+                            .rounded_sm()
+                            .overflow_hidden()
+                            .border_1()
+                            .border_color(swatch.border)
+                            .bg(swatch.background)
+                            .child(div().w(px(28.)).h_full().bg(swatch.sidebar))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .flex_1()
+                                    .gap_1()
+                                    .p_1p5()
+                                    .child(line(52., swatch.text))
+                                    .child(line(36., swatch.text_muted))
+                                    .child(
+                                        div()
+                                            .mt_auto()
+                                            .h(px(10.))
+                                            .w(px(30.))
+                                            .rounded_sm()
+                                            .bg(swatch.accent),
+                                    ),
+                            ),
+                    )
+                    .child(div().text_xs().truncate().child(name)),
+            );
+        }
+        div()
+            .id("themes")
+            .role(gpui::Role::RadioGroup)
+            .aria_label("Theme")
+            .flex()
+            .flex_col()
+            .gap_2()
+            .pt_1()
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(theme.text_muted)
+                    .child(gpui::text!(
+                        "Tuist follows the system appearance. Other themes have their own."
+                    )),
+            )
+            .child(div().flex().flex_wrap().gap_2().children(tiles))
     }
 
     fn content(

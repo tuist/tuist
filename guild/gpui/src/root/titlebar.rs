@@ -498,7 +498,7 @@ impl Root {
                 .child(div().w_full().max_w(px(480.)).flex_none().whitespace_normal().flex().flex_col().gap_3()
                     .child(div().text_lg().font_weight(FontWeight::SEMIBOLD).child(gpui::text!("Appearance")))
                     .child(gpui::text!("Follows your operating system"))
-                    .child(div().text_color(theme.text_muted).child(gpui::text!("Noora light and dark colors follow your system appearance automatically.")))
+                    .child(div().text_color(theme.text_muted).child(gpui::text!("Colors follow your system appearance unless you choose a theme in Profile.")))
                     .child(div().mt_5().text_lg().font_weight(FontWeight::SEMIBOLD).child(gpui::text!("Updates")))
                     .child(gpui::text!(concat!("Tuist ", env!("CARGO_PKG_VERSION"))))
                     .child(div().id("settings-check-updates").px_3().py_2().rounded_md().border_1().border_color(theme.border).cursor_pointer().hover(|row| row.bg(theme.row_hover))

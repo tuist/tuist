@@ -168,7 +168,7 @@ class MainActivity : Activity() {
         val login = active() == null || addingProfile
         // Dark status bar icons, except over the login screen's dark artwork.
         @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = if (login && night) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        window.decorView.systemUiVisibility = if (if (login) night else dark) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         if (login) { setContentView(loginScreen(night)); return }
         val focusedSearch = (currentFocus as? EditText)?.takeIf { it.id == searchInputId }
         val selection = focusedSearch?.selectionStart ?: -1
@@ -230,8 +230,18 @@ class MainActivity : Activity() {
     private val night: Boolean
         get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
-    /** A Noora token for the current appearance. */
-    private fun noora(name: String) = AppCore.color(name, night)
+    private val settings get() = getSharedPreferences("guild_settings", MODE_PRIVATE)
+
+    /** The theme chosen in Profile; it stays on this device. */
+    private var themeId: String
+        get() = settings.getString("theme", null) ?: AppCore.defaultTheme
+        set(value) { settings.edit().putString("theme", value).apply() }
+
+    /** The theme's own appearance, or the system's. */
+    private val dark: Boolean get() = AppCore.themeAppearance(themeId) ?: night
+
+    /** A Noora token in the chosen theme for the current appearance. */
+    private fun noora(name: String) = AppCore.color(themeId, name, dark)
 
     private fun text(value: String, size: Float = 16f) {
         content.addView(TextView(this).apply {
@@ -284,6 +294,9 @@ class MainActivity : Activity() {
             }
         } ?: text(getString(R.string.sign_in_required))
         if (!browserPending) button(R.string.switch_profile) { chooseProfile() }
+        button(getString(R.string.theme_value, AppCore.themes.firstOrNull { it.first == themeId }?.second.orEmpty())) {
+            chooseTheme()
+        }
         if (browserPending) button(R.string.cancel_sign_in) {
             browserPending = false
             call("cancel_sign_in")
@@ -313,6 +326,17 @@ class MainActivity : Activity() {
                 else call("switch_profile", JSONObject().put("id", profiles[i].getString("id"))) {
                     reset(); render(); load()
                 }
+            }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    /** Noora follows the system appearance; Omarchy's themes have their own. */
+    private fun chooseTheme() {
+        val themes = AppCore.themes
+        AlertDialog.Builder(this).setTitle(R.string.theme)
+            .setSingleChoiceItems(themes.map { it.second }.toTypedArray(), themes.indexOfFirst { it.first == themeId }) { dialog, i ->
+                themeId = themes[i].first
+                dialog.dismiss()
+                render()
             }.setNegativeButton(R.string.cancel, null).show()
     }
 

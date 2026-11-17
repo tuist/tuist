@@ -94,8 +94,8 @@ the Keychain. Treat these as a frozen contract with
   published 0.2.2 crate, which lacks accessibility support. Upgrade deliberately.
 - Follow the platform conventions those projects implement: keyboard shortcuts
   use `cmd` on macOS and `ctrl` elsewhere, and the window follows the system
-  light/dark appearance. Use Noora semantic tokens, with the active Omarchy
-  palette taking precedence on Linux. See `README.md` for source paths and
+  light/dark appearance. Use Noora semantic tokens; the core maps the theme
+  chosen in Profile (or, by default on Linux, the active Omarchy palette) onto them. See `README.md` for source paths and
   background reloading; never read files during rendering or execute theme scripts.
 
 ## Accessibility and keyboard navigation

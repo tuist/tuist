@@ -21,6 +21,8 @@
     <string name="organizations">"Organizations"</string>
     <string name="switch_profile">"Switch profile"</string>
     <string name="add_profile">"Add profile"</string>
+    <string name="theme">"Theme"</string>
+    <string name="theme_value">"Theme: %1$s"</string>
     <string name="cancel_sign_in">"Cancel sign-in"</string>
     <string name="terms">"Terms of service"</string>
     <string name="privacy">"Privacy policy"</string>

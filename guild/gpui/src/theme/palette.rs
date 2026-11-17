@@ -1,15 +1,14 @@
 //! GPUI-independent theme values. Colors are packed, opaque sRGB (0xRRGGBB).
 #[cfg(any(target_os = "linux", test))]
 use std::path::{Path, PathBuf};
-
-#[cfg(any(target_os = "linux", test))]
-#[path = "omarchy.rs"]
-mod omarchy;
+use tuist_app_core::theme;
 
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
 
+/// The desktop's roles, each one a Noora token, so every theme the core offers
+/// (Noora or an Omarchy palette) restyles the window the same way.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Palette {
     pub dark: bool,
@@ -25,13 +24,11 @@ pub struct Palette {
     pub error: u32,
 }
 
-impl Palette {
-    /// Noora's semantic tokens, the colors every Tuist Guild client shares
-    /// with the server (`tuist_app_core::theme`).
-    pub fn noora(dark: bool) -> Self {
-        let token = |name| tuist_app_core::theme::color(name, dark).expect("Noora token");
+impl From<theme::Palette> for Palette {
+    fn from(palette: theme::Palette) -> Self {
+        let token = |name| palette.color(name).expect("Noora token");
         Self {
-            dark,
+            dark: palette.dark,
             background: token("surface-background-primary"),
             sidebar: token("surface-background-tertiary"),
             border: token("surface-border-primary"),
@@ -43,6 +40,14 @@ impl Palette {
             accent_foreground: token("button-primary-label"),
             error: token("surface-label-destructive"),
         }
+    }
+}
+
+impl Palette {
+    /// Noora's semantic tokens, the colors every Tuist Guild client shares
+    /// with the server.
+    pub fn noora(dark: bool) -> Self {
+        theme::Palette::noora(dark).into()
     }
 
     /// Modern Omarchy first, then pre-v4. These are literal upstream paths,
@@ -59,65 +64,20 @@ impl Palette {
     /// a background executor and compare values to notify views only on changes.
     /// An existing modern theme is authoritative, even if corrupt; never revive
     /// a stale legacy palette when the current source is temporarily invalid.
-    #[cfg(test)]
-    pub fn load_sources(dark: bool, directories: &[PathBuf]) -> Self {
-        Self::load_omarchy_sources(directories).unwrap_or_else(|| Self::noora(dark))
-    }
-
     #[cfg(any(target_os = "linux", test))]
     pub fn load_omarchy_sources(directories: &[PathBuf]) -> Option<Self> {
-        directories
-            .iter()
-            .find(|path| path.exists())
-            .and_then(|path| omarchy::load(path))
+        let directory = directories.iter().find(|path| path.exists())?;
+        // Resolve a legacy current/theme symlink once for both palette and marker.
+        let directory = directory.canonicalize().ok()?;
+        let source = std::fs::read_to_string(directory.join("colors.toml")).ok()?;
+        theme::Palette::from_omarchy(&source, directory.join("light.mode").is_file())
+            .map(Into::into)
     }
 
-    /// Only Linux opts in automatically; None preserves live OS appearance.
+    /// The active Omarchy theme. Only Linux has one; None elsewhere.
     #[cfg(target_os = "linux")]
     pub fn load_system() -> Option<Self> {
-        if let Some(home) = std::env::var_os("HOME").filter(|home| !home.is_empty()) {
-            return Self::load_omarchy_sources(&Self::omarchy_directories(Path::new(&home)));
-        }
-        None
-    }
-
-    /// Parse one complete palette, without accessing the filesystem or running
-    /// any Omarchy scripts. `light_mode` is the legacy light.mode marker.
-    #[cfg(test)]
-    pub fn from_omarchy(source: &str, light_mode: bool) -> Option<Self> {
-        omarchy::parse(source, light_mode)
-    }
-}
-
-#[cfg(any(target_os = "linux", test))]
-fn luminance(color: u32) -> f64 {
-    let linear = |shift: u32| {
-        let c = ((color >> shift) & 255u32) as f64 / 255.0;
-        if c <= 0.04045 {
-            c / 12.92
-        } else {
-            ((c + 0.055) / 1.055).powf(2.4)
-        }
-    };
-    0.2126 * linear(16) + 0.7152 * linear(8) + 0.0722 * linear(0)
-}
-
-#[cfg(any(target_os = "linux", test))]
-pub(super) fn contrast_foreground(color: u32) -> u32 {
-    let luminance = luminance(color);
-    if (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) {
-        0x000000
-    } else {
-        0xffffff
-    }
-}
-
-#[cfg(any(target_os = "linux", test))]
-pub(super) fn readable_secondary(candidate: u32, background: u32, foreground: u32) -> u32 {
-    let (a, b) = (luminance(candidate), luminance(background));
-    if (a.max(b) + 0.05) / (a.min(b) + 0.05) >= 4.5 {
-        candidate
-    } else {
-        foreground
+        let home = std::env::var_os("HOME").filter(|home| !home.is_empty())?;
+        Self::load_omarchy_sources(&Self::omarchy_directories(Path::new(&home)))
     }
 }

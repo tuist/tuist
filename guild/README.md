@@ -249,14 +249,27 @@ OKLCH colors (not the CSS Display P3 overrides) to sRGB and writes
 `crates/core/src/theme/noora.rs`; rerun it after Noora changes, and
 `mise run test` fails when the generated file is stale. The core exposes the
 table to Apple (`tuist_app_theme`) and Android (`AppCore.theme`), and GPUI reads
-it directly. The OS appearance selects light or dark.
+it directly.
 
-On Linux, Omarchy takes precedence when present. Read
+Profile offers a theme choice on every client: **Tuist** (Noora's tokens), which
+follows the OS light/dark appearance, then [Omarchy](https://omarchy.org)'s built-in themes
+(Tokyo Night, Catppuccin, Gruvbox, Rose Pine and the rest), which carry their own
+appearance. The core maps each Omarchy `colors.toml` palette onto Noora's tokens,
+so edges draw only with token names and every theme restyles every client the
+same way. `crates/core/omarchy_themes.py <omarchy checkout>` vendors the palettes
+into `crates/core/src/theme/omarchy_themes.rs`; rerun it to pick up new upstream
+themes. The choice stays on the device: `UserDefaults` on Apple, private
+`SharedPreferences` on Android, and `desktop/settings.json` beside the saved
+accounts on GPUI. The UI never names Noora or Omarchy: users see Tuist, Desktop
+and each theme's own name.
+
+On Linux, GPUI also offers **Desktop**, which follows the desktop's current
+Omarchy theme, and uses it by default until someone picks another theme. Read
 `~/.local/state/omarchy/current/theme/colors.toml`, falling back to the pre-v4
 `~/.config/omarchy/current/theme/colors.toml` path only if the modern directory
 does not exist. Respect `mode`, legacy `theme_type`, `light.mode`, and Omarchy's
-background-brightness detection in that order. Semantic and legacy ANSI palette
-keys map to the desktop's semantic roles. Accent button labels use the higher
+background-brightness detection in that order. Keys resolve through the same
+alias and fallback cascade as `omarchy-theme-color`, Omarchy's shared resolver. Accent button labels use the higher
 contrast black/white foreground rather than assuming white works for every theme.
 Dim text colors below 4.5:1 against the content background use the palette's
 normal foreground instead, keeping identifiers readable without inventing a color.
@@ -264,7 +277,7 @@ normal foreground instead, keeping identifiers readable without inventing a colo
 The background loader rereads the paths every second so directory/symlink
 replacement during theme switches works without restarting Tuist. No theme
 scripts run, and no file reads happen while rendering. Missing or malformed
-palettes fall back entirely to Noora and the current OS appearance, rather than
+palettes fall back entirely to Noora (or the chosen theme), rather than
 mixing a corrupt palette with defaults or reviving a stale legacy theme.
 
 ## Packaging and updates

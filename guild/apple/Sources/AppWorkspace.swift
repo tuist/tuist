@@ -62,6 +62,8 @@ struct AppWorkspace: View {
         .frame(minWidth: 720, minHeight: 520)
         #endif
         .tint(Noora.primary)
+        // Omarchy themes have one appearance; system controls and bars follow it.
+        .preferredColorScheme(Themes.shared.selected.appearance)
         .task { await client.perform("snapshot") }
         .task(id: client.view.active?.id) { await updater.check() }
         .onChange(of: scenePhase) { _, phase in
@@ -130,82 +132,15 @@ private struct ProfileView: View {
 
     var body: some View {
         Form {
-            if let account = client.view.active {
-                Section {
-                    VStack(spacing: 10) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 72))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.tint)
-                        Text(verbatim: "@\(account.handle ?? account.email ?? "")")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .listRowBackground(Color.clear)
-
-                if account.rejected {
-                    // The server refused this profile's session; signing in again replaces it.
-                    Section {
-                        Label("Your session has expired. Sign in again to keep using this profile.",
-                              systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Button("Sign In Again") {
-                            Task { await client.signIn(server: account.server, provider: "tuist") }
-                        }
-                        .disabled(client.signingIn)
-                    }
-                }
-
-                Section {
-                    LabeledContent("Email", value: account.email ?? "")
-                    LabeledContent("Server", value: account.server.hasSuffix("/")
-                        ? String(account.server.dropLast()) : account.server)
-                }
-            }
-
-            Section {
-                Link(destination: URL(string: "https://tuist.dev/terms")!) { ExternalLinkLabel(title: "Terms of Service") }
-                Link(destination: URL(string: "https://tuist.dev/privacy")!) { ExternalLinkLabel(title: "Privacy Policy") }
-            }
-
-            Section {
-                Link(destination: URL(string: "mailto:contact@tuist.dev")!) { ExternalLinkLabel(title: "Get help") }
-            }
-
-            Section {
-                LabeledContent(
-                    "App version",
-                    value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-                )
-                PreviewUpdateRow(updater: updater)
-            }
-
-            #if os(macOS)
-                // System Settings puts account actions in trailing push buttons.
-                Section {
-                    HStack {
-                        Button("Delete Account…", role: .destructive) { confirmingDelete = true }
-                        Spacer()
-                        Button("Sign Out") { Task { await client.perform("sign_out") } }
-                    }
-                }
-            #else
-                Section {
-                    Button("Sign out") { Task { await client.perform("sign_out") } }
-                        .frame(maxWidth: .infinity)
-                }
-
-                Section {
-                    Button("Delete account", role: .destructive) { confirmingDelete = true }
-                        .frame(maxWidth: .infinity)
-                }
-            #endif
+            // Group passes the theme's row surface to every section.
+            Group { sections }.listRowBackground(Noora.backgroundTertiary)
         }
         #if os(macOS)
         .formStyle(.grouped)
         #endif
+        // Grouped rows on the theme's surfaces, like the Threads list.
+        .scrollContentBackground(.hidden)
+        .background(Noora.backgroundPrimary)
         .navigationTitle("Profile")
         .alert("Delete Account", isPresented: $confirmingDelete) {
             Button("Cancel", role: .cancel) {}
@@ -213,6 +148,87 @@ private struct ProfileView: View {
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
         }
+    }
+
+    @ViewBuilder private var sections: some View {
+        if let account = client.view.active {
+            Section {
+                VStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 72))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.tint)
+                    Text(verbatim: "@\(account.handle ?? account.email ?? "")")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .listRowBackground(Color.clear)
+
+            if account.rejected {
+                // The server refused this profile's session; signing in again replaces it.
+                Section {
+                    Label("Your session has expired. Sign in again to keep using this profile.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Button("Sign In Again") {
+                        Task { await client.signIn(server: account.server, provider: "tuist") }
+                    }
+                    .disabled(client.signingIn)
+                }
+            }
+
+            Section {
+                LabeledContent("Email", value: account.email ?? "")
+                LabeledContent("Server", value: account.server.hasSuffix("/")
+                    ? String(account.server.dropLast()) : account.server)
+            }
+        }
+
+        Section {
+            ThemePicker()
+        } footer: {
+            Text("Tuist follows the system appearance. Other themes have their own.")
+        }
+
+        Section {
+            Link(destination: URL(string: "https://tuist.dev/terms")!) { ExternalLinkLabel(title: "Terms of Service") }
+            Link(destination: URL(string: "https://tuist.dev/privacy")!) { ExternalLinkLabel(title: "Privacy Policy") }
+        }
+
+        Section {
+            Link(destination: URL(string: "mailto:contact@tuist.dev")!) { ExternalLinkLabel(title: "Get help") }
+        }
+
+        Section {
+            LabeledContent(
+                "App version",
+                value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+            )
+            PreviewUpdateRow(updater: updater)
+        }
+
+        #if os(macOS)
+            // System Settings puts account actions in trailing push buttons.
+            Section {
+                HStack {
+                    Button("Delete Account…", role: .destructive) { confirmingDelete = true }
+                    Spacer()
+                    Button("Sign Out") { Task { await client.perform("sign_out") } }
+                }
+            }
+        #else
+            Section {
+                Button("Sign out") { Task { await client.perform("sign_out") } }
+                    .frame(maxWidth: .infinity)
+            }
+
+            Section {
+                Button("Delete account", role: .destructive) { confirmingDelete = true }
+                    .frame(maxWidth: .infinity)
+            }
+        #endif
     }
 }
 

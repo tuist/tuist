@@ -13,12 +13,30 @@ object AppCore {
     private external fun request(input: String, host: AppHost): String
     private external fun theme(): String
 
-    // Noora's semantic colors, the tokens the server's components use, from the Rust core.
-    private val tokens: JSONObject by lazy { JSONObject(theme()) }
+    // The Rust core's themes: Noora, the tokens the server's components use, then
+    // Omarchy's palettes mapped to the same tokens.
+    private val catalog: JSONObject by lazy { JSONObject(theme()) }
+    private val themeList: List<JSONObject> by lazy {
+        catalog.optJSONArray("themes")?.let { array -> (0 until array.length()).map { array.getJSONObject(it) } }.orEmpty()
+    }
 
-    /** A Noora token's color for the appearance, as an opaque ARGB int. */
-    fun color(name: String, dark: Boolean): Int {
-        val hex = tokens.optJSONObject(if (dark) "dark" else "light")?.optString(name).orEmpty()
+    val defaultTheme: String get() = catalog.optString("default", "noora")
+
+    /** Every theme as (ID, name), in Profile's order. */
+    val themes: List<Pair<String, String>> by lazy { themeList.map { it.optString("id") to it.optString("name") } }
+
+    private fun entry(id: String): JSONObject? = themeList.firstOrNull { it.optString("id") == id } ?: themeList.firstOrNull()
+
+    /** True or false when the theme has its own appearance, null when it follows the system. */
+    fun themeAppearance(id: String): Boolean? = when (entry(id)?.optString("appearance")) {
+        "dark" -> true
+        "light" -> false
+        else -> null
+    }
+
+    /** A Noora token's color in a theme for the appearance, as an opaque ARGB int. */
+    fun color(themeId: String, name: String, dark: Boolean): Int {
+        val hex = entry(themeId)?.optJSONObject(if (dark) "dark" else "light")?.optString(name).orEmpty()
         return 0xFF000000.toInt() or (hex.removePrefix("#").toIntOrNull(16) ?: 0)
     }
 

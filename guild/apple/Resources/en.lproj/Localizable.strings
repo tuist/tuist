@@ -73,3 +73,5 @@
 "Update" = "Update";
 "Updating…" = "Updating…";
 "The update could not be installed." = "The update could not be installed.";
+"Theme" = "Theme";
+"Tuist follows the system appearance. Other themes have their own." = "Tuist follows the system appearance. Other themes have their own.";
