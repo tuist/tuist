@@ -1,8 +1,6 @@
 # Tuist: build infrastructure for engineering teams and coding agents
 
-Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents.
-
-Faster machines run wasted work faster. Tuist helps you skip it.
+Faster machines run wasted work faster. Tuist helps you skip it, with faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents.
 
 Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature.
 

@@ -226,17 +226,6 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-large);
       text-wrap: pretty;
-
-      /* The pitch sits tight above its contrast line, which carries the
-         section's bottom spacing. */
-      &:has(+ [data-part="contrast"]) {
-        margin-bottom: var(--noora-spacing-5);
-      }
-    }
-
-    & [data-part="contrast"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
 
     & [data-part="actions"] {
