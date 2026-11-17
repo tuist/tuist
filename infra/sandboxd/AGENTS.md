@@ -55,7 +55,7 @@ reflink, so rootfs clones are instant copy-on-write):
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced, rootfs_grow_pending}
 /data/sandboxes/snapshots/<snapshot_id>/
   vmlinux             hard link to the kernel the source sandbox booted
   rootfs.ext4         reflink clone of the source sandbox's rootfs
@@ -123,6 +123,21 @@ memory image until they cold boot.
   `configure` (flushes ARP) and `ping`. Reports `restore_ms`. Resuming a
   sandbox that is already running succeeds without doing anything, so a
   retried resume whose first answer was lost is harmless.
+- Rootfs growth (`internal/sandbox/rootfs.go`): a sandbox keeps the rootfs
+  it was created with, so after every `resume` and every create that cold
+  boots its own disks (disk snapshot, archive), a rootfs smaller than the
+  largest rootfs of its template's tags on the node is extended to it
+  (sparse, refusing a planted symlink). That is the size the server reserves
+  for it (`templates[].rootfs_bytes`), so growth takes no more of the disk
+  budget. Then `PATCH /drives/rootfs` makes Firecracker re-read the size and
+  notify the guest, which also covers a memory restore whose guest cached
+  the old capacity, and an exec waits for `/dev/vda` to show it and runs
+  `resize2fs /dev/vda` online. It is an exec, not an agent op, because an
+  old sandbox runs the `sbx-agent` of its own rootfs. A failure never fails
+  the call: `rootfs_grow_pending` in the metadata keeps it for the next
+  resume. Disks still arriving from an archive (lazy) wait for a later
+  resume. The guest's lazy inode-table init then writes about 2 MiB of zeros
+  per 128 MiB added (128 MiB for 12 to 20 GiB), inside the ceiling.
 - `pause {sandbox_id, sync_disks: true}` first runs `/bin/sync` in the
   guest and records `disks_synced` in the metadata (cleared by the next
   resume), so the disks alone hold everything written. A failed sync still

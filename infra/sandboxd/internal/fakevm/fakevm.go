@@ -40,6 +40,9 @@ type Launcher struct {
 	// SizedMemory makes snapshots write a mem file as long as the guest's
 	// memory (sparse) rather than a short marker, as Uffd loads need.
 	SizedMemory bool
+	// ExecHook becomes the Agent.ExecHook of every instance launched after
+	// it is set.
+	ExecHook func(req map[string]any, out func(stream string, data []byte)) (exitCode int, handled bool)
 }
 
 func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error) {
@@ -61,7 +64,7 @@ func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error
 		spec:      spec,
 		root:      root,
 		done:      make(chan struct{}),
-		Agent:     &Agent{delay: l.AgentBootDelay, started: time.Now()},
+		Agent:     &Agent{delay: l.AgentBootDelay, started: time.Now(), ExecHook: l.ExecHook},
 		jailed:    spec.JailerEnabled,
 		bootedNow: time.Now(),
 		sizedMem:  l.SizedMemory,

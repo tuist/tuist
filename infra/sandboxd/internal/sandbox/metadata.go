@@ -34,10 +34,13 @@ type Metadata struct {
 	FirecrackerVersion string `json:"firecracker_version,omitempty"`
 	// DisksSynced records that the last pause flushed the guest page cache
 	// to the disks, so they can be saved without the memory image.
-	DisksSynced bool      `json:"disks_synced,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Error       string    `json:"error,omitempty"`
+	DisksSynced bool `json:"disks_synced,omitempty"`
+	// RootfsGrowPending records that the rootfs file was grown to its
+	// template's size and the guest has not grown its filesystem yet.
+	RootfsGrowPending bool      `json:"rootfs_grow_pending,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	Error             string    `json:"error,omitempty"`
 }
 
 func (m Metadata) Shape() template.Shape {

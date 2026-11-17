@@ -125,7 +125,9 @@ and `resize2fs`, which leaves the file sparse at its used size on `/data`.
 `RESIZE2FS_FORCE_ITABLE_INIT=1` zeroes the new inode tables as holes and marks
 them initialised; without it the guest kernel's lazy init would write those
 zeros, a few hundred MiB, into every sandbox's rootfs clone. A new size applies
-to template tags installed afterwards; existing sandboxes keep their rootfs.
+to template tags installed afterwards; sandboxd grows the rootfs of existing
+sandboxes to it online on their next resume or cold boot ("Rootfs growth" in
+`infra/sandboxd/AGENTS.md`), which needs `resize2fs` in the rootfs.
 
 ## Deliberately not installed yet
 

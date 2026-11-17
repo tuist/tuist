@@ -341,10 +341,11 @@ func (m *Manager) createFromDiskSnapshot(ctx context.Context, sb *Sandbox, args 
 // the sandbox when this fails.
 func (m *Manager) coldCreate(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
 	bootStart := time.Now()
-	inst, _, err := m.boot(ctx, sb, log)
+	inst, agent, err := m.boot(ctx, sb, log)
 	if err != nil {
 		return protocol.CreateResult{}, err
 	}
+	m.growRootfs(ctx, sb, inst, agent, log)
 	sb.mu.Lock()
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0

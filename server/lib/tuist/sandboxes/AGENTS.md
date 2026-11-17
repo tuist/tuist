@@ -51,7 +51,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `admit/1` reserves the paused sandbox's own node by moving the row to
   `resuming`. When nothing fits, idle running sandboxes (no residency)
   are paused, longest idle first. Disk is reserved at each sandbox's
-  ceiling (the template's `rootfs_bytes`, `workspace_gb` and the memory
+  ceiling (the template's `rootfs_bytes`, the largest of its tags on the
+  node, which is also what sandboxd grows an older sandbox's rootfs to;
+  `workspace_gb` and the memory
   image, all fixed-size files, plus 64 MiB): a new sandbox only goes to a
   node whose disk budget holds its ceiling on top of the ceilings of the
   rows placed there (creating, running, resuming, paused) and of errored

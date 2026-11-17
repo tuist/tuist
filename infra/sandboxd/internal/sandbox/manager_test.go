@@ -365,6 +365,85 @@ func TestLifecycle(t *testing.T) {
 	}
 }
 
+func TestResumeGrowsARootfsSmallerThanItsTemplate(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 10)
+	root := vm.RootDir(h.jailBase, testID)
+	rootfs := filepath.Join(root, firecracker.RootfsPath)
+	resizes := func(inst *fakevm.Instance) []string {
+		var scripts []string
+		for _, req := range inst.Agent.RequestsOf("exec") {
+			if cmd, _ := req["cmd"].([]any); len(cmd) == 3 && strings.Contains(fmt.Sprint(cmd[2]), "resize2fs /dev/vda") {
+				scripts = append(scripts, fmt.Sprint(cmd[2]))
+			}
+		}
+		return scripts
+	}
+	rootfsPatched := func(inst *fakevm.Instance) bool {
+		return strings.Contains(strings.Join(callPaths(inst), ","), "PATCH /drives/rootfs")
+	}
+	pending := func() bool {
+		meta, err := LoadMetadata(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return meta.RootfsGrowPending
+	}
+	cycle := func() *fakevm.Instance {
+		t.Helper()
+		if _, err := h.m.Pause(ctx, testID); err != nil {
+			t.Fatalf("pause: %v", err)
+		}
+		if _, err := h.m.Resume(ctx, testID); err != nil {
+			t.Fatalf("resume: %v", err)
+		}
+		return h.launcher.Last()
+	}
+
+	// A sandbox whose rootfs already matches its template is left alone.
+	if inst := cycle(); rootfsPatched(inst) || len(resizes(inst)) != 0 {
+		t.Fatalf("a full-size rootfs was resized: %v", callPaths(inst))
+	}
+
+	// The node's template grows, as a new tag with a larger rootfs does,
+	// and the guest's first resize fails.
+	const templateBytes = 3 << 20
+	if err := os.Truncate(filepath.Join(h.tmplDir, template.RootfsFile), templateBytes); err != nil {
+		t.Fatal(err)
+	}
+	h.launcher.ExecHook = func(req map[string]any, out func(string, []byte)) (int, bool) {
+		cmd, _ := req["cmd"].([]any)
+		if len(cmd) == 3 && strings.Contains(fmt.Sprint(cmd[2]), "resize2fs") {
+			out("stderr", []byte("resize2fs: Permission denied\n"))
+			return 1, true
+		}
+		return 0, false
+	}
+	inst := cycle()
+	if size := vm.FileSize(rootfs); size != templateBytes {
+		t.Fatalf("rootfs is %d bytes, want the template's %d", size, templateBytes)
+	}
+	if !rootfsPatched(inst) || len(resizes(inst)) != 1 || !strings.Contains(resizes(inst)[0], fmt.Sprintf("-ge %d ]", templateBytes)) {
+		t.Fatalf("the guest was not asked to grow to %d bytes: calls %v, resizes %v", templateBytes, callPaths(inst), resizes(inst))
+	}
+	if !pending() {
+		t.Fatal("a failed guest resize was not kept for the next resume")
+	}
+
+	// The next resume retries it, although the file already has its size.
+	h.launcher.ExecHook = nil
+	if inst := cycle(); !rootfsPatched(inst) || len(resizes(inst)) != 1 {
+		t.Fatalf("the pending resize was not retried: calls %v", callPaths(inst))
+	}
+	if pending() {
+		t.Fatal("a finished resize is still pending")
+	}
+	if inst := cycle(); rootfsPatched(inst) || len(resizes(inst)) != 0 {
+		t.Fatalf("a grown rootfs was resized again: %v", callPaths(inst))
+	}
+}
+
 func TestCreateValidation(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()

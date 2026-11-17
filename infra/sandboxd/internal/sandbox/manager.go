@@ -694,14 +694,16 @@ func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeRes
 	}
 	log := m.log.With("sandbox", id)
 	var inst vm.Instance
+	var agent vsock.Agent
 	if coldBoot {
-		inst, _, err = m.boot(ctx, sb, log)
+		inst, agent, err = m.boot(ctx, sb, log)
 	} else {
-		inst, _, err = m.restore(ctx, sb, log, nil, false)
+		inst, agent, err = m.restore(ctx, sb, log, nil, false)
 	}
 	if err != nil {
 		return res, err
 	}
+	m.growRootfs(ctx, sb, inst, agent, log)
 	if coldBoot {
 		// The old memory image can never be valid again; the next pause
 		// writes a fresh pair.
