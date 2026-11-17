@@ -293,6 +293,8 @@ jobs:
         run: |
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> "$GITHUB_ENV"
+          # build_script_tools in native-dependencies/once.toml finds the NDK clang here.
+          echo "$ANDROID_HOME/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
           rustup target add aarch64-linux-android
       - name: Generate ephemeral debug keystore
         run: |
