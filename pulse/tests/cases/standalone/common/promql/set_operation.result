@@ -331,6 +331,76 @@ tql eval (3000, 3000, '1s') vector(1) * http_requests;
 | app | 1        | production | 1970-01-01T00:50:00 | 600.0                                    |
 +-----+----------+------------+---------------------+------------------------------------------+
 
+-- Tuist: AND/UNLESS match a label one operand lacks as the empty value, as
+-- Prometheus does, instead of rejecting operands with different label sets.
+-- A metric that does not exist has no labels: UNLESS keeps every series.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') http_requests{g="canary"} unless on(job) unknown_metric;
+
++---------------------+-----+----------+--------+-------------+
+| ts                  | job | instance | g      | pulse_value |
++---------------------+-----+----------+--------+-------------+
+| 1970-01-01T00:50:00 | api | 0        | canary | 300.0       |
+| 1970-01-01T00:50:00 | api | 1        | canary | 400.0       |
+| 1970-01-01T00:50:00 | app | 0        | canary | 700.0       |
+| 1970-01-01T00:50:00 | app | 1        | canary | 800.0       |
++---------------------+-----+----------+--------+-------------+
+
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') http_requests{g="canary"} and on(job) unknown_metric;
+
++----+-----+----------+---+-------------+
+| ts | job | instance | g | pulse_value |
++----+-----+----------+---+-------------+
++----+-----+----------+---+-------------+
+
+-- The right operand aggregated `instance` away, so no series matches on it.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') max by (job, instance) (http_requests) unless on(job, instance) max by (job) (http_requests);
+
++-----+----------+---------------------+--------------------------------+
+| job | instance | ts                  | max(http_requests.pulse_value) |
++-----+----------+---------------------+--------------------------------+
+| api | 0        | 1970-01-01T00:50:00 | 300.0                          |
+| api | 1        | 1970-01-01T00:50:00 | 400.0                          |
+| app | 0        | 1970-01-01T00:50:00 | 700.0                          |
+| app | 1        | 1970-01-01T00:50:00 | 800.0                          |
++-----+----------+---------------------+--------------------------------+
+
+-- Here the left operand lacks `instance`.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') max by (job) (http_requests) and on(job, instance) max by (job, instance) (http_requests);
+
++-----+----+--------------------------------+
+| job | ts | max(http_requests.pulse_value) |
++-----+----+--------------------------------+
++-----+----+--------------------------------+
+
+-- Without a modifier every label counts, so `instance` and `g` missing on
+-- the right never match.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') http_requests{g="canary"} unless max by (job) (http_requests);
+
++---------------------+-----+----------+--------+-------------+
+| ts                  | job | instance | g      | pulse_value |
++---------------------+-----+----------+--------+-------------+
+| 1970-01-01T00:50:00 | api | 0        | canary | 300.0       |
+| 1970-01-01T00:50:00 | api | 1        | canary | 400.0       |
+| 1970-01-01T00:50:00 | app | 0        | canary | 700.0       |
+| 1970-01-01T00:50:00 | app | 1        | canary | 800.0       |
++---------------------+-----+----------+--------+-------------+
+
+-- Labels both operands lack still match: `on(job, l)` joins on `job`.
+-- SQLNESS SORT_RESULT 3 1
+tql eval (3000, 3000, '1s') max by (job) (http_requests) and on(job, l) max by (job) (http_requests{g="canary"});
+
++-----+---------------------+--------------------------------+
+| job | ts                  | max(http_requests.pulse_value) |
++-----+---------------------+--------------------------------+
+| api | 1970-01-01T00:50:00 | 400.0                          |
+| app | 1970-01-01T00:50:00 | 800.0                          |
++-----+---------------------+--------------------------------+
+
 drop table http_requests;
 
 Affected Rows: 0

@@ -133,6 +133,18 @@ covered by this list.
   The image `pulse-build-publish.yml` builds installed Ubuntu 22.04's protoc 3.12,
   which cannot compile `substrait`'s proto3 optional fields. It now installs
   protoc 29.3 from GitHub, checksum-pinned, as upstream's dev-builder does.
+- **`and`/`unless` across label sets** ([`src/query/src/promql/planner/set_operator.rs`](src/query/src/promql/planner/set_operator.rs)).
+  Prometheus matches a label a series lacks as the empty value, so `a unless
+  on(node) b` keeps every `a` when `b`'s metric does not exist or its labels
+  were aggregated away. Upstream rejected operands whose label columns
+  differ ("Attempt to combine two tables with different column sets"). Pulse
+  adds each operand's missing labels as NULL columns, which the join already
+  treats as equal, and matches on the union. As `or` does, those labels use
+  the decoded string type on both sides, because a dictionary-typed NULL
+  literal loses its type when the plan is distributed. `set_operation.sql`
+  covers it.
+  This is a compatibility fix with no Tuist-specific behavior; offer it
+  upstream and drop it when upstream has an equivalent.
 
 ## Build, release and deploy
 
