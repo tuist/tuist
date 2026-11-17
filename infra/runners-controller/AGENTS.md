@@ -1556,6 +1556,12 @@ DaemonSet. Code that sizes a Pod
 (`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
 budget when it is set, or a running job looks nearly free.
 `isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.
+Never restart the kubelet on a host running these Pods, idle ones included: the
+restarted kubelet leaks their cores and fails its next start
+(kubernetes/kubernetes#140989). Cordon the host and wait until its runner Pods
+are gone first. The CAPI provider holds kubelet config re-pushes on such hosts
+for the same reason, and the check counts a runner Pod with a Pod-level CPU
+budget, so keep that budget only on exclusive-CPU Pods.
 Why and how to roll it out: `infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`.
 
 ## Linux cache volumes

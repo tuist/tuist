@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -174,6 +175,65 @@ func TestReconcileLinuxKubeletConfigDrift_FollowsTheNodesKubelet(t *testing.T) {
 		if requeue == tc.converged {
 			t.Fatalf("kubelet %s stamped with the %s config: requeue=%v, want converged=%v", tc.kubelet, tc.stampedFor, requeue, tc.converged)
 		}
+	}
+}
+
+// A re-push restarts the kubelet, which leaks the cores of every Pod with
+// exclusive CPUs on the node (kubernetes/kubernetes#140989). A drifted node
+// holding such a Pod, idle or running a job, keeps its config until the Pod is
+// gone; Pods without a Pod-level CPU budget never hold it. A held node returns
+// requeue=false; one that proceeds looks up kube-dns, finds none in the fake
+// client, and defers with requeue=true.
+func TestReconcileLinuxKubeletConfigDrift_HoldsForExclusiveCPUPods(t *testing.T) {
+	const ns = "tuist-fleet"
+	ca := []byte("-----BEGIN CERTIFICATE-----\nMIIBstampCAbytes\n-----END CERTIFICATE-----\n")
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := rbacv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	twoCPUs := corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2"), corev1.ResourceMemory: resource.MustParse("8Gi")}
+	exclusive := func(name, nodeName string, phase corev1.PodPhase) *corev1.Pod {
+		pod := runnerPod(name, nodeName, phase)
+		pod.Spec.Resources = &corev1.ResourceRequirements{Requests: twoCPUs, Limits: twoCPUs}
+		return pod
+	}
+	shared := runnerPod("shared", runnerBox, corev1.PodRunning)
+	shared.Spec.Containers = []corev1.Container{{Name: "runner", Resources: corev1.ResourceRequirements{Requests: twoCPUs, Limits: twoCPUs}}}
+
+	for _, tc := range []struct {
+		name string
+		pod  *corev1.Pod
+		held bool
+	}{
+		{name: "an exclusive-CPU Pod running a job", pod: exclusive("job", runnerBox, corev1.PodRunning), held: true},
+		{name: "an idle exclusive-CPU Pod on standby", pod: exclusive("standby", runnerBox, corev1.PodPending), held: true},
+		{name: "a runner Pod on shared CPUs", pod: shared},
+		{name: "an exclusive-CPU Pod on another node", pod: exclusive("elsewhere", "another-box", corev1.PodRunning)},
+		{name: "a finished exclusive-CPU Pod", pod: exclusive("done", runnerBox, corev1.PodSucceeded)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "tart-kubelet-m-token"},
+				Type:       corev1.SecretTypeServiceAccountToken,
+				Data:       map[string][]byte{"token": []byte("tok"), "ca.crt": ca},
+			}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tokenSecret, tc.pod).Build()
+			cm := &credentials.Manager{Client: c, Namespace: ns, NodeIdentityClusterRole: linuxNodeIdentityClusterRole}
+			node := runnerBoxNode(corev1.ConditionTrue)
+			node.Status.NodeInfo.KubeletVersion = "v1.36.6"
+			node.Annotations = map[string]string{kubeletConfigHashAnnotation: "stale"}
+
+			requeue, err := reconcileLinuxKubeletConfigDrift(context.Background(), c, c, cm, "m", "fleet", "ubuntu", true, node)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if requeue == tc.held {
+				t.Fatalf("requeue=%v, want the re-push held=%v", requeue, tc.held)
+			}
+		})
 	}
 }
 

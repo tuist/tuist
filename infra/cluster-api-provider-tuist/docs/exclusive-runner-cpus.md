@@ -102,8 +102,18 @@ and stops. Staging reproduced it on 2026-11-12: two Pods on `1,13` and `2,14`
 moved to `3,15` and `4,16`, and the checkpoint was left with
 `defaultCpuSet: 0,3-12,15-23` and no entries. Once no exclusive-CPU Pod is left
 on the host, recover by stopping the kubelet, moving
-`/var/lib/kubelet/cpu_manager_state` aside and starting it again. Drain
-exclusive-CPU Pods before a planned kubelet restart.
+`/var/lib/kubelet/cpu_manager_state` aside and starting it again.
+
+Never restart the kubelet on a host that runs exclusive-CPU Pods, idle or not.
+Cordon it first and wait until its runner Pods are gone: the runners-controller
+retires idle ones, and claimed jobs finish. That covers a manual
+`systemctl restart kubelet`, a reboot, and any change to the kubelet config.
+The drift loop (`kubelet_config_drift.go`) re-pushes a changed config and
+restarts the kubelet on every Ready node, so it holds the re-push while a
+runner Pod with a Pod-level CPU budget is on the node and logs `holding kubelet
+config re-push`. Such a node keeps its old config, and its
+`tuist.dev/kubelet-config-hash` annotation, until it is cordoned and empty; the
+re-push then lands within 10 minutes, and you uncordon it.
 
 Unattended upgrades were an unplanned source of kubelet restarts. Ubuntu's
 needrestart restarted the kubelet and containerd on a production runner host after a

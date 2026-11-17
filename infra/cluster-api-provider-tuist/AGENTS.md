@@ -2763,7 +2763,10 @@ is a silent no-op there. The config is rendered for the kubelet's minor
 any change here re-pushes through `kubelet_config_drift.go` to every already-Ready
 node and restarts its kubelet — no machine roll, and running pods survive (the
 re-push never touches containerd, apt, or the `/data` mounts), but it lands on
-all three Linux fleets at once. Prefer a low-traffic window.
+all three Linux fleets at once. Prefer a low-traffic window. A node running
+exclusive-CPU Pods is the exception: the restart would leak their cores, so the
+re-push waits there until the node is cordoned and empty (see "Exclusive CPUs
+on Kata runner hosts").
 
 **Rollback is not symmetric.** Turning `MemoryQoS` back off does not reliably
 clear the `memory.min` / `memory.low` values already written to existing cgroups
@@ -2780,6 +2783,16 @@ checkpoint names another policy, so the re-push keeps a node whose
 `cpu_manager_state` predates the static policy on its old shared-CPU config.
 Moving it over is a drained, human, one-box-at-a-time step. Keep that guard
 whenever the CPU manager config changes.
+
+Never restart the kubelet on a host running exclusive-CPU Pods, idle or not: a
+v1.36 kubelet re-admits them onto new cores, never frees the old ones, and
+fails its next start (kubernetes/kubernetes#140989). Cordon the host and wait
+until its runner Pods are gone before a manual restart, a reboot, or anything
+that restarts the kubelet. The drift loop enforces this for re-pushes
+(`exclusiveCPURunnerPods`): it holds a node's re-push while any runner Pod with
+a Pod-level CPU budget is on it, so a kubelet config change reaches those hosts
+only as each is cordoned and empties. Keep that hold in any new path that
+restarts the kubelet.
 
 From kubelet v1.36 Kata hosts also run the pod-level resource managers
 (`podLevelResourceManagers`): the `PodLevelResourceManagers` gate, the
