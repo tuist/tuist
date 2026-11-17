@@ -1431,12 +1431,9 @@ label_replace(sum by (cluster, region) (
   * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "memory", "", "")
 or
-label_replace(sum by (cluster, region) (
-  floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
-         - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
-            or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
-  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
-), "constraint", "disk", "", "")
+label_replace(
+  floor(max by (cluster, region) (tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}) / 32),
+  "constraint", "disk", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
@@ -1463,13 +1460,26 @@ label_replace(sum by (cluster, region) (
   region can place, per placement constraint: "ceiling" is the
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
   "memory" is the native memory request against allocatable, "disk" is the
-  ephemeral-storage request (the storage claim, 50 GiB per replica today)
-  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
+  server's admission headroom (tuist_kura_capacity_admission_headroom_gibibytes,
+  what Tuist.Kura.Admission decides with) in units of one enterprise instance
+  at its starting claim (16Gi x 2 = 32 GiB), "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
   replica) against the box's advertised budget. Zero means the
   scheduler will decline the next provisioning in this region. Add a node to
   the region; for memory a smaller ceiling profile also works, for disk so
   does shrinking claims (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
   region is full of reservations, not of usage.`
+
+**Disk row on thin nodes (2026-11-17).** The disk row used to compare each
+node's `ephemeral-storage` allocatable with Kura pods' `ephemeral-storage`
+requests, in 2 x 50 GiB units. Thin encrypted volumes reserve
+`tuist.dev/kura-disk` instead, so on thin nodes the row read only the 72 GiB
+OS disk: it fired for ap-southeast, eu-east, us-east and us-west (which had
+517 to 1,360 GiB of admission headroom) and stayed quiet for us-central at
+0 GiB, because its two 115 GiB OS disks read as two instances. The row now
+reads the admission headroom gauge, so it shares its unit with **Kura region
+admission cannot take an enterprise instance**, which fires at the same point
+(below 32 GiB). The live rule's execution error state moved from `KeepLast`
+to `Alerting` with this change, matching this section.
 
 The "add a node" alert. It counts how many more instances of the largest
 profile the region can place, per placement constraint, and fires when that
