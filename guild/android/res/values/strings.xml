@@ -68,7 +68,8 @@
     <string name="conversation_prompt">"What do you want to talk about?"</string>
     <string name="start">"Start"</string>
     <string name="start_failed">"The conversation could not be started. Make sure threads are enabled and a ChatGPT subscription is connected in your Tuist account settings."</string>
-    <string name="threads_admins_only">"Only admins can use threads in %1$s. Ask an admin for access, or switch to another account."</string>
+    <string name="threads_sign_in_required">"Your session is from an earlier version of Tuist Guild. Sign in again to use threads."</string>
+    <string name="sign_in_again">"Sign in again"</string>
     <string name="no_threads">"No conversations yet. Start one to ask a question, explore an idea, or solve a problem with Tuist."</string>
     <string name="thread_queued">"Queued"</string>
     <string name="thread_running">"Running"</string>

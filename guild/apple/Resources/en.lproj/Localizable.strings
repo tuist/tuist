@@ -55,8 +55,8 @@
 "Sign Out" = "Sign Out";
 "Threads aren't available yet" = "Threads aren't available yet";
 "Threads aren't enabled for this account or server." = "Threads aren't enabled for this account or server.";
-"Only admins can use threads here" = "Only admins can use threads here";
-"Ask an admin of %@ for access, or switch to another account." = "Ask an admin of %@ for access, or switch to another account.";
+"Sign in again to use threads" = "Sign in again to use threads";
+"Your session is from an earlier version of Tuist Guild." = "Your session is from an earlier version of Tuist Guild.";
 "Delete Account…" = "Delete Account…";
 "Refresh" = "Refresh";
 "Refresh threads" = "Refresh threads";

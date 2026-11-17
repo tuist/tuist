@@ -1,6 +1,6 @@
 //! The Tuist server's OAuth endpoints, as the Swift app and CLI use them:
-//! dynamic client registration, the PKCE authorization-code flow over a
-//! loopback redirect (RFC 8252), and both refresh grants. Calls are blocking;
+//! the PKCE authorization-code flow over a loopback redirect (RFC 8252) and
+//! both refresh grants. Calls are blocking;
 //! run them away from the UI thread.
 
 mod callback;
@@ -14,6 +14,12 @@ pub use client::OAuthClient;
 pub use client::{Provider, RefreshGrant, Tokens, authorization_url, endpoint};
 pub use error::Error;
 pub use pkce::Pkce;
+
+/// Tuist Guild's OAuth client, which every Tuist server defines with the same ID
+/// (`Tuist.OAuth.Clients.guild_client_id/0`). Guild is a first-party app: the
+/// server trusts its sessions as the signed-in user rather than through scopes,
+/// so new features need no new sign-in.
+pub const GUILD_CLIENT_ID: &str = "6653b77b-b787-4eb2-b955-8380ea5f1478";
 
 /// `ServerEnvironmentService.oauthClientId()`: refreshes for credentials that
 /// do not record their issuing client use the built-in Tuist app client.

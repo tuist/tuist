@@ -70,8 +70,10 @@ impl Threads {
                 let unavailable = |reason| json!({"available":false,"reason":reason,"threads":[],"next_cursor":null});
                 let mut data = match request(transport, "GET", url, None) {
                     Err(NOT_FOUND) => return Ok(unavailable("disabled")),
-                    // Organization threads need admin rights there.
-                    Err("Access denied") => return Ok(unavailable("forbidden")),
+                    // The server answers missing rights and flags with 404, so a
+                    // refusal means this session predates Guild's first-party
+                    // client. Signing in again uses it.
+                    Err("Access denied") => return Ok(unavailable("sign_in_required")),
                     result => result?,
                 };
                 data["available"] = json!(true);

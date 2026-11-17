@@ -3,7 +3,7 @@ use url::Url;
 
 /// The Tuist server's OAuth endpoints a session needs.
 pub trait AuthorizationServer: Send + Sync {
-    fn register(&self, server: &Url, redirect_uri: &str) -> Result<String, Error>;
+    fn ensure_guild_client(&self, server: &Url) -> Result<(), Error>;
     fn exchange_code(
         &self,
         server: &Url,
@@ -16,8 +16,8 @@ pub trait AuthorizationServer: Send + Sync {
 }
 
 impl AuthorizationServer for OAuthClient {
-    fn register(&self, server: &Url, redirect_uri: &str) -> Result<String, Error> {
-        OAuthClient::register(self, server, redirect_uri)
+    fn ensure_guild_client(&self, server: &Url) -> Result<(), Error> {
+        OAuthClient::ensure_guild_client(self, server)
     }
 
     fn exchange_code(

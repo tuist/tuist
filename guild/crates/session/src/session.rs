@@ -5,8 +5,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tuist_credentials::{Credentials, CredentialsStore, Directories, RefreshLock};
 use tuist_jwt::Claims;
 use tuist_oauth::{
-    LoopbackCallback, OAuthClient, Pkce, Provider, RefreshGrant, Tokens, authorization_url,
-    default_client_id,
+    GUILD_CLIENT_ID, LoopbackCallback, OAuthClient, Pkce, Provider, RefreshGrant, Tokens,
+    authorization_url, default_client_id,
 };
 use url::Url;
 
@@ -123,13 +123,14 @@ impl<S: AuthorizationServer> Session<S> {
         self.refresh_locked()
     }
 
-    /// Prepares a browser sign-in: listens on a loopback port and registers a
-    /// public client for it. Open [`PendingSignIn::url`], then call
+    /// Prepares a browser sign-in as Tuist Guild's client, listening on a
+    /// loopback port. Open [`PendingSignIn::url`], then call
     /// [`Session::complete_sign_in`].
     pub fn begin_sign_in(&self, provider: Provider) -> Result<PendingSignIn, Error> {
+        self.authorization.ensure_guild_client(&self.server)?;
         let callback = LoopbackCallback::bind()?;
         let redirect_uri = callback.redirect_uri();
-        let client_id = self.authorization.register(&self.server, &redirect_uri)?;
+        let client_id = GUILD_CLIENT_ID.to_string();
         let pkce = Pkce::generate();
         let url = authorization_url(
             &self.server,
@@ -424,7 +425,7 @@ mod tests {
     }
 
     impl AuthorizationServer for FakeServer {
-        fn register(&self, _: &Url, _: &str) -> Result<String, tuist_oauth::Error> {
+        fn ensure_guild_client(&self, _: &Url) -> Result<(), tuist_oauth::Error> {
             unreachable!()
         }
 

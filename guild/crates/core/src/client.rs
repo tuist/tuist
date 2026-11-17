@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::collections::HashSet;
 // `std::time` natively; `Date.now()` in the browser, where std's clock panics.
 use tuist_jwt::Claims;
-use tuist_oauth::{Pkce, Provider, authorization_url, endpoint};
+use tuist_oauth::{GUILD_CLIENT_ID, Pkce, Provider, authorization_url, endpoint};
 use url::Url;
 use web_time::{SystemTime, UNIX_EPOCH};
 
@@ -587,35 +587,23 @@ impl MobileClient {
             "apple" => Provider::Apple,
             _ => return Err("Unknown provider"),
         };
-        let metadata = http(
+        // Guild is a first-party app with the same client on every server that
+        // has it. Servers from before it would fail in the browser, so ask first.
+        let discovery = http(
             host,
             "GET",
-            endpoint(&server, ".well-known/oauth-authorization-server"),
+            endpoint(&server, ".well-known/tuist.json"),
             json!({}),
             None,
         )?;
-        let metadata = successful(metadata)?;
-        let registration_text = text(&metadata, "registration_endpoint")?;
-        server_url(registration_text)?;
-        let registration =
-            Url::parse(registration_text).map_err(|_| "Invalid registration endpoint")?;
-        if registration.origin() != server.origin() {
-            return Err("Unsafe registration endpoint");
+        match successful(discovery) {
+            Ok(data) if data["guild_oauth_client_id"] == GUILD_CLIENT_ID => {}
+            Ok(_) | Err(NOT_FOUND) => return Err(UNSUPPORTED_SERVER),
+            Err(error) => return Err(error),
         }
-        let body = json!({"client_name":"Tuist mobile preview", "redirect_uris":[CALLBACK],
-            "grant_types":["authorization_code","refresh_token"], "response_types":["code"],
-            "token_endpoint_auth_method":"none"})
-        .to_string();
-        let registered = successful(http(
-            host,
-            "POST",
-            registration,
-            json!({"Content-Type":"application/json"}),
-            Some(body),
-        )?)?;
-        let client_id = text(&registered, "client_id")?.to_string();
+        let client_id = GUILD_CLIENT_ID.to_string();
         let pkce = Pkce::generate();
-        let mut url = authorization_url(
+        let url = authorization_url(
             &server,
             provider,
             &client_id,
@@ -623,15 +611,6 @@ impl MobileClient {
             &pkce.challenge,
             &pkce.state,
         );
-        // Threads need their own scope, which also keeps the default grant.
-        // Servers that predate it would reject the whole sign-in, so ask only
-        // where the metadata advertises it.
-        if metadata["scopes_supported"]
-            .as_array()
-            .is_some_and(|scopes| scopes.iter().any(|s| s == "threads"))
-        {
-            url.query_pairs_mut().append_pair("scope", "threads");
-        }
         self.attempt = Some(Attempt {
             server,
             client_id,
@@ -1066,6 +1045,8 @@ fn http(
 }
 
 pub(crate) const NOT_FOUND: &str = "Resource not found or server unsupported";
+const UNSUPPORTED_SERVER: &str =
+    "This server doesn't support signing in from Tuist Guild; ask your administrator to update it";
 const BUSY: &str = "The thread is busy; try again when it finishes";
 const REFUSED: &str = "The server refused the request";
 pub(crate) fn successful((status, data): (u64, Value)) -> Result<Value> {

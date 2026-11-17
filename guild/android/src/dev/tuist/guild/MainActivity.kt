@@ -194,7 +194,7 @@ class MainActivity : Activity() {
         previewsSelected = false
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
-        threads = emptyList(); threadsForbidden = false; conversation = null; reply = ""
+        threads = emptyList(); threadsSignInRequired = false; conversation = null; reply = ""
     }
 
     /** Loads the current screen's data. */
@@ -599,15 +599,15 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Organization threads need admin rights there; members see why instead of an empty list. */
-    private var threadsForbidden = false
+    /** Sessions from before Guild's first-party client must sign in again; they see why instead of an empty list. */
+    private var threadsSignInRequired = false
 
     private fun loadThreads() {
         if (active() == null) return
         call("threads") { data ->
             threads = (data as? JSONObject)?.optJSONArray("threads").objects()
                 .filter { it.optString("section") != "archived" }
-            threadsForbidden = (data as? JSONObject)?.optString("reason") == "forbidden"
+            threadsSignInRequired = (data as? JSONObject)?.optString("reason") == "sign_in_required"
             render()
         }
     }
@@ -623,9 +623,12 @@ class MainActivity : Activity() {
         conversation?.let { conversationScreen(it); return }
         button(R.string.start_conversation, primary = true) { startConversation() }
         button(R.string.refresh) { loadThreads() }
-        val account = view.optJSONArray("accounts").objects().firstOrNull { it.optBoolean("selected") }
-        if (threadsForbidden) text(getString(R.string.threads_admins_only, account?.optString("name").orEmpty()))
-        else if (threads.isEmpty() && !busy) text(getString(R.string.no_threads))
+        if (threadsSignInRequired) {
+            text(getString(R.string.threads_sign_in_required))
+            active()?.let { profile ->
+                if (!browserPending) button(R.string.sign_in_again, primary = true) { launchSignIn(profile.getString("server"), "tuist") }
+            }
+        } else if (threads.isEmpty() && !busy) text(getString(R.string.no_threads))
         threads.forEach { item ->
             button(listOf(item.string("title").ifBlank { item.string("goal") }, threadState(item.string("state")))
                 .filter { it.isNotBlank() }.joinToString(" · ")) { openThread(item.getString("id")) }

@@ -82,11 +82,8 @@ fn call(c: &mut MobileClient, h: &mut Fake, op: &str, args: Value) -> Value {
     serde_json::from_str(&c.call(&json!({"operation":op,"args":args}).to_string(), h)).unwrap()
 }
 fn begin(c: &mut MobileClient, h: &mut Fake, server: &str) -> String {
-    let registration = endpoint(&server_url(server).unwrap(), "oauth2/register").to_string();
-    h.responses.extend([
-        (200, json!({"registration_endpoint":registration})),
-        (201, json!({"client_id":"issued-client"})),
-    ]);
+    h.responses
+        .push_back((200, json!({"guild_oauth_client_id":GUILD_CLIENT_ID})));
     let result = call(c, h, "begin_sign_in", json!({"server":server}));
     assert!(result.get("error").is_none(), "{result}");
     let url = Url::parse(result["data"]["url"].as_str().unwrap()).unwrap();
@@ -104,40 +101,21 @@ fn begin(c: &mut MobileClient, h: &mut Fake, server: &str) -> String {
             .1,
         "S256"
     );
-    assert_eq!(h.actions.last().unwrap()["url"], registration);
+    // Guild signs in as its first-party client, without registering one.
+    assert_eq!(
+        url.query_pairs().find(|(k, _)| k == "client_id").unwrap().1,
+        GUILD_CLIENT_ID
+    );
+    assert!(url.query_pairs().all(|(k, _)| k != "scope"));
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        endpoint(&server_url(server).unwrap(), ".well-known/tuist.json").as_str()
+    );
     url.query_pairs()
         .find(|(k, _)| k == "state")
         .unwrap()
         .1
         .to_string()
-}
-#[test]
-fn sign_in_requests_the_threads_scope_only_where_the_server_advertises_it() {
-    let scope = |advertised: Value| {
-        let (mut c, mut h) = (MobileClient::new(), Fake::default());
-        let registration = "https://one.test/oauth2/register";
-        h.responses.extend([
-            (
-                200,
-                json!({"registration_endpoint":registration,"scopes_supported":advertised}),
-            ),
-            (201, json!({"client_id":"issued-client"})),
-        ]);
-        let result = call(
-            &mut c,
-            &mut h,
-            "begin_sign_in",
-            json!({"server":"https://one.test"}),
-        );
-        let url = Url::parse(result["data"]["url"].as_str().unwrap()).unwrap();
-        url.query_pairs()
-            .find(|(k, _)| k == "scope")
-            .map(|(_, v)| v.to_string())
-    };
-    assert_eq!(scope(json!(["mcp", "threads"])), Some("threads".into()));
-    // Older servers would reject an unknown scope and with it the sign-in.
-    assert_eq!(scope(json!(["mcp"])), None);
-    assert_eq!(scope(Value::Null), None);
 }
 fn login(c: &mut MobileClient, h: &mut Fake, server: &str, user: u64, exp: i64) -> String {
     let state = begin(c, h, server);
@@ -336,7 +314,7 @@ fn rotated_pair_survives_failed_write_and_retries_before_any_network() {
         token_requests.last().unwrap()["body"]
             .as_str()
             .unwrap()
-            .contains("client_id=issued-client")
+            .contains(&format!("client_id={GUILD_CLIENT_ID}"))
     );
 }
 #[test]
@@ -476,10 +454,10 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
     assert!(unavailable.get("error").is_none(), "{unavailable}");
     assert_eq!(unavailable["data"]["available"], false);
     assert_eq!(unavailable["data"]["reason"], "disabled");
-    // Members who aren't admins of "team" are told why, not shown an error.
+    // A session the server refuses, such as one from before Guild's first-party client, is asked to sign in again.
     let forbidden = call(&mut c, &mut h, "threads", json!({}));
     assert!(forbidden.get("error").is_none(), "{forbidden}");
-    assert_eq!(forbidden["data"]["reason"], "forbidden");
+    assert_eq!(forbidden["data"]["reason"], "sign_in_required");
     h.responses.extend([(503, json!({})), (403, json!({}))]);
     assert!(call(&mut c, &mut h, "organizations", json!({}))["error"].is_string());
     let p = c.vault.profiles.iter().find(|p| p.id == one).unwrap();
@@ -666,7 +644,7 @@ fn filters_reject_ignored_semantics_and_tracks_keep_full_counts() {
     );
 }
 #[test]
-fn unsafe_servers_and_cross_origin_registration_fail_without_exchange() {
+fn unsafe_servers_fail_without_a_request() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     assert!(
         call(
@@ -677,21 +655,28 @@ fn unsafe_servers_and_cross_origin_registration_fail_without_exchange() {
         )["error"]
             .is_string()
     );
-    h.responses.push_back((
-        200,
-        json!({"registration_endpoint":"https://evil.test/register"}),
-    ));
-    assert!(
-        call(
+    assert!(h.actions.iter().all(|a| a["type"] != "http"));
+    assert!(c.attempt.is_none());
+}
+#[test]
+fn servers_without_guilds_client_refuse_sign_in_before_the_browser() {
+    // A 404 (no discovery), discovery without the client, or another client ID.
+    for response in [
+        (404, Value::Null),
+        (200, json!({"network_trusted_cache_access":false})),
+        (200, json!({"guild_oauth_client_id":"another-client"})),
+    ] {
+        let (mut c, mut h) = (MobileClient::new(), Fake::default());
+        h.responses.push_back(response);
+        let result = call(
             &mut c,
             &mut h,
             "begin_sign_in",
-            json!({"server":"https://one.test"})
-        )["error"]
-            .is_string()
-    );
-    assert!(h.responses.is_empty());
-    assert!(c.attempt.is_none());
+            json!({"server":"https://old.test"}),
+        );
+        assert_eq!(result["error"], UNSUPPORTED_SERVER, "{result}");
+        assert!(c.attempt.is_none());
+    }
 }
 #[test]
 fn detail_and_delete_paths_are_project_scoped() {
@@ -1546,7 +1531,7 @@ fn an_inbox_the_server_refuses_keeps_what_was_stored() {
     h.responses.push_back((403, Value::Null));
     let refused = call(&mut c, &mut h, "threads", json!({}));
     assert_eq!(refused["data"]["available"], false, "{refused}");
-    assert_eq!(refused["data"]["reason"], "forbidden");
+    assert_eq!(refused["data"]["reason"], "sign_in_required");
     let cached = call(&mut c, &mut h, "cached_threads", json!({}));
     assert_eq!(cached["data"]["threads"][0]["title"], "Release plan");
 }

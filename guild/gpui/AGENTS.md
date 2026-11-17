@@ -62,9 +62,10 @@ the Keychain. Treat these as a frozen contract with
   credentials path>.lock`, rereads the store under the lock, keeps a peer's
   newer pair over a replayed response, and marks credentials `rejected` only
   when nobody rotated them meanwhile. Transient failures keep credentials.
-- Browser sign-in registers a public PKCE client for a `127.0.0.1` loopback
-  redirect (RFC 8252) through the server's same-origin registration endpoint,
-  and stores the issuing client ID so every client refreshes with it. Account
+- Browser sign-in uses Tuist Guild's static public PKCE client
+  (`tuist_oauth::GUILD_CLIENT_ID`) with a `127.0.0.1` loopback redirect
+  (RFC 8252), after checking that `/.well-known/tuist.json` advertises it; the server asks the person to approve it on a consent page. The
+  issuing client ID is stored so every client refreshes with it. Account
   refresh tokens use `/oauth2/token`; legacy CLI tokens use
   `/api/auth/refresh_token`.
 - `Accounts` owns additional login snapshots and the selected full server URL,

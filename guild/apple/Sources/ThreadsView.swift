@@ -19,7 +19,7 @@ private struct Freshness: Decodable {
 private struct ThreadPage: Decodable {
     let freshness: Freshness?
     let available: Bool
-    /// Why threads are unavailable: `disabled` or `forbidden` (not an admin of the organization).
+    /// Why threads are unavailable: `disabled`, or `sign_in_required` (the session predates Guild's first-party client).
     let reason: String?
     let threads: [AppThread]
     let next_cursor: String?
@@ -32,7 +32,7 @@ struct ThreadsView: View {
     @State private var nextCursor: String?
     @State private var loaded = false
     @State private var available = true
-    @State private var forbidden = false
+    @State private var signInRequired = false
     @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
     @State private var error: String?
@@ -74,12 +74,18 @@ struct ThreadsView: View {
             if error == nil {
                 if !loaded {
                     ProgressView()
-                } else if forbidden {
-                    ContentUnavailableView(
-                        "Only admins can use threads here",
-                        systemImage: "lock",
-                        description: Text("Ask an admin of \(account) for access, or switch to another account.")
-                    )
+                } else if signInRequired {
+                    ContentUnavailableView {
+                        Label("Sign in again to use threads", systemImage: "person.badge.key")
+                    } description: {
+                        Text("Your session is from an earlier version of Tuist Guild.")
+                    } actions: {
+                        if let server = client.view.active?.server {
+                            Button("Sign In Again") { Task { await client.signIn(server: server, provider: "tuist") } }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(client.signingIn)
+                        }
+                    }
                 } else if !available {
                     ContentUnavailableView(
                         "Threads aren't available yet",
@@ -145,6 +151,10 @@ struct ThreadsView: View {
             await reload()
         }
         .onChange(of: client.view.navigation.revision) { _, _ in starting = false }
+        // Signing in again keeps the profile's ID, so reload once the browser closes.
+        .onChange(of: client.signingIn) { _, signingIn in
+            if !signingIn, signInRequired { Task { await reload() } }
+        }
     }
 
     private var archivePicker: some View {
@@ -210,11 +220,6 @@ struct ThreadsView: View {
         await run(cursor: cursor)
     }
 
-    /// The personal account or organization whose threads this lists.
-    private var account: String {
-        client.view.accounts.first(where: \.selected)?.name ?? client.view.active?.handle ?? ""
-    }
-
     private func run(cursor: String?) async {
         let task = Task { await fetch(operation: "threads", cursor: cursor) }
         loading = task
@@ -233,7 +238,7 @@ struct ThreadsView: View {
             threads = page.threads
             nextCursor = page.next_cursor
             available = page.available
-            forbidden = page.reason == "forbidden"
+            signInRequired = page.reason == "sign_in_required"
             error = nil
             // An inbox never loaded on this device isn't empty, only unknown yet.
             if page.freshness?.state != "never_loaded" { loaded = true }

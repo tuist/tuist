@@ -66,6 +66,8 @@ pub struct ThreadsPanel {
     threads: Arc<Mutex<Threads>>,
     list: Vec<Value>,
     available: bool,
+    /// The session predates Guild's first-party client, so the server refuses it.
+    sign_in_required: bool,
     loaded: bool,
     open: Option<Value>,
     error: Option<SharedString>,
@@ -100,6 +102,7 @@ impl ThreadsPanel {
             threads: Arc::new(Mutex::new(Threads::new())),
             list: Vec::new(),
             available: true,
+            sign_in_required: false,
             loaded: false,
             open: None,
             error: None,
@@ -192,6 +195,7 @@ impl ThreadsPanel {
             "threads" => {
                 self.loaded = true;
                 self.available = data["available"] != false;
+                self.sign_in_required = data["reason"] == "sign_in_required";
                 self.list = data["threads"]
                     .as_array()
                     .map(|threads| {
@@ -359,9 +363,13 @@ impl ThreadsPanel {
                     .child(refresh),
             )
             .when(!self.available, |column| {
-                column.child(gpui::text!(
-                    "Threads aren't enabled for this account or server."
-                ))
+                column.child(if self.sign_in_required {
+                    gpui::text!(
+                        "Your session is from an earlier version of Tuist Guild. Sign out from the account menu and sign in again to use threads."
+                    )
+                } else {
+                    gpui::text!("Threads aren't enabled for this account or server.")
+                })
             })
             .when(self.available && empty, |column| {
                 column.child(
