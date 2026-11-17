@@ -5068,9 +5068,18 @@ max by (cluster, region, pod, kind) (
   multipart session cap (compare kura_multipart_uploads with
   kura_multipart_upload_capacity on current versions; older versions default to
   128). Orphaned sessions survive restarts until the 24-hour TTL and janitor
-  sweep reclaim them. Remote-execution write sheds (reapi_write_decode) are
-  retried by the client and alert separately in Kura - shedding
-  remote-execution writes.`
+  sweep reclaim them. disk_full: a segment rotation found less free space on
+  the data volume than it needs (counted on every write surface; gRPC answers
+  INTERNAL). The ring and RocksDB together outgrew the volume: check
+  kura_data_dir_bytes by component and Kura - disk-pressure reclamation.
+  Remote-execution write sheds (reapi_write_decode) are retried by the client
+  and alert separately in Kura - shedding remote-execution writes.`
+
+`disk_full` joined the counter after 2026-11-17, when a ring cap that left one
+256Gi pair about 2 GiB of headroom beside a 17 GiB RocksDB index rejected
+cache uploads for over two hours. The rejections were gRPC `INTERNAL` errors,
+which no HTTP status rule sees, so nothing fired until the customer reported
+it. Kura images released before this kind was added do not emit it.
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
@@ -5146,6 +5155,44 @@ limit in the summary, which is what the on-call needs to pick the lever:
 sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 ```
 
+
+### Kura disk-pressure reclamation
+
+```promql
+max by (cluster, region, pod) (
+  increase(kura_disk_pressure_reclaimed_bytes_total_total[1h])
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
+)
+```
+
+- Threshold: `> 1073741824` (two segments in an hour), as a separate
+  threshold expression on `A`; the alert value is the bytes reclaimed in the
+  last hour
+- Pending period: none. A one-off burst (a staging spike on a shared-disk rack
+  node reclaims one segment or so) stays under the threshold; a volume whose
+  ring no longer fits crosses it within the hour
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. UID
+  `fg4l7hyqh3q4ge`.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} reclaimed
+  {{ $values.A.Value | humanize1024 }}B under disk pressure in the last hour
+  ({{ $labels.cluster }})`
+- Description: `Ordinary rotation eviction no longer keeps 2 GiB free on the
+  data volume, so the store is evicting segments early to make room. The ring
+  budget plus what lives beside it (RocksDB, staging) no longer fits the
+  volume. Check kura_data_dir_bytes by component: a RocksDB index far above
+  the server's 3% reserve is the usual cause. Left alone it escalates to
+  disk_full write rejections (Kura - shedding cache writes by kind).`
+
+Disk-pressure reclamation runs at 0 fleet-wide in steady state: rotation
+evicts the oldest segment before the volume fills. Any sustained reclamation
+means the ring's budget does not fit beside the rest of the data directory,
+and it precedes the write rejections. Backtested over the week to 2026-11-17,
+the rule fires on the affected pair at 12:00 UTC, an hour before its first
+rejection, and on one other pair (2026-11-11 to 11-12); sporadic
+single-segment bursts on rack nodes stay under it. A rollout gate cannot catch
+this: rings grow toward a new cap over hours, long after a wave's soak ends.
 ### Kura shedding remote-execution reads
 
 Live as [rule `efzmp2v9usveob`](https://tuist.grafana.net/alerting/grafana/efzmp2v9usveob/view) since 2026-09-28.

@@ -574,8 +574,13 @@ pub mod shed_kind {
     // carry at normal memory pressure. It sheds on an idle pool, so it stays
     // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
     pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
+    // A segment rotation refused because the data volume had less free space
+    // than the rotation needs. Counted in the store, so it covers every write
+    // surface (HTTP answers 429, gRPC answers INTERNAL). Each one is an
+    // upload the client does not retry, so it alerts with the HTTP kinds.
+    pub const DISK_FULL: &str = "disk_full";
 
-    pub const ALL: [&str; 9] = [
+    pub const ALL: [&str; 10] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -585,6 +590,7 @@ pub mod shed_kind {
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
         REAPI_REQUEST_BUDGET,
+        DISK_FULL,
     ];
 }
 

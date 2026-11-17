@@ -4837,6 +4837,9 @@ impl Store {
             );
         }
         if available < required {
+            self.io
+                .metrics()
+                .record_capacity_shed(crate::metrics::shed_kind::DISK_FULL);
             return Err(format!(
                 "{DISK_FULL_MARKER}: insufficient free space for segment rotation; reclamation requested: {available} bytes available, {required} required"
             ));
@@ -25080,6 +25083,15 @@ mod tests {
                 .check_segment_headroom(1)
                 .unwrap_err()
                 .contains(DISK_FULL_MARKER)
+        );
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .lines()
+                .any(|line| line == "kura_capacity_sheds_total_total{kind=\"disk_full\"} 1"),
+            "a refused rotation must count as a disk_full shed"
         );
         for expected_count in [7, 6, 5] {
             store.reclaim_segment_headroom(1).await.unwrap();
