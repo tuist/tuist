@@ -6,6 +6,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
   alias Tuist.TestImpactAnalysis.Input
+  alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -1420,12 +1421,93 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:test_failed]
   end
 
+  # Coverage-based test selection skips without skip identifiers: its runs
+  # leave the tests out, and only its impact run knows which.
+  test "carries a test coverage-based test selection skipped", %{project: project, account: account} do
+    base = base_run(project, account)
+    tests = Input.baseline_tests(project.id, [base.id], ["AppTests"])
+
+    {:ok, impact_run} =
+      Storage.create_run(
+        %{
+          project_id: project.id,
+          head_sha: "head",
+          commit_sha: "head",
+          baseline_sha: "base",
+          baseline_run_ids: [base.id],
+          build_system: "xcode",
+          requested_modules: ["AppTests"],
+          outcome: "selected"
+        },
+        for(test <- tests, test.name == "testAdd()", do: Map.put(test, :reason, "impacted"))
+      )
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      partial: true,
+      test_impact_run_id: impact_run.id,
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    for source <- [:versions, :snapshots] do
+      assert %{kind: "reported", covered_lines: 5, skipped_tests_count: 1, carried_tests_count: 1} =
+               Reported.compute(project, "head", source: source)
+    end
+  end
+
   test "evidence without lines for a file that counts is a gap", %{project: project, account: account} do
     base_run(project, account, trim_lines: [])
     head_run(project, account, head_files())
 
     assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:evidence_without_lines]
+  end
+
+  # Carry from snapshots (`Tuist.TestImpactAnalysis.Carry`) decides as the
+  # tests' versions do wherever both read the same first-parent evidence.
+  for {name, scenario} <- [
+        {"a skipped test's lines and its suite's", :carried},
+        {"a test one of whose files changed", :changed},
+        {"a test that failed at the baseline", :failed},
+        {"a target skipped whole by its hash", :target},
+        {"a target a test failed in", :failed_target},
+        {"a target a test was skipped in", :skipped_test_target},
+        {"a baseline scheme measured by two runs", :two_runs}
+      ] do
+    test "snapshots carry #{name} as the versions do", %{project: project, account: account} do
+      sha = snapshot_scenario(unquote(scenario), project, account)
+      assert Reported.compute(project, sha, source: :snapshots) == Reported.compute(project, sha, source: :versions)
+    end
+  end
+
+  defp snapshot_scenario(:carried, project, account), do: base_head(project, account, [], [])
+  defp snapshot_scenario(:changed, project, account), do: base_head(project, account, [], git_blob_id: "blob-changed")
+  defp snapshot_scenario(:failed, project, account), do: base_head(project, account, [trim_status: "failure"], [])
+
+  defp snapshot_scenario(:target, project, account) do
+    target_only_runs(project, account, head: :skipped)
+    "head"
+  end
+
+  defp snapshot_scenario(:failed_target, project, account) do
+    target_only_runs(project, account, trim_status: "failure")
+    "head"
+  end
+
+  defp snapshot_scenario(:skipped_test_target, project, account) do
+    target_only_runs(project, account, trim_status: "skipped", head: :skipped)
+    "head"
+  end
+
+  defp snapshot_scenario(:two_runs, project, account) do
+    scheme_split_runs(project, account, "App")
+    "tip"
+  end
+
+  defp base_head(project, account, base_opts, head_opts) do
+    base_run(project, account, base_opts)
+    head_run(project, account, head_files(head_opts))
+    "head"
   end
 
   test "the pages read what the commit's published version settled, until it is folded again", %{
