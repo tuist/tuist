@@ -4,8 +4,16 @@ image: rustfs/rustfs:1.0.6
 existingSecret: rustfs-root
 storageClass: hcloud-volumes
 volumeSize: 10Gi
+# Four members with two drives each, one member per host. A single member
+# (members: 1) is only for performance tests on one dedicated box.
+members: 4
+drivesPerMember: 2
+# RustFS refuses drives that share a physical disk. Only a single-member
+# performance test may bypass that, never a deployment that holds real data.
+unsafeSharedDisks: false
 nodeSelector:
   node.cluster.x-k8s.io/pool: general
+tolerations: []
 resources:
   requests:
     cpu: 500m
@@ -14,6 +22,7 @@ resources:
     memory: 2Gi
 gateway:
   image: nginxinc/nginx-unprivileged:1.28-alpine
+  replicas: 2
 ingress:
   enabled: false
   className: nginx

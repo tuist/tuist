@@ -41,6 +41,31 @@ Keep the override scoped to this Ingress, not the shared controller ConfigMap.
 See [NGINX's directive](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_buffer_size)
 and [HTTP/2 upload flow control](https://blog.cloudflare.com/delivering-http-2-upload-speed-improvements/).
 
+### Single-member OVH performance variant
+
+`values-staging-ovh.yaml` installs a second release, `rustfs-ovh`, as one
+member with eight drives on the staging Gravelines Kura box. Public TLS ends
+on that box's `kura-eu-west` ingress (`shards-ovh-staging.tuist.dev`), so
+uploads never cross to Hetzner. It measures OVH NVMe and the public path, not
+replication between hosts or failure behaviour. All drives share the box's
+NVMe RAID1 root through local-path, which requires `unsafeSharedDisks`; the
+chart refuses that setting for more than one member. Kura's encrypted CSI
+classes cannot be used: an admission policy lets that driver provision only
+for Kura, and refused claims leave thin volumes behind until `DeleteVolume`
+is called on the node.
+
+```bash
+helm -n rustfs-staging upgrade --install rustfs-ovh infra/helm/shard-storage-rustfs \
+  -f infra/helm/shard-storage-rustfs/values-staging-ovh.yaml
+RUSTFS_RELEASE=rustfs-ovh RUSTFS_HOST=shards-ovh-staging.tuist.dev \
+  RUSTFS_TARGET=rustfs-staging-ovh-v1 bash bootstrap-staging.sh
+```
+
+The server reads `TUIST_SHARD_STORAGE_TARGETS` at startup, so restart it after
+publishing a target. Enabled public targets are chosen in ID order, so
+`rustfs-staging-ovh-v1` takes precedence over `rustfs-staging-v1` for
+enrolled test accounts; disable it in the target map to switch back.
+
 ## Approval boundary and bootstrap
 
 Everything below that creates resources, buckets, users, flags, plans or objects

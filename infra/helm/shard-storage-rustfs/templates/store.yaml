@@ -2,6 +2,10 @@
 {{- if ne .Release.Namespace "rustfs-staging" }}
 {{- fail "This qualification chart requires the isolated rustfs-staging namespace" }}
 {{- end }}
+{{- if and .Values.unsafeSharedDisks (ne (int .Values.members) 1) }}
+{{- fail "unsafeSharedDisks is only allowed for a single-member performance test" }}
+{{- end }}
+{{- $drives := untilStep 0 (int .Values.drivesPerMember) 1 }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -34,8 +38,8 @@ metadata:
   name: {{ .Release.Name }}
 spec:
   serviceName: {{ .Release.Name }}-peers
-  replicas: 4
-  # All four members must start before the distributed pool can initialize.
+  replicas: {{ .Values.members }}
+  # All members must start before the distributed pool can initialize.
   podManagementPolicy: Parallel
   updateStrategy:
     type: OnDelete
@@ -56,6 +60,10 @@ spec:
       terminationGracePeriodSeconds: 120
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -74,7 +82,11 @@ spec:
           image: {{ .Values.image | quote }}
           env:
             - name: RUSTFS_VOLUMES
-              value: "http://{{ .Release.Name }}-{0...3}.{{ .Release.Name }}-peers.{{ .Release.Namespace }}.svc.cluster.local:9000/data{0...1}"
+              {{- if eq (int .Values.members) 1 }}
+              value: "/data{0...{{ sub (int .Values.drivesPerMember) 1 }}}"
+              {{- else }}
+              value: "http://{{ .Release.Name }}-{0...{{ sub (int .Values.members) 1 }}}.{{ .Release.Name }}-peers.{{ .Release.Namespace }}.svc.cluster.local:9000/data{0...{{ sub (int .Values.drivesPerMember) 1 }}}"
+              {{- end }}
             - name: RUSTFS_ADDRESS
               value: "0.0.0.0:9000"
             - name: RUSTFS_REGION
@@ -83,6 +95,10 @@ spec:
               value: "false"
             - name: RUSTFS_STORAGE_CLASS_STANDARD
               value: "EC:4"
+            {{- if .Values.unsafeSharedDisks }}
+            - name: RUSTFS_UNSAFE_BYPASS_DISK_CHECK
+              value: "true"
+            {{- end }}
             - name: RUSTFS_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -110,14 +126,14 @@ spec:
             timeoutSeconds: 3
           # No liveness restart loop during quorum loss or healing.
           volumeMounts:
-            - name: data0
-              mountPath: /data0
-            - name: data1
-              mountPath: /data1
+            {{- range $drives }}
+            - name: data{{ . }}
+              mountPath: /data{{ . }}
+            {{- end }}
   volumeClaimTemplates:
-    {{- range $disk := list "data0" "data1" }}
+    {{- range $drives }}
     - metadata:
-        name: {{ $disk }}
+        name: data{{ . }}
       spec:
         accessModes: [ReadWriteOnce]
         storageClassName: {{ $.Values.storageClass | quote }}
@@ -131,7 +147,7 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}
 spec:
-  minAvailable: 3
+  minAvailable: {{ max 0 (sub (int .Values.members) 1) }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}

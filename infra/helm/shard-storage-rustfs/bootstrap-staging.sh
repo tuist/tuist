@@ -2,9 +2,19 @@
 # Human-local bootstrap only. Never run in an agent/orb: reads operator credentials.
 # Requires op, kubectl, jq, curl and shasum. Downloads a temporary mc if absent.
 # No repository checkout needed.
+# Default: the four-member Hetzner release. For the single-member OVH release:
+#   RUSTFS_RELEASE=rustfs-ovh RUSTFS_HOST=shards-ovh-staging.tuist.dev RUSTFS_TARGET=rustfs-staging-ovh-v1
 set -euo pipefail
 set +x
 umask 077
+release=${RUSTFS_RELEASE:-rustfs}
+host=${RUSTFS_HOST:-shards-staging.tuist.dev}
+target_id=${RUSTFS_TARGET:-rustfs-staging-v1}
+case "$release:$host:$target_id" in
+  rustfs:shards-staging.tuist.dev:rustfs-staging-v1) ;;
+  rustfs-ovh:shards-ovh-staging.tuist.dev:rustfs-staging-ovh-v1) ;;
+  *) echo 'Unknown release/host/target combination; stop for review.' >&2; exit 1;;
+esac
 for command in op kubectl jq curl shasum; do
   command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }
 done
@@ -45,9 +55,9 @@ op document get 'kubeconfig: tuist-staging' --account tuist.1password.com \
   --vault tuist-k8s-staging >"$work/kubeconfig"
 k() { kubectl --kubeconfig "$work/kubeconfig" "$@"; }
 m() { mc "$@" >"$work/mc-output" 2>&1; }
-k -n rustfs-staging wait --for=condition=Ready pod -l app=rustfs --timeout=60s
-k -n rustfs-staging wait --for=condition=Ready certificate/rustfs-public-tls --timeout=60s
-test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://shards-staging.tuist.dev/shards)" = 403
+k -n rustfs-staging wait --for=condition=Ready pod -l app="$release" --timeout=60s
+k -n rustfs-staging wait --for=condition=Ready certificate/"$release-public-tls" --timeout=60s
+test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://$host/shards")" = 403
 
 # Discover the live reference rather than assuming a Secret key or overwriting Garage.
 k -n tuist-staging get deploy tuist-tuist-server -o json >"$work/deployment.json"
@@ -85,7 +95,7 @@ test "$service_user" = rustfs-staging-shards
 
 phase='loopback admin connection'
 # Let kubectl choose a free local port; refuse stale/unrelated port-forwards.
-k -n rustfs-staging port-forward --address 127.0.0.1 pod/rustfs-0 :9000 >"$work/forward.log" 2>&1 &
+k -n rustfs-staging port-forward --address 127.0.0.1 pod/"$release-0" :9000 >"$work/forward.log" 2>&1 &
 forward_pid=$!
 for attempt in $(seq 1 30); do
   kill -0 "$forward_pid"
@@ -97,9 +107,9 @@ test -n "$port"
 MC_HOST_admin=$(jq -nr --rawfile user "$work/root-user" --rawfile password "$work/root-password" \
   --arg port "$port" '"http://" + ($user | rtrimstr("\n") | @uri) + ":" +
   ($password | rtrimstr("\n") | @uri) + "@127.0.0.1:" + $port')
-MC_HOST_service=$(jq -nr --rawfile user "$work/service-user" --rawfile password "$work/service-password" \
+MC_HOST_service=$(jq -nr --rawfile user "$work/service-user" --rawfile password "$work/service-password" --arg host "$host" \
   '"https://" + ($user | rtrimstr("\n") | @uri) + ":" +
-  ($password | rtrimstr("\n") | @uri) + "@shards-staging.tuist.dev"')
+  ($password | rtrimstr("\n") | @uri) + "@" + $host')
 export MC_HOST_admin MC_HOST_service
 
 phase='bucket, lifecycle and restricted user'
@@ -138,15 +148,15 @@ fi
 grep -Eqi 'Access.?Denied|not allowed|insufficient permissions' "$work/mc-output"
 
 phase='publishing target while preserving existing entries'
-jq -n --rawfile user "$work/service-user" --rawfile password "$work/service-password" \
+jq -n --arg endpoint "https://$host" --rawfile user "$work/service-user" --rawfile password "$work/service-password" \
   '{access:"public", site:"staging", enabled:true, private_network_ready:false,
-    endpoint:"https://shards-staging.tuist.dev", region:"us-east-1", bucket:"shards",
+    endpoint:$endpoint, region:"us-east-1", bucket:"shards",
     access_key_id:($user | rtrimstr("\n")), secret_access_key:($password | rtrimstr("\n"))}' \
   < /dev/null >"$work/target.json"
 # A rerun may reuse this exact target, but must never repoint a persisted target ID.
-jq -e --slurpfile target "$work/target.json" '
-  .["rustfs-staging-v1"] == null or .["rustfs-staging-v1"] == $target[0]' "$work/targets.json" >/dev/null
-jq --slurpfile target "$work/target.json" '.["rustfs-staging-v1"] = $target[0]' \
+jq -e --arg id "$target_id" --slurpfile target "$work/target.json" '
+  .[$id] == null or .[$id] == $target[0]' "$work/targets.json" >/dev/null
+jq --arg id "$target_id" --slurpfile target "$work/target.json" '.[$id] = $target[0]' \
   "$work/targets.json" >"$work/merged.json"
 jq --arg key "$secret_key" --rawfile targets "$work/merged.json" '
   [{op:"test",path:"/metadata/resourceVersion",value:.metadata.resourceVersion},
@@ -154,4 +164,4 @@ jq --arg key "$secret_key" --rawfile targets "$work/merged.json" '
   "$work/secret.json" >"$work/patch.json"
 k -n tuist-staging patch secret "$secret_name" --type=json --patch-file "$work/patch.json" >/dev/null
 echo 'PASS: bucket/lifecycle/user ready; public PUT/GET/DELETE verified; service admin denied.'
-echo 'PASS: rustfs-staging-v1 published; existing targets preserved. No server restart or account enrollment.'
+echo "PASS: $target_id published; existing targets preserved. No server restart or account enrollment."
