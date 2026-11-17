@@ -103,8 +103,49 @@ pub fn theme(id: &str) -> &'static Theme {
         .unwrap_or(&themes()[0])
 }
 
+/// NSH's shadcn tokens, which a conversation card styles with, as the Noora
+/// tokens that carry the same role.
+const CARD_TOKENS: &[(&str, &str)] = &[
+    ("foreground", "surface-label-primary"),
+    ("card-foreground", "surface-label-primary"),
+    ("popover", "surface-background-secondary"),
+    ("popover-foreground", "surface-label-primary"),
+    ("muted", "surface-background-secondary"),
+    ("muted-foreground", "surface-label-secondary"),
+    ("primary", "button-primary-background"),
+    ("primary-foreground", "button-primary-label"),
+    ("secondary", "button-neutral-background-hover"),
+    ("secondary-foreground", "button-neutral-label"),
+    ("accent", "button-neutral-background-hover"),
+    ("accent-foreground", "button-neutral-label"),
+    ("destructive", "button-destructive-background"),
+    ("destructive-foreground", "button-destructive-label"),
+    ("border", "surface-border-primary"),
+    ("input", "surface-border-primary"),
+    ("ring", "button-primary-background"),
+];
+
+/// A card's NSH theme overrides (`setThemeOverrides`) for one appearance. The
+/// tokens sit under `theme`, so they hold whichever mode NSH thinks it is in,
+/// and the edge picks the file for the appearance it shows. The edge draws
+/// the card on glass, so its own surfaces are clear.
+fn card_theme(palette: Palette) -> serde_json::Value {
+    let mut tokens: serde_json::Map<_, _> = CARD_TOKENS
+        .iter()
+        .map(|(nsh, noora)| {
+            let value = palette.color(noora).expect("card tokens are Noora tokens");
+            (nsh.to_string(), format!("#{value:06x}").into())
+        })
+        .collect();
+    for clear in ["background", "card"] {
+        tokens.insert(clear.into(), "transparent".into());
+    }
+    serde_json::json!({"cssVars": {"theme": tokens}})
+}
+
 /// `{"default":"noora","themes":[{"id","name","appearance":null|"light"|"dark",
-/// "light":{"<token>":"#rrggbb",…},"dark":{…}},…]}`, for the native edges.
+/// "light":{"<token>":"#rrggbb",…},"dark":{…},"card":{"light":{…},"dark":{…}}},…]}`,
+/// for the native edges; `card` is `card_theme` for each appearance.
 pub fn json() -> &'static CStr {
     static JSON: OnceLock<CString> = OnceLock::new();
     JSON.get_or_init(|| {
@@ -124,6 +165,7 @@ pub fn json() -> &'static CStr {
                     "appearance": theme.appearance().map(|dark| if dark { "dark" } else { "light" }),
                     "light": tokens(theme.light),
                     "dark": tokens(theme.dark),
+                    "card": {"light": card_theme(theme.light), "dark": card_theme(theme.dark)},
                 })
             })
             .collect();

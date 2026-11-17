@@ -357,22 +357,53 @@ defmodule Tuist.Threads.Host do
     Condukt.tool(
       name: "show_ui",
       description: """
-      Show the person a small native card in the conversation, written as one TSX module for NSH (https://nsh.dev).
+      Show the person a small native card in the conversation, a TSX module composed from Guild's card kit.
       Use it sparingly: only when something visual explains your answer better than text, such as a comparison,
       a chart, a timeline or a few numbers side by side. Most answers need no card; never use one for prose, code or
       plain lists, and show at most one per answer.
 
       The card fills a fixed frame: `compact` is 120, `medium` 240 and `tall` 400 points high, and it is 320 to 600
-      points wide. Give its root view `flex-1` and make the content fit the narrowest width. Import only from `nsh`
-      (View, Text, Scroll, mount, host) and `nsh/base`, style with Tailwind classes on the theme's tokens
-      (bg-card, text-card-foreground, text-muted-foreground, bg-muted, bg-primary, text-primary-foreground,
-      border-border) so it follows light and dark mode, and end with `mount(App)`. The card can't fetch data or open
-      links: put its data in the module. A pressable view may suggest the person's next message, which they send themselves, with
-      `if (host.available()) host.call("reply", text)`.
+      points wide; make the content fit the narrowest width. The app draws the card's surface, pads it and styles
+      every component in its own theme, so a card only composes the kit: import everything from "./guild", which
+      is the only module a card may import, and end with `mount(App)`. The kit has no `class` or `style` props.
 
-      The server builds the card and opens it headless before showing it. When it doesn't compile, throws or doesn't
-      fit its frame, the call fails with what to fix. `summary` says what the card shows in one or two sentences, for
-      clients that can't run it.
+      - `VStack` and `HStack` (props `gap`: "tight" | "normal" | "loose"; `grow` takes the space left; HStack also
+        `align`: "start" | "center" | "end"), `Spacer` and `Divider` lay out.
+      - `Title`, `Body` and `Caption` take text.
+      - `Stat` (`label`, `value`, optional `detail`) shows one key number; put two or three in an HStack.
+      - `Meter` (`label`, `value` from 0 to 1, optional `trailing` text) is a labelled bar, for comparisons.
+      - `Row` (`title`, optional `detail` and `trailing`) is a list row.
+      - `Badge` (`tone`: "neutral" | "accent" | "danger") is a short status label.
+      - `Action` (`reply`, optional `prominent`, its label as children) suggests the person's next message: pressing
+        it puts `reply` in the composer for them to send. Use one prominent action at most, at the bottom.
+      - `signal` holds state that changes while the card is shown.
+
+      For example:
+
+      ```tsx
+      import { Action, HStack, Meter, mount, Spacer, Stat, Title, VStack } from "./guild";
+
+      function App() {
+        return (
+          <VStack grow>
+            <Title>Build times this week</Title>
+            <HStack gap="loose">
+              <Stat label="Median" value="412 s" detail="+12% vs last week" />
+              <Stat label="Cache hits" value="31%" />
+            </HStack>
+            <Meter label="TuistKit" value={0.31} trailing="412 s" />
+            <Spacer />
+            <Action prominent reply="Why does TuistKit miss the cache?">Ask why</Action>
+          </VStack>
+        );
+      }
+
+      mount(App);
+      ```
+
+      The card can't fetch data or open links: put its data in the module. The server builds the card and opens it
+      headless before showing it. When it doesn't compile, throws or doesn't fit its frame, the call fails with what
+      to fix. `summary` says what the card shows in one or two sentences, for clients that can't run it.
       """,
       parameters:
         schema(%{

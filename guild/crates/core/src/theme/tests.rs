@@ -39,6 +39,21 @@ fn edges_receive_every_theme_and_token() {
         .find(|t| t["id"] == "catppuccin-latte")
         .unwrap();
     assert_eq!(latte["appearance"], "light");
+    // Cards take the theme's colors for the appearance shown, in either NSH mode,
+    // over a clear surface the edge's glass shows through.
+    let card = &catalog[0]["card"]["dark"]["cssVars"]["theme"];
+    assert_eq!(card["card-foreground"], "#f6f6f6");
+    assert_eq!(card["muted-foreground"], "#d2d2d2");
+    assert_eq!(card["primary"], "#7339ff");
+    assert_eq!(card["card"], "transparent");
+    assert_eq!(
+        catalog[0]["card"]["light"]["cssVars"]["theme"]["card-foreground"],
+        "#191a1b"
+    );
+    assert_eq!(
+        tokyo["card"]["light"]["cssVars"]["theme"]["primary"],
+        "#7aa2f7"
+    );
     // Spot-check the conversion against Noora's purple-500 and neutral-light-50.
     let noora = theme("noora");
     assert_eq!(

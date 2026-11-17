@@ -11,6 +11,14 @@ extension View {
         }
     }
 
+    @ViewBuilder func glass(in shape: some Shape) -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(.bar, in: shape)
+        }
+    }
+
     @ViewBuilder func interactiveGlass(in shape: some Shape) -> some View {
         if #available(iOS 26, macOS 26, *) {
             glassEffect(.regular.interactive(), in: shape)

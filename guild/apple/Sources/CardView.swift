@@ -13,7 +13,8 @@ struct AppCard: Decodable {
 /// Shows a card at the height the core chose, so the conversation lays out
 /// before the card runs and never resizes after it. The card's only way out
 /// is `host.call("reply", text)`, which fills the composer for the person
-/// to send.
+/// to send. The card sits on the app's glass, in the selected theme's colors
+/// for the appearance shown.
 /// macOS has no NSH runtime yet, and a card that fails shows the message's
 /// text instead.
 struct CardView: View {
@@ -21,14 +22,22 @@ struct CardView: View {
     let fallback: String
     let reply: (String) -> Void
     @State private var failed = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         #if os(iOS)
         if failed {
             fallbackText
         } else {
-            CardSurface(source: card.source, reply: reply) { failed = true }
+            let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+            CardSurface(
+                source: card.source,
+                theme: Themes.shared.selected.cardOverrides(dark: colorScheme == .dark),
+                reply: reply
+            ) { failed = true }
                 .frame(height: card.height)
+                .clipShape(shape)
+                .glass(in: shape)
                 .accessibilityIdentifier("conversation-card")
         }
         #else
@@ -44,6 +53,7 @@ struct CardView: View {
 #if os(iOS)
 private struct CardSurface: UIViewRepresentable {
     let source: String
+    let theme: String?
     let reply: (String) -> Void
     let failure: () -> Void
 
@@ -54,6 +64,10 @@ private struct CardSurface: UIViewRepresentable {
         coordinator.reply = reply
         coordinator.failure = failure
         let view = NshAppView()
+        // Clear, so the glass behind it shows through the card's clear surfaces.
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        applyTheme(to: view, coordinator)
         // A model's card runs untrusted: a small VM, no network, files or
         // clipboard, its own disposable storage, and one host function.
         view.limits = NshLimits(memoryMB: 32, loadBudget: 1, callBudget: 0.25, maxNodes: 2_000)
@@ -83,6 +97,14 @@ private struct CardSurface: UIViewRepresentable {
     func updateUIView(_ view: NshAppView, context: Context) {
         context.coordinator.reply = reply
         context.coordinator.failure = failure
+        applyTheme(to: view, context.coordinator)
+    }
+
+    /// Restyles the card at once when the theme or appearance changes.
+    private func applyTheme(to view: NshAppView, _ coordinator: Coordinator) {
+        guard theme != coordinator.theme else { return }
+        coordinator.theme = theme
+        try? view.setThemeOverrides(theme)
     }
 
     static func dismantleUIView(_ view: NshAppView, coordinator: Coordinator) {
@@ -97,6 +119,7 @@ private struct CardSurface: UIViewRepresentable {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("guild-card-" + UUID().uuidString)
         var reply: ((String) -> Void)?
         var failure: (() -> Void)?
+        var theme: String?
     }
 }
 #endif

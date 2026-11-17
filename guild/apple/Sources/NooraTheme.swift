@@ -14,6 +14,15 @@ final class Themes {
         let appearance: ColorScheme?
         fileprivate let light: [String: String]
         fileprivate let dark: [String: String]
+        /// NSH theme override files for cards, by appearance ("light", "dark").
+        fileprivate let card: [String: Any]
+
+        /// The NSH theme overrides that give a card this theme's colors.
+        func cardOverrides(dark isDark: Bool) -> String? {
+            card[isDark ? "dark" : "light"]
+                .flatMap { try? JSONSerialization.data(withJSONObject: $0) }
+                .flatMap { String(data: $0, encoding: .utf8) }
+        }
 
         fileprivate func hex(_ token: String, dark isDark: Bool) -> String? {
             (isDark ? dark : light)[token]
@@ -49,10 +58,13 @@ final class Themes {
                 name: theme["name"] as? String ?? "",
                 appearance: (theme["appearance"] as? String).map { $0 == "dark" ? .dark : .light },
                 light: theme["light"] as? [String: String] ?? [:],
-                dark: theme["dark"] as? [String: String] ?? [:]
+                dark: theme["dark"] as? [String: String] ?? [:],
+                card: theme["card"] as? [String: Any] ?? [:]
             )
         }
-        all = themes.isEmpty ? [Theme(id: "noora", name: "Tuist", appearance: nil, light: [:], dark: [:])] : themes
+        all = themes.isEmpty
+            ? [Theme(id: "noora", name: "Tuist", appearance: nil, light: [:], dark: [:], card: [:])]
+            : themes
         selectedID = UserDefaults.standard.string(forKey: Self.key) ?? catalog?["default"] as? String ?? "noora"
     }
 }

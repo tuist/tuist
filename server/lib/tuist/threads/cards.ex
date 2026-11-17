@@ -41,7 +41,13 @@ defmodule Tuist.Threads.Cards do
   @slots 2
   @registry Tuist.Threads.Cards.Slots
 
-  @foreign "The card imports a file outside it. A card is one module and may import only `nsh` and its modules, such as `nsh/base`."
+  @foreign "The card imports a file outside it. A card is one module and may import only Guild's card kit, `./guild`."
+
+  # The card kit: the components a card composes, bundled into every card so
+  # cards look like the app. It is the server's own code, not the model's.
+  @kit_path Application.app_dir(:tuist, "priv/threads/card_kit.tsx")
+  @external_resource @kit_path
+  @kit File.read!(@kit_path)
 
   @nsh_json JSON.encode!(%{
               name: "Card",
@@ -100,6 +106,7 @@ defmodule Tuist.Threads.Cards do
 
       try do
         File.write!(Path.join(dir, "App.tsx"), tsx)
+        File.write!(Path.join(dir, "guild.tsx"), @kit)
         File.write!(Path.join(dir, "nsh.json"), @nsh_json)
         File.write!(Path.join(dir, "check.test.tsx"), test_file(height))
 
@@ -173,9 +180,9 @@ defmodule Tuist.Threads.Cards do
          "Import modules statically at the top of the card; `import()`, `import.meta` and `require` aren't available. " <>
            "If it's text, not code, word it differently."}
 
-      bad = Enum.find(specifiers, fn [specifier] -> not Regex.match?(~r{\Ansh(/[a-z0-9-]+)*\z}, specifier) end) ->
+      bad = Enum.find(specifiers, &(&1 != ["./guild"])) ->
         {:error,
-         "The card imports #{inspect(hd(bad))}. A card is one module and may import only `nsh` and its modules, such as `nsh/base`. " <>
+         "The card imports #{inspect(hd(bad))}. A card is one module and may import only Guild's card kit, `./guild`. " <>
            "If it's text, not an import, word it differently."}
 
       true ->
@@ -245,16 +252,18 @@ defmodule Tuist.Threads.Cards do
   # place it points to is the card's own.
   defp quoting_only_card({:error, feedback} = error) do
     places = Regex.scan(~r/([^\s\[\]()"'`]+):\d+:\d+/, feedback, capture: :all_but_first)
-    if Enum.all?(places, &(&1 in [["App.tsx"], ["./App.tsx"]])), do: error, else: {:error, @foreign}
+    own = [["App.tsx"], ["./App.tsx"], ["guild.tsx"], ["./guild.tsx"]]
+    if Enum.all?(places, &(&1 in own)), do: error, else: {:error, @foreign}
   end
 
   defp quoting_only_card(result), do: result
 
-  # The bundler lists every module it read in the source map: only the card,
-  # since nsh's modules stay outside the bundle.
+  # The bundler lists every module it read in the source map: only the card
+  # and the kit, since nsh's modules stay outside the bundle.
   defp only_card_bundled(dir) do
     with {:ok, map} <- File.read(Path.join(dir, "out/bundle.js.map")),
-         {:ok, %{"sources" => ["App.tsx"]}} <- JSON.decode(map) do
+         {:ok, %{"sources" => sources}} <- JSON.decode(map),
+         ["App.tsx", "guild.tsx"] <- Enum.sort(sources) do
       :ok
     else
       _ -> {:error, @foreign}
