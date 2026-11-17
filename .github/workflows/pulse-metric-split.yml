@@ -17,7 +17,7 @@ on:
         type: choice
         options: [status, measure, split, rewrite]
       rewrite_day:
-        description: UTC day for rewrite, such as 2026-11-10
+        description: UTC day or inclusive range for rewrite, such as 2026-11-10 or 2026-11-10..2026-11-16
         required: false
         type: string
 

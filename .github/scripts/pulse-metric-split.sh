@@ -147,14 +147,23 @@ $(partition_list)
 
 # Rewrites one UTC day of history with strict-window compaction, which writes
 # files owned by each region instead of the shared pre-split ones.
+# PULSE_REWRITE_DAY is one UTC day (2026-11-10) or an inclusive range
+# (2026-11-10..2026-11-16), rewritten one day per statement.
 rewrite() {
-  local day=${PULSE_REWRITE_DAY:?PULSE_REWRITE_DAY must be a UTC day such as 2026-11-10}
-  local next started
-  next=$(date -u -d "$day + 1 day" +%F)
-  started=$(date +%s)
-  PULSE_SQL_TIMEOUT_SECONDS=3600 sql "ADMIN compact_table('$table', 'swcs',
-    'window=86400,start_time=${day}T00:00:00Z,end_time=${next}T00:00:00Z')"
-  echo "Rewrote $day in $(($(date +%s) - started)) s."
+  local range=${PULSE_REWRITE_DAY:?PULSE_REWRITE_DAY must be a UTC day such as 2026-11-10}
+  local day=${range%%..*} last=${range##*..} next started
+  [[ "$(date -u -d "$day" +%F)" == "$day" && "$(date -u -d "$last" +%F)" == "$last" && ! "$last" < "$day" ]] || {
+    echo "::error::PULSE_REWRITE_DAY must be YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD, earliest first." >&2
+    exit 2
+  }
+  while [[ ! "$day" > "$last" ]]; do
+    next=$(date -u -d "$day + 1 day" +%F)
+    started=$(date +%s)
+    PULSE_SQL_TIMEOUT_SECONDS=3600 sql "ADMIN compact_table('$table', 'swcs',
+      'window=86400,start_time=${day}T00:00:00Z,end_time=${next}T00:00:00Z')"
+    echo "Rewrote $day in $(($(date +%s) - started)) s."
+    day=$next
+  done
   status
 }
 
