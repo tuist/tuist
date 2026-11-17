@@ -142,6 +142,7 @@ defmodule Tuist do
       Bazel.ProfileUpload,
       Bazel.Action,
       Bazel.Timeline,
+      Bazel.RemoteExecutionProfile,
       OnceEvents,
       OnceEvents.Analytics,
       OnceEvents.CacheAnalytics,

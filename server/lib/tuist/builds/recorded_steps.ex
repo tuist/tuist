@@ -16,8 +16,24 @@ defmodule Tuist.Builds.RecordedSteps do
 
   def list(%Bazel.Invocation{} = build, params) do
     case Bazel.Profile.steps_version(build) do
-      version when is_binary(version) and version != "" -> Bazel.ProfileSteps.list(build, version, params)
-      _ -> list_recorded(build, params)
+      version when is_binary(version) and version != "" ->
+        Bazel.ProfileSteps.list(build, version, params)
+
+      _ ->
+        if Bazel.ProfileSteps.remote_only?(params) do
+          with {:ok, opts} <- StepOptions.options(params, @statuses) do
+            {:ok,
+             %{
+               steps: [],
+               availability: "unavailable",
+               time_origin: "profile_start",
+               coverage: "trace_profile",
+               pagination_metadata: RunnerTools.pagination_metadata(opts.page, opts.page_size, 0)
+             }}
+          end
+        else
+          list_recorded(build, params)
+        end
     end
   end
 
@@ -29,7 +45,7 @@ defmodule Tuist.Builds.RecordedSteps do
 
       steps =
         filtered
-        |> Steps.order(opts.sort_by)
+        |> Steps.order(opts.sort_by, opts[:sort_order])
         |> limit(^opts.page_size)
         |> offset(^((opts.page - 1) * opts.page_size))
         |> ClickHouseRepo.all()
@@ -51,7 +67,7 @@ defmodule Tuist.Builds.RecordedSteps do
   defp list_recorded(build, params) do
     with {:ok, opts} <- StepOptions.options(params, @statuses) do
       timeline = load(build)
-      steps = timeline.events |> Enum.filter(&matches?(&1, opts)) |> Enum.sort_by(&sort_key(&1, opts.sort_by))
+      steps = timeline.events |> Enum.filter(&matches?(&1, opts)) |> sort(opts)
       count = length(steps)
 
       {:ok,
@@ -132,8 +148,12 @@ defmodule Tuist.Builds.RecordedSteps do
          ))
   end
 
-  defp sort_key(step, "start_ms"), do: {step.start_ms, step.event_id}
-  defp sort_key(step, "duration_ms"), do: {-step.duration_ms, step.event_id}
+  defp sort(steps, %{sort_by: "start_ms"} = opts), do: Enum.sort_by(steps, &{sign(opts, :asc) * &1.start_ms, &1.event_id})
+
+  defp sort(steps, %{sort_by: "duration_ms"} = opts),
+    do: Enum.sort_by(steps, &{sign(opts, :desc) * &1.duration_ms, &1.event_id})
+
+  defp sign(opts, default), do: if(Steps.direction(opts[:sort_order], default) == :asc, do: 1, else: -1)
   defp step_log(%Bazel.Invocation{} = build, step), do: Bazel.Action.log(build, step)
   defp step_log(_, _), do: %{log: nil, log_truncated: false}
 

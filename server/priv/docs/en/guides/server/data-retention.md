@@ -54,6 +54,8 @@ These records are separate from the downloadable build archives, result bundles,
 
 ### Other dashboard and activity data {#other-dashboard-and-activity-data}
 
+Bazel indexed profile steps include nullable per-action remote queue, input-fetch, execution and output-upload timings when they can be safely associated with an action. These share the profile's 90-day retention, independently of cached artifacts and billing records.
+
 | Data | Retention |
 | --- | --- |
 | Gradle build records, task records and the failure messages of failed tasks and configuration steps, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
