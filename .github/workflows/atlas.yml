@@ -118,15 +118,29 @@ jobs:
       - name: Exercise remote execution and remote-cache reuse
         run: |
           set -euo pipefail
-          token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          for phase in cold warm; do
-            rm -rf .once
-            export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$phase"
-            export XDG_STATE_HOME="$RUNNER_TEMP/once-evidence/$phase-state"
-            /usr/bin/time -f '%e' -o "$RUNNER_TEMP/once-evidence/$phase-wall-seconds.txt" \
-              once -vv build --remote --compute staging --config "token=$token" atlas/mix_application_test \
-              2>&1 | tee "$RUNNER_TEMP/once-evidence/$phase.log"
-            once --format json cache stats > "$RUNNER_TEMP/once-evidence/$phase-cache-stats.json"
+          for trial in 1 2 3; do
+            token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial"
+            evidence="$RUNNER_TEMP/once-evidence/trial-$trial"
+            mkdir -p "$evidence"
+            for phase in cold warm; do
+              rm -rf .once
+              export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$trial-$phase"
+              export XDG_STATE_HOME="$evidence/$phase-state"
+              /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
+                once -vv build --remote --compute staging --config "token=$token" atlas/mix_application_test \
+                2>&1 | tee "$evidence/$phase.log"
+              once --format json cache stats > "$evidence/$phase-cache-stats.json"
+              find .once/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
+              find .once/out -type l -printf '%p -> %l\n' | sort > "$evidence/$phase-links.txt"
+              test -s "$evidence/$phase-files.txt"
+            done
+            diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
+            diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
+            grep -q 'remote action completed' "$evidence/cold.log"
+            if grep -q 'remote execution response' "$evidence/warm.log"; then
+              echo 'Warm restoration unexpectedly dispatched worker actions' >&2
+              exit 1
+            fi
           done
       - uses: actions/upload-artifact@v6
         if: always()
