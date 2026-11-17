@@ -670,7 +670,10 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 )
                 target.settings = targetSettings.with(
                     base: targetSettings.base
-                        .combine(with: settings[.target(name: target.name, path: project.path)] ?? SettingsDictionary())
+                        .combine(
+                            with: settings[.target(name: target.name, path: project.path)]?
+                                .anchoringSrcRootPaths(at: project.path) ?? SettingsDictionary()
+                        )
                         .removeDuplicates()
                 )
                 return target
@@ -692,6 +695,23 @@ extension SettingsDictionary {
                 return .string(stringValue.resolvingSrcRootPath(from: sourcePath, to: destinationPath))
             case let .array(arrayValue):
                 return .array(arrayValue.map { $0.resolvingSrcRootPath(from: sourcePath, to: destinationPath) })
+            }
+        }
+    }
+
+    /// Re-anchors the `$(SRCROOT)/…` paths the mapper wrote for a project at `projectPath` through
+    /// `relative(toSourceRoot:)`. Runs once on each target's final values: the logical form is what
+    /// `resolvingSrcRootPaths` reads while propagating settings between projects.
+    func anchoringSrcRootPaths(at projectPath: AbsolutePath) -> SettingsDictionary {
+        func anchored(_ value: String) -> String {
+            value.replacingSrcRootPath(from: projectPath) { $0.relative(toSourceRoot: projectPath) }
+        }
+        return mapValues { value in
+            switch value {
+            case let .string(stringValue):
+                return .string(anchored(stringValue))
+            case let .array(arrayValue):
+                return .array(arrayValue.map(anchored))
             }
         }
     }
@@ -817,6 +837,14 @@ extension String {
         from sourcePath: AbsolutePath,
         to destinationPath: AbsolutePath
     ) -> String {
+        replacingSrcRootPath(from: sourcePath) { $0.relative(to: destinationPath) }
+    }
+
+    /// Rewrites the `$(SRCROOT)/…` path in this value, read relative to `sourcePath`, as `rewrite(absolutePath)`.
+    fileprivate func replacingSrcRootPath(
+        from sourcePath: AbsolutePath,
+        with rewrite: (AbsolutePath) -> RelativePath
+    ) -> String {
         let srcRootMarker = "$(SRCROOT)"
         guard contains(srcRootMarker) else { return self }
 
@@ -834,9 +862,42 @@ extension String {
 
         guard let relativePath = try? RelativePath(validating: relativePathString) else { return self }
 
-        let absolutePath = sourcePath.appending(relativePath)
-        let resolvedComponents = absolutePath.relative(to: destinationPath).components
+        let resolvedComponents = rewrite(sourcePath.appending(relativePath)).components
 
         return prefix + (pathComponents[...srcRootIndex] + resolvedComponents).joined(separator: "/") + suffix
+    }
+}
+
+extension AbsolutePath {
+    /// This path relative to a project at `projectPath`, for a `$(SRCROOT)/<relative>` setting.
+    ///
+    /// Xcode resolves symlinks into `SRCROOT`, and clang walks `..` through the filesystem. So when the project sits
+    /// behind a symlink below the directory it shares with this path (`Tuist/.build` linked to a cache volume, with
+    /// cached binaries in `~/.cache/tuist/Binaries`), climbing from the project's logical path lands in the wrong
+    /// directory. Only then is the path made relative to the resolved project directory, so every other value, and
+    /// the binary-cache hashes that include it, keep their logical form.
+    fileprivate func relative(toSourceRoot projectPath: AbsolutePath) -> RelativePath {
+        var ancestor = projectPath
+        while !isDescendantOfOrEqual(to: ancestor) {
+            ancestor = ancestor.parentDirectory
+        }
+        let resolvedAncestor = ancestor.resolvingSymlinks()
+        let resolvedProject = projectPath.resolvingSymlinks()
+        guard resolvedProject != resolvedAncestor.appending(projectPath.relative(to: ancestor)) else {
+            return relative(to: projectPath)
+        }
+        return resolvedAncestor.appending(relative(to: ancestor)).relative(to: resolvedProject)
+    }
+
+    /// Resolves symlinks in the deepest existing ancestor, keeping the components below it.
+    private func resolvingSymlinks() -> AbsolutePath {
+        var existing = self
+        while !FileManager.default.fileExists(atPath: existing.pathString), existing.parentDirectory != existing {
+            existing = existing.parentDirectory
+        }
+        let resolved = (try? AbsolutePath(
+            validating: URL(fileURLWithPath: existing.pathString).resolvingSymlinksInPath().path
+        )) ?? existing
+        return resolved.appending(relative(to: existing))
     }
 }
