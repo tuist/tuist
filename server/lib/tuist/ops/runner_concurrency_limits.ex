@@ -11,6 +11,7 @@ defmodule Tuist.Ops.RunnerConcurrencyLimits do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Billing
   alias Tuist.Ops.RunnerConcurrencyLimitChange
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -121,7 +122,7 @@ defmodule Tuist.Ops.RunnerConcurrencyLimits do
     # one means no runner job for that platform can be admitted.
     if length(limits) == length(@platforms) do
       usage = Concurrency.usage_by_platform(account.id)
-      defaults = Concurrency.default_limits()
+      defaults = account |> Billing.effective_plan() |> Concurrency.default_limits()
 
       last_change =
         Repo.one(

@@ -178,13 +178,18 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     assert {:ok, %{vcpus: 24, memory_gb: 72}} = ConcurrencySizing.grow(other, :macos, :queue, now)
   end
 
+  # Fills the account's whole macOS limit with one claim, whatever its plan.
   defp fill_macos(account) do
+    limit = Concurrency.limits_for(account, :macos)
+
     assert {:ok, _} =
-             Claims.attempt(unique_id(), account.id, "macos-pool", "full-#{account.id}", %{
-               platform: :macos,
-               vcpus: 16,
-               memory_gb: 48
-             })
+             Claims.attempt(
+               unique_id(),
+               account.id,
+               "macos-pool",
+               "full-#{account.id}",
+               Map.put(limit, :platform, :macos)
+             )
   end
 
   defp queue(account, now) do

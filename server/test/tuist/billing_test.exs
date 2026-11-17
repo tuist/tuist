@@ -18,6 +18,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.CacheVolumes.SavedSize
   alias Tuist.Runners.CacheVolumes.Volume
+  alias Tuist.Runners.Concurrency
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -475,6 +476,45 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert Billing.get_current_active_subscription(account).plan == :pro
+    end
+
+    test "raises an Air account's runner limits to the paid plan's, never lowering one and never again on redelivery" do
+      # Given an Air account whose Linux limit an operator already raised past Pro's
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
+
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 48,
+          runner_linux_memory_gb_limit: 96,
+          runner_macos_vcpus_limit: 8,
+          runner_macos_memory_gb_limit: 24
+        })
+
+      event = fn status ->
+        Billing.on_subscription_change(%{
+          id: "sub_some-id",
+          status: status,
+          customer: "customer_id",
+          default_payment_method: "pm_some-id",
+          items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+        })
+      end
+
+      # When
+      event.("active")
+      event.("active")
+      event.("canceled")
+
+      # Then
+      assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
+      assert Concurrency.limits_for(account, :linux) == %{vcpus: 48, memory_gb: 96}
+
+      assert [%{platform: :macos, vcpus: 16, memory_gb: 48}] =
+               Repo.all(
+                 from(h in Tuist.Runners.ConcurrencyHistory, where: h.account_id == ^account.id and h.source == "plan")
+               )
     end
 
     test "when it's a new enterprise monthly subscription" do

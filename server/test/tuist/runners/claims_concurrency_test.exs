@@ -471,6 +471,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
 
   defp with_accounts(count, function) do
     users = Enum.map(1..count, fn _index -> user_fixture(preload: [:account]) end)
+    Enum.each(users, &Tuist.Runners.Concurrency.raise_to_plan_defaults(&1.account, :pro))
 
     try do
       function.(Enum.map(users, & &1.account))

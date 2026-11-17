@@ -85,21 +85,21 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert limits == [
              %{
                "platform" => "linux",
-               "vcpus" => 32,
+               "vcpus" => 16,
                "memory_gb" => 64,
                "used_vcpus" => 0,
                "used_memory_gb" => 0,
-               "default_vcpus" => 32,
+               "default_vcpus" => 16,
                "default_memory_gb" => 64
              },
              %{
                "platform" => "macos",
-               "vcpus" => 16,
-               "memory_gb" => 48,
+               "vcpus" => 8,
+               "memory_gb" => 24,
                "used_vcpus" => 0,
                "used_memory_gb" => 0,
-               "default_vcpus" => 16,
-               "default_memory_gb" => 48
+               "default_vcpus" => 8,
+               "default_memory_gb" => 24
              }
            ]
 
@@ -120,8 +120,8 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
 
     assert Enum.find(result["limits"], &(&1["platform"] == "macos"))["vcpus"] == 48
     assert Concurrency.limits_for(account, :macos) == %{vcpus: 48, memory_gb: 144}
-    assert Concurrency.limits_for(account, :linux) == %{vcpus: 32, memory_gb: 64}
-    assert Concurrency.limits_for(other, :macos) == %{vcpus: 16, memory_gb: 48}
+    assert Concurrency.limits_for(account, :linux) == %{vcpus: 16, memory_gb: 64}
+    assert Concurrency.limits_for(other, :macos) == %{vcpus: 8, memory_gb: 24}
     refute result["revision"] == request["expected_revision"]
 
     audit = Repo.get_by!(RunnerConcurrencyLimitChange, change_id: request["change_id"])
@@ -129,7 +129,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert audit.principal == %{"namespace" => "atlas-production", "name" => "atlas"}
     assert audit.request == request
     assert audit.before["revision"] == request["expected_revision"]
-    assert Enum.find(audit.before["limits"], &(&1["platform"] == "macos"))["vcpus"] == 16
+    assert Enum.find(audit.before["limits"], &(&1["platform"] == "macos"))["vcpus"] == 8
     assert audit.after == result
   end
 
@@ -162,7 +162,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
              conn |> authed() |> put(path(other.id), elsewhere) |> json_response(409)
 
     assert Concurrency.limits_for(account, :linux) == %{vcpus: 40, memory_gb: 80}
-    assert Concurrency.limits_for(other, :linux) == %{vcpus: 32, memory_gb: 64}
+    assert Concurrency.limits_for(other, :linux) == %{vcpus: 16, memory_gb: 64}
     assert Repo.aggregate(RunnerConcurrencyLimitChange, :count) == 2
   end
 
@@ -215,7 +215,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     params = request(conn, account.id, %{"platform" => "macos", "vcpus" => 32})
     assert conn |> authed() |> put(path(account.id), params) |> json_response(422)
 
-    assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
     assert Repo.aggregate(RunnerConcurrencyLimitChange, :count) == 0
   end
 

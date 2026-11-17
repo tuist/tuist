@@ -104,7 +104,7 @@ defmodule Tuist.Runners.ConcurrencySizing do
     with %{} <- target,
          true <- may_grow?(platform_history, now),
          true <- budget_available?(now),
-         resources = bounded_target(limit.platform, limit, target, platform_history),
+         resources = bounded_target(limit.platform, limit, target, since_plan_grant(platform_history)),
          true <- resources.vcpus > limit.vcpus or resources.memory_gb > limit.memory_gb do
       apply_growth(limit, resources, mode, now)
       resources
@@ -171,6 +171,16 @@ defmodule Tuist.Runners.ConcurrencySizing do
     |> where([h], h.source == "automatic" and h.recorded_at > ^since)
     |> Repo.aggregate(:count)
     |> Kernel.<(@hourly_budget)
+  end
+
+  # A plan's defaults are a grant, not growth: the weekly doubling bound counts
+  # from the latest one, so an account upgraded from Air is not held at twice
+  # Air's limit for a week. History is oldest first.
+  defp since_plan_grant(history) do
+    case history |> Enum.reverse() |> Enum.find_index(&(&1.source == "plan")) do
+      nil -> history
+      index -> Enum.take(history, -(index + 1))
+    end
   end
 
   defp bounded_target(platform, current, target, history) do

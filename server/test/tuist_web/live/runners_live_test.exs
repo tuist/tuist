@@ -66,9 +66,9 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Avg. job duration"
     assert html =~ "Avg. workflow duration"
     assert html =~ "Concurrency"
-    assert html =~ "16 vCPU limit"
-    assert html =~ "48 GB limit"
-    assert html =~ "Current: 16 vCPU limit"
+    assert html =~ "8 vCPU limit"
+    assert html =~ "24 GB limit"
+    assert html =~ "Current: 8 vCPU limit"
     refute has_element?(lv, "[data-part=concurrency-limit-history]")
     assert html =~ "runners-concurrency-platform-dropdown"
     assert html =~ "runners-concurrency-macos-vcpus-chart"
@@ -170,7 +170,7 @@ defmodule TuistWeb.RunnersLiveTest do
 
     html = render_async(lv, @render_async_timeout)
 
-    assert html =~ "32 vCPU limit"
+    assert html =~ "16 vCPU limit"
     assert html =~ "64 GB limit"
     assert html =~ "runners-concurrency-linux-vcpus-chart"
     assert html =~ "runners-concurrency-linux-memory-chart"
@@ -273,7 +273,7 @@ defmodule TuistWeb.RunnersLiveTest do
 
     assert {:ok, _} = Concurrency.update_limits(account, %{runner_linux_vcpus_limit: 96})
     send(lv.pid, {:runner_concurrency_limits_changed, %{account_id: account.id + 1}})
-    assert render(lv) =~ "Current: 32 vCPU limit"
+    assert render(lv) =~ "Current: 16 vCPU limit"
 
     Tuist.PubSub.broadcast(%{account_id: account.id}, Concurrency.topic(account.id), :runner_concurrency_limits_changed)
     html = render_async(lv, @render_async_timeout)

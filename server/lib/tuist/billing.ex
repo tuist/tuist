@@ -19,6 +19,7 @@ defmodule Tuist.Billing do
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.CacheVolumeBilling
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
@@ -1268,37 +1269,45 @@ defmodule Tuist.Billing do
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
-    cond do
-      plan == :none ->
-        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
+    stored =
+      cond do
+        plan == :none ->
+          raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
-      is_nil(current_subscription) ->
-        %Subscription{}
-        |> Subscription.create_changeset(%{
-          plan: plan,
-          subscription_id: subscription.id,
-          status: subscription.status,
-          account_id: account.id,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.insert!()
+        is_nil(current_subscription) ->
+          %Subscription{}
+          |> Subscription.create_changeset(%{
+            plan: plan,
+            subscription_id: subscription.id,
+            status: subscription.status,
+            account_id: account.id,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.insert!()
 
-      true ->
-        current_subscription
-        |> Subscription.update_changeset(%{
-          plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.update!()
+        true ->
+          current_subscription
+          |> Subscription.update_changeset(%{
+            plan: plan,
+            status: subscription.status,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.update!()
+      end
+
+    # Air starts with lower runner limits than the paid plans; a live paid
+    # subscription brings the account up to its plan's. `plan` is
+    # `get_plan/1`'s string, the stored row's is the atom.
+    if stored.status in @live_subscription_statuses do
+      RunnerConcurrency.raise_to_plan_defaults(account, stored.plan)
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)

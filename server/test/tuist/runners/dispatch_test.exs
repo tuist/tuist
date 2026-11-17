@@ -10,6 +10,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -51,7 +52,9 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   defp enabled_account do
-    AccountsFixtures.organization_fixture().account
+    account = AccountsFixtures.organization_fixture().account
+    Concurrency.raise_to_plan_defaults(account, :pro)
+    account
   end
 
   defp queued_payload(opts) do
@@ -235,6 +238,32 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert {:ignored, :allowance_exhausted} =
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
+    end
+
+    test "returns {:ignored, :shape_exceeds_limit} for a job its account's limit could never admit" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      # One vCPU short of the pool's guest, as Air's limit is of the larger shape.
+      %{vcpus: vcpus, memory_gb: memory_gb} =
+        ["tuist-macos"] |> Dispatch.match_pool() |> elem(1)
+
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 32,
+          runner_linux_memory_gb_limit: 64,
+          runner_macos_vcpus_limit: vcpus - 1,
+          runner_macos_memory_gb_limit: memory_gb
+        })
+
+      reject(&Jobs.enqueue_if_missing/1)
+
+      assert {:ignored, :shape_exceeds_limit} =
+               Dispatch.handle_webhook(queued_payload(owner: account.name, labels: ["tuist-macos"]), 1)
     end
 
     test "keeps dispatching for an account whose allowance is intact" do
