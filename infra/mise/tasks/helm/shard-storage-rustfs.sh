@@ -46,4 +46,25 @@ jq -e '
       contains("proxy_buffering off;") and contains("location / { return 404; }") and
       contains("access_log off;") and contains("error_log /dev/null;")))
 ' "$work/render.json" >/dev/null
+if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set unsafeSharedDisks=true >/dev/null 2>&1; then
+  echo 'FAIL: shared-disk bypass accepted for a multi-member store' >&2; exit 1
+fi
+helm template rustfs-ovh "$chart" -n rustfs-staging -f "$chart/values-staging-ovh.yaml" |
+  yq -o json -I0 'select(.kind != null)' | jq -s . >"$work/ovh.json"
+jq -e '
+  any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
+    (.spec.volumeClaimTemplates | length) == 8 and
+    all(.spec.volumeClaimTemplates[]; .spec.storageClassName == "scw-local-nvme") and
+    (.spec.template.spec.containers[0].volumeMounts | map(.mountPath)) == ["/data0","/data1","/data2","/data3","/data4","/data5","/data6","/data7"] and
+    any(.spec.template.spec.containers[0].env[]; .name == "RUSTFS_VOLUMES" and .value == "/data{0...7}") and
+    any(.spec.template.spec.containers[0].env[]; .name == "RUSTFS_STORAGE_CLASS_STANDARD" and .value == "EC:4") and
+    any(.spec.template.spec.containers[0].env[]; .name == "RUSTFS_UNSAFE_BYPASS_DISK_CHECK" and .value == "true")) and
+  all(.[] | select(.kind == "StatefulSet" or .kind == "Deployment");
+    .spec.template.spec.tolerations[0].key == "tuist.dev/kura-cache" and
+    .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == "kura-dedibox") and
+  all(.[] | select(.kind == "PodDisruptionBudget"); .spec.minAvailable == 0) and
+  any(.[]; .kind == "Ingress" and .spec.ingressClassName == "kura-eu-west" and
+    .metadata.annotations["nginx.ingress.kubernetes.io/client-body-buffer-size"] == "1m")
+' "$work/ovh.json" >/dev/null
+echo 'PASS: single-member OVH performance variant: one member, eight drives, EC:4, kura-eu-west ingress'
 echo 'PASS: disabled defaults, isolation, eight volumes, four hosts, EC:4, retained PVCs, streaming gateway and restricted services'

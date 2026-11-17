@@ -39,7 +39,7 @@ kind: Deployment
 metadata:
   name: {{ .Release.Name }}-gateway
 spec:
-  replicas: 2
+  replicas: {{ .Values.gateway.replicas }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -53,6 +53,10 @@ spec:
       automountServiceAccountToken: false
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -102,7 +106,7 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}-gateway
 spec:
-  minAvailable: 1
+  minAvailable: {{ max 0 (sub (int .Values.gateway.replicas) 1) }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
