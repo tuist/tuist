@@ -53,6 +53,9 @@ defmodule TuistWeb.AmpOrbsController do
     |> send_resp(:conflict, "Provider operation already in progress")
   end
 
+  # The Mac that holds a paused macOS Orb can't take it yet.
+  defp respond(conn, {:error, {:host_busy, _why}}), do: respond(conn, {:error, :no_capacity})
+
   defp respond(conn, {:error, :no_capacity}) do
     conn
     |> put_resp_header("x-tuist-orb-retry", "admission")

@@ -28,7 +28,8 @@
   effect happened, so each start carries an `id` the CLI picks and each stdin
   write the `offset` it continues, which the server uses to act once. Never
   retry them without those. Retries come within 5 seconds: the server already
-  waits up to 25 seconds for the host in each start. `exec` exits
+  waits up to 25 seconds for the host in each start. While they wait, the
+  server's reason is repeated on stderr about once a minute. `exec` exits
   with the command's status (124 on timeout, 130 when cancelled) and cancels it
   on SIGINT/SIGTERM. Progress notes go to stderr, never stdout. The synchronous
   `POST .../exec` endpoint stays in the API; the CLI no longer uses it.

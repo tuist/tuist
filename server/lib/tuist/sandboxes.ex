@@ -1167,7 +1167,7 @@ defmodule Tuist.Sandboxes do
           # the launch, so the checkpoint remains retryable. Keep the residency
           # charge until an authoritative host report confirms its release.
           {:ok, _} = update_sandbox(sandbox, %{state: :paused, error_message: nil})
-          {:error, :no_capacity}
+          {:error, {:host_busy, :ci}}
 
         # The snapshot is intact on the node's disk; a node that is away or
         # slow is not a reason to give the sandbox up.

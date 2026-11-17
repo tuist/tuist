@@ -150,9 +150,30 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end
   end
 
+  test "a refused resume names why its own host can't take it", %{node: node} do
+    stale = DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -16))
+
+    for {host, why} <- [
+          {%{node | admission: Map.put(node.admission, "allow", false)}, :ci},
+          {%{node | admission: Map.put(node.admission, "observed_at", stale)}, :no_grant},
+          {%{node | admission: Map.put(node.admission, "memory_bytes", 4 * 1024 * 1024 * 1024)}, :full},
+          {:not_connected, :not_connected}
+        ] do
+      paused = sandbox(state: :paused, node_name: node.name, node_uid: node.generation, resident: true)
+
+      stub(Nodes, :lookup, fn _name ->
+        if host == :not_connected, do: {:error, :not_connected}, else: {:ok, self(), host}
+      end)
+
+      assert {:error, {:host_busy, ^why}} = Capacity.admit(paused)
+      assert Repo.reload!(paused).state == :paused
+      paused |> Repo.reload!() |> Ecto.Changeset.change(state: :deleted, resident: false) |> Repo.update!()
+    end
+  end
+
   test "a replacement Node cannot resume the previous owner's environment", %{node: node} do
     prior = sandbox(state: :paused, node_name: node.name, node_uid: "old-node", resident: false)
-    assert {:error, :no_capacity} = Capacity.admit(prior)
+    assert {:error, {:host_busy, :replaced}} = Capacity.admit(prior)
     assert Repo.reload!(prior).state == :paused
   end
 
@@ -289,7 +310,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
         {:error, "macOS sandbox capacity unavailable"}
       end)
 
-      assert {:error, :no_capacity} = Sandboxes.resume(paused)
+      assert {:error, {:host_busy, :ci}} = Sandboxes.resume(paused)
       assert %{state: :paused, resident: true, error_message: nil} = Repo.reload!(paused)
       assert Concurrency.usage(paused.account_id) == %{vcpus: 0, memory_mb: 0}
 

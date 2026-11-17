@@ -81,7 +81,7 @@ struct SandboxRemoteTests {
     }
 
     @Test
-    func startWaitsForTheHostWhileTheServerHasNoNode() async throws {
+    func startWaitsForTheHostWhileTheServerHasNoNodeAndRepeatsTheNoticeEveryMinute() async throws {
         let calls = Counter()
         let command: ServerSandboxCommand = try JSONDecoder.iso8601.decode(
             ServerSandboxCommand.self,
@@ -94,18 +94,22 @@ struct SandboxRemoteTests {
             accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .value("make"), cwd: .any,
             environment: .any, stdin: .any, timeoutMs: .any
         ).willProduce { _, _, _, _, _, _, _, _, _ in
-            if calls.increment() <= 2 { throw SandboxesServiceError.unavailable("No sandbox node") }
+            // Retries back off 2, 4 and then 5 seconds, so the fourteenth refusal comes a minute in.
+            if calls.increment() <= 14 { throw SandboxesServiceError.unavailable("The Mac is busy with CI jobs.") }
             return command
         }
-        let waits = Counter()
+        let notices = Notices()
         var remote = remote
-        remote.onWait = { _ in waits.increment() }
+        remote.onWait = { notices.append($0) }
 
         let started = try await remote.start("make")
 
         #expect(started.id == Self.commandID)
-        #expect(calls.value == 3)
-        #expect(waits.value == 1)
+        #expect(calls.value == 15)
+        #expect(notices.values == [
+            "Waiting for a sandbox host: The Mac is busy with CI jobs.",
+            "Still waiting for a sandbox host after 1 min: The Mac is busy with CI jobs.",
+        ])
     }
 
     @Test
@@ -220,6 +224,17 @@ private final class Counter: @unchecked Sendable {
             count += 1
             return count
         }
+    }
+}
+
+private final class Notices: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [String] = []
+
+    var values: [String] { lock.withLock { recorded } }
+
+    func append(_ notice: String) {
+        lock.withLock { recorded.append(notice) }
     }
 }
 

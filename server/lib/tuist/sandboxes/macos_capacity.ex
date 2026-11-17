@@ -85,14 +85,30 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     end
   end
 
+  # A paused VM resumes warm only on its own host, so a refusal names why
+  # that host can't take it now (`{:host_busy, why}`), not that no host
+  # could. The caller then moves the session off (`Archives.move_off/1`).
   def admit(sandbox) do
-    with {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name),
-         true <- info[:generation] == sandbox.node_uid do
-      reserve(sandbox, Map.put(info, :name, sandbox.node_name), :resuming)
-    else
-      _ -> {:error, :no_capacity}
+    case Nodes.lookup(sandbox.node_name) do
+      {:ok, _pid, %{generation: generation} = info} when generation == sandbox.node_uid ->
+        node = Map.put(info, :name, sandbox.node_name)
+
+        case grant_status(node) do
+          :ok -> sandbox |> reserve(node, :resuming) |> host_full()
+          :grant_denied -> {:error, {:host_busy, :ci}}
+          _stale_or_missing -> {:error, {:host_busy, :no_grant}}
+        end
+
+      {:ok, _pid, _info} ->
+        {:error, {:host_busy, :replaced}}
+
+      {:error, _reason} ->
+        {:error, {:host_busy, :not_connected}}
     end
   end
+
+  defp host_full({:error, :no_capacity}), do: {:error, {:host_busy, :full}}
+  defp host_full(result), do: result
 
   # A turn on a running VM takes no capacity the VM does not already hold,
   # so it needs no grant: CI and sandboxes are served first come, first

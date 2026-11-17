@@ -217,6 +217,8 @@ struct SandboxRemote {
     private func retrying<Value>(_ call: () async throws -> Value) async throws -> Value {
         let deadline = Date().addingTimeInterval(hostWait)
         var attempt = 0
+        var waited: TimeInterval = 0
+        var nextNotice: TimeInterval = 0
         while true {
             do {
                 return try await call()
@@ -225,16 +227,29 @@ struct SandboxRemote {
                       (error as? SandboxesServiceError) != SandboxesServiceError.limited,
                       Date() < deadline
                 else { throw error }
-                if attempt == 0 {
+                // Repeated about once a minute, so a long wait doesn't look like a hang.
+                if waited >= nextNotice {
+                    let minutes = Int(waited) / 60
                     if case let SandboxesServiceError.unavailable(message) = error {
-                        onWait("Waiting for a sandbox host: \(message)")
+                        onWait(
+                            waited == 0
+                                ? "Waiting for a sandbox host: \(message)"
+                                : "Still waiting for a sandbox host after \(minutes) min: \(message)"
+                        )
                     } else {
-                        onWait("Retrying: \(error.localizedDescription)")
+                        onWait(
+                            waited == 0
+                                ? "Retrying: \(error.localizedDescription)"
+                                : "Still retrying after \(minutes) min: \(error.localizedDescription)"
+                        )
                     }
+                    nextNotice = waited + 60
                 }
                 attempt += 1
                 // A current server already waited for the host inside the request, so retry soon.
-                try await sleep(min(5, 2 * pow(2, Double(attempt - 1))))
+                let delay = min(5, 2 * pow(2, Double(attempt - 1)))
+                try await sleep(delay)
+                waited += delay
             }
         }
     }

@@ -101,6 +101,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     test "marks only admission refusals as retryable", %{conn: conn, account: account} do
       for {reason, status, hint} <- [
             {:no_capacity, 503, ["admission"]},
+            {{:host_busy, :ci}, 503, ["admission"]},
             {:sandbox_concurrency_limit, 429, ["admission"]},
             {:sandbox_account_busy, 409, ["admission"]},
             {:locked, 409, ["admission"]},

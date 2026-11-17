@@ -1464,8 +1464,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       session = evicted(account, full)
       resident = evicted(account, full, resident: true)
 
-      assert {:error, :no_capacity} = Sandboxes.resume(session)
-      assert {:error, :no_capacity} = Sandboxes.resume(resident)
+      assert {:error, {:host_busy, :full}} = Sandboxes.resume(session)
+      assert {:error, {:host_busy, :full}} = Sandboxes.resume(resident)
       assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
       assert id == session.id
     end

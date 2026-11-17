@@ -144,6 +144,29 @@ defmodule Tuist.Sandboxes.Query do
 
   def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
 
+  # A paused macOS sandbox resumes warm only on the Mac that holds it, which
+  # it shares with CI. A refused resume also moves it to storage, so a later
+  # resume can cold-boot it on another Mac.
+  def error({:host_busy, :ci}),
+    do:
+      {:service_unavailable,
+       "The Mac this sandbox runs on is busy with CI jobs, which take priority. The sandbox resumes when a CI job finishes there, or on another Mac once it has moved there; a move keeps its files but not its running processes."}
+
+  def error({:host_busy, :full}),
+    do:
+      {:service_unavailable,
+       "The Mac this sandbox runs on has no CPU, memory or VM slot free; CI jobs and other sandboxes are using them. The sandbox resumes when one frees up there, or on another Mac once it has moved there; a move keeps its files but not its running processes."}
+
+  def error({:host_busy, :no_grant}),
+    do:
+      {:service_unavailable,
+       "The Mac this sandbox runs on is waiting for the CI scheduler to confirm it has room for sandboxes."}
+
+  def error({:host_busy, :not_connected}), do: {:service_unavailable, "The Mac this sandbox runs on is not connected."}
+
+  def error({:host_busy, :replaced}),
+    do: {:service_unavailable, "The Mac this sandbox ran on was replaced, so the sandbox can't resume."}
+
   def error(:archive_store_unavailable),
     do:
       {:service_unavailable,

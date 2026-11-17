@@ -129,6 +129,9 @@ gates only new capacity, and CI demand arriving later never takes a running
 VM's place.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
+A paused VM resumes only on its own host, so the refusal (`{:host_busy, why}`)
+says why that host can't take it: CI holds its grant, it has no slot left, its
+grant is stale, or it is disconnected or replaced.
 A create the host refuses for capacity moves on to the next host.
 Uncertain cleanup or fencing errors remain failures, not capacity retries.
 The kubelet refreshes host memory and process pressure on each heartbeat. macOS
