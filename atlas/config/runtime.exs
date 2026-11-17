@@ -806,7 +806,28 @@ config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_M
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
 # populated by rel/env.sh.eex from the deploy SHA; falls back to the
 # compiled app version for local boots.
-if sentry_dsn = System.get_env("SENTRY_DSN") do
+#
+# Without SENTRY_DSN, ATLAS_PULSE_SENTRY_URL (a DSN without its key, such as
+# https://tuist.dev/api/accounts/tuist/pulse/sentry/atlas/1) and
+# ATLAS_PULSE_SENTRY_TOKEN (a Tuist account token with account:pulse:write,
+# used as the DSN key) send Atlas' own errors to Tuist's Pulse. That DSN is a
+# copy, not a primary: SelfMonitor keeps recording Atlas' crashes in its
+# "Atlas" project.
+if sentry_dsn =
+     (case {System.get_env("SENTRY_DSN", ""), System.get_env("ATLAS_PULSE_SENTRY_URL", ""),
+            System.get_env("ATLAS_PULSE_SENTRY_TOKEN", "")} do
+        {"", url, token} when url != "" and token != "" ->
+          config :atlas, :sentry_dsn_is_pulse, true
+
+          # The token's base64 `/`, `+` and `=` are not valid in userinfo.
+          URI.to_string(%{URI.parse(url) | userinfo: URI.encode(token, &URI.char_unreserved?/1)})
+
+        {"", _url, _token} ->
+          nil
+
+        {dsn, _url, _token} ->
+          dsn
+      end) do
   config :sentry,
     dsn: sentry_dsn,
     environment_name: System.get_env("SENTRY_ENVIRONMENT", to_string(config_env())),
