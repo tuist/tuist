@@ -26,7 +26,7 @@ defmodule Tuist.Kura.CapacityTest do
   @pressure_line_gib trunc(@allocatable_gib * 0.90)
   # us-east co-locates an account's two replicas on one box, so a new instance
   # reserves its plan's starting claim twice.
-  @air_instance_gib 8 * 2
+  @air_instance_gib 6 * 2
   @enterprise_instance_gib 16 * 2
 
   defp account(plan \\ nil) do
@@ -277,7 +277,7 @@ defmodule Tuist.Kura.CapacityTest do
       # 200Gi fallback, which would overstate it by an order of magnitude.
       air = %Server{account: %Account{id: 1, name: "air", subscriptions: []}}
 
-      assert Capacity.resident_gib(region(), air) == 8 * 2
+      assert Capacity.resident_gib(region(), air) == 6 * 2
     end
 
     test "runner fallback stays at the legacy reservation when account and pin are absent" do
@@ -286,7 +286,7 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.resident_gib(runner, %Server{storage_claim_size: "invalid"}) == 50 * 2
       assert Capacity.resident_gib(runner, %Server{storage_claim_size: "24Gi"}) == 24 * 2
       air = %Server{account: %Account{id: 1, name: "air", subscriptions: []}}
-      assert Capacity.resident_gib(runner, air) == 8 * 2
+      assert Capacity.resident_gib(runner, air) == 6 * 2
     end
 
     test "reads every unit a claim may be persisted in" do
@@ -449,7 +449,7 @@ defmodule Tuist.Kura.CapacityTest do
       installed(1)
       stub_region_pods([reserved_pod(@pressure_line_gib - @air_instance_gib)])
 
-      assert :ok = Admission.admit?(region(), new_instance("8Gi"))
+      assert :ok = Admission.admit?(region(), new_instance("6Gi"))
       assert {:error, :capacity_exhausted} = Admission.admit?(region(), new_instance("16Gi"))
       assert Capacity.under_pressure?(@region)
     end

@@ -194,7 +194,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     })
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-    assert html =~ "8Gi"
+    assert html =~ "6Gi"
 
     :ok = Tuist.Kura.PlacerClaims.put(user.account, "24Gi")
 

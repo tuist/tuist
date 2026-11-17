@@ -1309,7 +1309,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # segment and 3% for the index are taken: a region-derived budget would
       # hand all three the same ring and let a small instance overrun the claim
       # its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}] do
+      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}, {"6Gi", 3.40}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-west-1",
