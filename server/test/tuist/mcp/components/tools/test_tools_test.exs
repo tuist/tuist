@@ -20,6 +20,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage.Query, as: CoverageQuery
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Xcode
 
@@ -27,7 +29,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
     test "query description lists supported fields and a complete negation example" do
       description = Tool.descriptor(ListTestRuns)["inputSchema"]["properties"]["query"]["description"]
 
-      assert description =~ "Supported fields: `git_branch`, `scheme`, and `status`."
+      assert description =~ "Supported fields: `git_branch`, `scheme`, `status`, and `selective_testing`."
       assert description =~ "case-insensitive substring matches"
       assert description =~ "AND semantics"
       assert [_, example] = Regex.run(~r/for example `([^`]+)`/, description)
@@ -36,7 +38,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert {:ok, [%{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"}]} =
                TestRunQuery.filters(example)
 
-      for field <- ["git_branch", "scheme", "status"] do
+      for field <- ["git_branch", "scheme", "status", "selective_testing"] do
         assert {:ok, [_filter]} = TestRunQuery.filters(~s(#{field}:"value"))
       end
     end
@@ -74,6 +76,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         [%{test_run_id: "run-1", total_tests: 50, ran_tests: 45, skipped_tests: 5}]
       end)
 
+      stub(SelectionQuery, :strategies, fn 1, [%{id: "run-1"}] -> %{"run-1" => "coverage"} end)
+
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
@@ -82,6 +86,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       result = JSON.decode!(text)
       assert length(result["test_runs"]) == 1
       assert hd(result["test_runs"])["total_test_count"] == 50
+      assert hd(result["test_runs"])["selective_testing_strategy"] == "coverage"
     end
 
     test "filters test runs with a query expression" do
@@ -93,6 +98,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
 
       expect(Tests, :list_test_runs, fn attrs ->
         assert %{field: :git_branch, op: :==, value: "main"} in attrs.filters
+        assert %{field: :selective_testing, op: :==, value: "coverage"} in attrs.filters
         assert %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"} in attrs.filters
 
         {[],
@@ -113,6 +119,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
                  "account_handle" => "acme",
                  "project_handle" => "app",
                  "git_branch" => "main",
+                 "selective_testing" => "coverage",
                  "query" => ~s(-git_branch~"gh-readonly-queue")
                })
 
@@ -669,6 +676,22 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         %{total_count: 50, failed_count: 2, flaky_count: 1, avg_duration: 300}
       end)
 
+      stub(CoverageQuery, :test_run, fn %{id: "run-1"} ->
+        %{
+          enabled: true,
+          git_dirty: false,
+          measured: true,
+          partial: false,
+          covered_lines: 3,
+          executable_lines: 4,
+          coverage: 75.0
+        }
+      end)
+
+      stub(SelectionQuery, :test_run, fn %{id: "run-1"} ->
+        %{strategy: "coverage", baseline_sha: "0f0f", requested: 10, selected: 1, skipped: 9, estimated: 0}
+      end)
+
       # Signed rather than checked for existence, so the caller pays no storage
       # round trip for metrics they may only want the numbers from.
       stub(Storage, :generate_download_url, fn object_key, _actor, opts ->
@@ -689,6 +712,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert result["failed_test_count"] == 2
       assert result["result_bundle_url"] == "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
       assert result["session_url"] == "https://storage.test/acme/app/runs/run-1/session.zip"
+      assert result["coverage"]["coverage"] == 75.0
+      assert result["selective_testing"]["strategy"] == "coverage"
     end
 
     test "requires :test_read authorization" do
@@ -748,6 +773,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
 
+      stub(SelectionQuery, :test_case_run, fn %{id: "tcr-1"} ->
+        %{decision: "selected", reason: "impacted", matched_path: "Sources/Auth.swift", shard_index: nil}
+      end)
+
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
@@ -759,6 +788,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert result["status"] == "failure"
       assert length(result["failures"]) == 1
       assert hd(result["failures"])["message"] == "XCTAssertEqual failed"
+      assert result["selective_testing"]["reason"] == "impacted"
     end
 
     test "requires :test_read authorization" do

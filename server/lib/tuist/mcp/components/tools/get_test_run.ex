@@ -36,6 +36,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         "avg_test_duration" => %{"type" => "number"},
         "result_bundle_url" => %{"type" => "string"},
         "session_url" => %{"type" => "string"},
+        "coverage" => Tuist.MCP.Tool.json_schema(Tuist.Tests.Coverage.Schemas.run_coverage()),
+        "selective_testing" => Tuist.MCP.Tool.json_schema(Tuist.Tests.Selections.Schemas.test_run()),
         "side_quests" => Tuist.MCP.SideQuests.schema()
       },
       "required" => [
@@ -53,7 +55,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         "flaky_test_count",
         "avg_test_duration",
         "result_bundle_url",
-        "session_url"
+        "session_url",
+        "coverage",
+        "selective_testing"
       ],
       "additionalProperties" => false
     }
@@ -65,6 +69,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage.Query, as: CoverageQuery
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
 
   # Shorter than the hour `list_test_case_run_attachments` hands out: these URLs
   # ride along with metadata the caller may only have wanted the numbers from,
@@ -74,7 +80,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed metrics for a specific test run, including temporary download URLs (valid for 15 minutes) for its " <>
+      "Get detailed metrics for a specific test run, including its own code coverage, its selective testing " <>
+        "summary (strategy, baseline, and requested, selected, skipped and estimated test counts, the ones test selection effectiveness is computed from), and temporary download URLs (valid for 15 minutes) for its " <>
         "result bundle — the .xcresult holding the failure details, attachments and timings Xcode recorded — and " <>
         "its session archive. Those URLs are presigned and not checked for existence: a run whose artifacts were " <>
         "never uploaded, or have since been pruned, answers 404 on download."
@@ -108,7 +115,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
            flaky_test_count: metrics.flaky_count,
            avg_test_duration: metrics.avg_duration,
            result_bundle_url: artifact_url(CommandEvents.get_result_bundle_key(run.id, project), project.account),
-           session_url: artifact_url(CommandEvents.get_session_key(run.id, project), project.account)
+           session_url: artifact_url(CommandEvents.get_session_key(run.id, project), project.account),
+           coverage: CoverageQuery.test_run(run),
+           selective_testing: SelectionQuery.test_run(run)
          },
          conn.assigns,
          project,

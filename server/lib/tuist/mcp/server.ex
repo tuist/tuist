@@ -124,6 +124,10 @@ defmodule Tuist.MCP.Server do
     Tools.GetCoverage,
     Tools.ListCoverageFiles,
     Tools.GetCoverageFile,
+    Tools.ListCoverageBranches,
+    Tools.ListCoverageCommits,
+    Tools.ListCoverageRuns,
+    Tools.ListCoverageTargets,
     Tools.ListBundles,
     Tools.GetBundle,
     Tools.GetBundleArtifactTree,
@@ -137,6 +141,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListProjectNotificationAlerts,
     Tools.ListXcodeModuleCacheTargets,
     Tools.ListXcodeTestTargets,
+    Tools.ListSelectiveTestingTests,
+    Tools.ListSelectiveTestingChangedFiles,
     Tools.ListProjects,
     Tools.GetProject,
     Tools.ListProjectTokens,
@@ -178,7 +184,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.71.0",
+      version: "1.72.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

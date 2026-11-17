@@ -202,6 +202,20 @@ It only applies in test targets that run. A target whose hash already passed, or
 
 See the [TestCoverageAttribution README](https://github.com/tuist/TestCoverageAttribution#unskippable-tests) for every option.
 
+### Inspecting a selection {#inspecting-a-selection}
+
+The test run's Selective Testing tab shows what coverage selected and why. The same data is available from the CLI, with `--json` for scripting, and to agents through the <.localized_link href="/guides/features/agentic-coding/mcp">Model Context Protocol server</.localized_link>:
+
+```sh
+tuist test list --selective-testing coverage           # the runs coverage-based selection decided
+tuist test show <test-run-id>                          # a run's strategy, baseline and test counts
+tuist test selective-testing list <test-run-id>        # each test selected or skipped, with its reason and the file that matched
+tuist test selective-testing changed-files <test-run-id>  # the files that changed since the baseline
+tuist test case run show <test-case-run-id>            # why a test ran
+```
+
+When coverage isn't applied, the tests still count as a coverage-based selection: their reason says why coverage couldn't decide, such as `tracked_file_changed`.
+
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 

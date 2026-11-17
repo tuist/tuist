@@ -8,6 +8,10 @@ defmodule TuistWeb.API.TestsController do
   alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Query, as: CoverageQuery
+  alias Tuist.Tests.Coverage.Schemas, as: CoverageSchemas
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
+  alias Tuist.Tests.Selections.Schemas, as: SelectionSchemas
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
   alias Tuist.VCS.RemoteURL
@@ -64,7 +68,7 @@ defmodule TuistWeb.API.TestsController do
         in: :query,
         type: :string,
         description:
-          ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.)
+          ~s(Search query for richer filtering over `git_branch`, `scheme`, `status` and `selective_testing`. Supports exact matches with `field:"value"` and substring matches with `field~"value"`, except on `selective_testing`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.)
       ],
       status: [
         in: :query,
@@ -79,6 +83,16 @@ defmodule TuistWeb.API.TestsController do
         in: :query,
         type: :string,
         description: "Filter by scheme name."
+      ],
+      selective_testing: [
+        in: :query,
+        type: %Schema{
+          title: "TestRunSelectiveTestingStrategy",
+          type: :string,
+          enum: ["coverage", "module_hash"]
+        },
+        description:
+          "Filter by selective testing strategy: `coverage` (coverage-based test selection, fallbacks included) or `module_hash` (the default, which skips the test modules whose hash already passed)."
       ],
       page: [
         in: :query,
@@ -134,7 +148,8 @@ defmodule TuistWeb.API.TestsController do
                    },
                    total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
                    ran_tests: %Schema{type: :integer, description: "Number of test cases that ran."},
-                   skipped_tests: %Schema{type: :integer, description: "Number of skipped test cases."}
+                   skipped_tests: %Schema{type: :integer, description: "Number of skipped test cases."},
+                   selective_testing_strategy: SelectionSchemas.strategy()
                  },
                  required: [:id, :duration, :status, :is_ci, :is_flaky]
                }
@@ -160,6 +175,7 @@ defmodule TuistWeb.API.TestsController do
           |> maybe_add_filter(:git_branch, :==, Map.get(params, :git_branch))
           |> maybe_add_filter(:status, :==, Map.get(params, :status))
           |> maybe_add_filter(:scheme, :==, Map.get(params, :scheme))
+          |> maybe_add_filter(:selective_testing, :==, Map.get(params, :selective_testing))
           |> Kernel.++(query_filters)
 
         attrs = %{
@@ -173,6 +189,7 @@ defmodule TuistWeb.API.TestsController do
         {test_runs, meta} = Tests.list_test_runs(attrs)
         metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
         metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
+        strategies = SelectionQuery.strategies(selected_project.id, test_runs)
 
         json(conn, %{
           test_runs:
@@ -192,7 +209,8 @@ defmodule TuistWeb.API.TestsController do
                 ran_at: format_ran_at(run.ran_at),
                 total_test_count: Map.get(run_metrics, :total_tests, 0),
                 ran_tests: Map.get(run_metrics, :ran_tests, 0),
-                skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
+                skipped_tests: Map.get(run_metrics, :skipped_tests, 0),
+                selective_testing_strategy: Map.get(strategies, run.id)
               }
             end),
           pagination_metadata: %{
@@ -1051,7 +1069,9 @@ defmodule TuistWeb.API.TestsController do
              total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
              failed_test_count: %Schema{type: :integer, description: "Number of failed test cases."},
              flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
-             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."}
+             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."},
+             coverage: CoverageSchemas.run_coverage(),
+             selective_testing: SelectionSchemas.test_run()
            },
            required: [
              :id,
@@ -1093,7 +1113,9 @@ defmodule TuistWeb.API.TestsController do
           total_test_count: test_metrics.total_count,
           failed_test_count: test_metrics.failed_count,
           flaky_test_count: test_metrics.flaky_count,
-          avg_test_duration: test_metrics.avg_duration
+          avg_test_duration: test_metrics.avg_duration,
+          coverage: CoverageQuery.test_run(run),
+          selective_testing: SelectionQuery.test_run(run)
         })
 
       _error ->

@@ -72,7 +72,13 @@ defmodule Tuist.MCP.WebMCP do
     Tools.ListTestCaseEvents,
     Tools.GetCoverage,
     Tools.ListCoverageFiles,
-    Tools.GetCoverageFile
+    Tools.GetCoverageFile,
+    Tools.ListCoverageBranches,
+    Tools.ListCoverageCommits,
+    Tools.ListCoverageRuns,
+    Tools.ListCoverageTargets,
+    Tools.ListSelectiveTestingTests,
+    Tools.ListSelectiveTestingChangedFiles
   ]
 
   # Selective testing is Xcode's, and Once records its test runs as Once runs.
