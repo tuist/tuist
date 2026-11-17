@@ -148,9 +148,28 @@ jobs:
       - name: Require the sandbox namespace
         # The server release owns the namespace and its policies.
         run: kubectl get namespace "$NAMESPACE" >/dev/null
+      # The deploy below takes back fields changed outside Helm, such as a
+      # `kubectl set image` on the workers; name them so the run shows what
+      # it reverts.
+      - name: Report fields changed outside Helm
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" get deploy,ds --show-managed-fields -o json | jq -r --arg release "$HELM_RELEASE_NAME" '
+            .items[]
+            | select(.metadata.annotations["meta.helm.sh/release-name"] == $release)
+            | (.kind + "/" + .metadata.name) as $object
+            | .metadata.managedFields[]?
+            | select(.manager != "helm" and .manager != "kube-controller-manager")
+            | "::warning::\($object) has fields set by \(.manager) at \(.time); this deploy takes back the ones the chart renders"'
       - name: helm upgrade --install
         # Helm 4's watcher waits for updated workers even with OnDelete.
         # Legacy waits for the gateway but leaves worker replacement to a drain.
+        # --force-conflicts: Helm applies server-side, so a field another
+        # manager changed (a manual `kubectl set image` on the workers) fails
+        # the apply with an ownership conflict, the automatic rollback fails
+        # the same way, and every later deploy stays wedged. The chart is the
+        # source of truth for what it renders, so Helm takes those fields
+        # back; rollout and readiness failures still fail the deploy.
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" \
@@ -158,6 +177,7 @@ jobs:
             --set gateway.tag="$TEMPLATE_IMAGE_TAG" \
             --set workers.templateTag="$TEMPLATE_IMAGE_TAG" \
             --set workers.tag="$SANDBOXD_IMAGE_TAG" \
+            --force-conflicts \
             --atomic --timeout 20m --wait=legacy
       # platform-external-dns publishes the gateway Ingress host to Cloudflare
       # (DNS-only) within about a minute of the Ingress existing.
