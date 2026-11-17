@@ -130,8 +130,9 @@ to template tags installed afterwards; existing sandboxes keep their rootfs.
 ## Deliberately not installed yet
 
 No Android SDK, no Swift toolchain, no JDK, no Docker, no Xcode-adjacent
-tooling. Language runtimes beyond system Python 3 and Node.js 22 are expected
-to come from `mise` inside the sandbox. Ordinary vsock execs still run as root.
+tooling. Erlang and Elixir are pinned under `/opt/erlang` and `/opt/elixir`,
+with OTP-compatible Hex and Rebar under `/opt/mix`, for no-network actions.
+Other language runtimes come from `mise` inside the sandbox. Ordinary vsock execs still run as root.
 Amp bootstrap runs as `user` with passwordless sudo; see
 [`../amp-orbs/README.md`](../amp-orbs/README.md) for its lifecycle, persistent
 workspace, required egress, Desktop and rollout.

@@ -41,6 +41,43 @@ ARG TUIST_VERSION=4.219.0-canary.12
 ARG TUIST_SHA256=51476eeb54fba068a2e47dee79e033c0dbfc7d9fc02d5e6488ed49959637e56d
 ARG VERSION=dev
 
+FROM ubuntu:24.04 AS elixir-toolchain
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl unzip libssl3t64 libncurses6 libtinfo6 \
+    && rm -rf /var/lib/apt/lists/*
+ARG ERLANG_VERSION=29.0.3
+ARG ERLANG_SHA256=07c6b118ea17000e85b646418a4eec8c20fc2b04118b4b756695b4568e3d0526
+ARG ELIXIR_VERSION=1.20.2
+ARG ELIXIR_SHA256=a9e88cd41fbbba7da6f6dc237a49dd2ed4e70457121035cc7fc56ad05582f394
+ARG HEX_VERSION=2.7.0
+ARG HEX_SHA256=f248381ceb4bef12c990b223a7f998113b1997cb58d29b9883b7d03a0b990f9e
+ARG REBAR_VERSION=3.28.0
+ARG REBAR_SHA256=4a8bdd1fc845742833988db73012b232a3e9fd048011189ae9e0cecf70bdb7a2
+ENV PATH=/opt/elixir/bin:/opt/erlang/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    MIX_HOME=/opt/mix
+# Compile Hex and Rebar with this OTP; their old prebuilt BEAMs cannot load on 29.
+RUN set -eu; \
+    curl -fsSL --retry 3 "https://builds.hex.pm/builds/otp/amd64/ubuntu-24.04/OTP-${ERLANG_VERSION}.tar.gz" -o /tmp/otp.tar.gz; \
+    echo "${ERLANG_SHA256}  /tmp/otp.tar.gz" | sha256sum -c -; \
+    mkdir -p /opt/erlang /opt/elixir /opt/mix; \
+    tar -xzf /tmp/otp.tar.gz --strip-components=1 -C /opt/erlang; \
+    /opt/erlang/Install -minimal /opt/erlang; \
+    curl -fsSL --retry 3 "https://builds.hex.pm/builds/elixir/v${ELIXIR_VERSION}-otp-${ERLANG_VERSION%%.*}.zip" -o /tmp/elixir.zip; \
+    echo "${ELIXIR_SHA256}  /tmp/elixir.zip" | sha256sum -c -; \
+    unzip -q /tmp/elixir.zip -d /opt/elixir; \
+    curl -fsSL --retry 3 "https://codeload.github.com/hexpm/hex/tar.gz/refs/tags/v${HEX_VERSION}" -o /tmp/hex.tar.gz; \
+    echo "${HEX_SHA256}  /tmp/hex.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/hex; tar -xzf /tmp/hex.tar.gz --strip-components=1 -C /tmp/hex; \
+    (cd /tmp/hex && MIX_ENV=prod mix archive.build -o /tmp/hex.ez); \
+    mix archive.install /tmp/hex.ez --force; \
+    curl -fsSL --retry 3 "https://codeload.github.com/erlang/rebar3/tar.gz/refs/tags/${REBAR_VERSION}" -o /tmp/rebar.tar.gz; \
+    echo "${REBAR_SHA256}  /tmp/rebar.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/rebar; tar -xzf /tmp/rebar.tar.gz --strip-components=1 -C /tmp/rebar; \
+    (cd /tmp/rebar && ./bootstrap); \
+    install -m 0755 /tmp/rebar/rebar3 /opt/mix/rebar3; \
+    elixir --version; HEX_OFFLINE=true mix hex.info; /opt/mix/rebar3 version; \
+    rm -rf /tmp/otp.tar.gz /tmp/elixir.zip /tmp/hex.ez /tmp/hex.tar.gz /tmp/hex /tmp/rebar.tar.gz /tmp/rebar
+
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 # sbx-worker's checkout tests build and export real repositories.
 RUN apk add --no-cache git
@@ -81,9 +118,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         bash coreutils ca-certificates curl wget git git-lfs openssh-client gnupg sudo tzdata locales \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
         xz-utils zstd bzip2 build-essential clang libclang-dev pkg-config cmake python3 python3-pip python3-venv \
-        e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
+        e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev libncurses6 libtinfo6 \
         ffmpeg imagemagick \
     && rm -rf /var/lib/apt/lists/*
+
+# No-network actions resolve these root-owned tools through the image binding.
+COPY --from=elixir-toolchain /opt/erlang /opt/erlang
+COPY --from=elixir-toolchain /opt/elixir /opt/elixir
+COPY --from=elixir-toolchain /opt/mix /opt/mix
 
 # Amp Desktop: the packages Amp's custom-image contract lists next to
 # /opt/amp-wayland, plus the libraries its labwc links (about 40 MiB). Nothing
