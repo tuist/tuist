@@ -311,10 +311,7 @@ defmodule Condukt.SessionStore.ObjectStore do
       # collided with, so a create that succeeds is only this writer's if no
       # manifest follows it. The caller deletes nothing otherwise.
       :ok ->
-        with :ok <- check_superseded(ctx, seq) do
-          if seq > 2, do: delete_all(ctx, [manifest_key(ctx, seq - 2)])
-          {:ok, remember(ctx, %{writer | seq: seq, manifest: manifest})}
-        end
+        with :ok <- check_superseded(ctx, seq), do: committed(ctx, writer, seq, manifest)
 
       {:error, :exists} ->
         forget(ctx)
@@ -329,6 +326,11 @@ defmodule Condukt.SessionStore.ObjectStore do
         forget(ctx)
         error
     end
+  end
+
+  defp committed(ctx, writer, seq, manifest) do
+    if seq > 2, do: delete_all(ctx, [manifest_key(ctx, seq - 2)])
+    {:ok, remember(ctx, %{writer | seq: seq, manifest: manifest})}
   end
 
   defp latest(ctx) do
