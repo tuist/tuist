@@ -12,6 +12,7 @@ import Path
 #if canImport(TuistHAR)
     enum FileClientError: LocalizedError, FatalError, HTTPStatusCodeError {
         case urlSessionError(URLRequest, Error, AbsolutePath?)
+        case downloadInterrupted(URLRequest, Error, AbsolutePath, DownloadProgress)
         case serverSideError(URLRequest, HTTPURLResponse, AbsolutePath?)
         case invalidResponse(URLRequest, AbsolutePath?)
         case noLocalURL(URLRequest)
@@ -35,6 +36,10 @@ import Path
             switch self {
             case let .urlSessionError(request, error, path):
                 return "Received a session error\(pathSubstring(path)) when performing \(request.descriptionForError): \(error.localizedDescription)"
+            // The progress leads the message: the server keeps only the first 240 characters of a command's
+            // error, and the path and presigned URL that follow are longer than that.
+            case let .downloadInterrupted(request, error, path, progress):
+                return "Received a session error \(progress)\(pathSubstring(path)) when performing \(request.descriptionForError): \(error.localizedDescription)"
             case let .invalidResponse(request, path):
                 return "Received unexpected response from the network when performing \(request.descriptionForError)\(pathSubstring(path))"
             case let .serverSideError(request, response, path):
@@ -47,6 +52,7 @@ import Path
         var type: ErrorType {
             switch self {
             case .urlSessionError: return .bug
+            case .downloadInterrupted: return .bug
             case .serverSideError: return .bug
             case .invalidResponse: return .bug
             case .noLocalURL: return .bug
@@ -61,6 +67,28 @@ import Path
         // MARK: - LocalizedError
 
         var errorDescription: String? { description }
+    }
+
+    /// How much of a body a failed download attempt left in its partial file.
+    struct DownloadProgress: CustomStringConvertible {
+        /// The bytes in the partial file, including the ones earlier attempts left there.
+        var bytesOnDisk: Int64
+        /// The bytes this attempt received.
+        var bytesThisAttempt: Int64
+        /// The size of the whole object, or nil when the server did not say.
+        var bytesExpected: Int64?
+
+        /// Megabytes with one decimal, formatted without the locale so the message reads the same on every host.
+        var description: String {
+            guard bytesOnDisk > 0 else { return "before receiving any data" }
+            let total = bytesExpected.map { " of \(Self.megabytes($0))" } ?? ""
+            let attempt = bytesThisAttempt == bytesOnDisk ? "" : " (\(Self.megabytes(bytesThisAttempt)) MB in this attempt)"
+            return "after downloading \(Self.megabytes(bytesOnDisk))\(total) MB\(attempt)"
+        }
+
+        private static func megabytes(_ bytes: Int64) -> String {
+            String(format: "%.1f", Double(bytes) / 1_000_000)
+        }
     }
 
     public protocol FileClienting {
@@ -191,7 +219,7 @@ import Path
                 HARRecorder.recordDetached { recorder in
                     await Self.recordDownloadError(request: request, error: error, recorder: recorder)
                 }
-                throw FileClientError.urlSessionError(request, error, destination)
+                throw FileClientError.downloadInterrupted(request, error, destination, writer.progress)
             }
 
             if let response = result.response {
@@ -398,10 +426,16 @@ import Path
         private var earlyResult: Result?
         private var writeError: Error?
         private var _fileValidator: String?
+        /// Until a response replaces the file, it still holds what earlier attempts left.
+        private var _progress: DownloadProgress
 
         /// The validator of the object whose bytes are in the file, or nil when they cannot be resumed.
         var fileValidator: String? {
             lock.withLock { _fileValidator }
+        }
+
+        var progress: DownloadProgress {
+            lock.withLock { _progress }
         }
 
         init(path: AbsolutePath, resumeOffset: Int64, validator: String?) {
@@ -409,6 +443,7 @@ import Path
             self.resumeOffset = resumeOffset
             self.validator = validator
             _fileValidator = validator
+            _progress = DownloadProgress(bytesOnDisk: resumeOffset, bytesThisAttempt: 0, bytesExpected: nil)
         }
 
         func run(_ request: URLRequest, session: URLSession) async throws -> Result {
@@ -450,10 +485,17 @@ import Path
                     try handle.truncate(atOffset: UInt64(resumeOffset))
                     try handle.seek(toOffset: UInt64(resumeOffset))
                     self.handle = handle
+                    lock.withLock { _progress.bytesExpected = Self.completeLength(of: response) }
                 } else {
                     FileManager.default.createFile(atPath: path.pathString, contents: nil)
                     handle = try FileHandle(forWritingTo: path.url)
-                    lock.withLock { _fileValidator = Self.validator(of: response) }
+                    lock.withLock {
+                        _fileValidator = Self.validator(of: response)
+                        let length = response.expectedContentLength
+                        _progress = DownloadProgress(
+                            bytesOnDisk: 0, bytesThisAttempt: 0, bytesExpected: length > 0 ? length : nil
+                        )
+                    }
                 }
                 completionHandler(.allow)
             } catch {
@@ -465,6 +507,10 @@ import Path
         func urlSession(_: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
             do {
                 try handle?.write(contentsOf: data)
+                lock.withLock {
+                    _progress.bytesOnDisk += Int64(data.count)
+                    _progress.bytesThisAttempt += Int64(data.count)
+                }
             } catch {
                 writeError = error
                 dataTask.cancel()
@@ -496,6 +542,11 @@ import Path
                   let start = contentRange.dropFirst("bytes ".count).split(separator: "-").first.flatMap({ Int64($0) })
             else { return false }
             return start == resumeOffset && Self.validator(of: response) == validator
+        }
+
+        /// The object's size from `Content-Range: bytes <start>-<end>/<size>`, or nil when it is `*` or missing.
+        private static func completeLength(of response: HTTPURLResponse) -> Int64? {
+            response.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last.flatMap { Int64($0) }
         }
 
         /// A strong `ETag`, else `Last-Modified`, the forms `If-Range` accepts. A body URLSession decompressed has

@@ -82,6 +82,40 @@
                 .exists(download.destination.parentDirectory.appending(component: "shared.aar.partial")))
         }
 
+        /// The server keeps only the first 240 characters of a command's error, so the progress has to come before the
+        /// temporary path and the presigned URL.
+        @Test func failed_attempts_lead_their_error_with_how_much_of_the_object_is_on_disk() async throws {
+            let download = try await makeScriptedDownload(replies: [
+                ScriptedReply(
+                    statusCode: 200,
+                    headers: ["ETag": "\"v1\"", "Content-Length": "4000000"],
+                    body: Data(count: 1_500_000),
+                    failsAfterBody: true
+                ),
+                ScriptedReply(
+                    statusCode: 206,
+                    headers: ["ETag": "\"v1\"", "Content-Range": "bytes 1500000-3999999/4000000"],
+                    body: Data(count: 1_000_000),
+                    failsAfterBody: true
+                ),
+            ])
+            var descriptions: [String] = []
+            for _ in 0 ..< 3 {
+                let error = await #expect(throws: (any Error).self) {
+                    try await download.subject.download(url: download.url, to: download.destination)
+                }
+                descriptions.append(String(describing: try #require(error)))
+            }
+
+            #expect(descriptions[0].hasPrefix("Received a session error after downloading 1.5 of 4.0 MB for file"))
+            #expect(descriptions[1].hasPrefix(
+                "Received a session error after downloading 2.5 of 4.0 MB (1.0 MB in this attempt) for file"
+            ))
+            #expect(descriptions[2].hasPrefix(
+                "Received a session error after downloading 2.5 MB (0.0 MB in this attempt) for file"
+            ))
+        }
+
         @Test func download_replaces_the_received_bytes_when_the_server_answers_the_range_with_the_whole_object() async throws {
             let download = try await makeScriptedDownload(replies: [
                 ScriptedReply(statusCode: 200, headers: ["ETag": "\"v1\""], body: Data("stale-".utf8), failsAfterBody: true),
