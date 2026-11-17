@@ -314,8 +314,17 @@ func (m *Manager) get(id string) (*Record, error) {
 // sameCreate compares create arguments by value, archive source included,
 // so a retried create from an archive matches its journal.
 func sameCreate(a, b protocol.CreateArgs) bool {
-	if (a.FromArchive == nil) != (b.FromArchive == nil) || (a.FromArchive != nil && *a.FromArchive != *b.FromArchive) {
+	if (a.FromArchive == nil) != (b.FromArchive == nil) {
 		return false
+	}
+	// The server presigns a new URL for every attempt; the checksum and
+	// size name the archive.
+	if a.FromArchive != nil {
+		x, y := *a.FromArchive, *b.FromArchive
+		x.URL, y.URL = "", ""
+		if x != y {
+			return false
+		}
 	}
 	a.FromArchive, b.FromArchive = nil, nil
 	return a == b

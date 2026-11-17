@@ -653,3 +653,24 @@ func TestEmptyReportIsAnArraySoMissingVMsAreReconciled(t *testing.T) {
 		t.Fatalf("missing ownership report: %s %v", data, err)
 	}
 }
+
+// A restore the server stopped waiting for is retried with a newly presigned
+// URL; it is the same archive.
+func TestRetriedRestoreMatchesItsJournalWhateverItsURL(t *testing.T) {
+	m, runtime, _, a := harness(t)
+	ctx := context.Background()
+	a.FromArchive = &protocol.ArchiveSource{URL: "https://store/archive?sig=1", Bytes: 1024, SHA256: "abc"}
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	retry := a
+	retry.FromArchive = &protocol.ArchiveSource{URL: "https://store/archive?sig=2", Bytes: 1024, SHA256: "abc"}
+	if err := m.Create(ctx, retry); err != nil || runtime.creates != 1 {
+		t.Fatalf("retried restore not matched: %v, creates %d", err, runtime.creates)
+	}
+	other := a
+	other.FromArchive = &protocol.ArchiveSource{URL: "https://store/archive?sig=1", Bytes: 1024, SHA256: "def"}
+	if m.Create(ctx, other) == nil {
+		t.Fatal("a different archive matched")
+	}
+}

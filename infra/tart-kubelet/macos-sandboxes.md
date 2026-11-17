@@ -103,6 +103,12 @@ sandbox vCPU, memory and disk limits bound how much of it that account can take.
 The server reserves native CPU, RAM and one VM slot in a PostgreSQL transaction
 under a per-node advisory lock. It binds ownership to the Kubernetes Node UID;
 reusing a node name cannot move a checkpoint to a replacement machine.
+The host's execution reservation Pod is named after the sandbox
+(`macos-sbx-<id>`), so a restore the server passes from one refusing Mac to the
+next can find it held by another Mac. Releasing it is then a no-op on this Mac;
+refusing would strand the record, whose every `Hold` fails the CI launch guard.
+A retried restore matches its journal by the archive's checksum and size, not
+its presigned URL, which the server signs anew for every attempt.
 Account sandbox concurrency quotas also apply to native creation and resume,
 including resident resume. Pausing releases the account's active concurrency
 quota; a retained VM still holds its full host reservation against CI capacity.
