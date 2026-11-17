@@ -9,8 +9,8 @@ defmodule Tuist.Tests.CoverageTest do
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.CoverageRunFile
   alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -122,7 +122,7 @@ defmodule Tuist.Tests.CoverageTest do
 
     defp build_systems(test) do
       ClickHouseRepo.all(
-        from(f in CoverageFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
+        from(f in CoverageRunFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
       )
     end
 
@@ -235,6 +235,19 @@ defmodule Tuist.Tests.CoverageTest do
       assert detail.lines == [{2, 3}, {3, 0}, {4, 0}, {6, 1}, {7, 0}]
       assert [%{name: "add(_:_:)", execution_count: 3}] = detail.functions
       assert file_detail(project, test, "Missing.swift") == nil
+    end
+
+    test "caps a count past UInt32's maximum instead of wrapping it", %{project: project, account: account} do
+      hot =
+        file("Sources/Calculator/Hot.swift", "hot1", ["Calculator"], [{1, 2 ** 32 + 5}, {2, 7}], [
+          %{name: "hot()", line_number: 1, execution_count: 2 ** 33, covered_lines: 2, executable_lines: 2}
+        ])
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([hot])})
+
+      detail = file_detail(project, test, "Sources/Calculator/Hot.swift")
+      assert detail.lines == [{1, 4_294_967_295}, {2, 7}]
+      assert [%{execution_count: 4_294_967_295}] = detail.functions
     end
 
     test "keeps the report's counts for a file without line data", %{project: project, account: account} do
@@ -368,15 +381,15 @@ defmodule Tuist.Tests.CoverageTest do
              }
 
       assert ClickHouseRepo.all(
-               from(f in CoverageFile,
+               from(f in CoverageRunFile,
                  where: f.test_run_id == ^test.id,
                  order_by: f.path,
-                 select: {f.path, f.in_repository, f.build_system, f.scope_kind, f.scope_id, f.evidence_kind}
+                 select: {f.path, f.in_repository, f.build_system}
                )
              ) == [
-               {"/tmp/DerivedSources/Outside.swift", false, "xcode", "run", "", "observed"},
-               {"Sources/Calculator/Add.swift", true, "xcode", "run", "", "observed"},
-               {"Sources/Calculator/Generated.swift", false, "xcode", "run", "", "observed"}
+               {"/tmp/DerivedSources/Outside.swift", false, "xcode"},
+               {"Sources/Calculator/Add.swift", true, "xcode"},
+               {"Sources/Calculator/Generated.swift", false, "xcode"}
              ]
     end
 
@@ -486,54 +499,6 @@ defmodule Tuist.Tests.CoverageTest do
         [file("Sources/Calculator/Add.swift", "add1", ["CalculatorTests"], [{2, 1}, {3, 5}, {4, 0}, {6, 0}, {7, 0}])],
         partial: true
       )
-    end
-
-    test "read back from the new tables what coverage_files holds", %{project: project, account: account} do
-      counts_only = %{
-        file("Sources/Calculator/Legacy.swift", "legacy1", ["Calculator"], [])
-        | covered_lines: 8,
-          executable_lines: 10
-      }
-
-      {:ok, test} =
-        create_test(project, account, %{xcode_coverage: coverage([add(), untested(), formatter(), counts_only])})
-
-      {:ok, stored} = Tests.get_test(test.id)
-
-      # A retried shard: only its latest report counts.
-      Coverage.publish(stored, Coverage.rows(project.id, coverage([untested()])), 1)
-      Coverage.publish(stored, Coverage.rows(project.id, other_shard()), 1)
-
-      fields = [
-        :test_run_id,
-        :shard_index,
-        :partial,
-        :path,
-        :in_repository,
-        :is_test,
-        :targets,
-        :covered_lines,
-        :executable_lines,
-        :inserted_at,
-        :git_blob_id,
-        :line_numbers,
-        :execution_counts,
-        :function_names,
-        :function_line_numbers,
-        :function_execution_counts,
-        :function_covered_lines,
-        :function_executable_lines
-      ]
-
-      read = fn query ->
-        query |> ClickHouseRepo.all() |> Enum.map(&Map.take(&1, fields)) |> Enum.sort_by(&{&1.shard_index, &1.path})
-      end
-
-      old = read.(Coverage.report_files_for_runs(project.id, [test.id]))
-      new = read.(from(f in Coverage.run_files_for_runs(project.id, [test.id])))
-
-      assert length(old) == 5
-      assert new == old
     end
 
     test "merge the shards' lines and stay partial once any shard was", %{project: project, account: account} do

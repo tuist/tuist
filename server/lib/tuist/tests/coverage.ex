@@ -22,16 +22,14 @@ defmodule Tuist.Tests.Coverage do
   target, a method is a function, and their branch counters fill the columns
   `xccov` leaves empty.
 
-  Every file a report covered is stored in `coverage_files` with its line
-  data, tagged with the build system and the tool that produced it. It is
-  also written to `coverage_run_files`, with the file's version once per
-  week in `coverage_file_layouts`, which readers move to next
-  (`run_files_for_runs/3`). A row's
-  scope is the run for now (`scope_kind` `run`); per-target, per-suite and
-  per-test rows use the same table once tests are attributed. Its evidence
-  kind is `observed`, measured in this run; `cached` and `carried` rows are
-  reused evidence, recorded by later phases. `in_repository` marks the paths
-  Git knows, the only ones evidence may rely on. Test code (files only `.xctest` bundles compiled) is stored but left
+  Every file a report covered is stored in `coverage_run_files` with its
+  counts, tagged with the build system, and the file's version (blob,
+  executable lines, functions) once per week in `coverage_file_layouts`,
+  which the rows name: runs of the same version would otherwise repeat it in
+  every row. `report_files_for_runs/2` joins them back. The per-test evidence
+  is stored apart, in `coverage_files` (`Tuist.Tests.Coverage.Evidence`).
+  `in_repository` marks the paths Git knows, the only ones evidence may rely
+  on. Test code (files only `.xctest` bundles compiled) is stored but left
   out of every figure: a test that runs covers its own body, which says nothing
   about the product. A run that left tests out on purpose (selective testing,
   `-only-testing`) is marked partial: its coverage describes the tests that ran
@@ -365,8 +363,9 @@ defmodule Tuist.Tests.Coverage do
       )
       |> Stream.chunk_every(@insert_chunk_size)
       |> Enum.reduce({{0, 0}, %{}, "", 0}, fn chunk, acc ->
+        # Still written to coverage_files, so pods of the previous release
+        # read every report while this one rolls out; the next release stops.
         IngestRepo.insert_all(CoverageFile, chunk)
-        # Written to both while readers move to the new tables.
         insert_report_files(report, chunk)
 
         Enum.reduce(chunk, acc, &fold_file(&1, &2, others_by_path, excluded))
@@ -580,7 +579,8 @@ defmodule Tuist.Tests.Coverage do
 
     summary =
       ClickHouseRepo.one(
-        from(f in reports,
+        from(f in report_files_for_runs(project_id, [test_run_id], lines: false),
+          where: f.shard_index != ^shard_index,
           select: %{
             shards_count: fragment("uniqExact(?)", f.shard_index),
             files_count: count(),
@@ -834,34 +834,14 @@ defmodule Tuist.Tests.Coverage do
   defp report_files(project_id, test_run_id), do: report_files_for_runs(project_id, [test_run_id])
 
   @doc """
-  The rows of the given runs' latest run-scoped report per shard: what every
-  reader of a run's, or a commit's, coverage starts from.
-  """
-  def report_files_for_runs(project_id, test_run_ids) do
-    latest_reports =
-      from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
-        group_by: [f.test_run_id, f.shard_index],
-        select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
-      )
-
-    from(f in CoverageFile,
-      join: r in subquery(latest_reports),
-      on: r.test_run_id == f.test_run_id and r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
-      where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run"
-    )
-  end
-
-  @doc """
   The rows of the given runs' latest report per shard, each with its file
   version's blob, lines and functions and its counts laid out against them
   (zeros where the run stored none): what every reader of a run's, or a
-  commit's, coverage will start from once readers move off `coverage_files`,
-  read from `coverage_run_files` and `coverage_file_layouts`. A subquery, so a reader's filter on the
+  commit's, coverage starts from. A subquery, so a reader's filter on the
   path reaches both the rows and the layouts it joins. `lines: false` leaves
   the layouts out, for a reader of paths, targets and counts only.
   """
-  def run_files_for_runs(project_id, test_run_ids, opts \\ []) do
+  def report_files_for_runs(project_id, test_run_ids, opts \\ []) do
     rows = from(f in CoverageRunFile, where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids)
 
     latest_reports =
