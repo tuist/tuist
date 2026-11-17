@@ -134,10 +134,22 @@ defmodule TuistWeb.PulseLiveTest do
   end
 
   test "refresh retains content and respects a widget selected during the load", ctx do
+    # Every wait below is on an event, never on a clock, so the outcome does
+    # not depend on how quickly a busy machine schedules the load tasks.
     test = self()
-    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
+
+    stub(Pulse, :query, fn _, _, signal, _ ->
+      send(test, {:loading, self()})
+      {:ok, result(signal)}
+    end)
+
+    stub(Pulse, :analytics, fn _, _, signal, _ ->
+      send(test, {:loading, self()})
+      {:ok, analytics(signal)}
+    end)
+
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/traces")
-    render_async(view)
+    await_loads(view, 2)
 
     stub(Pulse, :analytics, fn _, _, signal, _ ->
       send(test, {:refreshing, self()})
@@ -148,19 +160,36 @@ defmodule TuistWeb.PulseLiveTest do
     end)
 
     send(view.pid, :refresh)
-    # The refresh is still blocked in the stub, so render_async/2 cannot wait
-    # for it; a busy CI machine can take longer than the default 100ms to start it.
-    assert_receive {:refreshing, worker}, 5_000
+    worker = receive(do: ({:refreshing, pid} -> pid))
     assert has_element?(view, "#pulse-analytics[data-state='refreshing'] #pulse-chart")
     assert has_element?(view, "#pulse-table", "server")
+    # A second refresh while the first is in flight must not restart the load:
+    # a restart would cancel `worker` and block forever, so the analytics would
+    # never reach the ready state asserted below.
     send(view.pid, :refresh)
     render(view)
-    refute_receive {:refreshing, _}
     view |> element("[phx-value-widget='duration_p95']") |> render_click()
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95'] #pulse-chart")
     send(worker, :continue)
-    render_async(view)
+    await_exit(worker)
+    render(view)
     assert has_element?(view, "#pulse-analytics[data-state='ready'][data-widget='duration_p95']")
+  end
+
+  # Waits for `count` load tasks that reported `{:loading, pid}` to finish. A
+  # task sends its result to the LiveView before it exits, so the following
+  # render shows it.
+  defp await_loads(view, count) do
+    for _ <- 1..count do
+      receive(do: ({:loading, pid} -> await_exit(pid)))
+    end
+
+    render(view)
+  end
+
+  defp await_exit(pid) do
+    ref = Process.monitor(pid)
+    receive(do: ({:DOWN, ^ref, :process, ^pid, _} -> :ok))
   end
 
   test "analytics failure is independent of searchable rows and recovers on period change", ctx do
