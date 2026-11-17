@@ -1506,7 +1506,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "us-east", "us-west", "ber1-runners"]
+        ["ca-east", "eu-west", "us-east", "us-west", "ber1-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1527,12 +1527,18 @@ defmodule Tuist.KuraTest do
 
     test "prefers the account's eu-west instance among the CLI's candidates", %{account: account} do
       activate_public_server!(account, "us-east")
-      activate_public_server!(account, "eu-west")
+      activate_public_server!(account, "ca-east")
+      server = activate_public_server!(account, "eu-west")
 
       handle = String.downcase(account.name)
+      internal = "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000"
 
-      assert Kura.runner_cache_endpoint_url(account, :linux) ==
-               "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000"
+      assert Kura.runner_cache_endpoint_url(account, :linux) == internal
+      assert Kura.public_cache_endpoint_url(account, internal) == server.url
+      assert Kura.public_cache_endpoint_url(account, "http://unmatched-cache:4000") == nil
+
+      other_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      assert Kura.public_cache_endpoint_url(other_account, internal) == nil
     end
 
     test "falls back to the account's first instance when it has none in eu-west",
@@ -1583,6 +1589,11 @@ defmodule Tuist.KuraTest do
 
       assert Kura.runner_cache_endpoint_url(account, :linux) ==
                "http://kura-#{handle}-eu-west-1-m.kura.svc.cluster.local:4000"
+
+      assert Kura.public_cache_endpoint_url(account, "http://kura-#{handle}-eu-west-1-m.kura.svc.cluster.local:4000") ==
+               server.url
+
+      assert Kura.public_cache_endpoint_url(account, "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000") == nil
     end
 
     test "never hands macOS fleets a cluster-DNS URL", %{account: account} do

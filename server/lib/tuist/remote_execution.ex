@@ -71,7 +71,8 @@ defmodule Tuist.RemoteExecution do
          concurrency when concurrency > 0 <-
            Settings.max_concurrency(account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit),
          image_tag when is_binary(image_tag) <- Capacity.execution_image_tag(),
-         cas_endpoint when is_binary(cas_endpoint) <- cas_endpoint(Kura.runner_cache_endpoint_url(account, :linux)) do
+         cache_url when is_binary(cache_url) <- Kura.runner_cache_endpoint_url(account, :linux),
+         cas_endpoint when is_binary(cas_endpoint) <- cas_endpoint(cache_url) do
       {:ok,
        %Settings{
          vcpus: account.remote_execution_vcpus_limit,
@@ -79,7 +80,7 @@ defmodule Tuist.RemoteExecution do
          max_concurrency: concurrency,
          image_tag: image_tag,
          cas_endpoint: cas_endpoint,
-         client_cas_endpoint: account |> Kura.managed_cache_endpoint_urls() |> List.first() |> cas_endpoint(),
+         client_cas_endpoint: account |> Kura.public_cache_endpoint_url(cache_url) |> cas_endpoint(),
          executor_endpoint: Environment.remote_execution_endpoint()
        }}
     else
@@ -87,8 +88,8 @@ defmodule Tuist.RemoteExecution do
     end
   end
 
-  # Kura serves gRPC on the same port as HTTP. External coordinators use its
-  # public mesh endpoint; gateways and workers retain the in-cluster route.
+  # Kura serves gRPC on the same port as HTTP. Both routes must address the
+  # same instance; asynchronous mesh replication cannot provide read-after-write.
   defp cas_endpoint(url) do
     with url when is_binary(url) and url != "" <- url,
          %URI{scheme: scheme} = uri when scheme in ["http", "https"] <- URI.parse(url) do
