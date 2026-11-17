@@ -171,7 +171,13 @@ defmodule Tuist.Shards.StorageRoutingTest do
     end)
 
     stub(Storage, :available?, fn _ -> true end)
-    %{plan: plan} = Shards.create_shard_plan(project, %{reference: "public-split", modules: ["AppTests"], shard_total: 1})
+    params = %{modules: ["AppTests"], shard_total: 1}
+    %{plan: old_cli} = Shards.create_shard_plan(project, Map.put(params, :reference, "public-old-cli"))
+    assert {:ok, %{storage_target: ""}} = Shards.get_shard_plan(old_cli.id)
+
+    %{plan: plan} =
+      Shards.create_shard_plan(project, Map.put(params, :reference, "public-split"), public_storage: true)
+
     assert {:ok, %{storage_target: "public-v1"}} = Shards.get_shard_plan(plan.id)
     stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> false end)
     shared = Shards.artifact_object_key(ctx.account, project, plan.id, "shared")

@@ -56,6 +56,44 @@ defmodule TuistWeb.API.ShardsControllerTest do
       end
     end
 
+    test "offers public shard storage only to Xcode CLIs that split multipart uploads across connections", %{
+      conn: conn,
+      user: user
+    } do
+      stub(Shards, :create_shard_plan, fn project, params, opts ->
+        send(self(), {:public_storage, project.build_system, Keyword.fetch!(opts, :public_storage)})
+        Mimic.call_original(Shards, :create_shard_plan, [project, params, opts])
+      end)
+
+      for {build_system, cli_version, expected} <- [
+            {:xcode, nil, false},
+            {:xcode, "4.219.0-canary.20", false},
+            {:xcode, "4.219.0-canary.21", true},
+            {:xcode, "4.220.0", true},
+            {:mix, nil, true}
+          ] do
+        project =
+          ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id, build_system: build_system)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+
+        conn = if cli_version, do: Headers.put_cli_version(conn, cli_version), else: conn
+
+        conn
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards", %{
+          reference: "public-gate-#{build_system}-#{cli_version}",
+          modules: ["AppTests"],
+          shard_max: 1
+        })
+        |> json_response(:ok)
+
+        assert_received {:public_storage, ^build_system, ^expected}
+      end
+    end
+
     test "plans the suites with selected tests of the impact run", %{conn: conn, user: user, project: project} do
       run =
         TestSelectionFixtures.run_fixture(

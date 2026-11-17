@@ -12,10 +12,13 @@ defmodule Tuist.Shards.Storage do
 
   def routable?(project), do: project.build_system in [:xcode, :mix, :cargo]
 
-  def select(project, account, grant) do
+  # `public_storage?` is false unless the uploading client spreads multipart parts
+  # over separate connections; older CLIs multiplex every part onto one HTTP/2
+  # connection to a public store and upload several times slower than to Tigris.
+  def select(project, account, grant, public_storage? \\ false) do
     with true <- routable?(project),
          false <- Account.custom_s3_storage_configured?(account) do
-      select_private(project, account, grant) || select_public(account) || ""
+      select_private(project, account, grant) || (public_storage? && select_public(account)) || ""
     else
       _ -> ""
     end

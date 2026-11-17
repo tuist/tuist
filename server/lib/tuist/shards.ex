@@ -88,7 +88,12 @@ defmodule Tuist.Shards do
       test_impact_run_id: test_impact_run_id,
       inserted_at: now,
       storage_target:
-        ShardStorage.select(project, Repo.preload(project, :account).account, Keyword.get(opts, :runner_grant)),
+        ShardStorage.select(
+          project,
+          Repo.preload(project, :account).account,
+          Keyword.get(opts, :runner_grant),
+          Keyword.get(opts, :public_storage, false)
+        ),
       reporting_version:
         if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account)), do: 1, else: 0)
     }
