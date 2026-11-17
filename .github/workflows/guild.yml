@@ -37,6 +37,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      # Once's kotlin_jvm_test targets (the Android WebSocket tests) compile for
+      # Java 17; Guild's mise config has no JDK, and runner defaults are older.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: ./.github/actions/mise
         with:
           working_directory: guild
@@ -102,6 +108,12 @@ jobs:
       - name: Windows packaging tools
         if: runner.os == 'Windows'
         run: choco install nsis minisign -y --no-progress
+      # Once's kotlin_jvm_test targets (the Android WebSocket tests) compile for
+      # Java 17; Guild's mise config has no JDK, and runner defaults are older.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: ./.github/actions/mise
         with:
           working_directory: guild
