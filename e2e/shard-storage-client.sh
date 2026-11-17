@@ -13,13 +13,13 @@ umask 077
 repo=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/rustfs-client.XXXXXX")
 # Existing Cargo debug logs can contain signed URLs. Never publish them.
-trap 'rm -rf "$work"' EXIT
+trap 'status=$?; if [ "$status" -eq 0 ]; then rm -rf "$work"; else echo "Private diagnostics retained at $work; do not publish raw logs." >&2; fi' EXIT
 unset TUIST_DEBUG TUIST_SHARD_INDEX TUIST_SHARD_PLAN_ID
 case "${1:-}" in
   cargo)
     export TUIST_CARGO_E2E_DIR="$work/cargo"
     if ! bash "$repo/cli/Tests/Fixtures/CargoSharding/e2e.sh" >"$work/client.log" 2>&1; then
-      echo 'FAIL: Cargo CLI workflow (private logs removed on exit)' >&2
+      echo 'FAIL: Cargo CLI workflow' >&2
       exit 1
     fi
     plan_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["shard_plan_id"])' "$work/cargo/plan.json")
@@ -39,7 +39,7 @@ EOF
     if ! "$TUIST_E2E_CLI" test MacFrameworkTests --build-only --shard-total 1 \
         --path "$work/planner" -- -testProductsPath "$work/products.xctestproducts" \
         -destination platform=macOS >"$work/build.log" 2>&1; then
-      echo 'FAIL: Xcode build/upload (private logs removed on exit)' >&2
+      echo 'FAIL: Xcode build/upload' >&2
       exit 1
     fi
     # Resolve by reference to learn the ID without parsing potentially sensitive logs.
@@ -56,7 +56,7 @@ PY
     rm -rf "$work/planner" "$work/products.xctestproducts"
     if ! "$TUIST_E2E_CLI" test MacFrameworkTests --without-building --shard-index 0 \
         --path "$work/worker" -- -destination platform=macOS >"$work/test.log" 2>&1; then
-      echo 'FAIL: Xcode fresh-worker test (private logs removed on exit)' >&2
+      echo 'FAIL: Xcode fresh-worker test' >&2
       exit 1
     fi
     echo 'PASS: real Xcode shard execution from remote products in a fresh source checkout'

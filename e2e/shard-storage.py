@@ -26,6 +26,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 HTTP = urllib.request.build_opener(NoRedirect)
+# Staging's edge rejects Python's default user agent before API authentication.
+HTTP.addheaders = [("User-Agent", "tuist/shard-storage-e2e")]
 
 
 def request(url, method="GET", data=None, headers=None):
@@ -76,20 +78,30 @@ def upload(base, plan, artifact, size, host, path):
         start["artifact"] = artifact
     upload_id = api(base, "/upload/start", start)["data"]["upload_id"]
     parts = []
+    signing_seconds = 0
+    put_seconds = 0
     started = time.monotonic()
     with path.open("rb") as source:
         while chunk := source.read(8 * 1024 * 1024):
             number = len(parts) + 1
+            signing_started = time.monotonic()
             url = api(base, "/upload/generate-url", dict(identity, upload_id=upload_id, part_number=number))["data"]["url"]
+            signing_seconds += time.monotonic() - signing_started
             name = storage_url(url, host)
+            put_started = time.monotonic()
             with request(url, "PUT", chunk) as response:
                 etag = response.headers.get("ETag")
                 if not etag:
                     raise RuntimeError("Multipart response has no ETag")
+            put_seconds += time.monotonic() - put_started
             parts.append({"part_number": number, "etag": etag.strip('"')})
+    completion_started = time.monotonic()
     api(base, "/upload/complete", dict(identity, upload_id=upload_id, parts=parts))
+    completion_seconds = time.monotonic() - completion_started
     elapsed = time.monotonic() - started
-    print(json.dumps({"phase": "upload", "bytes": size, "seconds": elapsed, "parts": len(parts)}), flush=True)
+    print(json.dumps({"phase": "upload", "bytes": size, "seconds": elapsed, "parts": len(parts),
+                      "signing_seconds": signing_seconds, "put_seconds": put_seconds,
+                      "completion_seconds": completion_seconds}), flush=True)
     # Independent expected range, deliberately unaligned to S3 part boundaries.
     with path.open("rb") as source:
         source.seek(7 * 1024 * 1024 + 13)
