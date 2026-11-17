@@ -16,6 +16,7 @@ SOURCE = HERE.parents[2] / "noora" / "css" / "tokens.css"
 OUTPUT = HERE / "src" / "theme" / "noora.rs"
 
 # Opaque semantic tokens the clients draw with, by their CSS name without `--noora-`.
+# A pair keeps the clients' name for a token Noora renamed: (client name, Noora name).
 TOKENS = [
     "surface-background-primary",
     "surface-background-secondary",
@@ -28,13 +29,14 @@ TOKENS = [
     "surface-border-primary",
     "button-primary-background",
     "button-primary-label",
-    "button-primary-disabled-background",
-    "button-primary-disabled-label",
+    # Noora gives every button one disabled look.
+    ("button-primary-disabled-background", "button-disabled-background"),
+    ("button-primary-disabled-label", "button-disabled-label"),
     "button-secondary-background",
     "button-secondary-label",
-    "button-neutral-background-hover",
-    "button-neutral-background-active",
-    "button-neutral-label",
+    ("button-neutral-background-hover", "button-ghost-secondary-hover"),
+    ("button-neutral-background-active", "button-ghost-secondary-selected"),
+    ("button-neutral-label", "button-ghost-secondary-label"),
     "button-destructive-background",
     "button-destructive-label",
 ]
@@ -79,12 +81,13 @@ def render(css):
         "/// Noora's semantic colors as `(name, light, dark)`, packed 0xRRGGBB sRGB.",
         "pub const TOKENS: &[(&str, u32, u32)] = &[",
     ]
-    for name in TOKENS:
-        value = declarations[name]
+    for token in TOKENS:
+        name, source = token if isinstance(token, tuple) else (token, token)
+        value = declarations[source]
         if m := re.fullmatch(r"light-dark\( ?var\(--noora-([a-z0-9-]+)\), var\(--noora-([a-z0-9-]+)\) ?\)", value):
             light, dark = color(m[1]), color(m[2])
         else:
-            light = dark = color(name)
+            light = dark = color(source)
         lines.append(f'    ("{name}", 0x{light:06x}, 0x{dark:06x}),')
     lines.append("];")
     return "\n".join(lines) + "\n"
