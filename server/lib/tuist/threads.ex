@@ -26,6 +26,8 @@ defmodule Tuist.Threads do
   alias Tuist.Threads.Workspace
 
   @active ["queued", "running"]
+  # How long an inference run may take across every host it is handed to.
+  @run_max_hours 3
 
   def authorize(%User{active: true, disabled_at: nil} = user, account) when not is_nil(account) do
     if FeatureFlags.guild_enabled?(user) and Authorization.authorize(:account_update, user, account) == :ok,
@@ -330,39 +332,91 @@ defmodule Tuist.Threads do
         run = Repo.get!(Run, id)
         thread = lock_thread(run.thread_id)
         run = Repo.one!(from r in Run, where: r.id == ^id, lock: "FOR UPDATE")
-        if not claimable?(run, epoch), do: Repo.rollback(:stale_run)
-
-        if thread.status != :active or not worker_access?(thread) do
-          # Commit the terminal state before acknowledging the forbidden job.
-          # Rolling back here would leave it queued for every recovery sweep.
-          interrupt!(thread, run)
-          :forbidden
-        else
-          {attempt, session_id} =
-            if is_nil(epoch), do: {run.attempt + 1, Ecto.UUID.generate()}, else: {epoch, thread.id}
-
-          run =
-            Repo.update!(
-              Changeset.change(run,
-                status: "running",
-                attempt: attempt,
-                session_id: session_id,
-                heartbeat_at: now()
-              )
-            )
-
-          if run.approval_id,
-            do: Repo.update_all(from(a in Approval, where: a.id == ^run.approval_id), set: [status: :executing])
-
-          thread = update_thread!(thread, %{agent_status: if(run.kind == "ship", do: "shipping", else: "running")})
-          {run, thread}
-        end
+        if not claimable?(run, epoch) or not lease_held?(thread, epoch), do: Repo.rollback(:stale_run)
+        claim_locked(thread, run, epoch)
       end)
 
     case result do
-      {:ok, :forbidden} -> {:error, :forbidden}
+      {:ok, outcome} when outcome in [:forbidden, :expired] -> {:error, outcome}
       other -> other
     end
+  end
+
+  defp claim_locked(thread, run, epoch) do
+    cond do
+      # Commit the terminal state before acknowledging the forbidden job.
+      # Rolling back here would leave it queued for every recovery sweep.
+      thread.status != :active or not worker_access?(thread) ->
+        interrupt!(thread, run)
+        :forbidden
+
+      # Each host gives a run a fresh budget, so a run handed on by every
+      # deploy or outage would never end; its age, from the database's
+      # clock, bounds them all.
+      epoch && expired?(run) ->
+        expire!(thread, run)
+        :expired
+
+      true ->
+        claim!(thread, run, epoch)
+    end
+  end
+
+  defp claim!(thread, run, epoch) do
+    {attempt, session_id} =
+      if is_nil(epoch), do: {run.attempt + 1, Ecto.UUID.generate()}, else: {epoch, thread.id}
+
+    run =
+      Repo.update!(
+        Changeset.change(run,
+          status: "running",
+          attempt: attempt,
+          session_id: session_id,
+          heartbeat_at: now()
+        )
+      )
+
+    if run.approval_id,
+      do: Repo.update_all(from(a in Approval, where: a.id == ^run.approval_id), set: [status: :executing])
+
+    thread = update_thread!(thread, %{agent_status: if(run.kind == "ship", do: "shipping", else: "running")})
+    {run, thread}
+  end
+
+  # A host claims only while it holds the thread's lease at its epoch: one
+  # whose lease lapsed, and that has not been drained yet, still receives the
+  # thread's wakes, and must not start work the new host also starts.
+  defp lease_held?(_thread, nil), do: true
+
+  defp lease_held?(thread, epoch) do
+    Repo.exists?(
+      from s in "agent_sessions",
+        where:
+          s.id == ^to_string(thread.id) and s.epoch == ^epoch and
+            s.lease_expires_at > fragment("CURRENT_TIMESTAMP")
+    )
+  end
+
+  defp expired?(run) do
+    Repo.exists?(
+      from r in Run,
+        where:
+          r.id == ^run.id and r.inserted_at < fragment("CURRENT_TIMESTAMP - make_interval(hours => ?)", ^@run_max_hours)
+    )
+  end
+
+  defp expire!(thread, run) do
+    unknown = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and c.status == "executing")
+    status = if unknown, do: "outcome_unknown", else: "failed"
+
+    Repo.update!(Changeset.change(run, status: status, session_id: nil))
+    update_thread!(thread, %{agent_status: status})
+
+    append!(Repo.reload!(thread), %{
+      kind: "notice",
+      body:
+        "This run did not finish within #{@run_max_hours} hours, so it was stopped. Unknown tool effects are never automatically repeated. Send a new message to continue."
+    })
   end
 
   defp claimable?(%Run{kind: "ship"} = run, nil), do: run.status == "queued"
@@ -718,6 +772,8 @@ defmodule Tuist.Threads do
   end
 
   def recover do
+    want_orphaned_sessions()
+
     candidates =
       Repo.all(
         from r in Run,
@@ -732,6 +788,31 @@ defmodule Tuist.Threads do
 
     Enum.each(candidates, &recover_run/1)
     :ok
+  end
+
+  # Inference runs an earlier release left running, as when its Oban job
+  # ended without finishing the run: no host keeps their heartbeat fresh, no
+  # host holds or wants their session, and nothing else would pick them up.
+  # Their sessions want a host, which resumes or ends them at a later epoch.
+  defp want_orphaned_sessions do
+    from(r in Run,
+      left_join: s in "agent_sessions",
+      on: s.id == fragment("?::text", r.thread_id),
+      where:
+        r.kind != "ship" and r.status == "running" and
+          (is_nil(r.heartbeat_at) or r.heartbeat_at < fragment("CURRENT_TIMESTAMP - interval '60 seconds'")),
+      where:
+        is_nil(s.id) or
+          (s.wanted == false and is_nil(s.deleted_at) and
+             (is_nil(s.lease_expires_at) or s.lease_expires_at < fragment("CURRENT_TIMESTAMP"))),
+      select: {r.thread_id, r.attempt},
+      limit: 100
+    )
+    |> Repo.all()
+    |> Enum.each(fn {thread_id, attempt} ->
+      Lease.want(to_string(thread_id), "thread", min_epoch: attempt)
+      Lease.wake(to_string(thread_id))
+    end)
   end
 
   defp recover_run(candidate) do

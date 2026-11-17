@@ -179,28 +179,58 @@ defmodule Tuist.Agents.RunnerTest do
     eventually(fn -> Runner.hosted(runner) == [id] end)
     %{epoch: first} = row(id)
 
-    Process.exit(FakeKind.session(id).pid, :kill)
+    Agent.stop(FakeKind.session(id).pid, {:shutdown, :stale})
     # The same runner may claim it back; what matters is a new epoch.
     eventually(fn -> row(id).epoch > first end)
     assert row(id).wanted
   end
 
-  # A session that could not reach its store is not claimed again at the pace
-  # of the poll, but a new want, such as a message, makes it claimable.
-  test "a session that could not reach its store is claimable again only after a delay" do
+  # A session that could not reach its store, or whose process crashed, is
+  # not claimed again at the pace of the poll, but a new want, such as a
+  # message, makes it claimable.
+  for {name, stop} <- [unavailable: {:stop, {:shutdown, :unavailable}}, crashed: {:exit, :kill}] do
+    test "a session that ended #{name} is claimable again only after a delay" do
+      id = "s-" <> Ecto.UUID.generate()
+      Lease.want(id, "fake")
+      {runner, _host} = start_runner(retry_ms: 60_000)
+      eventually(fn -> Runner.hosted(runner) == [id] end)
+
+      pid = FakeKind.session(id).pid
+
+      case unquote(Macro.escape(stop)) do
+        {:stop, reason} -> Agent.stop(pid, reason)
+        {:exit, reason} -> Process.exit(pid, reason)
+      end
+
+      eventually(fn -> Runner.hosted(runner) == [] and row(id).host == nil end)
+
+      assert row(id).wanted
+      refute Enum.any?(Lease.claim("other-host", 100), &(&1.id == id))
+
+      Lease.want(id, "fake")
+      assert Enum.any?(Lease.claim("other-host", 100), &(&1.id == id))
+    end
+  end
+
+  # As after a database outage longer than the lease: the poll claims the
+  # session back before a renewal noticed it lapsed.
+  test "claiming back a session it still hosts drains the old host first" do
     id = "s-" <> Ecto.UUID.generate()
     Lease.want(id, "fake")
-    {runner, _host} = start_runner(store_retry_ms: 60_000)
+    {runner, _host} = start_runner()
     eventually(fn -> Runner.hosted(runner) == [id] end)
+    old = FakeKind.session(id)
 
-    Agent.stop(FakeKind.session(id).pid, {:shutdown, :unavailable})
-    eventually(fn -> Runner.hosted(runner) == [] and row(id).host == nil end)
+    Repo.update_all(from(s in "agent_sessions", where: s.id == ^id),
+      set: [lease_expires_at: DateTime.add(DateTime.utc_now(), -1)]
+    )
 
-    assert row(id).wanted
-    refute Enum.any?(Lease.claim("other-host", 100), &(&1.id == id))
+    send(runner, :claim)
+    eventually(fn -> FakeKind.session(id).epoch > old.epoch end)
 
-    Lease.want(id, "fake")
-    assert Enum.any?(Lease.claim("other-host", 100), &(&1.id == id))
+    assert Runner.hosted(runner) == [id]
+    refute Process.alive?(old.pid)
+    assert Process.alive?(FakeKind.session(id).pid)
   end
 
   test "stopping the node drains its sessions and hands them to another host" do

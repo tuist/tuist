@@ -290,6 +290,54 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, _} = Threads.rename(second, "Current title")
   end
 
+  # A host whose lease lapsed still receives the thread's wakes until it is
+  # drained; it must not start the work the new host starts.
+  test "a host whose lease lapsed cannot claim the thread's next run", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    run = Repo.one!(Run)
+    [%{epoch: old}] = Enum.filter(Lease.claim("host-a", 100), &(&1.id == thread.id))
+    lapse(thread.id)
+    [%{epoch: new}] = Enum.filter(Lease.claim("host-b", 100), &(&1.id == thread.id))
+
+    assert {:error, :stale_run} = Threads.claim(run.id, old)
+    assert Repo.reload!(run).status == "queued"
+    assert {:ok, {claimed, _}} = Threads.claim(run.id, new)
+    assert claimed.attempt == new
+  end
+
+  # Each host gives a run a fresh budget, so the run's age bounds them all.
+  test "a run handed on past its age limit ends instead of running again", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    old = DateTime.utc_now() |> DateTime.add(-4, :hour) |> DateTime.truncate(:second)
+    Repo.update_all(from(r in Run, where: r.id == ^run.id), set: [inserted_at: old])
+    lapse(thread.id)
+
+    assert {:error, :expired} = claim(run.id)
+    assert Repo.reload!(run).status == "failed"
+    assert {:ok, fresh} = Threads.get(user, account, thread.id)
+    assert fresh.agent_status == "failed"
+  end
+
+  # An earlier release's Oban job can end without finishing its run, leaving
+  # it running with no host and no session that wants one.
+  test "recovery hands an earlier release's orphaned run to the thread's session", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    stale = DateTime.utc_now() |> DateTime.add(-300, :second) |> DateTime.truncate(:second)
+
+    run =
+      Repo.update!(Ecto.Changeset.change(Repo.one!(Run), status: "running", attempt: 3, heartbeat_at: stale))
+
+    Repo.delete_all(from(s in "agent_sessions", where: s.id == ^to_string(thread.id)))
+
+    assert :ok = Threads.recover()
+
+    assert %{wanted: true} = session(thread.id)
+    [%{epoch: epoch}] = Enum.filter(Lease.claim("test-host", 100), &(&1.id == thread.id))
+    assert epoch > run.attempt
+    assert {:ok, _} = Threads.claim(run.id, epoch)
+  end
+
   test "a resumed run replays completed effects instead of repeating them", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
     {:ok, {run, _}} = claim(Repo.one!(Run).id)
