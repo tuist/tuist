@@ -148,7 +148,9 @@ defmodule TuistWeb.PulseLiveTest do
     end)
 
     send(view.pid, :refresh)
-    assert_receive {:refreshing, worker}
+    # The refresh is still blocked in the stub, so render_async/2 cannot wait
+    # for it; a busy CI machine can take longer than the default 100ms to start it.
+    assert_receive {:refreshing, worker}, 5_000
     assert has_element?(view, "#pulse-analytics[data-state='refreshing'] #pulse-chart")
     assert has_element?(view, "#pulse-table", "server")
     send(view.pid, :refresh)
