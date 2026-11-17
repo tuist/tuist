@@ -392,6 +392,8 @@ The rollout gate explicitly assumes only that it can fetch `/status/rollout` fro
 
 Beyond the signals the standalone gate consumes, `/status/rollout` also reports `peer_connection_failure_count` — peer-plane request failures (catch-up listings, body fetches and forward reads that errored against a peer). The managed fleet's control plane consumes it, together with `fd_timeout_count`, as a regression signal for its health-gated progressive rollout ([spec #79](https://hive.tuist.dev/specs/79)); the standalone gate keeps its existing conditions.
 
+To roll the managed fleet back to a proven runtime, dispatch `server-deployment.yml` with `kura_runtime_image_tag` set to that tag and `kura_expedite: true`. Leave `image_tag` and `commit_sha` empty so the server is rebuilt from current `main`: a pinned `image_tag` rolls the server back as well, which on 2026-11-17 took everything merged since that image offline. If a pin is needed, read the live one first (`kubectl -n tuist get deploy tuist-tuist-server -o jsonpath='{.spec.template.spec.containers[0].image}'`). The expedited rollout supersedes the active one at once and holds against pods still configured for the old tag until it has settled (`Tuist.Kura.Rollouts`). The rollback lasts only until the next deploy from `main`, which picks the newest `kura@…-canary` tag in the deployed commit, so land the revert before or right after the rollback.
+
 ## Observability
 
 Optional fixed-profile connectivity observations (`src/connectivity/`) run on a

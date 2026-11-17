@@ -78,10 +78,10 @@ on:
         description: Pre-built Swift registry image tag to deploy instead of building
         required: false
       kura_runtime_image_tag:
-        description: Pre-built Kura runtime image tag to deploy
+        description: Pre-built Kura runtime image tag to deploy. For a Kura-only rollback leave image_tag and commit_sha empty; pinning image_tag rolls the server back too
         required: false
       kura_expedite:
-        description: Expedite the Kura rollout of this deploy's runtime tag (all-at-once fan-out; for rollbacks to a tag that previously completed)
+        description: Expedite the Kura rollout of this deploy's runtime tag (all-at-once fan-out that supersedes the active rollout at once; for rollbacks to a tag that previously completed)
         required: false
         default: false
         type: boolean
