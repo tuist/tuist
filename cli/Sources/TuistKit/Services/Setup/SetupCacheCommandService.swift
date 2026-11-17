@@ -414,7 +414,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
                 COMPILATION_CACHE_ENABLE_CACHING=YES
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
                 COMPILATION_CACHE_PLUGIN_PATH=\(pluginPath)
-                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(proxySocketPath)
+                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(proxySocketPath)?tuist-instance=\(fullHandle)
                 COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
                 OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)\(prefixMapping)

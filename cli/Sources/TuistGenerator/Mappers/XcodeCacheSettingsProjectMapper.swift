@@ -121,8 +121,21 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 // whose own remote client would otherwise run its much slower
                 // choreography against this socket. So the flag flips without handing
                 // Apple's client the connection.
+                //
+                // The plugin options ride in its query too. This is the only option
+                // the build system gives the CAS handles it opens itself, and they run
+                // every cache key query; the `OTHER_SWIFT_FLAGS` above reach compiler
+                // frontends only. Without the instance there, a key query on a machine
+                // whose proxy has not seen this build's store yet (a CI host reset
+                // between jobs) misses without asking the remote. Xcode never opens
+                // the path, and it is not part of any cache key.
                 baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
-                    Environment.current.casProxySocketPathString()
+                    Self.remoteServicePath(
+                        pluginOptions: Self.casPluginOptions(
+                            fullHandle: fullHandle,
+                            upload: tuist.xcodeCache.upload
+                        )
+                    )
                 )
                 // With a remote service, every local miss is followed by a key query
                 // task that asks the remote cache. On execution lanes only a few run
@@ -201,16 +214,27 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         .string(Environment.current.homeRelativePathString(path))
     }
 
-    /// The plugin's per-project `-cas-plugin-option` flags (`tuist-instance`, and
-    /// `tuist-upload=false` when uploads are disabled).
-    private static func casPluginOptionFlags(fullHandle: String, upload: Bool) -> [String] {
-        var flags = ["-cas-plugin-option", "tuist-instance=\(fullHandle)"]
+    /// The plugin's per-project options (`tuist-instance`, and `tuist-upload=false`
+    /// when uploads are disabled), as `name=value` pairs.
+    private static func casPluginOptions(fullHandle: String, upload: Bool) -> [String] {
+        var options = ["tuist-instance=\(fullHandle)"]
         if !upload {
             // `xcodeCache(upload:)` is per-project, but the proxy is machine-wide;
             // carry the opt-out as a plugin option so it reaches every frontend.
-            flags += ["-cas-plugin-option", "tuist-upload=false"]
+            options.append("tuist-upload=false")
         }
-        return flags
+        return options
+    }
+
+    /// The plugin's per-project options as `-cas-plugin-option` flags.
+    private static func casPluginOptionFlags(fullHandle: String, upload: Bool) -> [String] {
+        casPluginOptions(fullHandle: fullHandle, upload: upload).flatMap { ["-cas-plugin-option", $0] }
+    }
+
+    /// `COMPILATION_CACHE_REMOTE_SERVICE_PATH`: the proxy's socket, with the plugin
+    /// options in its query (`<socket>?tuist-instance=…`), which the plugin reads.
+    private static func remoteServicePath(pluginOptions: [String]) -> String {
+        "\(Environment.current.casProxySocketPathString())?\(pluginOptions.joined(separator: "&"))"
     }
 
     /// Appends `flags` to an existing `OTHER_SWIFT_FLAGS` value, preserving inherited

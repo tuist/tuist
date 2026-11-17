@@ -323,9 +323,11 @@ struct XcodeCacheSettingsProjectMapperTests {
         // The proxy's socket is what makes C, Objective-C and precompiled modules
         // shareable: the build system only runs its caching for those when a remote
         // service is configured. Without it, only Swift compilations are shared.
+        // It is also the only option the build system's own cache key queries get,
+        // so the instance rides in its query.
         #expect(
             baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
-                == .string(Environment.current.casProxySocketPathString())
+                == .string("\(Environment.current.casProxySocketPathString())?tuist-instance=test-org/test-project")
         )
         // With a remote service, the build system queries the cache for every local
         // miss; detached, those queries overlap instead of waiting for an execution lane.
@@ -414,6 +416,12 @@ struct XcodeCacheSettingsProjectMapperTests {
                     "tuist-upload=false",
                 ])
         )
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
+                == .string(
+                    "\(Environment.current.casProxySocketPathString())?tuist-instance=test-org/test-project&tuist-upload=false"
+                )
+        )
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
@@ -460,7 +468,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string(casPluginPath.pathString))
         #expect(
             baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
-                == .string(Environment.current.casProxySocketPathString())
+                == .string("\(Environment.current.casProxySocketPathString())?tuist-instance=org/project")
         )
     }
 

@@ -278,12 +278,41 @@ pub fn default_proxy_socket() -> String {
 
 /// The value of a plugin option the build system passed to `set_option`
 /// (e.g. `tuist-instance`), or `None` when absent or empty.
+///
+/// A `tuist-*` option that was not passed on its own is read from the query of
+/// `remote-service-path` (`<socket>?tuist-instance=<account/project>`). The
+/// handles the build system opens itself get that one option and nothing else
+/// (swift-build's `CASOptions.pluginOptions`), while the `tuist-*` flags in
+/// `OTHER_SWIFT_FLAGS` reach compiler frontends only. Without it every key query
+/// the build system runs declared no instance, and on a store the proxy had not
+/// seen yet (a CI host reset between jobs) answered a miss without asking the
+/// remote until the build's first frontend declared it. Xcode never opens the
+/// path itself: this plugin consumes the option.
 fn option_value(state: &OptionsState, name: &str) -> Option<String> {
-    state
-        .options
-        .iter()
-        .find(|(option_name, _)| option_name.to_string_lossy() == name)
-        .map(|(_, value)| value.to_string_lossy().into_owned())
+    let passed = |name: &str| {
+        state
+            .options
+            .iter()
+            .find(|(option_name, _)| option_name.to_string_lossy() == name)
+            .map(|(_, value)| value.to_string_lossy().into_owned())
+            .filter(|value| !value.is_empty())
+    };
+    passed(name).or_else(|| {
+        if !name.starts_with("tuist-") {
+            return None;
+        }
+        remote_service_path_option(&passed("remote-service-path")?, name)
+    })
+}
+
+/// The value of `name` in the query of a `remote-service-path`.
+fn remote_service_path_option(path: &str, name: &str) -> Option<String> {
+    let (_, query) = path.split_once('?')?;
+    query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(key, _)| *key == name)
+        .map(|(_, value)| value.to_string())
         .filter(|value| !value.is_empty())
 }
 
@@ -1693,6 +1722,52 @@ mod tests {
         assert!(
             !local_lookups_stay_local(false, false),
             "a compiler frontend without the option still reads through"
+        );
+    }
+
+    /// The build system's own handles get `remote-service-path` and no other
+    /// option, so the project rides in its query or their key queries declare
+    /// no instance.
+    #[test]
+    fn a_tuist_option_not_passed_on_its_own_is_read_from_the_remote_service_path() {
+        let options = |pairs: &[(&str, &str)]| OptionsState {
+            ondisk_path: None,
+            client_version: None,
+            options: pairs
+                .iter()
+                .map(|(name, value)| (CString::new(*name).unwrap(), CString::new(*value).unwrap()))
+                .collect(),
+        };
+        let build_system = options(&[(
+            "remote-service-path",
+            "/Users/me/.local/state/tuist/cas-proxy.sock?tuist-instance=acme/app&tuist-upload=false",
+        )]);
+        assert_eq!(
+            option_value(&build_system, "tuist-instance").as_deref(),
+            Some("acme/app")
+        );
+        assert!(!resolve_upload(&build_system));
+        assert_eq!(option_value(&build_system, "tuist-other"), None);
+
+        let frontend = options(&[
+            ("tuist-instance", "acme/declared"),
+            ("remote-service-path", "/s.sock?tuist-instance=acme/app"),
+        ]);
+        assert_eq!(
+            option_value(&frontend, "tuist-instance").as_deref(),
+            Some("acme/declared"),
+            "an option passed on its own wins"
+        );
+
+        let older_project = options(&[("remote-service-path", "/s.sock")]);
+        assert_eq!(option_value(&older_project, "tuist-instance"), None);
+        assert_eq!(
+            option_value(
+                &options(&[("remote-service-path", "/s.sock?tuist-instance=")]),
+                "tuist-instance"
+            ),
+            None,
+            "an empty value is no value"
         );
     }
 

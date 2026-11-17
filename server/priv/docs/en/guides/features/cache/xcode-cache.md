@@ -69,7 +69,7 @@ The settings include:
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
-COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
+COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock?tuist-instance=your-org/your-project
 COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
@@ -85,7 +85,7 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `C
 > [!NOTE]
 > **One socket for every project**
 >
-> `tuist setup cache` installs a single cache proxy per machine, so every project uses the same `COMPILATION_CACHE_REMOTE_SERVICE_PATH`. The `tuist-instance` plugin option is what identifies the project.
+> `tuist setup cache` installs a single cache proxy per machine, so every project points `COMPILATION_CACHE_REMOTE_SERVICE_PATH` at the same socket. The `tuist-instance` plugin option is what identifies the project. It goes in two places: `OTHER_SWIFT_FLAGS`, which reaches the compilers, and after the socket path (`?tuist-instance=…`), which reaches the cache lookups Xcode's build system makes itself. Without the second, those lookups can miss on a machine whose cache proxy hasn't seen the project yet, such as a CI machine that is reset between jobs.
 
 > [!IMPORTANT]
 > **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what shares C and Objective-C**
@@ -104,7 +104,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
     COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
-    COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+    'COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock?tuist-instance=your-org/your-project' \
     COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
     'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'

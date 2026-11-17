@@ -141,6 +141,7 @@ Xcode passes `-cas-plugin-option <name>=<value>` flags to the plugin via `llcas_
 
 - `tuist-instance=<account/project>` - the instance this build routes to; takes precedence over `TUIST_CAS_ACCOUNT`/`TUIST_CAS_PROJECT`. `tuist-*` options are consumed here and never forwarded to the wrapped plugin.
 - `tuist-upload=false` - disables publishing for this build (`xcodeCache(upload: false)`); read hits are unaffected. Takes precedence over `TUIST_CAS_UPLOAD`. This is the carrier that reaches a ⌘B build (the per-machine proxy env can't express a per-project setting).
+- `remote-service-path=<socket>?tuist-instance=<account/project>[&tuist-upload=false]` - `OTHER_SWIFT_FLAGS` reach compiler frontends only. The CAS handles the build system opens itself, which run every cache key query (Swift and Clang), get `remote-service-path` and no other option (swift-build's `CASOptions.pluginOptions`). So `tuist generate` puts the same `tuist-*` options in the query of `COMPILATION_CACHE_REMOTE_SERVICE_PATH`, and `option_value` reads a `tuist-*` option that was not passed on its own from there. Without it those queries declared no instance, and on a store the proxy had not registered (every store at the start of a job on a CI host reset between jobs) answered misses without asking the remote until the build's first frontend declared the instance. Xcode never opens the path (this plugin consumes the option), and it is in no cache key: measured on Xcode 27.1 and 26.6, keys are identical with and without the query. Older plugins ignore the query.
 
 ## Certificate trust and proxy replacement
 
@@ -198,7 +199,7 @@ TUIST_CAS_SERVER_URL="https://tuist.dev" ./target/release/tuist-cas-proxy
 xcodebuild ... \
   COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES \
   COMPILATION_CACHE_PLUGIN_PATH="$PWD/target/release/libtuist_cas_plugin.dylib" \
-  COMPILATION_CACHE_REMOTE_SERVICE_PATH="<proxy socket>" \
+  COMPILATION_CACHE_REMOTE_SERVICE_PATH="<proxy socket>?tuist-instance=<account>/<project>" \
   COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
   OTHER_SWIFT_FLAGS="-cas-plugin-option tuist-instance=<account>/<project>"
 ```
