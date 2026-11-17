@@ -38,7 +38,7 @@ message ActionResult {
   repeated OutputSymlink output_directory_symlinks = 11;
   repeated OutputSymlink output_symlinks = 12;
 }
-message GetActionResultRequest { string instance_name = 1; Digest action_digest = 2; DigestFunction.Value digest_function = 6; }
+message GetActionResultRequest { string instance_name = 1; Digest action_digest = 2; bool inline_stdout = 3; bool inline_stderr = 4; DigestFunction.Value digest_function = 6; }
 message UpdateActionResultRequest { string instance_name = 1; Digest action_digest = 2; ActionResult action_result = 3; DigestFunction.Value digest_function = 5; }
 message FindMissingBlobsRequest { string instance_name = 1; repeated Digest blob_digests = 2; DigestFunction.Value digest_function = 3; }
 message FindMissingBlobsResponse { repeated Digest missing_blob_digests = 2; }

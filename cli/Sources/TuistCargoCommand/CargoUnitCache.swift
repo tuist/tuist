@@ -13,7 +13,7 @@ import TuistREAPI
 /// target directory, here or on another machine, starts with them. Cargo stays the judge of freshness: restored
 /// units carry Cargo's own fingerprints, so a unit whose inputs differ here is rebuilt, never reused.
 struct CargoUnitCache {
-    static let version = "tuist-swift-cargo-units-v4"
+    static let version = "tuist-swift-cargo-units-v5"
 
     let profile: URL
     let root: URL
@@ -104,6 +104,8 @@ struct CargoUnitCache {
                   "r": "build",
                   "check": "check",
                   "c": "check",
+                  // `cargo check` with Clippy as the workspace wrapper.
+                  "clippy": "clippy",
                   "test": "test",
                   "t": "test",
                   "bench": "bench",
@@ -130,8 +132,10 @@ struct CargoUnitCache {
               let rustc = toolchain?.version, let sysroot = toolchain?.sysrootPath
         else { return nil }
         let profileName = profileDirectory(options: options, kind: kind)
+        // Not `CARGO_INCREMENTAL`: Cargo never compiles dependency units incrementally, and its fingerprints still
+        // decide whether a restored unit is fresh.
         let flags = environment.filter { key, _ in
-            ["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS", "CARGO_INCREMENTAL", "RUSTC_BOOTSTRAP"]
+            ["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS", "RUSTC_BOOTSTRAP"]
                 .contains(key) || key.hasPrefix("CARGO_PROFILE_")
                 // Not target runners, which start test binaries and build nothing; coverage sets one.
                 || (key.hasPrefix("CARGO_TARGET_") && !key.hasSuffix("_RUNNER"))

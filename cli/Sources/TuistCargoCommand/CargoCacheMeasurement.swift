@@ -19,6 +19,32 @@ final class CargoCacheMeasurement {
         ])
     }
 
+    /// A hit compiled to verify it (`CargoCacheVerification`): it compiled rather than reused, like a miss.
+    func verifying() {
+        counters["verifications"] = 1
+        records.append([
+            "record": "task", "key": Self.key(invocation.key), "name": invocation.name,
+            "kind": invocation.kind, "status": "verification",
+        ])
+    }
+
+    /// Verification found that the hit's key missed an input, or its stored outputs differ from fresh ones.
+    func diverged() {
+        counters["divergences"] = 1
+    }
+
+    /// A build-script run that ran again to verify it, which has no measurement of its own. It is a task record and,
+    /// when it diverged, a divergence, but not a `verifications` count: that counter counts as a task miss, and a run
+    /// that restores is never counted as a hit.
+    static func verified(name: String, key: REAPI.Digest, divergent: Bool, environment: [String: String]) {
+        var counters = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, UInt64(0)) })
+        counters["divergences"] = divergent ? 1 : 0
+        let record: [String: Any] = [
+            "record": "task", "key": self.key(key), "name": name, "kind": "build_script", "status": "verification",
+        ]
+        write(counters: counters, records: [record], environment: environment)
+    }
+
     func timing(_ operation: String, duration: TimeInterval) {
         records.append([
             "record": "timing", "key": Self.key(invocation.key), "operation": operation,

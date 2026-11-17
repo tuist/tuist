@@ -420,6 +420,10 @@ public struct Build_Bazel_Remote_Execution_V2_GetActionResultRequest: Sendable {
     /// Clears the value of `actionDigest`. Subsequent reads from it will return its default value.
     public mutating func clearActionDigest() { _actionDigest = nil }
 
+    public var inlineStdout: Bool = false
+
+    public var inlineStderr: Bool = false
+
     public var digestFunction: Build_Bazel_Remote_Execution_V2_DigestFunction.Value = .unknown
 
     public var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -1432,7 +1436,9 @@ extension Build_Bazel_Remote_Execution_V2_GetActionResultRequest: SwiftProtobuf.
 {
     public static let protoMessageName: String = _protobuf_package + ".GetActionResultRequest"
     public static let _protobuf_nameMap = SwiftProtobuf
-        ._NameMap(bytecode: "\0\u{3}instance_name\0\u{3}action_digest\0\u{4}\u{4}digest_function\0")
+        ._NameMap(
+            bytecode: "\0\u{3}instance_name\0\u{3}action_digest\0\u{3}inline_stdout\0\u{3}inline_stderr\0\u{4}\u{2}digest_function\0"
+        )
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
         while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1442,6 +1448,8 @@ extension Build_Bazel_Remote_Execution_V2_GetActionResultRequest: SwiftProtobuf.
             switch fieldNumber {
             case 1: try decoder.decodeSingularStringField(value: &instanceName)
             case 2: try decoder.decodeSingularMessageField(value: &_actionDigest)
+            case 3: try decoder.decodeSingularBoolField(value: &inlineStdout)
+            case 4: try decoder.decodeSingularBoolField(value: &inlineStderr)
             case 6: try decoder.decodeSingularEnumField(value: &digestFunction)
             default: break
             }
@@ -1459,6 +1467,12 @@ extension Build_Bazel_Remote_Execution_V2_GetActionResultRequest: SwiftProtobuf.
         try { if let v = self._actionDigest {
             try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
         } }()
+        if inlineStdout != false {
+            try visitor.visitSingularBoolField(value: inlineStdout, fieldNumber: 3)
+        }
+        if inlineStderr != false {
+            try visitor.visitSingularBoolField(value: inlineStderr, fieldNumber: 4)
+        }
         if digestFunction != .unknown {
             try visitor.visitSingularEnumField(value: digestFunction, fieldNumber: 6)
         }
@@ -1471,6 +1485,8 @@ extension Build_Bazel_Remote_Execution_V2_GetActionResultRequest: SwiftProtobuf.
     ) -> Bool {
         if lhs.instanceName != rhs.instanceName { return false }
         if lhs._actionDigest != rhs._actionDigest { return false }
+        if lhs.inlineStdout != rhs.inlineStdout { return false }
+        if lhs.inlineStderr != rhs.inlineStderr { return false }
         if lhs.digestFunction != rhs.digestFunction { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true

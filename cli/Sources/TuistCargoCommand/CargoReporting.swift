@@ -127,6 +127,14 @@ struct CargoReporting {
             {
                 let lines = tasks.map { "Tuist Cargo cache: \($0["status"] ?? "") \($0["kind"] ?? "") \($0["name"] ?? "")\n" }
                 FileHandle.standardError.write(Data(lines.sorted().joined().utf8))
+                // Hits served after their sources agreed are not compilations, so they are not counted here.
+                let verified = tasks.filter { $0["status"] as? String == "verification" }.count
+                if verified > 0 {
+                    FileHandle.standardError.write(Data(
+                        "Tuist Cargo cache: verified \(verified) hits by running them, \((cache["divergences"] as? UInt64) ?? 0) divergent\n"
+                            .utf8
+                    ))
+                }
             }
         }
         await submit(payload, kind: "builds")
