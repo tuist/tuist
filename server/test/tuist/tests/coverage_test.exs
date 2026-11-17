@@ -488,6 +488,54 @@ defmodule Tuist.Tests.CoverageTest do
       )
     end
 
+    test "read back from the new tables what coverage_files holds", %{project: project, account: account} do
+      counts_only = %{
+        file("Sources/Calculator/Legacy.swift", "legacy1", ["Calculator"], [])
+        | covered_lines: 8,
+          executable_lines: 10
+      }
+
+      {:ok, test} =
+        create_test(project, account, %{xcode_coverage: coverage([add(), untested(), formatter(), counts_only])})
+
+      {:ok, stored} = Tests.get_test(test.id)
+
+      # A retried shard: only its latest report counts.
+      Coverage.publish(stored, Coverage.rows(project.id, coverage([untested()])), 1)
+      Coverage.publish(stored, Coverage.rows(project.id, other_shard()), 1)
+
+      fields = [
+        :test_run_id,
+        :shard_index,
+        :partial,
+        :path,
+        :in_repository,
+        :is_test,
+        :targets,
+        :covered_lines,
+        :executable_lines,
+        :inserted_at,
+        :git_blob_id,
+        :line_numbers,
+        :execution_counts,
+        :function_names,
+        :function_line_numbers,
+        :function_execution_counts,
+        :function_covered_lines,
+        :function_executable_lines
+      ]
+
+      read = fn query ->
+        query |> ClickHouseRepo.all() |> Enum.map(&Map.take(&1, fields)) |> Enum.sort_by(&{&1.shard_index, &1.path})
+      end
+
+      old = read.(Coverage.report_files_for_runs(project.id, [test.id]))
+      new = read.(from(f in Coverage.run_files_for_runs(project.id, [test.id])))
+
+      assert length(old) == 5
+      assert new == old
+    end
+
     test "merge the shards' lines and stay partial once any shard was", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
@@ -661,6 +709,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs git_commit_files test_impact_diffs test_impact_runs)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_file_layouts coverage_files coverage_run_files coverage_runs git_commit_files test_impact_diffs test_impact_runs)
   end
 end
