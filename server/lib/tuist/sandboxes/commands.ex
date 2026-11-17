@@ -235,6 +235,8 @@ defmodule Tuist.Sandboxes.Commands do
     end
   end
 
+  defp host_poll_ms, do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:host_poll_ms, @host_poll_ms)
+
   defp command_id(nil), do: {:ok, nil}
 
   defp command_id(id) do
@@ -247,8 +249,10 @@ defmodule Tuist.Sandboxes.Commands do
   defp start_admitted(sandbox, id, params, script, env, deadline) do
     case start_new(sandbox, id, params, script, env) do
       {:error, reason} = error ->
-        if host_busy?(reason) and System.monotonic_time(:millisecond) + @host_poll_ms < deadline do
-          Process.sleep(@host_poll_ms)
+        poll_ms = host_poll_ms()
+
+        if host_busy?(reason) and System.monotonic_time(:millisecond) + poll_ms < deadline do
+          Process.sleep(poll_ms)
 
           case Sandboxes.get_sandbox_by_id(sandbox.id) do
             %Sandbox{} = fresh -> start_admitted(fresh, id, params, script, env, deadline)
