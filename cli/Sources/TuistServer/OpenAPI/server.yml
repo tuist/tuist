@@ -1043,13 +1043,13 @@ components:
           x-struct:
           x-validate:
       required:
+        - end_at
         - page
-        - total_pages
         - page_size
+        - total_count
+        - total_pages
         - has_next_page
         - has_previous_page
-        - total_count
-        - end_at
       title: PulsePagination
       type: object
       x-struct:
@@ -3935,6 +3935,30 @@ components:
           type: string
           x-struct:
           x-validate:
+        remote_execution_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        remote_input_fetch_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        remote_output_upload_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        remote_queue_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
         start_ms:
           type: number
           x-struct:
@@ -6169,8 +6193,8 @@ components:
         - id
         - unit
         - value
-        - points
         - previous_value
+        - points
       title: PulseWidget
       type: object
       x-struct:
@@ -6411,13 +6435,13 @@ components:
               x-struct:
               x-validate:
           required:
+            - end_at
             - page
-            - total_pages
             - page_size
+            - total_count
+            - total_pages
             - has_next_page
             - has_previous_page
-            - total_count
-            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -10817,6 +10841,30 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              remote_execution_ms:
+                description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              remote_input_fetch_ms:
+                description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              remote_output_upload_ms:
+                description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              remote_queue_ms:
+                description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
               start_ms:
                 type: number
                 x-struct:
@@ -12683,13 +12731,13 @@ components:
               x-struct:
               x-validate:
           required:
+            - end_at
             - page
-            - total_pages
             - page_size
+            - total_count
+            - total_pages
             - has_next_page
             - has_previous_page
-            - total_count
-            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -14556,8 +14604,8 @@ components:
               - id
               - unit
               - value
-              - points
               - previous_value
+              - points
             title: PulseWidget
             type: object
             x-struct:
@@ -16441,6 +16489,30 @@ components:
           x-validate:
         project:
           type: string
+          x-struct:
+          x-validate:
+        remote_execution_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        remote_input_fetch_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        remote_output_upload_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        remote_queue_ms:
+          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+          nullable: true
+          type: number
           x-struct:
           x-validate:
         start_ms:
@@ -27879,8 +27951,8 @@ paths:
                         - id
                         - unit
                         - value
-                        - points
                         - previous_value
+                        - points
                       title: PulseWidget
                       type: object
                       x-struct:
@@ -35964,13 +36036,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
+                      - end_at
                       - page
-                      - total_pages
                       - page_size
+                      - total_count
+                      - total_pages
                       - has_next_page
                       - has_previous_page
-                      - total_count
-                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -44010,6 +44082,29 @@ paths:
             x-validate:
         - description: ''
           in: query
+          name: environment
+          required: false
+          schema:
+            description: 'Errors only: an event environment, such as production.'
+            nullable: false
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment_op
+          required: false
+          schema:
+            description: Filter operator; defaults to exact equality.
+            enum:
+              - eq
+              - contains
+              - not_contains
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
           name: level
           required: false
           schema:
@@ -44181,13 +44276,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
+                      - end_at
                       - page
-                      - total_pages
                       - page_size
+                      - total_count
+                      - total_pages
                       - has_next_page
                       - has_previous_page
-                      - total_count
-                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -50737,6 +50832,30 @@ paths:
                     x-validate:
                   project:
                     type: string
+                    x-struct:
+                    x-validate:
+                  remote_execution_ms:
+                    description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  remote_input_fetch_ms:
+                    description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  remote_output_upload_ms:
+                    description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  remote_queue_ms:
+                    description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                    nullable: true
+                    type: number
                     x-struct:
                     x-validate:
                   start_ms:
@@ -66407,6 +66526,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Only actions with safely associated server RE phases from indexed profiles. Empty results do not prove no remote work occurred.
+          in: query
+          name: remote_execution
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page
@@ -66554,6 +66681,30 @@ paths:
                           x-validate:
                         project:
                           type: string
+                          x-struct:
+                          x-validate:
+                        remote_execution_ms:
+                          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        remote_input_fetch_ms:
+                          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        remote_output_upload_ms:
+                          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        remote_queue_ms:
+                          description: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                          nullable: true
+                          type: number
                           x-struct:
                           x-validate:
                         start_ms:

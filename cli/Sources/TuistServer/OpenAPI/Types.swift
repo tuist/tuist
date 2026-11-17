@@ -11256,6 +11256,22 @@ public enum Components {
             public var log_truncated: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/project`.
             public var project: Swift.String
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/remote_execution_ms`.
+            public var remote_execution_ms: Swift.Double?
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/remote_input_fetch_ms`.
+            public var remote_input_fetch_ms: Swift.Double?
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/remote_output_upload_ms`.
+            public var remote_output_upload_ms: Swift.Double?
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/remote_queue_ms`.
+            public var remote_queue_ms: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/start_ms`.
             public var start_ms: Swift.Double
             /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/status`.
@@ -11273,6 +11289,10 @@ public enum Components {
             ///   - log:
             ///   - log_truncated:
             ///   - project:
+            ///   - remote_execution_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///   - remote_input_fetch_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///   - remote_output_upload_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///   - remote_queue_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
             ///   - start_ms:
             ///   - status:
             ///   - target:
@@ -11284,6 +11304,10 @@ public enum Components {
                 log: Swift.String? = nil,
                 log_truncated: Swift.Bool,
                 project: Swift.String,
+                remote_execution_ms: Swift.Double? = nil,
+                remote_input_fetch_ms: Swift.Double? = nil,
+                remote_output_upload_ms: Swift.Double? = nil,
+                remote_queue_ms: Swift.Double? = nil,
                 start_ms: Swift.Double,
                 status: Swift.String,
                 target: Swift.String,
@@ -11295,6 +11319,10 @@ public enum Components {
                 self.log = log
                 self.log_truncated = log_truncated
                 self.project = project
+                self.remote_execution_ms = remote_execution_ms
+                self.remote_input_fetch_ms = remote_input_fetch_ms
+                self.remote_output_upload_ms = remote_output_upload_ms
+                self.remote_queue_ms = remote_queue_ms
                 self.start_ms = start_ms
                 self.status = status
                 self.target = target
@@ -11307,6 +11335,10 @@ public enum Components {
                 case log
                 case log_truncated
                 case project
+                case remote_execution_ms
+                case remote_input_fetch_ms
+                case remote_output_upload_ms
+                case remote_queue_ms
                 case start_ms
                 case status
                 case target
@@ -21770,6 +21802,22 @@ public enum Components {
                 public var id: Swift.String
                 /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/project`.
                 public var project: Swift.String
+                /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/remote_execution_ms`.
+                public var remote_execution_ms: Swift.Double?
+                /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/remote_input_fetch_ms`.
+                public var remote_input_fetch_ms: Swift.Double?
+                /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/remote_output_upload_ms`.
+                public var remote_output_upload_ms: Swift.Double?
+                /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/remote_queue_ms`.
+                public var remote_queue_ms: Swift.Double?
                 /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/start_ms`.
                 public var start_ms: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/status`.
@@ -21785,6 +21833,10 @@ public enum Components {
                 ///   - duration_ms:
                 ///   - id:
                 ///   - project:
+                ///   - remote_execution_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///   - remote_input_fetch_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///   - remote_output_upload_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                ///   - remote_queue_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
                 ///   - start_ms:
                 ///   - status:
                 ///   - target:
@@ -21794,6 +21846,10 @@ public enum Components {
                     duration_ms: Swift.Double,
                     id: Swift.String,
                     project: Swift.String,
+                    remote_execution_ms: Swift.Double? = nil,
+                    remote_input_fetch_ms: Swift.Double? = nil,
+                    remote_output_upload_ms: Swift.Double? = nil,
+                    remote_queue_ms: Swift.Double? = nil,
                     start_ms: Swift.Double,
                     status: Swift.String,
                     target: Swift.String,
@@ -21803,6 +21859,10 @@ public enum Components {
                     self.duration_ms = duration_ms
                     self.id = id
                     self.project = project
+                    self.remote_execution_ms = remote_execution_ms
+                    self.remote_input_fetch_ms = remote_input_fetch_ms
+                    self.remote_output_upload_ms = remote_output_upload_ms
+                    self.remote_queue_ms = remote_queue_ms
                     self.start_ms = start_ms
                     self.status = status
                     self.target = target
@@ -21813,6 +21873,10 @@ public enum Components {
                     case duration_ms
                     case id
                     case project
+                    case remote_execution_ms
+                    case remote_input_fetch_ms
+                    case remote_output_upload_ms
+                    case remote_queue_ms
                     case start_ms
                     case status
                     case target
@@ -30106,6 +30170,22 @@ public enum Components {
             public var id: Swift.String
             /// - Remark: Generated from `#/components/schemas/BazelBuildStep/project`.
             public var project: Swift.String
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/remote_execution_ms`.
+            public var remote_execution_ms: Swift.Double?
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/remote_input_fetch_ms`.
+            public var remote_input_fetch_ms: Swift.Double?
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/remote_output_upload_ms`.
+            public var remote_output_upload_ms: Swift.Double?
+            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/remote_queue_ms`.
+            public var remote_queue_ms: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/BazelBuildStep/start_ms`.
             public var start_ms: Swift.Double
             /// - Remark: Generated from `#/components/schemas/BazelBuildStep/status`.
@@ -30121,6 +30201,10 @@ public enum Components {
             ///   - duration_ms:
             ///   - id:
             ///   - project:
+            ///   - remote_execution_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///   - remote_input_fetch_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///   - remote_output_upload_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+            ///   - remote_queue_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
             ///   - start_ms:
             ///   - status:
             ///   - target:
@@ -30130,6 +30214,10 @@ public enum Components {
                 duration_ms: Swift.Double,
                 id: Swift.String,
                 project: Swift.String,
+                remote_execution_ms: Swift.Double? = nil,
+                remote_input_fetch_ms: Swift.Double? = nil,
+                remote_output_upload_ms: Swift.Double? = nil,
+                remote_queue_ms: Swift.Double? = nil,
                 start_ms: Swift.Double,
                 status: Swift.String,
                 target: Swift.String,
@@ -30139,6 +30227,10 @@ public enum Components {
                 self.duration_ms = duration_ms
                 self.id = id
                 self.project = project
+                self.remote_execution_ms = remote_execution_ms
+                self.remote_input_fetch_ms = remote_input_fetch_ms
+                self.remote_output_upload_ms = remote_output_upload_ms
+                self.remote_queue_ms = remote_queue_ms
                 self.start_ms = start_ms
                 self.status = status
                 self.target = target
@@ -30149,6 +30241,10 @@ public enum Components {
                 case duration_ms
                 case id
                 case project
+                case remote_execution_ms
+                case remote_input_fetch_ms
+                case remote_output_upload_ms
+                case remote_queue_ms
                 case start_ms
                 case status
                 case target
@@ -104468,6 +104564,22 @@ public enum Operations {
                 public var end_at: Swift.String?
                 ///
                 ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/environment`.
+                public var environment: Swift.String?
+                /// Filter operator; defaults to exact equality.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/environment_op`.
+                @frozen public enum environment_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case eq = "eq"
+                    case contains = "contains"
+                    case not_contains = "not_contains"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/environment_op`.
+                public var environment_op: Operations.queryPulse.Input.Query.environment_opPayload?
+                ///
+                ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/level`.
                 public var level: Swift.String?
                 /// Filter operator; defaults to exact equality.
@@ -104560,6 +104672,8 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - end_at:
+                ///   - environment:
+                ///   - environment_op:
                 ///   - level:
                 ///   - level_op:
                 ///   - page:
@@ -104573,6 +104687,8 @@ public enum Operations {
                 ///   - sort_order:
                 public init(
                     end_at: Swift.String? = nil,
+                    environment: Swift.String? = nil,
+                    environment_op: Operations.queryPulse.Input.Query.environment_opPayload? = nil,
                     level: Swift.String? = nil,
                     level_op: Operations.queryPulse.Input.Query.level_opPayload? = nil,
                     page: Swift.Int? = nil,
@@ -104586,6 +104702,8 @@ public enum Operations {
                     sort_order: Operations.queryPulse.Input.Query.sort_orderPayload? = nil
                 ) {
                     self.end_at = end_at
+                    self.environment = environment
+                    self.environment_op = environment_op
                     self.level = level
                     self.level_op = level_op
                     self.page = page
@@ -123823,6 +123941,22 @@ public enum Operations {
                         public var log_truncated: Swift.Bool
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/project`.
                         public var project: Swift.String
+                        /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/remote_execution_ms`.
+                        public var remote_execution_ms: Swift.Double?
+                        /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/remote_input_fetch_ms`.
+                        public var remote_input_fetch_ms: Swift.Double?
+                        /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/remote_output_upload_ms`.
+                        public var remote_output_upload_ms: Swift.Double?
+                        /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/remote_queue_ms`.
+                        public var remote_queue_ms: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/start_ms`.
                         public var start_ms: Swift.Double
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/status`.
@@ -123840,6 +123974,10 @@ public enum Operations {
                         ///   - log:
                         ///   - log_truncated:
                         ///   - project:
+                        ///   - remote_execution_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///   - remote_input_fetch_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///   - remote_output_upload_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                        ///   - remote_queue_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
                         ///   - start_ms:
                         ///   - status:
                         ///   - target:
@@ -123851,6 +123989,10 @@ public enum Operations {
                             log: Swift.String? = nil,
                             log_truncated: Swift.Bool,
                             project: Swift.String,
+                            remote_execution_ms: Swift.Double? = nil,
+                            remote_input_fetch_ms: Swift.Double? = nil,
+                            remote_output_upload_ms: Swift.Double? = nil,
+                            remote_queue_ms: Swift.Double? = nil,
                             start_ms: Swift.Double,
                             status: Swift.String,
                             target: Swift.String,
@@ -123862,6 +124004,10 @@ public enum Operations {
                             self.log = log
                             self.log_truncated = log_truncated
                             self.project = project
+                            self.remote_execution_ms = remote_execution_ms
+                            self.remote_input_fetch_ms = remote_input_fetch_ms
+                            self.remote_output_upload_ms = remote_output_upload_ms
+                            self.remote_queue_ms = remote_queue_ms
                             self.start_ms = start_ms
                             self.status = status
                             self.target = target
@@ -123874,6 +124020,10 @@ public enum Operations {
                             case log
                             case log_truncated
                             case project
+                            case remote_execution_ms
+                            case remote_input_fetch_ms
+                            case remote_output_upload_ms
+                            case remote_queue_ms
                             case start_ms
                             case status
                             case target
@@ -167582,6 +167732,10 @@ public enum Operations {
             public var path: Operations.listBazelBuildSteps.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Only actions with safely associated server RE phases from indexed profiles. Empty results do not prove no remote work occurred.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/remote_execution`.
+                public var remote_execution: Swift.Bool?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/page`.
@@ -167642,6 +167796,7 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - remote_execution: Only actions with safely associated server RE phases from indexed profiles. Empty results do not prove no remote work occurred.
                 ///   - page:
                 ///   - page_size:
                 ///   - search: Case-insensitive title, project, or target search.
@@ -167653,6 +167808,7 @@ public enum Operations {
                 ///   - end_ms:
                 ///   - sort_by: Duration descending or start time ascending; ties use step ID ascending.
                 public init(
+                    remote_execution: Swift.Bool? = nil,
                     page: Swift.Int? = nil,
                     page_size: Swift.Int? = nil,
                     search: Swift.String? = nil,
@@ -167664,6 +167820,7 @@ public enum Operations {
                     end_ms: Swift.Double? = nil,
                     sort_by: Operations.listBazelBuildSteps.Input.Query.sort_byPayload? = nil
                 ) {
+                    self.remote_execution = remote_execution
                     self.page = page
                     self.page_size = page_size
                     self.search = search
@@ -167739,6 +167896,22 @@ public enum Operations {
                             public var id: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/project`.
                             public var project: Swift.String
+                            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/remote_execution_ms`.
+                            public var remote_execution_ms: Swift.Double?
+                            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/remote_input_fetch_ms`.
+                            public var remote_input_fetch_ms: Swift.Double?
+                            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/remote_output_upload_ms`.
+                            public var remote_output_upload_ms: Swift.Double?
+                            /// Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/remote_queue_ms`.
+                            public var remote_queue_ms: Swift.Double?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/start_ms`.
                             public var start_ms: Swift.Double
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/status`.
@@ -167754,6 +167927,10 @@ public enum Operations {
                             ///   - duration_ms:
                             ///   - id:
                             ///   - project:
+                            ///   - remote_execution_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///   - remote_input_fetch_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///   - remote_output_upload_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
+                            ///   - remote_queue_ms: Reported server phase milliseconds summed within this action, including retries. Null or absent means not recorded or not safely associated; not billed usage.
                             ///   - start_ms:
                             ///   - status:
                             ///   - target:
@@ -167763,6 +167940,10 @@ public enum Operations {
                                 duration_ms: Swift.Double,
                                 id: Swift.String,
                                 project: Swift.String,
+                                remote_execution_ms: Swift.Double? = nil,
+                                remote_input_fetch_ms: Swift.Double? = nil,
+                                remote_output_upload_ms: Swift.Double? = nil,
+                                remote_queue_ms: Swift.Double? = nil,
                                 start_ms: Swift.Double,
                                 status: Swift.String,
                                 target: Swift.String,
@@ -167772,6 +167953,10 @@ public enum Operations {
                                 self.duration_ms = duration_ms
                                 self.id = id
                                 self.project = project
+                                self.remote_execution_ms = remote_execution_ms
+                                self.remote_input_fetch_ms = remote_input_fetch_ms
+                                self.remote_output_upload_ms = remote_output_upload_ms
+                                self.remote_queue_ms = remote_queue_ms
                                 self.start_ms = start_ms
                                 self.status = status
                                 self.target = target
@@ -167782,6 +167967,10 @@ public enum Operations {
                                 case duration_ms
                                 case id
                                 case project
+                                case remote_execution_ms
+                                case remote_input_fetch_ms
+                                case remote_output_upload_ms
+                                case remote_queue_ms
                                 case start_ms
                                 case status
                                 case target

@@ -22655,6 +22655,20 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "environment",
+                    value: input.query.environment
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "environment_op",
+                    value: input.query.environment_op
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "level",
                     value: input.query.level
                 )
@@ -43818,6 +43832,13 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "remote_execution",
+                    value: input.query.remote_execution
+                )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
