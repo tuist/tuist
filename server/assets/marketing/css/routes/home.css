@@ -3081,3 +3081,8 @@
     }
   }
 }
+
+/* On the home page only, the footer's "Ask about Tuist on" icons are 20px. */
+body:has(#marketing-home) #marketing-footer [data-part="ask-assistants"] > .noora-button {
+  --noora-button-icon-size: 20px;
+}
