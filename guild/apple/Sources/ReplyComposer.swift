@@ -10,6 +10,7 @@ import SwiftUI
 /// audio levels between the stop microphone and a separate discard control.
 struct ReplyComposer: View {
     @Binding var reply: String
+    /// Blocks sending, not editing: the server takes no message while the agent works.
     let disabled: Bool
     let sending: Bool
     @ObservedObject var voice: VoiceInput
@@ -52,8 +53,9 @@ struct ReplyComposer: View {
                             .lineLimit(1 ... (dynamicTypeSize.isAccessibilitySize ? 2 : 6))
                             .textFieldStyle(.plain)
                             .padding(.vertical, 11).padding(.leading, 12)
-                            .disabled(disabled || sending)
-                            .onSubmit(send)
+                            // Typing stays open while the agent works; only sending waits for it.
+                            .disabled(sending)
+                            .onSubmit { if canSend { send() } }
                     }
                 }
                 .padding(.leading, recording ? 52 : 0).padding(.trailing, recording ? 8 : 44)
@@ -92,8 +94,8 @@ struct ReplyComposer: View {
                     stop: { voice.finish { reply = VoiceInput.appending($0, to: reply) } },
                     cancel: { voice.cancel() }
                 )
-                // A recording in progress can always be stopped, even if the agent starts working.
-                .disabled((disabled || sending) && !voice.busy)
+                // Dictation only edits the reply, so like typing it stays open while the agent works.
+                .disabled(sending && !voice.busy)
                 .padding(.trailing, recording ? 0 : 48)
             }
             .padding(4)
