@@ -109,6 +109,15 @@
       "commitMessagePrefix": "fix(linux-runner-image):"
     },
     {
+      "description": "Linux CI runners and sandbox guests share one Ubuntu 24.04 digest (infra/linux-vm-foundations.md). Bump both Dockerfiles in one PR so they never drift; the prefix keeps the runner image release flow.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile", "infra/sandbox-image/Dockerfile"],
+      "matchPackageNames": ["ubuntu"],
+      "matchCurrentValue": "24.04",
+      "groupName": "Linux guest Ubuntu 24.04 base",
+      "commitMessagePrefix": "fix(linux-runner-image):"
+    },
+    {
       "description": "Linux-runner-image ARG bumps (actions/runner, kubectl, helm, gh): route through the linux-runner-image release flow.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],

@@ -12,6 +12,8 @@ on:
       - infra/sandbox-image/**
       - infra/amp-orbs/**
       - infra/claude-code-runners/**
+      # Its Claude Code pin is checked by sbx-worker's claude_code_pins_test.go.
+      - infra/tart-kubelet/internal/macosandbox/tools.go
       - infra/helm/tuist/**
       - .github/workflows/sandbox-image.yml
       - .github/scripts/sandbox-image-*.sh

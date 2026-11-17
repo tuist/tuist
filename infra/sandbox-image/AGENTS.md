@@ -27,8 +27,11 @@ Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
 `ant` CLI 1.30.0 as a fallback worker; its .deb installs a single `/usr/ant`
 binary, symlinked to `/usr/local/bin/ant`. Claude Code is installed at
 `/usr/local/bin/claude`, pinned by `CLAUDE_CODE_VERSION`/`CLAUDE_CODE_SHA256`
-to the version `sbx-worker` expects; keep the two and
-`infra/claude-code-runners/Dockerfile` in step. `agent-browser` (pinned by
+to the version `sbx-worker` expects (`claudeCodeVersion` and
+`claudeCodeChecksums` in `cmd/sbx-worker/claude_code.go`). The copies here, in
+`infra/claude-code-runners/Dockerfile` and in tart-kubelet's
+`internal/macosandbox/tools.go` must match; `claude_code_pins_test.go` fails
+when one drifts, so bump all of them together. `agent-browser` (pinned by
 `AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
 globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
 browser's system libraries from apt. Amp Desktop's stack is baked in too:

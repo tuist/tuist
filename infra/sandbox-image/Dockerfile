@@ -72,7 +72,10 @@ RUN set -eu; \
     test -x /out/opt/amp-wayland/bin/waymote-gateway; \
     test -x /out/opt/amp-wayland/libexec/waymote-streamd
 
-FROM ubuntu:24.04 AS guest
+# Same Ubuntu digest as infra/linux-runner-image's default base, so sandbox
+# guests and Linux CI jobs share system libraries and native build caches.
+# Renovate bumps both together (see renovate.json).
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS guest
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bash coreutils ca-certificates curl wget git git-lfs openssh-client gnupg sudo tzdata locales \
@@ -207,7 +210,7 @@ RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home bu
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
-FROM --platform=$BUILDPLATFORM ubuntu:24.04 AS rootfs
+FROM --platform=$BUILDPLATFORM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS rootfs
 RUN apt-get update && apt-get install -y --no-install-recommends e2fsprogs ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 ARG KERNEL_URL
