@@ -2,9 +2,11 @@ defmodule Tuist.Runners.ClaimsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
+  import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
+  alias Tuist.Runners.AirShare
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.ConcurrencyLimit
@@ -167,6 +169,51 @@ defmodule Tuist.Runners.ClaimsTest do
                Claims.attempt(1460, account.id, "fleet-linux", "pod-linux", @linux_resources)
 
       refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1460))
+    end
+  end
+
+  describe "attempt/6 Air fleet share" do
+    @macos_baseline %{platform: :macos, vcpus: 8, memory_gb: 24}
+
+    # One baseline macOS guest's worth of fleet for every Air account together.
+    setup do
+      stub(AirShare, :budget, fn
+        :macos -> %{vcpus: 8, memory_gb: 24}
+        :linux -> :unknown
+      end)
+
+      :ok
+    end
+
+    test "refuses an Air account once Air accounts together hold the share" do
+      first = account_fixture()
+      second = account_fixture()
+
+      assert {:ok, claim} = Claims.attempt(3001, first.id, "fleet-macos", "air-pod-1", @macos_baseline)
+
+      assert {:error, {:air_fleet_share_reached, %{used: %{vcpus: 8, memory_gb: 24}}}} =
+               Claims.attempt(3002, second.id, "fleet-macos", "air-pod-2", @macos_baseline)
+
+      refute Repo.get_by(Claim, workflow_job_id: 3002)
+
+      # The share frees with the claim holding it.
+      :ok = Claims.release(3001, claim.claimed_at)
+      assert {:ok, _} = Claims.attempt(3002, second.id, "fleet-macos", "air-pod-2", @macos_baseline)
+    end
+
+    test "leaves paid and trial accounts and the other platform outside the share" do
+      air = account_fixture()
+      assert {:ok, _} = Claims.attempt(3101, air.id, "fleet-macos", "air-pod", @macos_baseline)
+
+      paid = account_fixture()
+      TuistTestSupport.Fixtures.BillingFixtures.subscription_fixture(account_id: paid.id, plan: :pro)
+      assert {:ok, _} = Claims.attempt(3102, paid.id, "fleet-macos", "paid-pod", @macos_baseline)
+
+      {:ok, trial} = Tuist.Runners.Trials.start(account_fixture())
+      assert {:ok, _} = Claims.attempt(3103, trial.id, "fleet-macos", "trial-pod", @macos_baseline)
+
+      # Linux capacity is unreadable here, so its share is not enforced.
+      assert {:ok, _} = Claims.attempt(3104, air.id, "fleet-linux", "air-linux-pod", @linux_resources)
     end
   end
 

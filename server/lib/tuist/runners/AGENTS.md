@@ -5,6 +5,16 @@ own node: [`cache_volumes/AGENTS.md`](cache_volumes/AGENTS.md). GitLab
 acquisition: [`gitlab/AGENTS.md`](gitlab/AGENTS.md). Bitrise pools:
 [`bitrise/AGENTS.md`](bitrise/AGENTS.md).
 
+## Air fleet share
+
+`AirShare` caps what Air accounts (no live paid or open source subscription, no
+runner trial) hold together at `:runner_air_fleet_share_percent` (default 15,
+`TUIST_RUNNER_AIR_FLEET_SHARE_PERCENT`) of each platform's Ready, schedulable
+RunnerPool Nodes. `Claims.attempt/6` reads the budget before its transaction,
+never the cluster under locks, and serialises Air admission per platform with
+a non-blocking advisory lock. The scaling signals withhold Air jobs past the
+share. An unreadable cluster leaves the share unenforced (fail open).
+
 ## Rack sites
 
 The design and the alternatives considered are in [`sites.md`](sites.md).

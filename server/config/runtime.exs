@@ -150,7 +150,8 @@ end
 
 for {env_var, key} <- [
       {"TUIST_RUNNER_FREE_MONTHLY_MINUTES", :runner_free_monthly_minutes},
-      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes}
+      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes},
+      {"TUIST_RUNNER_AIR_FLEET_SHARE_PERCENT", :runner_air_fleet_share_percent}
     ] do
   case System.get_env(env_var) do
     nil ->

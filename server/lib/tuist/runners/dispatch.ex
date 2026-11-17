@@ -142,7 +142,13 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(_), do: "unknown"
 
-  defp check_shape_fits_limit(account, %{platform: platform} = target) do
+  @doc """
+  `:ok` when one job of `target`'s shape fits `account`'s whole platform
+  limit, `{:error, :shape_exceeds_limit}` when admission could never claim it.
+  Every path that queues a job checks it, so such a job is refused where it
+  arrives instead of waiting until its provider times it out.
+  """
+  def check_shape_fits_limit(account, %{platform: platform} = target) do
     if Concurrency.fits?(%{vcpus: 0, memory_gb: 0}, Concurrency.limits_for(account, platform), target),
       do: :ok,
       else: {:error, :shape_exceeds_limit}
