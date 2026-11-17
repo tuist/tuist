@@ -276,8 +276,16 @@ defmodule TuistWeb.UsageLiveTest do
       assert once_series["name"] == once_project.name
       assert bazel_series["name"] == project.name
       assert projected["name"] == "Projected"
-      assert Enum.take(once_series["data"], 2) == [["2026-01-16", 0.0], ["2026-01-17", 0.08]]
-      assert Enum.take(bazel_series["data"], 2) == [["2026-01-16", 0.04], ["2026-01-17", 0.02]]
+      # The axis starts on the period's first day, as the runner chart's does,
+      # not on the first day anything ran.
+      assert [["2026-01-01", +0.0] | _] = bazel_series["data"]
+
+      assert Enum.filter(once_series["data"], &(hd(&1) in ["2026-01-16", "2026-01-17"])) ==
+               [["2026-01-16", 0.0], ["2026-01-17", 0.08]]
+
+      assert Enum.filter(bazel_series["data"], &(hd(&1) in ["2026-01-16", "2026-01-17"])) ==
+               [["2026-01-16", 0.04], ["2026-01-17", 0.02]]
+
       assert once_series["stack"] == bazel_series["stack"]
       refute once_series["color"] == bazel_series["color"]
       refute has_element?(lv, "[data-part=runner-usage-card]")

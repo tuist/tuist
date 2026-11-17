@@ -461,13 +461,17 @@ defmodule TuistWeb.UsageLive do
   def cache_chart_unit("requests"), do: :count
 
   @doc """
-  Every date a usage pricing chart draws, spend and projection alike.
+  Every date a usage pricing chart draws, spend and projection alike, from
+  the first day of the billing period, so the axis starts where the runner
+  chart's does even when nothing ran on the period's first days.
   """
-  def usage_chart_dates(%{days: days, projected_days: projected_days}) do
-    (days ++ projected_days)
-    |> Enum.map(& &1.date)
-    |> Enum.uniq()
-    |> Enum.sort(Date)
+  def usage_chart_dates(%{days: days, projected_days: projected_days} = usage) do
+    dates = (days ++ projected_days) |> Enum.map(& &1.date) |> Enum.uniq() |> Enum.sort(Date)
+
+    case {Map.get(usage, :period_start), dates} do
+      {%Date{} = period_start, [_ | _]} -> period_start |> Date.range(List.last(dates)) |> Enum.to_list()
+      _ -> dates
+    end
   end
 
   @doc """
