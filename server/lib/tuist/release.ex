@@ -151,7 +151,8 @@ defmodule Tuist.Release do
   Writes the test maps of a project's commits measured in the last `days`
   days (31 by default, the maps' retention) from their runs' retained
   evidence (`Tuist.TestImpactAnalysis.Snapshots.backfill/2`), as their folds
-  would have. The migration that ships the maps queues it per project on its
+  would have. Evidence is kept two days, so only the runs of those days
+  still write. The migration that ships the maps queues it per project on its
   own (`Tuist.TestImpactAnalysis.Workers.SnapshotBackfillWorker`); this runs
   it again by hand. It reads through the application's repositories, so it
   runs on a live node, and repeating it writes nothing already written:
@@ -190,26 +191,6 @@ defmodule Tuist.Release do
     end
 
     counts
-  end
-
-  @doc """
-  Records the test versions and target sources carried coverage reads
-  (`Tuist.Tests.Coverage.TestSources.backfill/1`) for the runs still within
-  the file retention, for one project or every project. The migration that
-  ships the index queues it on its own
-  (`Tuist.Tests.Coverage.Workers.SourceBackfillWorker`); this runs it
-  again by hand, on a live node:
-
-      bin/tuist rpc "Tuist.Release.backfill_coverage_sources()"
-      bin/tuist rpc "Tuist.Release.backfill_coverage_sources(<project id>)"
-  """
-  def backfill_coverage_sources(project_id \\ nil) do
-    if project_id do
-      Coverage.TestSources.backfill(project_id)
-      Logger.info("Coverage sources of project #{project_id} recorded")
-    else
-      Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
-    end
   end
 
   @doc """

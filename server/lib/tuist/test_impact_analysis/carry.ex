@@ -3,9 +3,13 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   Coverage carry from snapshots (`Tuist.TestImpactAnalysis.Snapshots`):
   where each test a commit's runs skipped carries its coverage from, and the
   lines it carries. `Tuist.Tests.Coverage.Reported` decides which tests were
-  skipped and applies the result (`source: :snapshots`); this module replaces
-  where the evidence comes from, and which tests an impact run skipped
-  (`skipped_tests/2`).
+  skipped and applies the result; this module is where the evidence comes
+  from, and says which tests an impact run skipped (`skipped_tests/2`). Tests
+  and lines come from the snapshots' tables (`test_impact_snapshot_*`,
+  `test_impact_line_*`, `test_impact_run_decisions`), never from the runs'
+  `test`, `suite` and `target` evidence in `coverage_files`, which expires
+  long before the snapshots do; blobs come from the runs' reports (their
+  `run` scope, through `context.run_blobs`).
 
   A test module selective testing skipped carries whole from the snapshot of
   the run recorded under the hash it was skipped with
@@ -20,7 +24,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   this one: the same bitmap check selection makes (`Candidate`). Its lines
   are its own and its suite's setup's. A test the baseline can't carry
   that the commit's impact run skipped through another snapshot, the
-  branch's previous run (`Tuist.TestImpactAnalysis.Shadow`), carries from
+  branch's previous run (`Tuist.TestImpactAnalysis.Decision`), carries from
   that overlay when its files are unchanged since that run.
 
   Both keep `Reported`'s guards: the test passed there, the tracked files
@@ -71,7 +75,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
 
   @doc """
   The tests the impact run `run_id`'s stored decision skipped
-  (`Tuist.TestImpactAnalysis.Shadow`), with `test_case_id`, `module_name`
+  (`Tuist.TestImpactAnalysis.Decision`), with `test_case_id`, `module_name`
   and `suite_name`, read from its bitmaps and the snapshots that numbered
   them; nil when the run has no stored decision.
   """
@@ -387,7 +391,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   # What the baseline can't carry an overlay may: only a test it carries is
   # taken from it, and the baseline's reason stays otherwise. A failure at
   # the baseline stands against evidence that ran before it, such as a row
-  # an overlay keeps from an older checkpoint, as `Shadow` decides it.
+  # an overlay keeps from an older checkpoint, as `Decision` decides it.
   defp or_overlay(baseline, overlays, test_case_id) do
     {result, failed_at} = baseline || {nil, nil}
 
@@ -484,7 +488,9 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     |> Enum.group_by(& &1.snapshot_id)
     |> Enum.reduce(MapSet.new(), fn {snapshot_id, snapshot_units}, unlined ->
       # A suite's and a module's rows are numbered as their lowest test, whose
-      # module and suite are theirs.
+      # module and suite are theirs. Only the paths of the patterns without
+      # lines are read: grouping every path of the snapshot's weeks peaked at
+      # 2 GiB at 200k tests while those parts were unmerged, against 130 MiB.
       rows =
         """
         WITH tests AS (
@@ -497,10 +503,19 @@ defmodule Tuist.TestImpactAnalysis.Carry do
           SELECT scope, test_idx, epoch, line_set FROM test_impact_snapshot_lines
           WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
         ),
-        #{Snapshots.set_patterns_sql()},
         unlined AS (
           SELECT epoch, pattern, path_id FROM test_impact_line_patterns
           WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs) AND empty(line_ranges)
+        ),
+        set_patterns AS (
+          SELECT epoch, line_set, pattern FROM test_impact_line_sets
+          ARRAY JOIN patterns AS pattern
+          WHERE project_id = {project_id:Int64} AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs)
+        ),
+        line_paths AS (
+          SELECT epoch, path_id, any(path) AS path FROM test_impact_line_paths
+          WHERE project_id = {project_id:Int64} AND (epoch, path_id) IN (SELECT epoch, path_id FROM unlined)
+          GROUP BY epoch, path_id
         )
         SELECT p.path, toString(r.scope), t.module_name, t.suite_name, r.test_idx FROM set_patterns AS s
         INNER JOIN unlined AS u ON u.epoch = s.epoch AND u.pattern = s.pattern

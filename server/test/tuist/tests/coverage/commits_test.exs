@@ -5,11 +5,15 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   import Ecto.Query
 
   alias Tuist.GitHistory
+  alias Tuist.IngestRepo
+  alias Tuist.TestImpactAnalysis.Snapshot
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
+  alias Tuist.Tests.CoverageFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -671,6 +675,100 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert Coverage.refold_after_selective_testing(%{test_run_id: nil, project_id: project.id}, graph("local")) ==
                :skipped
+    end
+  end
+
+  describe "folding a commit whose evidence may have expired" do
+    # A full run of AppTests at `sha`: testAdd() with evidence over A.swift.
+    defp evidenced_run(project, account, sha, attrs \\ %{}) do
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/A.swift", [1, 0])],
+        Map.merge(
+          %{
+            git_commit_sha: sha,
+            test_modules: [
+              %{
+                name: "AppTests",
+                status: "success",
+                duration: 1,
+                test_cases: [%{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 10}]
+              }
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/A.swift"],
+              scopes: [
+                %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 1]]}
+              ]
+            }
+          },
+          attrs
+        )
+      )
+    end
+
+    # A report of the run three days old: its evidence is past the two days
+    # `coverage_files` keeps it, so merges may have deleted any of it.
+    defp report_days_ago(run, days) do
+      IngestRepo.insert_all(CoverageFile, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: run.id,
+          project_id: run.project_id,
+          build_system: "xcode",
+          scope_kind: "run",
+          scope_id: "",
+          path: "Sources/Old.swift",
+          git_blob_id: "blob-old",
+          git_commit_sha: run.git_commit_sha,
+          targets: ["App"],
+          covered_lines: 0,
+          executable_lines: 1,
+          line_numbers: [1],
+          execution_counts: [0],
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
+        }
+      ])
+    end
+
+    defp snapshots(project), do: Repo.all(from(s in Snapshot, where: s.project_id == ^project.id, order_by: s.id))
+
+    test "writes no test map from a run whose evidence may be gone", %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      run = evidenced_run(project, account, "old", %{recompute: false})
+      report_days_ago(run, 3)
+
+      Commits.recompute(project, "old")
+
+      assert snapshots(project) == []
+    end
+
+    test "keeps the commit's checkpoint when a run arrives beside one whose evidence may be gone",
+         %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      first = evidenced_run(project, account, "old")
+      assert [%Snapshot{kind: :checkpoint} = checkpoint] = snapshots(project)
+
+      # Days later the first run's evidence is expiring and another full run
+      # of the scope reports at the commit: a checkpoint over both would
+      # read whatever is left of the first run's evidence.
+      report_days_ago(first, 3)
+      evidenced_run(project, account, "old")
+
+      assert snapshots(project) == [checkpoint]
+      assert %{checkpoint: ^checkpoint} = Snapshots.at(project.id, "old", "App", "")
+    end
+
+    test "writes the checkpoint of a scope that has none from its runs whose evidence is whole",
+         %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      first = evidenced_run(project, account, "old", %{recompute: false})
+      report_days_ago(first, 3)
+      second = evidenced_run(project, account, "old")
+
+      assert [%Snapshot{kind: :checkpoint, test_run_ids: [run_id], tests_count: 1}] = snapshots(project)
+      assert run_id == second.id
     end
   end
 

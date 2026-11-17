@@ -21,43 +21,102 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
   """
   alias Tuist.TestImpactAnalysis.Snapshots
 
+  @files_sql """
+  WITH files AS (
+    SELECT snapshot_id, path, is_test, tests, target_tests, suite_tests
+    FROM test_impact_snapshot_files
+    WHERE project_id = {project_id:Int64} AND snapshot_id IN {ids:Array(UUID)} AND path IN {paths:Array(String)}
+  )
+  """
+
+  # Each path keeps the tests of its bitmaps no earlier path in path order
+  # holds: a running union in a window, so no test is expanded into a row
+  # (at 5,000 paths, 20 of them run by all 200,000 tests, 54 ms and 103 MiB
+  # against 627 ms and 470 MiB grouping a row per test and path).
+  @matched_sql @files_sql <>
+                 """
+                 , kinds AS (
+                   SELECT snapshot_id, path, 'direct' AS kind, tests AS bitmap FROM files
+                   WHERE bitmapCardinality(tests) > 0
+                   UNION ALL
+                   SELECT snapshot_id, path, 'target', target_tests FROM files
+                   WHERE bitmapCardinality(target_tests) > 0
+                   UNION ALL
+                   SELECT snapshot_id, path, 'suites', suite_tests FROM files
+                   WHERE is_test AND bitmapCardinality(suite_tests) > 0
+                 )
+                 SELECT toString(snapshot_id), kind, path, bitmapToArray(fresh)
+                 FROM (
+                   SELECT snapshot_id, kind, path,
+                     bitmapAndnot(bitmap, groupBitmapOrState(bitmap) OVER (PARTITION BY snapshot_id, kind ORDER BY path
+                       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)) AS fresh
+                   FROM kinds
+                 )
+                 WHERE bitmapCardinality(fresh) > 0
+                 """
+
+  @union_sql @files_sql <>
+               """
+               SELECT toString(snapshot_id), kind, '', bitmapToArray(groupBitmapOrState(bitmap))
+               FROM (
+                 SELECT snapshot_id, 'direct' AS kind, tests AS bitmap FROM files
+                 UNION ALL
+                 SELECT snapshot_id, 'target', target_tests FROM files
+                 UNION ALL
+                 SELECT snapshot_id, 'suites', suite_tests FROM files WHERE is_test
+               )
+               GROUP BY snapshot_id, kind
+               """
+
   @doc """
   The snapshot's tests, in `modules` when given, each as `%{idx,
   test_case_id, module_name, suite_name, status, layer, reason,
-  executed_changed, owned}`, against `changed_files` (`%{path,
-  affected_modules}`): `executed_changed` when a file the test or its
+  matched_path, executed_changed, owned}`, against `changed_files` (`%{path,
+  affected_modules}`). `matched_path` is the changed file that decided a
+  test selected by `test_file_changed`, `impacted` or
+  `owned_without_evidence`, the first in path order, nil otherwise;
+  `executed_changed` when a file the test or its
   suite's setup executed changed, which is what coverage carry checks, and
   `owned` when a changed file no evidence includes affects its module,
   whichever rule decided it first.
   """
-  def evaluate(project_id, %{checkpoint: checkpoint} = layers, changed_files, modules \\ nil) do
+  def evaluate(project_id, %{checkpoint: checkpoint} = layers, changed_files, modules \\ nil, opts \\ []) do
     overlay = Map.get(layers, :overlay)
     tests = tests(project_id, checkpoint, overlay, modules)
     overridden = for {idx, %{layer: :overlay}} <- tests, into: MapSet.new(), do: idx
-    hits = hits(project_id, checkpoint, overlay, changed_files)
+    hits = hits(project_id, checkpoint, overlay, changed_files, Keyword.get(opts, :matched_paths, false))
     checkpoint_hits = Map.get(hits, checkpoint.id, empty_hits())
     overlay_hits = if overlay, do: Map.get(hits, overlay.id, empty_hits()), else: empty_hits()
 
+    # An overridden test's own files are the overlay's.
     merged =
       Map.new([:direct, :target, :suites], fn key ->
-        {key, checkpoint_hits |> Map.fetch!(key) |> MapSet.difference(overridden) |> MapSet.union(overlay_hits[key])}
+        {key, checkpoint_hits |> Map.fetch!(key) |> Map.drop(MapSet.to_list(overridden)) |> Map.merge(overlay_hits[key])}
       end)
 
     evidenced = MapSet.union(checkpoint_hits.evidenced, overlay_hits.evidenced)
 
+    # Each module a changed file no evidence includes affects, with the first
+    # such file in path order.
     owned_modules =
       changed_files
       |> Enum.reject(&MapSet.member?(evidenced, &1.path))
-      |> Enum.flat_map(&(Map.get(&1, :affected_modules) || []))
-      |> MapSet.new()
+      |> Enum.sort_by(& &1.path, :desc)
+      |> Enum.flat_map(fn file -> Enum.map(Map.get(file, :affected_modules) || [], &{&1, file.path}) end)
+      |> Map.new()
 
     tests
     |> Map.values()
     |> Enum.map(fn test ->
-      test
-      |> Map.put(:reason, reason(test, merged, owned_modules))
-      |> Map.put(:executed_changed, MapSet.member?(merged.direct, test.idx))
-      |> Map.put(:owned, MapSet.member?(owned_modules, test.module_name))
+      {reason, matched_path} = reason(test, merged, owned_modules)
+      matched_path = if matched_path == "", do: nil, else: matched_path
+
+      Map.merge(test, %{
+        reason: reason,
+        matched_path: matched_path,
+        executed_changed: Map.has_key?(merged.direct, test.idx),
+        owned: Map.has_key?(owned_modules, test.module_name)
+      })
     end)
     |> Enum.sort_by(& &1.idx)
   end
@@ -73,13 +132,16 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
   def unchanged?(%{reason: reason}), do: reason in [:unaffected, :failed_last_run]
 
   defp reason(test, hits, owned_modules) do
+    direct = Map.get(hits.direct, test.idx)
+    target = Map.get(hits.target, test.idx)
+
     cond do
-      MapSet.member?(hits.suites, test.idx) -> :test_file_changed
-      test.status in ["failed", "flaky"] and not MapSet.member?(hits.direct, test.idx) -> :failed_last_run
-      test.status in ["no_evidence", "stale"] -> :no_evidence
-      MapSet.member?(hits.direct, test.idx) or MapSet.member?(hits.target, test.idx) -> :impacted
-      MapSet.member?(owned_modules, test.module_name) -> :owned_without_evidence
-      true -> :unaffected
+      Map.has_key?(hits.suites, test.idx) -> {:test_file_changed, hits.suites[test.idx]}
+      test.status in ["failed", "flaky"] and is_nil(direct) -> {:failed_last_run, nil}
+      test.status in ["no_evidence", "stale"] -> {:no_evidence, nil}
+      direct || target -> {:impacted, Enum.min(Enum.reject([direct, target], &is_nil/1))}
+      Map.has_key?(owned_modules, test.module_name) -> {:owned_without_evidence, owned_modules[test.module_name]}
+      true -> {:unaffected, nil}
     end
   end
 
@@ -111,42 +173,49 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
     end)
   end
 
-  # Per layer, the changed paths it has evidence of and the union of their
-  # bitmaps, reduced in ClickHouse.
-  defp hits(project_id, checkpoint, overlay, changed_files) do
+  # Per layer, the changed paths it has evidence of and the tests their
+  # bitmaps hold: with `matched?`, as one bitmap per path of the tests no
+  # earlier path holds; otherwise one union per layer, each test matched to
+  # "". Chunks go in path order, so a test an earlier chunk matched keeps
+  # that path.
+  defp hits(project_id, checkpoint, overlay, changed_files, matched?) do
     changed_files
     |> Enum.map(& &1.path)
     |> Enum.uniq()
+    |> Enum.sort()
     |> Snapshots.path_chunks()
     |> Enum.flat_map(fn paths ->
-      Snapshots.query!(
-        """
-        SELECT toString(snapshot_id), groupUniqArray(path),
-          bitmapToArray(groupBitmapOrState(tests)),
-          bitmapToArray(groupBitmapOrState(target_tests)),
-          bitmapToArray(groupBitmapOrState(if(is_test, suite_tests, bitmapBuild(emptyArrayUInt32()))))
-        FROM test_impact_snapshot_files
-        WHERE project_id = {project_id:Int64} AND snapshot_id IN {ids:Array(UUID)} AND path IN {paths:Array(String)}
-        GROUP BY snapshot_id
-        """,
-        %{project_id: project_id, ids: ids(checkpoint, overlay), paths: paths}
-      )
-    end)
-    |> Enum.reduce(%{}, fn [snapshot_id, paths, direct, target, suites], acc ->
-      hits = %{
-        evidenced: MapSet.new(paths),
-        direct: MapSet.new(direct),
-        target: MapSet.new(target),
-        suites: MapSet.new(suites)
-      }
+      params = %{project_id: project_id, ids: ids(checkpoint, overlay), paths: paths}
 
-      Map.update(acc, snapshot_id, hits, fn existing ->
-        Map.merge(existing, hits, fn _key, a, b -> MapSet.union(a, b) end)
-      end)
+      evidenced =
+        Snapshots.query!(
+          """
+          SELECT toString(snapshot_id), 'evidenced', groupUniqArray(path), []
+          FROM test_impact_snapshot_files
+          WHERE project_id = {project_id:Int64} AND snapshot_id IN {ids:Array(UUID)} AND path IN {paths:Array(String)}
+          GROUP BY snapshot_id
+          """,
+          params
+        )
+
+      evidenced ++ Snapshots.query!(if(matched?, do: @matched_sql, else: @union_sql), params)
+    end)
+    |> Enum.reduce(%{}, fn
+      [snapshot_id, "evidenced", paths, _idx], acc ->
+        acc
+        |> Map.put_new(snapshot_id, empty_hits())
+        |> update_in([snapshot_id, :evidenced], &MapSet.union(&1, MapSet.new(paths)))
+
+      [snapshot_id, kind, path, idx], acc ->
+        key = String.to_existing_atom(kind)
+
+        acc
+        |> Map.put_new(snapshot_id, empty_hits())
+        |> update_in([snapshot_id, key], fn matched -> Enum.reduce(idx, matched, &Map.put_new(&2, &1, path)) end)
     end)
   end
 
-  defp empty_hits, do: %{evidenced: MapSet.new(), direct: MapSet.new(), target: MapSet.new(), suites: MapSet.new()}
+  defp empty_hits, do: %{evidenced: MapSet.new(), direct: %{}, target: %{}, suites: %{}}
 
   defp ids(checkpoint, nil), do: [checkpoint.id]
   defp ids(checkpoint, overlay), do: [checkpoint.id, overlay.id]

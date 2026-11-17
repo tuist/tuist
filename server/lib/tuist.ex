@@ -185,7 +185,6 @@ defmodule Tuist do
       Tests.Coverage.Query,
       Tests.Coverage.Report,
       Tests.Coverage.Schemas,
-      Tests.Coverage.TestSources,
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.Selections,

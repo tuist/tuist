@@ -28,6 +28,11 @@ defmodule Tuist.Tests.Coverage.Evidence do
   the commit's listing. Every reader of coverage filters on the `run` scope, so these rows
   never reach a total. Like the run's coverage, a report replaces the shard's
   earlier one: readers use each shard's latest.
+
+  The rows are only what a commit's fold builds its test maps from
+  (`Tuist.TestImpactAnalysis.Snapshots`), seconds after the run reports, so
+  they expire `retention_days/0` after they were inserted, long before the
+  run's own rows.
   """
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
@@ -42,6 +47,13 @@ defmodule Tuist.Tests.Coverage.Evidence do
   # Ranges cost the client a few bytes whatever they span, so past this a
   # file's evidence keeps only that the scope ran it.
   @line_budget 10_000_000
+  @retention_days 2
+
+  @doc """
+  How many days evidence rows are kept after they were inserted: the
+  `coverage_files` time-to-live for every scope but `run`.
+  """
+  def retention_days, do: @retention_days
 
   @doc """
   Stores a run's evidence. `evidence` is the request's `coverage_evidence`,
