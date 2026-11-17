@@ -131,19 +131,30 @@ because Pulse's `absent_over_time` returns nothing for a missing series.
 
 ### Still on Grafana Cloud
 
-- `Host NIC Carrier Flap` (`cfsogu69cr1fkc`), narrowed to `cluster=""`: the
-  cache VMs, which write only to Grafana Cloud. Management's nodes are
-  `cfsogu69cr1fkc-mgmt` on management's Pulse.
-- `Pulse rejecting scans for lack of memory` and the paused `Pulse datanode
-  telemetry missing`, until the `pulse-datanode` scrape reaches Pulse. Their
-  per-environment twins (`-prod`, `-stg`, `-can`) already read each
-  environment's Pulse; delete the Cloud originals once
-  `count(up{job="pulse-datanode"})` returns the datanodes there.
-- Long windows Pulse does not hold yet: `cfyi8f0lyqayof`, `dfygid92hevi8d` (3
-  days) and `fg1c6ql650pvka` (7 days, also `label_replace(vector(...))`, which
-  Pulse rejects).
-- Senders that write only to Grafana Cloud (the external cache VMs, Synthetic
-  Monitoring) and the Grafana Cloud usage rules.
+On November 17 the collectors stopped writing to Grafana Cloud, and every rule
+over the workload and management clusters moved to Pulse the same day. These
+still read Cloud:
+
+- Senders that write only to Grafana Cloud: the cache VMs (`Host NIC Carrier
+  Flap` `cfsogu69cr1fkc`, narrowed to `cluster=""`; Cache CPU; Cache Node Disk
+  Usage Watermark; cache-nginx 502) and Synthetic Monitoring.
+- The Grafana Cloud usage rules (`Global Spend`, usage anomalies, cardinality
+  explosion, duplicate timestamps), which now measure only those senders.
+- `CNPG Replication Link Break` (`cfsogt8cgh14wc`) for staging and canary,
+  until those environments have a Pulse SQL source (below). It is silent until
+  then, since their logs no longer reach Cloud.
+
+The long-window rules moved with less history than they look back over:
+`cfyi8f0lyqayof` (3-day trend) and `dfygid92hevi8d` (3 days) read a few hours
+less than Cloud held, and `fg1c6ql650pvka` (7 days) stays quiet until Pulse
+holds the 3.5 days of `wan0` samples its gate requires, around November 21.
+Pulse rejects its `label_replace(vector(...))` commit table, so it divides by
+BER1's commit directly (see `alerts.md`). `Kura - replication outbox
+approaching its cap` (`afwtwlzgkderke`) runs as `-stg` and `-can` copies too.
+The Cloud originals of `pulse-scan-memory-rejections` and
+`pulse-datanode-telemetry-missing` were deleted; their per-environment copies
+read each Pulse, and the datanode copies stay paused until the `pulse-datanode`
+scrape reaches each environment's Pulse.
 
 On November 17 the Cloud halves of split rules whose selectors matched no
 series outside the three workload clusters over 7 days were deleted (13, then
@@ -161,15 +172,14 @@ once their originals were cut over or split.
 ### Reduce scan width before increasing memory
 
 [`pulse-metric-alert-queries.json`](pulse-metric-alert-queries.json) holds
-**proposed, not applied** replacements for query A of the two retention shadow
-rules. Sum each bucket's `increase` by `(cluster, pod, le)` before joining
+the query A that the two retention rules (`afx2mswafmvi8a`, `dfygid92hevi8d`)
+have used on production Pulse since November 17. Sum each bucket's `increase` by `(cluster, pod, le)` before joining
 region/tenant metadata. This lets Pulse push the aggregation into the datanode
 and omit scrape labels from the historical scan. Keep `increase` inside the
 sum so independent counter resets remain correct. Keep the original one-/three-day
-windows, fullness gate, output labels, threshold and pending period. Both
-shadows were deleted on November 16 with the rest of the folder; their
-originals (`afx2mswafmvi8a`, `dfygid92hevi8d`) still read Grafana Cloud, so
-apply these queries when a Pulse copy of them is created.
+windows, fullness gate, output labels, threshold and pending period. On
+November 17 the Pulse queries returned the same series as the Cloud originals
+and neither fired.
 
 Run `bash infra/helm/k8s-monitoring/test-pulse-metric-alerts.sh` with `promtool`
 on PATH for offline parity checks, including independent counter resets and
@@ -191,13 +201,10 @@ and cache warmth can change timings between runs. For result comparisons, use
 `AS retention` after the TQL expression and cast that value to string in SQL so
 histogram NaNs survive Grafana's JSON transport.
 
-These are query-only replacements, not provisioning payloads. Before applying
-them, read each complete live rule and change only its matching query model's
+These are query-only replacements, not provisioning payloads. To change them,
+read each complete live rule and change only its matching query model's
 `expr`; preserve data sources, other queries, condition, labels, routing and
-evaluation settings. Publishing Grafana changes requires separate approval.
-Do not repoint the original Cloud rules as part of the optimization. The daily
-rule was retired (see `alerts.md`); separately review whether its remaining
-shadow is still useful rather than silently deleting it.
+evaluation settings.
 
 ## Log alert rules use SQL
 
@@ -229,17 +236,15 @@ rules stay on Grafana Cloud because their logs never reach Pulse: cache-nginx
 502 (the cache hosts) and Synthetic Monitoring's failed executions.
 
 Nine log rules read Pulse SQL. Only production's Pulse serves SQL, so these
-target production. Three groups stay on Grafana Cloud Loki:
+target production, as do the 15 web-vitals rules (groups **Browser RUM
+quality** and **Web performance**), which read `tuist_web_logs` since November
+17. Filtering every log line in `opentelemetry_logs` for Faro's had overrun
+Pulse's datanode scan memory and failed other reads. Two groups stay on
+Grafana Cloud Loki:
 
 - `CNPG Replication Link Break` (`cfsogt8cgh14wc`) for staging and canary,
   which have no SQL source yet. Production's half is `cfsogt8cgh14wc-prod` on
   Pulse SQL, and the Cloud rule excludes `k8s_cluster_name="tuist-production"`.
-- The 15 web-vitals rules (groups **Browser RUM quality** and **Web
-  performance**): filtering every log line in `opentelemetry_logs` for
-  Faro's overran Pulse's datanode scan memory and failed other reads, so they
-  went back to Loki at a one-minute interval. Their queries now read
-  `tuist_web_logs`; they move once that table holds the rules' longest
-  window, 24 hours, of lines.
 - Cache-nginx 502 and Synthetic Monitoring failures, whose logs never reach
   Pulse (above).
 
@@ -285,25 +290,15 @@ before cutting them over.
    deliberately; Git Sync definitions still reference the Cloud sources until
    changed. Do not bulk-repoint the default source and assume this is sufficient.
 
-## Stopping Cloud storage is a separate decision
+## Cloud storage stopped on November 17, 2026
 
-The live production collectors were observed dual-writing metrics/logs/traces on
-November 5. That is not proof of coverage in staging, canary, management or
-external senders, nor of sufficient retained history or query capacity. The
-current managed deployment targets the existing `pulse` release in namespace
-`observability`, preserving its bucket and credentials. Deploy through that
-release path; do not create a second instance or bucket as a cutover shortcut.
-
-Before stopping Cloud writes, pass the cutover gates
-on the exact deployed version: provider-backed capacity, nonempty query parity,
-alert transitions, recording publication, notification delivery and failure
-recovery. Queries with week-long offsets need that history or a validated
-backfill. The Pulse volume/cost replacement rules also need a prior-week baseline;
-they cannot replace Cloud usage alerts after one day of data. Monitor Pulse failure/no-data from outside Pulse's own failure domain.
-
-Only after acceptance, remove Cloud ingestion for all senders while preserving
-Pulse forwarding, labels, sampling and metric identity. Keep old data sources
-available for retained-history queries and rollback. Do not delete Cloud data,
-credentials or notification services as part of a storage switch. The existing
-runbook calls for a shadow week and two further weeks of dual-writing; a next-day
-shutdown needs an explicit risk decision, not a claim that these gates passed.
+The workload and management collectors write only to Pulse, as decided on
+November 17 without the planned shadow and dual-write weeks. Production's Pulse
+keeps everything it has received, while staging and canary keep 7 days. Rules
+that look back further than a Pulse has data run on shorter history until it
+fills (above). Cloud still
+holds the earlier data until its retention ends; the `grafanacloud-*` sources,
+Cloud credentials and notification services stay, both for that history and
+for the senders listed under "Still on Grafana Cloud". To roll back, revert
+the k8s-monitoring change that removed the `grafana-cloud-*` destinations and
+point the moved rules back at `grafanacloud-prom` and `grafanacloud-logs`.

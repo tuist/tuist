@@ -1079,7 +1079,7 @@ xcresultProcessor:
     # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
     # appends /loki/api/v1/push, matching the loki.source.api endpoint the
     # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
-    # forwards to Grafana Cloud with the ones it already holds.
+    # forwards to Pulse with the ones it already holds.
     - name: TUIST_LOKI_URL
       value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
 

@@ -156,9 +156,6 @@ existing CNPG parent writes; it does not undo a switchover already requested.
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
-- Grafana Cloud `PROMETHEUS_TOKEN` password item in the `tuist-k8s-mgmt`
-  vault. `mgmt-cluster-apply.yml` uses it to install the metrics-only
-  management monitoring overlay.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
@@ -351,7 +348,7 @@ Both field labels are load-bearing: the ExternalSecret reads `TAILSCALE_DEVICE_R
 
 `tag:tuist-mgmt` is swept by no reaper, deliberately. It covers a single long-lived device that has never produced a duplicate, and reaping the mgmt cluster's tailnet identity is the one deletion that could cost you the access you would need to undo it.
 
-Each env ships with `dryRun: true`. Read one run's logs in Grafana Cloud, confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in that env's values file to arm it. A run that reports `0 of 0 in-scope device(s)` is the signature of a mistyped tag, not of a clean tailnet — the log line reports in-scope and tailnet-wide counts separately so the two are distinguishable.
+Each env ships with `dryRun: true`. Read one run's logs in Pulse (the `pulse-sql` source in Grafana), confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in that env's values file to arm it. A run that reports `0 of 0 in-scope device(s)` is the signature of a mistyped tag, not of a clean tailnet — the log line reports in-scope and tailnet-wide counts separately so the two are distinguishable.
 
 ## 5e. Durable server distribution cookies
 
@@ -539,7 +536,7 @@ access policy.
 
 ## 7. Observability
 
-The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
+The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to the cluster's own Pulse (`infra/helm/pulse`), which Grafana Cloud reads for alerting. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
 
 `mgmt-cluster-apply.yml` installs the same chart with
 `values-management.yaml` into the management cluster. That metrics-only
@@ -548,8 +545,7 @@ load-balancer telemetry under `cluster="tuist-management"`, so it remains
 available when a workload cluster is unreachable. Alert queries and setup
 instructions live in
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
-Its collectors write only to Grafana Cloud; the management-local Pulse backend
-no longer receives telemetry.
+Its collectors write only to management's own Pulse (`infra/flux/pulse`).
 
 ## 8. Production air-gapped license
 

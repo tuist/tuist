@@ -42,8 +42,8 @@ block() {
   ' "${temporary}/metrics.alloy"
 }
 
-# Remove Cloud authentication and use only the isolated local receiver.
-block 'prometheus.remote_write "grafana_cloud_metrics"' | awk '
+# Remove Pulse authentication and use only the isolated local receiver.
+block 'prometheus.remote_write "pulse_metrics"' | awk '
   /^[[:space:]]*(headers = \{|basic_auth \{|tls_config \{)/ {
     skipping = 1
     indentation = substr($0, 1, match($0, /[^[:space:]]/) - 1)
@@ -72,9 +72,6 @@ done | awk '
   }
   {
     gsub(/"60s"|"10s"/, "\"1s\"")
-    # Workload overlays also fan out to Pulse; this test checks only the
-    # Cloud path, whose remote_write is the one extracted above.
-    gsub(/, prometheus\.remote_write\.pulse_metrics\.receiver/, "")
     print
   }
 ' >> "${temporary}/pipeline.alloy"
@@ -83,11 +80,11 @@ prometheus.scrape "service_control" {
   targets = discovery.relabel.annotation_autodiscovery_services.output
   scrape_interval = "1s"
   scrape_timeout = "1s"
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.remote_write.pulse_metrics.receiver]
 }
 ALLOY
 if grep -Eq 'remote\.kubernetes|url = "https://' "${temporary}/pipeline.alloy"; then
-  echo 'Fixture pipeline must not contain cluster credentials or Cloud destinations' >&2
+  echo 'Fixture pipeline must not contain cluster credentials or real destinations' >&2
   exit 1
 fi
 block 'prometheus.scrape "tuist_hubble"' | grep -q 'enabled = true'
@@ -147,7 +144,7 @@ for dependency in "${image}" nginx:1.28-alpine prom/prometheus:v3.5.0; do
     "${docker}" pull "${dependency}"
   fi
 done
-# No collector can reach the cluster, Cloud telemetry, or the public Internet.
+# No collector can reach the cluster, Pulse, or the public Internet.
 "${docker}" network create --internal "${network}" >/dev/null
 "${docker}" run -d --rm --name "${fixture}" --network "${network}" \
   --network-alias fixture --network-alias hubble-metrics.kube-system.svc \

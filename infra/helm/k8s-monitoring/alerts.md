@@ -20,7 +20,7 @@ between these two labels.
 Metrics scraped over the tailnet (`tuist-macos-node-exporter`,
 `tuist-macos-tart-kubelet`, `tuist-macos-pod-metrics`) come from
 `collectors.alloy-metrics.extraConfig`, which sits outside the chart's
-`declare` blocks and forwards straight to the Grafana Cloud destination.
+`declare` blocks and forwards straight to the Pulse destination.
 They therefore carry the destination's external labels (`cluster`,
 `env`) but not any label a chart feature adds inside its own pipeline.
 Group those rules by `cluster` and `env` together, and confirm both
@@ -7745,7 +7745,7 @@ the uplink's route to it.
         * on (instance) group_left (site) <instance site>) * 8)[7d:5m]),
       "direction", "upload", "", "")
   )
-  / on (site) group_left () label_replace(vector(1e9), "site", "ber1", "", "")
+  / 1e9
 )
 and on (site) (
   count_over_time((sum by (site) (rate(node_network_receive_bytes_total{cluster="tuist-production", device="wan0"}[5m])
@@ -7762,9 +7762,10 @@ and on (site) (
 
 Transit is billed on the 95th percentile of 5-minute samples against the
 committed rate, so a trailing 7-day 95th percentile above 90% of the commit is
-heading for an overage. The `vector(1e9)` term is the commit table, one
-`label_replace` per site in bits per second (BER1: 1 Gbps); a new site needs a
-line there, or its ratio is absent and the rule ignores it. The `count_over_time`
+heading for an overage. `1e9` is BER1's commit in bits per second (1 Gbps),
+and `<instance site>` selects only `site="ber1"`. Pulse rejects the
+`label_replace(vector(...))` commit table the rule used on Grafana Cloud, so a
+second site needs its own copy of the rule with its own commit. The `count_over_time`
 gate waits for 3.5 days of `wan0` samples, so a short history cannot fire it:
 in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
 5-minute windows, which alone made the 95th percentile three times the commit.
@@ -8414,7 +8415,7 @@ bundled into the server's own JavaScript, so there is no third-party script and
 no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which a
 dedicated Ingress routes at the `faro.receiver` on the `alloy-receiver`
 collector through an ExternalName Service (`server.faro` in `infra/helm/tuist`).
-Alloy forwards to Grafana Cloud Loki and to Pulse's `tuist_web_logs` table.
+Alloy forwards to Pulse's `tuist_web_logs` table.
 
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and
@@ -9019,8 +9020,9 @@ sum by (cluster, pod) (increase(pulse_mito_scan_requests_rejected_total[10m]))
 - Pending period: 5 minutes
 - Severity: warning
 - Rule JSON: [`pulse-capacity-alert-rules.json`](pulse-capacity-alert-rules.json)
-  (`pulse-scan-memory-rejections`), group `Pulse`, Grafana Cloud metrics
-  data source. **No Data: Normal**, **Error: Error**.
+  (`pulse-scan-memory-rejections`), group `Pulse`, as one copy per
+  environment's Pulse metrics source (`-prod`, `-stg`, `-can`). **No Data:
+  Normal**, **Error: Error**.
 
 Every Pulse read scans regions on the datanode that owns them, and each
 datanode caps scan memory at 25% of its memory limit (`scan_memory_limit`).
@@ -9241,7 +9243,7 @@ list/watch RBAC for `coordination.k8s.io/leases`. Its built-in
 No new exporter, privileged host access or RBAC expansion is required.
 `values.yaml` adds the metric to the KSM scrape allowlist, drops non-node Lease
 timestamps before forwarding, and retains it in nonproduction remote write.
-The same policy feeds Grafana Cloud and Pulse. Preserve `cluster`, `namespace`
+The same policy feeds Pulse. Preserve `cluster`, `namespace`
 and `lease`; the node inventory's pool label must also survive aggregation.
 
 After approval, deploy collection to staging first, then canary and production.

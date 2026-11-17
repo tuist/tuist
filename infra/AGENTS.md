@@ -65,7 +65,7 @@ Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program): NanoMDM + SC
 Dedicated chart for the public `slack.tuist.dev` release. It deploys independently from the Tuist server so Slack invitation-flow changes and operational state (SQLite PVC + ExternalSecret wiring) stay isolated from the main app release.
 
 ### `helm/k8s-monitoring/` — in-cluster Grafana Kubernetes Monitoring (managed only)
-Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO token sync. Ships the full Kubernetes telemetry picture (cluster / pod / node metrics + events + pod logs + OTLP receivers for managed workload traces, including server and Kura) to Grafana Cloud, so the Grafana Cloud Kubernetes app lights up without dashboard imports. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
+Wraps the upstream `grafana/k8s-monitoring` chart. Ships the full Kubernetes telemetry picture (cluster / pod / node metrics + events + pod logs + OTLP receivers for managed workload traces, including server and Kura) only to each environment's own Pulse; Grafana Cloud reads Pulse for alerting and stores none of it. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
 
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
@@ -179,7 +179,7 @@ scheduled to a macOS Node *is* a Tart VM, so an in-cluster collector never sees
 the host filesystem, and `kubectl logs` can't resolve the tailnet-only kubelet
 either. Metrics are pulled (alloy-metrics dials `:9100`); logs are pushed,
 because a file has no scrapeable surface. Pushing to the cluster rather than
-straight to Grafana Cloud keeps every ingest credential off nine
+straight to Pulse keeps every ingest credential off nine
 internet-facing minis — the tailnet ACL is the access control and Alloy
 forwards with the token it already holds. Installed and drift-rolled by
 `macos-host-bootstrap` exactly like `node_exporter`. Per-env gate:
