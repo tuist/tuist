@@ -149,6 +149,19 @@ Pulse rejects its `label_replace(vector(...))` commit table, so it divides by
 BER1's commit directly (see `alerts.md`). `Kura - replication outbox
 approaching its cap` (`afwtwlzgkderke`) read a metric retired in kura@0.46 and
 was deleted.
+
+Ten rules read metrics that only unmerged code emits, so they are paused with a
+`paused_reason` annotation naming the pull request; unpause them once it is
+deployed:
+
+- `Runner egress gateway unusable` (`bg0q7eilnyj28c`), `Runner egress tunnel
+  unhealthy on a host` (`fg0q7elkwllhcf`) and `Runner egress account job on a
+  fleet it cannot use` (`cg0q7eop01k3kc`), with their `-stg` and `-can`
+  copies: `tart_kubelet_runner_egress_tunnel_healthy` and
+  `tuist_runners_dispatch_egress_held_count` come from draft
+  [#14001](https://github.com/tuist/tuist/pull/14001).
+- `Linux fleet cannot seat a shape` (`bfxmy59vtljpca`): the free seats per
+  shape come from draft [#12991](https://github.com/tuist/tuist/pull/12991).
 The Cloud originals of `pulse-scan-memory-rejections` and
 `pulse-datanode-telemetry-missing` were deleted; their per-environment copies
 read each Pulse, and the datanode copies stay paused until the `pulse-datanode`
