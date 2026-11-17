@@ -11,6 +11,7 @@ defmodule Tuist.Threads do
   alias Tuist.Agents.Lease
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.Push
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Threads.Agent
@@ -417,7 +418,7 @@ defmodule Tuist.Threads do
     status = if unknown, do: "outcome_unknown", else: "failed"
 
     Repo.update!(Changeset.change(run, status: status, session_id: nil))
-    update_thread!(thread, %{agent_status: status})
+    thread |> update_thread!(%{agent_status: status}) |> Push.notify_thread_finished(status)
 
     append!(Repo.reload!(thread), %{
       kind: "notice",
@@ -749,7 +750,9 @@ defmodule Tuist.Threads do
 
       thread = Repo.reload!(thread)
       append!(thread, %{kind: if(status == "idle", do: "agent", else: "notice"), body: body, suggestions: suggestions})
-      update_thread!(Repo.reload!(thread), %{agent_status: status})
+      thread = update_thread!(Repo.reload!(thread), %{agent_status: status})
+      Push.notify_thread_finished(thread, status)
+      thread
     end)
   end
 
@@ -886,7 +889,9 @@ defmodule Tuist.Threads do
     status = if run.kind == "ship" or unknown, do: "outcome_unknown", else: "interrupted"
 
     Repo.update!(Changeset.change(run, status: status, session_id: nil))
-    update_thread!(thread, %{agent_status: status})
+    thread = update_thread!(thread, %{agent_status: status})
+    # An archived thread, or one in an account its owner left, isn't worth a notification they can't act on.
+    if thread.status == :active and worker_access?(thread), do: Push.notify_thread_finished(thread, status)
 
     append!(Repo.reload!(thread), %{
       kind: "notice",

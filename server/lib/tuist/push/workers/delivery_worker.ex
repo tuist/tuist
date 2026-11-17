@@ -1,7 +1,7 @@
 defmodule Tuist.Push.Workers.DeliveryWorker do
   @moduledoc """
-  Sends one notification to one registration, through APNs for iOS and FCM for
-  Android. The token is read
+  Sends one notification to one registration, through APNs for iOS and macOS
+  (on the topic of the registration's app) and FCM for Android. The token is read
   from the registration when the job runs, so a device that unregistered or was
   retired in the meantime is skipped. A token the provider no longer accepts
   retires the registration.
@@ -20,8 +20,9 @@ defmodule Tuist.Push.Workers.DeliveryWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"registration_id" => registration_id, "payload" => payload}}) do
     case Repo.get(Installation, registration_id) do
-      %Installation{retired_at: nil, platform: "ios", token: token} = installation when is_binary(token) ->
-        installation.environment |> APNs.deliver(token, payload) |> handle(installation)
+      %Installation{retired_at: nil, platform: platform, token: token} = installation
+      when platform in ["ios", "macos"] and is_binary(token) ->
+        installation.environment |> APNs.deliver(token, payload, Push.apns_topic(installation)) |> handle(installation)
 
       %Installation{retired_at: nil, platform: "android", token: token} = installation when is_binary(token) ->
         token |> FCM.deliver(payload) |> handle(installation)

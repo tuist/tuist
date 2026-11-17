@@ -10,6 +10,7 @@ defmodule Tuist.ThreadsTest do
   alias Tuist.Agents.SessionStore
   alias Tuist.Agents.Workers.PurgeDeletedSessionsWorker
   alias Tuist.FeatureFlags
+  alias Tuist.Push.Workers.ThreadFinishedWorker
   alias Tuist.Threads
   alias Tuist.Threads.Approval
   alias Tuist.Threads.Message
@@ -148,6 +149,19 @@ defmodule Tuist.ThreadsTest do
     {:ok, _} = Threads.finish(run, {:ok, "Done"})
     assert {:ok, next} = Threads.message(user, account, id, Map.put(request(), "model", "different-model"))
     assert next.model == "selected-model"
+  end
+
+  test "a finished run notifies the owner's Guild devices", %{user: user, account: account} do
+    stub(Tuist.Environment, :apns_configured?, fn -> true end)
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+
+    assert_enqueued(
+      worker: ThreadFinishedWorker,
+      args: %{"thread_id" => thread.id, "status" => "idle"}
+    )
   end
 
   test "remote tool effects use the ledger without a repository", %{user: user, account: account} do
@@ -400,7 +414,10 @@ defmodule Tuist.ThreadsTest do
         :feature -> stub(FeatureFlags, :organization_guild_enabled?, fn _ -> false end)
       end
 
+      stub(Tuist.Environment, :apns_configured?, fn -> true end)
       assert {:error, :forbidden} = claim(queued.id)
+      # The owner can't open the thread anymore, so it isn't worth a notification.
+      refute_enqueued(worker: ThreadFinishedWorker)
       assert Repo.reload!(queued).status == "interrupted"
       assert Repo.reload!(queued).attempt == 0
       assert Repo.reload!(thread).agent_status == "interrupted"

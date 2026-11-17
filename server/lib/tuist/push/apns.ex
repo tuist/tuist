@@ -1,7 +1,8 @@
 defmodule Tuist.Push.APNs do
   @moduledoc """
-  Sends notifications to the Tuist iOS app through the Apple Push Notification
-  service, authenticated with the team's token-auth key (`Tuist.Environment.apns_*`).
+  Sends notifications to the Tuist iOS app and Tuist Guild through the Apple
+  Push Notification service, authenticated with the team's token-auth key
+  (`Tuist.Environment.apns_*`), which must not be restricted to one topic.
 
   A registration's `environment` picks the endpoint: Debug builds register
   `sandbox` tokens and Release builds `production` ones. The key must be enabled
@@ -30,7 +31,8 @@ defmodule Tuist.Push.APNs do
   def configured?, do: Environment.apns_configured?()
 
   @doc """
-  Sends `payload` (the APNs JSON body) to `device_token`. Returns:
+  Sends `payload` (the APNs JSON body) to `device_token` of the app whose bundle
+  ID is `topic` (`Tuist.Push.apns_topic/1`). Returns:
 
     * `:ok`
     * `{:error, :invalid_token}` when APNs says the token no longer reaches the
@@ -39,12 +41,13 @@ defmodule Tuist.Push.APNs do
     * `{:error, {:retry, reason}}` for throttling, server and transport errors
     * `{:error, {:rejected, reason}}` for anything else, which retrying won't fix
   """
-  def deliver(environment, device_token, payload) when is_map_key(@endpoints, environment) do
+  def deliver(environment, device_token, payload, topic \\ Environment.apns_topic())
+      when is_map_key(@endpoints, environment) do
     url = "#{Map.fetch!(@endpoints, environment)}/3/device/#{device_token}"
 
     headers = [
       {"authorization", "bearer " <> provider_token()},
-      {"apns-topic", Environment.apns_topic()},
+      {"apns-topic", topic},
       {"apns-push-type", "alert"},
       {"apns-priority", "10"},
       {"apns-expiration", to_string(System.system_time(:second) + @expiration_seconds)}

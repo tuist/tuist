@@ -33,7 +33,7 @@ defmodule Tuist.Push.Workers.NewPreviewWorker do
       |> Notifications.recipients(preview.project, preview)
       |> Enum.filter(fn {_user_id, action_types} -> "push" in action_types end)
       |> Enum.map(fn {user_id, _action_types} -> user_id end)
-      |> Enum.flat_map(&Push.live_installations/1)
+      |> Enum.flat_map(&Push.live_installations(&1, "tuist"))
       |> Enum.filter(&Map.has_key?(payloads, &1.platform))
       |> Enum.map(&DeliveryWorker.new(%{"registration_id" => &1.id, "payload" => Map.fetch!(payloads, &1.platform)}))
       |> Oban.insert_all()

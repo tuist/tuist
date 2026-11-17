@@ -153,6 +153,90 @@ defmodule Tuist.PushTest do
     assert {:error, :oauth_session_required} = Push.oauth_session(bearer, user)
   end
 
+  describe "Tuist Guild" do
+    # Guild signs in through its first-party client; `client_id` stands in for another client.
+    defp guild_bearer(user, client_id \\ Clients.guild_client_id()) do
+      client = %{id: client_id}
+
+      bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
+
+      grant =
+        Repo.insert!(%Token{
+          type: "access_token",
+          value: bearer,
+          refresh_token: Ecto.UUID.generate(),
+          client_id: client.id,
+          sub: to_string(user.id),
+          scope: ""
+        })
+
+      {bearer, grant}
+    end
+
+    test "signs in through its first-party client, only where Guild is admitted" do
+      user = AccountsFixtures.user_fixture()
+      {bearer, _grant} = guild_bearer(user)
+
+      assert {:ok, %{app: "guild"}} = Push.oauth_session(bearer, user, ["tuist", "guild"])
+      assert {:error, :oauth_session_required} = Push.oauth_session(bearer, user)
+      assert Push.first_party_session?(bearer, user)
+
+      # A dynamically registered client claiming Guild's redirect URI isn't Guild.
+      {:ok, impostor} = Clients.create_client(%{redirect_uris: ["tuist-guild://oauth-callback"], name: "Guild"})
+      {other_client, _} = guild_bearer(user, impostor.id)
+      assert {:error, :oauth_session_required} = Push.oauth_session(other_client, user, ["tuist", "guild"])
+      refute Push.first_party_session?(other_client, user)
+    end
+
+    test "keeps Guild and Tuist app installations apart", %{client: client} do
+      user = AccountsFixtures.user_fixture()
+      {_grant, app_session} = sign_in(user, client)
+      {bearer, grant} = guild_bearer(user)
+      {:ok, guild_session} = Push.oauth_session(bearer, user, ["guild"])
+      [app_id, guild_id] = [installation_id(), installation_id()]
+
+      assert {:ok, _} = Push.register(user, app_session, app_id, ios())
+      mac = %{platform: "macos", token: apns_token(), environment: "production"}
+      assert {:ok, %Installation{app: "guild", platform: "macos"}} = Push.register(user, guild_session, guild_id, mac)
+
+      assert ids(Push.live_installations(user.id)) == [app_id]
+      assert ids(Push.live_installations(user.id, "guild")) == [guild_id]
+      # An installation ID never moves to the other app.
+      assert {:error, :conflict} = Push.register(user, app_session, guild_id, ios())
+      # Nor can one app unregister or remove the other's devices.
+      [app_installation] = Push.live_installations(user.id)
+      assert :ok = Push.unregister(user, app_id, "guild")
+      assert :ok = Push.remove_device(user, app_installation.id, "guild")
+      assert ids(Push.live_installations(user.id)) == [app_id]
+
+      # Every app shares one FCM project, so Guild can't register Android tokens.
+      android = %{platform: "android", token: Base.encode64(:crypto.strong_rand_bytes(32)), environment: "production"}
+      assert {:error, :invalid} = Push.register(user, guild_session, installation_id(), android)
+
+      # Each app has its own device cap: Guild registrations never evict the Tuist app's.
+      Installation
+      |> Repo.get_by!(installation_id: guild_id)
+      |> Ecto.Changeset.change(
+        last_registered_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.truncate(:second)
+      )
+      |> Repo.update!()
+
+      for _ <- 1..10 do
+        mac = %{platform: "macos", token: apns_token(), environment: "production"}
+        assert {:ok, _} = Push.register(user, guild_session, installation_id(), mac)
+      end
+
+      assert ids(Push.live_installations(user.id)) == [app_id]
+      assert length(Push.live_installations(user.id, "guild")) == 10
+      assert %Installation{retired_reason: "evicted"} = Repo.get_by!(Installation, installation_id: guild_id)
+
+      # The Guild registration lasts as long as the Guild client's grant.
+      grant |> Ecto.Changeset.change(refresh_token_revoked_at: DateTime.utc_now()) |> Repo.update!()
+      assert Push.live_installations(user.id, "guild") == []
+      assert ids(Push.live_installations(user.id)) == [app_id]
+    end
+  end
+
   test "keeps at most ten live installations per user", %{client: client} do
     user = AccountsFixtures.user_fixture()
     {_grant, session} = sign_in(user, client)

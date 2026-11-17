@@ -133,6 +133,11 @@ checksum = "sha256:7381ffe37180584fb12b0488756ffd9e8ff585fede2deac450a51336141cc
 url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-macos-x86_64.tar.gz"
 url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386603"
 
+[tools."github:longbridge/nsh"."platforms.windows-x64"]
+checksum = "sha256:9dc4b74037033c8ff50b1047b4702b36e6fd66beb9f5d61411d3497f4751df90"
+url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386571"
+
 [[tools."github:minio/minio"]]
 version = "2025-09-07T16-13-09Z"
 backend = "github:minio/minio"
