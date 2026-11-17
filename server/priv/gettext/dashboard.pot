@@ -711,7 +711,7 @@ msgid "Account ID"
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:90
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:26
 #: lib/tuist_web/live/ops_account_kura_placement_live.ex:19
 #: lib/tuist_web/live/ops_account_kura_sizing_live.ex:19
 #: lib/tuist_web/live/ops_account_live.ex:56
@@ -803,7 +803,7 @@ msgid "Cancel plan"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_helpers.ex:44
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr ""
@@ -863,12 +863,12 @@ msgstr ""
 msgid "Denmark"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:38
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Deployment"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:30
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Deployment not found."
 msgstr ""
@@ -883,7 +883,7 @@ msgstr ""
 msgid "Estonia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:79
 #: lib/tuist_web/live/ops_database_live.html.heex:123
 #: lib/tuist_web/live/ops_database_live.html.heex:355
 #, elixir-autogen, elixir-format
@@ -1050,7 +1050,7 @@ msgstr ""
 
 #: lib/tuist/utilities/date_formatter.ex:5
 #: lib/tuist/utilities/date_formatter.ex:76
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:87
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:90
 #: lib/tuist_web/live/ops_account_live.ex:921
 #: lib/tuist_web/live/ops_account_live.html.heex:41
 #: lib/tuist_web/live/ops_account_live.html.heex:53
@@ -1084,7 +1084,7 @@ msgstr ""
 msgid "Organization"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:73
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
@@ -1140,7 +1140,7 @@ msgstr ""
 msgid "Romania"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:74
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
@@ -1211,7 +1211,7 @@ msgstr ""
 msgid "Stripe customer"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:75
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
 msgstr ""
@@ -1927,7 +1927,7 @@ msgstr ""
 msgid "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:78
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Superseded"
 msgstr ""
