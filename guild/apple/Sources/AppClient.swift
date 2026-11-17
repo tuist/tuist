@@ -1,8 +1,11 @@
 import AuthenticationServices
 import Foundation
+import OSLog
 import Security
 import SwiftUI
 import TuistGuildCore
+
+private let coreLog = Logger(subsystem: "dev.tuist.guild", category: "core")
 
 struct AppProfile: Decodable, Identifiable {
     let id: String
@@ -107,8 +110,21 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
                     )
                 }
                 result = ["ok": true]
+            case "log":
+                // The core's own messages: boot steps and migrations, never tokens.
+                let message = action["message"] as? String ?? ""
+                coreLog.info("\(message, privacy: .public)")
+                result = ["ok": true]
+            case "store_directory":
+                result = ["path": try storeDirectory().path]
             case "http":
-                result = try http(action)
+                do {
+                    result = try http(action)
+                } catch let error as URLError where Self.offline.contains(error.code) {
+                    // Only connectivity counts as offline; the core then answers
+                    // from its store. TLS and other failures stay errors.
+                    result = ["error": "offline"]
+                }
             default:
                 throw AppClientError(message: "Invalid host operation")
             }
@@ -120,6 +136,28 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
         response = strdup(String(decoding: data, as: UTF8.self))
         return response
     }
+
+    /// Where the core keeps its SQLite stores, one per profile: Application
+    /// Support, out of backups because the server holds the authoritative copy.
+    /// Files get the default protection class, so background wakes after the
+    /// first unlock can open them.
+    private func storeDirectory() throws -> URL {
+        var directory = try FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        ).appendingPathComponent("dev.tuist.guild/store", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try directory.setResourceValues(values)
+        }
+        return directory
+    }
+
+    private static let offline: Set<URLError.Code> = [
+        .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost,
+        .dnsLookupFailed, .timedOut, .dataNotAllowed, .internationalRoamingOff, .callIsActive,
+    ]
 
     private func http(_ action: [String: Any]) throws -> [String: Any] {
         guard let text = action["url"] as? String, let url = URL(string: text),
@@ -169,11 +207,12 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     @ObservationIgnored private var browserAttempt: UUID?
     @ObservationIgnored private var started = false
 
-    /// Launch arguments are consumed once, after restoring the core's snapshot.
+    /// Launch arguments are consumed once, after the core boots.
     func start() async {
         guard !started else { return }
         started = true
-        await perform("snapshot")
+        // Loads profiles and migrates local stores before any screen reads them.
+        await perform("boot")
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--navigate"), index + 1 < arguments.count {
             await perform("navigate", ["url": arguments[index + 1]])

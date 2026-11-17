@@ -11,7 +11,13 @@ struct AppThread: Decodable, Identifiable {
     let section: String
 }
 
+private struct Freshness: Decodable {
+    /// `live`, `cached`, `queued` or `never_loaded`, decided by the Rust core.
+    let state: String
+}
+
 private struct ThreadPage: Decodable {
+    let freshness: Freshness?
     let available: Bool
     /// Why threads are unavailable: `disabled` or `forbidden` (not an admin of the organization).
     let reason: String?
@@ -34,6 +40,14 @@ struct ThreadsView: View {
 
     var body: some View {
         List {
+            #if os(iOS)
+                // In the title's place it would hide "Threads", so it heads the list instead.
+                if available {
+                    archivePicker
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                }
+            #endif
             if let error {
                 Section {
                     Text(verbatim: error).foregroundStyle(.secondary)
@@ -92,12 +106,11 @@ struct ThreadsView: View {
             }
         }
         .navigationTitle("Threads")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
         .toolbar {
             if available {
-                ToolbarItem(placement: .principal) { archivePicker }
+                #if os(macOS)
+                    ToolbarItem(placement: .principal) { archivePicker }
+                #endif
                 ToolbarItem(placement: .primaryAction) {
                     Button("Start conversation", systemImage: "square.and.pencil") { starting = true }
                         .keyboardShortcut("n", modifiers: .command)
@@ -126,7 +139,11 @@ struct ThreadsView: View {
             }
         #endif
         .refreshable { await reload() }
-        .task(id: client.view.active_profile_id) { await reload() }
+        .task(id: client.view.active_profile_id) {
+            // Render what's on the device first, then bring it up to date.
+            await fetch(operation: "cached_threads", cursor: nil)
+            await reload()
+        }
         .onChange(of: client.view.navigation.revision) { _, _ in starting = false }
     }
 
@@ -199,28 +216,31 @@ struct ThreadsView: View {
     }
 
     private func run(cursor: String?) async {
-        let task = Task { await fetch(cursor: cursor) }
+        let task = Task { await fetch(operation: "threads", cursor: cursor) }
         loading = task
         await task.value
         if loading == task { loading = nil }
     }
 
-    private func fetch(cursor: String?) async {
+    private func fetch(operation: String, cursor: String?) async {
         let profile = client.view.active_profile_id
         do {
-            let data = try await client.call("threads", cursor.map { ["cursor": $0] } ?? [:])
+            let data = try await client.call(operation, cursor.map { ["cursor": $0] } ?? [:])
             let page = try JSONDecoder().decode(ThreadPage.self, from: JSONSerialization.data(withJSONObject: data))
             // A newer load, or another profile, owns the list now.
             guard !Task.isCancelled, profile == client.view.active_profile_id else { return }
-            threads = cursor == nil ? page.threads : threads + page.threads
+            // The core returns the whole stored inbox, with queued threads, for every page.
+            threads = page.threads
             nextCursor = page.next_cursor
             available = page.available
             forbidden = page.reason == "forbidden"
             error = nil
+            // An inbox never loaded on this device isn't empty, only unknown yet.
+            if page.freshness?.state != "never_loaded" { loaded = true }
         } catch {
             guard !Task.isCancelled else { return }
             self.error = error.localizedDescription
+            loaded = true
         }
-        loaded = true
     }
 }

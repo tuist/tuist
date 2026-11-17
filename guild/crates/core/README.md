@@ -39,7 +39,27 @@ Rust callers can instantiate `MobileClient` and implement `Host` independently. 
 | --- | --- |
 | `{"type":"read"}` | `{"value":null}` or `{"value":"<opaque vault JSON>"}` |
 | `{"type":"write","value":"<opaque vault JSON>"}` | `{"ok":true}` |
-| `{"type":"http","method":"GET","url":"https://…","headers":{"Accept":"application/json",…},"body":"optional string"}` | `{"status":200,"body":"<response text>"}` |
+| `{"type":"http","method":"GET","url":"https://…","headers":{"Accept":"application/json",…},"body":"optional string"}` | `{"status":200,"body":"<response text>"}`; `{"error":"offline"}` only when the server is unreachable (no connection, DNS, connect failure, timeout), which makes thread operations answer from the local store. Any other error (TLS, size) stays an error |
+| `{"type":"store_directory"}` | `{"path":"/absolute/directory"}` |
+| `{"type":"log","message":"…"}` | `{"ok":true}`; any failure is ignored |
+
+`store_directory` says where the local store lives (`src/store.rs`): one SQLite
+database per profile (`{profile}.sqlite3`, plus WAL files), which the core
+opens, migrates and queries itself so screens render before the network answers
+and stay navigable offline. Hosts return a directory outside backups
+(Application Support on Apple, `noBackupFilesDir` on Android). SQLite is
+bundled, so every platform runs the same version; on `wasm32-unknown-unknown`
+rusqlite uses `sqlite-wasm-rs`, and a browser host would return the path of an
+OPFS-backed VFS (for example `sqlite-wasm-vfs`'s `sahpool`). The model stays in
+Rust so every platform behaves the same.
+
+The schema is `store::MIGRATIONS`, an append-only list: each entry runs once per
+database in its own transaction, and `PRAGMA user_version` records how many
+have. Add a migration for every schema change and never edit a shipped one;
+keep `outbox` rows, which are writes the server hasn't seen. A database from a
+newer build is refused. `log` carries the core's boot and migration messages to
+the system log (`Logger` subsystem `dev.tuist.guild`, category `core`, on
+Apple; tag `TuistGuild` on Android); they never contain tokens or server text.
 
 Every action may instead return `{"error":"…"}`. The core deliberately does not
 display that message. Write success means durable completion, not a queued write.
@@ -85,14 +105,18 @@ when an operation reports an error.
 | `navigate` | `url`: internal path, `tuist-guild://app/…`, or HTTPS `{server}/guild/…`; optional `if_generation` and `if_revision` | null; updates navigation, or queues a signed-out link until sign-in; a mismatched version makes an async completion a no-op |
 | `select_tab` | `tab`: `threads` or `profile` | null; preserves the conversation stack across tab changes |
 | `navigation_back` | none | null; returns to the Threads root |
-| `begin_sign_in` | `server`, optional `provider`: `tuist` (default), `github`, `google`, `apple` | `{url,callback_scheme:"tuist-guild"}` |
+| `boot` | none | `{stores:[{profile,migrated:[…]},…]}`. Call it first at launch: it migrates every profile's local store and logs each step; a store that fails to open is logged, left out of `stores`, and retried when used |
+| `begin_sign_in` | `server`, optional `provider`: `tuist` (default), `github`, `google`, `apple` | `{url,callback_scheme:"tuist-guild"}`; the URL requests the `threads` scope when the server's `scopes_supported` metadata lists it |
 | `finish_sign_in` | `url` | null |
 | `cancel_sign_in` | none | null |
 | `switch_profile` | `id` | null |
 | `select_organization` | profile `id`, `name` (null or account handle selects personal account) | null |
 | `sign_out` | none | null; removes active profile, selects first eligible fallback |
 | `organizations` | none | `[{id:<profile ID>,response:<raw organizations response>},…]` |
-| `threads` | optional nonempty `cursor` | `{available,reason,threads:[{…,state,section},…],next_cursor}` from `/api/accounts/{selected organization or personal handle}/threads`; `state` is `queued`, `running` (also `compacting` and `shipping`), `completed` (the server's `idle`), `failed` (also `interrupted`), `outcome_unknown` or null for statuses the core doesn't know, and `section` is `in_progress`, `recent` or `archived`; a repeated cursor ends paging; a 404 returns `available:false`, `reason:"disabled"` and no threads, and a 401/403 (organizations need admin rights) returns `available:false`, `reason:"forbidden"` |
+| `threads` | optional nonempty `cursor` | `{available,reason,freshness,threads:[{…,state,section},…],next_cursor}`. `threads` is the whole stored inbox with threads started offline first (`pending: true`), and `freshness.state` is `live`, or `cached` (with `as_of`) or `never_loaded` when the network is unreachable. `thread`, `start_thread` and `send_message` answer from the store the same way offline; the two writes queue and return the conversation with `freshness.state` `queued`. Results come from `/api/accounts/{account}/threads`, where the account is the selected organization or, when none is selected, the personal account (as are `start_thread`, `thread` and `send_message`); `state` is `queued`, `running` (also `compacting` and `shipping`), `completed` (the server's `idle`), `failed` (also `interrupted`), `outcome_unknown` or null for statuses the core doesn't know, and `section` is `in_progress`, `recent` or `archived`; a repeated cursor ends paging; a 404 returns `available:false`, `reason:"disabled"` and no threads, and a 401/403 (organizations need admin rights) returns `available:false`, `reason:"forbidden"`; neither replaces the stored inbox |
+| `cached_threads` | none | the selected account's inbox from the local store, without the network, shaped like `threads` |
+| `cached_thread` | `id` | a conversation from the local store, shaped like `thread` |
+| `flush_outbox` | none | `{sent}`; sends writes queued offline in order with their original `request_id`, stops at the first failure that may clear up (offline, 5xx, a busy thread, credentials) and keeps the rest, and marks writes the server refuses (400, 404, 422) as `failed`. A queued `start_thread` that is sent moves its replies to the server's thread id; the local id keeps working as an alias for `thread`, `cached_thread` and `send_message` |
 | `start_thread` | `content` (nonempty, at most 16,000 bytes) | the created thread, as `thread` returns it; starts a server-side conversation with no repository, using the first model from `/threads/models`. A 404 reports threads unavailable; no available model asks to connect a ChatGPT subscription. A retry of the same text after a failure reuses its `request_id`, so it never creates two threads |
 | `thread` | thread `id` (UUID), optional `before` message position | the server's thread with its latest messages, plus `state`, `section` and `working` (queued or running, and not archived); frontends poll it while `working` |
 | `send_message` | thread `id`, `content` | the updated thread; retries reuse the request ID like `start_thread` |

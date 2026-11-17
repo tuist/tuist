@@ -4,7 +4,9 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import org.json.JSONObject
+import java.io.File
 import java.net.URL
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -16,6 +18,8 @@ import javax.net.ssl.HttpsURLConnection
 /** Platform-only I/O. Credentials are opaque to the presentation layer. */
 class AppHost(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("tuist_secure_prefs", Context.MODE_PRIVATE)
+    // Where the core keeps its SQLite stores, outside Auto Backup: the server holds the authoritative copy.
+    private val store = File(context.applicationContext.noBackupFilesDir, "store").apply { mkdirs() }
 
     // Called by JNI on AppCore's single background executor. Never return exception text containing URLs or tokens.
     fun perform(action: String): String = try {
@@ -38,7 +42,18 @@ class AppHost(context: Context) {
                     JSONObject().put("error", "vault_write_failed")
                 } else JSONObject().put("ok", true)
             }
-            "http" -> http(input)
+            // The core's own messages: boot steps and migrations, never tokens.
+            "log" -> {
+                Log.i("TuistGuild", input.getString("message"))
+                JSONObject().put("ok", true)
+            }
+            "store_directory" -> JSONObject().put("path", store.absolutePath)
+            // Only connectivity counts as offline; the core then answers from its
+            // store. TLS and other failures stay errors.
+            "http" -> try { http(input) } catch (_: java.net.UnknownHostException) { offline() }
+                catch (_: java.net.ConnectException) { offline() }
+                catch (_: java.net.NoRouteToHostException) { offline() }
+                catch (_: java.net.SocketTimeoutException) { offline() }
             else -> JSONObject().put("error", "unsupported_host_action")
         }.toString()
     } catch (_: Exception) {
@@ -62,6 +77,8 @@ class AppHost(context: Context) {
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(record.getString("iv"), Base64.NO_WRAP)))
         return String(cipher.doFinal(Base64.decode(record.getString("ciphertext"), Base64.NO_WRAP)), Charsets.UTF_8)
     }
+
+    private fun offline() = JSONObject().put("error", "offline")
 
     private fun http(input: JSONObject): JSONObject {
         val url = URL(input.getString("url"))

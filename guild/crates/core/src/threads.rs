@@ -35,7 +35,8 @@ impl Threads {
     /// Runs `threads`, `start_thread`, `thread` or `send_message` (see the
     /// crate README) in the account `handle` on `server`: the person's own
     /// account or a selected organization. The server lists only the threads
-    /// the user owns there, and requires admin rights on an organization.
+    /// the user owns there, and requires admin rights and the organization's
+    /// `guild` flag on an organization.
     pub fn call(
         &mut self,
         server: &Url,
@@ -99,7 +100,7 @@ impl Threads {
                     })
                     .ok_or("Connect a ChatGPT subscription in your Tuist account settings to start conversations")?;
                 let body = json!({
-                    "request_id": self.request_id(server, handle, "", content),
+                    "request_id": self.request_id(args, server, handle, "", content)?,
                     "content": content,
                     "provider": model["provider"],
                     "model": model["id"],
@@ -126,7 +127,7 @@ impl Threads {
                 let id = thread_id(args)?;
                 let content = message_content(args)?;
                 let body = json!({
-                    "request_id": self.request_id(server, handle, id, content),
+                    "request_id": self.request_id(args, server, handle, id, content)?,
                     "content": content,
                 });
                 let mut thread = request(
@@ -143,7 +144,57 @@ impl Threads {
         }
     }
 
-    fn request_id(&mut self, server: &Url, handle: &str, thread: &str, content: &str) -> String {
+    /// The idempotency key `start_thread` or `send_message` will send with
+    /// `args`, chosen before the request so a caller that queues the write
+    /// after a lost response replays it under the same key.
+    pub(crate) fn request_key(
+        &mut self,
+        server: &Url,
+        handle: &str,
+        operation: &str,
+        args: &Value,
+    ) -> Result<String> {
+        let thread = match operation {
+            "send_message" => thread_id(args)?,
+            _ => "",
+        };
+        self.request_id(args, server, handle, thread, message_content(args)?)
+    }
+
+    /// Forgets the in-memory key once its write is sent or queued, so the
+    /// same text written again is a new message.
+    pub(crate) fn settle(&mut self) {
+        self.pending = None;
+    }
+
+    /// The caller's `request_id` when it gives one (the local store's outbox
+    /// does, so a retry after a restart replays the same write), otherwise a
+    /// key kept in memory until the request succeeds.
+    fn request_id(
+        &mut self,
+        args: &Value,
+        server: &Url,
+        handle: &str,
+        thread: &str,
+        content: &str,
+    ) -> Result<String> {
+        if let Some(id) = args.get("request_id") {
+            let id = id.as_str().ok_or("Invalid request")?;
+            if id.len() != 36 || !id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
+                return Err("Invalid request");
+            }
+            return Ok(id.to_string());
+        }
+        Ok(self.memory_request_id(server, handle, thread, content))
+    }
+
+    fn memory_request_id(
+        &mut self,
+        server: &Url,
+        handle: &str,
+        thread: &str,
+        content: &str,
+    ) -> String {
         let key = format!("{server}\n{handle}\n{thread}\n{content}");
         match &self.pending {
             Some((pending, id)) if *pending == key => id.clone(),
@@ -202,7 +253,7 @@ fn message_content(args: &Value) -> Result<&str> {
 }
 
 /// A random version 4 UUID, which the server requires for idempotency keys.
-fn new_request_id() -> String {
+pub(crate) fn new_request_id() -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     const HEX: &[u8] = b"0123456789abcdef";
     // Each base64url character of the verifier carries six random bits; keep four.

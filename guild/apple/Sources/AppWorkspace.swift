@@ -67,7 +67,11 @@ struct AppWorkspace: View {
         }
         .task(id: client.view.active?.id) { await updater.check() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await updater.check() } }
+            if phase == .active {
+                Task { await updater.check() }
+                // Send what was written offline, such as threads started on a plane.
+                Task { _ = try? await client.call("flush_outbox") }
+            }
         }
         .sheet(isPresented: $addingProfile) {
             NavigationStack {

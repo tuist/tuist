@@ -42,14 +42,10 @@ struct StartConversationView: View {
 
     var body: some View {
         Form {
-            Section {
-                TextField("What do you want to talk about?", text: $content, axis: .vertical)
-                    .lineLimit(4 ... 12)
-                    .focused($focused)
-                    .disabled(starting)
-            } footer: {
-                Text("Tuist answers on its servers. You don't need a repository or a machine.")
-            }
+            TextField("What do you want to talk about?", text: $content, axis: .vertical)
+                .lineLimit(4 ... 12)
+                .focused($focused)
+                .disabled(starting)
             if let error {
                 Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
             }
@@ -174,6 +170,7 @@ struct ConversationView: View {
 
     /// Loads the conversation, then polls while the server is answering.
     private func follow() async {
+        thread = try? await client.conversation("cached_thread", ["id": id])
         while !Task.isCancelled {
             do {
                 thread = try await client.conversation("thread", ["id": id])

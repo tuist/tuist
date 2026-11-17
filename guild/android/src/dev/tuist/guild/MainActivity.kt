@@ -71,7 +71,8 @@ class MainActivity : Activity() {
         previewsSelected = savedInstanceState?.getBoolean("previews_selected") ?: false
         intentConsumed = savedInstanceState?.getBoolean("intent_consumed") ?: false
         addingProfile = savedInstanceState?.getBoolean("adding_profile") ?: false
-        call("snapshot") {
+        // Loads profiles and migrates local stores before any screen reads them.
+        call("boot") {
             render()
             if (intentConsumed || !consumeIntent(intent)) {
                 if (AppCore.pendingAuthorization != null) launchPendingSignIn()
@@ -91,6 +92,8 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         checkForUpdate()
+        // Send what was written offline, such as threads started on a plane.
+        if (active() != null) AppCore.submit("flush_outbox", JSONObject(), host) { }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -710,7 +713,7 @@ class MainActivity : Activity() {
             minLines = 3
             gravity = Gravity.TOP or Gravity.START
         }
-        AlertDialog.Builder(this).setTitle(R.string.new_conversation).setMessage(R.string.conversation_runs_on_server)
+        AlertDialog.Builder(this).setTitle(R.string.new_conversation)
             .setView(input)
             .setPositiveButton(R.string.start) { _, _ ->
                 if (busy || generation != view.optLong("generation", -1) ||

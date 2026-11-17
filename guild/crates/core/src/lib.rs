@@ -3,6 +3,7 @@ use core::ffi::{c_char, c_void};
 mod bridge;
 mod client;
 pub mod navigation;
+pub mod store;
 pub mod theme;
 mod threads;
 mod updates;

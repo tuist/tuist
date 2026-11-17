@@ -66,7 +66,6 @@
     <string name="start_conversation">"Start conversation"</string>
     <string name="new_conversation">"New conversation"</string>
     <string name="conversation_prompt">"What do you want to talk about?"</string>
-    <string name="conversation_runs_on_server">"Tuist answers on its servers. You don't need a repository or a machine."</string>
     <string name="start">"Start"</string>
     <string name="start_failed">"The conversation could not be started. Make sure threads are enabled and a ChatGPT subscription is connected in your Tuist account settings."</string>
     <string name="threads_admins_only">"Only admins can use threads in %1$s. Ask an admin for access, or switch to another account."</string>
