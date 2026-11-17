@@ -74,6 +74,7 @@
 "Update" = "Update";
 "Updating…" = "Updating…";
 "The update could not be installed." = "The update could not be installed.";
+"Confirm the install. iOS closes Tuist Guild to finish it." = "Confirm the install. iOS closes Tuist Guild to finish it.";
 "Theme" = "Theme";
 "Tuist follows the system appearance. Other themes have their own." = "Tuist follows the system appearance. Other themes have their own.";
 "Load earlier messages" = "Load earlier messages";

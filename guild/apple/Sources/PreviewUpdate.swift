@@ -19,6 +19,8 @@ private struct PreviewUpdateResponse: Decodable {
 final class PreviewUpdater {
     private(set) var update: PreviewUpdate?
     private(set) var installing = false
+    /// iOS took over the install: the app stays open until iOS replaces it.
+    private(set) var awaitingInstall = false
     @ObservationIgnored private let client: AppClient
 
     init(client: AppClient) {
@@ -53,7 +55,9 @@ final class PreviewUpdater {
         defer { installing = false }
         #if os(iOS)
             // iOS asks to confirm, then replaces this app from the preview's OTA manifest.
-            if !(await UIApplication.shared.open(url)) {
+            if await UIApplication.shared.open(url) {
+                awaitingInstall = true
+            } else {
                 client.error = String(localized: "The update could not be installed.")
             }
         #else
@@ -151,6 +155,9 @@ struct PreviewUpdateRow: View {
                 Text("New version available")
                 if let commit = update.commit {
                     Text("Build \(commit)").monospaced()
+                }
+                if updater.awaitingInstall {
+                    Text("Confirm the install. iOS closes Tuist Guild to finish it.")
                 }
             }
         }
