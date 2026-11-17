@@ -33,7 +33,8 @@ fn token(exp: i64, user: u64) -> String {
         "header.{}.sig",
         URL_SAFE_NO_PAD.encode(
             json!({"exp":exp,"sub":"account-1","user_id":user,
-        "type":"account","email":"ana@example.com","preferred_username":"ana"})
+        "type":"account","email":"ana@example.com",
+        "preferred_username":if user == 1 { "ana" } else { "ben" }})
             .to_string()
         )
     )
@@ -186,6 +187,54 @@ fn multiple_origins_dedup_and_selection_are_durable() {
     }
     // Screen state is deliberately process-local, unlike saved accounts.
     assert_eq!(restored["view"]["navigation"]["path"], "/threads");
+}
+#[test]
+fn accounts_flatten_memberships_across_profiles_through_the_active_one() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let ben = login(&mut c, &mut h, "https://one.test", 2, i64::MAX);
+    login(&mut c, &mut h, "https://two.test", 1, i64::MAX);
+    h.responses.extend([
+        (
+            200,
+            json!({"organizations":[{"name":"team"},{"name":"shared"}]}),
+        ),
+        (200, json!({"organizations":[{"name":"shared"}]})),
+        (200, json!({"organizations":[{"name":"team"}]})),
+    ]);
+    call(&mut c, &mut h, "organizations", json!({}));
+    let selected = call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":ben,"name":"shared"}),
+    );
+    assert!(selected.get("error").is_none(), "{selected}");
+    let rows: Vec<_> = selected["view"]["accounts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| {
+            (
+                a["name"].as_str().unwrap(),
+                a["server"].as_str().unwrap(),
+                a["handle"].as_str().unwrap(),
+                a["selected"].as_bool().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("ana", "https://one.test/", "ana", false),
+            ("ana", "https://two.test/", "ana", false),
+            ("ben", "https://one.test/", "ben", false),
+            // Both one.test logins belong to "shared"; the active login owns the row.
+            ("shared", "https://one.test/", "ben", true),
+            ("team", "https://one.test/", "ana", false),
+            ("team", "https://two.test/", "ana", false),
+        ]
+    );
 }
 #[test]
 fn rotated_pair_survives_failed_write_and_retries_before_any_network() {
@@ -341,10 +390,10 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
             ("recent", None)
         ]
     );
-    // Threads stay on the personal account while the organization "team" is selected.
+    // Threads follow the selected organization "team".
     assert_eq!(
         h.actions.last().unwrap()["url"],
-        "https://one.test/api/accounts/ana/threads"
+        "https://one.test/api/accounts/team/threads"
     );
     let count = h.actions.len();
     assert!(call(&mut c, &mut h, "threads", json!({"cursor":""}))["error"].is_string());
@@ -353,13 +402,17 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
     assert_eq!(repeated["data"]["next_cursor"], Value::Null);
     assert_eq!(
         h.actions.last().unwrap()["url"],
-        "https://one.test/api/accounts/ana/threads?cursor=c%2B%2F%3D"
+        "https://one.test/api/accounts/team/threads?cursor=c%2B%2F%3D"
     );
     assert!(call(&mut c, &mut h, "threads", json!({}))["error"].is_string());
     let unavailable = call(&mut c, &mut h, "threads", json!({}));
     assert!(unavailable.get("error").is_none(), "{unavailable}");
     assert_eq!(unavailable["data"]["available"], false);
-    assert!(call(&mut c, &mut h, "threads", json!({}))["error"].is_string());
+    assert_eq!(unavailable["data"]["reason"], "disabled");
+    // Members who aren't admins of "team" are told why, not shown an error.
+    let forbidden = call(&mut c, &mut h, "threads", json!({}));
+    assert!(forbidden.get("error").is_none(), "{forbidden}");
+    assert_eq!(forbidden["data"]["reason"], "forbidden");
     h.responses.extend([(503, json!({})), (403, json!({}))]);
     assert!(call(&mut c, &mut h, "organizations", json!({}))["error"].is_string());
     let p = c.vault.profiles.iter().find(|p| p.id == one).unwrap();

@@ -191,7 +191,7 @@ class MainActivity : Activity() {
         previewsSelected = false
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
-        threads = emptyList(); conversation = null; reply = ""
+        threads = emptyList(); threadsForbidden = false; conversation = null; reply = ""
     }
 
     /** Loads the current screen's data. */
@@ -326,24 +326,8 @@ class MainActivity : Activity() {
             text(profile.optString("email"))
             text(profile.optString("server"))
             if (profile.optBoolean("rejected")) text(getString(R.string.sign_in_required))
-            val organization = profile.opt("organization")
-            if (organization is JSONObject) text(organization.optString("name"))
-            else if (organization is String) text(organization)
-            if (!browserPending) button(R.string.organizations) {
-                call("organizations") {
-                    val refreshed = active()?.takeUnless { it.optBoolean("rejected") } ?: return@call
-                    val organizations = refreshed.optJSONArray("organizations") ?: JSONArray()
-                    val items = listOf(refreshed.getString("handle")) +
-                        (0 until organizations.length()).map { organizations.getString(it) }
-                    AlertDialog.Builder(this).setTitle(R.string.organizations)
-                        .setItems(items.toTypedArray()) { _, i ->
-                            call("select_organization", JSONObject().put("id", refreshed.getString("id"))
-                                .put("name", items[i])) { reset(); render() }
-                        }.setNegativeButton(R.string.cancel, null).show()
-                }
-            }
         } ?: text(getString(R.string.sign_in_required))
-        if (!browserPending) button(R.string.switch_profile) { chooseProfile() }
+        if (!browserPending) button(R.string.switch_account) { chooseProfile() }
         button(getString(R.string.theme_value, AppCore.themes.firstOrNull { it.first == themeId }?.second.orEmpty())) {
             chooseTheme()
         }
@@ -368,13 +352,26 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Refreshes memberships, then offers every saved profile's accounts and organizations. */
     private fun chooseProfile() {
-        val profiles = view.optJSONArray("profiles").objects()
-        AlertDialog.Builder(this).setTitle(R.string.switch_profile)
-            .setItems((profiles.map { "@${it.optString("handle")} · ${it.optString("server")}" } + getString(R.string.add_profile)).toTypedArray()) { _, i ->
-                if (i == profiles.size) signIn()
-                else call("switch_profile", JSONObject().put("id", profiles[i].getString("id"))) {
-                    reset(); render(); load()
+        // A failed refresh still lists the memberships saved earlier.
+        call("organizations", onFailure = { showAccounts() }) { showAccounts() }
+    }
+
+    private fun showAccounts() {
+        render()
+        val accounts = view.optJSONArray("accounts").objects().filterNot { it.optBoolean("rejected") }
+        val rows = accounts.map {
+            val owner = if (it.optBoolean("personal")) "" else "@${it.optString("handle")} · "
+            "${if (it.optBoolean("selected")) "✓ " else ""}${it.optString("name")} · $owner${it.optString("server")}"
+        } + getString(R.string.add_profile) + getString(R.string.sign_out)
+        AlertDialog.Builder(this).setTitle(R.string.switch_account)
+            .setItems(rows.toTypedArray()) { _, i ->
+                when (i) {
+                    accounts.size -> signIn()
+                    accounts.size + 1 -> call("sign_out") { reset(); render() }
+                    else -> call("select_organization", JSONObject().put("id", accounts[i].getString("profile_id"))
+                        .put("name", accounts[i].getString("name"))) { reset(); render(); load() }
                 }
             }.setNegativeButton(R.string.cancel, null).show()
     }
@@ -599,11 +596,15 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Organization threads need admin rights there; members see why instead of an empty list. */
+    private var threadsForbidden = false
+
     private fun loadThreads() {
         if (active() == null) return
         call("threads") { data ->
             threads = (data as? JSONObject)?.optJSONArray("threads").objects()
                 .filter { it.optString("section") != "archived" }
+            threadsForbidden = (data as? JSONObject)?.optString("reason") == "forbidden"
             render()
         }
     }
@@ -619,7 +620,9 @@ class MainActivity : Activity() {
         conversation?.let { conversationScreen(it); return }
         button(R.string.start_conversation, primary = true) { startConversation() }
         button(R.string.refresh) { loadThreads() }
-        if (threads.isEmpty() && !busy) text(getString(R.string.no_threads))
+        val account = view.optJSONArray("accounts").objects().firstOrNull { it.optBoolean("selected") }
+        if (threadsForbidden) text(getString(R.string.threads_admins_only, account?.optString("name").orEmpty()))
+        else if (threads.isEmpty() && !busy) text(getString(R.string.no_threads))
         threads.forEach { item ->
             button(listOf(item.string("title").ifBlank { item.string("goal") }, threadState(item.string("state")))
                 .filter { it.isNotBlank() }.joinToString(" · ")) { openThread(item.getString("id")) }

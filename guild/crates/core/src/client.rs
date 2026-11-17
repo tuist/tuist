@@ -94,7 +94,8 @@ impl MobileClient {
             })
             .collect();
         let mut response = json!({"view":{
-            "profiles":profiles, "active_profile_id":self.vault.active_profile_id,
+            "profiles":profiles, "accounts":self.accounts(),
+            "active_profile_id":self.vault.active_profile_id,
             "generation":self.vault.generation,
             "navigation":self.navigation,
         },"data":data});
@@ -207,7 +208,7 @@ impl MobileClient {
             op @ ("threads" | "start_thread" | "thread" | "send_message") => {
                 let index = self.active()?;
                 let server = server_url(&self.vault.profiles[index].server)?;
-                let handle = self.vault.profiles[index].handle.clone();
+                let handle = self.account(index).to_string();
                 let mut threads = std::mem::take(&mut self.threads);
                 let result = threads.call(
                     &server,
@@ -351,6 +352,46 @@ impl MobileClient {
             .iter()
             .position(|p| Some(&p.id) == self.vault.active_profile_id.as_ref() && !p.rejected)
             .ok_or("Sign in required")
+    }
+
+    /// Every personal account and organization across saved profiles, for one
+    /// switcher. A membership shared by several profiles on the same server is
+    /// listed once, through the active profile when it is one of them.
+    fn accounts(&self) -> Vec<Value> {
+        let active = self.vault.active_profile_id.as_deref();
+        let ordered = self
+            .vault
+            .profiles
+            .iter()
+            .filter(|p| Some(p.id.as_str()) == active)
+            .chain(
+                self.vault
+                    .profiles
+                    .iter()
+                    .filter(|p| Some(p.id.as_str()) != active),
+            );
+        let mut seen = HashSet::new();
+        let mut accounts = Vec::new();
+        for p in ordered {
+            let rejected = p.rejected || p.memberships_rejected;
+            let organizations: &[String] = if rejected { &[] } else { &p.organizations };
+            for name in std::iter::once(&p.handle).chain(organizations) {
+                if !seen.insert((p.server.as_str(), name.as_str())) {
+                    continue;
+                }
+                accounts.push(json!({
+                    "profile_id":p.id, "name":name, "server":p.server, "handle":p.handle,
+                    "personal":*name == p.handle, "rejected":rejected,
+                    "selected":Some(p.id.as_str()) == active
+                        && p.organization.as_deref().unwrap_or(&p.handle) == name,
+                }));
+            }
+        }
+        accounts.sort_by(|a, b| {
+            (a["name"].as_str(), a["server"].as_str())
+                .cmp(&(b["name"].as_str(), b["server"].as_str()))
+        });
+        accounts
     }
 
     fn account(&self, index: usize) -> &str {

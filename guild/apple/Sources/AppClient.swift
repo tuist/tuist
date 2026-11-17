@@ -23,8 +23,23 @@ struct AppNavigation: Decodable {
     var revision: UInt64 = 0
 }
 
+/// A personal account or organization from any saved profile; selecting it
+/// switches to the profile that owns it.
+struct AppAccount: Decodable, Identifiable {
+    let profile_id: String
+    let name: String
+    let server: String
+    let handle: String
+    let personal: Bool
+    let rejected: Bool
+    let selected: Bool
+
+    var id: String { "\(profile_id)/\(name)" }
+}
+
 struct AppSessionView: Decodable {
     var profiles: [AppProfile] = []
+    var accounts: [AppAccount] = []
     var active_profile_id: String?
     var generation: UInt64 = 0
     var navigation = AppNavigation()

@@ -58,6 +58,7 @@ Requests are `{"operation":"…","args":{…}}`. No-argument operations may omit
 {
   "view": {
     "profiles": [{"id":"opaque","server":"https://tuist.dev/","handle":"ana","email":"ana@example.com","organization":null,"organizations":[],"rejected":false}],
+    "accounts": [{"profile_id":"opaque","name":"ana","server":"https://tuist.dev/","handle":"ana","personal":true,"rejected":false,"selected":true}],
     "active_profile_id":"opaque",
     "generation":1
   },
@@ -68,7 +69,12 @@ Requests are `{"operation":"…","args":{…}}`. No-argument operations may omit
 Tokens never belong in a view. Raw API data is retained except secret fields and
 credential strings are scrubbed; errors are fixed, credential-free messages.
 `rejected` also includes membership-access denial: do not offer these profiles
-for organization selection. Generation advances on durable profile/selection or
+for organization selection. `accounts` flattens every profile's personal
+account and cached organizations into one switcher list, sorted by name and
+server. A membership shared by several profiles on the same server appears once,
+owned by the active profile when it is one of them. Select a row with
+`select_organization` and its `profile_id` and `name`; rows of rejected profiles
+list only the personal account. Generation advances on durable profile/selection or
 membership commits, not on token rotation. Always render the returned view even
 when an operation reports an error.
 
@@ -86,7 +92,7 @@ when an operation reports an error.
 | `select_organization` | profile `id`, `name` (null or account handle selects personal account) | null |
 | `sign_out` | none | null; removes active profile, selects first eligible fallback |
 | `organizations` | none | `[{id:<profile ID>,response:<raw organizations response>},…]` |
-| `threads` | optional nonempty `cursor` | `{available,threads:[{…,state,section},…],next_cursor}` from `/api/accounts/{personal handle}/threads`, whatever organization is selected; `state` is `queued`, `running` (also `compacting` and `shipping`), `completed` (the server's `idle`), `failed` (also `interrupted`), `outcome_unknown` or null for statuses the core doesn't know, and `section` is `in_progress`, `recent` or `archived`; a repeated cursor ends paging; a 404 returns `available:false` and no threads |
+| `threads` | optional nonempty `cursor` | `{available,reason,threads:[{…,state,section},…],next_cursor}` from `/api/accounts/{selected organization or personal handle}/threads`; `state` is `queued`, `running` (also `compacting` and `shipping`), `completed` (the server's `idle`), `failed` (also `interrupted`), `outcome_unknown` or null for statuses the core doesn't know, and `section` is `in_progress`, `recent` or `archived`; a repeated cursor ends paging; a 404 returns `available:false`, `reason:"disabled"` and no threads, and a 401/403 (organizations need admin rights) returns `available:false`, `reason:"forbidden"` |
 | `start_thread` | `content` (nonempty, at most 16,000 bytes) | the created thread, as `thread` returns it; starts a server-side conversation with no repository, using the first model from `/threads/models`. A 404 reports threads unavailable; no available model asks to connect a ChatGPT subscription. A retry of the same text after a failure reuses its `request_id`, so it never creates two threads |
 | `thread` | thread `id` (UUID), optional `before` message position | the server's thread with its latest messages, plus `state`, `section` and `working` (queued or running, and not archived); frontends poll it while `working` |
 | `send_message` | thread `id`, `content` | the updated thread; retries reuse the request ID like `start_thread` |

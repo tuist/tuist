@@ -21,7 +21,7 @@
 "Sign-in could not be started." = "Sign-in could not be started.";
 "Email" = "Email";
 "Server" = "Server";
-"Profiles" = "Profiles";
+"Accounts" = "Accounts";
 "Add profile" = "Add profile";
 "Terms of Service" = "Terms of Service";
 "Privacy Policy" = "Privacy Policy";
@@ -49,12 +49,14 @@
 "Needs attention" = "Needs attention";
 "Outcome unknown" = "Outcome unknown";
 "View profile" = "View profile";
-"Switch profile" = "Switch profile";
+"Switch account" = "Switch account";
 "Add Profile…" = "Add Profile…";
 "View Profile" = "View Profile";
 "Sign Out" = "Sign Out";
 "Threads aren't available yet" = "Threads aren't available yet";
 "Threads aren't enabled for this account or server." = "Threads aren't enabled for this account or server.";
+"Only admins can use threads here" = "Only admins can use threads here";
+"Ask an admin of %@ for access, or switch to another account." = "Ask an admin of %@ for access, or switch to another account.";
 "Delete Account…" = "Delete Account…";
 "Refresh" = "Refresh";
 "Refresh threads" = "Refresh threads";

@@ -61,6 +61,10 @@ struct AppWorkspace: View {
         .preferredColorScheme(Themes.shared.selected.appearance)
         .task { await client.start() }
         .onOpenURL { url in Task { await client.openURL(url) } }
+        // Memberships fill the account menu; a failed refresh keeps the saved ones quietly.
+        .task(id: client.view.profiles.map(\.id)) {
+            if !client.view.profiles.isEmpty { _ = try? await client.call("organizations") }
+        }
         .task(id: client.view.active?.id) { await updater.check() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await updater.check() } }
@@ -116,19 +120,22 @@ struct AppWorkspace: View {
         }
     }
 
-    /// Switches between saved profiles and adds new ones: in the window toolbar
-    /// on the Mac, and in the Profile tab's navigation bar on iOS.
+    /// Switches between the personal accounts and organizations of every saved
+    /// profile, adds profiles and signs out: in the window toolbar on the Mac,
+    /// and in the Profile tab's navigation bar on iOS.
     private var profilesMenu: some View {
         Menu {
-            ForEach(client.view.profiles) { profile in
+            ForEach(client.view.accounts) { account in
                 Toggle(isOn: Binding(
-                    get: { profile.id == client.view.active_profile_id },
-                    set: { if $0 { Task { await client.perform("switch_profile", ["id": profile.id]) } } }
+                    get: { account.selected },
+                    set: { if $0 { Task { await client.perform(
+                        "select_organization", ["id": account.profile_id, "name": account.name]
+                    ) } } }
                 )) {
-                    Text(verbatim: profile.handle ?? profile.email ?? profile.server)
-                    Text(verbatim: profile.server)
+                    Text(verbatim: account.name)
+                    Text(verbatim: account.personal ? account.server : "@\(account.handle) · \(account.server)")
                 }
-                .disabled(profile.rejected)
+                .disabled(account.rejected)
             }
             Divider()
             #if os(macOS)
@@ -138,16 +145,19 @@ struct AppWorkspace: View {
                 Button("Sign Out") { Task { await client.perform("sign_out") } }
             #else
                 Button("Add profile", systemImage: "person.badge.plus") { addingProfile = true }
+                Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                    Task { await client.perform("sign_out") }
+                }
             #endif
         } label: {
-            Label("Profiles", systemImage: "person.2.circle")
+            Label("Accounts", systemImage: "person.2.circle")
         }
-        .help("Switch profile")
+        .help("Switch account")
     }
 }
 
 /// The shipping app's Profile page (`app/Sources/TuistProfile/ProfileView.swift`).
-/// Switching and adding profiles live in the profiles menu: the Profile tab's
+/// Switching accounts and adding profiles live in the account menu: the Profile tab's
 /// navigation bar on iOS and the window toolbar on macOS.
 private struct ProfileView: View {
     let client: AppClient

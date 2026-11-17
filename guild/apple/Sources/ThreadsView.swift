@@ -13,6 +13,8 @@ struct AppThread: Decodable, Identifiable {
 
 private struct ThreadPage: Decodable {
     let available: Bool
+    /// Why threads are unavailable: `disabled` or `forbidden` (not an admin of the organization).
+    let reason: String?
     let threads: [AppThread]
     let next_cursor: String?
 }
@@ -24,6 +26,7 @@ struct ThreadsView: View {
     @State private var nextCursor: String?
     @State private var loaded = false
     @State private var available = true
+    @State private var forbidden = false
     @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
     @State private var error: String?
@@ -57,6 +60,12 @@ struct ThreadsView: View {
             if error == nil {
                 if !loaded {
                     ProgressView()
+                } else if forbidden {
+                    ContentUnavailableView(
+                        "Only admins can use threads here",
+                        systemImage: "lock",
+                        description: Text("Ask an admin of \(account) for access, or switch to another account.")
+                    )
                 } else if !available {
                     ContentUnavailableView(
                         "Threads aren't available yet",
@@ -184,6 +193,11 @@ struct ThreadsView: View {
         await run(cursor: cursor)
     }
 
+    /// The personal account or organization whose threads this lists.
+    private var account: String {
+        client.view.accounts.first(where: \.selected)?.name ?? client.view.active?.handle ?? ""
+    }
+
     private func run(cursor: String?) async {
         let task = Task { await fetch(cursor: cursor) }
         loading = task
@@ -201,6 +215,7 @@ struct ThreadsView: View {
             threads = cursor == nil ? page.threads : threads + page.threads
             nextCursor = page.next_cursor
             available = page.available
+            forbidden = page.reason == "forbidden"
             error = nil
         } catch {
             guard !Task.isCancelled else { return }

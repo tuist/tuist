@@ -33,9 +33,9 @@ impl Threads {
     }
 
     /// Runs `threads`, `start_thread`, `thread` or `send_message` (see the
-    /// crate README) for the person `handle` on `server`. Threads belong to
-    /// the person, not the selected organization: the server lists only
-    /// threads the user owns, and requires admin rights on an organization.
+    /// crate README) in the account `handle` on `server`: the person's own
+    /// account or a selected organization. The server lists only the threads
+    /// the user owns there, and requires admin rights on an organization.
     pub fn call(
         &mut self,
         server: &Url,
@@ -66,10 +66,11 @@ impl Threads {
                     }
                     url.query_pairs_mut().append_pair("cursor", cursor);
                 }
+                let unavailable = |reason| json!({"available":false,"reason":reason,"threads":[],"next_cursor":null});
                 let mut data = match request(transport, "GET", url, None) {
-                    Err(NOT_FOUND) => {
-                        return Ok(json!({"available":false,"threads":[],"next_cursor":null}));
-                    }
+                    Err(NOT_FOUND) => return Ok(unavailable("disabled")),
+                    // Organization threads need admin rights there.
+                    Err("Access denied") => return Ok(unavailable("forbidden")),
                     result => result?,
                 };
                 data["available"] = json!(true);
