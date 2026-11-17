@@ -213,16 +213,20 @@ defmodule Tuist.Kura.Placement do
     runs = by_region_and_date(context, :run_count)
     served = served(context)
 
-    correct_initial(context, plan_policy, runs) ||
-      relocate_to_hits(context, plan_policy, served, served_policy) ||
-      relocate_to_origin_hits(context, plan_policy, served, served_policy) ||
-      relocate(context, plan_policy, runs, served, served_policy) ||
+    move_primary(context, plan_policy, runs, served, served_policy) ||
       retire_over_cap(context, plan_policy, runs, served, served_policy) ||
       expand(context, plan_policy, runs, served, served_policy) ||
       retire_zero_hits(context, served, served_policy) ||
       retire_idle(context, served, served_policy) ||
       retire(context, plan_policy, runs, served, served_policy) ||
       :none
+  end
+
+  defp move_primary(context, plan_policy, runs, served, served_policy) do
+    correct_initial(context, plan_policy, runs) ||
+      relocate_to_hits(context, plan_policy, served, served_policy) ||
+      relocate_to_origin_hits(context, plan_policy, served, served_policy) ||
+      relocate(context, plan_policy, runs, served, served_policy)
   end
 
   defp served(%{served: served} = context) do
