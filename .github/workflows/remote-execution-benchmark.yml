@@ -251,8 +251,15 @@ jobs:
       - name: Summarize the profile
         if: always()
         run: |
+          set -euo pipefail
           [ -f "$RUNNER_TEMP/profile.json.gz" ] || exit 0
-          bazel analyze-profile "$RUNNER_TEMP/profile.json.gz" | tee -a "$RUNNER_TEMP/analyze-profile.txt"
+          # Bazel 9 no longer exposes analyze-profile. These are aggregate
+          # span durations, not additive wall-time or critical-path phases.
+          gzip -dc "$RUNNER_TEMP/profile.json.gz" | jq '
+            [.traceEvents[] | select(.dur != null)] | group_by(.cat) |
+            map({category: .[0].cat, spanCount: length,
+                 aggregateDurationSeconds: (map(.dur) | add / 1000000)})
+          ' > "$RUNNER_TEMP/profile-summary.json"
 
       - name: Remove generated authentication configuration
         if: always()
@@ -265,7 +272,7 @@ jobs:
           path: |
             ${{ runner.temp }}/profile.json.gz
             ${{ runner.temp }}/bazel.log
-            ${{ runner.temp }}/analyze-profile.txt
+            ${{ runner.temp }}/profile-summary.json
             ${{ runner.temp }}/environment.json
             ${{ runner.temp }}/result.json
           if-no-files-found: ignore
