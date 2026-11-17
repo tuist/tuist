@@ -37,9 +37,9 @@ if ! command -v mc >/dev/null; then
     Linux-aarch64) platform=linux-arm64;;
     *) echo 'Install MinIO mc for this platform first.' >&2; exit 1;;
   esac
-  release=RELEASE.2025-08-13T08-35-41Z
-  asset="mc.$platform.$release"
-  url="https://github.com/minio/mc/releases/download/$release/$asset"
+  mc_release=RELEASE.2025-08-13T08-35-41Z
+  asset="mc.$platform.$mc_release"
+  url="https://github.com/minio/mc/releases/download/$mc_release/$asset"
   mkdir "$work/bin"
   curl -fsSL "$url" -o "$work/bin/$asset"
   curl -fsSL "$url.sha256sum" -o "$work/bin/$asset.sha256sum"
