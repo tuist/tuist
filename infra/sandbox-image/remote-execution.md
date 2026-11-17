@@ -258,6 +258,16 @@ counts as a failure, and sandboxd's connection to Kura pings while downloads
 run, so one stalled stream or dead connection costs the actions waiting on it
 seconds rather than minutes.
 
+On a cache miss, sandboxd queries that instance's REAPI capabilities with the
+action's credential and requests `compressed-blobs/zstd` when advertised.
+Otherwise it uses ordinary `blobs` reads, including for servers without a
+capabilities service. Decoding streams to the same digest-checked file, with
+one decoder worker, an 8 MiB window limit and a decoded-size bound. A rejected
+frame follows the ordinary guest fallback. This reduces cold-fill traffic
+without adding connections or changing the account's egress ceiling. Stored
+bytes, `sandboxd_blob_cache_fetched_bytes_total` and the action's `host` read
+totals still count uncompressed content, not network bytes.
+
 The host serves only while the action exec runs, only VMs of the template the
 worker is configured with, and only until the executor seals the channel
 before the command starts, so the build cannot read the project's CAS through

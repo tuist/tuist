@@ -20,14 +20,18 @@ import (
 	"sync"
 	"time"
 
+	repb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // MaxBlob matches the executor's per-blob bound.
@@ -305,35 +309,53 @@ func (c *Cache) download(ctx context.Context, e *entry, s Scope, hash string) (e
 	}()
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
+	defer func() {
+		if err != nil && errors.Is(context.Cause(ctx), errStalled) {
+			err = errStalled
+		}
+	}()
 	stall := time.AfterFunc(c.stall, func() { cancel(errStalled) })
 	defer stall.Stop()
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+s.Token, "x-tuist-account-handle", s.Account))
-	stream, err := bs.NewByteStreamClient(conn).Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/blobs/%s/%d", s.Instance, hash, e.size)})
+	// Negotiate for this instance with this credential. Older CAS servers may
+	// not implement capabilities; they keep the identity read path. Do not
+	// cache an auth failure or a capability across project scopes or rollouts.
+	caps, err := repb.NewCapabilitiesClient(conn).GetCapabilities(ctx, &repb.GetCapabilitiesRequest{InstanceName: s.Instance})
+	if err != nil && status.Code(err) != codes.Unimplemented {
+		return err
+	}
+	compressed := false
+	for _, compressor := range caps.GetCacheCapabilities().GetSupportedCompressors() {
+		compressed = compressed || compressor == repb.Compressor_ZSTD
+	}
+	resource := "blobs"
+	if compressed {
+		resource = "compressed-blobs/zstd"
+	}
+	stall.Reset(c.stall)
+	stream, err := bs.NewByteStreamClient(conn).Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/%s/%s/%d", s.Instance, resource, hash, e.size)})
 	if err != nil {
 		return err
 	}
-	h := sha256.New()
-	var n int64
-	for {
-		part, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+	var reader io.Reader = &blobReader{stream: stream, stall: stall, timeout: c.stall}
+	if compressed {
+		// Stream to disk, never allocate the advertised blob size. Bound the
+		// decoder's history as well as its concurrency; an oversized frame fails
+		// this fill and leaves the guest's ordinary CAS fallback available.
+		decoder, err := zstd.NewReader(reader, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(8<<20), zstd.WithDecoderMaxWindow(8<<20))
 		if err != nil {
-			if cause := context.Cause(ctx); errors.Is(cause, errStalled) {
-				return cause
-			}
 			return err
 		}
-		stall.Reset(c.stall)
-		n += int64(len(part.Data))
-		if n > e.size {
-			return errors.New("CAS blob exceeds digest size")
-		}
-		h.Write(part.Data)
-		if _, err := f.Write(part.Data); err != nil {
-			return err
-		}
+		defer decoder.Close()
+		reader = decoder
+	}
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(f, h), io.LimitReader(reader, e.size+1))
+	if err != nil {
+		return err
+	}
+	if n > e.size {
+		return errors.New("CAS blob exceeds digest size")
 	}
 	if n != e.size || hex.EncodeToString(h.Sum(nil)) != hash {
 		return errors.New("CAS digest mismatch")
@@ -347,6 +369,31 @@ func (c *Cache) download(ctx context.Context, e *entry, s Scope, hash string) (e
 		return err
 	}
 	return os.Rename(tmp, e.path)
+}
+
+// blobReader resets the stall timer on wire progress, not decoded output:
+// a frame may span many responses before the decoder can emit any bytes.
+type blobReader struct {
+	stream  bs.ByteStream_ReadClient
+	stall   *time.Timer
+	timeout time.Duration
+	pending []byte
+}
+
+func (r *blobReader) Read(p []byte) (int, error) {
+	for len(r.pending) == 0 {
+		part, err := r.stream.Recv()
+		if err != nil {
+			return 0, err
+		}
+		if len(part.Data) > 0 {
+			r.stall.Reset(r.timeout)
+		}
+		r.pending = part.Data
+	}
+	n := copy(p, r.pending)
+	r.pending = r.pending[n:]
+	return n, nil
 }
 
 func (c *Cache) conn(endpoint string) (*grpc.ClientConn, error) {
