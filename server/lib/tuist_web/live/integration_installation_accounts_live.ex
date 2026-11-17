@@ -1,38 +1,30 @@
 defmodule TuistWeb.IntegrationInstallationAccountsLive do
   @moduledoc """
   The account list of the integration installation chooser, embedded in
-  `TuistWeb.IntegrationInstallationController.show/2`. It re-reads the eligible accounts while the
-  page is open, so an organization created in another tab, or one the user is made an admin of,
-  appears without starting the installation again. Selection still posts to the controller, which
-  rechecks the pending proof and authorization.
+  `TuistWeb.IntegrationInstallationController.show/2`. It re-reads the eligible accounts when the
+  user's organization memberships change, so an organization created in another tab, or one the
+  user is made an admin of, appears without starting the installation again. Selection still posts
+  to the controller, which rechecks the pending proof and authorization.
   """
   use TuistWeb, :live_view
   use Noora
 
+  alias Tuist.Accounts
   alias TuistWeb.IntegrationInstallationController
-
-  @refresh_interval to_timeout(second: 5)
 
   on_mount {TuistWeb.Authentication, :ensure_authenticated}
 
   @impl true
-  def mount(_params, %{"integration_installation_expires_at" => expires_at}, socket) do
-    socket = assign(socket, expires_at: expires_at, accounts: [])
-    if connected?(socket), do: schedule_refresh(socket)
+  def mount(_params, _session, socket) do
+    if connected?(socket),
+      do: Tuist.PubSub.subscribe(Accounts.organization_memberships_topic(socket.assigns.current_user.id))
+
     {:ok, assign_accounts(socket), layout: false}
   end
 
   @impl true
-  def handle_info(:refresh, socket) do
-    schedule_refresh(socket)
+  def handle_info({:organization_memberships_changed, _payload}, socket) do
     {:noreply, assign_accounts(socket)}
-  end
-
-  # The pending proof is only valid until `expires_at`, so polling stops with it.
-  defp schedule_refresh(socket) do
-    if System.system_time(:second) < socket.assigns.expires_at do
-      Process.send_after(self(), :refresh, @refresh_interval)
-    end
   end
 
   defp assign_accounts(socket) do

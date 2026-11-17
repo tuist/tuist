@@ -75,24 +75,29 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     conn: conn,
     user: user
   } do
-    {:ok, view, html} =
-      live_isolated(conn, IntegrationInstallationAccountsLive,
-        session: %{"integration_installation_expires_at" => System.system_time(:second) + 600}
-      )
+    {:ok, view, html} = live_isolated(conn, IntegrationInstallationAccountsLive)
 
     assert html =~ user.account.name
     refute html =~ "late-admin-org"
 
-    admin = AccountsFixtures.organization_fixture(name: "late-admin-org")
-    Accounts.add_user_to_organization(user, admin, role: :admin)
+    # Joining as a member broadcasts too, but a member can't connect an installation.
     member = AccountsFixtures.organization_fixture(name: "late-member-org")
     Accounts.add_user_to_organization(user, member)
-    send(view.pid, :refresh)
+    refute render(view) =~ "late-member-org"
+
+    # Promotion is a role change, not a new membership.
+    {:ok, _} = Accounts.update_user_role_in_organization(user, member, :admin)
+    assert render(view) =~ "late-member-org"
+
+    admin = AccountsFixtures.organization_fixture(name: "late-admin-org")
+    Accounts.add_user_to_organization(user, admin, role: :admin)
+    {:ok, created} = Accounts.create_organization(%{name: "late-created-org", creator: user})
 
     html = render(view)
     assert html =~ "late-admin-org"
-    refute html =~ "late-member-org"
+    assert html =~ "late-created-org"
     assert html =~ ~s(name="account_id" value="#{admin.account.id}")
+    assert html =~ ~s(name="account_id" value="#{created.account.id}")
     assert html =~ ~r/name="_csrf_token" value="[^"]+"/
   end
 

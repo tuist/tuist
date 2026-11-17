@@ -26,8 +26,7 @@
       </div>
       {live_render(@conn, TuistWeb.IntegrationInstallationAccountsLive,
         id: "integration-installation-accounts",
-        container: {:div, "data-part": "accounts"},
-        session: %{"integration_installation_expires_at" => @expires_at}
+        container: {:div, "data-part": "accounts"}
       )}
       <form method="post" action={~p"/integrations/installation"} data-part="form">
         <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
