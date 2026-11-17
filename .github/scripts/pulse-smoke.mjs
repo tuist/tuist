@@ -207,6 +207,10 @@ try {
     const result = await response.json();
     return result.output?.[0]?.records?.rows;
   };
+  // Like the metric query's [1h]: production's log table takes tens of
+  // millions of rows a day, and an unbounded lookup outlasts the frontend's
+  // 30s HTTP timeout. The reread follows within the same deploy.
+  const recent = "timestamp > now() - INTERVAL '1 hour'";
   const deadline = performance.now() + Number(process.env.SMOKE_TIMEOUT_SECONDS ?? 120) * 1000;
   let qualified = false;
   let waiting = [];
@@ -218,9 +222,9 @@ try {
         // drained datanode restart that can take longer than that.
         query: `last_over_time(pulse_ci_value{audit_run="${run}"}[1h])`,
       })}`)).json();
-      const logs = await sql(`SELECT body, severity_text, timestamp, resource_attributes, trace_id FROM opentelemetry_logs WHERE body = '${run}'`);
-      const traces = await sql(`SELECT trace_id, span_name, span_status_code, timestamp, service_name, duration_nano FROM opentelemetry_traces WHERE trace_id = '${trace}'`);
-      const protobufLogs = ingest ? await sql(`SELECT body, severity_text, trace_id, resource_attributes FROM opentelemetry_logs WHERE body = '${run}-pb'`) : null;
+      const logs = await sql(`SELECT body, severity_text, timestamp, resource_attributes, trace_id FROM opentelemetry_logs WHERE body = '${run}' AND ${recent}`);
+      const traces = await sql(`SELECT trace_id, span_name, span_status_code, timestamp, service_name, duration_nano FROM opentelemetry_traces WHERE trace_id = '${trace}' AND ${recent}`);
+      const protobufLogs = ingest ? await sql(`SELECT body, severity_text, trace_id, resource_attributes FROM opentelemetry_logs WHERE body = '${run}-pb' AND ${recent}`) : null;
       const errors = ingest ? null : await sql(`SELECT title, "level", fingerprint, service FROM errors WHERE event_id = '${trace}'`);
       const errorsDdl = ingest ? null : (await sql('SHOW CREATE TABLE errors'))?.[0]?.[1];
       const errorsRetention = errorsTtl === '90d' ? /ttl\s*=\s*'(?:90d|90days|2months 29days 2h 52m 48s)'/ : /ttl\s*=\s*'7(?:d|days)'/;
