@@ -63,6 +63,7 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageFile
@@ -550,13 +551,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   @retention_tables %{
-    files: [
-      "coverage_files",
-      "coverage_target_sources",
-      "coverage_test_sources",
-      "test_impact_diffs",
-      "test_impact_run_tests"
-    ],
+    files: ["coverage_files", "test_impact_diffs", "test_impact_run_tests"],
     runs: ["coverage_runs", "test_impact_runs"]
   }
 
@@ -569,13 +564,14 @@ defmodule Tuist.Tests.Coverage do
   deltas and targets with the commit totals, by when the commit was made
   (`Tuist.Environment.coverage_commit_retention_days/1`). The tables get it
   at creation; this re-applies it after the configuration changed. The
-  commits' uploaded listings keep their own fixed days
-  (`Tuist.GitHistory.listing_retention_days/0`).
+  commits' uploaded listings, the per-test evidence in `coverage_files`
+  (`Tuist.Tests.Coverage.Evidence.retention_days/0`) and the target sources
+  keep their own fixed days (`Tuist.GitHistory.listing_retention_days/0`).
   """
   def apply_retention do
     detail =
       for {kind, days} <- Environment.coverage_retention_days(), table <- Map.fetch!(@retention_tables, kind) do
-        IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL toDateTime(inserted_at) + INTERVAL #{days} DAY")
+        IngestRepo.query!("ALTER TABLE #{table} MODIFY TTL #{detail_ttl(table, days)}")
         {table, days}
       end
 
@@ -592,6 +588,15 @@ defmodule Tuist.Tests.Coverage do
 
     detail ++ commits ++ [{"git_commit_files", listing_days}]
   end
+
+  # The run's own rows keep the file retention; its evidence (every other
+  # scope) expires sooner, whatever that retention is.
+  defp detail_ttl("coverage_files", days) do
+    "toDateTime(inserted_at) + INTERVAL #{Evidence.retention_days()} DAY DELETE WHERE scope_kind != 'run', " <>
+      "toDateTime(inserted_at) + INTERVAL #{days} DAY"
+  end
+
+  defp detail_ttl(_table, days), do: "toDateTime(inserted_at) + INTERVAL #{days} DAY"
 
   def percentage(_covered, 0), do: 0.0
   def percentage(_covered, nil), do: 0.0
