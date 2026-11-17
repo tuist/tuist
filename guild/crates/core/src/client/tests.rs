@@ -1581,3 +1581,250 @@ fn cards_get_the_height_of_their_size_class_and_unshowable_ones_fall_back_to_tex
     let cached = call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}));
     assert_eq!(shown(&cached), expected, "{cached}");
 }
+
+#[test]
+fn push_registration_keeps_one_installation_per_profile_and_rotates_when_retired() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let [first, second, third] = [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
+    ];
+    let device = |id: &str| json!({"installation_id":id,"platform":"ios","token":"ab".repeat(32),"environment":"production","name":"iPhone 17 Pro"});
+    let last_url = |h: &Fake| {
+        let request = h
+            .actions
+            .iter()
+            .rev()
+            .find(|a| a["type"] == "http")
+            .unwrap();
+        (request["method"].clone(), request["url"].clone())
+    };
+
+    // Off until the person turns them on: nothing reaches the server.
+    let before = h.actions.len();
+    let off = call(&mut c, &mut h, "push_register", device(first));
+    assert_eq!(off["data"], json!({"registered":false,"reason":"disabled"}));
+    assert_eq!(h.actions.len(), before);
+    let on = call(&mut c, &mut h, "push_enable", json!({"enabled":true}));
+    assert_eq!(on["view"]["profiles"][0]["push_enabled"], true);
+
+    h.responses
+        .push_back((200, json!({"registration_id":"r1"})));
+    let registered = call(&mut c, &mut h, "push_register", device(first));
+    assert_eq!(
+        registered["data"],
+        json!({"registered":true,"registration_id":"r1"})
+    );
+    assert_eq!(
+        last_url(&h),
+        (
+            json!("PUT"),
+            json!(format!("https://one.test/api/me/push-devices/{first}"))
+        )
+    );
+    let body = &h
+        .actions
+        .iter()
+        .rev()
+        .find(|a| a["type"] == "http")
+        .unwrap()["body"];
+    assert_eq!(
+        serde_json::from_str::<Value>(body.as_str().unwrap()).unwrap(),
+        json!({"platform":"ios","token":"ab".repeat(32),"environment":"production","name":"iPhone 17 Pro"})
+    );
+
+    // The profile keeps its installation, whatever ID the edge proposes.
+    h.responses
+        .push_back((200, json!({"registration_id":"r1"})));
+    call(&mut c, &mut h, "push_register", device(second));
+    assert!(last_url(&h).1.as_str().unwrap().ends_with(first));
+
+    // A retired installation moves to the edge's fresh ID.
+    h.responses.extend([
+        (410, json!({"reason":"retired"})),
+        (200, json!({"registration_id":"r2"})),
+    ]);
+    let rotated = call(&mut c, &mut h, "push_register", device(second));
+    assert_eq!(rotated["data"]["registration_id"], "r2");
+    assert!(last_url(&h).1.as_str().unwrap().ends_with(second));
+    // Saved without a new generation, so screens keep their state.
+    assert_eq!(
+        rotated["view"]["generation"],
+        registered["view"]["generation"]
+    );
+
+    // Turning them off must reach the server; until it does they stay on.
+    h.responses.push_back((500, Value::Null));
+    let failed = call(&mut c, &mut h, "push_enable", json!({"enabled":false}));
+    assert!(failed["error"].is_string());
+    assert_eq!(failed["view"]["profiles"][0]["push_enabled"], true);
+    h.responses.push_back((204, Value::Null));
+    let off = call(&mut c, &mut h, "push_enable", json!({"enabled":false}));
+    assert_eq!(off["view"]["profiles"][0]["push_enabled"], false);
+    assert_eq!(
+        last_url(&h),
+        (
+            json!("DELETE"),
+            json!(format!("https://one.test/api/me/push-devices/{second}"))
+        )
+    );
+
+    // Back on, the device registers as a new installation.
+    call(&mut c, &mut h, "push_enable", json!({"enabled":true}));
+    h.responses
+        .push_back((200, json!({"registration_id":"r3"})));
+    call(&mut c, &mut h, "push_register", device(first));
+    assert!(last_url(&h).1.as_str().unwrap().ends_with(first));
+
+    // Removed from the device list: the switch turns off, and nothing is sent
+    // until the person turns it back on.
+    h.responses.push_back((410, json!({"reason":"removed"})));
+    let removed = call(&mut c, &mut h, "push_register", device(third));
+    assert_eq!(
+        removed["data"],
+        json!({"registered":false,"reason":"removed"})
+    );
+    assert_eq!(removed["view"]["profiles"][0]["push_enabled"], false);
+    let before = h.actions.len();
+    let again = call(&mut c, &mut h, "push_register", device(third));
+    assert_eq!(again["data"]["reason"], "disabled");
+    assert_eq!(h.actions.len(), before);
+
+    assert!(call(&mut c, &mut h, "push_register", device("not-a-uuid"))["error"].is_string());
+}
+
+#[test]
+fn sign_out_unregisters_the_profiles_push_installation() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "11111111-1111-4111-8111-111111111111";
+    call(&mut c, &mut h, "push_enable", json!({"enabled":true}));
+    h.responses
+        .push_back((200, json!({"registration_id":"r1"})));
+    call(
+        &mut c,
+        &mut h,
+        "push_register",
+        json!({"installation_id":id,"platform":"macos","token":"ab".repeat(32),"environment":"sandbox"}),
+    );
+    // Unreachable: sign-out still goes ahead.
+    h.responses.push_back((0, Value::Null));
+    let signed_out = call(&mut c, &mut h, "sign_out", json!({}));
+    assert!(signed_out.get("error").is_none(), "{signed_out}");
+    // The edge invalidates its device token, since the server still sends to it.
+    assert_eq!(signed_out["data"]["push_unregister_failed"], true);
+    let request = h
+        .actions
+        .iter()
+        .rev()
+        .find(|a| a["type"] == "http")
+        .unwrap();
+    assert_eq!(request["method"], "DELETE");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/me/push-devices/{id}")
+    );
+}
+
+#[test]
+fn notifications_open_their_thread_in_the_account_they_belong_to() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let thread = "12345678-1234-5678-9abc-123456789abc";
+    let url = |server: &str| format!("{server}/guild/threads/{thread}");
+
+    // Signed out, the link waits for sign-in like any other.
+    call(
+        &mut c,
+        &mut h,
+        "open_notification",
+        json!({"url":url("https://one.test"),"account":"ana"}),
+    );
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    assert_eq!(
+        call(&mut c, &mut h, "snapshot", json!({}))["view"]["navigation"]["path"],
+        format!("/threads/{thread}")
+    );
+    call(&mut c, &mut h, "navigation_back", json!({}));
+
+    h.responses
+        .push_back((200, json!({"organizations":[{"name":"team"}]})));
+    call(&mut c, &mut h, "organizations", json!({}));
+    let opened = call(
+        &mut c,
+        &mut h,
+        "open_notification",
+        json!({"url":url("https://one.test"),"account":"team"}),
+    );
+    assert!(opened.get("error").is_none(), "{opened}");
+    assert_eq!(
+        opened["view"]["navigation"]["path"],
+        format!("/threads/{thread}")
+    );
+    assert_eq!(c.vault.profiles[0].organization.as_deref(), Some("team"));
+
+    // Another server's, or an account no profile has: nothing changes.
+    for (server, account) in [
+        ("https://two.test", "ana"),
+        ("https://one.test", "strangers"),
+    ] {
+        call(&mut c, &mut h, "navigation_back", json!({}));
+        let refused = call(
+            &mut c,
+            &mut h,
+            "open_notification",
+            json!({"url":url(server),"account":account}),
+        );
+        assert!(refused["error"].is_string());
+        assert_eq!(refused["view"]["navigation"]["path"], "/threads");
+        assert_eq!(c.vault.profiles[0].organization.as_deref(), Some("team"));
+    }
+
+    // Back to the personal account.
+    let personal = call(
+        &mut c,
+        &mut h,
+        "open_notification",
+        json!({"url":url("https://one.test"),"account":"ana"}),
+    );
+    assert_eq!(
+        personal["view"]["navigation"]["path"],
+        format!("/threads/{thread}")
+    );
+    assert_eq!(c.vault.profiles[0].organization, None);
+}
+
+#[test]
+fn notifications_open_in_the_owners_profile_when_several_share_the_account() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let ana = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let ben = login(&mut c, &mut h, "https://one.test", 2, i64::MAX);
+    h.responses.extend([
+        (200, json!({"organizations":[{"name":"team"}]})),
+        (200, json!({"organizations":[{"name":"team"}]})),
+    ]);
+    call(&mut c, &mut h, "organizations", json!({}));
+    let url = "https://one.test/guild/threads/12345678-1234-5678-9abc-123456789abc";
+
+    // Ben is active and in `team`, but the thread is Ana's.
+    let opened = call(
+        &mut c,
+        &mut h,
+        "open_notification",
+        json!({"url":url,"account":"team","user":"ana"}),
+    );
+    assert!(opened.get("error").is_none(), "{opened}");
+    assert_eq!(opened["view"]["active_profile_id"], ana);
+
+    // Nobody signed in as the owner: nothing changes.
+    let refused = call(
+        &mut c,
+        &mut h,
+        "open_notification",
+        json!({"url":url,"account":"team","user":"cleo"}),
+    );
+    assert!(refused["error"].is_string());
+    assert_eq!(refused["view"]["active_profile_id"], ana);
+    assert_ne!(ana, ben);
+}

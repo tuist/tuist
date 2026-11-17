@@ -44,6 +44,14 @@ struct Profile {
     rejected: bool,
     #[serde(default)]
     memberships_rejected: bool,
+    /// The installation ID this profile registered this device for push under.
+    #[serde(default)]
+    push_installation: Option<String>,
+    /// The person turned notifications on for this profile on this device.
+    /// Off until they do, and off again when they remove this device from
+    /// their device list.
+    #[serde(default)]
+    push_enabled: bool,
 }
 
 struct Attempt {
@@ -94,6 +102,7 @@ impl MobileClient {
                     "id":p.id, "server":p.server, "handle":p.handle, "email":p.email,
                     "organization":p.organization, "organizations":p.organizations,
                     "rejected":p.rejected || p.memberships_rejected,
+                    "push_enabled":p.push_enabled,
                 })
             })
             .collect();
@@ -205,12 +214,13 @@ impl MobileClient {
                 Ok(Value::Null)
             }
             "sign_out" => {
+                let push_unregister_failed = !self.push_unregister(host);
                 let profile = self.vault.active_profile_id.clone();
                 self.remove_active(host)?;
                 if let Some(profile) = profile {
                     self.clear_store(&profile, host)?;
                 }
-                Ok(Value::Null)
+                Ok(json!({"push_unregister_failed":push_unregister_failed}))
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
@@ -293,6 +303,9 @@ impl MobileClient {
                 Ok(data)
             }
             "preview_update" => self.preview_update(args, host),
+            "push_register" => self.push_register(args, host),
+            "push_enable" => self.push_enable(args, host),
+            "open_notification" => self.open_notification(args, host),
             "delete_account" => {
                 let index = self.active()?;
                 let handle = &self.vault.profiles[index].handle;
@@ -680,9 +693,14 @@ impl MobileClient {
             access,
             refresh,
             organization: old.as_ref().and_then(|p| p.organization.clone()),
-            organizations: old.map(|p| p.organizations).unwrap_or_default(),
+            organizations: old
+                .as_ref()
+                .map(|p| p.organizations.clone())
+                .unwrap_or_default(),
             rejected: false,
             memberships_rejected: false,
+            push_installation: old.as_ref().and_then(|p| p.push_installation.clone()),
+            push_enabled: old.as_ref().is_some_and(|p| p.push_enabled),
         });
         next.active_profile_id = Some(id);
         self.commit(next, host)?;
@@ -839,6 +857,182 @@ impl MobileClient {
             Err("Access denied" | NOT_FOUND) => Ok(json!({"update":null})),
             Err(error) => Err(error),
         }
+    }
+
+    /// Registers this device's push token for the active profile at
+    /// `/api/me/push-devices/{installation}`. A device token reaches one sign-in
+    /// at a time, so edges call this again whenever the active profile changes.
+    /// The profile keeps its installation ID; `installation_id` is a fresh UUID
+    /// from the edge, used the first time and whenever the server retired the
+    /// old one.
+    fn push_register(&mut self, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let platform = text(args, "platform")?;
+        let environment = text(args, "environment")?;
+        let token = text(args, "token")?;
+        let candidate = text(args, "installation_id")?;
+        if !matches!(
+            (platform, environment),
+            ("ios" | "macos", "sandbox" | "production") | ("android", "production")
+        ) || !is_uuid(candidate)
+        {
+            return Err("Invalid push device");
+        }
+        if !self.vault.profiles[index].push_enabled {
+            return Ok(json!({"registered":false,"reason":"disabled"}));
+        }
+        let mut body = json!({"platform":platform,"token":token,"environment":environment});
+        // The device model the person sees in their device list.
+        if let Some(name) = args
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|n| !n.trim().is_empty())
+        {
+            body["name"] = json!(name);
+        }
+        let server = server_url(&self.vault.profiles[index].server)?;
+        let mut installation = self.vault.profiles[index]
+            .push_installation
+            .clone()
+            .unwrap_or_else(|| candidate.to_string());
+        loop {
+            let url = endpoint(&server, &format!("api/me/push-devices/{installation}"));
+            let (status, data) = self.send(index, "PUT", url, Some(body.clone()), host)?;
+            let rotate = installation != candidate
+                && (status == 409 || (status == 410 && data["reason"] == "retired"));
+            if rotate {
+                installation = candidate.to_string();
+                continue;
+            }
+            let (saved, enabled, result) = match status {
+                200..=299 => (
+                    Some(installation),
+                    true,
+                    json!({"registered":true,"registration_id":data["registration_id"]}),
+                ),
+                410 if data["reason"] != "retired" => {
+                    (None, false, json!({"registered":false,"reason":"removed"}))
+                }
+                // `successful` reads 409 as a busy thread; here it's a registration the server refused.
+                409 => return Err("Server request failed"),
+                _ => return successful((status, data)).map(|_| Value::Null),
+            };
+            self.save_push(index, saved, enabled, host)?;
+            return Ok(result);
+        }
+    }
+
+    /// Turns notifications on or off for the active profile on this device, as
+    /// the shipping app's Notifications switch does. Turning them on only
+    /// records the choice: the edge then asks for permission and registers the
+    /// token. Turning them off unregisters the installation first, so turning
+    /// them back on registers a new one; if the server can't be told, they stay
+    /// on so the person can try again.
+    fn push_enable(&mut self, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let enabled = args
+            .get("enabled")
+            .and_then(Value::as_bool)
+            .ok_or("Missing required argument")?;
+        let mut installation = self.vault.profiles[index].push_installation.clone();
+        if !enabled && let Some(id) = installation.take() {
+            let url = endpoint(
+                &server_url(&self.vault.profiles[index].server)?,
+                &format!("api/me/push-devices/{id}"),
+            );
+            match self.send(index, "DELETE", url, None, host)? {
+                // Already gone, such as after removing it from the device list elsewhere.
+                (404, _) => {}
+                response => {
+                    successful(response)?;
+                }
+            }
+        }
+        self.save_push(index, installation, enabled, host)?;
+        Ok(Value::Null)
+    }
+
+    fn save_push(
+        &mut self,
+        index: usize,
+        installation: Option<String>,
+        enabled: bool,
+        host: &mut dyn Host,
+    ) -> Result<()> {
+        let profile = &mut self.vault.profiles[index];
+        if profile.push_installation != installation || profile.push_enabled != enabled {
+            profile.push_installation = installation;
+            profile.push_enabled = enabled;
+            // Not a selection change: the generation stays, so screens keep their state.
+            self.dirty = true;
+            write(host, &self.vault)?;
+            self.dirty = false;
+        }
+        Ok(())
+    }
+
+    /// Best effort before sign-out, which doesn't revoke the grant: a
+    /// registration the server wasn't told about stays live for as long as the
+    /// grant could be refreshed. Returns whether this device is unregistered,
+    /// so the edge can invalidate its device token when it isn't.
+    fn push_unregister(&mut self, host: &mut dyn Host) -> bool {
+        let Ok(index) = self.active() else {
+            return true;
+        };
+        let Some(installation) = self.vault.profiles[index].push_installation.clone() else {
+            return true;
+        };
+        let Ok(server) = server_url(&self.vault.profiles[index].server) else {
+            return false;
+        };
+        let url = endpoint(&server, &format!("api/me/push-devices/{installation}"));
+        matches!(
+            self.send(index, "DELETE", url, None, host),
+            Ok((200..=299 | 404, _))
+        )
+    }
+
+    /// Opens what a tapped notification points at: a server-scoped Guild URL and
+    /// the handle of the account it belongs to. Switches to the saved profile on
+    /// that server that has the account, and to the account, before navigating,
+    /// preferring the active profile. Signed out, the link waits for sign-in like
+    /// any other. It never signs in or reaches an account no profile has.
+    fn open_notification(&mut self, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let value = text(args, "url")?;
+        let link = crate::navigation::Link::parse(value)?;
+        if link.server().is_none() {
+            return Err("Invalid notification");
+        }
+        let account = args.get("account").and_then(Value::as_str);
+        // Threads are visible only to their owner, so only the owner's profile can open one.
+        let user = args.get("user").and_then(Value::as_str);
+        if self.vault.active_profile_id.is_none() {
+            self.navigation.receive(value, None)?;
+            return Ok(Value::Null);
+        }
+        let owns = |p: &Profile| {
+            !p.rejected
+                && !p.memberships_rejected
+                && server_url(&p.server).is_ok_and(|server| link.resolve(&server).is_ok())
+                && user.is_none_or(|u| p.handle == u)
+                && account.is_none_or(|a| p.handle == a || p.organizations.iter().any(|o| o == a))
+        };
+        let profiles = &self.vault.profiles;
+        let index = profiles
+            .iter()
+            .position(|p| Some(&p.id) == self.vault.active_profile_id.as_ref() && owns(p))
+            .or_else(|| profiles.iter().position(owns))
+            .ok_or("This notification belongs to an account that isn't signed in")?;
+        let mut next = self.vault.clone();
+        let profile = &mut next.profiles[index];
+        if let Some(account) = account {
+            profile.organization = (account != profile.handle).then(|| account.to_string());
+        }
+        next.active_profile_id = Some(profile.id.clone());
+        let server = server_url(&profile.server)?;
+        self.commit(next, host)?;
+        self.navigation.receive(value, Some(&server))?;
+        Ok(Value::Null)
     }
 
     fn projects(&mut self, host: &mut dyn Host) -> Result<Value> {
@@ -1107,6 +1301,17 @@ pub(crate) fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
         .and_then(Value::as_str)
         .filter(|v| !v.trim().is_empty())
         .ok_or("Missing required argument")
+}
+/// A lowercase hyphenated UUID, as the server's installation IDs are.
+fn is_uuid(v: &str) -> bool {
+    v.len() == 36
+        && v.bytes().enumerate().all(|(i, b)| {
+            if [8, 13, 18, 23].contains(&i) {
+                b == b'-'
+            } else {
+                b.is_ascii_digit() || (b'a'..=b'f').contains(&b)
+            }
+        })
 }
 pub(crate) fn segment(v: &str) -> bool {
     !v.is_empty()

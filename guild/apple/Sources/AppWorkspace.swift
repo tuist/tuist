@@ -66,9 +66,19 @@ struct AppWorkspace: View {
             if !client.view.profiles.isEmpty { _ = try? await client.call("organizations") }
         }
         .task(id: client.view.active?.id) { await updater.check() }
+        // Notifications reach the active profile when it has them on; switching moves them to the new one.
+        .task(id: client.view.active?.id) {
+            guard client.view.active != nil else { return }
+            await PushNotifications.shared.refresh()
+            await PushNotifications.shared.sync()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await updater.check() }
+                Task {
+                    await PushNotifications.shared.refresh()
+                    await PushNotifications.shared.sync()
+                }
                 // Send what was written offline, such as threads started on a plane.
                 Task { _ = try? await client.call("flush_outbox") }
             }
@@ -146,11 +156,11 @@ struct AppWorkspace: View {
                 Button("Add Profile…", systemImage: "person.badge.plus") { addingProfile = true }
                 Button("View Profile") { Task { await client.perform("select_tab", ["tab": "profile"]) } }
                 Divider()
-                Button("Sign Out") { Task { await client.perform("sign_out") } }
+                Button("Sign Out") { Task { await PushNotifications.shared.signOut() } }
             #else
                 Button("Add profile", systemImage: "person.badge.plus") { addingProfile = true }
                 Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                    Task { await client.perform("sign_out") }
+                    Task { await PushNotifications.shared.signOut() }
                 }
             #endif
         } label: {
@@ -223,6 +233,11 @@ private struct ProfileView: View {
                 LabeledContent("Server", value: account.server.hasSuffix("/")
                     ? String(account.server.dropLast()) : account.server)
             }
+
+            // Builds without a push entitlement can't receive notifications, so they don't offer them.
+            if PushNotifications.environment != nil {
+                NotificationsSection(client: client)
+            }
         }
 
         Section {
@@ -254,12 +269,12 @@ private struct ProfileView: View {
                 HStack {
                     Button("Delete Account…", role: .destructive) { confirmingDelete = true }
                     Spacer()
-                    Button("Sign Out") { Task { await client.perform("sign_out") } }
+                    Button("Sign Out") { Task { await PushNotifications.shared.signOut() } }
                 }
             }
         #else
             Section {
-                Button("Sign out") { Task { await client.perform("sign_out") } }
+                Button("Sign out") { Task { await PushNotifications.shared.signOut() } }
                     .frame(maxWidth: .infinity)
             }
 
@@ -268,6 +283,46 @@ private struct ProfileView: View {
                     .frame(maxWidth: .infinity)
             }
         #endif
+    }
+}
+
+/// The shipping app's opt-in (`app/Sources/TuistNotifications/NotificationsView.swift`):
+/// notifications stay off until the person turns them on for the active profile.
+private struct NotificationsSection: View {
+    let client: AppClient
+    @Environment(\.openURL) private var openURL
+    private var push: PushNotifications { .shared }
+
+    var body: some View {
+        Section {
+            Toggle("Notifications on This Device", isOn: Binding(
+                get: { push.isEnabled },
+                set: { isOn in
+                    Task {
+                        do { try await push.setEnabled(isOn) }
+                        catch { client.error = error.localizedDescription }
+                    }
+                }
+            ))
+            .disabled(push.permission == .unknown || push.pendingEnabled != nil)
+        } footer: {
+            Text("Get notified on this device when a thread you started finishes.")
+        }
+
+        if push.permission == .denied {
+            Section {
+                Button("Turn On in Settings") {
+                    #if os(iOS)
+                        let settings = UIApplication.openNotificationSettingsURLString
+                    #else
+                        let settings = "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+                    #endif
+                    if let url = URL(string: settings) { openURL(url) }
+                }
+            } footer: {
+                Text("Notifications are turned off for Tuist Guild in Settings.")
+            }
+        }
     }
 }
 

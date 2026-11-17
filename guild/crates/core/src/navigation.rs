@@ -113,6 +113,11 @@ impl Link {
         })
     }
 
+    /// The server a scoped link belongs to; `None` for an internal path.
+    pub fn server(&self) -> Option<&Url> {
+        self.server.as_ref()
+    }
+
     pub fn resolve(&self, server: &Url) -> Result<Destination, &'static str> {
         if let Some(expected) = &self.server
             && *expected != base(server.as_str())?

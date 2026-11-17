@@ -57,6 +57,13 @@ app="$tmp/Payload/TuistGuild.app"
 [[ "$("$plist" -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = dev.tuist.code ]] || fail "Expected the Tuist Guild app"
 xcrun vtool -show-build "$app/TuistGuild" | grep -Eq 'platform IOS$' || fail "Expected an iOS device build"
 cp "$tmp/profile.mobileprovision" "$app/embedded.mobileprovision"
+# The profile carries aps-environment once the App ID has Push Notifications and the
+# profile was regenerated; tell the app which APNs environment its tokens belong to.
+case "$("$plist" -c 'Print :Entitlements:aps-environment' "$tmp/profile.plist" 2>/dev/null || true)" in
+    production) "$plist" -c 'Set :GuildPushEnvironment production' "$app/Info.plist" ;;
+    development) "$plist" -c 'Set :GuildPushEnvironment sandbox' "$app/Info.plist" ;;
+    *) echo "The Tuist Code Ad Hoc profile has no push entitlement; this build won't receive notifications" >&2 ;;
+esac
 # Keep preview versions increasing without putting delivery metadata in cached outputs.
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Info.plist"
 codesign --force --sign "$identity" --keychain "$keychain" --entitlements "$tmp/entitlements.plist" --timestamp=none "$app"

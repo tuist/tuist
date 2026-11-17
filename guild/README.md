@@ -2,7 +2,7 @@
 
 Tuist Guild is a client developed alongside the shipping apps in `../app/` and `../android/`, not a replacement or a store release. Its independent Once graph reports to [tuist/guild](https://tuist.dev/tuist/guild); GPUI provides the Linux/Windows UI, SwiftUI provides iOS/macOS interfaces, and Kotlin provides the Android interface. Native profiles, OAuth, session selection, and preview API operations are implemented in `crates/core`, reusing the existing Rust OAuth/PKCE and JWT logic.
 
-The native apps use the Android package ID `dev.tuist.guild` and the iOS/macOS bundle ID `dev.tuist.code` (kept so the existing App ID and signing profiles keep working), display as **Tuist Guild**, and register `tuist-guild://oauth-callback` for authentication and `tuist-guild://app/…` for navigation, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. They do not read or modify shipping-client credentials, so they never trigger Keychain prompts for the Tuist app's items or sign anyone out of it. The GPUI client uses the `dev.tuist.guild` application ID and retains its existing credential interoperability with the CLI.
+The native apps use the Android package ID `dev.tuist.guild` and the iOS/macOS bundle ID `dev.tuist.code` (kept so the existing App ID and signing profiles keep working), display as **Tuist Guild**, and register `tuist-guild://oauth-callback` for authentication and `tuist-guild://app/…` for navigation, not the shipping `tuist:` scheme, associated domains or updater feeds. iOS and macOS receive push notifications through APNs on the `dev.tuist.code` topic (see [Push notifications](#push-notifications)). They do not read or modify shipping-client credentials, so they never trigger Keychain prompts for the Tuist app's items or sign anyone out of it. The GPUI client uses the `dev.tuist.guild` application ID and retains its existing credential interoperability with the CLI.
 
 ## Build
 
@@ -242,7 +242,7 @@ URLs received while signed out wait in memory for sign-in, then are checked agai
 
 ### Launch directly into a destination
 
-For agents, the catalog above is also available through the core's `routes` operation and the GPUI executable's `--list-routes`. The same `navigate` operation is the entry point for a future push-notification tap handler; push registration/delivery is not implemented here. Notifications should carry the scoped Guild URL, not UI gestures or arbitrary API actions.
+For agents, the catalog above is also available through the core's `routes` operation and the GPUI executable's `--list-routes`. Push notifications carry the scoped Guild web URL and are opened through `open_notification` (see [Push notifications](#push-notifications)), never UI gestures or arbitrary API actions.
 
 ```sh
 # iOS simulator: cold launch with a path, or cold/warm delivery of a URL.
@@ -263,6 +263,14 @@ TuistGuild --navigate /profile
 ```
 
 Apple consumes `--navigate` at startup; terminate the existing process before testing another launch argument. Use OS URL delivery for an already-running Apple app. Android consumes intent data/extras once, including across Activity recreation. No launch mechanism bypasses authentication.
+
+### Push notifications
+
+When a thread stops working (it replied, failed or was interrupted), the server notifies its owner's Tuist Guild devices, never the Tuist app's (`Tuist.Push.Workers.ThreadFinishedWorker`). The alert shows a fixed status line and, once the agent has named the thread, its title; until then a thread is titled with the start of its first message, so the alert says "Your thread" instead and never shows message content. It carries `url` (`https://<server>/guild/threads/{id}`), `account` (the handle of the account that owns the thread) and `user` (the handle of its owner, since threads are visible only to them). Server-side, registrations record their app (`tuist` or `guild`): a registration counts as Guild's when its sign-in went through Guild's first-party OAuth client, and lasts as long as that grant.
+
+As in the Tuist app, notifications are off until the person turns on **Notifications on This Device** in Profile, which records the choice for the active profile in the core (`push_enable`). Turning it on asks for notification permission; iOS and macOS then register with APNs and pass the token to the core's `push_register`, which registers it for the active profile at `/api/me/push-devices/{installation}`. Turning it off unregisters, and stays on if the server can't be told. A device token reaches one sign-in at a time, so switching to a profile with notifications on moves it there, and returning to the foreground refreshes it. Removing the device from the device list turns the switch off. Signing out unregisters; when the server can't be told, for example offline, the app also invalidates its APNs token, as the Tuist app does, because signing out doesn't end the server's grant, and doesn't register again until the next launch or until the switch is turned on, since APNs may return the same token. A tap calls `open_notification`, which switches to the owner's saved profile and the account the notification belongs to and opens the thread; a tap that launches the app waits for the core to boot, and a notification for the conversation on screen shows no banner.
+
+A build only offers the switch when Info.plist's `GuildPushEnvironment` names an APNs environment: the simulator build says `sandbox`, and `ios/distribution/bundle.sh` stamps the device IPA from the provisioning profile's `aps-environment`, which needs Push Notifications enabled on the `dev.tuist.code` App ID and a regenerated **Tuist Code Ad Hoc** profile. The Developer ID macOS copy has no provisioning profile yet, so it doesn't register. Android does not receive notifications yet, and the server refuses Guild Android registrations: every app shares the server's one FCM project, so Guild needs its own before it can use the Firebase SDK packaging Atlas uses (`../atlas-native/android/push/`). The server's APNs key must not be restricted to the Tuist app's topic.
 
 ### Legacy desktop links
 

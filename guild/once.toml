@@ -121,7 +121,7 @@ minimum_os = "17.0"
 sdk_variant = "simulator"
 families = ["iphone", "ipad"]
 info_plist = "ios/Info.plist"
-info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator" }
+info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator", GUILD_PUSH_ENVIRONMENT = "sandbox" }
 entitlements = "ios/Simulator.entitlements"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js"]
@@ -139,7 +139,7 @@ minimum_os = "17.0"
 sdk_variant = "device"
 families = ["iphone", "ipad"]
 info_plist = "ios/Info.plist"
-info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos" }
+info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos", GUILD_PUSH_ENVIRONMENT = "" }
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
 

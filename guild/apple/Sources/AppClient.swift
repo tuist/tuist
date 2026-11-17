@@ -13,6 +13,8 @@ struct AppProfile: Decodable, Identifiable {
     let handle: String?
     let email: String?
     let rejected: Bool
+    /// Notifications are on for this profile on this device.
+    let push_enabled: Bool
 }
 
 struct AppNavigation: Decodable {
@@ -213,6 +215,8 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
         started = true
         // Loads profiles and migrates local stores before any screen reads them.
         await perform("boot")
+        // A notification tap that launched the app opens once the core is up.
+        await PushNotifications.shared.attach(self)
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--navigate"), index + 1 < arguments.count {
             await perform("navigate", ["url": arguments[index + 1]])
