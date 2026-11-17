@@ -45,6 +45,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+  `sparse` finds those extents and zero runs for sandboxd's `SBXARC1`
+  archives too, so a change there also changes sandboxd's image (its tag
+  follows `sparse/` and `go.mod`). Keep it free of other dependencies.
 - Archive downloads, compression and both restoration formats flush every 16 MiB
   written, in addition to their final sync. Dirty filesystem pages count toward
   the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed

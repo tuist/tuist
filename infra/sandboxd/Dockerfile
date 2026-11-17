@@ -11,10 +11,14 @@ ARG FIRECRACKER_SHA256=32e3cdcd4081f91fe2b024a266f57dcb3b4e5fec5033e0cb22467ad7f
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
-WORKDIR /src
+# pkg/archive shares the sparse extent walker with runner cache masters
+# (go.mod replaces ../runner-cache); only that package is compiled.
+WORKDIR /src/sandboxd
+COPY infra/runner-cache/go.mod /src/runner-cache/go.mod
 COPY infra/sandboxd/go.mod infra/sandboxd/go.sum ./
 RUN go mod download
 
+COPY infra/runner-cache/sparse /src/runner-cache/sparse
 COPY infra/sandboxd ./
 
 ARG TARGETOS

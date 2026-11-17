@@ -7,6 +7,7 @@ require (
 	github.com/hanwen/go-fuse/v2 v2.12.1
 	github.com/klauspost/compress v1.18.7
 	github.com/prometheus/client_golang v1.23.2
+	github.com/tuist/tuist/infra/runner-cache v0.0.0
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.48.0
@@ -30,3 +31,5 @@ require (
 )
 
 godebug default=go1.25
+
+replace github.com/tuist/tuist/infra/runner-cache => ../runner-cache

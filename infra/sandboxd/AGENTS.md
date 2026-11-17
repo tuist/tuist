@@ -150,8 +150,9 @@ memory image until they cold boot.
   `disks_synced: false`, and a `create` from it on a node of another
   snapshot compatibility fails instead of cold booting; stream `vmlinux`, `rootfs.ext4` and
   `workspace.ext4` as one zstd object (`pkg/archive`: magic `SBXARC1`, a JSON
-  header, file records with data blocks at their offsets, holes and zero
-  blocks left out) cut into `part_size` parts, each PUT to the next
+  header, file records with data blocks at their offsets, holes and
+  zero runs left out by `runner-cache/sparse`, shared with runner cache
+  masters; a data record never exceeds 1 MiB, which older readers require) cut into `part_size` parts, each PUT to the next
   presigned UploadPart URL (two parts in memory at most, three attempts per
   part). With `memory` and a current memory image (not `cold_boot`,
   written by this Firecracker, and the node's snapshot compatibility known), the object
