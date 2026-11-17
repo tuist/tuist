@@ -635,6 +635,43 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     end
   end
 
+  test "a threads grant keeps the default scopes through refresh and reads the user's threads", %{
+    conn: conn,
+    user: user
+  } do
+    client_id = register_client(conn)
+    authorized = get(conn, ~p"/oauth2/authorize", Map.put(authorize_params(client_id), "scope", "threads"))
+    %{"code" => code} = authorized |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+    %{"refresh_token" => refresh_token} =
+      build_conn()
+      |> post(~p"/oauth2/token", %{
+        "grant_type" => "authorization_code",
+        "client_id" => client_id,
+        "redirect_uri" => @redirect_uri,
+        "code" => code
+      })
+      |> json_response(200)
+
+    %{"access_token" => access_token} =
+      build_conn()
+      |> post(~p"/oauth2/token", %{
+        "grant_type" => "refresh_token",
+        "client_id" => client_id,
+        "refresh_token" => refresh_token
+      })
+      |> json_response(200)
+
+    assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
+    assert "threads" in claims["scopes"]
+    assert "project:previews:read" in claims["scopes"]
+
+    assert build_conn()
+           |> put_req_header("authorization", "Bearer #{access_token}")
+           |> get("/api/accounts/#{user.account.name}/threads")
+           |> json_response(200) == %{"threads" => [], "next_cursor" => nil}
+  end
+
   defp register_client(conn) do
     assert %{"client_id" => client_id} =
              conn

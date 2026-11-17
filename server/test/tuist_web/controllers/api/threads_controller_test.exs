@@ -85,20 +85,29 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     end
   end
 
-  test "accepts native OAuth but not an unrelated OAuth client's grant", %{user: user, path: path} do
+  test "accepts OAuth grants only with the threads scope, until revoked", %{user: user, path: path} do
     client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> client_id end)
-    native = oauth_token(user, Clients.public!())
-    {:ok, other_client} = Clients.create_client(%{redirect_uris: ["https://example.com/callback"], name: "other"})
-    other = oauth_token(user, other_client)
-    assert native |> request(path) |> json_response(200)
-    assert other |> request(path) |> json_response(403)
+    {:ok, guild} = Clients.create_client(%{redirect_uris: ["tuist-guild://oauth-callback"], name: "Tuist Guild"})
+    unscoped_native = oauth_token(user, Clients.public!())
+    unscoped = oauth_token(user, guild)
+    mcp = oauth_token(user, guild, "mcp")
+    threads = oauth_token(user, guild, "threads")
+
+    assert unscoped_native |> request(path) |> json_response(403)
+    assert unscoped |> request(path) |> json_response(403)
+    assert mcp |> request(path) |> json_response(403)
+    assert threads |> request(path) |> json_response(200)
+
+    Repo.update_all(Token, set: [revoked_at: DateTime.utc_now()])
+    assert threads |> request(path) |> json_response(403)
   end
 
   test "other administrators cannot read a conversation or its inbox entry", %{user: user, token: token} do
     organization = AccountsFixtures.organization_fixture(creator: user)
     other = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(other, organization, role: :admin)
+    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
 
     thread =
       Repo.insert!(%Thread{
@@ -195,8 +204,8 @@ defmodule TuistWeb.API.ThreadsControllerTest do
 
   defp request(token, path), do: build_conn() |> put_req_header("authorization", "Bearer #{token}") |> get(path)
 
-  defp oauth_token(user, client) do
-    token = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
+  defp oauth_token(user, client, scope \\ "") do
+    token = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id, scope: scope})
 
     Repo.insert!(%Token{
       type: "access_token",
@@ -204,7 +213,7 @@ defmodule TuistWeb.API.ThreadsControllerTest do
       refresh_token: Ecto.UUID.generate(),
       client_id: client.id,
       sub: to_string(user.id),
-      scope: ""
+      scope: scope
     })
 
     token

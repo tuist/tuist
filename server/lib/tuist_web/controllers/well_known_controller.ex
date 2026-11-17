@@ -215,7 +215,8 @@ defmodule TuistWeb.WellKnownController do
       ],
       response_types_supported: ["code"],
       code_challenge_methods_supported: ["S256"],
-      scopes_supported: ["mcp"],
+      # Clients such as Tuist Guild request `threads` only where it is advertised.
+      scopes_supported: ["mcp", "threads"],
       bearer_methods_supported: ["header"],
       introspection_endpoint_auth_methods_supported: [
         "client_secret_basic",
