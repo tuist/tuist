@@ -82,6 +82,7 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
         packageSettings _: TuistCore.PackageSettings,
         packageModuleAliases _: [String: [String: String]],
         packageProducts _: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames _: Set<String>,
         enabledTraits _: Set<String>
     ) async throws -> ProjectDescription.Project? {
         let capturedPrebuilt: CapturedPackagePrebuilt?
@@ -144,6 +145,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageSettings: .any,
                 packageModuleAliases: .any,
                 packageProducts: .any,
+                graphTargetNames: .any,
                 enabledTraits: .any
             )
             .willReturn(.test())
@@ -516,6 +518,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageSettings: .any,
                 packageModuleAliases: .any,
                 packageProducts: .any,
+                graphTargetNames: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -573,6 +576,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageSettings: .any,
                 packageModuleAliases: .any,
                 packageProducts: .any,
+                graphTargetNames: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -856,6 +860,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageSettings: .any,
                         packageModuleAliases: .any,
                         packageProducts: .any,
+                        graphTargetNames: .any,
                         enabledTraits: .any
                     )
                     .called(1)
@@ -1397,6 +1402,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageSettings: .any,
                 packageModuleAliases: .any,
                 packageProducts: .any,
+                graphTargetNames: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -1530,6 +1536,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageSettings: .any,
                 packageModuleAliases: .any,
                 packageProducts: .any,
+                graphTargetNames: .any,
                 enabledTraits: .any
             )
             .called(1)

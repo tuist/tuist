@@ -5355,8 +5355,66 @@ struct PackageInfoMapperTests {
                     "swift-issue-reporting": issueReportingProducts,
                     "pointfreeco.xctest-dynamic-overlay": overlayProducts,
                     "xctest-dynamic-overlay": overlayProducts,
-                ]
+                ],
+                graphTargetNames: ["IssueReporting", "_IssueReporting"]
             )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func resolveDependencies_collectsTheNamesEveryPackageTargetEmits() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let tracingFolder = basePath.appending(component: "swift-distributed-tracing")
+        let sdkFolder = basePath.appending(component: "sdk")
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "swift-distributed-tracing": .test(
+                    name: "swift-distributed-tracing",
+                    products: [
+                        .init(name: "Instrumentation", type: .library(.automatic), targets: ["Instrumentation"]),
+                    ],
+                    targets: [
+                        .test(name: "Instrumentation", dependencies: [.target(name: "ServiceContextModule", condition: nil)]),
+                        .test(name: "ServiceContextModule"),
+                        .test(name: "Context.Helpers"),
+                        .test(name: "InstrumentationTests", type: .test),
+                        .test(name: "Tool", type: .executable),
+                    ],
+                    platforms: [.ios]
+                ),
+                "sdk": .test(
+                    name: "sdk",
+                    products: [
+                        .init(name: "FooSDK", type: .library(.automatic), targets: ["FooBinary"]),
+                    ],
+                    targets: [
+                        .test(name: "FooBinary", type: .binary, url: "https://example.com/Foo.xcframework.zip"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageToFolder: [
+                "swift-distributed-tracing": tracingFolder,
+                "sdk": sdkFolder,
+            ],
+            packageToTargetsToArtifactPaths: [
+                "sdk": ["FooBinary": sdkFolder.appending(components: "artifacts", "Foo.xcframework")],
+            ],
+            packageModuleAliases: ["swift-distributed-tracing": ["Instrumentation": "TracingInstrumentation"]],
+            packageSettings: .test()
+        )
+
+        #expect(
+            resolvedDependencies.graphTargetNames == [
+                "TracingInstrumentation",
+                "ServiceContextModule",
+                "Context_Helpers",
+                "Foo",
+            ]
         )
     }
 
@@ -6883,6 +6941,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: []
         )
 
@@ -6929,6 +6988,7 @@ struct PackageInfoMapperTests {
                 packageSettings: .test(),
                 packageModuleAliases: [:],
                 packageProducts: [:],
+                graphTargetNames: [],
                 enabledTraits: []
             )
         }
@@ -6970,6 +7030,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: []
         )
 
@@ -7016,6 +7077,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: []
         )
 
@@ -7067,6 +7129,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: []
         )
 
@@ -7117,6 +7180,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: []
         )
 
@@ -7393,6 +7457,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: Set(["FeatureX", "FeatureY"])
         )
 
@@ -7437,6 +7502,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: Set(["default"])
         )
 
@@ -7579,6 +7645,7 @@ struct PackageInfoMapperTests {
             packageSettings: .test(),
             packageModuleAliases: [:],
             packageProducts: [:],
+            graphTargetNames: [],
             enabledTraits: []
         )
 
@@ -8293,6 +8360,66 @@ struct PackageInfoMapperTests {
 
         let mappedTarget = try #require(project?.targets.first(where: { $0.name == "FirebaseCrashlyticsTarget" }))
         #expect(mappedTarget.productName == "FirebaseCrashlyticsTarget")
+    }
+
+    /// swift-service-context 1.4.0+ vends a `ServiceContextModule` product from `ServiceContextModuleCompatibility`, while
+    /// swift-distributed-tracing 1.7.0 has a `ServiceContextModule` target, so hoisting the product name would emit
+    /// `ServiceContextModule.framework` twice. The graph's names always include the package's own targets, so the hoist
+    /// still happens when nothing else uses the product name. Names compare sanitized (`Context.Module` is stored as
+    /// `Context_Module`).
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [
+            (
+                "ServiceContextModule",
+                "ServiceContextModuleCompatibility",
+                Set(["ServiceContextModuleCompatibility", "Instrumentation", "ServiceContextModule"]),
+                "ServiceContextModuleCompatibility"
+            ),
+            (
+                "ServiceContextModule",
+                "ServiceContextModuleCompatibility",
+                Set(["ServiceContextModuleCompatibility", "Instrumentation"]),
+                "ServiceContextModule"
+            ),
+            (
+                "Context.Module",
+                "Context.ModuleCompatibility",
+                Set(["Context_ModuleCompatibility", "Context_Module"]),
+                "Context_ModuleCompatibility"
+            ),
+        ]
+    )
+    func map_whenWrapperTargetPattern_hoistsProductNameOnlyWhenNoGraphTargetUsesIt(
+        productName: String, targetName: String, graphTargetNames: Set<String>, expectedName: String
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/\(targetName)")))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: productName, type: .library(.automatic), targets: [targetName]),
+                    ],
+                    targets: [
+                        .test(name: targetName),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            graphTargetNames: graphTargetNames
+        )
+
+        let mappedTarget = try #require(project?.targets.first)
+        #expect(mappedTarget.productName == expectedName)
+        #expect(mappedTarget.settings?.base["PRODUCT_MODULE_NAME"] == nil)
     }
 
     @Test(
@@ -10605,6 +10732,7 @@ struct PackageInfoMapperTests {
                 packageSettings: .test(baseSettings: .default, includeLocalPackageTestTargets: includeLocalPackageTestTargets),
                 packageModuleAliases: [:],
                 packageProducts: [:],
+                graphTargetNames: [],
                 enabledTraits: enabledTraits[package] ?? []
             )
         }
@@ -10939,6 +11067,7 @@ extension PackageInfoMapping {
         ),
         packageModuleAliases: [String: [String: String]] = [:],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]] = [:],
+        graphTargetNames: Set<String> = [],
         enabledTraits: Set<String> = []
     ) async throws -> ProjectDescription.Project? {
         let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = try packageInfos
@@ -10968,6 +11097,7 @@ extension PackageInfoMapping {
             packageSettings: packageSettings,
             packageModuleAliases: packageModuleAliases,
             packageProducts: packageProducts,
+            graphTargetNames: graphTargetNames,
             enabledTraits: enabledTraits
         )
     }
