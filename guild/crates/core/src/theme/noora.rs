@@ -9,7 +9,7 @@ pub const TOKENS: &[(&str, u32, u32)] = &[
     ("surface-label-secondary", 0x535659, 0xd2d2d2),
     ("surface-label-tertiary", 0xa2a5a8, 0x717171),
     ("surface-label-destructive", 0xd40117, 0xff9389),
-    ("surface-label-disabled", 0xb6b9bc, 0xa4a4a4),
+    ("surface-label-disabled", 0xb6b9bc, 0x585858),
     ("surface-border-primary", 0xc9cccf, 0x3a3a3a),
     ("button-primary-background", 0x7339ff, 0x7339ff),
     ("button-primary-label", 0xfdfdfd, 0xfdfdfd),
