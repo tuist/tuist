@@ -46,7 +46,7 @@ jobs:
     name: Once staging qualification
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
@@ -74,15 +74,22 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" /opt/mix
           echo /opt/erlang/bin >> "$GITHUB_PATH"
           echo /opt/elixir/bin >> "$GITHUB_PATH"
-      - name: Install the published candidate
+      - name: Install both published candidates
         run: |
-          archive=once-0.82.6-once-re.8-x86_64-unknown-linux-gnu.tar.gz
-          curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/0.82.6-once-re.8/$archive" -o "$RUNNER_TEMP/$archive"
-          echo "335a74ebf150ce0d0acfc800b985c285e77e1687e2a72009a44f5dedd4b3a545  $RUNNER_TEMP/$archive" | sha256sum -c -
-          mkdir -p "$RUNNER_TEMP/once-bin"
-          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/once-bin"
-          echo "$RUNNER_TEMP/once-bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/once-bin/once" --version
+          for candidate in 7 8; do
+            version="0.82.6-once-re.$candidate"
+            archive="once-$version-x86_64-unknown-linux-gnu.tar.gz"
+            case "$candidate" in
+              7) checksum=5657d06d07fca6806deb1a7e0bd4aa45d39b99f73db7bef2c1eda9ffedc21624 ;;
+              8) checksum=335a74ebf150ce0d0acfc800b985c285e77e1687e2a72009a44f5dedd4b3a545 ;;
+            esac
+            curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/$version/$archive" -o "$RUNNER_TEMP/$archive"
+            echo "$checksum  $RUNNER_TEMP/$archive" | sha256sum -c -
+            mkdir -p "$RUNNER_TEMP/once-bin-$candidate"
+            tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/once-bin-$candidate"
+            "$RUNNER_TEMP/once-bin-$candidate/once" --version
+          done
+          echo "$RUNNER_TEMP/once-bin-8" >> "$GITHUB_PATH"
       - name: Configure staging without production credentials
         run: |
           cat >> once.toml <<'EOF'
@@ -118,29 +125,36 @@ jobs:
       - name: Exercise remote execution and remote-cache reuse
         run: |
           set -euo pipefail
+          coordinator_path="$PATH"
           for trial in 1 2 3; do
-            token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial"
-            evidence="$RUNNER_TEMP/once-evidence/trial-$trial"
-            mkdir -p "$evidence"
-            for phase in cold warm; do
-              rm -rf .once
-              export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$trial-$phase"
-              export XDG_STATE_HOME="$evidence/$phase-state"
-              /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
-                once -vv build --remote --compute staging --config "token=$token" atlas/mix_application_test \
-                2>&1 | tee "$evidence/$phase.log"
-              once --format json cache stats > "$evidence/$phase-cache-stats.json"
-              find .once/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
-              find .once/out -type l -printf '%p -> %l\n' | sort > "$evidence/$phase-links.txt"
-              test -s "$evidence/$phase-files.txt"
+            candidates="7 8"
+            if (( trial % 2 == 0 )); then candidates="8 7"; fi
+            for candidate in $candidates; do
+              export PATH="$RUNNER_TEMP/once-bin-$candidate:$coordinator_path"
+              token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$candidate"
+              evidence="$RUNNER_TEMP/once-evidence/candidate-$candidate/trial-$trial"
+              mkdir -p "$evidence"
+              once --version | tee "$evidence/version.txt"
+              for phase in cold warm; do
+                rm -rf .once
+                export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$candidate-$trial-$phase"
+                export XDG_STATE_HOME="$evidence/$phase-state"
+                /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
+                  once -vv build --remote --compute staging --config "token=$token" atlas/mix_application_test \
+                  2>&1 | tee "$evidence/$phase.log"
+                once --format json cache stats > "$evidence/$phase-cache-stats.json"
+                find .once/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
+                find .once/out -type l -printf '%p -> %l\n' | sort > "$evidence/$phase-links.txt"
+                test -s "$evidence/$phase-files.txt"
+              done
+              diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
+              diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
+              grep -q 'remote action completed' "$evidence/cold.log"
+              if grep -q 'remote execution response' "$evidence/warm.log"; then
+                echo 'Warm restoration unexpectedly dispatched worker actions' >&2
+                exit 1
+              fi
             done
-            diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
-            diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
-            grep -q 'remote action completed' "$evidence/cold.log"
-            if grep -q 'remote execution response' "$evidence/warm.log"; then
-              echo 'Warm restoration unexpectedly dispatched worker actions' >&2
-              exit 1
-            fi
           done
       - uses: actions/upload-artifact@v6
         if: always()
