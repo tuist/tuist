@@ -19,9 +19,8 @@
 # failover after an unplanned stop never moves regions back, so placement
 # drifts toward the datanodes that stayed up: on 2026-11-16 production's
 # datanode-0 led nothing while datanode-2 led the metric, logs and most trace
-# regions. While the fullest and emptiest datanode differ by more than a
-# quarter of the mean, it moves the fullest datanode's region closest to half
-# that gap to the emptiest one. It warns when one region alone holds more than
+# regions. It spreads each table's regions evenly first, then evens out
+# stored bytes (see plan_moves). It warns when one region alone holds more than
 # three quarters of a datanode's share, which moves can't fix.
 set -euo pipefail
 mode=${1:-rollout}
@@ -130,24 +129,48 @@ all_ready() {
 }
 
 # Reads [region_id, peer_id, bytes] rows and prints "region from to" moves.
-# Each move takes a region smaller than the gap off the fullest datanode, so
-# the spread shrinks every time; 32 moves bounds one run.
+# First it spreads each table's regions so no datanode leads two more of one
+# table than another: query and write load follow a table's regions, not its
+# bytes, so the nine metric regions must sit three per datanode even when
+# trace regions dominate the byte totals. Then, while the fullest and
+# emptiest datanode differ by more than a quarter of the mean, it moves the
+# fullest datanode's region closest to half the gap to the emptiest one, only
+# from a datanode leading more of that region's table, so it never undoes the
+# spread. 32 moves bound one run.
 plan_moves() {
   jq -s -r --argjson replicas "$replicas" '
     def abs: if . < 0 then -. else . end;
+    def tbl: .id / 4294967296 | floor;
+    def count($regions; $table; $peer): [$regions[] | select(.peer == $peer and (tbl) == $table)] | length;
+    def move($region; $to): .moves += [[$region.id, $region.peer, $to]]
+      | .regions |= map(if .id == $region.id then .peer = $to else . end);
+    def spread_move:
+      .regions as $regions
+      | [[$regions[] | tbl] | unique[] as $table
+          | [range(0; $replicas) as $peer | {peer: $peer, n: count($regions; $table; $peer)}]
+          | {table: $table, most: max_by(.n), fewest: min_by(.n)}
+          | select(.most.n - .fewest.n > 1)]
+      | first
+      | if . == null then null else
+          . as $uneven
+          | {region: ([$regions[] | select(.peer == $uneven.most.peer and (tbl) == $uneven.table)] | min_by(.bytes)),
+             to: $uneven.fewest.peer}
+        end;
+    def bytes_move:
+      .regions as $regions
+      | [range(0; $replicas) as $peer
+          | {peer: $peer, load: ([$regions[] | select(.peer == $peer) | .bytes] | add // 0)}] as $loads
+      | ($loads | max_by(.load)) as $full | ($loads | min_by(.load)) as $empty
+      | ($full.load - $empty.load) as $gap
+      | ([$regions[] | select(.peer == $full.peer and .bytes > 0 and .bytes < $gap
+            and count($regions; tbl; $empty.peer) < count($regions; tbl; $full.peer))]
+          | min_by(($gap - 2 * .bytes) | abs)) as $region
+      | if $gap <= ($loads | map(.load) | add) / $replicas / 4 or $region == null then null
+        else {region: $region, to: $empty.peer} end;
     reduce range(0; 32) as $_ ({regions: map({id: .[0], peer: .[1], bytes: .[2]}), moves: []};
       if .done then . else
-        .regions as $regions
-        | [range(0; $replicas) as $peer
-            | {peer: $peer, load: ([$regions[] | select(.peer == $peer) | .bytes] | add // 0)}] as $loads
-        | ($loads | max_by(.load)) as $full | ($loads | min_by(.load)) as $empty
-        | ($full.load - $empty.load) as $gap
-        | ([$regions[] | select(.peer == $full.peer and .bytes > 0 and .bytes < $gap)]
-            | min_by(($gap - 2 * .bytes) | abs)) as $region
-        | if $gap <= ($loads | map(.load) | add) / $replicas / 4 or $region == null then .done = true
-          else .moves += [[$region.id, $full.peer, $empty.peer]]
-            | .regions |= map(if .id == $region.id then .peer = $empty.peer else . end)
-          end
+        (spread_move // bytes_move) as $next
+        | if $next == null then .done = true else move($next.region; $next.to) end
       end)
     | .moves[] | @tsv'
 }
