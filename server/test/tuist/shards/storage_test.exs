@@ -108,24 +108,26 @@ defmodule Tuist.Shards.StorageTest do
 
     stub(Environment, :shard_storage_targets, fn -> %{"public-v1" => public} end)
     project = %Project{build_system: :xcode}
-    assert ShardStorage.select(project, ctx.account, nil) == ""
+    assert ShardStorage.select(project, ctx.account, nil, true) == ""
     stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> true end)
     stub(Storage, :available?, fn _ -> true end)
 
     for system <- [:xcode, :mix, :cargo] do
-      assert ShardStorage.select(%Project{build_system: system}, ctx.account, nil) == "public-v1"
+      assert ShardStorage.select(%Project{build_system: system}, ctx.account, nil, true) == "public-v1"
     end
+
+    assert ShardStorage.select(project, ctx.account, nil) == ""
 
     stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => ctx.config, "public-v1" => public} end)
     assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == "gra-v1"
-    assert ShardStorage.select(ctx.project, ctx.account, nil) == "public-v1"
+    assert ShardStorage.select(ctx.project, ctx.account, nil, true) == "public-v1"
 
     stub(Storage, :available?, fn _ -> false end)
-    assert ShardStorage.select(project, ctx.account, nil) == ""
+    assert ShardStorage.select(project, ctx.account, nil, true) == ""
     stub(Storage, :available?, fn _ -> true end)
 
     account = %{ctx.account | s3_bucket_name: "custom", s3_access_key_id: "key", s3_secret_access_key: "secret"}
-    assert ShardStorage.select(project, account, nil) == ""
+    assert ShardStorage.select(project, account, nil, true) == ""
 
     for config <- [
           Map.put(public, "endpoint", "http://shards.example.com"),
@@ -133,7 +135,7 @@ defmodule Tuist.Shards.StorageTest do
           Map.put(public, "enabled", false)
         ] do
       stub(Environment, :shard_storage_targets, fn -> %{"public-v1" => config} end)
-      assert ShardStorage.select(project, ctx.account, nil) == ""
+      assert ShardStorage.select(project, ctx.account, nil, true) == ""
     end
   end
 
