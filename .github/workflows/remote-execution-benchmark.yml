@@ -1,10 +1,9 @@
 name: Remote Execution Benchmark
 
-# Times one cold Kura Bazel build on the 2 vCPU tuist-linux runner, either
-# executing every action on the runner or on Tuist remote execution, so
-# throughput changes can be compared run against run. Cold means no disk
-# cache and no action cache reads (--noremote_accept_cached), so every action
-# runs; analysis and repository fetches happen in an untimed warm-up first.
+# Times a Kura Bazel build locally or on Tuist/BuildBuddy remote execution.
+# Disk/action cache reads are disabled; this does NOT make executor input
+# caches cold. Record their state separately, verified outside this workflow.
+# Analysis and repository fetches happen in an untimed warm-up first.
 # Run one remote benchmark at a time per server: concurrent runs share the
 # account's execution capacity.
 
@@ -41,6 +40,25 @@ on:
         description: Extra Bazel flags for the warm-up and the timed run, such as --jobs=32
         required: false
         default: ""
+      provider:
+        description: Remote execution provider (BuildBuddy requires BUILDBUDDY_API_KEY)
+        type: choice
+        options: [tuist, buildbuddy]
+        default: tuist
+      source_ref:
+        description: Immutable workload revision, independent of the workflow revision
+        default: c0f09cac270482e7cad4b01d52c746a488c5684e
+      buildbuddy_image:
+        description: Public guest-stage OCI image, docker://registry/image@sha256:digest (not the template carrier)
+        default: ""
+      node_cache_state:
+        description: Observed worker input-cache state; this label does not reset caches
+        type: choice
+        options: [unknown, cold, warm]
+        default: unknown
+      sample:
+        description: Trial identifier for grouping repeated measurements
+        default: "1"
 
 permissions:
   contents: read
@@ -53,13 +71,14 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_URL: ${{ inputs.server || 'https://staging.tuist.dev' }}
   MODE: ${{ inputs.mode || 'remote' }}
+  PROVIDER: ${{ inputs.provider || 'tuist' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags || '--jobs=20' }}
   TARGETS: //...
 
 jobs:
   benchmark:
-    name: Cold benchmark
+    name: Execution benchmark
     if: github.repository == 'tuist/tuist'
     # A runner of the server under test: remote execution reads inputs from
     # the account's runner cache, which only its runners upload into.
@@ -70,6 +89,32 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Validate comparison inputs
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          BUILDBUDDY_IMAGE: ${{ inputs.buildbuddy_image }}
+          NODE_CACHE_STATE: ${{ inputs.node_cache_state || 'unknown' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$SOURCE_REF" ] && ! [[ "$SOURCE_REF" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::source_ref must be a full commit SHA"; exit 1
+          fi
+          if [ "$PROVIDER" = buildbuddy ]; then
+            [ "$MODE" = remote ] || { echo "::error::BuildBuddy comparison requires remote mode"; exit 1; }
+            [[ "$BUILDBUDDY_IMAGE" =~ ^docker://[a-zA-Z0-9./_-]+@sha256:[a-f0-9]{64}$ ]] || {
+              echo "::error::Pin a public guest-stage OCI image by digest"; exit 1;
+            }
+            [ "$NODE_CACHE_STATE" = unknown ] || {
+              echo "::error::Hosted BuildBuddy worker caches are not controlled by this workflow"; exit 1;
+            }
+            [[ " $BAZEL_FLAGS " =~ [[:space:]]--jobs=[1-9][0-9]*[[:space:]] ]] || {
+              echo "::error::Set --jobs explicitly and use the same value for the Tuist comparison"; exit 1;
+            }
+          fi
 
       # Only downloaded repositories persist between benchmarks; action
       # outputs never do.
@@ -87,6 +132,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
 
       - name: Set up Tuist
+        if: env.PROVIDER == 'tuist'
         run: |
           set -euo pipefail
           if [ "$MODE" = remote ]; then
@@ -97,37 +143,120 @@ jobs:
             tuist bazel setup
           fi
 
+      - name: Set up BuildBuddy
+        if: env.PROVIDER == 'buildbuddy'
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          BUILDBUDDY_IMAGE: ${{ inputs.buildbuddy_image }}
+        run: |
+          set -euo pipefail
+          [ -n "$BUILDBUDDY_API_KEY" ] || { echo "::error::BUILDBUDDY_API_KEY is not configured"; exit 1; }
+          umask 077
+          # Keep the key out of rc files, argv, profiles and uploaded logs.
+          cat > "$RUNNER_TEMP/buildbuddy-credential-helper" <<'HELPER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          : "${BUILDBUDDY_API_KEY:?BuildBuddy credential missing}"
+          jq -n '{headers: {"x-buildbuddy-api-key": [env.BUILDBUDDY_API_KEY]}}'
+          HELPER
+          chmod 700 "$RUNNER_TEMP/buildbuddy-credential-helper"
+          # Replace, never append to, any Tuist-generated endpoint configuration.
+          cat > .bazelrc.tuist <<EOF
+          build --credential_helper=remote.buildbuddy.io=$RUNNER_TEMP/buildbuddy-credential-helper
+          build --remote_executor=grpcs://remote.buildbuddy.io
+          build --remote_cache=grpcs://remote.buildbuddy.io
+          build --remote_cache_compression=true
+          build --remote_timeout=15m
+          build --noremote_local_fallback
+          build --config=tuist-remote-execution
+          build --remote_default_exec_properties=OSFamily=Linux
+          build --remote_default_exec_properties=Arch=amd64
+          build --remote_default_exec_properties=container-image=$BUILDBUDDY_IMAGE
+          build --remote_default_exec_properties=EstimatedCPU=2
+          build --remote_default_exec_properties=EstimatedMemory=4294967296
+          build --remote_default_exec_properties=network=off
+          build --remote_default_exec_properties=dockerUser=1000:1000
+          build --remote_default_exec_properties=nonroot-workspace=true
+          build --generate_json_trace_profile=yes
+          build --noslim_profile
+          build --experimental_profile_include_target_label
+          build --experimental_profile_include_primary_output
+          EOF
+
+      - name: Record comparison environment
+        env:
+          BUILDBUDDY_IMAGE: ${{ inputs.buildbuddy_image }}
+          NODE_CACHE_STATE: ${{ inputs.node_cache_state || 'unknown' }}
+          SAMPLE: ${{ inputs.sample || '1' }}
+        run: |
+          set -euo pipefail
+          jq -n --arg source "$(git rev-parse HEAD)" --arg workflow "$GITHUB_SHA" \
+            --arg provider "$PROVIDER" --arg mode "$MODE" --arg command "$COMMAND" \
+            --arg bazel "$(bazel --version)" --arg flags "$BAZEL_FLAGS" \
+            --arg image "$BUILDBUDDY_IMAGE" --arg cacheState "$NODE_CACHE_STATE" \
+            --arg sample "$SAMPLE" --arg runner "$RUNNER_NAME" \
+            --arg tuistJobs "$(sed -n 's/^build --jobs=//p' .bazelrc.tuist | tail -1)" \
+            --arg tuistImage "$(sed -n 's/^build --remote_default_exec_properties=tuist-image=//p' .bazelrc.tuist | tail -1)" \
+            '{source:$source, workflow:$workflow, provider:$provider, mode:$mode, command:$command,
+              bazel:$bazel, flags:$flags, buildbuddyImage:$image, nodeCacheState:$cacheState,
+              sample:$sample, coordinator:$runner, configuredTuistJobs:$tuistJobs, tuistImage:$tuistImage,
+              actionCacheReads:false, diskCache:false,
+              buildbuddyResources:"2 CPU / 4294967296 bytes requested; not a fleet capacity guarantee"}' \
+            > "$RUNNER_TEMP/environment.json"
+
       - name: Warm up analysis and repositories
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
         run: |
           set -euo pipefail
           ulimit -n 65536
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
           ../.github/scripts/retry-bazel-command.sh bazel build $TARGETS --nobuild \
-            --disk_cache= --noremote_accept_cached $BAZEL_FLAGS
+            $BAZEL_FLAGS --disk_cache= --noremote_accept_cached
 
-      - name: Cold run
+      - name: Timed execution
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          NODE_CACHE_STATE: ${{ inputs.node_cache_state || 'unknown' }}
+          SAMPLE: ${{ inputs.sample || '1' }}
         run: |
           set -euo pipefail
           ulimit -n 65536
           start=$(date +%s)
           # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
-          bazel "$COMMAND" $TARGETS --disk_cache= --noremote_accept_cached \
-            --profile="$RUNNER_TEMP/profile.json.gz" $BAZEL_FLAGS 2>&1 | tee "$RUNNER_TEMP/bazel.log"
+          bazel "$COMMAND" $TARGETS $BAZEL_FLAGS --disk_cache= --noremote_accept_cached \
+            --noremote_local_fallback --profile="$RUNNER_TEMP/profile.json.gz" 2>&1 | tee "$RUNNER_TEMP/bazel.log"
           wall=$(( $(date +%s) - start ))
           elapsed=$(sed -n 's/.*INFO: Elapsed time: \([0-9.]*\)s, Critical Path: \([0-9.]*\)s.*/\1 \2/p' "$RUNNER_TEMP/bazel.log" | tail -n 1)
           processes=$(grep -E 'INFO: [0-9]+ processes?:' "$RUNNER_TEMP/bazel.log" | tail -n 1 | sed 's/.*INFO: //')
+          if [ "$MODE" = remote ]; then
+            [[ "$processes" =~ (^|[[:space:],])[1-9][0-9]*[[:space:]]remote[,.] ]] || {
+              echo "::error::No executed remote actions in the benchmark summary"; exit 1;
+            }
+            if [[ "$processes" == *"cache hit"* ]]; then
+              echo "::error::Cached actions invalidate the execution comparison"; exit 1
+            fi
+          fi
           {
-            echo "| Server | Mode | Command | Flags | Wall (s) | Bazel elapsed (s) | Critical path (s) | Processes |"
+            echo "| Provider | Node cache | Sample | Mode | Wall (s) | Bazel elapsed (s) | Critical path (s) | Processes |"
             echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
-            echo "| $TUIST_URL | $MODE | $COMMAND | \`${BAZEL_FLAGS:-none}\` | $wall | ${elapsed% *} | ${elapsed#* } | $processes |"
+            echo "| $PROVIDER | $NODE_CACHE_STATE | $SAMPLE | $MODE | $wall | ${elapsed% *} | ${elapsed#* } | $processes |"
           } >>"$GITHUB_STEP_SUMMARY"
-          echo "::notice title=Cold $COMMAND ($MODE)::wall ${wall}s, elapsed ${elapsed% *}s, critical path ${elapsed#* }s, $processes"
+          jq -n --argjson wall "$wall" --argjson elapsed "${elapsed% *}" \
+            --argjson critical "${elapsed#* }" --arg processes "$processes" \
+            '{wallSeconds:$wall, elapsedSeconds:$elapsed, criticalSeconds:$critical, processes:$processes}' \
+            > "$RUNNER_TEMP/result.json"
+          echo "::notice title=$PROVIDER $COMMAND ($NODE_CACHE_STATE, sample $SAMPLE)::wall ${wall}s, elapsed ${elapsed% *}s, critical path ${elapsed#* }s, $processes"
 
       - name: Summarize the profile
         if: always()
         run: |
           [ -f "$RUNNER_TEMP/profile.json.gz" ] || exit 0
           bazel analyze-profile "$RUNNER_TEMP/profile.json.gz" | tee -a "$RUNNER_TEMP/analyze-profile.txt"
+
+      - name: Remove generated authentication configuration
+        if: always()
+        run: rm -f .bazelrc.tuist "$RUNNER_TEMP/buildbuddy-credential-helper"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -137,4 +266,6 @@ jobs:
             ${{ runner.temp }}/profile.json.gz
             ${{ runner.temp }}/bazel.log
             ${{ runner.temp }}/analyze-profile.txt
+            ${{ runner.temp }}/environment.json
+            ${{ runner.temp }}/result.json
           if-no-files-found: ignore

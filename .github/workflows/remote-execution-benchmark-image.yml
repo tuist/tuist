@@ -1,0 +1,87 @@
+name: Remote Execution Benchmark Image
+
+# A container export of the production template's guest stage for hosted RE.
+# Only a unique benchmark tag is published; no deployment pins are changed.
+on:
+  push:
+    branches: [bench/re-provider-comparison]
+    paths: [.github/workflows/remote-execution-benchmark-image.yml]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux-large
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SOURCE_SHA: 8e999dc77f46513e3d868b404eefe87f112d4f97
+      IMAGE: ghcr.io/tuist/tuist-sandbox-template:benchmark-guest-8e999dc77f46-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the guest, not the ext4 carrier
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          target: guest
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}
+          build-args: VERSION=sha-8e999dc77f46
+          cache-from: type=gha,scope=re-benchmark-guest
+          cache-to: type=gha,mode=max,scope=re-benchmark-guest
+      - name: Verify unprivileged offline native tools
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --user 1000:1000 \
+            --tmpfs /tmp:rw,exec,size=128m --entrypoint /bin/bash "$IMAGE" -ec '
+              test "$(id -u)" = 1000
+              test "$(uname -m)" = x86_64
+              test -d /usr/lib/gcc/x86_64-linux-gnu/13/include
+              test -d /usr/lib/llvm-18/lib
+              /usr/bin/gcc --version
+              /usr/bin/clang --version
+              /usr/bin/ld.gold --version
+              /usr/bin/cmake --version
+              /usr/bin/pkg-config --modversion openssl
+              printf "#include <iostream>\nint main(){std::cout << 42;}\n" > /tmp/probe.cc
+              /usr/bin/g++ -std=c++17 -fuse-ld=gold /tmp/probe.cc -o /tmp/probe
+              test "$(/tmp/probe)" = 42
+              dpkg-query -W gcc g++ clang libclang-dev libc6 binutils cmake libssl-dev
+            ' | tee "$RUNNER_TEMP/guest-toolchain.txt"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish the qualified benchmark image
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE"
+          digest=$(docker buildx imagetools inspect "$IMAGE" --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          image="docker://ghcr.io/tuist/tuist-sandbox-template@$digest"
+          jq -n --arg source "$SOURCE_SHA" --arg tag "$IMAGE" --arg image "$image" \
+            '{source:$source, tag:$tag, buildbuddyImage:$image,
+              note:"Rebuilt guest stage from the production template source; compare package fingerprints before claiming identical toolchains."}' \
+            > "$RUNNER_TEMP/guest-image.json"
+          echo "BuildBuddy image: \`$image\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: re-benchmark-guest-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/guest-toolchain.txt
+            ${{ runner.temp }}/guest-image.json
+          if-no-files-found: ignore
