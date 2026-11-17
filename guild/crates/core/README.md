@@ -75,6 +75,10 @@ when an operation reports an error.
 | Operation | Args | Data |
 | --- | --- | --- |
 | `snapshot` | none | null |
+| `routes` | none | `{routes:["/threads","/threads/{id}","/profile"]}`; the shared addressable screen catalog |
+| `navigate` | `url`: internal path, `tuist-guild://app/…`, or HTTPS `{server}/guild/…`; optional `if_generation` and `if_revision` | null; updates navigation, or queues a signed-out link until sign-in; a mismatched version makes an async completion a no-op |
+| `select_tab` | `tab`: `threads` or `profile` | null; preserves the conversation stack across tab changes |
+| `navigation_back` | none | null; returns to the Threads root |
 | `begin_sign_in` | `server`, optional `provider`: `tuist` (default), `github`, `google`, `apple` | `{url,callback_scheme:"tuist-guild"}` |
 | `finish_sign_in` | `url` | null |
 | `cancel_sign_in` | none | null |
@@ -104,6 +108,8 @@ server returns all projects without pagination. Ignored track/search semantics
 are rejected when returned rows do not match, never repaired into partial totals.
 Track discovery does not derive choices/counts from downloaded previews. An older
 server's missing discovery is an error for that operation; browsing still works.
+
+Every view also contains `navigation: {tab,thread_id,path,revision}`. `thread_id` is nullable and survives tab selection; `path` describes the visible destination. Revision is process-local and increases on navigation changes; ignore older view revisions within the same session generation. Edges bind native tab/stack controls to this state, send user actions back through the operations above, and fetch conversation data through `thread` (navigation itself performs no network requests). See the workspace README's Deep links section for URL scoping, launch examples and reserved web URLs. Navigation is in memory only, never in the credential vault.
 
 Sign-in dynamically registers a public PKCE client using the same-origin server
 metadata endpoint, with the distinct `tuist-guild://oauth-callback` redirect.

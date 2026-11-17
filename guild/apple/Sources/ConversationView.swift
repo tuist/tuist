@@ -32,10 +32,11 @@ extension AppClient {
 /// no repository, machine or model to choose: the core picks what runs it.
 struct StartConversationView: View {
     let client: AppClient
-    let started: (AppConversation) -> Void
+    let started: () -> Void
     @State private var content = ""
     @State private var starting = false
     @State private var error: String?
+    @State private var request: Task<Void, Never>?
     @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -66,21 +67,33 @@ struct StartConversationView: View {
                     Button("Cancel") { dismiss() }.disabled(starting)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") { Task { await start() } }
+                    Button("Start") { request = Task { await start() } }
                         .disabled(starting || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .interactiveDismissDisabled(starting)
             .onAppear { focused = true }
+            .onDisappear { request?.cancel() }
     }
 
     private func start() async {
         starting = true
         defer { starting = false }
+        let generation = client.view.generation
+        let revision = client.view.navigation.revision
         do {
-            started(try await client.conversation("start_thread", ["content": content]))
+            let thread = try await client.conversation("start_thread", ["content": content])
+            guard !Task.isCancelled, generation == client.view.generation,
+                  revision == client.view.navigation.revision else { return }
+            // The core also checks these versions when this queued call executes.
+            _ = try await client.call("navigate", [
+                "url": "/threads/\(thread.id)", "if_generation": generation, "if_revision": revision,
+            ])
+            guard !Task.isCancelled else { return }
+            started()
             dismiss()
         } catch {
+            guard !Task.isCancelled else { return }
             self.error = error.localizedDescription
         }
     }

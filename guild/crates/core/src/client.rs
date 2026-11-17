@@ -58,6 +58,7 @@ pub struct MobileClient {
     dirty: bool,
     attempt: Option<Attempt>,
     threads: Threads,
+    navigation: crate::navigation::Navigation,
 }
 
 impl MobileClient {
@@ -66,7 +67,16 @@ impl MobileClient {
     }
 
     pub fn call(&mut self, input: &str, host: &mut dyn Host) -> String {
-        let result = self.run(input, host);
+        let result = self.run(input, host).and_then(|data| {
+            if let Some(profile) = self.vault.profiles.iter().find(|p| {
+                Some(&p.id) == self.vault.active_profile_id.as_ref()
+                    && !p.rejected
+                    && !p.memberships_rejected
+            }) {
+                self.navigation.resume(&server_url(&profile.server)?)?;
+            }
+            Ok(data)
+        });
         let (data, error) = match result {
             Ok(data) => (data, None),
             Err(error) => (Value::Null, Some(error)),
@@ -86,6 +96,7 @@ impl MobileClient {
         let mut response = json!({"view":{
             "profiles":profiles, "active_profile_id":self.vault.active_profile_id,
             "generation":self.vault.generation,
+            "navigation":self.navigation,
         },"data":data});
         if let Some(error) = error {
             response["error"] = json!(error);
@@ -120,6 +131,43 @@ impl MobileClient {
         let args = &request["args"];
         match text(&request, "operation")? {
             "snapshot" => Ok(Value::Null),
+            "routes" => Ok(json!({"routes":crate::navigation::ROUTES})),
+            "navigate" => {
+                // Async completions must not replace a newer route or session,
+                // including requests already queued by a native edge.
+                if args
+                    .get("if_generation")
+                    .is_some_and(|v| v.as_u64() != Some(self.vault.generation))
+                    || args
+                        .get("if_revision")
+                        .is_some_and(|v| v.as_u64() != Some(self.navigation.revision))
+                {
+                    return Ok(Value::Null);
+                }
+                let server = self
+                    .vault
+                    .profiles
+                    .iter()
+                    .find(|p| {
+                        Some(&p.id) == self.vault.active_profile_id.as_ref()
+                            && !p.rejected
+                            && !p.memberships_rejected
+                    })
+                    .map(|p| server_url(&p.server))
+                    .transpose()?;
+                self.navigation
+                    .receive(text(args, "url")?, server.as_ref())?;
+                Ok(Value::Null)
+            }
+            "select_tab" => {
+                self.navigation.select(text(args, "tab")?)?;
+                Ok(Value::Null)
+            }
+            "navigation_back" => {
+                self.navigation
+                    .navigate(crate::navigation::Destination::Threads);
+                Ok(Value::Null)
+            }
             "cancel_sign_in" => {
                 self.attempt = None;
                 Ok(Value::Null)
@@ -263,6 +311,24 @@ impl MobileClient {
         }
         candidate.generation = self.vault.generation + 1;
         write(host, &candidate)?;
+        // Metadata refresh and same-profile reauthentication retain navigation.
+        // Only a change to an existing active account/server/organization resets it.
+        if self.vault.active_profile_id.is_some()
+            && (self.vault.active_profile_id != candidate.active_profile_id
+                || self
+                    .vault
+                    .profiles
+                    .iter()
+                    .find(|p| Some(&p.id) == self.vault.active_profile_id.as_ref())
+                    .map(|p| (&p.server, &p.organization))
+                    != candidate
+                        .profiles
+                        .iter()
+                        .find(|p| Some(&p.id) == candidate.active_profile_id.as_ref())
+                        .map(|p| (&p.server, &p.organization)))
+        {
+            self.navigation.reset();
+        }
         self.vault = candidate;
         Ok(())
     }

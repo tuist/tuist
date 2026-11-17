@@ -115,6 +115,10 @@ impl Root {
     pub fn receive_urls(&mut self, urls: Vec<String>, cx: &mut Context<Self>) {
         for url in urls {
             if Route::parse(&url, self.session.server()).is_err()
+                && !url.starts_with(&format!(
+                    "{}/guild/",
+                    self.session.server().as_str().trim_end_matches('/')
+                ))
                 && Route::is_server_web_url(&url, self.session.server())
             {
                 cx.open_url(&url);

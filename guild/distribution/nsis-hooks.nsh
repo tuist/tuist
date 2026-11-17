@@ -6,4 +6,8 @@ Function un.onUninstSuccess
   ${If} $R7 == "$\"$INSTDIR\TuistGuild.exe$\" $\"%1$\""
     DeleteRegKey HKCU "Software\Classes\tuist"
   ${EndIf}
+  ReadRegStr $R7 HKCU "Software\Classes\tuist-guild\shell\open\command" ""
+  ${If} $R7 == "$\"$INSTDIR\TuistGuild.exe$\" $\"%1$\""
+    DeleteRegKey HKCU "Software\Classes\tuist-guild"
+  ${EndIf}
 FunctionEnd

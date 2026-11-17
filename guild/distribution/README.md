@@ -74,7 +74,7 @@ profile parity, LTO, stripping, or deterministic/reproducible output.
 
 ## Installation identity and protocol
 
-The sole registered URL scheme is **`tuist:`**, never HTTP/HTTPS. NSIS's pinned
+The registered URL schemes are **`tuist-guild:`** and legacy **`tuist:`**, never HTTP/HTTPS. NSIS's pinned
 template owns per-user registry registration, Start Menu/desktop shortcuts and
 uninstall cleanup. `installMode=currentUser`, `productName=Tuist Guild` defaults to
 `%LOCALAPPDATA%\Tuist Guild`, with `TuistGuild.exe`, `uninstall.exe`, and the installer-owned
@@ -94,7 +94,7 @@ Pinned `installer.nsi` `.onInstSuccess` handles **`/R` in silent/passive mode**.
 Updater 0.2.3 invokes NSIS passively; backend `installer_args=["/R"]` is compatible.
 Install only after gpui returns and the single-instance lock is dropped.
 
-AppImage carries its `.desktop` entry, icon and `tuist:` handler; integration
+AppImage carries its `.desktop` entry, icon and both scheme handlers; integration
 with the user's desktop is explicit, not an install-time root side effect.
 Use the repository's [AppImage integration helper](appimage.sh), available at
 `guild/distribution/appimage.sh` in a trusted checkout. Verify the AppImage's
@@ -108,7 +108,7 @@ bash guild/distribution/appimage.sh --uninstall
 
 It installs into `$XDG_DATA_HOME/tuist-guild-appimage` (default
 `~/.local/share/tuist-guild-appimage`), adds the icon/launcher and registers only
-`tuist:`. Uninstall removes only that payload and its still-owned launcher/MIME
+`tuist-guild:` and legacy `tuist:`. Uninstall removes only that payload and its still-owned launcher/MIME
 association, preserving replacement launchers, other handlers and account data.
 
 `install-linux.sh` and `install-windows.ps1` are older **portable binary** helpers,

@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString, c_char, c_void};
 use std::sync::{Mutex, OnceLock};
 
 static CLIENT: OnceLock<Mutex<MobileClient>> = OnceLock::new();
-const FAILURE: &str = r#"{"view":{"profiles":[],"active_profile_id":null,"generation":0},"data":null,"error":"Native bridge failed"}"#;
+const FAILURE: &str = r#"{"view":{"profiles":[],"active_profile_id":null,"generation":0,"navigation":{"tab":"threads","thread_id":null,"path":"/threads","revision":0}},"data":null,"error":"Native bridge failed"}"#;
 
 fn serialized(input: &str, host: &mut dyn Host) -> String {
     match CLIENT

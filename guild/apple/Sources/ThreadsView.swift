@@ -28,7 +28,6 @@ struct ThreadsView: View {
     @State private var showingArchived = false
     @State private var error: String?
     @State private var starting = false
-    @State private var opened: ThreadRoute?
 
     var body: some View {
         List {
@@ -99,8 +98,7 @@ struct ThreadsView: View {
         }
         .sheet(isPresented: $starting) {
             NavigationStack {
-                StartConversationView(client: client) { thread in
-                    opened = ThreadRoute(id: thread.id)
+                StartConversationView(client: client) {
                     Task { await reload() }
                 }
             }
@@ -108,8 +106,6 @@ struct ThreadsView: View {
             .presentationDetents([.medium, .large])
             #endif
         }
-        .navigationDestination(for: ThreadRoute.self) { route in ConversationView(client: client, id: route.id) }
-        .navigationDestination(item: $opened) { route in ConversationView(client: client, id: route.id) }
         #if os(macOS)
             .toolbar {
                 // The Mac has no pull-to-refresh.
@@ -122,6 +118,7 @@ struct ThreadsView: View {
         #endif
         .refreshable { await reload() }
         .task(id: client.view.active_profile_id) { await reload() }
+        .onChange(of: client.view.navigation.revision) { _, _ in starting = false }
     }
 
     private var archivePicker: some View {

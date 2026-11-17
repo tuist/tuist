@@ -86,7 +86,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Self {
         let handle = account.handle.clone();
-        let threads = cx.new(|cx| ThreadsPanel::new(session, handle, cx));
+        let threads = cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), cx));
         let observer = cx.observe(&navigation, |_, _, cx| cx.notify());
         Self {
             navigation,

@@ -34,7 +34,13 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
     private var view = JSONObject()
-    private var screen = "threads"
+    // The legacy preview browser is local; shared destinations belong to the core.
+    private var previewsSelected = false
+    private val screen: String
+        get() = if (previewsSelected) "previews" else view.optJSONObject("navigation")?.optString("tab", "threads") ?: "threads"
+    private val threadId: String?
+        get() = view.optJSONObject("navigation")?.string("thread_id")?.takeIf { it.isNotBlank() }
+    private var intentConsumed = false
     // Adding another profile shows the login screen over the signed-in workspace.
     private var addingProfile = false
     private var ticket = 0L
@@ -62,11 +68,12 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         host = AppHost(applicationContext)
-        screen = savedInstanceState?.getString("screen") ?: "threads"
+        previewsSelected = savedInstanceState?.getBoolean("previews_selected") ?: false
+        intentConsumed = savedInstanceState?.getBoolean("intent_consumed") ?: false
         addingProfile = savedInstanceState?.getBoolean("adding_profile") ?: false
         call("snapshot") {
             render()
-            if (!callback(intent)) {
+            if (intentConsumed || !consumeIntent(intent)) {
                 if (AppCore.pendingAuthorization != null) launchPendingSignIn()
                 else load()
             }
@@ -74,7 +81,8 @@ class MainActivity : Activity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString("screen", screen)
+        outState.putBoolean("previews_selected", previewsSelected)
+        outState.putBoolean("intent_consumed", intentConsumed)
         outState.putBoolean("adding_profile", addingProfile)
         super.onSaveInstanceState(outState)
     }
@@ -88,7 +96,8 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        callback(intent)
+        intentConsumed = false
+        consumeIntent(intent)
     }
 
     override fun onDestroy() {
@@ -100,29 +109,61 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun callback(intent: Intent): Boolean {
-        val uri = intent.data ?: return false
+    private fun consumeIntent(intent: Intent): Boolean {
+        val uri = intent.data
+        val navigation = intent.getStringExtra("navigate")
+        // Remove both sources before submitting anything. Saved state also protects
+        // recreation after process death, when Android may restore the launch Intent.
         intent.data = null
-        if (uri.scheme != "tuist-guild" || uri.host != "oauth-callback" || !uri.path.isNullOrEmpty()) return false
-        browserPending = false
-        call("finish_sign_in", JSONObject().put("url", uri.toString())) {
-            reset(); addingProfile = false; screen = "threads"; render(); load()
+        intent.removeExtra("navigate")
+        intentConsumed = true
+        if (uri?.scheme == "tuist-guild" && uri.host == "oauth-callback" && uri.path.isNullOrEmpty()) {
+            browserPending = false
+            call("finish_sign_in", JSONObject().put("url", uri.toString())) {
+                reset(); addingProfile = false; previewsSelected = false; render(); load()
+            }
+            return true
         }
+        val url = navigation ?: uri?.toString() ?: return false
+        navigate("navigate", JSONObject().put("url", url))
         return true
+    }
+
+    private fun navigate(operation: String, args: JSONObject = JSONObject()) {
+        call(operation, args) {
+            previewsSelected = false
+            render(); load()
+        }
     }
 
     private fun call(operation: String, args: JSONObject = JSONObject(), onFailure: (() -> Unit)? = null,
                      done: (Any?) -> Unit = { render() }) {
-        val requestTicket = ++ticket
+        // A URL is only a proposed destination. Keep the current data request
+        // (including chained tracks/previews loads) alive until it is accepted.
+        val navigationRequest = operation == "navigate" || operation == "select_tab" || operation == "navigation_back"
+        val requestTicket = if (navigationRequest) ticket else ++ticket
         val generation = view.optLong("generation", -1)
-        busy = true
+        if (!navigationRequest) busy = true
         AppCore.submit(operation, args, host) { result ->
             runOnUiThread {
-                if (isDestroyed || requestTicket != ticket) return@runOnUiThread
-                busy = false
+                if (isDestroyed || (!navigationRequest && requestTicket != ticket)) return@runOnUiThread
+                if (!navigationRequest) busy = false
                 val next = result.optJSONObject("view")
                 if (next != null && next.optLong("generation", -1) < generation) return@runOnUiThread
-                if (next != null) view = next
+                if (next != null) {
+                    val oldNavigation = view.optJSONObject("navigation")
+                    val nextNavigation = next.optJSONObject("navigation")
+                    if (next.optLong("generation", -1) == view.optLong("generation", -1) &&
+                        nextNavigation != null && oldNavigation != null &&
+                        nextNavigation.optLong("revision") < oldNavigation.optLong("revision")) return@runOnUiThread
+                    if (view.has("generation") && (next.optLong("generation", -1) != view.optLong("generation", -1) ||
+                        next.optString("active_profile_id") != view.optString("active_profile_id"))) reset()
+                    if (nextNavigation?.optLong("revision") != oldNavigation?.optLong("revision")) {
+                        follow?.let(handler::removeCallbacks)
+                        conversation = null; reply = ""
+                    }
+                    view = next
+                }
                 if (!result.isNull("error") && result.optString("error").isNotBlank()) {
                     if (operation == "begin_sign_in") browserPending = false
                     if (onFailure != null) { onFailure(); return@runOnUiThread }
@@ -130,6 +171,11 @@ class MainActivity : Activity() {
                     toast(R.string.request_failed)
                     render()
                     return@runOnUiThread
+                }
+                if (navigationRequest) {
+                    ticket++
+                    busy = false
+                    debounce?.let(handler::removeCallbacks)
                 }
                 done(result.opt("data"))
             }
@@ -142,6 +188,7 @@ class MainActivity : Activity() {
     private fun reset() {
         debounce?.let(handler::removeCallbacks)
         follow?.let(handler::removeCallbacks)
+        previewsSelected = false
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
         threads = emptyList(); conversation = null; reply = ""
@@ -153,14 +200,14 @@ class MainActivity : Activity() {
         checkForUpdate()
         when (screen) {
             "previews" -> loadProjects()
-            "threads" -> conversation?.let { openThread(it.optString("id")) } ?: loadThreads()
+            "threads" -> threadId?.let { fetchThread(it) } ?: loadThreads()
         }
     }
 
     @Deprecated("Activity predates OnBackPressedDispatcher")
     override fun onBackPressed() {
         if (addingProfile && active() != null) cancelAddingProfile()
-        else if (screen == "threads" && conversation != null) closeConversation()
+        else if (screen == "threads" && threadId != null) closeConversation()
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
@@ -197,17 +244,20 @@ class MainActivity : Activity() {
             else -> previewScreen()
         }
         // A conversation takes the whole screen, as on iOS; Back returns to the inbox.
-        if (screen == "threads" && conversation != null) { setContentView(root); return }
+        if (screen == "threads" && threadId != null) { setContentView(root); return }
         root.addView(styled(Button(this)).apply {
             setText(R.string.threads)
             setOnClickListener {
-                if (!busy && !browserPending) { screen = "threads"; conversation = null; render(); loadThreads() }
+                if (!busy && !browserPending) navigate("select_tab", JSONObject().put("tab", "threads"))
             }
         })
         root.addView(styled(Button(this)).apply {
             setText(R.string.previews)
             setOnClickListener {
-                if (!busy && !browserPending) { screen = "previews"; render(); if (projects.isEmpty()) loadProjects() }
+                if (!busy && !browserPending) {
+                    follow?.let(handler::removeCallbacks)
+                    previewsSelected = true; render(); if (projects.isEmpty()) loadProjects()
+                }
             }
         })
         root.addView(styled(Button(this)).apply {
@@ -215,7 +265,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 if (!busy) {
                     if (screen == "profile" && !browserPending) chooseProfile()
-                    else { screen = "profile"; render() }
+                    else navigate("select_tab", JSONObject().put("tab", "profile"))
                 }
             }
             setOnLongClickListener { if (!busy && !browserPending) chooseProfile(); true }
@@ -561,6 +611,11 @@ class MainActivity : Activity() {
     /** The inbox, or one conversation. Conversations run on the server; there is nothing to pick. */
     private fun threadsScreen() {
         if (active() == null) return
+        if (threadId != null && conversation == null) {
+            button(R.string.back) { closeConversation() }
+            if (!busy) button(R.string.refresh) { load() }
+            return
+        }
         conversation?.let { conversationScreen(it); return }
         button(R.string.start_conversation, primary = true) { startConversation() }
         button(R.string.refresh) { loadThreads() }
@@ -644,6 +699,9 @@ class MainActivity : Activity() {
     }
 
     private fun startConversation() {
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
         val input = EditText(this).apply {
             hint = getString(R.string.conversation_prompt)
             minLines = 3
@@ -652,35 +710,57 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle(R.string.new_conversation).setMessage(R.string.conversation_runs_on_server)
             .setView(input)
             .setPositiveButton(R.string.start) { _, _ ->
+                if (busy || generation != view.optLong("generation", -1) ||
+                    revision != view.optJSONObject("navigation")?.optLong("revision") ||
+                    profile != view.optString("active_profile_id") || screen != "threads" || threadId != null) return@setPositiveButton
                 val text = input.text.toString()
                 if (text.isBlank()) return@setPositiveButton
                 call("start_thread", JSONObject().put("content", text), onFailure = {
                     toast(R.string.start_failed); render()
-                }) { data -> show(data as? JSONObject) }
+                }) { data ->
+                    val id = (data as? JSONObject)?.string("id")
+                    if (!id.isNullOrBlank()) openThread(id) else { render(); load() }
+                }
             }.setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun openThread(id: String) {
-        call("thread", JSONObject().put("id", id)) { data -> show(data as? JSONObject) }
+        navigate("navigate", JSONObject().put("url", "/threads/$id"))
+    }
+
+    private fun fetchThread(id: String) {
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
+        call("thread", JSONObject().put("id", id)) { data ->
+            if (screen == "threads" && threadId == id && generation == view.optLong("generation", -1) &&
+                profile == view.optString("active_profile_id") && revision == view.optJSONObject("navigation")?.optLong("revision")) {
+                show(data as? JSONObject)
+            }
+        }
     }
 
     /** Shows a conversation and keeps it current while the server is answering. */
     private fun show(thread: JSONObject?) {
         follow?.let(handler::removeCallbacks)
+        if (screen != "threads" || thread == null || thread.optString("id") != threadId) return
         conversation = thread
         render()
-        if (thread == null || !thread.optBoolean("working")) return
+        if (!thread.optBoolean("working")) return
         val id = thread.optString("id")
+        val generation = view.optLong("generation", -1)
+        val revision = view.optJSONObject("navigation")?.optLong("revision")
         follow = Runnable {
-            if (isDestroyed || screen != "threads" || conversation?.optString("id") != id) return@Runnable
-            if (busy) handler.postDelayed(follow!!, 2000) else openThread(id)
+            if (isDestroyed || screen != "threads" || threadId != id ||
+                generation != view.optLong("generation", -1) ||
+                revision != view.optJSONObject("navigation")?.optLong("revision")) return@Runnable
+            if (busy) handler.postDelayed(follow!!, 2000) else fetchThread(id)
         }
         handler.postDelayed(follow!!, 2000)
     }
 
     private fun closeConversation() {
-        follow?.let(handler::removeCallbacks)
-        conversation = null; reply = ""; render(); loadThreads()
+        navigate("navigation_back")
     }
 
     private fun conversationScreen(thread: JSONObject) {

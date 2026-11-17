@@ -48,12 +48,14 @@ cmp -s "$image" "$installed"
 [[ -x $installed && $(cat "${installed%/*}/icon.png") == 'brand icon' ]]
 grep -Fqx -- "Exec=$(appimage_quoted_exec "$installed")" "$desktop"
 grep -Fqx -- 'mime default dev.tuist.guild.desktop x-scheme-handler/tuist' "$temp/events"
+grep -Fqx -- 'mime default dev.tuist.guild.desktop x-scheme-handler/tuist-guild' "$temp/events"
 printf 'PASS: fake extraction installs bytes, icon, launcher and registers protocol\n'
-printf '[Default Applications]\nx-scheme-handler/tuist=dev.tuist.guild.desktop;other.desktop;\nx-scheme-handler/https=browser.desktop;\n' > "$XDG_CONFIG_HOME/mimeapps.list"
+printf '[Default Applications]\nx-scheme-handler/tuist=dev.tuist.guild.desktop;other.desktop;\nx-scheme-handler/tuist-guild=dev.tuist.guild.desktop;guild-other.desktop;\nx-scheme-handler/https=browser.desktop;\n' > "$XDG_CONFIG_HOME/mimeapps.list"
 cp "$XDG_CONFIG_HOME/mimeapps.list" "$XDG_DATA_HOME/applications/mimeapps.list"
 bash "$here/appimage.sh" --uninstall
 [[ ! -e $installed && ! -e $desktop && $(cat "$XDG_CONFIG_HOME/credentials.json") == keep ]]
 grep -Fqx 'x-scheme-handler/tuist=other.desktop;' "$XDG_CONFIG_HOME/mimeapps.list"
+grep -Fqx 'x-scheme-handler/tuist-guild=guild-other.desktop;' "$XDG_CONFIG_HOME/mimeapps.list"
 grep -Fqx 'x-scheme-handler/https=browser.desktop;' "$XDG_CONFIG_HOME/mimeapps.list"
 if grep -Fq dev.tuist.guild.desktop "$XDG_DATA_HOME/applications/mimeapps.list"; then
     printf 'FAIL: owned association remains\n'; exit 1

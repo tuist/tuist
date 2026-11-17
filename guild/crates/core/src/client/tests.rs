@@ -132,17 +132,35 @@ fn callbacks_require_exact_route_and_unique_parameters() {
     }
 }
 #[test]
-fn unchanged_memberships_do_not_reset_native_navigation() {
+fn membership_refresh_preserves_navigation_unless_selected_organization_changes() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
-    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let path = "/threads/12345678-1234-5678-9abc-123456789abc";
+    call(&mut c, &mut h, "navigate", json!({"url":path}));
+    let before = call(&mut c, &mut h, "select_tab", json!({"tab":"profile"}));
     h.responses.extend([
         (200, json!({"organizations":[{"name":"team"}]})),
         (200, json!({"organizations":[{"name":"team"}]})),
     ]);
-    let before = call(&mut c, &mut h, "organizations", json!({}));
+    let refreshed = call(&mut c, &mut h, "organizations", json!({}));
+    assert_eq!(
+        before["view"]["navigation"],
+        refreshed["view"]["navigation"]
+    );
     let after = call(&mut c, &mut h, "organizations", json!({}));
-    assert_eq!(before["view"], after["view"]);
+    assert_eq!(refreshed["view"], after["view"]);
     assert!(after.get("error").is_none());
+    let selected = call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":"team"}),
+    );
+    assert_eq!(selected["view"]["navigation"]["path"], "/threads");
+    call(&mut c, &mut h, "navigate", json!({"url":path}));
+    h.responses.push_back((200, json!({"organizations":[]})));
+    let removed = call(&mut c, &mut h, "organizations", json!({}));
+    assert_eq!(removed["view"]["navigation"]["path"], "/threads");
 }
 #[test]
 fn multiple_origins_dedup_and_selection_are_durable() {
@@ -162,10 +180,12 @@ fn multiple_origins_dedup_and_selection_are_durable() {
     let result = call(&mut c, &mut h, "sign_out", json!({}));
     assert_eq!(result["view"]["active_profile_id"], two);
     let mut restored = MobileClient::new();
-    assert_eq!(
-        call(&mut restored, &mut h, "snapshot", json!({}))["view"],
-        result["view"]
-    );
+    let restored = call(&mut restored, &mut h, "snapshot", json!({}));
+    for field in ["profiles", "active_profile_id", "generation"] {
+        assert_eq!(restored["view"][field], result["view"][field]);
+    }
+    // Screen state is deliberately process-local, unlike saved accounts.
+    assert_eq!(restored["view"]["navigation"]["path"], "/threads");
 }
 #[test]
 fn rotated_pair_survives_failed_write_and_retries_before_any_network() {
@@ -823,4 +843,179 @@ fn profiles_that_used_the_tuist_app_session_are_dropped_on_load() {
     h.vault = Some("[]".into());
     let mut c = MobileClient::new();
     assert!(call(&mut c, &mut h, "snapshot", json!({}))["error"].is_string());
+}
+
+#[test]
+fn url_navigation_survives_login_preserves_tab_stacks_and_resets_between_profiles() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let path = "/threads/12345678-1234-5678-9abc-123456789abc";
+    call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":format!("https://one.test/guild{path}")}),
+    );
+    let first = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let nav = call(&mut c, &mut h, "snapshot", json!({}))["view"]["navigation"].clone();
+    assert_eq!(nav["path"], path);
+    assert_eq!(nav["tab"], "threads");
+    assert_eq!(nav["thread_id"], "12345678-1234-5678-9abc-123456789abc");
+    call(&mut c, &mut h, "select_tab", json!({"tab":"profile"}));
+    assert_eq!(
+        call(&mut c, &mut h, "select_tab", json!({"tab":"threads"}))["view"]["navigation"]["path"],
+        path
+    );
+    let invalid = call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":"https://two.test/guild/profile"}),
+    );
+    assert!(invalid["error"].is_string());
+    assert_eq!(invalid["view"]["navigation"]["path"], path);
+    assert_eq!(
+        call(&mut c, &mut h, "navigation_back", json!({}))["view"]["navigation"]["path"],
+        "/threads"
+    );
+    call(&mut c, &mut h, "navigate", json!({"url":path}));
+    login(&mut c, &mut h, "https://two.test", 2, i64::MAX);
+    assert_eq!(
+        call(&mut c, &mut h, "snapshot", json!({}))["view"]["navigation"]["path"],
+        "/threads"
+    );
+    assert_eq!(
+        call(&mut c, &mut h, "switch_profile", json!({"id":first}))["view"]["navigation"]["path"],
+        "/threads"
+    );
+}
+
+#[test]
+fn pending_navigation_revalidates_server_and_is_consumed_after_sign_in() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":"tuist-guild://app/profile"}),
+    );
+    let state = begin(&mut c, &mut h, "https://other.test");
+    h.responses.push_back((
+        200,
+        json!({"access_token":token(i64::MAX,1),"refresh_token":"refresh-1"}),
+    ));
+    let result = call(
+        &mut c,
+        &mut h,
+        "finish_sign_in",
+        json!({"url":format!("{CALLBACK}?code=code&state={state}")}),
+    );
+    assert!(result["error"].is_string());
+    assert!(result["view"]["active_profile_id"].is_string());
+    assert_eq!(result["view"]["navigation"]["path"], "/threads");
+    assert!(
+        call(&mut c, &mut h, "snapshot", json!({}))
+            .get("error")
+            .is_none()
+    );
+}
+
+#[test]
+fn pending_link_survives_reauthentication_of_the_same_profile() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses.push_back((401, json!({})));
+    assert!(call(&mut c, &mut h, "organizations", json!({}))["error"].is_string());
+    let queued = call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":"https://one.test/guild/profile"}),
+    );
+    assert!(queued.get("error").is_none());
+    assert_eq!(queued["view"]["navigation"]["path"], "/threads");
+    assert_eq!(login(&mut c, &mut h, "https://one.test", 1, i64::MAX), id);
+    let resumed = call(&mut c, &mut h, "snapshot", json!({}));
+    assert_eq!(resumed["view"]["navigation"]["path"], "/profile");
+}
+
+#[test]
+fn conditional_navigation_does_not_override_newer_navigation_or_sessions() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let before = call(&mut c, &mut h, "snapshot", json!({}));
+    let args = json!({"url":"/profile", "if_generation":before["view"]["generation"],
+        "if_revision":before["view"]["navigation"]["revision"]});
+    let applied = call(&mut c, &mut h, "navigate", args.clone());
+    assert_eq!(applied["view"]["navigation"]["path"], "/profile");
+    call(&mut c, &mut h, "navigate", json!({"url":"/threads"}));
+    let stale = call(&mut c, &mut h, "navigate", args);
+    assert_eq!(stale["view"]["navigation"]["path"], "/threads");
+    login(&mut c, &mut h, "https://two.test", 2, i64::MAX);
+    let current = call(&mut c, &mut h, "snapshot", json!({}));
+    let stale_session = call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":"/profile",
+        "if_generation":before["view"]["generation"],
+        "if_revision":current["view"]["navigation"]["revision"]}),
+    );
+    assert_eq!(stale_session["view"]["navigation"]["path"], "/threads");
+}
+
+#[test]
+fn guild_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
+    use crate::navigation::{Destination, Link};
+    let server = Url::parse("https://one.test/base/").unwrap();
+    for (path, destination) in [
+        ("/profile", Destination::Profile),
+        ("/threads", Destination::Threads),
+        (
+            "/threads/12345678-1234-5678-9abc-123456789abc",
+            Destination::Thread("12345678-1234-5678-9abc-123456789abc".into()),
+        ),
+    ] {
+        for value in [
+            path.to_owned(),
+            format!("https://one.test/base/guild{path}"),
+            format!("tuist-guild://app{path}?server=https%3A%2F%2Fone.test%2Fbase"),
+        ] {
+            let route = Link::parse(&value).unwrap().resolve(&server).unwrap();
+            assert_eq!(route, destination);
+            assert_eq!(route.path(), path);
+        }
+    }
+    for value in [
+        "/threads/invalid",
+        "/threads/------------------------------------",
+        "/threads/",
+        "/profile?",
+        "/profile#fragment",
+        "//profile",
+        "tuist-guild://oauth-callback?code=secret",
+        "tuist-guild://user@app/profile",
+        "tuist-guild://app:123/profile",
+        "tuist-guild://app/profile?unknown=1",
+        "tuist-guild://app/profile?server=https://one.test&server=https://one.test",
+        "tuist-guild://app/a/../profile",
+        "tuist-guild://app/%70rofile",
+        "tuist-guild://app/profile#",
+        "https://one.test/base/guild/../guild/profile",
+        "http://one.test/guild/profile",
+        "https://one.test/base/guild/profile?token=secret",
+        "https://one.test/base/guild/threads/not-an-id",
+    ] {
+        assert!(Link::parse(value).is_err(), "{value}");
+    }
+    for value in [
+        "https://one.test/guild/profile",
+        "https://one.test/base-other/guild/profile",
+        "https://one.test:8443/base/guild/profile",
+        "https://two.test/base/guild/profile",
+    ] {
+        assert!(
+            Link::parse(value).unwrap().resolve(&server).is_err(),
+            "{value}"
+        );
+    }
 }

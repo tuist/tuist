@@ -20,11 +20,12 @@ Comment=Tuist Guild
 Exec="$executable" %u
 Terminal=false
 Categories=Development;
-MimeType=x-scheme-handler/tuist;
+MimeType=x-scheme-handler/tuist;x-scheme-handler/tuist-guild;
 StartupWMClass=dev.tuist.guild
 EOF
 if command -v update-desktop-database >/dev/null; then
   update-desktop-database "$applications"
 fi
 xdg-mime default dev.tuist.guild.desktop x-scheme-handler/tuist
-printf 'Installed Tuist in %s and registered tuist: links.\n' "$install_dir"
+xdg-mime default dev.tuist.guild.desktop x-scheme-handler/tuist-guild
+printf 'Installed Tuist in %s and registered tuist: and tuist-guild: links.\n' "$install_dir"

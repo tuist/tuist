@@ -2,7 +2,7 @@
 
 Tuist Guild is a client developed alongside the shipping apps in `../app/` and `../android/`, not a replacement or a store release. Its independent Once graph reports to [tuist/guild](https://tuist.dev/tuist/guild); GPUI provides the Linux/Windows UI, SwiftUI provides iOS/macOS interfaces, and Kotlin provides the Android interface. Native profiles, OAuth, session selection, and preview API operations are implemented in `crates/core`, reusing the existing Rust OAuth/PKCE and JWT logic.
 
-The native apps use the Android package ID `dev.tuist.guild` and the iOS/macOS bundle ID `dev.tuist.code` (kept so the existing App ID and signing profiles keep working), display as **Tuist Guild**, and register only `tuist-guild://oauth-callback`, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. They do not read or modify shipping-client credentials, so they never trigger Keychain prompts for the Tuist app's items or sign anyone out of it. The GPUI client uses the `dev.tuist.guild` application ID and retains its existing credential interoperability with the CLI.
+The native apps use the Android package ID `dev.tuist.guild` and the iOS/macOS bundle ID `dev.tuist.code` (kept so the existing App ID and signing profiles keep working), display as **Tuist Guild**, and register `tuist-guild://oauth-callback` for authentication and `tuist-guild://app/…` for navigation, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. They do not read or modify shipping-client credentials, so they never trigger Keychain prompts for the Tuist app's items or sign anyone out of it. The GPUI client uses the `dev.tuist.guild` application ID and retains its existing credential interoperability with the CLI.
 
 ## Build
 
@@ -220,13 +220,49 @@ native build until that job has actually run.
 
 ## Deep links
 
-The app accepts `tuist://app/profile`, `tuist://app/previews` (which opens
-Threads, since Tuist Guild has no previews list), and canonical
-preview URLs scoped to the selected server (production by default). The shared wire
-contract and mobile examples are in [navigation.md](../app/navigation.md).
-URLs passed as arguments or delivered by the OS reach the existing window.
-Links received while signed out wait for sign-in; navigation never signs in,
-changes servers, installs, or runs a preview.
+Guild has one typed route catalog in `crates/core/src/navigation.rs`, shared by iOS, macOS, Android and GPUI. No navigation library is required. The native edges render the core's selected tab and lightweight conversation identifier, rather than reconstructing a sequence of clicks. This follows Apple's [data-driven NavigationStack](https://developer.apple.com/documentation/swiftui/navigationstack), Android's [deep-link back-stack guidance](https://developer.android.com/guide/navigation/design/deep-link), and the enum/optional state modeling described by [Point-Free](https://www.pointfree.co/blog/posts/96-modern-swiftui-state-driven-navigation), without depending on their libraries.
+
+| Path | Destination |
+| --- | --- |
+| `/threads` | Threads inbox, clearing the conversation stack |
+| `/threads/{id}` | Conversation with a UUID identifier; Back returns to Threads |
+| `/profile` | Profile |
+
+Three representations resolve to the same destination:
+
+- `/threads/{id}`: an internal/automation path scoped to the selected profile.
+- `tuist-guild://app/threads/{id}`: an OS deep link scoped to `https://tuist.dev`. For a self-hosted server, append `?server=<percent-encoded HTTPS server URL>`, including its base path.
+- `https://<server>/<optional-base-path>/guild/threads/{id}`: the reserved web URL shape. There is no Guild web page or verified Universal Link/App Link domain yet; passing this URL to the app works, but clicking it in a browser does not yet launch Guild.
+
+URLs received while signed out wait in memory for sign-in, then are checked against the signed-in server. The last valid pending link wins. Invalid, ambiguous and wrong-server links leave navigation unchanged. Links never sign in, change servers/accounts, create conversations or send messages. Thread access remains server-authorized for the selected account. Switching profiles/organizations clears navigation; navigation is not persisted with credentials. Tab switches preserve the Threads stack, while `/threads` explicitly returns to its root. Reopening a conversation replaces its stack rather than adding duplicate screens.
+
+### Launch directly into a destination
+
+For agents, the catalog above is also available through the core's `routes` operation and the GPUI executable's `--list-routes`. The same `navigate` operation is the entry point for a future push-notification tap handler; push registration/delivery is not implemented here. Notifications should carry the scoped Guild URL, not UI gestures or arbitrary API actions.
+
+```sh
+# iOS simulator: cold launch with a path, or cold/warm delivery of a URL.
+xcrun simctl launch booted dev.tuist.code --navigate /profile
+xcrun simctl openurl booted 'tuist-guild://app/threads/12345678-1234-5678-9abc-123456789abc'
+
+# macOS: launch arguments or OS delivery to the registered native bundle.
+open -a 'Tuist Guild' --args --navigate /profile
+open 'tuist-guild://app/profile'
+
+# Android: cold/warm launch through an explicit intent, with no domain registration.
+adb shell am start -n dev.tuist.guild/.MainActivity --es navigate /profile
+adb shell am start -a android.intent.action.VIEW -d 'tuist-guild://app/threads/12345678-1234-5678-9abc-123456789abc' dev.tuist.guild
+
+# GPUI: arguments also forward to an already-running window.
+TuistGuild --list-routes
+TuistGuild --navigate /profile
+```
+
+Apple consumes `--navigate` at startup; terminate the existing process before testing another launch argument. Use OS URL delivery for an already-running Apple app. Android consumes intent data/extras once, including across Activity recreation. No launch mechanism bypasses authentication.
+
+### Legacy desktop links
+
+GPUI additionally retains `tuist://app/profile`, `tuist://app/previews` (which opens Threads) and canonical preview URLs scoped to the selected server. Their frozen shipping-client wire contract is in [navigation.md](../app/navigation.md); native Guild apps do not claim `tuist:`.
 
 A preview link opens an identifier/handoff screen over the current destination,
 with Back, Copy link, and Open on web. No preview metadata is requested. Other valid same-server web
@@ -236,8 +272,8 @@ destination intact and show a dismissible error.
 For explicit **development/portable installation** on Linux, run
 `bash distribution/install-linux.sh /absolute/path/to/TuistGuild`. On Windows, run
 `powershell -File distribution/install-windows.ps1 -Binary C:\path\to\TuistGuild.exe`.
-These install per-user and make this app the `tuist:` handler, replacing any
-existing association. They do not claim HTTP/HTTPS. Do not register the development
+These install per-user and make this app the `tuist-guild:` and legacy `tuist:` handlers, replacing any
+existing association for those schemes. They do not claim HTTP/HTTPS. Do not register the development
 macOS binary over the shipping Swift app. These scripts are not an auto-updater
 or the production installer; quit the app before reinstalling.
 
@@ -283,7 +319,7 @@ mixing a corrupt palette with defaults or reviving a stale legacy theme.
 ## Packaging and updates
 
 Linux releases use AppImage; Windows releases use a per-user NSIS installer.
-Both register only the `tuist:` scheme. The existing Swift macOS app and its
+Both register `tuist-guild:` and the legacy `tuist:` scheme, never HTTP/HTTPS. The existing Swift macOS app and its
 Sparkle release process remain unchanged.
 
 Packaged installations check for updates at launch. **Check for updates…** in

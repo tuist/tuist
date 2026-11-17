@@ -38,7 +38,7 @@ appimage_remove_association() {
         line=''
         if IFS= read -r line; then ending=$'\n';
         else ending=''; [[ -n $line ]] || break; fi
-        if [[ $line == x-scheme-handler/tuist=* ]]; then
+        if [[ $line == x-scheme-handler/tuist=* || $line == x-scheme-handler/tuist-guild=* ]]; then
             remaining=${line#*=}
             remaining=$(printf '%s' "$remaining" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             result=''
@@ -47,7 +47,7 @@ appimage_remove_association() {
                 if [[ -n $value && $value != "$launcher" ]]; then result=$result$value';'; fi
                 if [[ $remaining == *';'* ]]; then remaining=${remaining#*;}; else break; fi
             done
-            if [[ -n $result ]]; then printf 'x-scheme-handler/tuist=%s\n' "$result"; fi
+            if [[ -n $result ]]; then printf '%s=%s\n' "${line%%=*}" "$result"; fi
         else
             printf '%s%s' "$line" "$ending"
         fi
@@ -98,10 +98,11 @@ appimage_integrate() (
         fi
         chmod 755 "$destination"
         {
-            printf '[Desktop Entry]\nType=Application\nName=Tuist Guild\nComment=Tuist Guild\nTerminal=false\nCategories=Development;\nMimeType=x-scheme-handler/tuist;\nStartupWMClass=dev.tuist.guild\n'
+            printf '[Desktop Entry]\nType=Application\nName=Tuist Guild\nComment=Tuist Guild\nTerminal=false\nCategories=Development;\nMimeType=x-scheme-handler/tuist;x-scheme-handler/tuist-guild;\nStartupWMClass=dev.tuist.guild\n'
             printf 'Icon=%s/icon.png\nExec=%s\n' "$install" "$(appimage_quoted_exec "$destination")"
         } > "$desktop"
         xdg-mime default dev.tuist.guild.desktop x-scheme-handler/tuist
+        xdg-mime default dev.tuist.guild.desktop x-scheme-handler/tuist-guild
     fi
     if command -v update-desktop-database >/dev/null 2>&1 && [[ -d $applications ]]; then
         update-desktop-database "$applications"

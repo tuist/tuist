@@ -12,10 +12,22 @@ struct AppProfile: Decodable, Identifiable {
     let rejected: Bool
 }
 
+struct AppNavigation: Decodable {
+    enum Tab: String, Decodable, Hashable {
+        case threads, profile
+    }
+
+    var tab: Tab = .threads
+    var thread_id: String?
+    var path: String = "/threads"
+    var revision: UInt64 = 0
+}
+
 struct AppSessionView: Decodable {
     var profiles: [AppProfile] = []
     var active_profile_id: String?
     var generation: UInt64 = 0
+    var navigation = AppNavigation()
 
     var active: AppProfile? { profiles.first { $0.id == active_profile_id } }
 }
@@ -140,6 +152,25 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
     @ObservationIgnored private let queue = DispatchQueue(label: "dev.tuist.code.core", qos: .userInitiated)
     @ObservationIgnored private var browser: ASWebAuthenticationSession?
     @ObservationIgnored private var browserAttempt: UUID?
+    @ObservationIgnored private var started = false
+
+    /// Launch arguments are consumed once, after restoring the core's snapshot.
+    func start() async {
+        guard !started else { return }
+        started = true
+        await perform("snapshot")
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "--navigate"), index + 1 < arguments.count {
+            await perform("navigate", ["url": arguments[index + 1]])
+        }
+    }
+
+    func openURL(_ url: URL) async {
+        // ASWebAuthenticationSession owns OAuth completion and state validation.
+        // All other URLs go to the core, including validation of server origins.
+        guard !(url.scheme?.lowercased() == "tuist-guild" && url.host?.lowercased() == "oauth-callback") else { return }
+        await perform("navigate", ["url": url.absoluteString])
+    }
 
     func call(_ operation: String, _ args: [String: Any] = [:]) async throws -> [String: Any] {
         let request = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
@@ -165,7 +196,9 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
         let response = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         if let value = response["view"], !(value is NSNull) {
             let next = try JSONDecoder().decode(AppSessionView.self, from: JSONSerialization.data(withJSONObject: value))
-            if next.generation >= view.generation { view = next }
+            if next.generation > view.generation ||
+                (next.generation == view.generation && next.navigation.revision >= view.navigation.revision)
+            { view = next }
         }
         if let error = response["error"] as? String { throw AppClientError(message: error) }
         return response["data"] as? [String: Any] ?? [:]

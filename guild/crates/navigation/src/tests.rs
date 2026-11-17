@@ -133,3 +133,31 @@ fn pending_links_wait_for_authentication_and_oauth_does_not_replace_them() {
     nav.resume();
     assert_eq!(nav.tab, Tab::Profile);
 }
+
+#[test]
+fn guild_links_select_the_tab_and_reconstruct_the_conversation_stack() {
+    let mut nav = Navigation::default();
+    let path = "/threads/12345678-1234-5678-9abc-123456789abc";
+    nav.receive(&format!("tuist-guild://app{path}"), &server());
+    assert!(nav.guild.thread_id.is_none());
+    nav.resume();
+    assert_eq!(nav.guild.path, path);
+    assert_eq!(nav.tab, Tab::Threads);
+    nav.select(Tab::Profile);
+    assert_eq!(nav.guild.path, "/profile");
+    nav.select(Tab::Threads);
+    assert_eq!(nav.guild.path, path);
+    let route = Route::parse(&format!("https://tuist.dev/guild{path}"), &server()).unwrap();
+    assert_eq!(
+        route.url(&server()).unwrap().as_str(),
+        format!("https://tuist.dev/guild{path}")
+    );
+    nav.receive("tuist-guild://app/profile", &server());
+    nav.reset();
+    nav.resume();
+    assert_eq!(nav.guild.path, "/threads");
+    assert!(matches!(
+        Route::parse("https://tuist.dev/team/guild/previews/id", &server()),
+        Ok(Route::Preview(_))
+    ));
+}
