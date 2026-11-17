@@ -263,17 +263,12 @@
         }
       }
 
-      /* Slack/GitHub ghost buttons: 20px icons + the button's 6px padding
-         match the 32px height of the text buttons. Hover comes from the
-         ghost button itself. */
+      /* Slack/GitHub ghost buttons, sized and styled by the ghost button
+         itself: a 16px icon in a 32px square, the height of the text
+         buttons. */
       & > [data-part="icon"] {
         @media (max-width: 960px) {
           display: none;
-        }
-
-        & > svg {
-          width: 20px;
-          height: 20px;
         }
       }
 
