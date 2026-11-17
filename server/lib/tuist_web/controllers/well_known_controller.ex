@@ -4,6 +4,7 @@ defmodule TuistWeb.WellKnownController do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.MCP.Server
+  alias Tuist.OAuth.Clients
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -41,7 +42,10 @@ defmodule TuistWeb.WellKnownController do
     |> put_resp_header("cache-control", "no-store")
     |> json(%{
       network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?(),
-      network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?()
+      network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?(),
+      # Tuist Guild checks for its public client before it opens the browser,
+      # so a server without it can say so instead of failing mid sign-in.
+      guild_oauth_client_id: Clients.guild_client_id()
     })
   end
 
@@ -215,8 +219,7 @@ defmodule TuistWeb.WellKnownController do
       ],
       response_types_supported: ["code"],
       code_challenge_methods_supported: ["S256"],
-      # Clients such as Tuist Guild request `threads` only where it is advertised.
-      scopes_supported: ["mcp", "threads"],
+      scopes_supported: ["mcp"],
       bearer_methods_supported: ["header"],
       introspection_endpoint_auth_methods_supported: [
         "client_secret_basic",

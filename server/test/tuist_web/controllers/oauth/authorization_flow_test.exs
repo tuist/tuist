@@ -21,6 +21,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   alias Boruta.Ecto.Token
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
+  alias Tuist.OAuth.Clients
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -635,21 +636,92 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     end
   end
 
-  test "a threads grant keeps the default scopes through refresh and reads the user's threads", %{
+  test "Tuist Guild signs in as a first-party app without a secret and keeps its access through refresh", %{
     conn: conn,
     user: user
   } do
-    client_id = register_client(conn)
-    authorized = get(conn, ~p"/oauth2/authorize", Map.put(authorize_params(client_id), "scope", "threads"))
-    %{"code" => code} = authorized |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+    client_id = Clients.guild_client_id()
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+    query = fn redirect_uri ->
+      URI.encode_query(%{
+        "response_type" => "code",
+        "client_id" => client_id,
+        "redirect_uri" => redirect_uri,
+        "state" => "guild-state",
+        "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
+        "code_challenge_method" => "S256"
+      })
+    end
+
+    # The request alone never issues a code: anyone can use Guild's public client ID.
+    consent = get(conn, "/oauth2/authorize?" <> query.("tuist-guild://oauth-callback"))
+    assert html_response(consent, 200) =~ "Sign in to Tuist Guild?"
+    assert get_resp_header(consent, "cache-control") == ["no-store"]
+
+    approve = fn redirect_uri, consent ->
+      post(conn, "/oauth2/authorize?" <> query.(redirect_uri), %{"consent" => consent})
+    end
+
+    redirect_query = fn conn -> conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() end
+
+    # Cancelling returns to the app without a code.
+    denied = "tuist-guild://oauth-callback" |> approve.("deny") |> redirect_query.()
+    assert %{"error" => "access_denied", "state" => "guild-state"} = denied
+    refute Map.has_key?(denied, "code")
+
+    # Boruta reads the query, so a client ID in the body can't route around consent.
+    for body <- [%{"client_id" => "other"}, %{"client_id" => "other", "consent" => "deny"}] do
+      bypass = post(conn, "/oauth2/authorize?" <> query.("tuist-guild://oauth-callback"), body)
+      refute Map.has_key?(redirect_query.(bypass), "code")
+    end
+
+    # The consent form is the only way to approve, so it must keep its CSRF protection.
+    assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
+      conn
+      |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+      |> post("/oauth2/authorize?" <> query.("tuist-guild://oauth-callback"), %{"consent" => "allow"})
+    end
+
+    # The desktop app's loopback callback may use any port; other redirects are refused.
+    assert html_response(get(conn, "/oauth2/authorize?" <> query.("http://127.0.0.1:49152/callback")), 200)
+
+    assert "http://127.0.0.1:49152/callback?" <> _ =
+             "http://127.0.0.1:49152/callback" |> approve.("allow") |> redirected_to()
+
+    refute get(conn, "/oauth2/authorize?" <> query.("https://example.com/callback")).status in [200, 302]
+    refute approve.("https://example.com/callback", "allow").status == 302
+
+    code_for = fn ->
+      "tuist-guild://oauth-callback"
+      |> approve.("allow")
+      |> redirected_to()
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
+      |> Map.fetch!("code")
+    end
+
+    # Without a secret, the PKCE verifier is what proves the caller started the sign-in.
+    assert build_conn()
+           |> post(~p"/oauth2/token", %{
+             "grant_type" => "authorization_code",
+             "client_id" => client_id,
+             "redirect_uri" => "tuist-guild://oauth-callback",
+             "code" => code_for.()
+           })
+           |> json_response(400)
+
+    code = code_for.()
 
     %{"refresh_token" => refresh_token} =
       build_conn()
       |> post(~p"/oauth2/token", %{
         "grant_type" => "authorization_code",
         "client_id" => client_id,
-        "redirect_uri" => @redirect_uri,
-        "code" => code
+        "redirect_uri" => "tuist-guild://oauth-callback",
+        "code" => code,
+        "code_verifier" => verifier
       })
       |> json_response(200)
 
@@ -663,13 +735,38 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       |> json_response(200)
 
     assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
-    assert "threads" in claims["scopes"]
     assert "project:previews:read" in claims["scopes"]
 
-    assert build_conn()
-           |> put_req_header("authorization", "Bearer #{access_token}")
-           |> get("/api/accounts/#{user.account.name}/threads")
-           |> json_response(200) == %{"threads" => [], "next_cursor" => nil}
+    for path <- ["/api/accounts/#{user.account.name}/threads", "/api/me/feature-flags"] do
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer #{access_token}")
+             |> get(path)
+             |> json_response(200)
+    end
+  end
+
+  test "Tuist Guild can't request scopes, so openid fails cleanly instead of at the token endpoint", %{conn: conn} do
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+    for scope <- ["openid", "mcp", "openid mcp"] do
+      path =
+        "/oauth2/authorize?" <>
+          URI.encode_query(%{
+            "response_type" => "code",
+            "client_id" => Clients.guild_client_id(),
+            "redirect_uri" => "tuist-guild://oauth-callback",
+            "scope" => scope,
+            "state" => "guild-state",
+            "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
+            "code_challenge_method" => "S256"
+          })
+
+      for response <- [get(conn, path), post(conn, path, %{"consent" => "allow"})] do
+        query = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+        assert %{"error" => "invalid_scope", "state" => "guild-state"} = query
+        refute Map.has_key?(query, "code")
+      end
+    end
   end
 
   defp register_client(conn) do

@@ -330,6 +330,7 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
+      OAuth.Clients,
       OAuth.Google,
       OAuth.Introspection,
       OAuth2.SSOClient,

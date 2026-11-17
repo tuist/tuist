@@ -1,0 +1,52 @@
+<.link_frame
+  title={dgettext("dashboard_auth", "Sign in to %{client}?", client: @client_name)}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions.",
+      client: @client_name
+    )
+  }
+>
+  <.alert
+    type="secondary"
+    status="information"
+    size="small"
+    title={dgettext("dashboard_auth", "Signed in to Tuist as %{email}", email: @email)}
+  />
+  <form method="post" action={@action} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="consent" value="allow" />
+    <div data-part="actions">
+      <.button
+        id="allow-oauth-consent"
+        variant="primary"
+        size="large"
+        type="submit"
+        label={dgettext("dashboard_auth", "Continue")}
+      />
+      <.button
+        id="deny-oauth-consent"
+        variant="secondary"
+        size="large"
+        type="submit"
+        form="deny-oauth-consent-form"
+        label={dgettext("dashboard_auth", "Cancel")}
+      />
+    </div>
+  </form>
+  <form id="deny-oauth-consent-form" method="post" action={@action}>
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="consent" value="deny" />
+  </form>
+  <div data-part="security-note">
+    <span data-part="icon"><.lock /></span>
+    <span>
+      {dgettext(
+        "dashboard_auth",
+        "Continue only if you just started signing in to %{client} yourself.",
+        client: @client_name
+      )}
+    </span>
+  </div>
+</.link_frame>

@@ -1,8 +1,9 @@
 defmodule TuistWeb.API.AISubscriptionsController do
   @moduledoc """
   The signed-in user's personal AI subscriptions (`Tuist.Accounts.AISubscriptions`)
-  over the API. Only a user can manage them: a user session or the signed-in
-  Tuist app. Account and project tokens, and other OAuth clients, get a 403,
+  over the API. Only a user can manage them: a user session or a signed-in
+  first-party app (the Tuist app or Tuist Guild). Account and project tokens,
+  and other OAuth clients, get a 403,
   and users without the guild flag (`Tuist.FeatureFlags.guild_enabled?/1`) a 404.
   Responses are metadata only and never cached; no credential is returned.
   """
@@ -221,7 +222,7 @@ defmodule TuistWeb.API.AISubscriptionsController do
     json(conn, subscriptions_json(user))
   end
 
-  # A user session or the signed-in Tuist app (`TuistWeb.Authentication.app_user/1`).
+  # A user session or a signed-in first-party app (`TuistWeb.Authentication.app_user/1`).
   defp require_user(conn, _opts) do
     conn = put_resp_header(conn, "cache-control", "no-store")
 

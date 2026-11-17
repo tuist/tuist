@@ -4,6 +4,7 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   alias Tuist.Environment
   alias Tuist.MCP.Server
+  alias Tuist.OAuth.Clients
   alias TuistWeb.AgentSkillsDiscovery
 
   setup do
@@ -29,7 +30,8 @@ defmodule TuistWeb.WellKnownControllerTest do
 
         assert json_response(response, 200) == %{
                  "network_trusted_report_publishing" => reporting,
-                 "network_trusted_cache_access" => cache
+                 "network_trusted_cache_access" => cache,
+                 "guild_oauth_client_id" => Clients.guild_client_id()
                }
 
         assert get_resp_header(response, "cache-control") == ["no-store"]
@@ -356,7 +358,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["jwks_uri"] == "http://www.example.com/.well-known/jwks.json"
       assert response["introspection_endpoint"] == "http://www.example.com/oauth2/introspect"
       assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
-      assert response["scopes_supported"] == ["mcp", "threads"]
+      assert response["scopes_supported"] == ["mcp"]
 
       assert response["agent_auth"] == %{
                "skill" => "http://www.example.com/auth.md",

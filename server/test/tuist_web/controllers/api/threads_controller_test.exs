@@ -85,22 +85,23 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     end
   end
 
-  test "accepts OAuth grants only with the threads scope, until revoked", %{user: user, path: path} do
+  test "accepts the first-party apps' grants but no other OAuth client's, until revoked", %{
+    user: user,
+    path: path
+  } do
     client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> client_id end)
-    {:ok, guild} = Clients.create_client(%{redirect_uris: ["tuist-guild://oauth-callback"], name: "Tuist Guild"})
-    unscoped_native = oauth_token(user, Clients.public!())
-    unscoped = oauth_token(user, guild)
-    mcp = oauth_token(user, guild, "mcp")
-    threads = oauth_token(user, guild, "threads")
+    {:ok, other} = Clients.create_client(%{redirect_uris: ["tuist-guild://oauth-callback"], name: "Tuist Guild"})
+    native = oauth_token(user, Clients.public!())
+    guild = oauth_token(user, Clients.get_client(Clients.guild_client_id()))
+    impostor = oauth_token(user, other, "threads")
 
-    assert unscoped_native |> request(path) |> json_response(403)
-    assert unscoped |> request(path) |> json_response(403)
-    assert mcp |> request(path) |> json_response(403)
-    assert threads |> request(path) |> json_response(200)
+    assert native |> request(path) |> json_response(200)
+    assert guild |> request(path) |> json_response(200)
+    assert impostor |> request(path) |> json_response(403)
 
     Repo.update_all(Token, set: [revoked_at: DateTime.utc_now()])
-    assert threads |> request(path) |> json_response(403)
+    assert guild |> request(path) |> json_response(403)
   end
 
   test "other administrators cannot read a conversation or its inbox entry", %{user: user, token: token} do

@@ -99,16 +99,11 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   defp parse_scopes(nil), do: @default_user_scopes
   defp parse_scopes(""), do: @default_user_scopes
+  # Tuist Guild asked for `threads` before it became a first-party client; those
+  # sessions keep their default access until they sign in again.
+  defp parse_scopes("threads"), do: @default_user_scopes
 
-  defp parse_scopes(scope) do
-    scopes = String.split(scope, " ", trim: true)
-
-    # `threads` (private AI threads, which only Tuist Guild requests) extends the
-    # default grant rather than replacing it: clients may only request public
-    # scopes, and the defaults are not, so Guild could not keep its preview
-    # access while asking for threads otherwise.
-    if "threads" in scopes, do: Enum.uniq(@default_user_scopes ++ scopes), else: scopes
-  end
+  defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
 
   defp parse_user_id(sub) when is_binary(sub), do: Integer.parse(sub)
   defp parse_user_id(_sub), do: :error

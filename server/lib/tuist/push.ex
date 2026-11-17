@@ -73,6 +73,18 @@ defmodule Tuist.Push do
   end
 
   @doc """
+  Whether `bearer` belongs to an unrevoked sign-in through a first-party app:
+  the Tuist app (`oauth_session/2`) or Tuist Guild
+  (`Tuist.OAuth.Clients.guild_client_id/0`). The server trusts those as the
+  signed-in user rather than through scopes. Only the Tuist app registers push
+  devices, so `oauth_session/2` stays limited to it.
+  """
+  def first_party_session?(bearer, %User{id: user_id} = user) when is_binary(bearer) do
+    match?({:ok, _session}, oauth_session(bearer, user)) or
+      not is_nil(OAuthGrants.find_bearer(bearer, Clients.guild_client_id(), user_id))
+  end
+
+  @doc """
   Registers or refreshes `installation_id` for `user` under `session` (from
   `oauth_session/2`). `device` has `:platform` (`ios` or `android`), `:token`
   and `:environment` (`sandbox` or `production`; Android is always

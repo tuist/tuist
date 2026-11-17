@@ -1481,6 +1481,8 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
+    # Consent for Tuist Guild (see `TuistWeb.Oauth.AuthorizeController`).
+    post "/authorize", AuthorizeController, :authorize
   end
 
   scope "/oauth2", TuistWeb.Oauth do

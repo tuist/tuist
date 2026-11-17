@@ -122,11 +122,13 @@ defmodule TuistWeb.Authentication do
   end
 
   @doc """
-  Returns the signed-in user for a user session or the signed-in Tuist app, or `nil`.
+  Returns the signed-in user for a user session or a signed-in first-party app (the
+  Tuist app or Tuist Guild), or `nil`.
 
-  The app's OAuth access tokens authenticate as the user's account with the user as
-  issuer. Other OAuth clients have the same token shape, so the app's grant is checked
-  (`Tuist.Push.oauth_session/2`). Account and project tokens return `nil`.
+  The apps' OAuth access tokens authenticate as the user's account with the user as
+  issuer. Other OAuth clients have the same token shape, so the grant's client is
+  checked (`Tuist.Push.first_party_session?/2`).
+  Account and project tokens return `nil`.
   """
   def app_user(conn) do
     case authenticated_subject(conn) do
@@ -135,7 +137,7 @@ defmodule TuistWeb.Authentication do
 
       %AuthenticatedAccount{issued_by: %User{} = user} ->
         with ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
-             {:ok, _session} <- Push.oauth_session(bearer, user) do
+             true <- Push.first_party_session?(bearer, user) do
           user
         else
           _ -> nil
