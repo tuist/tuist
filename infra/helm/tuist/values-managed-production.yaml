@@ -822,6 +822,27 @@ registryCache:
     bucket: tuist-prod-storage
     rootDirectory: docker-mirror
 
+agents:
+  enabled: true
+  # Two pods so a deploy or a node drain always leaves one to take the
+  # drained sessions; memory adds up to six.
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+  podDisruptionBudget:
+    enabled: true
+  # An idle pod holds about 750Mi; 4Gi leaves room for hundreds of
+  # sessions before a pod stops admitting at 70%. Requests equal limits, as
+  # the memory autoscaler requires.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "4Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+
 processor:
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
