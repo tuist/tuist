@@ -108,13 +108,14 @@ defmodule TuistWeb.PulseLiveTest do
     stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
 
     stub(Pulse, :analytics, fn _, _, signal, params ->
-      send(test, {:analytics_range, params["range"]})
+      send(test, {:analytics_range, params["range"], params["widgets"]})
       {:ok, analytics(signal)}
     end)
 
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
     render_async(view)
-    assert_receive {:analytics_range, "1h"}
+    assert_receive {:analytics_range, "1h", ["spans", "errors"]}
+    assert_receive {:analytics_range, "1h", ["duration_p95"]}
     view |> element("[phx-value-widget='duration_p95']") |> render_click()
     render_async(view)
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95']")
@@ -122,15 +123,71 @@ defmodule TuistWeb.PulseLiveTest do
     assert hd(chart_data(render(view))["series"])["name"] == "p95 span duration"
     view |> form("#pulse-query-form", pulse: %{search: "request"}) |> render_change()
     render_async(view)
-    refute_received {:analytics_range, _}
+    refute_received {:analytics_range, _, _}
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95']")
 
     render_patch(view, "/#{ctx.account.name}/pulse/traces?range=6h&widget=duration_p95")
     render_async(view)
-    assert_receive {:analytics_range, "6h"}
+    assert_receive {:analytics_range, "6h", ["spans", "errors"]}
+    assert_receive {:analytics_range, "6h", ["duration_p95"]}
     send(view.pid, :refresh)
     render_async(view)
-    assert_receive {:analytics_range, "6h"}
+    assert_receive {:analytics_range, "6h", ["spans", "errors"]}
+    assert_receive {:analytics_range, "6h", ["duration_p95"]}
+  end
+
+  test "trace widgets render without waiting for the p95 duration", ctx do
+    test = self()
+
+    stub(Pulse, :query, fn _, _, signal, _ ->
+      send(test, {:loading, self()})
+      {:ok, result(signal)}
+    end)
+
+    stub(Pulse, :analytics, fn _, _, signal, params ->
+      if params["widgets"] == ["duration_p95"] do
+        send(test, {:duration, self()})
+        receive(do: (:continue -> :ok))
+      else
+        send(test, {:loading, self()})
+      end
+
+      {:ok, analytics(signal)}
+    end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
+    worker = receive(do: ({:duration, pid} -> pid))
+    await_loads(view, 2)
+
+    assert has_element?(view, "#pulse-analytics[data-state='ready'] #pulse-chart")
+    refute has_element?(view, "#pulse-widget-spans[data-loading]")
+    assert has_element?(view, "#pulse-widget-duration_p95[data-loading]")
+    view |> element("[phx-value-widget='duration_p95']") |> render_click()
+    refute has_element?(view, "#pulse-chart")
+
+    send(worker, :continue)
+    await_exit(worker)
+    render(view)
+    refute has_element?(view, "#pulse-widget-duration_p95[data-loading]")
+    assert has_element?(view, "#pulse-widget-duration_p95", "187.5 ms")
+    assert has_element?(view, "#pulse-chart")
+  end
+
+  test "a failed p95 duration is unavailable while the other trace widgets render", ctx do
+    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
+
+    stub(Pulse, :analytics, fn _, _, signal, params ->
+      if params["widgets"] == ["duration_p95"], do: {:error, :timeout}, else: {:ok, analytics(signal)}
+    end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
+    render_async(view)
+
+    assert has_element?(view, "#pulse-analytics[data-state='ready'] #pulse-chart")
+    assert has_element?(view, "#pulse-widget-duration_p95 [data-part='value']", "Unavailable")
+    refute has_element?(view, "#pulse-widget-spans [data-part='value']", "Unavailable")
+    view |> element("[phx-value-widget='duration_p95']") |> render_click()
+    refute has_element?(view, "#pulse-chart")
   end
 
   test "refresh retains content and respects a widget selected during the load", ctx do
@@ -149,7 +206,7 @@ defmodule TuistWeb.PulseLiveTest do
     end)
 
     {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/pulse/traces")
-    await_loads(view, 2)
+    await_loads(view, 3)
 
     stub(Pulse, :analytics, fn _, _, signal, _ ->
       send(test, {:refreshing, self()})
@@ -160,18 +217,19 @@ defmodule TuistWeb.PulseLiveTest do
     end)
 
     send(view.pid, :refresh)
-    worker = receive(do: ({:refreshing, pid} -> pid))
+    # The trace widgets and their p95 duration refresh as two loads.
+    workers = for _ <- 1..2, do: receive(do: ({:refreshing, pid} -> pid))
     assert has_element?(view, "#pulse-analytics[data-state='refreshing'] #pulse-chart")
     assert has_element?(view, "#pulse-table", "server")
     # A second refresh while the first is in flight must not restart the load:
-    # a restart would cancel `worker` and block forever, so the analytics would
+    # a restart would cancel `workers` and block forever, so the analytics would
     # never reach the ready state asserted below.
     send(view.pid, :refresh)
     render(view)
     view |> element("[phx-value-widget='duration_p95']") |> render_click()
     assert has_element?(view, "#pulse-analytics[data-widget='duration_p95'] #pulse-chart")
-    send(worker, :continue)
-    await_exit(worker)
+    for worker <- workers, do: send(worker, :continue)
+    Enum.each(workers, &await_exit/1)
     render(view)
     assert has_element?(view, "#pulse-analytics[data-state='ready'][data-widget='duration_p95']")
   end

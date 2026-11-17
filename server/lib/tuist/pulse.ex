@@ -40,6 +40,7 @@ defmodule Tuist.Pulse do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.KeyValueStore
   alias Tuist.Pulse.Errors
   alias Tuist.Pulse.Explore
   alias Tuist.Pulse.SQL
@@ -177,22 +178,25 @@ defmodule Tuist.Pulse do
   defp issue_params(_fingerprint, _params, _keys), do: {:error, :invalid_params}
 
   @doc """
-  Fixed aggregate widgets, independent of the table query. Only string-keyed
-  `range` is accepted. Values are end-of-window gauges for metrics and full-window
+  Fixed aggregate widgets, independent of the table query. String-keyed `range`
+  and `widgets`, a nonempty subset of the signal's widget ids (default all), are
+  accepted. Values are end-of-window gauges for metrics and full-window
   aggregates for other signals. Points use Unix seconds; duration is milliseconds.
   Each widget's `previous_value` uses the same query over the preceding equal
   window (the gauge at the current window's start for metrics). Missing values
   remain nil, independently in each period; only the current period has points.
 
-  One snapshot is aligned down to the chart step (at most 240 seconds). Log and
+  One snapshot is aligned down to the chart step (at most 240 seconds), and each
+  node reuses it until the window advances by a step. Log and
   error charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
-  at most 360 points. Full-window totals are independent queries, never sums of
-  chart buckets. Trace counts are spans, not traces. Duration quantiles are
+  at most 360 points. Count totals are the sums of their period's buckets, which
+  partition the window exactly; other totals, such as quantiles and distinct
+  services, are independent queries. Trace counts are spans, not traces. Duration quantiles are
   approximate.
   """
   def analytics(user, account, signal, params) do
     with true <- authorized?(user, account),
-         {:ok, seconds} <- analytics_range(signal, params),
+         {:ok, seconds, ids} <- analytics_params(signal, params),
          {:ok, client} <- credentials() do
       step = if signal in ~w(logs errors), do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
       now = DateTime.to_unix(DateTime.utc_now(), :second)
@@ -200,13 +204,29 @@ defmodule Tuist.Pulse do
       window = %{start: finish - seconds, finish: finish, seconds: seconds, step: step}
       previous_window = %{window | start: window.start - seconds, finish: window.start}
 
-      widgets = widget_queries(signal)
+      # A duration's gaps come from the span counts of the same buckets.
+      computed = if "duration_p95" in ids, do: ["spans" | ids], else: ids
+      widgets = Enum.filter(widget_queries(signal), &(elem(&1, 0) in computed))
 
-      signal
-      |> analytics_tasks(widgets, client, window, previous_window)
-      |> Tasks.parallel_tasks(max_concurrency: 3)
-      |> widget_results(signal, widgets, window)
-      |> analytics_widgets(signal)
+      # A window advances by its step (up to 240 seconds), and every refresh and
+      # viewer of it on a node shares one computation. Telemetry for the newest
+      # bucket can still be arriving when the window is first computed, so the
+      # result is kept for at most the dashboard's 15-second refresh, which
+      # recomputes it as the old refresh did.
+      KeyValueStore.get_or_update(
+        [__MODULE__, :analytics, account.id, signal, seconds, finish | ids],
+        [ttl: to_timeout(second: min(step, 15)), cache_errors: false],
+        fn ->
+          with {:ok, analytics} <-
+                 signal
+                 |> analytics_tasks(widgets, client, window, previous_window)
+                 |> Tasks.parallel_tasks(max_concurrency: 3)
+                 |> widget_results(signal, widgets, window)
+                 |> analytics_widgets(signal) do
+            {:ok, %{analytics | widgets: Enum.filter(analytics.widgets, &(&1.id in ids))}}
+          end
+        end
+      )
     else
       false -> {:error, :forbidden}
       error -> error
@@ -218,12 +238,20 @@ defmodule Tuist.Pulse do
   end
 
   # One SQL query per period computes every widget, so each window is scanned
-  # once instead of once per widget, and all periods run concurrently.
+  # once instead of once per widget, and all periods run concurrently. Counts
+  # need only one scan of both periods (`SQL.periods/5`).
   defp analytics_tasks(signal, widgets, client, window, previous_window) do
     ids = Enum.map(widgets, &elem(&1, 0))
+    request = &request(client, "/v1/sql", &1)
 
+    if SQL.counts?(signal, ids),
+      do: [fn -> SQL.periods(signal, ids, window, previous_window, request) end],
+      else: aggregate_tasks(signal, ids, window, previous_window, request)
+  end
+
+  defp aggregate_tasks(signal, ids, window, previous_window, request) do
     Enum.map([{:instant, window}, {:range, window}, {:instant, previous_window}], fn {mode, window} ->
-      fn -> SQL.aggregate(signal, ids, mode, window, &request(client, "/v1/sql", &1)) end
+      fn -> SQL.aggregate(signal, ids, mode, window, request) end
     end)
   end
 
@@ -249,6 +277,9 @@ defmodule Tuist.Pulse do
       ]
     end)
   end
+
+  defp widget_results([{:ok, current, points, previous}], signal, widgets, window),
+    do: widget_results([{:ok, current, []}, {:ok, points, []}, {:ok, previous, []}], signal, widgets, window)
 
   defp widget_results(results, _signal, _widgets, _window), do: Enum.filter(results, &match?({:error, _}, &1))
 
@@ -327,15 +358,18 @@ defmodule Tuist.Pulse do
 
   defp value_count(_point, _window), do: :error
 
-  defp analytics_range(signal, params) when signal in @signals and is_map(params) do
+  defp analytics_params(signal, params) when signal in @signals and is_map(params) do
     range = Map.get(params, "range", "1h")
+    available = Enum.map(widget_queries(signal), &elem(&1, 0))
+    ids = Map.get(params, "widgets", available)
 
-    if Enum.all?(Map.keys(params), &(&1 == "range")) and is_binary(range) and Map.has_key?(@ranges, range),
-      do: {:ok, Map.fetch!(@ranges, range)},
-      else: {:error, :invalid_params}
+    if Enum.all?(Map.keys(params), &(&1 in ~w(range widgets))) and is_binary(range) and Map.has_key?(@ranges, range) and
+         is_list(ids) and ids != [] and Enum.all?(ids, &(&1 in available)),
+       do: {:ok, Map.fetch!(@ranges, range), ids},
+       else: {:error, :invalid_params}
   end
 
-  defp analytics_range(_signal, _params), do: {:error, :invalid_params}
+  defp analytics_params(_signal, _params), do: {:error, :invalid_params}
 
   defp widget_queries("metrics"), do: Enum.map(@metric_widgets, &{elem(&1, 0), :count})
 
@@ -380,7 +414,17 @@ defmodule Tuist.Pulse do
   defp scale(nil, _factor), do: nil
   defp scale(number, factor), do: number * factor
 
-  defp trace_duration_gaps([spans, errors, duration]) do
+  defp trace_duration_gaps(widgets) do
+    case {Enum.find(widgets, &(&1.id == "spans")), Enum.find(widgets, &(&1.id == "duration_p95"))} do
+      {%{} = spans, %{} = duration} ->
+        Enum.map(widgets, &if(&1.id == "duration_p95", do: duration_gaps(spans, duration), else: &1))
+
+      _ ->
+        widgets
+    end
+  end
+
+  defp duration_gaps(spans, duration) do
     counts = Map.new(spans.points, fn [timestamp, count] -> {timestamp, count} end)
 
     points =
@@ -390,7 +434,7 @@ defmodule Tuist.Pulse do
 
     value = if is_number(spans.value) and spans.value > 0, do: duration.value
     previous_value = if is_number(spans.previous_value) and spans.previous_value > 0, do: duration.previous_value
-    [spans, errors, %{duration | value: value, previous_value: previous_value, points: points}]
+    %{duration | value: value, previous_value: previous_value, points: points}
   end
 
   defp credentials do

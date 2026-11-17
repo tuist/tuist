@@ -20,7 +20,12 @@ defmodule TuistWeb.PulseLive do
     authorize!(socket)
     if connected?(socket), do: Process.send_after(self(), :refresh, @refresh_interval)
 
-    {:ok, assign(socket, telemetry: AsyncResult.loading(), analytics: AsyncResult.loading())}
+    {:ok,
+     assign(socket,
+       telemetry: AsyncResult.loading(),
+       analytics: AsyncResult.loading(),
+       duration: AsyncResult.loading()
+     )}
   end
 
   def handle_params(params, uri, socket) do
@@ -186,18 +191,27 @@ defmodule TuistWeb.PulseLive do
     signal = socket.assigns.signal
     params = socket.assigns.params
 
+    analytics = Map.take(params, ~w(range))
+
+    # The p95 duration costs more than every other trace widget together, so it
+    # loads on its own and the rest of the card does not wait for it.
+    loads =
+      if signal == "traces",
+        do: [
+          {:analytics, :analytics, Map.put(analytics, "widgets", ~w(spans errors))},
+          {:duration, :analytics, Map.put(analytics, "widgets", ~w(duration_p95))}
+        ],
+        else: [{:analytics, :analytics, analytics}]
+
     Enum.reduce(
-      [
-        {:telemetry, :query, table_inputs(socket.assigns)},
-        {:analytics, :analytics, Map.take(params, ~w(range))}
-      ],
+      [{:telemetry, :query, table_inputs(socket.assigns)} | loads],
       socket,
       fn {key, function, inputs}, socket ->
         load_key = {signal, inputs}
         previous = socket.assigns[:load_keys][key]
         result = socket.assigns[key]
 
-        refresh? = force && (key == :analytics || live_table?(socket.assigns))
+        refresh? = force && (key != :telemetry || live_table?(socket.assigns))
 
         if reload?(socket, previous, load_key, result, refresh?) do
           socket
@@ -258,7 +272,6 @@ defmodule TuistWeb.PulseLive do
         </.dropdown>
       </div>
       <.async_card
-        :let={ready?}
         id="pulse-analytics"
         results={[@analytics]}
         title={dgettext("dashboard", "Analytics")}
@@ -273,10 +286,16 @@ defmodule TuistWeb.PulseLive do
             id={"pulse-widget-#{widget.id}"}
             title={widget.title}
             description={widget.description}
-            loading={!ready?}
-            value={if ready?, do: widget_value(metric(@analytics.result, widget.id))}
-            trend_value={if ready?, do: trend(metric(@analytics.result, widget.id))}
-            trend_value_label={if ready?, do: trend_value_label(metric(@analytics.result, widget.id))}
+            loading={widget_loading?(assigns, widget.id)}
+            value={
+              cond do
+                metric = metric(assigns, widget.id) -> widget_value(metric)
+                widget_result(assigns, widget.id).failed -> dgettext("dashboard_pulse", "Unavailable")
+                true -> nil
+              end
+            }
+            trend_value={if metric = metric(assigns, widget.id), do: trend(metric)}
+            trend_value_label={if metric = metric(assigns, widget.id), do: trend_value_label(metric)}
             trend_type={trend_type(@signal, widget.id)}
             trend_label={trend_label(@params["range"])}
             selected={@widget.id == widget.id}
@@ -299,38 +318,48 @@ defmodule TuistWeb.PulseLive do
               uri={@uri}
             />
           </div>
-          <.skeleton_chart :if={!ready?} height="200px" />
-          <%= if ready? do %>
-            <p :for={warning <- @analytics.result.warnings} data-part="warning" role="status">
-              {warning}
-            </p>
-            <%= if chart_available?(metric(@analytics.result, @widget.id)) do %>
-              <p :if={@widget.id == "duration_p95"} data-part="chart-description">
-                {dgettext(
-                  "dashboard_pulse",
-                  "Each point is the p95 span duration for one interval, not an individual span."
-                )}
-              </p>
-              <.chart
-                id="pulse-chart"
-                type={@chart_type}
-                series={chart_series(metric(@analytics.result, @widget.id), @widget, @chart_type)}
-                labels={[]}
-                extra_options={chart_options(@widget, @chart_type)}
-              />
-            <% else %>
-              <.empty_card_section
-                id="pulse-chart-empty"
-                title={dgettext("dashboard_pulse", "No measurements in this period")}
-                data-part="analytics-chart-empty"
+          <.async_section
+            :let={ready?}
+            results={[widget_result(assigns, @widget.id)]}
+            chart_frame="cache"
+          >
+            <.skeleton_chart :if={!ready?} height="200px" />
+            <%= if ready? do %>
+              <p
+                :for={warning <- widget_result(assigns, @widget.id).result.warnings}
+                data-part="warning"
+                role="status"
               >
-                <:image>
-                  <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" />
-                  <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" />
-                </:image>
-              </.empty_card_section>
+                {warning}
+              </p>
+              <%= if chart_available?(metric(assigns, @widget.id)) do %>
+                <p :if={@widget.id == "duration_p95"} data-part="chart-description">
+                  {dgettext(
+                    "dashboard_pulse",
+                    "Each point is the p95 span duration for one interval, not an individual span."
+                  )}
+                </p>
+                <.chart
+                  id="pulse-chart"
+                  type={@chart_type}
+                  series={chart_series(metric(assigns, @widget.id), @widget, @chart_type)}
+                  labels={[]}
+                  extra_options={chart_options(@widget, @chart_type)}
+                />
+              <% else %>
+                <.empty_card_section
+                  id="pulse-chart-empty"
+                  title={dgettext("dashboard_pulse", "No measurements in this period")}
+                  data-part="analytics-chart-empty"
+                >
+                  <:image>
+                    <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" />
+                    <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" />
+                  </:image>
+                </.empty_card_section>
+              <% end %>
             <% end %>
-          <% end %>
+          </.async_section>
         </.card_section>
       </.async_card>
       <.card
@@ -570,7 +599,19 @@ defmodule TuistWeb.PulseLive do
     """
   end
 
-  defp metric(analytics, id), do: Enum.find(analytics.widgets, &(&1.id == id))
+  defp widget_result(%{signal: "traces"} = assigns, "duration_p95"), do: assigns.duration
+  defp widget_result(assigns, _id), do: assigns.analytics
+
+  defp widget_loading?(assigns, id) do
+    result = widget_result(assigns, id)
+    !result.ok? and !result.failed
+  end
+
+  defp metric(assigns, id) do
+    result = widget_result(assigns, id)
+    if result.ok?, do: Enum.find(result.result.widgets, &(&1.id == id))
+  end
+
   defp widget_value(%{value: nil}), do: dgettext("dashboard", "No data")
   defp widget_value(%{value: value, unit: :milliseconds}), do: "#{format_number(value, fractional_digits: 1)} ms"
   defp widget_value(%{value: value}), do: format_number(value, fractional_digits: 0)
