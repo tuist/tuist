@@ -63,13 +63,25 @@ start_probe
 
 # Physical regions only: region_peers also lists every metric-engine logical
 # table under its physical table's route, with region IDs that do not exist.
+# Fails rather than printing nothing when the query fails: listing the
+# catalog's tables can time out against metasrv while datanodes restart, and
+# an empty answer would read as "nothing to drain".
 leaders() {
-  sql "SELECT p.region_id FROM information_schema.region_peers p
-    JOIN information_schema.tables t ON p.table_catalog = t.table_catalog
-      AND p.table_schema = t.table_schema AND p.table_name = t.table_name
-    WHERE p.is_leader = 'Yes' AND p.peer_id = $1
-      AND t.create_options NOT LIKE '%on_physical_table=%'
-    ORDER BY p.region_id" | jq -r '.[0]'
+  local rows attempt
+  for attempt in 1 2 3 4 5; do
+    if rows=$(sql "SELECT p.region_id FROM information_schema.region_peers p
+      JOIN information_schema.tables t ON p.table_catalog = t.table_catalog
+        AND p.table_schema = t.table_schema AND p.table_name = t.table_name
+      WHERE p.is_leader = 'Yes' AND p.peer_id = $1
+        AND t.create_options NOT LIKE '%on_physical_table=%'
+      ORDER BY p.region_id"); then
+      jq -r '.[0]' <<< "$rows"
+      return 0
+    fi
+    sleep $((attempt * 5))
+  done
+  echo "::error::Could not list datanode $1's leader regions." >&2
+  return 1
 }
 leader_of() {
   sql "SELECT peer_id FROM information_schema.region_peers
@@ -181,7 +193,9 @@ for ordinal in "${stale[@]}"; do
   for ((other = 0; other < replicas; other++)); do
     [[ "$other" -ne "$ordinal" ]] && targets+=("$other")
   done
-  mapfile -t regions < <(leaders "$ordinal")
+  list=$(leaders "$ordinal")
+  regions=()
+  [[ -z "$list" ]] || mapfile -t regions <<< "$list"
   echo "Draining datanode $ordinal: ${#regions[@]} leader regions."
   moved=()
   for index in "${!regions[@]}"; do
@@ -189,7 +203,8 @@ for ordinal in "${stale[@]}"; do
     migrate "${regions[$index]}" "$ordinal" "$target"
     moved+=("${regions[$index]}:$target")
   done
-  left=$(leaders "$ordinal" | wc -l | tr -d ' ')
+  list=$(leaders "$ordinal")
+  left=$(grep -c . <<< "$list" || true)
   if [[ "$left" -ne 0 ]]; then
     echo "::error::Datanode $ordinal still leads $left regions; not restarting it."
     exit 1
