@@ -12,6 +12,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
@@ -442,7 +443,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   end
 
   describe "authorization" do
-    test "forbids a user who is not an admin of the account", %{conn: conn, account: account} do
+    test "forbids a user outside the account", %{conn: conn, account: account} do
       other_user = AccountsFixtures.user_fixture()
 
       response =
@@ -607,7 +608,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert %{"id" => id, "state" => "paused"} =
                conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
 
-      assert_enqueued(worker: Tuist.Sandboxes.Workers.ArchiveSandboxesWorker, args: %{sandbox_id: id})
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: id})
 
       assert conn
              |> post(~p"/api/accounts/#{account.name}/sandboxes/#{running.id}/archive")
@@ -925,20 +926,34 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> json_response(:not_found)
     end
 
-    test "a member cannot use an agent's sandbox or admin-only routes", %{conn: conn} do
+    test "a member uses an agent's sandbox, analytics and archiving, but not agent environments", %{conn: conn} do
       {conn, account} = member_conn(conn, :user)
       environment = agent_environment_fixture(account: account)
 
       sandbox =
         sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
 
-      reject(&Nodes.call/4)
+      paused =
+        sandbox_fixture(
+          account: account,
+          state: :paused,
+          paused_at: DateTime.utc_now(),
+          agent_environment_id: environment.id
+        )
 
-      conn
-      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
-      |> json_response(:forbidden)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
 
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:forbidden)
+      assert %{"status" => "running"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
+               |> json_response(:accepted)
+
+      assert %{"id" => paused_id} =
+               conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
+
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: paused_id})
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
     end
 
     test "a viewer cannot run commands", %{conn: conn} do
@@ -991,7 +1006,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert Repo.get(Sandbox, id) == nil
     end
 
-    test "an account token with the sandboxes write scope cannot use an agent's sandbox or admin-only routes", %{
+    test "an account token with the sandboxes write scope uses an agent's sandbox, but not agent environments", %{
       account: account
     } do
       conn = token_conn(account, ["account:sandboxes:write"])
@@ -1000,16 +1015,12 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       sandbox =
         sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
 
+      id = sandbox.id
       reject(&Nodes.call/4)
 
-      conn
-      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/exec", %{command: "env"})
-      |> json_response(:forbidden)
-
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}") |> json_response(:forbidden)
-      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:forbidden)
+      assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
-      conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/archive") |> json_response(:forbidden)
     end
 
     test "a member creates an upload, which is deleted once its URLs expire", %{conn: conn} do

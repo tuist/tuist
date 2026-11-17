@@ -60,7 +60,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
       }
     end
 
-    test "lists, gets and deletes sandboxes they could have created", %{account: account, conn: conn} do
+    test "lists, gets and deletes sandboxes", %{account: account, conn: conn} do
       sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
       id = sandbox.id
 
@@ -76,7 +76,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
                DeleteSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => id})
     end
 
-    test "cannot reach an agent's sandbox, analytics or archiving", %{account: account, conn: conn} do
+    test "reaches an agent's sandbox, analytics and archiving", %{account: account, conn: conn} do
       environment = agent_environment_fixture(account: account)
 
       sandbox =
@@ -87,17 +87,17 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
           agent_environment_id: environment.id
         )
 
+      id = sandbox.id
       reject(&Nodes.call/4)
 
-      for tool <- [GetSandbox, DeleteSandbox, ArchiveSandbox] do
-        assert %{"isError" => true, "content" => [%{"text" => text}]} =
-                 tool.call(conn, %{"account_handle" => account.name, "sandbox_id" => sandbox.id})
+      assert %{"structuredContent" => %{"id" => ^id}} =
+               GetSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => id})
 
-        assert text =~ "administrators" or text =~ "do not have access"
-      end
+      assert %{"structuredContent" => %{"id" => ^id, "state" => "paused"}} =
+               ArchiveSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => id})
 
-      assert %{"isError" => true} = GetSandboxAnalytics.call(conn, %{"account_handle" => account.name})
-      assert Repo.get(Sandbox, sandbox.id)
+      assert %{"structuredContent" => %{"bucket" => "day"}} =
+               GetSandboxAnalytics.call(conn, %{"account_handle" => account.name})
     end
 
     test "a viewer can't use sandboxes", %{account: account, viewer_conn: conn} do

@@ -21,14 +21,12 @@ defmodule TuistWeb.API.SandboxesController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Members, and account tokens with `account:sandboxes:write`, create
-  # sandboxes and run commands in them (`:sandboxes_write`). Sandboxes that
-  # serve an agent environment, an Amp integration or remote execution hold
-  # credentials or other people's work, so only admins reach
-  # those, and everything else (agent environments, Orb dispatch, analytics,
-  # archive) stays admin-only.
+  # Members, and account tokens with `account:sandboxes:write`, use every
+  # sandbox in the account (`:sandboxes_write`). Agent environments, which
+  # hold Anthropic credentials, and Orb dispatch stay admin-only.
   @member_actions [
     :index,
+    :analytics,
     :create,
     :show,
     :exec,
@@ -41,13 +39,13 @@ defmodule TuistWeb.API.SandboxesController do
     :create_upload,
     :pause,
     :resume,
-    :delete
+    :delete,
+    :archive
   ]
 
   plug AuthorizationPlug, {:account, :sandboxes, :write} when action in @member_actions
   plug AuthorizationPlug, {:account, :account, :update} when action not in @member_actions
   plug(TuistWeb.Plugs.RequireSandboxesPlug)
-  plug :require_member_sandbox when action in @member_actions
 
   tags ["Sandboxes"]
 
@@ -1039,26 +1037,6 @@ defmodule TuistWeb.API.SandboxesController do
   end
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
-
-  # A member reaches only the sandboxes they could have created: none that
-  # serves an agent environment, an Amp integration or remote execution. An
-  # account token is never an account administrator, so it is held to the
-  # same limit.
-  defp require_member_sandbox(%{assigns: %{selected_account: account}} = conn, _opts) do
-    subject = TuistWeb.Authentication.authenticated_subject(conn)
-
-    with %{sandbox_id: sandbox_id} <- conn.params,
-         false <- Tuist.Authorization.authorize(:account_update, subject, account) == :ok,
-         {:ok, sandbox} <- Sandboxes.get_sandbox(account, sandbox_id),
-         false <- Sandboxes.member_sandbox?(sandbox) do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{message: "Only account administrators can use sandboxes that serve agents, Amp or remote execution."})
-      |> halt()
-    else
-      _ -> conn
-    end
-  end
 
   # Every sandbox 503 comes after the server has already waited for a node or
   # for capacity, so an immediate retry only repeats that wait. The hint is

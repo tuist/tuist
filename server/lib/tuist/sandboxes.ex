@@ -507,9 +507,11 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
-  Whether an account member who isn't an administrator may use the sandbox:
-  one that serves no agent environment, Amp integration, provider environment
-  or remote execution, since those hold credentials or other people's work.
+  Whether the sandbox is a plain one that serves no agent environment, Amp
+  integration, provider environment or remote execution. Those bring their
+  own identity, so only plain sandboxes get per-command Tuist credentials
+  (`Tuist.Sandboxes.CommandCredentials`). Every account member may use any
+  sandbox either way.
   """
   def member_sandbox?(%Sandbox{} = sandbox),
     do:

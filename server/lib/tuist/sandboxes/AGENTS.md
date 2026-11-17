@@ -672,16 +672,16 @@ socket, the poller and the caller share a replica:
   ids, model and system prompt; agent environments are serialized with
   `federation_issuer_url` and `federation_subject`; sandboxes, exec,
   commands, pause/resume/delete). Members and account tokens with
-  `account:sandboxes:write` (`:sandboxes_write`) reach sandboxes, exec and
-  commands, but only on
-  sandboxes without an agent environment, Amp integration, provider
-  environment or remote-execution purpose (`Sandboxes.member_sandbox?/1`);
-  everything else is admin-only. The MCP sandbox tools apply the same rule.
+  `account:sandboxes:write` (`:sandboxes_write`) reach every sandbox action
+  (list, show, analytics, create, exec, commands, uploads, pause, resume,
+  archive, delete) on every sandbox in the account, including ones that serve
+  an integration. Agent environments, which hold Anthropic credentials, and
+  Orb dispatch stay admin-only. The MCP sandbox tools apply the same rule.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
   `:sandboxes_read` allows the user; the sidebar entry uses the same gate.
-  Pause, resume, archive and delete require `:sandboxes_update` (admins), are
+  Pause, resume, archive and delete require `:sandboxes_update` (members), are
   rechecked per event and run in `start_async`, since node commands block.
   Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
   and Amp Orbs are not resumed or restored from the dashboard (Amp does it).
