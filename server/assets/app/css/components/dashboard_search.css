@@ -3,7 +3,7 @@
   align-items: center;
   gap: var(--noora-spacing-3);
   cursor: pointer;
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border: 0;
   border-radius: var(--noora-radius-3);
   background: var(--noora-surface-background-primary);
@@ -19,7 +19,7 @@
   }
   & kbd {
     margin-inline-start: auto;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     padding: 0 var(--noora-spacing-2);
     font: inherit;
@@ -32,7 +32,7 @@
   &:active,
   &:focus-visible {
     outline: none;
-    box-shadow: var(--noora-border-light-focus);
+    box-shadow: var(--noora-border-small-focus);
   }
 }
 
@@ -124,7 +124,7 @@
       height: 20px;
     }
     &:hover {
-      background: var(--noora-button-neutral-background-hover);
+      background: var(--noora-button-ghost-secondary-hover);
       color: var(--noora-surface-label-primary);
     }
   }

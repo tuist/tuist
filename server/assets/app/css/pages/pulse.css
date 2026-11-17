@@ -350,7 +350,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-4);
     padding: var(--noora-spacing-5);
     min-width: 0;
@@ -427,7 +427,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--noora-spacing-4);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-4);
     padding: var(--noora-spacing-4);
   }
