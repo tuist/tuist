@@ -8,6 +8,7 @@ defmodule TuistWeb.ThreadsSocket do
 
   channel "threads:*", TuistWeb.ThreadsChannel
   channel "jams:*", TuistWeb.ThreadsChannel
+  channel "presence:*", TuistWeb.PresenceChannel
 
   # Phoenix extracts this only from the bearer WebSocket subprotocol. Never
   # accept a credential in URL parameters, which are routinely logged.

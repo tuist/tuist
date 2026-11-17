@@ -962,6 +962,19 @@ defmodule TuistWeb.Router do
     end
   end
 
+  scope "/api/accounts/:account_handle/halls", TuistWeb.API do
+    pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
+
+    # Phoenix's dispatch logs include request params, including private messages.
+    get "/", HallsController, :index, log: false
+    post "/", HallsController, :create, log: false
+    get "/people", HallsController, :people, log: false
+    post "/directs", HallsController, :direct, log: false
+    get "/:id", HallsController, :show, log: false
+    post "/:id/messages", HallsController, :message, log: false
+    post "/:id/read", HallsController, :read, log: false
+  end
+
   # Sentry's envelope endpoint, which SDKs derive from a DSN ending in
   # /pulse/sentry/:service/:project_id.
   scope "/api/accounts/:account_handle/pulse/sentry", TuistWeb.API do

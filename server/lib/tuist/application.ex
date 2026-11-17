@@ -393,6 +393,7 @@ defmodule Tuist.Application do
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,
           Tuist.Threads.Clients,
+          Tuist.Halls.Presence,
           {DynamicSupervisor, name: Tuist.RemoteExecution.Schedulers, strategy: :one_for_one},
           {Task.Supervisor, name: Tuist.RemoteExecution.Tasks},
           Tuist.KeyValueStore.Invalidator,

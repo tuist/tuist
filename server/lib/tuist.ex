@@ -11,6 +11,8 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
+      Halls,
+      Halls.Presence,
       Threads,
       Threads.Thread,
       Threads.Clients,
