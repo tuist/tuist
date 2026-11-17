@@ -92,7 +92,7 @@ to Alerting:
 The 16 rules that read the `kura:*` recordings inline them instead, because
 Grafana writes recordings to `<url>/api/v1/write` and Pulse accepts remote
 write only at `/v1/prometheus/write` for the write-only `tuist` user. The four
-recordings still run on Grafana Cloud for its dashboards and stop with it.
+recordings were deleted on November 17, since no alert read them.
 Inlined, `topk by (...) (1, timestamp(kura:...))` compares evaluation times
 rather than sample times, which only differs while a pool changes region.
 
@@ -131,18 +131,24 @@ because Pulse's `absent_over_time` returns nothing for a missing series.
 
 ### Still on Grafana Cloud
 
-- The Cloud originals of split rules whose selectors still match series
-  outside Pulse (see above). On November 17 the 13 halves that matched no
-  series anywhere were deleted.
-- `Pulse datanode telemetry missing` and `Pulse rejecting scans for lack of
-  memory`, which must not depend on Pulse.
+- `Host NIC Carrier Flap` (`cfsogu69cr1fkc`), narrowed to `cluster=""`: the
+  cache VMs, which write only to Grafana Cloud. Management's nodes are
+  `cfsogu69cr1fkc-mgmt` on management's Pulse.
+- `Pulse rejecting scans for lack of memory` and the paused `Pulse datanode
+  telemetry missing`, until the `pulse-datanode` scrape reaches Pulse. Their
+  per-environment twins (`-prod`, `-stg`, `-can`) already read each
+  environment's Pulse; delete the Cloud originals once
+  `count(up{job="pulse-datanode"})` returns the datanodes there.
 - Long windows Pulse does not hold yet: `cfyi8f0lyqayof`, `dfygid92hevi8d` (3
   days) and `fg1c6ql650pvka` (7 days, also `label_replace(vector(...))`, which
   Pulse rejects).
 - Senders that write only to Grafana Cloud (the external cache VMs, Synthetic
   Monitoring) and the Grafana Cloud usage rules.
 
-On November 17 two rules left this list. `kura-thin-pool-metrics-missing` became
+On November 17 the Cloud halves of split rules whose selectors matched no
+series outside the three workload clusters over 7 days were deleted (13, then
+23 more), as were the four `kura:*` recording rules, which no alert read. Two
+rules also left this list. `kura-thin-pool-metrics-missing` became
 one rule per environment (`-stg` and `-can` copies), whose `unless` gets its
 label columns from a never-matching `or (READY < -1)` branch while Pulse
 images without the `and`/`unless` fix in `FORK.md` still run. `Kura - egress
@@ -225,8 +231,9 @@ rules stay on Grafana Cloud because their logs never reach Pulse: cache-nginx
 Nine log rules read Pulse SQL. Only production's Pulse serves SQL, so these
 target production. Three groups stay on Grafana Cloud Loki:
 
-- `CNPG Replication Link Break` (`cfsogt8cgh14wc`) groups by cluster across
-  environments, and staging and canary have no SQL source.
+- `CNPG Replication Link Break` (`cfsogt8cgh14wc`) for staging and canary,
+  which have no SQL source yet. Production's half is `cfsogt8cgh14wc-prod` on
+  Pulse SQL, and the Cloud rule excludes `k8s_cluster_name="tuist-production"`.
 - The 15 web-vitals rules (groups **Browser RUM quality** and **Web
   performance**): filtering every log line in `opentelemetry_logs` for
   Faro's overran Pulse's datanode scan memory and failed other reads, so they

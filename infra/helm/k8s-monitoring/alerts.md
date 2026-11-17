@@ -127,8 +127,11 @@ label that is not allow-listed). Going through the pool is what lets a node
 that hosts no cache pod count towards its region: one cache pod anywhere in the
 pool names the region, and every node of that pool inherits it.
 
-Create them under **Alerting → Recording rules**, folder `Alerts`, group
-`Kura Recording`, evaluated every minute. Each rule writes its result back to
+These recordings were deleted on November 17 when the alerts moved to Pulse,
+which cannot store Grafana recording rules; the alerts that need them inline
+these expressions (see `pulse-grafana.md`). The definitions below remain for
+reference. They ran under **Alerting → Recording rules**, folder `Alerts`,
+group `Kura Recording`, evaluated every minute. Each rule writes its result back to
 the metrics datasource and the next one reads it from there, so the chain
 settles over a few evaluation cycles rather than within one, and position
 inside the group does not order it. When extending the chain, create the new
