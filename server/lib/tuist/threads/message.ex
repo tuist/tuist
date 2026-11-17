@@ -12,6 +12,9 @@ defmodule Tuist.Threads.Message do
     field :tool_name, :string
     field :tool_state, :string
     field :suggestions, {:array, :string}, default: []
+    # A `card` message's NSH bundle and size class (`Tuist.Threads.Cards`).
+    field :card_size, :string
+    field :card_source, :string
     timestamps(type: :utc_datetime)
   end
 end

@@ -2158,6 +2158,17 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
   end
 
+  @doc """
+  The NSH command line (https://nsh.dev) that builds and checks the cards a
+  Thread's model writes (`Tuist.Threads.Cards`): `TUIST_NSH_PATH`, else `nsh`
+  on the `PATH`. The release image ships NSH's official release and
+  `mise install` installs it for development; without it the `show_ui` tool
+  is not offered.
+  """
+  def nsh_path do
+    System.get_env("TUIST_NSH_PATH") || System.find_executable("nsh")
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end

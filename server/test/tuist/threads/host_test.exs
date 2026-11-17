@@ -12,6 +12,7 @@ defmodule Tuist.Threads.HostTest do
   alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Threads
+  alias Tuist.Threads.Cards
   alias Tuist.Threads.Host
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
@@ -39,7 +40,88 @@ defmodule Tuist.Threads.HostTest do
   setup do
     stub(Provider, :validate_model, fn _, "chatgpt", "selected-model" -> :ok end)
     stub(MCPServers, :list, fn _ -> [] end)
+    # Whether `show_ui` is offered depends on the machine having NSH.
+    stub(Cards, :available?, fn -> false end)
     :ok
+  end
+
+  test "a card the model writes is checked, refused with what to fix, then shown before the reply" do
+    user = AccountsFixtures.user_fixture()
+    calls = start_supervised!({Agent, fn -> 0 end})
+    stub(Cards, :available?, fn -> true end)
+
+    stub(Cards, :build, fn
+      "<Card wide />", "medium" ->
+        {:error, "The card's content is 300 points tall at 320 points wide, but its frame is 240."}
+
+      "<Card />", "medium" ->
+        {:ok, "compiled card"}
+    end)
+
+    show = fn id, tsx ->
+      %{
+        id: id,
+        type: "function",
+        function: %{
+          name: "show_ui",
+          arguments: JSON.encode!(%{tsx: tsx, size: "medium", summary: "TuistKit is slowest."})
+        }
+      }
+    end
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(calls, &{&1, &1 + 1})
+      result = fn id -> Enum.find(request["messages"], &(&1["tool_call_id"] == id))["content"] end
+
+      message =
+        case turn do
+          0 ->
+            assert Enum.any?(request["tools"], &(&1["function"]["name"] == "show_ui"))
+            %{role: "assistant", content: nil, tool_calls: [show.("too-tall", "<Card wide />")]}
+
+          1 ->
+            assert result.("too-tall") =~ "its frame is 240"
+            %{role: "assistant", content: nil, tool_calls: [show.("fits", "<Card />")]}
+
+          2 ->
+            assert result.("fits") =~ "shown in the conversation"
+            %{role: "assistant", content: JSON.encode!(%{reply: "TuistKit misses the cache most.", suggestions: []})}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: if(turn < 2, do: "tool_calls", else: "stop")}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    assert {:ok, thread} = Threads.create(user, user.account, request("Which targets are slowest?"))
+    host_until_idle(thread.id)
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+
+    assert [card, reply] =
+             fresh |> Threads.serialize() |> Map.fetch!(:messages) |> Enum.filter(&(&1.role == "assistant"))
+
+    assert card.content == "TuistKit is slowest."
+    assert card.ui == %{size: "medium", source: "compiled card"}
+    assert reply.content == "TuistKit misses the cache most."
+    refute Map.has_key?(reply, :ui)
   end
 
   test "a hosted thread searches a large MCP catalog, calls its tool and persists its final reply" do

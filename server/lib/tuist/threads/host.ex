@@ -37,6 +37,7 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Repo
   alias Tuist.Threads
   alias Tuist.Threads.Agent
+  alias Tuist.Threads.Cards
   alias Tuist.Threads.MCP
   alias Tuist.Threads.Message
   alias Tuist.Threads.ModelFence
@@ -347,7 +348,49 @@ defmodule Tuist.Threads.Host do
         replay_safe: true
       )
 
-    if context, do: [naming | @repository_tools], else: [naming]
+    tools = if Cards.available?(), do: [naming, card(run)], else: [naming]
+    if context, do: tools ++ @repository_tools, else: tools
+  end
+
+  # Tuist Guild runs the card natively; other clients show its summary.
+  defp card(run) do
+    Condukt.tool(
+      name: "show_ui",
+      description: """
+      Show the person a small native card in the conversation, written as one TSX module for NSH (https://nsh.dev).
+      Use it sparingly: only when something visual explains your answer better than text, such as a comparison,
+      a chart, a timeline or a few numbers side by side. Most answers need no card; never use one for prose, code or
+      plain lists, and show at most one per answer.
+
+      The card fills a fixed frame: `compact` is 120, `medium` 240 and `tall` 400 points high, and it is 320 to 600
+      points wide. Give its root view `flex-1` and make the content fit the narrowest width. Import only from `nsh`
+      (View, Text, Scroll, mount, host) and `nsh/base`, style with Tailwind classes on the theme's tokens
+      (bg-card, text-card-foreground, text-muted-foreground, bg-muted, bg-primary, text-primary-foreground,
+      border-border) so it follows light and dark mode, and end with `mount(App)`. The card can't fetch data or open
+      links: put its data in the module. A pressable view may suggest the person's next message, which they send themselves, with
+      `if (host.available()) host.call("reply", text)`.
+
+      The server builds the card and opens it headless before showing it. When it doesn't compile, throws or doesn't
+      fit its frame, the call fails with what to fix. `summary` says what the card shows in one or two sentences, for
+      clients that can't run it.
+      """,
+      parameters:
+        schema(%{
+          tsx: %{type: "string", description: "The card's TSX module."},
+          size: %{type: "string", enum: Cards.sizes()},
+          summary: %{type: "string", maxLength: 2000}
+        }),
+      call: fn args, _ ->
+        summary = args["summary"]
+
+        with :ok <-
+               if(is_binary(summary) and String.trim(summary) != "", do: :ok, else: {:error, "Give the card a summary."}),
+             {:ok, source} <- Cards.build(args["tsx"], args["size"]) do
+          Threads.show_card(run, String.trim(summary), args["size"], source)
+        end
+      end,
+      replay_safe: true
+    )
   end
 
   defp schema(properties),

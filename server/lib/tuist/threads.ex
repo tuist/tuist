@@ -540,6 +540,28 @@ defmodule Tuist.Threads do
     end
   end
 
+  @doc """
+  Shows a card `Tuist.Threads.Cards` built as the run's next message: its
+  NSH `source` at `size`, and `summary` as its text where it can't run. A
+  resumed run showing the same card again finds it already shown.
+  """
+  def show_card(run, summary, size, source) do
+    with_attempt(run, fn thread, _ ->
+      %Message{position: since} = Repo.get!(Message, run.message_id)
+
+      shown =
+        from m in Message,
+          where:
+            m.thread_id == ^thread.id and m.kind == "card" and m.position > ^since and m.card_size == ^size and
+              m.card_source == ^source
+
+      if !Repo.exists?(shown),
+        do: append!(thread, %{kind: "card", body: summary, card_size: size, card_source: source})
+
+      "The card is shown in the conversation above your reply. Don't repeat what it shows."
+    end)
+  end
+
   def call_external_tool(run, invocation_id, name, args, dispatch) do
     # Condukt may admit a parallel batch. Contention must fail before reserving
     # an effect, not masquerade as an interrupted command that may have run.
@@ -905,6 +927,13 @@ defmodule Tuist.Threads do
         has_more: length(rows) > 50,
         next_before: if(length(rows) > 50, do: hd(messages).position)
     }
+  end
+
+  defp serialize_message(%Message{kind: "card"} = message) do
+    message
+    |> Map.put(:kind, "agent")
+    |> serialize_message()
+    |> Map.put(:ui, %{size: message.card_size, source: message.card_source})
   end
 
   defp serialize_message(message) do

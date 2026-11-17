@@ -412,6 +412,7 @@ defmodule Tuist.Application do
           TuistWeb.Draining,
           TuistWeb.Endpoint,
           {Task.Supervisor, name: Tuist.Threads.Tasks},
+          Tuist.Threads.Cards,
           {Oban, Application.fetch_env!(:tuist, Oban)}
         ] ++
         RuntimeChildren.agents(

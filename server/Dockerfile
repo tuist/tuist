@@ -8,6 +8,8 @@ ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:bookworm-20261027-slim"
 # redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
 ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
+# The loader and libraries the `nsh` stage copies into the runner come from it.
+ARG NSH_LIBS_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:trixie-20261104-slim"
 
 FROM scratch AS certificate-trust
 COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
@@ -25,6 +27,36 @@ RUN git init . && git remote add origin https://github.com/endevco/aube.git \
     && cargo update -p rustls-webpki --precise 0.103.16 \
     && cargo update -p webpki-roots --precise 1.0.10 \
     && cargo build --release --locked --bin aube
+
+# NSH's command line, which builds and checks the cards a Thread's model
+# writes (Tuist.Threads.Cards): the official release, checksum-pinned. NSH
+# publishes no signatures or attestations yet, so the pinned SHA-256 is what
+# stops a replaced asset. Keep the version and checksums with server/mise.lock
+# and the version with Tuist Guild's NSH SDK (guild/modules/nsh.star). It needs
+# glibc 2.39 and the runner is Bookworm (2.36), so it ships with Trixie's loader
+# and the three libraries it links, and `nsh` runs it through them; the rest of
+# the image keeps Bookworm's glibc. It starts no other programs, which would
+# miss them.
+FROM ${NSH_LIBS_IMAGE} AS nsh
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+  case "$TARGETARCH" in \
+    amd64) asset=nsh-linux-x86_64.tar.gz; sha=f34729e613196ca122d956deb543a92f319e053ff17dfc09ba04a6ec2fb79c74; loader=/lib64/ld-linux-x86-64.so.2; libs=/lib/x86_64-linux-gnu ;; \
+    arm64) asset=nsh-linux-arm64.tar.gz; sha=6f182e61ce68115b99d29a096f4a935bf3e7aa2733cdf9f135274ccec00dfef6; loader=/lib/ld-linux-aarch64.so.1; libs=/lib/aarch64-linux-gnu ;; \
+    *) echo "NSH has no Linux release for $TARGETARCH" >&2; exit 1 ;; \
+  esac; \
+  curl -fsSL "https://github.com/longbridge/nsh/releases/download/v0.5.1/$asset" -o /tmp/nsh.tar.gz; \
+  echo "$sha  /tmp/nsh.tar.gz" | sha256sum -c -; \
+  mkdir -p /opt/nsh/bin /opt/nsh/lib; \
+  tar -xzf /tmp/nsh.tar.gz -C /tmp nsh/bin/nsh; \
+  mv /tmp/nsh/bin/nsh /opt/nsh/bin/nsh; \
+  rm -rf /tmp/nsh /tmp/nsh.tar.gz; \
+  cp -L "$loader" /opt/nsh/lib/ld.so; \
+  for lib in libc.so.6 libm.so.6 libgcc_s.so.1; do cp -L "$libs/$lib" /opt/nsh/lib/; done; \
+  printf '#!/bin/sh\nexec /opt/nsh/lib/ld.so --library-path /opt/nsh/lib /opt/nsh/bin/nsh "$@"\n' > /opt/nsh/nsh; \
+  chmod +x /opt/nsh/nsh; \
+  /opt/nsh/nsh --version
 
 # ========================================
 # Stage: Swift parser builder
@@ -299,6 +331,9 @@ ENV TUIST_VERSION=$TUIST_VERSION
 # (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
 COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
+
+COPY --from=nsh /opt/nsh /opt/nsh
+RUN ln -s /opt/nsh/nsh /usr/local/bin/nsh
 
 # Release taken from release-with-parser so xcactivitylog-parser is already
 # under lib/tuist-<vsn>/priv/native where Tuist.Processor.XCActivityLogParser
