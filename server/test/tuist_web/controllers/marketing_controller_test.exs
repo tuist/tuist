@@ -747,6 +747,32 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /pricing" do
+    test "shares compute rates without rollout messaging or separate billing sections", %{conn: conn} do
+      html = conn |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+      compute = Floki.find(html, "#compute")
+
+      rates = compute |> Floki.find(".sr-only li") |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+      assert "2 vCPU · 4 GB: $0.002/min" in rates
+      assert "4 vCPU · 8 GB: $0.004/min" in rates
+      assert "8 vCPU · 16 GB: $0.008/min" in rates
+      assert Floki.find(html, "[data-part=re-rate]") == []
+      assert Floki.text(Floki.find(compute, "#pricing-compute-title")) =~ "Compute"
+
+      assert compute |> Floki.find("[data-platform=macos] [data-part=machine]") |> Floki.text() =~
+               "Runners only"
+
+      assert compute |> Floki.find("[data-platform=linux] [data-part=machine]") |> Floki.text() =~
+               "Runners and remote execution"
+
+      assert Floki.find(compute, "#pricing-runners-title, #pricing-re-title") == []
+      assert [_, _] = Floki.find(html, "a[href='#compute']")
+      assert Floki.text(compute) =~ "macOS rates apply to runners only"
+      refute Floki.text(html) =~ "early access"
+      refute Floki.text(html) =~ "Early access"
+      refute Floki.text(html) =~ "not billed yet"
+      refute Floki.text(compute) =~ "require access"
+    end
+
     test "shows usage-based pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
@@ -760,14 +786,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       refute html =~ "+ $0.5 per additional unit"
     end
 
-    test "shows Tuist Runners pricing", %{conn: conn} do
+    test "shows shared Compute pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
-      assert html =~ ~r/id="pricing-runners-title">\s*Tuist Runners\s*</
+      assert html =~ ~r/id="pricing-compute-title">\s*Compute\s*</
       assert html =~ "2 GB / vCPU"
       assert html =~ "4 GB / vCPU"
       # Every rate, as written, in the screen-reader list.
-      assert html =~ "All Tuist Runners machines and rates"
+      assert html =~ "All compute machines and rates"
       assert html =~ "1 vCPU · 2 GB: $0.001/min"
       assert html =~ "16 vCPU · 48 GB: $0.10/min"
       assert html =~ "8 vCPU · 24 GB"
@@ -783,9 +809,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "How are Tuist Runners billed?"
       refute html =~ "How Tuist Runners compare"
 
-      runners = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #runners")
-      assert [_] = runners
-      pricing = Floki.raw_html(runners)
+      compute = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #compute")
+      assert [_] = compute
+      pricing = Floki.raw_html(compute)
 
       for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
         refute pricing =~ provider

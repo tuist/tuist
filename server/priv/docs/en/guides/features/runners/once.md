@@ -9,6 +9,9 @@
 
 Shared caching avoids repeating work that another machine has already completed. Remote execution also moves eligible cache misses off your computer: Once schedules graph command actions on Tuist's single-use Linux workers and retrieves their outputs through the same project cache.
 
+> [!NOTE]
+> Remote execution is currently invite-only. [Contact us](mailto:contact@tuist.dev) to request access for your account.
+
 > [!IMPORTANT]
 > **Requirements**
 >

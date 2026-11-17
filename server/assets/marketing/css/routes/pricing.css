@@ -543,11 +543,12 @@
   }
 }
 
-/* Tuist Runners frame: per-platform machine tables, the allowance and
+/* Compute frame: shared per-platform rates, allowance and
    discount terms, and the access row. Same hairline grid as the plans
    frame above. */
 #marketing-pricing > section[data-part="pricing"] > [data-part="runners"] {
   padding-top: 0;
+  scroll-margin-top: 100px;
   /* Prices, specs and allowances line up digit for digit. Every `font`
      shorthand below resets the numeric variant, so each one restates it,
      and the Noora button groups get it here. */
@@ -691,7 +692,8 @@
         place-items: center;
         translate: calc(100% / 6) -50%;
         z-index: -1;
-        mask-image: linear-gradient(
+        mask-image:
+          linear-gradient(
             to right,
             transparent 17%,
             rgb(0 0 0 / 0.15) 27%,
