@@ -195,7 +195,11 @@ data source and model (`rawSql`, `format: table`). The windows are written into
 the SQL and match the LogQL ranges. Logs land in `opentelemetry_logs`: Loki
 labels are in the `resource_attributes` JSON, structured metadata such as `pod`
 in `log_attributes`, and the line in `body`, which the queries parse with
-regular expressions instead of `| logfmt` and `| json`. A quoted logfmt value
+regular expressions instead of `| logfmt` and `| json`. Faro's browser lines
+(`service_name="tuist-web"`) land in their own `tuist_web_logs` table instead,
+with a 30-day TTL set when Pulse creates it (`loki.write "pulse_web_logs"` in
+`values.yaml`), so the web-vitals queries read a few thousand lines a day
+rather than every cluster log. A quoted logfmt value
 containing a space yields only its first word; no rule reads such a field. Two
 rules stay on Grafana Cloud because their logs never reach Pulse: cache-nginx
 502 (the cache hosts) and Synthetic Monitoring's failed executions.
@@ -206,9 +210,11 @@ target production. Three groups stay on Grafana Cloud Loki:
 - `CNPG Replication Link Break` (`cfsogt8cgh14wc`) groups by cluster across
   environments, and staging and canary have no SQL source.
 - The 15 web-vitals rules (groups **Browser RUM quality** and **Web
-  performance**): their scans over every Faro line overran Pulse's datanode
-  scan memory and failed other reads, so they went back to Loki at a
-  one-minute interval.
+  performance**): filtering every log line in `opentelemetry_logs` for
+  Faro's overran Pulse's datanode scan memory and failed other reads, so they
+  went back to Loki at a one-minute interval. Their queries now read
+  `tuist_web_logs`; they move once that table holds the rules' longest
+  window, 24 hours, of lines.
 - Cache-nginx 502 and Synthetic Monitoring failures, whose logs never reach
   Pulse (above).
 

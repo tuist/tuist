@@ -2874,6 +2874,34 @@ k8s-monitoring:
           }
 
           output {
-            logs = [loki.write.grafana_cloud_logs.receiver{{ if hasKey .Values.destinations "pulse-logs" }}, loki.write.pulse_logs.receiver{{ end }}]
+            logs = [loki.write.grafana_cloud_logs.receiver{{ if hasKey .Values.destinations "pulse-logs" }}, loki.write.pulse_web_logs.receiver{{ end }}]
           }
         }
+        {{- if hasKey .Values.destinations "pulse-logs" }}
+
+        // Browser telemetry gets its own Pulse table rather than
+        // opentelemetry_logs: the web-vitals alert rules scan it every minute,
+        // and filtering a day of every cluster log for these few thousand lines
+        // exhausted the datanode's scan memory. The table is created on first
+        // write with a 30-day TTL, since its lines carry session IDs and URLs.
+        // Same endpoint, credentials and on-disk buffer as pulse_logs.
+        loki.write "pulse_web_logs" {
+          wal {
+            enabled = true
+            max_segment_age = "1h"
+          }
+          endpoint {
+            url = "http://pulse.observability.svc.cluster.local:4000/v1/loki/api/v1/push"
+            headers = {
+              "X-Pulse-DB-Name" = "public",
+              "X-Pulse-Pipeline-Name" = "loki_otlp",
+              "X-Pulse-Log-Table-Name" = "tuist_web_logs",
+              "X-Pulse-Hints" = "ttl=30d",
+            }
+            basic_auth {
+              username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])
+              password = remote.kubernetes.secret.pulse_logs.data["ingest-password"]
+            }
+          }
+        }
+        {{- end }}
