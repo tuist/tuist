@@ -43,7 +43,7 @@ defaults:
 
 jobs:
   staging-remote-execution:
-    name: Once staging qualification
+    name: Once production qualification
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -54,8 +54,7 @@ jobs:
       run:
         working-directory: .
     env:
-      TUIST_URL: https://staging.tuist.dev
-      ONCE_CACHE_PROVIDER: staging
+      ONCE_CACHE_PROVIDER: production
       MIX_HOME: /opt/mix
       MIX_REBAR3: /opt/mix/rebar3
       ERL_FLAGS: '+S 4:4'
@@ -76,7 +75,7 @@ jobs:
           echo /opt/elixir/bin >> "$GITHUB_PATH"
       - name: Install both published candidates
         run: |
-          for candidate in 7 8; do
+          for candidate in 8; do
             version="0.82.6-once-re.$candidate"
             archive="once-$version-x86_64-unknown-linux-gnu.tar.gz"
             case "$candidate" in
@@ -94,19 +93,18 @@ jobs:
         run: |
           cat >> once.toml <<'EOF'
 
-          [infrastructures.staging]
+          [infrastructures.production]
           kind = "tuist"
           account = "tuist"
-          project = "kura"
-          url = "https://staging.tuist.dev"
-          execution_image = "sha-4f5b165bf63c"
+          project = "atlas"
+          execution_image = "sha-75b269855aac"
 
           [infrastructure.execution]
-          provider = "staging"
+          provider = "production"
 
           [infrastructure.execution.properties.elixir]
           schema_version = 1
-          environment = "sha-4f5b165bf63c"
+          environment = "sha-75b269855aac"
           os = "linux"
           arch = "x86_64"
           elixir_bin = "/opt/elixir/bin"
@@ -118,7 +116,7 @@ jobs:
           cp once.toml "$RUNNER_TEMP/once-evidence/once.toml"
           nproc | tee "$RUNNER_TEMP/once-evidence/coordinator-cpus.txt"
           free -b > "$RUNNER_TEMP/once-evidence/coordinator-memory.txt"
-          once auth login --provider staging --no-browser
+          once auth login --provider production --no-browser
       - name: Materialize locked dependency sources
         working-directory: atlas
         run: mix deps.get --check-locked
@@ -126,12 +124,11 @@ jobs:
         run: |
           set -euo pipefail
           coordinator_path="$PATH"
-          for trial in 1 2 3; do
-            candidates="7 8"
-            if (( trial % 2 == 0 )); then candidates="8 7"; fi
+          for trial in 1; do
+            candidates="8"
             for candidate in $candidates; do
               export PATH="$RUNNER_TEMP/once-bin-$candidate:$coordinator_path"
-              token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$candidate"
+              token="once-production-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$candidate"
               evidence="$RUNNER_TEMP/once-evidence/candidate-$candidate/trial-$trial"
               mkdir -p "$evidence"
               once --version | tee "$evidence/version.txt"
@@ -140,7 +137,7 @@ jobs:
                 export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$candidate-$trial-$phase"
                 export XDG_STATE_HOME="$evidence/$phase-state"
                 /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
-                  once -vv build --remote --compute staging --config "token=$token" atlas/mix_application_test \
+                  once -vv build --remote --compute production --config "token=$token" atlas/mix_application_test \
                   2>&1 | tee "$evidence/$phase.log"
                 once --format json cache stats > "$evidence/$phase-cache-stats.json"
                 find .once/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
@@ -159,7 +156,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: once-staging-evidence
+          name: once-production-evidence
           path: ${{ runner.temp }}/once-evidence
 
   automation-contracts:
