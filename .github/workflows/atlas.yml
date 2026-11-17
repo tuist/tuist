@@ -1,6 +1,7 @@
 name: Atlas
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -41,8 +42,101 @@ defaults:
     working-directory: atlas
 
 jobs:
+  staging-remote-execution:
+    name: Once staging qualification
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: .
+    env:
+      TUIST_URL: https://staging.tuist.dev
+      ONCE_CACHE_PROVIDER: staging
+      MIX_HOME: /opt/mix
+      MIX_REBAR3: /opt/mix/rebar3
+      ERL_FLAGS: '+S 4:4'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned coordinator toolchain
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2t64 libssl-dev libncurses6 libtinfo6 cmake pkg-config build-essential
+          docker build --target elixir-toolchain -t once-elixir-toolchain -f infra/sandbox-image/Dockerfile infra/sandbox-image
+          container=$(docker create once-elixir-toolchain true)
+          trap 'docker rm "$container"' EXIT
+          sudo docker cp "$container:/opt/." /opt/
+          sudo chown -R "$(id -u):$(id -g)" /opt/mix
+          echo /opt/erlang/bin >> "$GITHUB_PATH"
+          echo /opt/elixir/bin >> "$GITHUB_PATH"
+      - name: Install the published candidate
+        run: |
+          archive=once-0.82.6-once-re.e3a949e8-x86_64-unknown-linux-gnu.tar.gz
+          curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/0.82.6-once-re.e3a949e8/$archive" -o "$RUNNER_TEMP/$archive"
+          echo "c51279f4d2aa2473cdd0ee63a3a3dc02c46e3e894af67d084232cb172fb11d1c  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/once-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/once-bin"
+          echo "$RUNNER_TEMP/once-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/once-bin/once" --version
+      - name: Configure staging without production credentials
+        run: |
+          cat >> once.toml <<'EOF'
+
+          [infrastructures.staging]
+          kind = "tuist"
+          account = "tuist"
+          project = "kura"
+          url = "https://staging.tuist.dev"
+          execution_image = "sha-4f5b165bf63c"
+
+          [infrastructure.execution]
+          provider = "staging"
+
+          [infrastructure.execution.properties.elixir]
+          schema_version = 1
+          environment = "sha-4f5b165bf63c"
+          os = "linux"
+          arch = "x86_64"
+          elixir_bin = "/opt/elixir/bin"
+          erlang_bin = "/opt/erlang/bin"
+          mix_home = "/opt/mix"
+          rebar3 = "/opt/mix/rebar3"
+          EOF
+          mkdir -p "$RUNNER_TEMP/once-evidence"
+          cp once.toml "$RUNNER_TEMP/once-evidence/once.toml"
+          nproc | tee "$RUNNER_TEMP/once-evidence/coordinator-cpus.txt"
+          free -b > "$RUNNER_TEMP/once-evidence/coordinator-memory.txt"
+          once auth login --provider staging --no-browser
+      - name: Materialize locked dependency sources
+        working-directory: atlas
+        run: mix deps.get --check-locked
+      - name: Exercise remote execution and remote-cache reuse
+        run: |
+          set -euo pipefail
+          token="once-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for phase in cold warm; do
+            rm -rf .once
+            export XDG_CACHE_HOME="$RUNNER_TEMP/once-cache-$phase"
+            export XDG_STATE_HOME="$RUNNER_TEMP/once-evidence/$phase-state"
+            /usr/bin/time -f '%e' -o "$RUNNER_TEMP/once-evidence/$phase-wall-seconds.txt" \
+              once -vv build --remote --compute staging --config "token=$token" atlas/mix_application_test \
+              2>&1 | tee "$RUNNER_TEMP/once-evidence/$phase.log"
+            once --format json cache stats > "$RUNNER_TEMP/once-evidence/$phase-cache-stats.json"
+          done
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: once-staging-evidence
+          path: ${{ runner.temp }}/once-evidence
+
   automation-contracts:
     name: Automation compatibility
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -69,6 +163,7 @@ jobs:
           elixir scripts/check_automation_contracts.exs "$previous"
 
   deployment:
+    if: github.event_name != 'workflow_dispatch'
     uses: ./.github/workflows/atlas-deployment-validation.yml
 
   # Build, lint, and test run through Once, which derives the graph from
@@ -76,6 +171,7 @@ jobs:
   # can't mint an OIDC token, so they fall back to the local cache.
   build:
     name: Build
+    if: github.event_name != 'workflow_dispatch'
     # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
     # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
     runs-on: ubuntu-24.04
@@ -319,6 +415,7 @@ jobs:
   # still happens in atlas-release.yml.
   image:
     name: Image
+    if: github.event_name != 'workflow_dispatch'
     # The Once Linux binary needs glibc 2.39, newer than the Ubuntu
     # 22.04 image behind tuist-linux. Move back once Once targets an older glibc.
     runs-on: ubuntu-24.04
@@ -365,6 +462,7 @@ jobs:
 
   inbox-worker:
     name: Inbox Worker
+    if: github.event_name != 'workflow_dispatch'
     runs-on: tuist-linux
     defaults:
       run:
