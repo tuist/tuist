@@ -824,6 +824,11 @@ registryCache:
 
 agents:
   enabled: true
+  # Off the processor pool, which has no memory to spare beside the processor:
+  # two 4Gi agents pods there left no node room for the processor's 10Gi surge
+  # pod, so every deploy timed out on it and rolled back.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
   # Two pods so a deploy or a node drain always leaves one to take the
   # drained sessions; memory adds up to six.
   autoscaling:
