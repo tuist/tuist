@@ -4,7 +4,7 @@
 # in the current kubectl context, through the same probe pod as the datanode
 # rollout, so the pilot login never reaches the runner.
 #
-#   pulse-metric-split.sh measure   rows per planned range over the last hour
+#   pulse-metric-split.sh measure   rows per planned range over the last 10 minutes
 #   pulse-metric-split.sh split     run the split, timing reads while it runs
 #   pulse-metric-split.sh rewrite   rewrite pre-split files, one day per call
 #   pulse-metric-split.sh status    partitions, regions and their placement
@@ -20,8 +20,14 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 source "$(dirname "${BASH_SOURCE[0]}")/pulse-probe.sh"
 
 table=pulse_physical_table
-# The plan's ranges, sized on production. Rows with no instance go to the first.
-bounds=('192.168.9' 'kura/' 'tuist-md-0' 'tuist-tuist-ovh-fleet-r' 'tuist-tuist-r')
+# Nine ranges, three per datanode, cut at production's row quantiles on
+# 2026-11-17 (10-13% each). Rows with no instance go to the first. Pod IPs,
+# Kura (one instance per customer and region) and fleet nodes each get several
+# ranges, so growth in any one spreads over regions the deploy's rebalance can
+# place apart; a range has to roughly triple relative to the rest before it
+# fills a datanode, which the rebalance step warns about.
+bounds=('192.168.3' '192.168.61' '192.168.98' 'kura/kura-b' 'kura/kura-k' 'kura/kura-r'
+  'tuist-md-0' 'tuist-tuist-ovh-fleet-s')
 
 if ! yq -e ".cluster.gc.environments | contains([\"$DEPLOY_ENV\"])" \
   "$repo_root/infra/helm/pulse/values.yaml" > /dev/null 2>&1; then
@@ -61,8 +67,9 @@ status() {
 measure() {
   local ranges
   ranges=$(printf '%s\n' "${bounds[@]}" | jq -R . | jq -sc .)
+  # Ten minutes: an hour of production's metric region exceeds the timeout.
   sql "SELECT instance, count(*) FROM $table
-       WHERE pulse_timestamp > now() - INTERVAL '1 hour' GROUP BY instance" |
+       WHERE pulse_timestamp > now() - INTERVAL '10 minutes' GROUP BY instance" |
     jq -rs --argjson b "$ranges" '
       def range: .[0] as $i | if $i == null then 0
         else ([$b[] | select(. <= $i)] | length) end;

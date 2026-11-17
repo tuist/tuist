@@ -21,7 +21,8 @@
 # datanode-0 led nothing while datanode-2 led the metric, logs and most trace
 # regions. While the fullest and emptiest datanode differ by more than a
 # quarter of the mean, it moves the fullest datanode's region closest to half
-# that gap to the emptiest one.
+# that gap to the emptiest one. It warns when one region alone holds more than
+# three quarters of a datanode's share, which moves can't fix.
 set -euo pipefail
 mode=${1:-rollout}
 if [[ "$mode" != rollout && "$mode" != rebalance ]]; then
@@ -175,6 +176,12 @@ if [[ "$mode" == rebalance ]]; then
     echo "::warning::Region statistics report no stored bytes; not rebalancing from them."
     exit 0
   fi
+  # Moves can't spread a region that alone holds most of one datanode's share;
+  # only splitting its table further can.
+  jq -s -r --argjson replicas "$replicas" '
+    (map(.[2]) | add) as $total | max_by(.[2]) as $largest
+    | select($largest[2] > $total / $replicas * 0.75)
+    | "::warning::Region \($largest[0]) (table \($largest[0] / 4294967296 | floor)) holds \($largest[2] * 100 / $total | floor)% of all stored bytes, too much for rebalancing to even out the \($replicas) datanodes; split its table further."' <<< "$rows"
   mapfile -t moves < <(plan_moves <<< "$rows")
   for move in "${moves[@]}"; do
     read -r region from to <<< "$move"
