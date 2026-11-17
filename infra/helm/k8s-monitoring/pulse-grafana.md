@@ -301,13 +301,6 @@ recovery. Queries with week-long offsets need that history or a validated
 backfill. The Pulse volume/cost replacement rules also need a prior-week baseline;
 they cannot replace Cloud usage alerts after one day of data. Monitor Pulse failure/no-data from outside Pulse's own failure domain.
 
-Stopping Cloud log ingestion also shortens the kubectl access trail outside
-production. Staging's and canary's Pulse keep seven days, against Cloud Loki's
-thirty, and Grafana has no SQL source for them, so their Pomerium logs (the only
-trail for staging writes; see `infra/AGENTS.md`, Forensic trail) would be short
-and readable only from inside the cluster. Decide whether to raise their TTL for
-the `pomerium` logs and add their SQL sources first.
-
 Only after acceptance, remove Cloud ingestion for all senders while preserving
 Pulse forwarding, labels, sampling and metric identity. Keep old data sources
 available for retained-history queries and rollback. Do not delete Cloud data,
