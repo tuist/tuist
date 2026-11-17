@@ -202,12 +202,19 @@ COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
-RUN --mount=type=bind,from=mix-cache,source=/_build,target=/mix-cache \
+# Colocated hooks and CSS (phoenix-colocated) are written only when their module
+# compiles, so restored project builds without them would drop those modules'
+# assets from the bundles. Snapshots without the folder are not restored.
+RUN --mount=type=bind,from=mix-cache,source=/,target=/mix-cache \
     mkdir -p "_build/${MIX_ENV}/lib" && \
-    cp -a /mix-cache/. "_build/${MIX_ENV}/lib/" && \
+    if [ -d /mix-cache/phoenix-colocated ]; then \
+      cp -a /mix-cache/_build/. "_build/${MIX_ENV}/lib/" && \
+      cp -a /mix-cache/phoenix-colocated "_build/${MIX_ENV}/phoenix-colocated"; \
+    fi && \
     mix compile --warnings-as-errors
 
-# Keep fetched dependencies layer-cached; retain only the four local projects.
+# Keep fetched dependencies layer-cached; retain only the four local projects
+# and their colocated assets.
 # Export before assets/release so the snapshot never contains an old release.
 FROM scratch AS mix-cache-export
 ARG MIX_ENV=prod
@@ -215,6 +222,7 @@ COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist/ /_build/tuist/
 COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_common/ /_build/tuist_common/
 COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_ex/ /_build/tuist_ex/
 COPY --from=compiled /app/_build/${MIX_ENV}/lib/noora/ /_build/noora/
+COPY --from=compiled /app/_build/${MIX_ENV}/phoenix-colocated/ /phoenix-colocated/
 
 FROM compiled AS builder
 
