@@ -233,6 +233,9 @@ The tuist chart's xcresult processor Deployment and PDB as the `tuist-xcresult-p
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
+### `linux-vm-foundations.md` — runners and sandboxes runtime decision
+Why Linux CI keeps Kata + QEMU while sandboxes keep Firecracker, what the two share (hosts, checkouts, placement, storage) and what converges next. Read it before changing either runtime or adding a prepared-image or disk format.
+
 ### `log-review.md` — periodic log review runbook
 The queries behind the review cadence in the Logging and monitoring policy, plus the
 record template. Four reconciliations: privileged cluster access against approved
