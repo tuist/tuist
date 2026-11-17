@@ -1129,7 +1129,9 @@ agents:
   # another pod resumes each from its stored journal; a pod that dies loses
   # its leases after 20 s and the same happens. When enabled, server pods
   # stop hosting sessions (TUIST_DELEGATE_AGENTS=1). Disabled by default:
-  # without these pods the server hosts sessions itself.
+  # without these pods the server hosts sessions itself, as it also does
+  # when server.cluster.enabled is false, since agents pods join the
+  # server's Erlang cluster.
   enabled: false
   # Ignored while autoscaling is enabled.
   replicaCount: 2

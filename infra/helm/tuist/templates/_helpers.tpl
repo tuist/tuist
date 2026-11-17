@@ -1813,3 +1813,12 @@ key holding the Pulse user's password.
 {{- $p := .root.Values.sentryPulse -}}
 http://{{ $p.user }}:{{ printf "{{ .%s | trim }}" .key }}@{{ $p.host }}/v1/sentry/{{ .service }}/1
 {{- end }}
+
+{{/*
+Whether the agents Deployment runs. Its pods join the server's Erlang cluster
+for session wakes and the Condukt session registry, so without clustering the
+server pods host agent sessions themselves.
+*/}}
+{{- define "tuist.agentsEnabled" -}}
+{{- if and .Values.server.enabled .Values.agents.enabled .Values.server.cluster.enabled }}true{{- end }}
+{{- end }}

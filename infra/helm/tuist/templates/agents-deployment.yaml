@@ -1,7 +1,4 @@
-{{- if and .Values.server.enabled .Values.agents.enabled }}
-{{- if not .Values.server.cluster.enabled }}
-{{- fail "agents.enabled requires server.cluster.enabled=true: agents pods join the server's Erlang cluster for session wakes and the Condukt session registry." }}
-{{- end }}
+{{- if include "tuist.agentsEnabled" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -1,4 +1,4 @@
-{{- if and .Values.server.enabled .Values.agents.enabled .Values.agents.podDisruptionBudget.enabled }}
+{{- if and (include "tuist.agentsEnabled" .) .Values.agents.podDisruptionBudget.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

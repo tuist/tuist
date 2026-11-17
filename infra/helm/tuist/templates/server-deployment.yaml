@@ -98,7 +98,7 @@ spec:
               containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:{{ include "tuist.serverContainerEnv" . }}
-            {{- if .Values.agents.enabled }}
+            {{- if include "tuist.agentsEnabled" . }}
             # Agent sessions are hosted by the agents Deployment.
             - name: TUIST_DELEGATE_AGENTS
               value: "1"

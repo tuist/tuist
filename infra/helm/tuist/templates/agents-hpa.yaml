@@ -1,4 +1,4 @@
-{{- if and .Values.server.enabled .Values.agents.enabled .Values.agents.autoscaling.enabled }}
+{{- if and (include "tuist.agentsEnabled" .) .Values.agents.autoscaling.enabled }}
 {{- $requests := (.Values.agents.resources.requests | default dict) }}
 {{- $limits := (.Values.agents.resources.limits | default dict) }}
 {{- if or (not $limits.memory) (ne (toString $requests.memory) (toString $limits.memory)) }}
