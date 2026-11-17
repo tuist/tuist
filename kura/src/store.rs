@@ -1540,8 +1540,10 @@ impl Store {
             disk_pressure_reclamation: Mutex::new(PressureReclamation::default()),
             deferred_capacity_retirements: StdMutex::new(VecDeque::new()),
             segment_pins: StdMutex::new(HashMap::new()),
+            // Rotation sizes the ring from free space, so unit tests see
+            // unbounded space unless they model it rather than the host's disk.
             #[cfg(test)]
-            disk_available_override: None,
+            disk_available_override: Some(Arc::new(|| u64::MAX)),
             segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
