@@ -1221,8 +1221,6 @@ defmodule Tuist.Accounts do
   def create_user(email, opts \\ []) do
     token = Tuist.Tokens.generate_token()
 
-    {handle, opts} = user_handle(email, opts)
-
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
     oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
@@ -1243,21 +1241,17 @@ defmodule Tuist.Accounts do
         })
       )
       |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
-        customer_id =
-          Keyword.get(
-            opts,
-            :customer_id
-          )
-
-        repo.insert(
-          Account.create_changeset(%Account{}, %{
+        insert_user_account(
+          repo,
+          %{
             user_id: user_id,
-            name: handle,
             current_month_remote_cache_hits_count_updated_at:
               Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
-            customer_id: customer_id,
+            customer_id: Keyword.get(opts, :customer_id),
             billing_email: email
-          })
+          },
+          email,
+          opts
         )
       end)
       |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
@@ -1295,8 +1289,11 @@ defmodule Tuist.Accounts do
 
         {:ok, user}
 
+      {:error, :account, :account_handle_taken, _} ->
+        {:error, :account_handle_taken}
+
       {:error, :account, %Changeset{} = changeset, _} ->
-        parse_account_changeset_error(changeset, email, opts)
+        {:error, Utils.errors_on(changeset)}
 
       {:error, :user, %Changeset{} = changeset, _} ->
         if Utils.unique_error?(changeset, :email) do
@@ -1336,31 +1333,35 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp parse_account_changeset_error(%Changeset{} = changeset, email, opts) do
-    attempt = Keyword.get(opts, :attempt, 0)
-    suffix = Keyword.get(opts, :suffix, "")
-    explicit_handle = Keyword.has_key?(opts, :handle)
+  # Tries the next numeric suffix when an email-derived handle is taken. Each
+  # attempt runs in a savepoint: a failed insert would otherwise abort the
+  # transaction, including one the caller wraps around `create_user/2`, such as
+  # SCIM provisioning, and every later attempt in it would raise.
+  defp insert_user_account(repo, attrs, email, opts) do
+    {handle, opts} = user_handle(email, opts)
+    changeset = Account.create_changeset(%Account{}, Map.put(attrs, :name, handle))
 
-    cond do
-      # If an explicit handle was provided, don't retry - just return the error
-      Utils.unique_error?(changeset, :name) and explicit_handle ->
-        {:error, :account_handle_taken}
+    with {:error, changeset} <- repo.insert(changeset, mode: :savepoint) do
+      attempt = Keyword.get(opts, :attempt, 0)
 
-      Utils.unique_error?(changeset, :name) and attempt < 20 ->
-        next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
+      cond do
+        not Utils.unique_error?(changeset, :name) ->
+          {:error, changeset}
 
-        opts =
-          opts
-          |> Keyword.put(:attempt, attempt + 1)
-          |> Keyword.put(:suffix, "#{next_suffix}")
+        Keyword.has_key?(opts, :handle) or attempt >= 20 ->
+          {:error, :account_handle_taken}
 
-        create_user(email, opts)
+        true ->
+          suffix = Keyword.get(opts, :suffix, "")
+          next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
 
-      Utils.unique_error?(changeset, :name) and attempt >= 20 ->
-        {:error, :account_handle_taken}
+          opts =
+            opts
+            |> Keyword.put(:attempt, attempt + 1)
+            |> Keyword.put(:suffix, "#{next_suffix}")
 
-      true ->
-        {:error, Utils.errors_on(changeset)}
+          insert_user_account(repo, attrs, email, opts)
+      end
     end
   end
 

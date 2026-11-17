@@ -111,6 +111,14 @@ defmodule Tuist.SCIMTest do
       assert %{name: "user"} = Accounts.get_user_role_in_organization(user, org)
     end
 
+    test "provision_user/2 creates a new user whose email-derived handle is already taken", %{organization: org} do
+      organization_fixture(name: "taken-handle")
+
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "taken-handle@scim-example.com"})
+      assert user.account.name == "taken-handle1"
+      assert Accounts.belongs_to_organization?(user, org)
+    end
+
     test "provision_user/2 promotes role on an existing user", %{organization: org} do
       existing = user_fixture(email: "bob@scim-example.com")
       :ok = Accounts.add_user_to_organization(existing, org, role: :user)
@@ -248,23 +256,23 @@ defmodule Tuist.SCIMTest do
     } do
       email = "race@scim-example.com"
       existing = user_fixture(email: email)
-      lookup_counter = start_supervised!({Agent, fn -> 0 end})
-
-      expect(Accounts, :get_user_by_email, 2, fn ^email ->
-        Agent.get_and_update(lookup_counter, fn
-          0 -> {{:error, :not_found}, 1}
-          count -> {{:ok, existing}, count + 1}
-        end)
-      end)
-
-      expect(Accounts, :create_user, fn ^email, opts ->
-        assert Keyword.has_key?(opts, :confirmed_at)
-        {:error, :email_taken}
-      end)
+      miss_first_email_lookup(email)
 
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: email})
       assert user.id == existing.id
       assert Accounts.belongs_to_organization?(user, org)
+      assert_enqueued(worker: AttachmentNotifierWorker, args: %{user_id: existing.id, organization_id: org.id})
+    end
+
+    test "provision_user/2 refuses a user another organization provisioned concurrently", %{organization: org} do
+      other = organization_fixture()
+      email = "race-outsider-#{System.unique_integer([:positive])}@corp.test"
+      {:ok, outsider} = SCIM.provision_user(other, %{user_name: email})
+      miss_first_email_lookup(email)
+
+      assert {:error, :email_taken} = SCIM.provision_user(org, %{user_name: email})
+      refute Accounts.belongs_to_organization?(outsider, org)
+      refute_enqueued(worker: AttachmentNotifierWorker)
     end
 
     test "provision_user/2 does not enqueue a notification when a brand-new user is created", %{organization: org} do
@@ -674,4 +682,11 @@ defmodule Tuist.SCIMTest do
   end
 
   defp resolve(other, _), do: other
+
+  # Simulates another request creating the user right after SCIM's first
+  # lookup: that lookup misses, and later ones read the committed row.
+  defp miss_first_email_lookup(email) do
+    expect(Accounts, :get_user_by_email, fn ^email -> {:error, :not_found} end)
+    expect(Accounts, :get_user_by_email, fn ^email -> Mimic.call_original(Accounts, :get_user_by_email, [email]) end)
+  end
 end
