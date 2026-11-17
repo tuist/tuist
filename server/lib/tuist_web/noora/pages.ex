@@ -5,58 +5,61 @@ defmodule TuistWeb.Noora.Pages do
 
   alias TuistWeb.Noora.Pages
 
+  # Pages for working on Noora itself, listed in development only.
+  @development_pages if Tuist.Environment.dev?(), do: [{"Development", [Pages.Icons]}], else: []
+
   @groups [
-    {"Getting started", [Pages.Introduction, Pages.Installation]},
-    {"Foundations",
-     [
-       Pages.Brand,
-       Pages.Colors,
-       Pages.Typography,
-       Pages.Spacing,
-       Pages.Radius,
-       Pages.Borders
-     ]},
-    {"Components",
-     [
-       Pages.Alert,
-       Pages.Avatar,
-       Pages.Badge,
-       Pages.Banner,
-       Pages.Breadcrumbs,
-       Pages.Button,
-       Pages.ButtonGroup,
-       Pages.Checkbox,
-       Pages.DatePicker,
-       Pages.DigitInput,
-       Pages.DismissIcon,
-       Pages.Dropdown,
-       Pages.Filter,
-       Pages.HintText,
-       Pages.Label,
-       Pages.LineDivider,
-       Pages.LinkButton,
-       Pages.Menu,
-       Pages.MiddleTruncate,
-       Pages.Modal,
-       Pages.PaginationGroup,
-       Pages.Popover,
-       Pages.ProgressBar,
-       Pages.Radio,
-       Pages.Select,
-       Pages.ShortcutKey,
-       Pages.Sidebar,
-       Pages.Spinner,
-       Pages.TabMenu,
-       Pages.Table,
-       Pages.Tag,
-       Pages.TextArea,
-       Pages.TextDivider,
-       Pages.TextInput,
-       Pages.Time,
-       Pages.Toggle,
-       Pages.Tooltip
-     ]}
-  ]
+            {"Getting started", [Pages.Introduction, Pages.Installation]},
+            {"Foundations",
+             [
+               Pages.Brand,
+               Pages.Colors,
+               Pages.Typography,
+               Pages.Spacing,
+               Pages.Radius,
+               Pages.Borders
+             ]},
+            {"Components",
+             [
+               Pages.Alert,
+               Pages.Avatar,
+               Pages.Badge,
+               Pages.Banner,
+               Pages.Breadcrumbs,
+               Pages.Button,
+               Pages.ButtonGroup,
+               Pages.Checkbox,
+               Pages.DatePicker,
+               Pages.DigitInput,
+               Pages.DismissIcon,
+               Pages.Dropdown,
+               Pages.Filter,
+               Pages.HintText,
+               Pages.Label,
+               Pages.LineDivider,
+               Pages.LinkButton,
+               Pages.Menu,
+               Pages.MiddleTruncate,
+               Pages.Modal,
+               Pages.PaginationGroup,
+               Pages.Popover,
+               Pages.ProgressBar,
+               Pages.Radio,
+               Pages.Select,
+               Pages.ShortcutKey,
+               Pages.Sidebar,
+               Pages.Spinner,
+               Pages.TabMenu,
+               Pages.Table,
+               Pages.Tag,
+               Pages.TextArea,
+               Pages.TextDivider,
+               Pages.TextInput,
+               Pages.Time,
+               Pages.Toggle,
+               Pages.Tooltip
+             ]}
+          ] ++ @development_pages
 
   def groups, do: @groups
 

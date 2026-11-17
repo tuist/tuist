@@ -96,6 +96,16 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     end
   end
 
+  test "lists every icon on the icons page, which only development registers" do
+    html = render_component(&Pages.Icons.content/1, %{})
+
+    for name <- Noora.Icon.names() do
+      assert html =~ ~s(title="#{name}")
+    end
+
+    refute Pages.Icons in Pages.all()
+  end
+
   describe "tokens" do
     test "reads top-level declarations grouped by their section comment" do
       assert %{name: "--noora-spacing-6", value: "1rem"} =

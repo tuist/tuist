@@ -1072,6 +1072,100 @@
     height: 16px;
   }
 
+  & [data-part="icon-context"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+
+    & [data-part="row"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+
+    & [data-part="list"] {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: var(--noora-spacing-5) var(--noora-spacing-6);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+
+      & li {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+      }
+
+      & svg {
+        flex: none;
+        width: 16px;
+        height: 16px;
+      }
+    }
+  }
+
+  & [data-part="icon-tiles"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+    gap: var(--noora-spacing-4);
+
+    & > div {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      box-shadow: var(--noora-border-small-default);
+      border-radius: var(--noora-radius-4);
+      padding: var(--noora-spacing-6) var(--noora-spacing-4);
+      min-width: 0;
+      color: var(--noora-surface-label-primary);
+    }
+
+    & [data-part="icon-sizes"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+    }
+
+    & [data-size="24"] svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    & [data-size="20"] svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    & [data-size="16"] svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    & [data-size="14"] svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    & [data-size="12"] svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    & code {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   & [data-part="radius-tiles"],
   & [data-part="elevation-tiles"] {
     display: grid;
