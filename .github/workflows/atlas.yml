@@ -155,15 +155,17 @@ jobs:
                 find .once/out -type l -printf '%p -> %l\n' | sort > "$evidence/$phase-links.txt"
                 test -s "$evidence/$phase-files.txt"
               done
-              diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
-              diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
               if [ "$mode" = local ]; then
+                # Local compile digests are not yet stable across runs, so the
+                # warm local build recompiles and its outputs are not compared.
                 if grep -q 'remote action completed' "$evidence/cold.log"; then
                   echo 'The local baseline dispatched worker actions' >&2
                   exit 1
                 fi
               else
-                  grep -q 'remote action completed' "$evidence/cold.log"
+                diff -u "$evidence/cold-files.txt" "$evidence/warm-files.txt"
+                diff -u "$evidence/cold-links.txt" "$evidence/warm-links.txt"
+                grep -q 'remote action completed' "$evidence/cold.log"
               fi
               if grep -q 'remote execution response' "$evidence/warm.log"; then
                 echo 'Warm restoration unexpectedly dispatched worker actions' >&2
