@@ -257,7 +257,7 @@ defmodule Tuist.Shards do
   end
 
   # Uploads start right after the plan is written, before every ClickHouse replica has it. Only
-  # projects that can route to runner-local storage need the plan's target; the rest always use
+  # projects that can route to explicit storage need the plan's target; the rest always use
   # the account's storage.
   defp plan_storage(project, account, plan_id, opts) do
     if ShardStorage.routable?(project) do
@@ -320,7 +320,8 @@ defmodule Tuist.Shards do
   defp shard_download_urls(account, project, %{id: plan_id} = plan, modules, actor) do
     shared_key = artifact_object_key(account, project, plan_id, "shared")
 
-    if plan.storage_target in [nil, ""] and Storage.object_exists?(shared_key, actor) do
+    if (project.build_system == :xcode or plan.storage_target in [nil, ""]) and
+         Storage.object_exists?(shared_key, actor) do
       shared_url = Storage.generate_download_url(shared_key, actor)
 
       module_urls =

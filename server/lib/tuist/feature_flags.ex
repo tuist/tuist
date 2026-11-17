@@ -40,6 +40,15 @@ defmodule Tuist.FeatureFlags do
     )
   end
 
+  @doc "Default-off account enrollment in public shard artifact storage."
+  def public_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :public_shard_storage,
+      account,
+      flag_enabled?(:public_shard_storage, account, flags)
+    )
+  end
+
   @doc """
   Immutable shard plans (version 1) are disabled for every account, whatever
   the `:immutable_shard_reports` toggle says, so every new plan is a legacy one.

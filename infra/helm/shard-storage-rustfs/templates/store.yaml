@@ -1,0 +1,139 @@
+{{- if .Values.enabled }}
+{{- if ne .Release.Namespace "rustfs-staging" }}
+{{- fail "This qualification chart requires the isolated rustfs-staging namespace" }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-peers
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: {{ .Release.Name }}
+    component: store
+  ports:
+    - name: s3
+      port: 9000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-s3
+spec:
+  selector:
+    app: {{ .Release.Name }}
+    component: store
+  ports:
+    - name: s3
+      port: 9000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-peers
+  replicas: 4
+  # All four members must start before the distributed pool can initialize.
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: store
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: store
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 120
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: {{ .Release.Name }}
+                  component: store
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: rustfs
+          image: {{ .Values.image | quote }}
+          env:
+            - name: RUSTFS_VOLUMES
+              value: "http://{{ .Release.Name }}-{0...3}.{{ .Release.Name }}-peers.{{ .Release.Namespace }}.svc.cluster.local:9000/data{0...1}"
+            - name: RUSTFS_ADDRESS
+              value: "0.0.0.0:9000"
+            - name: RUSTFS_REGION
+              value: "us-east-1"
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "false"
+            - name: RUSTFS_STORAGE_CLASS_STANDARD
+              value: "EC:4"
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: root-user
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: root-password
+          ports:
+            - name: s3
+              containerPort: 9000
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: s3
+            periodSeconds: 5
+            timeoutSeconds: 3
+          # No liveness restart loop during quorum loss or healing.
+          volumeMounts:
+            - name: data0
+              mountPath: /data0
+            - name: data1
+              mountPath: /data1
+  volumeClaimTemplates:
+    {{- range $disk := list "data0" "data1" }}
+    - metadata:
+        name: {{ $disk }}
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ $.Values.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ $.Values.volumeSize }}
+    {{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: store
+{{- end }}
