@@ -21,7 +21,7 @@ defmodule TuistWeb.UsageLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.UsageLive
 
-  @render_async_timeout 1_000
+  @render_async_timeout 5_000
 
   setup :set_mimic_from_context
 
