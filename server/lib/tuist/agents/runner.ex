@@ -7,7 +7,10 @@ defmodule Tuist.Agents.Runner do
 
   Admission is by capacity, not by a queue: the runner claims only while it
   hosts fewer than `:max_sessions` and the VM uses less than `:memory_ratio`
-  of `:memory_limit_bytes`. Runners are woken over PubSub when a session
+  of `:memory_limit_bytes`. On agents pods memory is the binding limit, and
+  their autoscaler targets memory below `:memory_ratio`, so pods are added
+  before the ones running fill up and sessions start to wait
+  (`Tuist.Agents.PromExPlugin` reports those that do). Runners are woken over PubSub when a session
   wants a host (`Tuist.Agents.Lease.wake/1`), and poll as a backstop.
 
   The runner never waits on a session's process, so renewing every lease on
@@ -54,7 +57,10 @@ defmodule Tuist.Agents.Runner do
     state = %{
       host: Keyword.get_lazy(opts, :host, fn -> "#{node()}/#{System.unique_integer([:positive])}" end),
       kinds: Keyword.get_lazy(opts, :kinds, fn -> Application.get_env(:tuist, __MODULE__, [])[:kinds] || %{} end),
-      max_sessions: Keyword.get(opts, :max_sessions, 50),
+      # With a memory limit, memory is what admits sessions and what the
+      # agents pods autoscale on, so the count cap sits far above it and
+      # only bounds a pod whose sessions are unusually small.
+      max_sessions: Keyword.get_lazy(opts, :max_sessions, fn -> if opts[:memory_limit_bytes], do: 500, else: 50 end),
       memory_limit: Keyword.get(opts, :memory_limit_bytes),
       memory_ratio: Keyword.get(opts, :memory_ratio, 0.7),
       memory: Keyword.get(opts, :memory, fn -> :erlang.memory(:total) end),

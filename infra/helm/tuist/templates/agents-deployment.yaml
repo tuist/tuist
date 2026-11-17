@@ -10,7 +10,9 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: agents
 spec:
+  {{- if not .Values.agents.autoscaling.enabled }}
   replicas: {{ .Values.agents.replicaCount }}
+  {{- end }}
   strategy:
     {{- toYaml .Values.agents.strategy | nindent 4 }}
   selector:

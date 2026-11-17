@@ -1131,7 +1131,39 @@ agents:
   # stop hosting sessions (TUIST_DELEGATE_AGENTS=1). Disabled by default:
   # without these pods the server hosts sessions itself.
   enabled: false
+  # Ignored while autoscaling is enabled.
   replicaCount: 2
+  # Scales on memory, the resource sessions hold. A pod claims sessions until
+  # its VM reaches 70% of its memory limit; the target sits below that, so
+  # pods are added while the running ones still have room and sessions do
+  # not wait. Utilization is measured against requests, so requests.memory
+  # must equal limits.memory (the chart fails otherwise), which also
+  # reserves on the node what the pod will grow to use.
+  #
+  # Scaling up is immediate. Scaling down drains a pod, and its sessions
+  # resume on others from their journals, so it waits until 10 minutes of
+  # samples agree and removes one pod at a time. A backlog the autoscaler
+  # cannot clear, at maxReplicas or with no room on the nodes, shows as
+  # tuist_agents_sessions_oldest_waiting_age_seconds.
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetMemoryUtilizationPercentage: 60
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 60
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        selectPolicy: Min
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 300
   # Surge before terminating, so a deploy always has a pod to take the
   # drained sessions.
   strategy:
