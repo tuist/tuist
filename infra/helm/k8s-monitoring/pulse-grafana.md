@@ -147,7 +147,8 @@ less than Cloud held, and `fg1c6ql650pvka` (7 days) stays quiet until Pulse
 holds the 3.5 days of `wan0` samples its gate requires, around November 21.
 Pulse rejects its `label_replace(vector(...))` commit table, so it divides by
 BER1's commit directly (see `alerts.md`). `Kura - replication outbox
-approaching its cap` (`afwtwlzgkderke`) runs as `-stg` and `-can` copies too.
+approaching its cap` (`afwtwlzgkderke`) read a metric retired in kura@0.46 and
+was deleted.
 The Cloud originals of `pulse-scan-memory-rejections` and
 `pulse-datanode-telemetry-missing` were deleted; their per-environment copies
 read each Pulse, and the datanode copies stay paused until the `pulse-datanode`

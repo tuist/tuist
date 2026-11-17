@@ -5331,9 +5331,9 @@ Do not lower the bar for the HTTP kinds, which are loss.
 ### Kura replication outbox approaching its cap (retired)
 
 Retired with the push path's removal (kura@0.46): `kura_outbox_messages` and
-the outbox write shed no longer exist, so the live rule `afwtwlzgkderke`
-(`Kura - replication outbox approaching its cap`, folder `Alerts`, group
-`Cache`) evaluates an absent series and must be deleted in Grafana. The
+the outbox write shed no longer exist, so the rule `afwtwlzgkderke`
+(`Kura - replication outbox approaching its cap`) evaluated an absent series
+and was deleted from Grafana on 2026-11-17. The
 signal it led — writes refused for a full outbox — has no successor because
 a write is never refused for replication room any more: a pull link that
 falls behind shows as `kura_sync_forward_cursor_lag_entries` and
