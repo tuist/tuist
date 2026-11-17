@@ -192,7 +192,7 @@
   );
   --noora-surface-label-disabled: light-dark(
     var(--noora-neutral-light-600),
-    var(--noora-neutral-dark-300)
+    var(--noora-neutral-dark-600)
   );
 
   /* Focus ring: one focus treatment for every focusable element. A 1.5px
