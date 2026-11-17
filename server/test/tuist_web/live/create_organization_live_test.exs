@@ -32,5 +32,33 @@ defmodule TuistWeb.CreateOrganizationLiveTest do
       )
       |> render_submit()
     end
+
+    test "returns to a pending integration installation after creating the organization", %{conn: conn} do
+      user = user_fixture()
+
+      {:ok, lv, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/organizations/new?return_to=integration_installation")
+
+      assert {:error, {:redirect, %{to: "/integrations/installation"}}} =
+               lv |> form("#create-organization-form", account: %{name: "acme-team"}) |> render_submit()
+
+      assert %{} = Tuist.Accounts.get_organization_by_handle("acme-team")
+    end
+
+    test "ignores other return destinations", %{conn: conn} do
+      user = user_fixture()
+
+      {:ok, lv, html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/organizations/new?return_to=https://example.com")
+
+      refute html =~ "example.com"
+
+      assert {:error, {:live_redirect, %{to: "/projects/new?account_id=" <> _}}} =
+               lv |> form("#create-organization-form", account: %{name: "acme-team"}) |> render_submit()
+    end
   end
 end

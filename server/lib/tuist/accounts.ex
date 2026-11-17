@@ -791,6 +791,7 @@ defmodule Tuist.Accounts do
     |> case do
       {:ok, %{organization: organization}} ->
         organization = Repo.preload(organization, :account)
+        broadcast_organization_memberships_changed(attrs.creator.id)
 
         {:ok, organization}
 
@@ -1674,8 +1675,24 @@ defmodule Tuist.Accounts do
         end)
         |> Repo.transaction()
 
+      broadcast_organization_memberships_changed(user_id)
       :ok
     end
+  end
+
+  @doc """
+  The PubSub topic that receives `{:organization_memberships_changed, %{user_id: user_id}}` after
+  the user joins an organization, creates one, or has their role in one changed. Only those grants
+  are broadcast; removals and demotions are not.
+  """
+  def organization_memberships_topic(user_id) when is_integer(user_id), do: "organization_memberships:#{user_id}"
+
+  defp broadcast_organization_memberships_changed(user_id) do
+    Tuist.PubSub.broadcast(
+      %{user_id: user_id},
+      organization_memberships_topic(user_id),
+      :organization_memberships_changed
+    )
   end
 
   def remove_user_from_organization(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
@@ -1737,9 +1754,13 @@ defmodule Tuist.Accounts do
         {:error, :not_found}
 
       user_role ->
-        user_role
-        |> Changeset.change(name: Atom.to_string(role))
-        |> Repo.update()
+        with {:ok, _} = result <-
+               user_role
+               |> Changeset.change(name: Atom.to_string(role))
+               |> Repo.update() do
+          broadcast_organization_memberships_changed(user_id)
+          result
+        end
     end
   end
 

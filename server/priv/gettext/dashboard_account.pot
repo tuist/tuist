@@ -105,7 +105,8 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1057
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
-#: lib/tuist_web/live/create_organization_live.ex:79
+#: lib/tuist_web/live/create_organization_live.ex:84
+#: lib/tuist_web/live/create_organization_live.ex:90
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
@@ -170,7 +171,7 @@ msgstr ""
 msgid "Contact sales"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:43
+#: lib/tuist_web/live/create_organization_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -506,7 +507,7 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1077
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
-#: lib/tuist_web/live/create_organization_live.ex:61
+#: lib/tuist_web/live/create_organization_live.ex:66
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:31
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
@@ -789,7 +790,7 @@ msgid "Try changing your search term"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:111
-#: lib/tuist_web/live/create_organization_live.ex:37
+#: lib/tuist_web/live/create_organization_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -1165,17 +1166,17 @@ msgstr ""
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:73
+#: lib/tuist_web/live/create_organization_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:45
+#: lib/tuist_web/live/create_organization_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:63
+#: lib/tuist_web/live/create_organization_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr ""
