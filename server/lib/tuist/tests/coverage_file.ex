@@ -3,8 +3,7 @@ defmodule Tuist.Tests.CoverageFile do
   Per-test coverage evidence of a test run (`Tuist.Tests.Coverage.Evidence`):
   the files, and the lines in them, a `test`, `suite` or `target` scope
   executed. A run's own per-file coverage is in `Tuist.Tests.CoverageRunFile`;
-  `run` rows here are written alongside it until the next release, so pods
-  of the previous release keep reading every report, and expire with the file
+  `run` rows here were written before it existed and expire with the file
   retention. The columns are those of the rows' original shape, from any
   build system (`build_system`). `is_test` marks test code (compiled only by test bundles),
   which is kept but left out of every coverage figure. `scope_kind` and

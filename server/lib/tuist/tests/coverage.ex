@@ -67,7 +67,6 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Workers.CommitWorker
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageFileLayout
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.CoverageRunFile
@@ -346,26 +345,8 @@ defmodule Tuist.Tests.Coverage do
 
     {{covered, executable}, overlap, object_format, files} =
       coverage.files
-      |> Stream.map(
-        &Map.merge(&1, %{
-          id: UUIDv7.generate(),
-          test_run_id: test_run_id,
-          project_id: project_id,
-          build_system: test.build_system,
-          shard_index: shard_index,
-          partial: coverage.partial,
-          git_commit_sha: test.git_commit_sha || "",
-          scope_kind: "run",
-          scope_id: "",
-          evidence_kind: "observed",
-          inserted_at: reported_at
-        })
-      )
       |> Stream.chunk_every(@insert_chunk_size)
       |> Enum.reduce({{0, 0}, %{}, "", 0}, fn chunk, acc ->
-        # Still written to coverage_files, so pods of the previous release
-        # read every report while this one rolls out; the next release stops.
-        IngestRepo.insert_all(CoverageFile, chunk)
         insert_report_files(report, chunk)
 
         Enum.reduce(chunk, acc, &fold_file(&1, &2, others_by_path, excluded))
