@@ -19,5 +19,7 @@
         <key>CFBundleURLName</key><string>dev.tuist.code.oauth</string>
         <key>CFBundleURLSchemes</key><array><string>tuist-guild</string></array>
     </dict></array>
+    <key>NSMicrophoneUsageDescription</key><string>Use the microphone to transcribe a reply on this device. Audio is not sent to Tuist.</string>
+    <key>NSSpeechRecognitionUsageDescription</key><string>Transcribe replies on this device so you can review and edit the text before sending.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>

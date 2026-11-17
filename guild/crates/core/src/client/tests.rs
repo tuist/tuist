@@ -1167,6 +1167,9 @@ fn offline_reads_come_from_the_store_and_queued_threads_replay_once_online() {
     let local_id = queued["data"]["id"].as_str().unwrap().to_string();
     let reopened = call(&mut c, &mut h, "thread", json!({"id":local_id}));
     assert_eq!(reopened["data"]["messages"][0]["content"], "Idea one");
+    // Earlier pages are never stored: offline they fail rather than repeat the latest page.
+    let earlier = call(&mut c, &mut h, "thread", json!({"id":seen,"before":10}));
+    assert!(earlier.get("error").is_some(), "{earlier}");
     // Relaunched, still offline: the store is on disk, not in memory.
     let mut c = MobileClient::new();
     let inbox = call(&mut c, &mut h, "cached_threads", json!({}));

@@ -452,6 +452,9 @@ pub fn record(
             view["freshness"] = json!({"state": "live"});
             Ok(view)
         }
+        // An earlier page is never stored, so offline it stays unavailable
+        // rather than answering with the latest page again.
+        ("thread", Err(OFFLINE)) if args.get("before").is_some() => Err(OFFLINE),
         ("thread", Err(OFFLINE)) => store.conversation(args["id"].as_str().unwrap_or_default()),
         ("start_thread" | "send_message", Ok(thread)) => {
             if operation == "start_thread" {

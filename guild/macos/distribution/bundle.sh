@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Signs a copy of the TuistGuildMacOS build with Tuist's Developer ID certificate,
 # notarizes and staples it, and leaves delivery/macos/Tuist Guild.app. Follows atlas-native/macos/distribution/bundle.sh without push
-# provisioning: Tuist Guild needs no restricted entitlements. Never mutates Once's
+# provisioning: Tuist Guild needs no restricted entitlements, only the hardened
+# runtime's microphone exception for on-device dictation. Never mutates Once's
 # outputs.
 # Vault credentials must never enter inherited shell tracing or verbose output.
 set +x +v
@@ -46,8 +47,9 @@ identity=$(security find-identity -v -p codesigning "$keychain" \
     | awk -v team="($team)\"" 'index($0, "\"Developer ID Application:") && index($0, team) { print $2; exit }')
 [[ $identity =~ ^[A-F0-9]{40}$ ]] || fail 'No Developer ID Application identity for the Tuist team'
 
-# Hardened runtime with no entitlements.
-codesign --force --sign "$identity" --keychain "$keychain" --options runtime --timestamp "$app"
+# Hardened runtime; the microphone exception lets dictation capture audio.
+codesign --force --sign "$identity" --keychain "$keychain" --options runtime --timestamp \
+    --entitlements macos/distribution/entitlements.plist "$app"
 codesign --verify --strict --deep "$app"
 [[ "$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')" = "$team" ]] || fail 'Expected the Tuist team signature'
 

@@ -19,15 +19,6 @@ extension View {
         }
     }
 
-    /// Lets neighbouring glass shapes, such as the reply field and Send, blend and sample each other.
-    @ViewBuilder func glassGroup(spacing: CGFloat) -> some View {
-        if #available(iOS 26, macOS 26, *) {
-            GlassEffectContainer(spacing: spacing) { self }
-        } else {
-            self
-        }
-    }
-
     #if os(iOS)
         @ViewBuilder func minimizingTabBarOnScroll() -> some View {
             if #available(iOS 26, *) {

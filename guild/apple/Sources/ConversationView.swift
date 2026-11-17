@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct AppMessage: Decodable, Identifiable {
@@ -5,6 +6,24 @@ struct AppMessage: Decodable, Identifiable {
     /// `user`, `assistant`, `tool` or `system`.
     let role: String
     let content: String
+    /// The server's order within the thread; absent on replies still queued here.
+    var position: Int?
+    var toolName: String?
+    /// `running` or `complete`.
+    var toolStatus: String?
+    var createdAt: String?
+
+    var createdDate: Date? {
+        guard let createdAt else { return nil }
+        return Self.preciseDates.date(from: createdAt) ?? Self.dates.date(from: createdAt)
+    }
+
+    private static let dates = ISO8601DateFormatter()
+    private static let preciseDates: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }
 
 struct AppConversation: Decodable {
@@ -15,6 +34,9 @@ struct AppConversation: Decodable {
     let working: Bool
     let state: String?
     let messages: [AppMessage]
+    /// Earlier messages stay on the server; `next_before` loads the page before these.
+    var has_more: Bool?
+    var next_before: Int?
 }
 
 struct ThreadRoute: Hashable, Identifiable {
@@ -100,72 +122,146 @@ struct ConversationView: View {
     let client: AppClient
     let id: String
     @State private var thread: AppConversation?
+    /// Pages loaded before the latest messages, oldest first.
+    @State private var older: [AppMessage] = []
+    @State private var olderBefore: Int?
+    @State private var loadingOlder = false
     @State private var reply = ""
     @State private var sending = false
     @State private var error: String?
+    @State private var showingPrompts = false
+    @State private var chosenPrompt: String?
+    @State private var pendingJump: String?
+    /// Whether the end of the conversation is on screen; new messages only scroll while it is.
+    @State private var atLatest = true
+    // Not observed here: only the composer redraws as dictation levels change.
+    @State private var voice = VoiceInput()
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Earlier pages, then the latest messages, without repeats where they overlap.
+    private var messages: [AppMessage] {
+        let latest = thread?.messages ?? []
+        let ids = Set(latest.map(\.id))
+        return older.filter { !ids.contains($0.id) } + latest
+    }
+
+    private var hasOlder: Bool {
+        olderBefore != nil || (older.isEmpty && thread?.has_more == true && thread?.next_before != nil)
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(thread?.messages ?? []) { message in
-                        MessageRow(message: message).id(message.id)
+                    if hasOlder {
+                        Button(loadingOlder ? LocalizedStringKey("Loading earlier messages…") : LocalizedStringKey("Load earlier messages")) {
+                            Task { await loadOlder() }
+                        }
+                        .disabled(loadingOlder)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    ForEach(MessageGroup.groups(messages)) { group in
+                        switch group {
+                        case let .message(message): MessageRow(message: message).id(message.id)
+                        case let .tools(tools): ToolActivity(tools: tools).id(tools[0].id)
+                        }
                     }
                     if thread?.working == true {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
                             Text("Thinking…").foregroundStyle(Noora.labelSecondary)
                         }
-                        .id("working")
                     }
                     if let error {
                         Text(verbatim: error).font(.callout).foregroundStyle(Noora.labelDestructive)
                     }
+                    Color.clear.frame(height: 1).id("latest")
+                        .onAppear { atLatest = true }
+                        .onDisappear { atLatest = false }
                 }
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: thread?.messages.count) { _, _ in
-                withAnimation { proxy.scrollTo(thread?.working == true ? "working" : thread?.messages.last?.id) }
+            .onChange(of: thread?.messages.last?.id) { _, _ in
+                // Someone reading earlier history, or who jumped to a prompt, stays where they are.
+                guard atLatest else { return }
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("latest", anchor: .bottom) }
+            }
+            .onChange(of: pendingJump) { _, target in
+                guard let target else { return }
+                pendingJump = nil
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(target, anchor: .top) }
             }
         }
         .background(Noora.backgroundPrimary)
         .overlay { if thread == nil, error == nil { ProgressView() } }
-        .safeAreaInset(edge: .bottom) { composer }
+        .safeAreaInset(edge: .bottom) {
+            ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice) {
+                Task { await send() }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
         .navigationTitle(Text(verbatim: thread?.title ?? thread?.goal ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
         #endif
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showingPrompts = true } label: {
+                        Label("Prompts", systemImage: "list.bullet")
+                    }
+                    .help("Prompts")
+                    .accessibilityHint("Choose a prompt to jump back to it")
+                    .disabled(thread == nil)
+                }
+            }
+            // Jump only once the sheet is gone, so the scroll is not lost under it.
+            .sheet(isPresented: $showingPrompts, onDismiss: {
+                if let target = chosenPrompt {
+                    chosenPrompt = nil
+                    pendingJump = target
+                }
+            }) {
+                PromptIndex(
+                    prompts: messages.filter { $0.role == "user" },
+                    hasOlder: hasOlder,
+                    loading: loadingOlder,
+                    older: { await loadOlder() },
+                    choose: { target in
+                        chosenPrompt = target
+                        showingPrompts = false
+                    }
+                )
+            }
             .task(id: id) { await follow() }
+            // Unaccepted dictation never survives leaving the conversation or the app.
+            .onChange(of: scenePhase) { _, phase in
+                // Permission alerts briefly deactivate the scene before their callbacks return.
+                if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
+            .onDisappear { voice.cancel() }
     }
 
-    /// Floats over the conversation, like the system's own message fields.
-    private var composer: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("Reply", text: $reply, axis: .vertical)
-                .lineLimit(1 ... 6)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 11)
-                .interactiveGlass(in: RoundedRectangle(cornerRadius: 22))
-                .disabled(sending || thread?.working != false)
-                .onSubmit { Task { await send() } }
-            Button { Task { await send() } } label: {
-                Label("Send", systemImage: "arrow.up")
-                    .labelStyle(.iconOnly)
-                    .font(.body.weight(.semibold))
-                    .frame(width: 28, height: 28)
-            }
-            .prominentGlassButtonStyle()
-            .buttonBorderShape(.circle)
-            .disabled(sending || thread?.working != false
-                || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .keyboardShortcut(.return, modifiers: .command)
+    private var audioInterruption: Notification.Name {
+        #if os(macOS)
+            .AVAudioEngineConfigurationChange
+        #else
+            AVAudioSession.interruptionNotification
+        #endif
+    }
+
+    /// Shows a newer latest page. Once earlier pages are loaded, messages that
+    /// scroll off the latest page join them, so none fall between the two.
+    private func show(_ latest: AppConversation) {
+        if !older.isEmpty, let previous = thread?.messages {
+            let kept = Set(latest.messages.map(\.id)).union(older.map(\.id))
+            older += previous.filter { $0.position != nil && !kept.contains($0.id) }
         }
-        .glassGroup(spacing: 8)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        thread = latest
     }
 
     /// Loads the conversation, then polls while the server is answering.
@@ -173,7 +269,7 @@ struct ConversationView: View {
         thread = try? await client.conversation("cached_thread", ["id": id])
         while !Task.isCancelled {
             do {
-                thread = try await client.conversation("thread", ["id": id])
+                show(try await client.conversation("thread", ["id": id]))
                 error = nil
             } catch {
                 guard !Task.isCancelled else { return }
@@ -183,17 +279,187 @@ struct ConversationView: View {
         }
     }
 
+    /// Loads the page before the earliest message shown. Only the latest page is kept offline.
+    private func loadOlder() async {
+        guard !loadingOlder, let before = olderBefore ?? (older.isEmpty ? thread?.next_before : nil) else { return }
+        loadingOlder = true
+        defer { loadingOlder = false }
+        do {
+            let page = try await client.conversation("thread", ["id": id, "before": before])
+            let known = Set(messages.map(\.id))
+            older = page.messages.filter { !known.contains($0.id) } + older
+            olderBefore = page.has_more == true ? page.next_before : nil
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     private func send() async {
         let text = reply
-        guard !sending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !sending, !voice.busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         sending = true
         defer { sending = false }
         do {
-            thread = try await client.conversation("send_message", ["id": id, "content": text])
+            show(try await client.conversation("send_message", ["id": id, "content": text]))
             reply = ""
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// A message, or consecutive tool calls shown together as one disclosure.
+private enum MessageGroup: Identifiable {
+    case message(AppMessage)
+    case tools([AppMessage])
+
+    var id: String {
+        switch self {
+        case let .message(message): message.id
+        case let .tools(tools): "tools-" + tools[0].id
+        }
+    }
+
+    static func groups(_ messages: [AppMessage]) -> [MessageGroup] {
+        var groups: [MessageGroup] = []
+        for message in messages {
+            if message.role == "tool" {
+                if case let .tools(tools) = groups.last {
+                    groups[groups.count - 1] = .tools(tools + [message])
+                } else {
+                    groups.append(.tools([message]))
+                }
+            } else {
+                groups.append(.message(message))
+            }
+        }
+        return groups
+    }
+}
+
+/// Lists the person's prompts in the loaded history; choosing one jumps back to it.
+private struct PromptIndex: View {
+    let prompts: [AppMessage]
+    let hasOlder: Bool
+    let loading: Bool
+    let older: () async -> Void
+    let choose: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if hasOlder {
+                    Button(loading ? LocalizedStringKey("Loading earlier prompts…") : LocalizedStringKey("Load earlier prompts")) { Task { await older() } }
+                        .disabled(loading).frame(minHeight: 44)
+                }
+                if prompts.isEmpty {
+                    Text("No prompts in loaded history.").foregroundStyle(Noora.labelSecondary)
+                }
+                ForEach(prompts) { message in
+                    Button { choose(message.id) } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: message.content.trimmingCharacters(in: .whitespacesAndNewlines))
+                                .lineLimit(2).multilineTextAlignment(.leading)
+                                .foregroundStyle(Noora.labelPrimary)
+                            if let date = message.createdDate {
+                                Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
+                                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .accessibilityElement(children: .combine)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Jump to this message")
+                }
+            }
+            .navigationTitle("Prompts")
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .frame(idealWidth: 380, idealHeight: 440)
+        .presentationDetents([.medium, .large])
+    }
+}
+
+/// Tool calls as expandable evidence: a summary that says whether they are
+/// still running, and each call's name, state and result on request.
+private struct ToolActivity: View {
+    let tools: [AppMessage]
+    @State private var expanded = false
+
+    private var running: Bool { tools.contains { $0.toolStatus == "running" } }
+
+    var body: some View {
+        if tools.count == 1 {
+            ToolCallRow(tool: tools[0])
+        } else {
+            DisclosureGroup(isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(tools) { ToolCallRow(tool: $0) }
+                }
+                .padding(.leading, 12).padding(.top, 8)
+                .overlay(alignment: .leading) { Rectangle().fill(Noora.border).frame(width: 1) }
+            } label: {
+                HStack(spacing: 8) {
+                    ToolStatusIcon(running: running)
+                    Text(running ? LocalizedStringKey("Using \(tools.count) tools…") : LocalizedStringKey("Used \(tools.count) tools"))
+                        .font(.subheadline.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                }
+                .frame(minHeight: 44)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct ToolCallRow: View {
+    let tool: AppMessage
+    @State private var expanded = false
+
+    private var running: Bool { tool.toolStatus == "running" }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Result").font(.caption.bold()).foregroundStyle(Noora.labelSecondary)
+                Text(verbatim: tool.content).font(.caption.monospaced()).textSelection(.enabled)
+                    .foregroundStyle(Noora.labelPrimary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 8) {
+                ToolStatusIcon(running: running)
+                Text(verbatim: tool.toolName ?? String(localized: "Tool"))
+                    .font(.subheadline.monospaced()).foregroundStyle(Noora.labelPrimary).lineLimit(1)
+                Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done")).font(.caption).foregroundStyle(Noora.labelSecondary)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .disabled(running)
+        .padding(.horizontal, 12)
+        .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+    }
+}
+
+private struct ToolStatusIcon: View {
+    let running: Bool
+
+    var body: some View {
+        if running {
+            ProgressView().controlSize(.small)
+        } else {
+            Image(systemName: "wrench.and.screwdriver").foregroundStyle(Noora.labelSecondary)
+                .accessibilityHidden(true)
         }
     }
 }
