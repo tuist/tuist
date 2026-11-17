@@ -83,9 +83,12 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
         func searchPath(_ relative: String) throws -> String? {
             let include = slice.directory.appending(try RelativePath(validating: relative))
             guard include.isDescendant(of: slice.directory) else { return nil }
-            return processed
-                ? "$(BUILT_PRODUCTS_DIR)/\(slice.productsDirectory)/\(relative)"
-                : "$(PROJECT_DIR)/\(include.relative(to: projectPath).pathString)"
+            if processed { return "$(BUILT_PRODUCTS_DIR)/\(slice.productsDirectory)/\(relative)" }
+            // Xcode resolves symlinked parents into `PROJECT_DIR` (a `Tuist/.build` linked to a cache volume), so a
+            // `..` path from the project's logical directory to `~/.cache/tuist/Binaries` can climb too far.
+            return include.isDescendant(of: projectPath)
+                ? "$(PROJECT_DIR)/\(include.relative(to: projectPath).pathString)"
+                : include.pathString
         }
         var result: SettingsDictionary = [:]
         for metadata in slice.metadata {

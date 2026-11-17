@@ -334,6 +334,68 @@ struct SwiftPackageCachedHeadersMapperTests {
         #expect(effects.isEmpty)
     }
 
+    /// Xcode sets `PROJECT_DIR` to a project's path with symlinked parent directories resolved, so when `Tuist/.build`
+    /// links to a folder at a different depth, a path relative to the logical project directory that leaves the linked
+    /// tree (to `~/.cache/tuist/Binaries`) misses the artifact.
+    @Test(.inTemporaryDirectory) func unprocessedPathsResolveFromSymlinkedProjectDirectory() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let artifact = root.appending(components: "home", ".cache", "tuist", "Binaries", "S.xcframework")
+        let framework = artifact.appending(components: "ios-arm64", "S.framework")
+        let metadataDirectory = framework.appending(component: "PrivateHeaders")
+        try await fileSystem.makeDirectory(at: metadataDirectory)
+        try await fileSystem.makeDirectory(at: framework.appending(components: "TuistHeaders", "include"))
+        try await fileSystem.makeDirectory(at: framework.appending(component: "Modules"))
+        try await fileSystem.writeText("module S {}", at: framework.appending(components: "Modules", "module.modulemap"))
+        try await fileSystem.writeAsJSON(
+            SwiftPackageHeadersExporter.Metadata(publicDirectory: "TuistHeaders/include", moduleMap: "Modules/module.modulemap"),
+            at: metadataDirectory.appending(component: SwiftPackageHeadersExporter.metadataFileName)
+        )
+        let volume = root.appending(components: "Volumes", "build")
+        let resolvedProjectDirectory = volume.appending(components: "Projects", "Lib")
+        try await fileSystem.makeDirectory(at: resolvedProjectDirectory)
+        let checkout = root.appending(components: "home", "work", "app", "app", "Tuist")
+        try await fileSystem.makeDirectory(at: checkout)
+        try FileManager.default.createSymbolicLink(
+            atPath: checkout.appending(component: ".build").pathString, withDestinationPath: volume.pathString
+        )
+        let projectDirectory = checkout.appending(components: ".build", "Projects", "Lib")
+        let dependency = GraphDependency.testXCFramework(path: artifact, infoPlist: .test(libraries: [
+            .test(identifier: "ios-arm64", path: try RelativePath(validating: "S.framework"), platform: .iOS),
+        ]), linking: .static)
+        let consumer = GraphDependency.target(name: "Consumer", path: projectDirectory)
+        let wrapper = GraphDependency.testXCFramework(path: root.appending(component: "Wrapper.xcframework"))
+        let graph = Graph.test(
+            path: root,
+            projects: [projectDirectory: .test(
+                path: projectDirectory,
+                xcodeProjPath: projectDirectory.appending(component: "Lib.xcodeproj"),
+                targets: [.test(name: "Consumer", destinations: [.iPhone], product: .staticFramework)]
+            )],
+            dependencies: [consumer: [wrapper], wrapper: [dependency]]
+        )
+
+        let (mapped, _, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: MapperEnvironment())
+
+        let settings = try #require(mapped.projects[projectDirectory]?.targets["Consumer"]?.settings?.base)
+        guard case let .array(includes) = settings["HEADER_SEARCH_PATHS[sdk=iphoneos*]"],
+              case let .array(flags) = settings["OTHER_CFLAGS[sdk=iphoneos*]"]
+        else {
+            Issue.record("Missing cached header settings")
+            return
+        }
+        let paths = includes.filter { $0 != "$(inherited)" } + flags.filter { $0 != "$(inherited)" }
+            .map { String($0.dropFirst("-fmodule-map-file=".count)) }
+        #expect(paths.count == 2)
+        for path in paths {
+            // Resolve like clang does, through the filesystem rather than by normalizing `..` lexically.
+            let expanded = path
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: resolvedProjectDirectory.pathString)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            #expect(FileManager.default.fileExists(atPath: expanded), "\(path) does not resolve from \(resolvedProjectDirectory)")
+        }
+    }
+
     /// A multiplatform source package target that a macro depends on is built only for the host, so its
     /// `ProcessXCFramework` output never reaches an iOS client of the macro (swift-syntax's `_SwiftSyntaxCShims`).
     @Test(.inTemporaryDirectory) func headersDoNotCrossMacros() async throws {
