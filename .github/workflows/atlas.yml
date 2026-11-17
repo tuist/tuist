@@ -97,14 +97,14 @@ jobs:
           kind = "tuist"
           account = "tuist"
           project = "atlas"
-          execution_image = "sha-75b269855aac"
+          execution_image = "sha-b77655af4dc0"
 
           [infrastructure.execution]
           provider = "production"
 
           [infrastructure.execution.properties.elixir]
           schema_version = 1
-          environment = "sha-75b269855aac"
+          environment = "sha-b77655af4dc0"
           os = "linux"
           arch = "x86_64"
           elixir_bin = "/opt/elixir/bin"
