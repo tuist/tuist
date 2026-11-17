@@ -553,6 +553,26 @@ postgresql:
     backup:
       destinationPath: s3://tuist-can-pg-backups/
 
+agents:
+  enabled: true
+  # Two pods, as production would run, so sessions hand off between real
+  # replicas on every deploy and scale-down; a third under load.
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 3
+  podDisruptionBudget:
+    enabled: true
+  # An idle pod holds about 750Mi. Requests equal limits, as the memory
+  # autoscaler requires.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "2Gi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
 processor:
   replicaCount: 1
   podDisruptionBudget:
