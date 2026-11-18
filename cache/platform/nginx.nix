@@ -33,7 +33,9 @@
     appendHttpConfig = ''
       # Multiplex downloads over a single TCP connection per client,
       # avoiding per-request TLS handshakes and connection overhead.
-      http2 on;
+      # HTTP/2 is temporarily disabled; restore these http2 directives and
+      # drop `http2 = false` on the HTTPS vhost to re-enable it.
+      # http2 on;
 
       # Zero-copy file transfer — the kernel moves data straight from
       # the page cache to the NIC via kTLS, bypassing user-space copies.
@@ -54,10 +56,10 @@
       # a worker. 128 covers the CLI's 100-module concurrency; heavier
       # clients are forced to open additional TCP connections which the
       # kernel distributes across workers.
-      http2_max_concurrent_streams 128;
+      # http2_max_concurrent_streams 128;
       # 16 KB is the default HTTP/2 max frame size; values above this
       # are silently split by most clients. Matches the spec ceiling.
-      http2_chunk_size 16k;
+      # http2_chunk_size 16k;
 
       # Cap each sendfile() call so one large transfer cannot monopolise
       # a worker's event-loop iteration. The worker yields after 512 KB,
@@ -145,6 +147,8 @@
         # sendfile this gives true zero-copy: data goes page-cache → NIC
         # without entering user-space. ~15-30 % throughput gain on downloads.
         kTLS = true;
+        # NixOS enables HTTP/2 per vhost by default.
+        http2 = false;
 
         extraConfig = ''
           # No upload size limit — large cache artifacts can be hundreds of MB.
