@@ -492,13 +492,6 @@ config :atlas, :finance,
   internal_entity_names: finance_internal_entity_names,
   sources: Enum.reject([qonto_source, mercury_source], &is_nil/1)
 
-# The feature-usage collector reads successful Model Context Protocol requests
-# from Grafana Cloud Loki with a dedicated read-only access-policy token.
-config :atlas, :grafana_loki,
-  base_url: System.get_env("ATLAS_GRAFANA_LOKI_URL"),
-  username: System.get_env("ATLAS_GRAFANA_LOKI_USERNAME"),
-  token: System.get_env("ATLAS_GRAFANA_LOKI_TOKEN")
-
 config :atlas, :granola,
   api_key: System.get_env("GRANOLA_API_KEY"),
   base_url: System.get_env("GRANOLA_API_BASE_URL")

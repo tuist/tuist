@@ -119,7 +119,7 @@ itself through small extension points.
   product metrics. Make it an optional widget and give `/` a generic home.
 - **Feature usage** catalog and collector query Tuist tables. Keep the snapshot
   storage in core behind a feature usage source behaviour; the catalog comes from
-  the integration. The Loki query hardcodes `service_name="tuist-server"`.
+  the integration.
 - **Nudges:** Air, cache, selective testing, SSO and activation signals are
   Tuist-specific. Keep the framework and add a signal registry instead of the
   static list in `nudges/workers/evaluate_signals.ex`.
