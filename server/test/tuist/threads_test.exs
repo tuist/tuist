@@ -17,6 +17,7 @@ defmodule Tuist.ThreadsTest do
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
   alias Tuist.Threads.Shipping
+  alias Tuist.Threads.SnoozeWorker
   alias Tuist.Threads.Thread
   alias Tuist.Threads.ToolCall
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -175,6 +176,7 @@ defmodule Tuist.ThreadsTest do
 
     # Archiving and shipping stay the owner's.
     assert {:error, :forbidden} = Threads.archive(ben, account, thread.id, "archived")
+    assert {:error, :forbidden} = Threads.snooze(ben, account, thread.id, nil)
     assert {:error, :forbidden} = Threads.ship_preview(ben, account, thread.id)
   end
 
@@ -577,6 +579,59 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, %{status: :active, agent_status: "idle"}} = Threads.archive(user, account, thread.id, "active")
     assert Repo.reload!(run).status == "cancelled"
     assert Repo.aggregate(Run, :count) == 1
+  end
+
+  test "snoozing until needed lasts until the run stops", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    assert {:ok, %{snoozed_until_needed: true}} = Threads.snooze(user, account, thread.id, %{"until_needed" => true})
+    assert Threads.serialize(Repo.reload!(thread)).snoozed_until_needed
+
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+
+    refute Repo.reload!(thread).snoozed_until_needed
+    # Nothing is left to wait for once the thread waits for its owner.
+    assert {:error, :not_working} = Threads.snooze(user, account, thread.id, %{"until_needed" => true})
+  end
+
+  test "a timed snooze ends at its time unless it was changed, and a message ends it early", %{
+    user: user,
+    account: account
+  } do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+    first = DateTime.utc_now() |> DateTime.add(2, :hour) |> DateTime.truncate(:second)
+    later = DateTime.add(first, 1, :hour)
+
+    assert {:ok, %{snoozed_until: ^first}} =
+             Threads.snooze(user, account, thread.id, %{"until" => DateTime.to_iso8601(first)})
+
+    assert_enqueued(worker: SnoozeWorker, args: %{"thread_id" => thread.id}, scheduled_at: first)
+
+    assert {:ok, %{snoozed_until: ^later}} =
+             Threads.snooze(user, account, thread.id, %{"until" => DateTime.to_iso8601(later)})
+
+    # The first snooze's job finds a different snooze and leaves it.
+    assert :ok = perform_job(SnoozeWorker, %{"thread_id" => thread.id, "until" => DateTime.to_iso8601(first)})
+    assert Repo.reload!(thread).snoozed_until == later
+    assert :ok = perform_job(SnoozeWorker, %{"thread_id" => thread.id, "until" => DateTime.to_iso8601(later)})
+    assert Repo.reload!(thread).snoozed_until == nil
+
+    {:ok, _} = Threads.snooze(user, account, thread.id, %{"until" => DateTime.to_iso8601(later)})
+    assert {:ok, %{snoozed_until: nil}} = Threads.message(user, account, thread.id, request("I'm back"))
+  end
+
+  test "snoozes only until a time in the next 30 days", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    past = DateTime.utc_now() |> DateTime.add(-60) |> DateTime.to_iso8601()
+    far = DateTime.utc_now() |> DateTime.add(31, :day) |> DateTime.to_iso8601()
+
+    for snooze <- [%{"until" => past}, %{"until" => far}, %{"until" => "tomorrow"}, %{"until_needed" => "yes"}, "later"] do
+      assert {:error, :invalid_arguments} = Threads.snooze(user, account, thread.id, snooze)
+    end
+
+    assert {:error, :forbidden} = Threads.snooze(AccountsFixtures.user_fixture(), account, thread.id, nil)
   end
 
   test "history paging is bounded, chronological and disjoint", %{user: user, account: account} do

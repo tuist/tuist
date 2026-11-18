@@ -26,6 +26,9 @@ defmodule Tuist.Threads.Thread do
     field :workspace_ready, :boolean, default: false
     field :ship_mode, Ecto.Enum, values: [:direct, :branch], default: :branch
     field :status, Ecto.Enum, values: [:active, :archived], default: :active
+    # See `Tuist.Threads.snooze/4`.
+    field :snoozed_until, :utc_datetime
+    field :snoozed_until_needed, :boolean, default: false
     field :agent_status, :string, default: "queued"
     field :revision, :integer, default: 0
     field :messages, {:array, :map}, virtual: true, default: []
