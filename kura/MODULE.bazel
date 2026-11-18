@@ -11,6 +11,11 @@ module(
     name = "kura",
 )
 
+# Declared ahead of rules_cc so apple_support's Xcode cc toolchain is registered before rules_cc's
+# autodetected one. Apple clang 21 (Xcode 27+) lists the SDK's SDKSettings.json in depfiles, which
+# the autodetected toolchain's builtin include directories don't cover, so Bazel rejects every
+# macOS C/C++ compile as an absolute path inclusion.
+bazel_dep(name = "apple_support", version = "1.24.2")
 bazel_dep(name = "rules_cc", version = "0.2.19")
 
 # Referenced by //bazel/platforms' constraint values; @platforms is only visible from the root

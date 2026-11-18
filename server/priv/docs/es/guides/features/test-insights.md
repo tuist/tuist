@@ -7,12 +7,12 @@
 ---
 # Análisis de tests {#test-insights}
 
-Usa el Análisis de tests para supervisar la salud de tu suite de tests identificando tests lentos, rastreando tests inestables y comprendiendo rápidamente las ejecuciones de CI fallidas. Actualmente es compatible con Xcode, Gradle, Bazel, Elixir, Rust y Once. Los resultados y los tiempos disponibles dependen de tu runner. Para saber qué código ejecutan tus tests en los sistemas de compilación compatibles, consulta <.localized_link href="/guides/features/test-code-coverage">Cobertura de código</.localized_link>. Para obtener orientación sobre [tests lentos](https://tuist.dev/solutions/slow-tests) y [tests inestables](https://tuist.dev/solutions/flaky-tests), consulta las guías de soluciones.
+Usa el análisis de tests para supervisar la salud de tu suite de tests identificando tests lentos, rastreando tests inestables y entendiendo rápidamente las ejecuciones de CI fallidas. Actualmente es compatible con Xcode, Gradle, Bazel, Elixir, Rust y Once. Los resultados y tiempos disponibles dependen de tu runner. Para saber qué código ejecutan tus tests en los sistemas de compilación compatibles, consulta <.localized_link href="/guides/features/test-code-coverage">Cobertura de código</.localized_link>. Para obtener orientación sobre [tests lentos](https://tuist.dev/solutions/slow-tests) y [tests inestables](https://tuist.dev/solutions/flaky-tests), consulta las guías de soluciones.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Rastrea las analíticas de tests de Xcode mediante post-acciones del esquema y la CLI de Tuist."
+    details="Rastrea las analíticas de tests de Xcode usando acciones posteriores del esquema y la CLI de Tuist."
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
@@ -37,7 +37,7 @@ Usa el Análisis de tests para supervisar la salud de tu suite de tests identifi
 />
   <.home_card
     title="Once"
-    details="Rastrea los targets de test reportados, las suites, los casos, los fallos y los intentos de reintento a través de la integración nativa de Once."
+    details="Rastrea los targets de test reportados, suites, casos, fallos e intentos de reintento a través de la integración nativa de Once."
     link="/guides/features/test-insights/once"
 />
 </.home_cards>
