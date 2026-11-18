@@ -4,7 +4,8 @@ defmodule Tuist.Accounts.CredentialRevocation do
   have leaked: browser sessions and pending sign-in links, CLI and app refresh
   tokens, OAuth grants, device codes, agent credentials, account tokens
   (including SCIM), project tokens, and legacy user and project tokens.
-  Run it through `Tuist.Release.revoke_credentials/1`.
+  Run it through `Tuist.Release.revoke_credentials/1`, following the runbook in
+  `server/docs/credential-revocation.md`.
 
   Access tokens are signed and not stored, so `users.credentials_revoked_at`
   and `accounts.credentials_revoked_at` reject every one issued at or before
