@@ -358,6 +358,8 @@ defmodule Tuist do
       Sandboxes,
       RemoteExecution,
       RemoteExecution.Analytics,
+      RemoteExecution.Query,
+      RemoteExecution.Schemas,
       Sandboxes.AtlasIdentity,
       Sandboxes.ProviderEnvironments,
       Sandboxes.AmpIntegrations,

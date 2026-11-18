@@ -6,7 +6,7 @@ defmodule Tuist.MCP.WebMCPTest do
   alias Tuist.MCP.Server
   alias Tuist.MCP.WebMCP
 
-  @pages ~w(overview builds tests module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization pulse)
+  @pages ~w(overview builds tests remote-execution module-cache bundles previews project-settings connect projects runners webhooks sandboxes account-tokens organization pulse)
   @build_systems ~w(xcode gradle bazel cargo mix once)
 
   setup do
@@ -25,6 +25,7 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/app/once/test-runs/1", organization, project) == "tests"
     assert WebMCP.dashboard_page("/acme/app/once/runs/1", organization, project) == "builds"
     assert WebMCP.dashboard_page("/acme/app/gradle-cache", organization, project) == "builds"
+    assert WebMCP.dashboard_page("/acme/app/remote-execution", organization, project) == "remote-execution"
     assert WebMCP.dashboard_page("/acme/app/settings/automations", organization, project) == "project-settings"
     # An account page whose name matches a project page is the account's.
     assert WebMCP.dashboard_page("/acme/settings/tokens/1", user, nil) == "account-tokens"

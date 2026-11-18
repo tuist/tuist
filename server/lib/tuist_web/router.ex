@@ -1343,6 +1343,11 @@ defmodule TuistWeb.Router do
           get "/actions/:action_id/executions", OnceActionsController, :history
         end
 
+        scope "/remote-execution" do
+          get "/activity", RemoteExecutionInsightsController, :activity
+          get "/usage", RemoteExecutionInsightsController, :usage
+        end
+
         scope "/bazel" do
           get "/actions", BazelActionsController, :index
           get "/actions/:action_id", BazelActionsController, :show

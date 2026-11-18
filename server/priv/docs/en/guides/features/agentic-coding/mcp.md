@@ -523,6 +523,13 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Remote execution
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_remote_execution_activity` | List the project's running Bazel invocations and its remote actions running and queued right now, with each action's invocation, mnemonic, target, action digest, machine size and when it entered that state. Actions the execution gateway runs on a VM it prepared in advance are not listed until they finish. | `account_handle`, `project_handle` |
+| `get_remote_execution_usage` | Get the project's remote executions and measured execution time over `[from, to)`, in total, per machine size, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366. | `account_handle`, `project_handle` |
+
 `list_bazel_invocations` filters are exact matches, and invocations that finish in the same second are ordered by invocation ID. To find the latest failing invocation on a branch, call it with `status: "failure"`, `git_branch` and `page_size: 1`. The REST endpoint `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations` accepts the same filters.
 
 Set `remote_execution: true` on `list_bazel_build_steps` to return only actions with safely associated server phase timings from indexed profiles. List and detail responses expose optional nullable `remote_queue_ms`, `remote_input_fetch_ms`, `remote_execution_ms` and `remote_output_upload_ms`. Values sum recorded phases, including retries within the action; absent or null values mean unavailable, not zero. They are profile observations, not billable usage or proof of fresh execution, since cached server results can carry execution metadata. Client uploads are excluded. Older or ambiguous profiles may return no matching actions even when remote work occurred. The step REST endpoint accepts the same `remote_execution=true` filter. The dashboard's Remote execution tab uses the same query and 90-day retention.

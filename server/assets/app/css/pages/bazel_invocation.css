@@ -211,10 +211,19 @@
           }
         }
 
+        & > [data-part="badge-processing"] {
+          background: var(--noora-surface-background-secondary);
+
+          & > [data-part="icon"] {
+            color: var(--noora-surface-label-secondary);
+          }
+        }
+
         & > [data-part="badge-success"],
         & > [data-part="badge-failure"],
         & > [data-part="badge-warning"],
-        & > [data-part="badge-flaky"] {
+        & > [data-part="badge-flaky"],
+        & > [data-part="badge-processing"] {
           flex-shrink: 0;
           border-radius: var(--noora-radius-4);
 
