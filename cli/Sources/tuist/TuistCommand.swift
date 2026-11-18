@@ -25,6 +25,7 @@ import TuistRunCommand
 import TuistRunnerCommand
 import TuistSandboxCommand
 import TuistShareCommand
+import TuistSnapshotsCommand
 import TuistSupport
 import TuistTestCommand
 import TuistVersionCommand
@@ -79,6 +80,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         SandboxCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
+                        SnapshotsCommand.self,
                         TeardownCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
@@ -114,6 +116,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     RunCommand.self,
                     RunnerCommand.self,
                     SandboxCommand.self,
+                    SnapshotsCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
                 ]
