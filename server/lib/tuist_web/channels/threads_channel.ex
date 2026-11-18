@@ -35,7 +35,7 @@ defmodule TuistWeb.ThreadsChannel do
         {:ok, value} ->
           schedule_poll()
           tools = tools(target, params)
-          if tools != [], do: {:ok, _} = Clients.join(target, tools)
+          if tools != [], do: {:ok, _} = Clients.join(target, user.id, tools)
           {:ok, value, socket |> assign(:snapshot, value) |> assign(:tool_calls, %{})}
 
         _ ->
@@ -46,7 +46,7 @@ defmodule TuistWeb.ThreadsChannel do
     end
   end
 
-  # The app answers a call `Clients.call/4` sent this channel.
+  # The app answers a call `Clients.call/5` sent this channel.
   def handle_in("tool_result", %{"id" => id} = payload, socket) when is_binary(id) do
     case Map.pop(socket.assigns.tool_calls, id) do
       {{ref, from}, calls} ->

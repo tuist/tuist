@@ -8,6 +8,9 @@ defmodule Tuist.Threads.Message do
     field :request_id, Ecto.UUID
     field :position, :integer
     field :kind, :string
+    # The person who wrote a `human` message; nil for other kinds and for
+    # messages from before authors were recorded, which are the owner's.
+    field :author_id, :integer
     field :body, :string
     field :tool_name, :string
     field :tool_state, :string

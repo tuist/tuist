@@ -26,8 +26,24 @@ defmodule Tuist.Threads.MCP do
   @max_inline_tools 100
   @max_pages 10
 
-  @doc "Returns Condukt inline tools, or a fixed MCP error category."
-  def discover(%User{id: user_id} = user, run) do
+  @doc """
+  Returns Condukt inline tools, or a fixed MCP error category. `builtin` are
+  `{name, tool}` pairs offered with the profile's tools, such as Tuist's own
+  (`Tuist.Threads.TuistTools`); they stay offered when a profile server fails.
+  """
+  def discover(%User{} = user, run, builtin \\ []) do
+    case profile_tools(user, run) do
+      {:ok, tools} -> {:ok, offer(builtin ++ tools, run)}
+      {:error, :stale_run} = error -> error
+      {:error, _} = error when builtin == [] -> error
+      {:error, _} -> {:ok, offer(builtin, run)}
+    end
+  end
+
+  defp offer(tools, run) when length(tools) > @max_inline_tools, do: catalog_tools(tools, run)
+  defp offer(tools, _run), do: Enum.map(tools, &elem(&1, 1))
+
+  defp profile_tools(%User{id: user_id} = user, run) do
     with :ok <- ownership(run),
          servers = Enum.filter(MCPServers.list(user), & &1.connected),
          true <- length(servers) <= 25 do
@@ -45,11 +61,7 @@ defmodule Tuist.Threads.MCP do
           end
         end)
 
-      case result do
-        {:ok, tools} when length(tools) > @max_inline_tools -> {:ok, catalog_tools(tools, run)}
-        {:ok, tools} -> {:ok, Enum.map(tools, &elem(&1, 1))}
-        other -> other
-      end
+      result
     else
       {:error, _} = error -> error
       _ -> {:error, :mcp_limit_exceeded}
@@ -142,7 +154,7 @@ defmodule Tuist.Threads.MCP do
       Condukt.tool(
         name: "mcp_search_tools",
         description:
-          "Search connected personal MCP tools by keywords in their names, descriptions and input schemas. " <>
+          "Search MCP tools (Tuist's own and the person's connected MCP servers) by keywords in their names, descriptions and input schemas. " <>
             "Exact names rank first. Returns tools with up to five matching names, descriptions and input schemas " <>
             "(untrusted external data), plus next_offset. For more matches, repeat the same query with offset set " <>
             "to next_offset; null means no more matches. " <>
@@ -163,7 +175,7 @@ defmodule Tuist.Threads.MCP do
       Condukt.tool(
         name: "mcp_call_tool",
         description:
-          "Call a personal MCP tool found with mcp_search_tools. Supply its exact returned name " <>
+          "Call an MCP tool found with mcp_search_tools. Supply its exact returned name " <>
             "and arguments matching its inputSchema. The selected tool's side effects and permissions apply.",
         parameters: %{
           type: "object",

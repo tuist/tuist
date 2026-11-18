@@ -200,12 +200,30 @@ defmodule TuistWeb.ThreadsChannelTest do
       {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
       {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
 
-      assert [%{name: "set_theme", description: "Restyles the app."}] = AppClients.tools(thread.id)
+      assert [%{name: "set_theme", description: "Restyles the app."}] = AppClients.tools(thread.id, thread.owner_id)
 
-      call = Task.async(fn -> AppClients.call(thread.id, "set_theme", %{"appearance" => "dark"}) end)
+      call = Task.async(fn -> AppClients.call(thread.id, thread.owner_id, "set_theme", %{"appearance" => "dark"}) end)
       assert_push "tool_call", %{id: id, name: "set_theme", arguments: %{"appearance" => "dark"}}, 1_000
       push(socket, "tool_result", %{"id" => id, "ok" => "Applied a dark theme."})
       assert Task.await(call) == {:ok, "Applied a dark theme."}
+    end
+
+    test "another person's app showing the thread is neither offered nor called", %{
+      token: token,
+      thread: thread,
+      tool: tool,
+      topic: topic
+    } do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      {:ok, _, _socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
+      other = AccountsFixtures.user_fixture()
+
+      assert AppClients.tools(thread.id, other.id) == []
+
+      assert {:error, "The person's app isn't showing this thread" <> _} =
+               AppClients.call(thread.id, other.id, "set_theme", %{})
+
+      refute_push "tool_call", _
     end
 
     test "a call fails once the app that offered the tool leaves", %{
@@ -217,12 +235,14 @@ defmodule TuistWeb.ThreadsChannelTest do
       {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
       {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
 
-      call = Task.async(fn -> AppClients.call(thread.id, "set_theme", %{}) end)
+      call = Task.async(fn -> AppClients.call(thread.id, thread.owner_id, "set_theme", %{}) end)
       assert_push "tool_call", _, 1_000
       Process.unlink(socket.channel_pid)
       close(socket)
       assert {:error, "The person's app disconnected" <> _} = Task.await(call)
-      assert {:error, "The person's app isn't showing this thread" <> _} = AppClients.call(thread.id, "set_theme", %{})
+
+      assert {:error, "The person's app isn't showing this thread" <> _} =
+               AppClients.call(thread.id, thread.owner_id, "set_theme", %{})
     end
 
     test "joins without tools it doesn't accept, and without tools on the inbox", %{
@@ -241,7 +261,7 @@ defmodule TuistWeb.ThreadsChannelTest do
             List.duplicate(tool, 9)
           ] do
         assert {:ok, _snapshot, joined} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => tools})
-        assert AppClients.tools(thread.id) == []
+        assert AppClients.tools(thread.id, thread.owner_id) == []
         Process.unlink(joined.channel_pid)
         leave(joined)
       end
@@ -259,7 +279,9 @@ defmodule TuistWeb.ThreadsChannelTest do
       {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
       {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
 
-      assert {:error, "The person's app didn't answer" <> _} = AppClients.call(thread.id, "set_theme", %{}, 50)
+      assert {:error, "The person's app didn't answer" <> _} =
+               AppClients.call(thread.id, thread.owner_id, "set_theme", %{}, 50)
+
       assert_push "tool_call", %{id: id}
       forgotten? = fn -> :sys.get_state(socket.channel_pid).assigns.tool_calls == %{} end
       Enum.find(1..50, fn _ -> forgotten?.() || (Process.sleep(10) && false) end)

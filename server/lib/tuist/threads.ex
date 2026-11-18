@@ -134,7 +134,7 @@ defmodule Tuist.Threads do
                 log: false
               )
 
-            message = append!(thread, %{kind: "human", body: body, request_id: request_id})
+            message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
 
@@ -176,7 +176,7 @@ defmodule Tuist.Threads do
 
           nil ->
             require_idle!(thread)
-            message = append!(thread, %{kind: "human", body: body, request_id: request_id})
+            message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
         end

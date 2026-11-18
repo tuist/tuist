@@ -17,11 +17,14 @@ defmodule Tuist.Threads.HostTest do
   alias Tuist.Threads.Cards
   alias Tuist.Threads.Clients
   alias Tuist.Threads.Host
+  alias Tuist.Threads.Message
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
   alias Tuist.Threads.ToolCall
+  alias Tuist.Threads.TuistTools
   alias Tuist.Threads.Workspace
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   defmodule UnreachableBucket do
     @moduledoc false
@@ -155,7 +158,7 @@ defmodule Tuist.Threads.HostTest do
     # The app's channel, as `TuistWeb.ThreadsChannel` tracks it on join.
     app =
       spawn_link(fn ->
-        {:ok, _} = Clients.join(thread.id, [tool])
+        {:ok, _} = Clients.join(thread.id, user.id, [tool])
         send(test, :joined)
 
         receive do
@@ -241,7 +244,7 @@ defmodule Tuist.Threads.HostTest do
     # The app receives the call and never answers, then goes away.
     app =
       spawn(fn ->
-        {:ok, _} = Clients.join(thread.id, [tool])
+        {:ok, _} = Clients.join(thread.id, user.id, [tool])
         send(test, :joined)
 
         receive do
@@ -296,7 +299,7 @@ defmodule Tuist.Threads.HostTest do
     ref = Process.monitor(app)
     Process.exit(app, :kill)
     assert_receive {:DOWN, ^ref, :process, ^app, :killed}
-    assert Clients.tools(thread.id) == []
+    assert Clients.tools(thread.id, user.id) == []
 
     lapse(thread.id)
     host_until_idle(thread.id)
@@ -465,7 +468,8 @@ defmodule Tuist.Threads.HostTest do
     plug = fn conn ->
       {:ok, raw, conn} = Plug.Conn.read_body(conn)
       request = JSON.decode!(raw)
-      refute Enum.any?(request["tools"], &String.starts_with?(&1["function"]["name"], "mcp_"))
+      # Tuist's own tools don't depend on the profile's servers.
+      assert Enum.any?(request["tools"], &(&1["function"]["name"] == "mcp_search_tools"))
 
       response = %{
         id: "completion",
@@ -500,6 +504,139 @@ defmodule Tuist.Threads.HostTest do
     assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
     assert List.last(fresh.messages).body == "Still available."
     assert Repo.reload!(run).status == "succeeded"
+  end
+
+  test "a run offers its message author's MCP servers and app tools, not the owner's" do
+    owner = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    test = self()
+    assert {:ok, thread} = Threads.create(owner, owner.account, request("Theme it"))
+    # Threads have one participant today; this stands in for a later participant's message.
+    Repo.update_all(Message, set: [author_id: author.id])
+
+    app = fn user_id, name ->
+      spawn(fn ->
+        {:ok, _} = Clients.join(thread.id, user_id, [%{name: name, description: name, parameters: %{"type" => "object"}}])
+        send(test, :joined)
+        Process.sleep(:infinity)
+      end)
+    end
+
+    apps = [app.(owner.id, "owner_tool"), app.(author.id, "author_tool")]
+    assert_receive :joined
+    assert_receive :joined
+
+    stub(MCPServers, :list, fn user ->
+      send(test, {:mcp_servers_of, user.id})
+      []
+    end)
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      names = Enum.map(JSON.decode!(raw)["tools"], & &1["function"]["name"])
+      send(test, {:offered, names})
+
+      response = %{
+        id: "completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [
+          %{
+            index: 0,
+            message: %{role: "assistant", content: JSON.encode!(%{reply: "Done.", suggestions: []})},
+            finish_reason: "stop"
+          }
+        ],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(owner, %{provider: "chatgpt", model: "selected-model"})
+
+    # The owner's subscription still pays for the run.
+    stub(Provider, :client_opts, fn user, _ ->
+      assert user.id == owner.id
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    host_until_idle(thread.id)
+
+    assert_received {:mcp_servers_of, author_id}
+    assert author_id == author.id
+    refute_received {:mcp_servers_of, _}
+    assert_received {:offered, names}
+    assert "client_author_tool" in names
+    refute "client_owner_tool" in names
+    Enum.each(apps, &Process.exit(&1, :kill))
+  end
+
+  test "a run calls Tuist's own tools as its message author" do
+    owner = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    owner_project = ProjectsFixtures.project_fixture(account_id: owner.account.id)
+    author_project = ProjectsFixtures.project_fixture(account_id: author.account.id)
+    turns = start_supervised!({Agent, fn -> 0 end})
+    test = self()
+    assert {:ok, thread} = Threads.create(owner, owner.account, request("Which projects can I see?"))
+    # Threads have one participant today; this stands in for a later participant's message.
+    Repo.update_all(Message, set: [author_id: author.id])
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(turns, &{&1, &1 + 1})
+
+      {message, finish} =
+        case turn do
+          0 ->
+            arguments = JSON.encode!(%{name: "tuist_list_projects", arguments: %{}})
+            call = %{id: "projects", type: "function", function: %{name: "mcp_call_tool", arguments: arguments}}
+            {%{role: "assistant", content: nil, tool_calls: [call]}, "tool_calls"}
+
+          1 ->
+            send(test, {:result, Enum.find(request["messages"], &(&1["tool_call_id"] == "projects"))["content"]})
+            {%{role: "assistant", content: JSON.encode!(%{reply: "Listed.", suggestions: []})}, "stop"}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: finish}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(owner, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    host_until_idle(thread.id)
+
+    assert_received {:result, result}
+    assert result =~ "#{author.account.name}/#{author_project.name}"
+    refute result =~ "#{owner.account.name}/#{owner_project.name}"
+    assert [%ToolCall{name: "tuist_list_projects", status: "completed"}] = Repo.all(ToolCall)
+
+    # Writes stay out until the person can approve them.
+    names = author |> TuistTools.tools(Repo.one!(Run)) |> Enum.map(&elem(&1, 0))
+    assert "list_projects" in names
+    refute "delete_sandbox" in names
+    refute "create_project" in names
   end
 
   test "a stale MCP discovery does not dispatch inference" do

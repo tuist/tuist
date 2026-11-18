@@ -47,6 +47,7 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Repository
   alias Tuist.Threads.ToolLog
+  alias Tuist.Threads.TuistTools
   alias Tuist.Threads.Workspace
 
   require Logger
@@ -289,10 +290,19 @@ defmodule Tuist.Threads.Host do
 
   defp infer(run, thread, context, epoch, host) do
     user = Accounts.get_user_by_id(thread.owner_id)
+    # The run acts for the person whose message started it: only their MCP
+    # servers and their apps' tools, never another participant's. Messages
+    # from before authors were recorded are the owner's.
+    author =
+      case Repo.get!(Message, run.message_id).author_id do
+        nil -> user
+        id -> Accounts.get_user_by_id(id)
+      end
+
     deadline = System.monotonic_time(:millisecond) + @run_ms
 
     with {:ok, client_opts} <- Provider.client_opts(user, thread),
-         {:ok, mcp_tools} <- mcp_tools(user, run) do
+         {:ok, mcp_tools} <- mcp_tools(author, run) do
       # The run's process is the model calls' worker: they end with it.
       opts =
         ModelFence.wrap(client_opts, run, self()) ++
@@ -300,7 +310,7 @@ defmodule Tuist.Threads.Host do
             id: "#{thread.id}:#{run.id}",
             session_store: SessionStore.store("thread", thread.id, epoch),
             system_prompt: Agent.prompt(thread, context),
-            tools: tools(run, context) ++ mcp_tools ++ client_tools(run, thread),
+            tools: tools(run, context) ++ mcp_tools ++ client_tools(run, thread, author),
             hooks: [{ToolLog, run: run, tools: @logged_tools}],
             load_project_instructions: false,
             max_tokens: 8192
@@ -377,8 +387,12 @@ defmodule Tuist.Threads.Host do
     ]
   end
 
+  # Tuist's own tools and the author's profile MCP servers, both acting as the
+  # author. An author deleted since their message was written has none.
+  defp mcp_tools(nil, _run), do: {:ok, []}
+
   defp mcp_tools(user, run) do
-    case MCP.discover(user, run) do
+    case MCP.discover(user, run, TuistTools.tools(user, run)) do
       {:ok, tools} -> {:ok, tools}
       {:error, :stale_run} = error -> error
       # Profile integrations are optional. Their discovery failures must not
@@ -387,14 +401,21 @@ defmodule Tuist.Threads.Host do
     end
   end
 
-  # The tools the person's app offers while it shows the thread, run there.
+  # The tools the author's app offers while it shows the thread, run there;
+  # other people's apps showing the thread are never called.
   # A thread's first run waits briefly for the app that started it. Their
   # effects stay on the device, so they are not reserved like the built-in
   # tools: a call cut short by a drain or crash leaves nothing open that
   # could block the thread, and only an answered call is recorded.
-  defp client_tools(run, thread) do
+  defp client_tools(_run, _thread, nil), do: []
+
+  defp client_tools(run, thread, author) do
     first = Repo.aggregate(from(m in Message, where: m.thread_id == ^thread.id and m.kind == "human"), :count) <= 1
-    tools = if first, do: Clients.await_tools(thread.id, client_wait_ms()), else: Clients.tools(thread.id)
+
+    tools =
+      if first,
+        do: Clients.await_tools(thread.id, author.id, client_wait_ms()),
+        else: Clients.tools(thread.id, author.id)
 
     Enum.map(tools, fn tool ->
       name = Clients.prefix() <> tool.name
@@ -404,7 +425,7 @@ defmodule Tuist.Threads.Host do
         description: "Runs in the person's app, on the device showing this thread. " <> tool.description,
         parameters: tool.parameters,
         call: fn args, _ ->
-          result = Clients.call(thread.id, tool.name, args)
+          result = Clients.call(thread.id, author.id, tool.name, args)
           _ = Threads.record_client_tool(run, name, result)
           result
         end
