@@ -5,8 +5,8 @@ import TuistProcess
 extension GitController {
     public func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles {
         guard limit > 0 else { return GitCommitFiles(files: [], truncated: true) }
-        // The commit's tree rather than the index: on a pull request's merge checkout the run
-        // reports the pull request's head, while the index is the merge commit's.
+        // The commit's tree rather than the index, which is the checkout's and need not be the
+        // reported commit's.
         let output = try await capture(
             arguments: ["git", "-C", workingDirectory.pathString, "ls-tree", "-r", "-z", "--full-tree", sha]
         )
