@@ -1550,7 +1550,7 @@ defmodule Tuist.Sandboxes.Capacity do
   # `disk_fits` runs under the node's lock too, so two placements racing
   # for the last of a node's disk budget see each other's rows. Without
   # `grant?`, memory the Pod holds is used whatever the grant says.
-  defp reserve(node, charge, apply, disk_fits \\ fn -> true end, grant? \\ true) do
+  defp reserve(node, charge, apply, disk_fits, grant? \\ true) do
     fn ->
       lock(node.name)
       reserved = reserved_bytes(node.name)
