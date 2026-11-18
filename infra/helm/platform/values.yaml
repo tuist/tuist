@@ -93,6 +93,15 @@ ingress-nginx:
       upstream-keepalive-timeout: "10"
       # Never replay a POST, PATCH or LOCK nginx already started sending.
       retry-non-idempotent: "false"
+      # Stopgap for nginx2root (CVE-2026-123007, CVE-2026-123633): RCEs in the
+      # HTTP/2 code of the nginx this ingress-nginx release bundles, which has
+      # no fixed release. The load balancer is reachable directly, not only
+      # through Cloudflare, so h2 must be off at nginx. Cloudflare connects to
+      # this origin over h2 and falls back to HTTP/1.1, while clients keep h2
+      # to Cloudflare; direct clients negotiate HTTP/1.1. gRPC hosts live on
+      # `nginx-grpc` and the Kura gateways, which keep HTTP/2. Re-enable only
+      # on a fixed nginx (1.31.9+).
+      use-http2: "false"
     # The address of the edge that opened this connection, which the
     # application needs and cannot otherwise see. With PROXY protocol,
     # $remote_addr is the CDN edge the load balancer declared, but the
