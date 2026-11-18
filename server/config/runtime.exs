@@ -814,6 +814,10 @@ base_queues = [
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
+# Snapshot comparisons decode and diff full-resolution images, a few hundred
+# megabytes per job: they run on the processor pods with the other heavy
+# parsing, or on web pods with a bounded concurrency when there are none.
+process_snapshots_queue = {:process_snapshots, Tuist.Environment.process_snapshots_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
 # `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
@@ -826,7 +830,7 @@ swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build_queue, process_bazel_tests_queue]
+      [process_build_queue, process_bazel_tests_queue, process_snapshots_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
       # Every queue start, including an Oban-only supervisor restart, is
@@ -850,6 +854,11 @@ oban_queues =
         if Tuist.Environment.delegate_process_bazel_tests?(),
           do: base,
           else: base ++ [process_bazel_tests_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_snapshots?(),
+          do: base,
+          else: base ++ [process_snapshots_queue]
 
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end

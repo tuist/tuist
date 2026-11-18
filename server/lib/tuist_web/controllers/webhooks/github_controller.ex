@@ -8,6 +8,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.Runners.Workers.RecordWorkflowRunWorker
   alias Tuist.Runners.WorkflowRuns
+  alias Tuist.Snapshots
   alias Tuist.VCS
 
   require Logger
@@ -426,6 +427,37 @@ defmodule TuistWeb.Webhooks.GitHubController do
       }
 
       resolve_bundle_size_approval(check_run, check_run_params, sender, repository_full_name)
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  # The Approve and Reject buttons of a snapshot build's `tuist/snapshots` check run
+  # (`Tuist.Snapshots.Workers.CheckRunWorker`). GitHub shows requested
+  # actions only to people with write access to the repository, and the
+  # build must belong to a project connected to the repository the event
+  # comes from, so a check run on one repository can't approve another
+  # project's build.
+  defp handle_check_run(
+         conn,
+         %{
+           "action" => "requested_action",
+           "check_run" => %{"name" => "tuist/snapshots" <> _, "external_id" => build_id},
+           "requested_action" => %{"identifier" => action},
+           "repository" => %{"full_name" => repository_full_name}
+         } = params
+       )
+       when action in ["approve_snapshots", "reject_snapshots"] do
+    with {:ok, build} <- Snapshots.get_build_by_id(build_id),
+         %{repository_full_handle: handle} <- build.project.vcs_connection,
+         true <- String.downcase(handle) == String.downcase(repository_full_name) do
+      reviewer = [github_handle: sender_from_params(params).handle]
+
+      if action == "approve_snapshots",
+        do: Snapshots.approve_build(build, reviewer),
+        else: Snapshots.reject_build(build, reviewer)
     end
 
     conn

@@ -65,9 +65,9 @@ defmodule Tuist.MCP.WebMCPTest do
 
     # Notification rules span every account the user belongs to, so no account page offers them.
     account_spanning = ~w(list_notification_events list_notification_condition_options list_notification_rules)
-    # Amp workspace connections and Claude environments need account `:update`
-    # even to list, so browser agents never get them.
-    admin_only = ~w(list_amp_workspace_connections list_claude_environments)
+    # Amp workspace connections, Claude environments and organization AI
+    # configuration need account `:update` even to read, so browser agents never get them.
+    admin_only = ~w(list_amp_workspace_connections list_claude_environments get_organization_ai_configuration)
     not_offered = account_spanning ++ admin_only
 
     assert read_only -- (not_offered ++ List.flatten(page_tools)) == []

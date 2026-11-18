@@ -118,6 +118,8 @@ spec:
               value: {{ .Values.processor.queueConcurrency | quote }}
             - name: TUIST_PROCESS_BAZEL_TESTS_QUEUE_CONCURRENCY
               value: {{ .Values.processor.bazelTestQueueConcurrency | quote }}
+            - name: TUIST_PROCESS_SNAPSHOTS_QUEUE_CONCURRENCY
+              value: {{ .Values.processor.snapshotQueueConcurrency | quote }}
             {{- if ne .Values.postgresql.mode "cnpg" }}
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.

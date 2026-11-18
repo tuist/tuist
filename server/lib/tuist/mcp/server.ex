@@ -74,6 +74,13 @@ defmodule Tuist.MCP.Server do
     Tools.DisconnectAmpWorkspace,
     Tools.ListClaudeEnvironments,
     Tools.ConnectClaudeEnvironment,
+    Tools.GetOrganizationAIConfiguration,
+    Tools.RemoveOrganizationAIProvider,
+    Tools.SaveOrganizationAIModel,
+    Tools.RemoveOrganizationAIModel,
+    Tools.SetOrganizationAIDefaultModel,
+    Tools.SaveOrganizationAITaskRoute,
+    Tools.RemoveOrganizationAITaskRoute,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -184,7 +191,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.73.0",
+      version: "1.74.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

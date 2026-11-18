@@ -1153,13 +1153,13 @@ components:
           x-struct:
           x-validate:
       required:
+        - end_at
         - page
-        - total_pages
-        - total_count
         - page_size
+        - total_count
+        - total_pages
         - has_next_page
         - has_previous_page
-        - end_at
       title: PulsePagination
       type: object
       x-struct:
@@ -5926,6 +5926,111 @@ components:
       type: object
       x-struct:
       x-validate:
+    CreateSnapshotBuildResponse:
+      properties:
+        build:
+          properties:
+            added_count:
+              type: integer
+              x-struct:
+              x-validate:
+            baseline_build_id:
+              description: The build this one was compared with.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            changed_count:
+              type: integer
+              x-struct:
+              x-validate:
+            id:
+              description: The id of the build.
+              type: string
+              x-struct:
+              x-validate:
+            removed_count:
+              type: integer
+              x-struct:
+              x-validate:
+            renamed_count:
+              description: Removed images whose content reappeared under another name.
+              type: integer
+              x-struct:
+              x-validate:
+            skipped_count:
+              description: Images a selective run didn't render, carried over from the baseline.
+              type: integer
+              x-struct:
+              x-validate:
+            state:
+              description: Where the build is in its lifecycle.
+              enum:
+                - uploading
+                - processing
+                - processed
+                - failed
+              type: string
+              x-struct:
+              x-validate:
+            status:
+              description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+              enum:
+                - processing
+                - failed
+                - passed
+                - baseline
+                - approved
+                - rejected
+                - needs_review
+              type: string
+              x-struct:
+              x-validate:
+            unchanged_count:
+              type: integer
+              x-struct:
+              x-validate:
+            url:
+              description: The build's review page on the dashboard.
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - id
+            - url
+            - state
+            - status
+          title: SnapshotBuild
+          type: object
+          x-struct:
+          x-validate:
+        uploads:
+          items:
+            properties:
+              content_hash:
+                type: string
+                x-struct:
+                x-validate:
+              url:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - content_hash
+              - url
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - build
+        - uploads
+      title: CreateSnapshotBuildResponse
+      type: object
+      x-struct:
+      x-validate:
     WebhookEndpoint:
       properties:
         event_types:
@@ -6857,6 +6962,31 @@ components:
       type: object
       x-struct:
       x-validate:
+    SnapshotBaselineImage:
+      properties:
+        content_hash:
+          description: The SHA-256 of the PNG.
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: The image's path relative to the uploaded directory.
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: A presigned URL to download the PNG from.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - content_hash
+        - url
+      title: SnapshotBaselineImage
+      type: object
+      x-struct:
+      x-validate:
     PulseWidget:
       additionalProperties: false
       properties:
@@ -6904,8 +7034,8 @@ components:
         - id
         - unit
         - value
-        - points
         - previous_value
+        - points
       title: PulseWidget
       type: object
       x-struct:
@@ -7002,6 +7132,82 @@ components:
         - memory_gb
         - default
       title: RunnerShape
+      type: object
+      x-struct:
+      x-validate:
+    SnapshotBuild:
+      properties:
+        added_count:
+          type: integer
+          x-struct:
+          x-validate:
+        baseline_build_id:
+          description: The build this one was compared with.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        changed_count:
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: The id of the build.
+          type: string
+          x-struct:
+          x-validate:
+        removed_count:
+          type: integer
+          x-struct:
+          x-validate:
+        renamed_count:
+          description: Removed images whose content reappeared under another name.
+          type: integer
+          x-struct:
+          x-validate:
+        skipped_count:
+          description: Images a selective run didn't render, carried over from the baseline.
+          type: integer
+          x-struct:
+          x-validate:
+        state:
+          description: Where the build is in its lifecycle.
+          enum:
+            - uploading
+            - processing
+            - processed
+            - failed
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+          enum:
+            - processing
+            - failed
+            - passed
+            - baseline
+            - approved
+            - rejected
+            - needs_review
+          type: string
+          x-struct:
+          x-validate:
+        unchanged_count:
+          type: integer
+          x-struct:
+          x-validate:
+        url:
+          description: The build's review page on the dashboard.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - url
+        - state
+        - status
+      title: SnapshotBuild
       type: object
       x-struct:
       x-validate:
@@ -7146,13 +7352,13 @@ components:
               x-struct:
               x-validate:
           required:
+            - end_at
             - page
-            - total_pages
-            - total_count
             - page_size
+            - total_count
+            - total_pages
             - has_next_page
             - has_previous_page
-            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -7726,6 +7932,148 @@ components:
       title: WebhookPreviewCreatedEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Webhook.PreviewCreatedEvent
+      x-validate:
+    CreateSnapshotBuildRequest:
+      properties:
+        all_image_names:
+          description: "The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          maxItems: 25000
+          type: array
+          x-struct:
+          x-validate:
+        build_system:
+          enum:
+            - gradle
+            - xcode
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: A commit SHA.
+          pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          type: string
+          x-struct:
+          x-validate:
+        git_remote_url_origin:
+          type: string
+          x-struct:
+          x-validate:
+        images:
+          items:
+            properties:
+              content_hash:
+                description: The SHA-256 of the PNG.
+                pattern: ^[0-9a-f]{64}$
+                type: string
+                x-struct:
+                x-validate:
+              diff_threshold:
+                description: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                maximum: 1
+                minimum: 0
+                type: number
+                x-struct:
+                x-validate:
+              display_name:
+                description: How the review page names the image. Defaults to `name`.
+                maxLength: 512
+                type: string
+                x-struct:
+                x-validate:
+              group:
+                description: Images of a group are reviewed together.
+                maxLength: 255
+                type: string
+                x-struct:
+                x-validate:
+              height:
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                description: The image's path relative to the uploaded directory.
+                type: string
+                x-struct:
+                x-validate:
+              tags:
+                additionalProperties:
+                  maxLength: 255
+                  type: string
+                  x-struct:
+                  x-validate:
+                description: 'Labels such as `theme: dark` or `device: pixel_7`.'
+                maxProperties: 50
+                type: object
+                x-struct:
+                x-validate:
+              test_identifier:
+                description: The test that recorded the image, when known.
+                type: string
+                x-struct:
+                x-validate:
+              width:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - content_hash
+            title: SnapshotImageManifestEntry
+            type: object
+            x-struct:
+            x-validate:
+          maxItems: 25000
+          type: array
+          x-struct:
+          x-validate:
+        is_ci:
+          type: boolean
+          x-struct:
+          x-validate:
+        merge_base_sha:
+          description: A commit SHA.
+          pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+          type: string
+          x-struct:
+          x-validate:
+        pull_request_number:
+          type: integer
+          x-struct:
+          x-validate:
+        pull_request_title:
+          maxLength: 1024
+          type: string
+          x-struct:
+          x-validate:
+        selective:
+          description: "The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals."
+          type: boolean
+          x-struct:
+          x-validate:
+        set:
+          description: 'The snapshot set, such as `android-phone`: builds are compared within a set.'
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - set
+        - git_commit_sha
+        - images
+      title: CreateSnapshotBuildRequest
+      type: object
+      x-struct:
       x-validate:
     Project:
       properties:
@@ -10652,9 +11000,9 @@ components:
         - server_name
         - release
         - environment
-        - event_id
         - account_handle
         - trace_id
+        - event_id
       title: PulseErrorEvent
       type: object
       x-struct:
@@ -12583,6 +12931,83 @@ components:
       type: object
       x-struct:
       x-validate:
+    SnapshotBaselineBuild:
+      nullable: true
+      properties:
+        added_count:
+          type: integer
+          x-struct:
+          x-validate:
+        baseline_build_id:
+          description: The build this one was compared with.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        changed_count:
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: The id of the build.
+          type: string
+          x-struct:
+          x-validate:
+        removed_count:
+          type: integer
+          x-struct:
+          x-validate:
+        renamed_count:
+          description: Removed images whose content reappeared under another name.
+          type: integer
+          x-struct:
+          x-validate:
+        skipped_count:
+          description: Images a selective run didn't render, carried over from the baseline.
+          type: integer
+          x-struct:
+          x-validate:
+        state:
+          description: Where the build is in its lifecycle.
+          enum:
+            - uploading
+            - processing
+            - processed
+            - failed
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+          enum:
+            - processing
+            - failed
+            - passed
+            - baseline
+            - approved
+            - rejected
+            - needs_review
+          type: string
+          x-struct:
+          x-validate:
+        unchanged_count:
+          type: integer
+          x-struct:
+          x-validate:
+        url:
+          description: The build's review page on the dashboard.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - url
+        - state
+        - status
+      title: SnapshotBaselineBuild
+      type: object
+      x-struct:
+      x-validate:
     SandboxCommand:
       properties:
         command:
@@ -13336,9 +13761,9 @@ components:
               - server_name
               - release
               - environment
-              - event_id
               - account_handle
               - trace_id
+              - event_id
             title: PulseErrorEvent
             type: object
             x-struct:
@@ -13525,13 +13950,13 @@ components:
               x-struct:
               x-validate:
           required:
+            - end_at
             - page
-            - total_pages
-            - total_count
             - page_size
+            - total_count
+            - total_pages
             - has_next_page
             - has_previous_page
-            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -15490,8 +15915,8 @@ components:
               - id
               - unit
               - value
-              - points
               - previous_value
+              - points
             title: PulseWidget
             type: object
             x-struct:
@@ -17372,6 +17797,121 @@ components:
       type: object
       x-struct:
       x-validate:
+    SnapshotBaseline:
+      properties:
+        build:
+          nullable: true
+          properties:
+            added_count:
+              type: integer
+              x-struct:
+              x-validate:
+            baseline_build_id:
+              description: The build this one was compared with.
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            changed_count:
+              type: integer
+              x-struct:
+              x-validate:
+            id:
+              description: The id of the build.
+              type: string
+              x-struct:
+              x-validate:
+            removed_count:
+              type: integer
+              x-struct:
+              x-validate:
+            renamed_count:
+              description: Removed images whose content reappeared under another name.
+              type: integer
+              x-struct:
+              x-validate:
+            skipped_count:
+              description: Images a selective run didn't render, carried over from the baseline.
+              type: integer
+              x-struct:
+              x-validate:
+            state:
+              description: Where the build is in its lifecycle.
+              enum:
+                - uploading
+                - processing
+                - processed
+                - failed
+              type: string
+              x-struct:
+              x-validate:
+            status:
+              description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+              enum:
+                - processing
+                - failed
+                - passed
+                - baseline
+                - approved
+                - rejected
+                - needs_review
+              type: string
+              x-struct:
+              x-validate:
+            unchanged_count:
+              type: integer
+              x-struct:
+              x-validate:
+            url:
+              description: The build's review page on the dashboard.
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - id
+            - url
+            - state
+            - status
+          title: SnapshotBaselineBuild
+          type: object
+          x-struct:
+          x-validate:
+        images:
+          items:
+            properties:
+              content_hash:
+                description: The SHA-256 of the PNG.
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: The image's path relative to the uploaded directory.
+                type: string
+                x-struct:
+                x-validate:
+              url:
+                description: A presigned URL to download the PNG from.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - content_hash
+              - url
+            title: SnapshotBaselineImage
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - build
+        - images
+      title: SnapshotBaseline
+      type: object
+      x-struct:
+      x-validate:
     RunsIndexAfter:
       description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
       title: RunsIndexAfter
@@ -17879,6 +18419,69 @@ components:
       required:
         - build_id
       title: BuildMultipartUploadStartParams
+      type: object
+      x-struct:
+      x-validate:
+    SnapshotImageManifestEntry:
+      properties:
+        content_hash:
+          description: The SHA-256 of the PNG.
+          pattern: ^[0-9a-f]{64}$
+          type: string
+          x-struct:
+          x-validate:
+        diff_threshold:
+          description: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+          maximum: 1
+          minimum: 0
+          type: number
+          x-struct:
+          x-validate:
+        display_name:
+          description: How the review page names the image. Defaults to `name`.
+          maxLength: 512
+          type: string
+          x-struct:
+          x-validate:
+        group:
+          description: Images of a group are reviewed together.
+          maxLength: 255
+          type: string
+          x-struct:
+          x-validate:
+        height:
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          description: The image's path relative to the uploaded directory.
+          type: string
+          x-struct:
+          x-validate:
+        tags:
+          additionalProperties:
+            maxLength: 255
+            type: string
+            x-struct:
+            x-validate:
+          description: 'Labels such as `theme: dark` or `device: pixel_7`.'
+          maxProperties: 50
+          type: object
+          x-struct:
+          x-validate:
+        test_identifier:
+          description: The test that recorded the image, when known.
+          type: string
+          x-struct:
+          x-validate:
+        width:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - content_hash
+      title: SnapshotImageManifestEntry
       type: object
       x-struct:
       x-validate:
@@ -28986,8 +29589,8 @@ paths:
                         - id
                         - unit
                         - value
-                        - points
                         - previous_value
+                        - points
                       title: PulseWidget
                       type: object
                       x-struct:
@@ -36892,9 +37495,9 @@ paths:
                         - server_name
                         - release
                         - environment
-                        - event_id
                         - account_handle
                         - trace_id
+                        - event_id
                       title: PulseErrorEvent
                       type: object
                       x-struct:
@@ -37081,13 +37684,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
+                      - end_at
                       - page
-                      - total_pages
-                      - total_count
                       - page_size
+                      - total_count
+                      - total_pages
                       - has_next_page
                       - has_previous_page
-                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -37553,6 +38156,7 @@ paths:
   /api/me/push-devices:
     get:
       callbacks: {}
+      description: "Lists the devices of the app making the request: the Tuist app's, or Luft's."
       operationId: listPushDevices
       parameters: []
       responses:
@@ -37579,7 +38183,7 @@ paths:
                           x-struct:
                           x-validate:
                         platform:
-                          description: ios or android
+                          description: ios, macos or android
                           type: string
                           x-struct:
                           x-validate:
@@ -45393,13 +45997,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
+                      - end_at
                       - page
-                      - total_pages
-                      - total_count
                       - page_size
+                      - total_count
+                      - total_pages
                       - has_next_page
                       - has_previous_page
-                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -48021,6 +48625,312 @@ paths:
       summary: List compiled files for a given build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/snapshots/builds:
+    post:
+      callbacks: {}
+      description: "Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded."
+      operationId: createSnapshotBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                all_image_names:
+                  description: "The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 25000
+                  type: array
+                  x-struct:
+                  x-validate:
+                build_system:
+                  enum:
+                    - gradle
+                    - xcode
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  description: A commit SHA.
+                  pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_ref:
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_remote_url_origin:
+                  type: string
+                  x-struct:
+                  x-validate:
+                images:
+                  items:
+                    properties:
+                      content_hash:
+                        description: The SHA-256 of the PNG.
+                        pattern: ^[0-9a-f]{64}$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      diff_threshold:
+                        description: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                        maximum: 1
+                        minimum: 0
+                        type: number
+                        x-struct:
+                        x-validate:
+                      display_name:
+                        description: How the review page names the image. Defaults to `name`.
+                        maxLength: 512
+                        type: string
+                        x-struct:
+                        x-validate:
+                      group:
+                        description: Images of a group are reviewed together.
+                        maxLength: 255
+                        type: string
+                        x-struct:
+                        x-validate:
+                      height:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: The image's path relative to the uploaded directory.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      tags:
+                        additionalProperties:
+                          maxLength: 255
+                          type: string
+                          x-struct:
+                          x-validate:
+                        description: 'Labels such as `theme: dark` or `device: pixel_7`.'
+                        maxProperties: 50
+                        type: object
+                        x-struct:
+                        x-validate:
+                      test_identifier:
+                        description: The test that recorded the image, when known.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      width:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - name
+                      - content_hash
+                    title: SnapshotImageManifestEntry
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 25000
+                  type: array
+                  x-struct:
+                  x-validate:
+                is_ci:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                merge_base_sha:
+                  description: A commit SHA.
+                  pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+                  type: string
+                  x-struct:
+                  x-validate:
+                pull_request_number:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                pull_request_title:
+                  maxLength: 1024
+                  type: string
+                  x-struct:
+                  x-validate:
+                selective:
+                  description: "The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals."
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                set:
+                  description: 'The snapshot set, such as `android-phone`: builds are compared within a set.'
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - set
+                - git_commit_sha
+                - images
+              title: CreateSnapshotBuildRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The build
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  build:
+                    properties:
+                      added_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      baseline_build_id:
+                        description: The build this one was compared with.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      changed_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      id:
+                        description: The id of the build.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      removed_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      renamed_count:
+                        description: Removed images whose content reappeared under another name.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      skipped_count:
+                        description: Images a selective run didn't render, carried over from the baseline.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      state:
+                        description: Where the build is in its lifecycle.
+                        enum:
+                          - uploading
+                          - processing
+                          - processed
+                          - failed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+                        enum:
+                          - processing
+                          - failed
+                          - passed
+                          - baseline
+                          - approved
+                          - rejected
+                          - needs_review
+                        type: string
+                        x-struct:
+                        x-validate:
+                      unchanged_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      url:
+                        description: The build's review page on the dashboard.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - url
+                      - state
+                      - status
+                    title: SnapshotBuild
+                    type: object
+                    x-struct:
+                    x-validate:
+                  uploads:
+                    items:
+                      properties:
+                        content_hash:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - content_hash
+                        - url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - build
+                  - uploads
+                title: CreateSnapshotBuildResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: The build and the images to upload
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The manifest is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or build was not found
+      summary: Create a snapshot build.
+      tags:
+        - Snapshots
   /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url:
     post:
       callbacks: {}
@@ -48657,7 +49567,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete:
     post:
       callbacks: {}
-      description: "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`)."
+      description: "Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`)."
       operationId: completeCommitCoverage
       parameters:
         - description: The handle of the account.
@@ -48906,7 +49816,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The run or commit was not found, or gathered no coverage
-      summary: Signal that a commit's coverage pipeline finished.
+      summary: Signal that a commit's CI pipeline finished.
       tags:
         - Tests
   /api/projects/{account_handle}/{project_handle}/xcode/modules/{module_id}:
@@ -52517,6 +53427,144 @@ paths:
       summary: It initiates a multipart upload in the cache.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete:
+    post:
+      callbacks: {}
+      description: Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+      operationId: completeSnapshotBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The id of the snapshot build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  added_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  baseline_build_id:
+                    description: The build this one was compared with.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  changed_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The id of the build.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  removed_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  renamed_count:
+                    description: Removed images whose content reappeared under another name.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  skipped_count:
+                    description: Images a selective run didn't render, carried over from the baseline.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  state:
+                    description: Where the build is in its lifecycle.
+                    enum:
+                      - uploading
+                      - processing
+                      - processed
+                      - failed
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+                    enum:
+                      - processing
+                      - failed
+                      - passed
+                      - baseline
+                      - approved
+                      - rejected
+                      - needs_review
+                    type: string
+                    x-struct:
+                    x-validate:
+                  unchanged_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: The build's review page on the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - url
+                  - state
+                  - status
+                title: SnapshotBuild
+                type: object
+                x-struct:
+                x-validate:
+          description: The build
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Images are missing
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or build was not found
+      summary: Complete a snapshot build.
+      tags:
+        - Snapshots
   /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}:
     get:
       callbacks: {}
@@ -56686,6 +57734,138 @@ paths:
       summary: Find which commits have no file listing stored yet.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}:
+    get:
+      callbacks: {}
+      description: The build's state and verdict, which clients poll after completing it.
+      operationId: getSnapshotBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The id of the snapshot build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  added_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  baseline_build_id:
+                    description: The build this one was compared with.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  changed_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The id of the build.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  removed_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  renamed_count:
+                    description: Removed images whose content reappeared under another name.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  skipped_count:
+                    description: Images a selective run didn't render, carried over from the baseline.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  state:
+                    description: Where the build is in its lifecycle.
+                    enum:
+                      - uploading
+                      - processing
+                      - processed
+                      - failed
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+                    enum:
+                      - processing
+                      - failed
+                      - passed
+                      - baseline
+                      - approved
+                      - rejected
+                      - needs_review
+                    type: string
+                    x-struct:
+                    x-validate:
+                  unchanged_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: The build's review page on the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - url
+                  - state
+                  - status
+                title: SnapshotBuild
+                type: object
+                x-struct:
+                x-validate:
+          description: The build
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or build was not found
+      summary: Get a snapshot build.
+      tags:
+        - Snapshots
   /api/accounts/{account_handle}/tokens/{token_name}:
     delete:
       callbacks: {}
@@ -63121,6 +64301,205 @@ paths:
       summary: Polls a pending ChatGPT sign-in
       tags:
         - AI subscriptions
+  /api/projects/{account_handle}/{project_handle}/snapshots/baseline:
+    get:
+      callbacks: {}
+      description: The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+      operationId: getSnapshotBaseline
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The snapshot set.
+          in: query
+          name: set
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The checkout's commit.
+          in: query
+          name: git_commit_sha
+          required: true
+          schema:
+            description: A commit SHA.
+            pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit's merge base with the base branch, when the checkout knows it.
+          in: query
+          name: merge_base_sha
+          required: false
+          schema:
+            description: A commit SHA.
+            pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+            type: string
+            x-struct:
+            x-validate:
+        - description: The checkout's origin URL, to look the merge base up in the commit graph clients upload.
+          in: query
+          name: git_remote_url_origin
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  build:
+                    nullable: true
+                    properties:
+                      added_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      baseline_build_id:
+                        description: The build this one was compared with.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      changed_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      id:
+                        description: The id of the build.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      removed_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      renamed_count:
+                        description: Removed images whose content reappeared under another name.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      skipped_count:
+                        description: Images a selective run didn't render, carried over from the baseline.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      state:
+                        description: Where the build is in its lifecycle.
+                        enum:
+                          - uploading
+                          - processing
+                          - processed
+                          - failed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        description: 'The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.'
+                        enum:
+                          - processing
+                          - failed
+                          - passed
+                          - baseline
+                          - approved
+                          - rejected
+                          - needs_review
+                        type: string
+                        x-struct:
+                        x-validate:
+                      unchanged_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      url:
+                        description: The build's review page on the dashboard.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - url
+                      - state
+                      - status
+                    title: SnapshotBaselineBuild
+                    type: object
+                    x-struct:
+                    x-validate:
+                  images:
+                    items:
+                      properties:
+                        content_hash:
+                          description: The SHA-256 of the PNG.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The image's path relative to the uploaded directory.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          description: A presigned URL to download the PNG from.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - content_hash
+                        - url
+                      title: SnapshotBaselineImage
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - build
+                  - images
+                title: SnapshotBaseline
+                type: object
+                x-struct:
+                x-validate:
+          description: The baseline and its images
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or build was not found
+      summary: Get the baseline of a snapshot set for a checkout.
+      tags:
+        - Snapshots
   /api/me/feature-flags:
     get:
       callbacks: {}
@@ -65685,7 +67064,7 @@ paths:
         - Push devices
     put:
       callbacks: {}
-      description: Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+      description: Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
       operationId: registerPushDevice
       parameters:
         - description: The client-generated lowercase UUID that identifies this app installation.
@@ -65716,15 +67095,16 @@ paths:
                   x-struct:
                   x-validate:
                 platform:
-                  description: The device platform.
+                  description: The device platform. Only Luft registers macOS devices.
                   enum:
                     - ios
+                    - macos
                     - android
                   type: string
                   x-struct:
                   x-validate:
                 token:
-                  description: The APNs device token (hex) on iOS or the FCM registration token on Android.
+                  description: The APNs device token (hex) on iOS and macOS or the FCM registration token on Android.
                   type: string
                   x-struct:
                   x-validate:

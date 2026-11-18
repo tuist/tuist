@@ -339,6 +339,7 @@ processor:
   replicaCount: 2
   queueConcurrency: 5
   bazelTestQueueConcurrency: 1
+  snapshotQueueConcurrency: 2
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"

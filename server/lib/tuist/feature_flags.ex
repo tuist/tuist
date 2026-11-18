@@ -304,6 +304,23 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Hosted snapshot testing (`Tuist.Snapshots`): on outside canary and
+  production, and behind the `:snapshots` account flag there while it is in
+  early access.
+  """
+  def snapshots_enabled?(account, flags \\ nil)
+
+  def snapshots_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:snapshots, :unknown, false)
+
+  def snapshots_enabled?(account, flags) do
+    Observability.feature_flag_evaluated(
+      :snapshots,
+      account,
+      Environment.env() not in [:can, :prod] or flag_enabled?(:snapshots, account, flags)
+    )
+  end
+
+  @doc """
   The account's side of `test_impact_analysis_enabled?/3`, without a project:
   its `:test_impact_analysis` toggle. It's what `Tuist.Ops.FeatureFlags`,
   whose evaluations are per account, reports.
