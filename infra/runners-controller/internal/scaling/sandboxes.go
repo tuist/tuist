@@ -20,6 +20,10 @@ type SandboxAllocation struct {
 	MemoryBytes int64     `json:"memory_bytes"`
 	FreeBytes   int64     `json:"free_bytes"`
 	Reclaim     bool      `json:"reclaim"`
+	// WarmBytes is the carve-out a remote execution worker is kept at while
+	// this grant is fresh: its share of the fleet-wide floor. 0 for other
+	// daemons, and from controllers that predate it.
+	WarmBytes int64 `json:"warm_bytes,omitempty"`
 }
 
 func (c *Client) PublishSandboxAllocation(ctx context.Context, allocation SandboxAllocation) error {

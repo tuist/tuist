@@ -843,6 +843,28 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert limit == 9 * @gib
     end
 
+    test "a fresh grant's warm floor grows an execution carve-out ahead of any action and bounds its shrink" do
+      {node, _image} = connect_execution(%{})
+      slots = fn n -> n * 4160 * @mib + 512 * @mib end
+      set_grant(node, allocation_warm_bytes: slots.(4))
+      apply_resizes(node)
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+
+      # No VM is placed, yet the carve-out grows to four slots (16.6 GiB, whole GiB up).
+      assert :ok = Capacity.reconcile_allocation(node)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 17 * @gib
+
+      # A lower floor shrinks it to three slots, not to the chart's 9 GiB floor.
+      set_grant(node, allocation_warm_bytes: slots.(3), grown_at: DateTime.add(DateTime.utc_now(:second), -600, :second))
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 13 * @gib
+
+      # A stale grant (a stopped controller) leaves only the chart's floor.
+      set_grant(node, allocation_observed_at: DateTime.add(DateTime.utc_now(), -60, :second))
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 9 * @gib
+    end
+
     test "agent sandboxes still need the grant's memory to grow", %{template: template} do
       node = connect_elastic(template)
       set_grant(node, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)

@@ -18,7 +18,20 @@ var sandboxRetirements = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Idle runner Pods marked for retirement to admit sandbox growth, separate from CI sibling preemption.",
 }, []string{"pool"})
 
-func init() { ctrlmetrics.Registry.MustRegister(sandboxMemory, sandboxGrantTime, sandboxRetirements) }
+var executionSlots = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "tuist_runners_remote_execution_slots",
+	Help: "Remote execution VM slots in the compute allocator: floor (configured fleet-wide floor) or allocated (granted, held load included).",
+}, []string{"kind"})
+
+func init() {
+	ctrlmetrics.Registry.MustRegister(sandboxMemory, sandboxGrantTime, sandboxRetirements, executionSlots)
+}
+
+// RecordExecutionAllocation publishes the remote execution pool's floor and grant.
+func RecordExecutionAllocation(floor, allocated int32) {
+	executionSlots.WithLabelValues("floor").Set(float64(floor))
+	executionSlots.WithLabelValues("allocated").Set(float64(allocated))
+}
 
 func RecordSandboxAllocation(node string, charged, grant, free int64, timestamp float64) {
 	sandboxMemory.WithLabelValues(node, "charged").Set(float64(charged))

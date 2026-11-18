@@ -222,6 +222,12 @@ cancellable and leaves the reserve intact. See
     Pods in the same namespace) are a second daemon per node: they are
     subtracted the same way, and their grants and revocations are published as
     `<node>.remote-execution`, the name they connect to the server with.
+    With `TUIST_REMOTE_EXECUTION_FLOOR_SLOTS` above 0 they are also a pool of
+    the compute allocator (`controllers/execution_allocation.go`): their held
+    slots are its load and come back into the budget, its fleet-wide floor
+    ranks first among warm stock, and each worker's share of the funded floor
+    goes out as `warm_bytes` in its grant. See
+    [remote execution](../sandbox-image/remote-execution.md), shared hosts.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled

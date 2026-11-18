@@ -105,19 +105,26 @@ defmodule Tuist.Sandboxes.Capacity do
   def pause_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib
 
   @doc "Stores a controller observation, ordered across replicas and bound to a daemon Pod."
-  def update_allocation(%{
-        "node" => name,
-        "pod" => pod,
-        "observed_at" => observed,
-        "memory_bytes" => memory,
-        "free_bytes" => free,
-        "reclaim" => reclaim
-      })
+  def update_allocation(
+        %{
+          "node" => name,
+          "pod" => pod,
+          "observed_at" => observed,
+          "memory_bytes" => memory,
+          "free_bytes" => free,
+          "reclaim" => reclaim
+        } = params
+      )
       when is_integer(memory) and memory >= 0 and is_integer(free) and free >= 0 and is_boolean(reclaim) do
-    with true <- valid_name?(name),
+    # Controllers that predate the compute allocator's remote execution
+    # pool send no warm target.
+    warm = Map.get(params, "warm_bytes", 0)
+
+    with true <- is_integer(warm) and warm >= 0,
+         true <- valid_name?(name),
          true <- valid_name?(pod),
          {:ok, timestamp} <- allocation_timestamp(observed) do
-      store_allocation(name, pod, timestamp, memory, free, reclaim)
+      store_allocation(name, pod, timestamp, %{memory: memory, free: free, reclaim: reclaim, warm: warm})
     else
       _ -> {:error, :invalid_allocation}
     end
@@ -146,7 +153,7 @@ defmodule Tuist.Sandboxes.Capacity do
     age >= -1000 and age < @allocation_ttl_seconds * 1000
   end
 
-  defp store_allocation(name, pod, timestamp, memory, free, reclaim) do
+  defp store_allocation(name, pod, timestamp, grant) do
     fn ->
       lock(name)
       row = Repo.get(SandboxNode, name)
@@ -157,9 +164,10 @@ defmodule Tuist.Sandboxes.Capacity do
         pod_name: pod,
         memory_limit_bytes: allocation_memory_limit(row, pod),
         allocation_observed_at: timestamp,
-        allocation_memory_bytes: memory,
-        allocation_free_bytes: free,
-        allocation_reclaim: reclaim
+        allocation_memory_bytes: grant.memory,
+        allocation_free_bytes: grant.free,
+        allocation_reclaim: grant.reclaim,
+        allocation_warm_bytes: grant.warm
       })
       |> Repo.insert_or_update!()
 
@@ -218,7 +226,7 @@ defmodule Tuist.Sandboxes.Capacity do
           # resume; move them, the ones just paused included, to storage.
           if ci_reclaim?(node_name), do: Archives.move_off_node(node_name)
 
-          case shrink(node, pressure) do
+          case keep_warm(node, pressure) || shrink(node, pressure) do
             {:error, reason} -> {:error, reason}
             _ -> :ok
           end
@@ -230,6 +238,44 @@ defmodule Tuist.Sandboxes.Capacity do
         :ok
     end
   end
+
+  # A remote execution worker's share of the compute allocator's floor
+  # (`allocation_warm_bytes`): its carve-out grows to it ahead of any
+  # action, without waiting for the kubelet; a deferred growth keeps new
+  # runner Pods off the room and makes the runners-controller retire idle
+  # warm runners for it. Nil when nothing is missing, so the caller shrinks.
+  defp keep_warm(node, pressure) do
+    with false <- pressure,
+         true <- execution_daemon?(node),
+         warm when warm > 0 <- node.name |> then(&Repo.get(SandboxNode, &1)) |> warm_bytes(node),
+         true <- warm > max(asked_limit(node) || 0, reported_limit(node) || 0),
+         {:ok, limit} <- ask_for_growth(node, warm - reserved_bytes(node.name) - @daemon_reserve_bytes),
+         :ok <- resize(node, limit) do
+      Logger.info("sandboxes: grew an execution carve-out to its warm floor", node: node.name, memory_bytes: limit)
+      {:ok, limit}
+    else
+      {:error, reason} -> {:error, reason}
+      _nothing_missing -> nil
+    end
+  end
+
+  # The warm target of a fresh grant for the node's current Pod, in whole
+  # GiB and within the ceiling; 0 when the grant is stale, revoked or for
+  # another Pod, so a stopped controller leaves only the chart's floor.
+  defp warm_bytes(
+         %SandboxNode{
+           pod_name: pod,
+           allocation_reclaim: false,
+           allocation_observed_at: %DateTime{} = at,
+           allocation_warm_bytes: warm
+         },
+         %{elastic: %{pod_name: pod, memory_ceiling_bytes: ceiling}}
+       )
+       when is_integer(warm) do
+    if fresh_allocation?(at), do: warm |> round_up_to_step() |> min(ceiling), else: 0
+  end
+
+  defp warm_bytes(_row, _node), do: 0
 
   # A grant authorizes new work, never a speculative memory reservation.
   # Non-elastic nodes remain usable for standalone development daemons.
@@ -1305,7 +1351,11 @@ defmodule Tuist.Sandboxes.Capacity do
         needed = reserved_bytes(node_name) + @daemon_reserve_bytes
 
         target =
-          needed |> round_up_to_step() |> max(elastic.memory_floor_bytes) |> min(row.memory_limit_bytes)
+          needed
+          |> round_up_to_step()
+          |> max(elastic.memory_floor_bytes)
+          |> max(warm_bytes(row, node))
+          |> min(row.memory_limit_bytes)
 
         cond do
           target < row.memory_limit_bytes ->
