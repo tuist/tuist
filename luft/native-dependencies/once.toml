@@ -41,3 +41,13 @@ target = "aarch64-linux-android"
 # for C dependencies such as bundled SQLite. The NDK's toolchain bin must be on PATH.
 build_script_tools = ["cmake", "nasm", "perl", "pkg-config", "protoc", "python3", "aarch64-linux-android21-clang"]
 resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "Web"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "wasm32-unknown-unknown"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]

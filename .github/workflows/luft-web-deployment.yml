@@ -1,0 +1,189 @@
+name: Luft Web Deployment
+
+on:
+  # Pull requests build the site; only main pushes the image and deploys.
+  pull_request:
+    paths:
+      - luft/**
+      - "!luft/apple/**"
+      - "!luft/ios/**"
+      - "!luft/macos/**"
+      - "!luft/android/**"
+      - "!luft/gpui/**"
+      - infra/helm/luft-web/**
+      - .github/workflows/luft-web-deployment.yml
+  push:
+    branches:
+      - main
+    paths:
+      - luft/**
+      - "!luft/apple/**"
+      - "!luft/ios/**"
+      - "!luft/macos/**"
+      - "!luft/android/**"
+      - "!luft/gpui/**"
+      - infra/helm/luft-web/**
+      - .github/workflows/luft-web-deployment.yml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to github.sha)
+        required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: luft-web-${{ github.event_name == 'pull_request' && github.ref || 'deploy-production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/luft-web
+  HELM_CHART_PATH: infra/helm/luft-web
+  HELM_RELEASE_NAME: luft-web
+  NAMESPACE: luft
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  build:
+    name: Build and push Luft web image
+    if: github.repository == 'tuist/tuist' && inputs.image_tag == ''
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      MISE_CEILING_PATHS: ${{ github.workspace }}
+      MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
+      ONCE_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+          persist-credentials: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: luft
+          install_args: rust github:tuist/once node cargo:wasm-bindgen-cli
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        working-directory: luft
+        run: once auth login --provider tuist --no-browser
+      - name: Build the site with Once
+        working-directory: luft
+        run: |
+          rustup target add wasm32-unknown-unknown
+          python3 prepare-native.py
+          once build LuftWeb
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Luft web image
+        with:
+          context: ./luft/web
+          file: ./luft/web/Dockerfile
+          build-contexts: site=./luft/.once/out/LuftWeb/dist
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+
+  deploy:
+    name: Deploy production
+    needs: build
+    if: always() && github.repository == 'tuist/tuist' && github.event_name != 'pull_request' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    environment:
+      name: server-k8s-production
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-production" \
+            --vault "tuist-k8s-production" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve image tag
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          BUILT_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_IMAGE_TAG:-}" ]; then
+            IMAGE_TAG="$INPUT_IMAGE_TAG"
+          else
+            IMAGE_TAG="$BUILT_IMAGE_TAG"
+          fi
+
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "No image tag available to deploy."
+            exit 1
+          fi
+
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Deploying image tag $IMAGE_TAG"
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-production.yaml" \
+            --set image.tag="$IMAGE_TAG" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm get manifest"
+          helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>&1 | head -200 || true
+          echo "::endgroup::"
+          echo "::group::deployment"
+          kubectl -n "$NAMESPACE" describe deploy/"$HELM_RELEASE_NAME" || true
+          echo "::endgroup::"
+          echo "::group::service"
+          kubectl -n "$NAMESPACE" describe service/"$HELM_RELEASE_NAME" || true
+          echo "::endgroup::"
+          echo "::group::ingress"
+          kubectl -n "$NAMESPACE" describe ingress/"$HELM_RELEASE_NAME" || true
+          echo "::endgroup::"
+          echo "::group::pods"
+          kubectl -n "$NAMESPACE" get pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"

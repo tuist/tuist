@@ -7,10 +7,10 @@ on:
         type: boolean
         default: false
   pull_request:
-    paths: ['luft/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/luft.yml']
+    paths: ['luft/**', '!luft/web/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/luft.yml']
   push:
     branches: [main]
-    paths: ['luft/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/luft.yml']
+    paths: ['luft/**', '!luft/web/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/luft.yml']
 permissions:
   contents: read
   id-token: write

@@ -3159,6 +3159,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
+name = "luft-runner"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "luft-web"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "sqlite-wasm-rs",
+ "tuist-app-core",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "lyon"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5556,7 +5575,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cd504cecbfe7eef649988840f9a6cb768d11085efec138f8e99f160632d867"
 dependencies = [
  "cc",
+ "js-sys",
  "rsqlite-vfs",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -6179,15 +6200,6 @@ dependencies = [
  "tungstenite",
  "url",
  "zed-reqwest",
-]
-
-[[package]]
-name = "luft-runner"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "serde",
- "serde_json",
 ]
 
 [[package]]

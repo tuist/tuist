@@ -30,6 +30,18 @@ Swift imports the core's C module, Kotlin calls its JNI bridge, and the existing
 
 Mise runs `prepare-native.py` before graph loading. When invoking Once directly, run `python3 prepare-native.py` first. This derives an ignored metadata-only Cargo workspace and vendors its dependencies, avoiding desktop feature unification and generated-target collisions in Once 0.77 and later. Every external version/source/checksum must match the authoritative `Cargo.lock`; first-party compilation always uses the original `crates/` sources, never the metadata stubs. Preparation may download missing crates. For Android, additionally run `python3 android/dependencies.py prepare`; its checksum-locked AndroidX Browser closure and final-APK resource verification are documented in [Android dependencies](android/DEPENDENCIES.md).
 
+## Web edge
+
+`web/` is the browser edge served at `luft.work` (chart: `../infra/helm/luft-web/`). It follows the same split as the native edges: the core runs as wasm in a Web Worker, because its host calls are synchronous and browsers allow synchronous XHR and OPFS file handles only in workers, and TypeScript renders what it reports. Once builds it in three cacheable steps: `LuftCoreWasm` compiles `crates/web` (thin `wasm_bindgen` exports over the core) for `wasm32-unknown-unknown`, `LuftCoreBindings` runs the wasm-bindgen CLI, and `LuftWeb` runs `npm ci` and `vite build` (`modules/web.star`). `crates/web` enables the browser backends for `getrandom` and `sqlite-wasm-rs`; the core itself stays free of `wasm-bindgen`.
+
+```sh
+rustup target add wasm32-unknown-unknown
+mise run dev:web     # Vite dev server; rerun after core changes
+mise run build:web   # .once/out/LuftWeb/dist, which the luft-web image serves
+```
+
+The wasm-bindgen CLI in `mise.toml` must match the `wasm-bindgen` crate in `Cargo.lock`. `.github/workflows/luft-web-deployment.yml` builds the site on pull requests and deploys it from `main`; `luft.yml` ignores `web/`.
+
 ## Native profiles, authentication and sessions
 
 Every client's signed-out screen copies the shipping app's `LogInView`, titled **Welcome to Luft** (`../app/Sources/TuistOnboarding/LogInView.swift`, `../android/app/src/main/java/dev/tuist/app/ui/login/LoginScreen.kt`): Sign in with Tuist, Apple, Google and GitHub on Tuist-hosted, then **Self-hosted server**, which asks for an HTTPS server URL and prefills the last self-hosted server used. GPUI shows the social providers only while `https://tuist.dev` is selected, signs in with Tuist to the selected server, and opens its account/server form from **Self-hosted server**. Its artwork and brand assets are copied into `apple/Resources/Assets.xcassets` and `android/res/`; GPUI keeps its theme colors. On iOS, macOS and Android, adding a profile shows the same screen with Cancel; GPUI adds accounts from its account menu. The screen scrolls when a landscape phone or large text leaves too little height. Every client keeps several accounts, on one or more servers, and switches between them without signing in again.

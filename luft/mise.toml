@@ -2,6 +2,10 @@
 "github:tuist/once" = "0.81.1"
 rust = "1.98.1"
 jq = "1.8.1"
+# The web edge: Node runs Vite, and the wasm-bindgen CLI must match the
+# wasm-bindgen crate in Cargo.lock.
+node = "24.11.0"
+"cargo:wasm-bindgen-cli" = "0.2.130"
 yq = "4.52.5"
 kotlin = "2.4.10"
 # Signed device and macOS preview publication only; CI installs them only in those jobs.
@@ -94,3 +98,13 @@ run = 'if [ "${CI:-}" = true ]; then tuist auth login; fi; tuist share "delivery
 depends = ["build:android"]
 description = "Publish an internal Android debug preview to tuist/luft"
 run = "once artifact publish LuftAndroid --track internal"
+
+[tasks."build:web"]
+depends = ["prepare:native"]
+description = "Build the web edge's static site (core wasm, bindings and Vite bundle) into .once/out/LuftWeb/dist"
+run = "once build LuftWeb"
+
+[tasks."dev:web"]
+depends = ["prepare:native"]
+description = "Serve the web edge with Vite's dev server against Once's core bindings; rerun after core changes"
+run = ["once build LuftCoreBindings", "npm --prefix web ci --no-audit --no-fund", "npm --prefix web run dev"]
