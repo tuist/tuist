@@ -154,12 +154,35 @@ struct LuftActivityView: View {
 
     @ViewBuilder
     private func row(_ thread: LuftActivityAttributes.ContentState.Thread) -> some View {
-        if let url = attributes.url(for: thread) {
-            Link(destination: url) { LuftActivityThreadRow(thread: thread, stale: stale) }
-                .buttonStyle(.plain)
-        } else {
-            LuftActivityThreadRow(thread: thread, stale: stale)
+        HStack(spacing: 8) {
+            if let url = attributes.url(for: thread) {
+                Link(destination: url) { LuftActivityThreadRow(thread: thread, stale: stale) }
+                    .buttonStyle(.plain)
+            } else {
+                LuftActivityThreadRow(thread: thread, stale: stale)
+            }
+            if let snooze = attributes.snoozeURL(for: thread) {
+                LuftActivitySnoozeLink(url: snooze)
+            }
         }
+    }
+}
+
+/// Opens Luft's snooze choices for a thread. The extension only draws, so
+/// the app does the snoozing.
+struct LuftActivitySnoozeLink: View {
+    let url: URL
+    var size: CGFloat = 30
+
+    var body: some View {
+        Link(destination: url) {
+            Image(systemName: "moon.zzz")
+                .font(.system(size: size * 0.45, weight: .semibold))
+                .frame(width: size, height: size)
+                .background(.white.opacity(0.16), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Snooze")
     }
 }
 
@@ -176,6 +199,9 @@ struct LuftActivityIslandDetail: View {
                     .foregroundStyle(.secondary)
                     .contentTransition(.interpolate)
                 HStack(spacing: 6) {
+                    if let snooze = attributes.snoozeURL(for: lead) {
+                        LuftActivitySnoozeLink(url: snooze, size: 24)
+                    }
                     Text(state.summary.headline)
                         .font(.caption2)
                         .foregroundStyle(.secondary)

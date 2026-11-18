@@ -7,8 +7,12 @@ struct AppThread: Decodable, Identifiable {
     let repository: String?
     /// `queued`, `running`, `completed`, `failed`, `outcome_unknown` or nil, decided by the Rust core.
     let state: String?
-    /// `in_progress`, `recent` or `archived`, decided by the Rust core.
+    /// `in_progress`, `recent`, `snoozed` or `archived`, decided by the Rust core.
     let section: String
+    /// Set while the person snoozed it, decided by the Rust core.
+    var snooze: AppSnooze?
+
+    var working: Bool { state == "queued" || state == "running" }
 }
 
 private struct Freshness: Decodable {
@@ -25,7 +29,8 @@ private struct ThreadPage: Decodable {
     let next_cursor: String?
 }
 
-/// The threads inbox: Active and Archived, with running threads first.
+/// The threads inbox: Active and Archived, with running threads first and
+/// snoozed ones last, out of the way until they matter again.
 struct ThreadsView: View {
     let client: AppClient
     /// Start conversation, presented by `AppWorkspace`.
@@ -38,6 +43,11 @@ struct ThreadsView: View {
     @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
     @State private var error: String?
+    @State private var snoozeChoices = SnoozeChoices()
+    /// The thread whose snooze choices show, after a swipe.
+    @State private var snoozing: AppThread?
+    /// The thread a custom time is being picked for.
+    @State private var customSnooze: AppThread?
 
     var body: some View {
         List {
@@ -58,6 +68,8 @@ struct ThreadsView: View {
             if !showingArchived {
                 section("In progress", visible.filter { $0.section == "in_progress" })
                 section("Recent", visible.filter { $0.section == "recent" })
+                // Out of the way, still a scroll away.
+                section("Snoozed", visible.filter { $0.section == "snoozed" })
             } else {
                 section("Archived", visible)
             }
@@ -136,6 +148,29 @@ struct ThreadsView: View {
             }
         #endif
         .refreshable { await reload() }
+        .task { await snoozeChoices.follow(client) }
+        // Dialog buttons take the presenting view's tint; the choices read as plain text.
+        .background {
+            Color.clear.confirmationDialog(
+                "Snooze", isPresented: Binding(get: { snoozing != nil }, set: { if !$0 { snoozing = nil } }),
+                titleVisibility: .visible, presenting: snoozing
+            ) { thread in
+                SnoozeButtons(
+                    choices: snoozeChoices,
+                    working: thread.working,
+                    snoozed: thread.snooze != nil,
+                    inline: true,
+                    snooze: { snooze(thread, until: $0) },
+                    custom: { customSnooze = thread }
+                )
+            } message: { thread in
+                Text(verbatim: thread.title ?? thread.goal ?? "")
+            }
+            .tint(Noora.labelPrimary)
+        }
+        .sheet(item: $customSnooze) { thread in
+            CustomSnoozeView { snooze(thread, until: $0) }
+        }
         .task(id: client.view.active_profile_id) {
             // Render what's on the device first, then bring it up to date.
             await fetch(operation: "cached_threads", cursor: nil)
@@ -197,7 +232,41 @@ struct ThreadsView: View {
                 ForEach(values) { thread in
                     NavigationLink(value: ThreadRoute(id: thread.id)) { row(thread) }
                         .listRowBackground(Noora.backgroundTertiary)
+                        .swipeActions(edge: .leading) { snoozeAction(thread) }
+                        .contextMenu {
+                            if thread.section != "archived" {
+                                Menu("Snooze", systemImage: "moon.zzz") {
+                                    SnoozeButtons(
+                                        choices: snoozeChoices,
+                                        working: thread.working,
+                                        snoozed: thread.snooze != nil,
+                                        snooze: { snooze(thread, until: $0) },
+                                        custom: { customSnooze = thread }
+                                    )
+                                }
+                            }
+                        }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder private func snoozeAction(_ thread: AppThread) -> some View {
+        if thread.snooze != nil {
+            Button("Wake", systemImage: "sun.max") { snooze(thread, until: nil) }.tint(.orange)
+        } else if thread.section != "archived" {
+            Button("Snooze", systemImage: "moon.zzz") { snoozing = thread }.tint(.indigo)
+        }
+    }
+
+    /// Snoozes or wakes a thread, then shows the inbox as the core sorts it now.
+    private func snooze(_ thread: AppThread, until: String?) {
+        Task {
+            do {
+                _ = try await client.snooze(thread.id, until: until)
+                await reload()
+            } catch {
+                client.error = error.localizedDescription
             }
         }
     }
@@ -205,13 +274,14 @@ struct ThreadsView: View {
     private func row(_ thread: AppThread) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: thread.section == "archived" ? "archivebox"
+                : thread.section == "snoozed" ? "moon.zzz"
                 : thread.section == "in_progress" ? "circle.dotted" : "bubble.left")
                 .foregroundStyle(thread.section == "in_progress" ? Noora.primary : Noora.labelSecondary)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: thread.title ?? thread.goal ?? "").font(.body.weight(.medium)).lineLimit(2)
                     .foregroundStyle(Noora.labelPrimary)
-                Text(verbatim: [thread.repository, statusLabel(thread.state)]
+                Text(verbatim: [thread.repository, thread.snooze?.label ?? statusLabel(thread.state)]
                     .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(Noora.labelSecondary)
             }

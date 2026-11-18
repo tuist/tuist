@@ -1152,6 +1152,10 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
             "/dms/12345678-1234-5678-9abc-123456789abc",
             Destination::Conversation("dms", "12345678-1234-5678-9abc-123456789abc".into()),
         ),
+        (
+            "/threads/12345678-1234-5678-9abc-123456789abc/snooze",
+            Destination::Snooze("12345678-1234-5678-9abc-123456789abc".into()),
+        ),
     ] {
         for value in [
             path.to_owned(),
@@ -1181,6 +1185,10 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
         "/threads/------------------------------------",
         "/threads/",
         "/halls/not-an-id",
+        "/threads/new/snooze",
+        "/threads/snooze",
+        "/halls/12345678-1234-5678-9abc-123456789abc/snooze",
+        "/threads/12345678-1234-5678-9abc-123456789abc/snooze/",
         "/channels",
         "/profile?",
         "/profile#fragment",
@@ -2325,4 +2333,154 @@ fn threads_start_on_a_runner_only_online_and_runners_register_with_their_secret(
             .all(|t| t["pending"] != true),
         "{inbox}"
     );
+}
+
+#[test]
+fn snooze_options_follow_the_local_clock() {
+    use crate::threads::snooze_options;
+    let until = |options: &Value, id: &str| {
+        options["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["id"] == id)
+            .map(|o| o["until"].clone())
+    };
+    // Wednesday 2026-11-18 08:30 UTC is 09:30 in Berlin (UTC+1).
+    let wednesday = 1794990600;
+    let options = snooze_options(wednesday, 3600, true);
+    assert_eq!(until(&options, "until_needed"), Some(Value::Null));
+    assert_eq!(
+        until(&options, "in_2_hours"),
+        Some(json!("2026-11-18T10:30:00Z"))
+    );
+    // 18:00 and 09:00 Berlin time, in UTC.
+    assert_eq!(
+        until(&options, "this_evening"),
+        Some(json!("2026-11-18T17:00:00Z"))
+    );
+    assert_eq!(
+        until(&options, "tomorrow"),
+        Some(json!("2026-11-19T08:00:00Z"))
+    );
+    assert_eq!(
+        until(&options, "next_week"),
+        Some(json!("2026-11-23T08:00:00Z"))
+    );
+    // A finished thread has nothing to wait for.
+    assert_eq!(
+        until(&snooze_options(wednesday, 3600, false), "until_needed"),
+        None
+    );
+    // At 17:30 Berlin, the evening is here already.
+    assert_eq!(
+        until(
+            &snooze_options(wednesday + 8 * 3600, 3600, false),
+            "this_evening"
+        ),
+        None
+    );
+    // 23:30 UTC on Wednesday is already Thursday in Tokyo (UTC+9).
+    let tokyo = snooze_options(wednesday + 15 * 3600, 9 * 3600, false);
+    assert_eq!(
+        until(&tokyo, "tomorrow"),
+        Some(json!("2026-11-20T00:00:00Z"))
+    );
+    // On a Sunday, next week starts the Monday after tomorrow.
+    let sunday = wednesday + 4 * 86_400;
+    assert_eq!(
+        until(&snooze_options(sunday, 3600, false), "next_week"),
+        Some(json!("2026-11-30T08:00:00Z"))
+    );
+}
+
+#[test]
+fn snoozed_threads_leave_their_section_until_the_snooze_ends() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let later = "2099-01-01T09:00:00Z";
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[
+                {"id":"a","status":"running","archive_status":"active","snoozed_until_needed":true},
+                {"id":"b","status":"idle","archive_status":"active","snoozed_until":later},
+                {"id":"c","status":"idle","archive_status":"active","snoozed_until":"2020-01-01T09:00:00Z"},
+                {"id":"d","status":"idle","archive_status":"active","snoozed_until_needed":true}
+            ],"next_cursor":null}),
+        ),
+        (
+            200,
+            json!({"id":id,"status":"running","archive_status":"active","snoozed_until":later,"messages":[]}),
+        ),
+        (409, json!({})),
+    ]);
+    let page = call(&mut c, &mut h, "threads", json!({}));
+    let shown: Vec<_> = page["data"]["threads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| (t["section"].as_str().unwrap(), t["snooze"].clone()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("snoozed", json!({"until":null,"until_needed":true})),
+            ("snoozed", json!({"until":later,"until_needed":false})),
+            ("recent", Value::Null),
+            ("recent", Value::Null),
+        ]
+    );
+
+    let snoozed = call(
+        &mut c,
+        &mut h,
+        "snooze_thread",
+        json!({"id":id,"snooze":later}),
+    );
+    assert_eq!(snoozed["data"]["section"], "snoozed", "{snoozed}");
+    assert_eq!(snoozed["data"]["working"], true);
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "PATCH");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/accounts/ana/threads/{id}")
+    );
+    assert_eq!(sent_body(&h), json!({"snooze":{"until":later}}));
+
+    let finished = call(
+        &mut c,
+        &mut h,
+        "snooze_thread",
+        json!({"id":id,"snooze":"until_needed"}),
+    );
+    assert!(
+        finished["error"]
+            .as_str()
+            .unwrap()
+            .contains("nothing to wait for")
+    );
+    let count = h.actions.len();
+    for snooze in [
+        json!("2020-01-01T09:00:00Z"),
+        json!("tomorrow"),
+        json!(true),
+    ] {
+        assert!(
+            call(
+                &mut c,
+                &mut h,
+                "snooze_thread",
+                json!({"id":id,"snooze":snooze})
+            )["error"]
+                .is_string()
+        );
+    }
+    assert_eq!(h.actions.len(), count);
+
+    // The stored conversation keeps the snooze offline.
+    h.offline = true;
+    let cached = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(cached["data"]["section"], "snoozed", "{cached}");
 }
