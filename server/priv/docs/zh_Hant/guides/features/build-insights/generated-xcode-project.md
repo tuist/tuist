@@ -2,17 +2,17 @@
 {
   "title": "產生的 Xcode 專案",
   "titleTemplate": ":title · 建置洞察 · 功能 · 指南 · Tuist",
-  "description": "在 Tuist 儀表板上追蹤由 Tuist 產生的 Xcode 專案的建置分析資料。"
+  "description": "在 Tuist 儀表板上追蹤由 Tuist 產生的 Xcode 專案之建置分析資料。"
 }
 ---
 # 產生的 Xcode 專案 {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> 自動產生的方案會自動包含 `tuist inspect build` 後置動作。
+> 自動產生的 Scheme 會自動包含 `tuist inspect build` 後續動作。
 >
-> 如果你不想在產生的方案中追蹤建置洞察，請使用 [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 停用。
+> 若你不想在產生的 Scheme 中追蹤建置洞察，請使用 [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 停用。
 
-如果你使用帶有自訂方案的產生專案，需要自行新增後置動作。適用於 [Mise](https://mise.jdx.dev/)：
+若你使用帶有自訂 Scheme 的產生專案，需自行加入後續動作。適用於 [Mise](https://mise.jdx.dev/)：
 
 ```swift
 let project = Project(
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-如果你未使用 Mise，則需確保 `tuist` 在方案的環境中可用，因為 Xcode 後置動作不會繼承你 Shell 的 `PATH`。適用於 [Homebrew](https://brew.sh/) 安裝：
+若你未使用 Mise，需確保 `tuist` 可在 Scheme 的環境中使用，因為 Xcode 的後續動作不會繼承你 Shell 的 `PATH`。針對 [Homebrew](https://brew.sh/) 安裝：
 
 ```swift
 buildAction: .buildAction(

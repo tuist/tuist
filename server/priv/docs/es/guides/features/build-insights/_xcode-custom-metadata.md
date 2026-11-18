@@ -6,7 +6,7 @@ Puedes adjuntar metadatos a las compilaciones mediante variables de entorno para
 
 | Variable | Formato | Descripción |
 |----------|--------|-------------|
-| `TUIST_BUILD_TAGS` | Separado por comas | Varias etiquetas en una sola variable. |
+| `TUIST_BUILD_TAGS` | Separados por comas | Varias etiquetas en una sola variable. |
 | `TUIST_BUILD_VALUE_*` | Valor único | Par clave-valor donde el sufijo es la clave. |
 
 ### Ejemplos

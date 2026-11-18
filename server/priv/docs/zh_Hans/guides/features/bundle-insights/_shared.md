@@ -12,15 +12,15 @@ tuist inspect bundle App.ipa --tags paid production
 TUIST_BUNDLE_TAGS="paid,production" tuist inspect bundle App.ipa
 ```
 
-显式的 `--tags` 会替换环境变量中的标签。标签可以包含字母、数字、连字符和下划线，每个包最多 10 个标签，每个标签最多 50 个字符。同样的选项也适用于 Android 包。`--json` 仅在本地运行，不会上传标签或包。
+显式的 `--tags` 会替换环境变量中的标签。标签可以包含字母、数字、连字符和下划线，每个包最多 10 个标签，每个标签最多 50 个字符。相同的选项也适用于 Android 包。`--json` 仅在本地生效，不会上传标签或包。
 
-标签显示在包名称旁边以及包详细信息中。使用仪表板的 **标签** 过滤器并输入标签，以在包列表中包含或排除它。匹配是精确且区分大小写的，即使过滤器操作符标记为 **包含** 和 **不包含**：`paid` 不匹配 `paid-extra`。要从 CLI 进行过滤：
+标签显示在包名称旁边以及包详情中。使用仪表板的 **标签** 过滤器并输入标签，以在包列表中包含或排除它。匹配是精确且区分大小写的，即使过滤器操作符标记为 **包含** 和 **不包含**：`paid` 不匹配 `paid-extra`。要从 CLI 进行过滤：
 
 ```bash
 tuist bundle list --tags paid production
 ```
 
-CLI、API（`?tags=paid,production`）和 MCP `list_bundles` 工具（`tags: ["paid", "production"]`）返回包含 **所有** 指定标签的包。API 上传接受 `bundle.custom_metadata.tags`；列表和详细信息响应返回 `custom_metadata.tags`。现有不带标签的包仍像以前一样可用。标签用于过滤包列表；它们不会更改大小图表或自动比较和阈值基线。
+CLI、API（`?tags=paid,production`）和 MCP `list_bundles` 工具（`tags: ["paid", "production"]`）返回包含 **所有** 指定标签的包。API 上传接受 `bundle.custom_metadata.tags`；列表和详情响应返回 `custom_metadata.tags`。现有不带标签的包仍像以前一样可用。标签用于过滤包列表；它们不会更改大小图表或自动比较和阈值基线。
 
 现有客户端可以继续上传和读取不带标签的包。更新后的客户端也可以读取省略 `custom_metadata` 的旧服务器响应。存储和过滤标签需要支持包标签的服务器版本：旧服务器会忽略上传元数据并拒绝标签过滤器。当未提供标签时，更新后的客户端会省略上传元数据和标签查询参数。
 
@@ -29,9 +29,9 @@ CLI、API（`?tags=paid,production`）和 MCP `list_bundles` 工具（`tags: ["p
 对于每个分析的包，Tuist 报告两个值：
 
 - **安装大小**：应用安装在设备上后占用的空间。
-- **下载大小**：用户下载的压缩大小。对于 Apple 包，仅针对 `.ipa`（归档文件的大小）报告此值；对于 `.xcarchive` 或 `.app` 输入，此值不可用。
+- **下载大小**：用户下载的压缩大小。对于 Apple 包，这仅针对 `.ipa`（归档文件的大小）报告；对于 `.xcarchive` 或 `.app` 输入则不可用。
 
-大小以字节为单位存储，并使用十进制约定显示，其中 1 MB 为 1,000,000 字节，1 GB 为 1,000,000,000 字节——这与 Apple 报告存储和应用大小的约定相同（参见 [Apple 设备上如何测量存储容量](https://support.apple.com/en-us/102119)）。733,446,863 字节的安装大小显示为 733.4 MB。
+大小以字节为单位存储，并使用十进制惯例显示，其中 1 MB 为 1,000,000 字节，1 GB 为 1,000,000,000 字节——这与 Apple 报告存储和应用大小的惯例相同（参见 [Apple 设备上如何衡量存储容量](https://support.apple.com/en-us/102119)）。733,446,863 字节的安装大小显示为 733.4 MB。
 
 ## 持续集成 {#continuous-integration}
 
@@ -82,7 +82,7 @@ jobs:
 <!-- -->
 :::
 
-设置完成后，你可以查看包大小随时间的变化情况：
+设置完成后，你可以看到包大小随时间的变化：
 
 ![包大小图表](/images/guides/features/bundle-size/bundle-size-graph.png)
 
@@ -93,9 +93,9 @@ jobs:
 >
 > 要获取自动拉取/合并请求评论，请将你的 <.localized_link href="/guides/server/accounts-and-projects">Tuist 项目</.localized_link> 与 Git 平台集成：<.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link>、<.localized_link href="/guides/integrations/gitforge/origin">Cursor Origin</.localized_link> 或 <.localized_link href="/guides/integrations/gitforge/entire">Entire</.localized_link>。
 
-一旦你的 Tuist 项目与 GitHub 等 Git 平台（如 [GitHub](https://github.com)）连接，每当你运行 `tuist inspect bundle` 时，Tuist 就会直接在拉取/合并请求中发布评论：
+一旦你的 Tuist 项目与 GitHub 等 Git 平台（如 [GitHub](https://github.com)）连接，每当你运行 `tuist inspect bundle` 时，Tuist 都会直接在拉取/合并请求中发布评论：
 
-![带有已检查包的 GitHub 应用评论](/images/guides/features/bundle-size/github-app-with-bundles.png)
+![带有检查包的 GitHub 应用评论](/images/guides/features/bundle-size/github-app-with-bundles.png)
 
 ## 大小阈值 {#size-thresholds}
 
@@ -108,7 +108,7 @@ jobs:
 
 ![显示超出包大小阈值的 PR 状态检查](/images/guides/features/bundle-size/github-pr-check-status.png)
 
-检查运行显示基线大小、当前大小以及配置单位的变化。如果增加是有意为之，你可以直接从 GitHub UI 点击 **接受** 按钮来接受它：
+检查运行显示基线大小、当前大小以及配置单位的变化。如果增加是故意的，你可以通过点击 **接受** 按钮直接从 GitHub UI 接受它：
 
 ![显示违反阈值的 GitHub 检查运行](/images/guides/features/bundle-size/github-check-run-threshold.png)
 
@@ -121,17 +121,17 @@ jobs:
 选择 **安装大小** 或 **下载大小**，然后选择 **阈值类型**：
 
 - **百分比 (%)**：限制相对于基线大小的增长。支持小数百分比，例如 `0.47`。现有的百分比阈值保留其配置的值和行为。
-- **绝对大小 (MB)**：限制固定数量的增长，与基线大小无关。输入 `1.5` 以允许最多 1.5 MB 的增长。MB 使用十进制单位：1 MB = 1,000,000 字节。值必须解析为正整数字节数。
+- **绝对大小 (MB)**：限制固定量的增长，与基线大小无关。输入 `1.5` 以允许最多 1.5 MB 的增长。MB 使用十进制单位：1 MB = 1,000,000 字节。值必须解析为正整数字节数。
 
 ![绝对包大小增长阈值配置](/images/guides/features/bundle-size/absolute-size-threshold.png)
 
-两种类型都会与配置的 **基线分支** 上具有相同名称、相同包类型（例如 `.app` 或 `.ipa`）且至少共享一个平台的最新包进行比较，因此模拟器 `.app` 仅与模拟器 `.app` 上传进行比较。可选的 **包名称** 将规则限制为该包。仅当增长 **超过** 限制时检查才会失败；增长相等、大小不变或减小则通过。如果没有匹配的基线或所选指标没有记录的大小，则会跳过该规则。绝对限制支持零大小基线；百分比限制会继续跳过它，因为百分比增长未定义。
+两种类型都会与配置的 **基线分支** 上具有相同名称、相同包类型（例如 `.app` 或 `.ipa`）且至少共享一个平台的最新包进行比较，因此模拟器 `.app` 仅与模拟器 `.app` 上传进行比较。可选的 **包名称** 将规则限制为该包。仅当增长 **超过** 限制时检查才会失败；增长相等、大小不变或减少则通过。如果没有匹配的基线或所选指标没有记录的大小，则会跳过该规则。绝对限制支持零大小基线；百分比限制会继续跳过它，因为百分比增长未定义。
 
 ### 限制谁可以接受 {#size-thresholds-approvals}
 
-默认情况下，任何对仓库具有写入权限的人都可以接受大小增加，因为 GitHub 会向这些人显示该按钮。要缩小范围，请在 **设置 > 包** 下设置 **谁可以接受**：
+默认情况下，任何拥有仓库写入权限的人都可以接受大小增加，因为 GitHub 会向这些人显示按钮。要缩小范围，请在 **设置 > 包** 下设置 **谁可以接受**：
 
-- **任何人**：默认值。任何对仓库具有写入权限的人。
+- **任何人**：默认值。任何拥有仓库写入权限的人。
 - **选定的 GitHub 用户**：仅限你添加的 GitHub 用户名。
 
-不在列表中的人会导致检查失败并附带解释说明，而按钮仍保留给有权使用它的人。
+不在列表中的人会导致检查失败并附带说明，按钮仍保留给可以使用它的人。
