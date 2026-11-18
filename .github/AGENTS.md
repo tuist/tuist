@@ -591,8 +591,9 @@ removed. Keep the registry proxy, the resolve retry and the
 ## Runners acceptance
 
 `workflows/runners-acceptance.yml` runs a job on each Tuist Runners fleet of an
-environment and fails, naming the layer, when dispatch, the server's OIDC token,
-Kura reachability, Kura auth, the Kura data path, Xcode cache setup or remote
+environment and fails, naming the layer, when dispatch, a Linux runner VM that
+its host kills once the guest fills its RAM, the server's OIDC token, Kura
+reachability, Kura auth, the Kura data path, Xcode cache setup or remote
 cache hits break. Its scripts and fixture live in `scripts/runners-acceptance/`.
 The deploy cascade's `runners-acceptance` job runs it against canary through
 `gate.sh` and gates `production` on it; the hourly schedule runs it against
