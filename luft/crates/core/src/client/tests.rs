@@ -2650,3 +2650,53 @@ fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
     let personal = call(&mut c, &mut h, "palette", json!({"query":"#rel"}));
     assert_eq!(personal["data"]["items"], json!([]));
 }
+#[test]
+fn a_refreshed_first_page_keeps_the_pages_loaded_after_it() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let thread =
+        |id: &str, status: &str| json!({"id":id,"status":status,"archive_status":"active"});
+    let ids = |page: &Value| -> Vec<String> {
+        page["data"]["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[thread("a","idle"), thread("b","idle")],"next_cursor":"after-b"}),
+        ),
+        (
+            200,
+            json!({"threads":[thread("c","idle"), thread("d","idle")],"next_cursor":"after-d"}),
+        ),
+        // `d` started working, so it moved to the top and pushed `b` off the first page.
+        (
+            200,
+            json!({"threads":[thread("d","running"), thread("a","idle")],"next_cursor":"after-a"}),
+        ),
+    ]);
+    call(&mut c, &mut h, "threads", json!({}));
+    call(&mut c, &mut h, "threads", json!({"cursor":"after-b"}));
+    let refreshed = call(&mut c, &mut h, "threads", json!({}));
+    assert_eq!(ids(&refreshed), ["d", "a", "b", "c"]);
+    assert_eq!(refreshed["data"]["threads"][0]["section"], "in_progress");
+    // Paging continues after the last thread loaded, not after the new first page.
+    assert_eq!(refreshed["data"]["next_cursor"], "after-d");
+    assert_eq!(
+        call(&mut c, &mut h, "cached_threads", json!({}))["data"]["next_cursor"],
+        "after-d"
+    );
+
+    // A first page that is the whole inbox replaces it: `b` and `c` are gone.
+    h.responses.push_back((
+        200,
+        json!({"threads":[thread("d","idle"), thread("a","idle")],"next_cursor":null}),
+    ));
+    let whole = call(&mut c, &mut h, "threads", json!({}));
+    assert_eq!(ids(&whole), ["d", "a"]);
+    assert_eq!(whole["data"]["next_cursor"], Value::Null);
+}
