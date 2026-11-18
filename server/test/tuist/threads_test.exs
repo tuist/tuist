@@ -241,8 +241,14 @@ defmodule Tuist.ThreadsTest do
     # A call of the same run that is still running or parked holds back
     # nothing: Condukt orders the session's calls by their effects.
     assert :ok = Threads.begin_tool_call(run, "call_2", "Read", %{"path" => "a"}, @tools)
+    # The snapshot names the newest call still executing, never its arguments.
+    assert {:ok, %{activity: "Read"}} = Threads.snapshot(user, account, thread.id)
+
+    assert :ok = Threads.complete_tool_call(run, "call_2", "Read", %{"path" => "a"}, {:error, "missing"})
+    assert {:ok, %{activity: "Bash"}} = Threads.snapshot(user, account, thread.id)
 
     assert :ok = Threads.complete_tool_call(run, "call_1", "Bash", args, {:ok, "built"})
+    assert {:ok, %{activity: nil}} = Threads.snapshot(user, account, thread.id)
     {:ok, done} = Threads.get(user, account, thread.id)
     assert Enum.any?(done.messages, &match?(%{tool_name: "Bash", tool_state: "complete", body: "built"}, &1))
 
@@ -250,7 +256,6 @@ defmodule Tuist.ThreadsTest do
     assert {:block, "This tool call already ran. Its result was:\n\nbuilt"} =
              Threads.begin_tool_call(run, "call_1", "Bash", args, @tools)
 
-    assert :ok = Threads.complete_tool_call(run, "call_2", "Read", %{"path" => "a"}, {:error, "missing"})
     assert Repo.one!(from c in ToolCall, where: c.name == "Read", select: c.status) == "completed"
   end
 

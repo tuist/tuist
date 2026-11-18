@@ -25,8 +25,6 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorker do
   alias Tuist.Repo
   alias Tuist.Threads.Thread
 
-  @max_title_length 100
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"thread_id" => thread_id, "status" => status}}) do
     with %Thread{} = thread <- Repo.get(Thread, thread_id),
@@ -52,23 +50,11 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorker do
       "user" => owner_handle,
       "thread_id" => id,
       "aps" => %{
-        "alert" => %{"title" => title(thread), "body" => body(status)},
+        "alert" => %{"title" => Push.thread_title(thread), "body" => body(status)},
         "sound" => "default",
         "thread-id" => id
       }
     }
-  end
-
-  # `Tuist.Threads` titles a new thread with the start of its first message;
-  # only a title the agent gave it is safe to show on a lock screen.
-  defp title(%Thread{title: title, goal: goal}) do
-    title = title |> to_string() |> String.trim()
-
-    if title == "" or title == String.trim(String.slice(to_string(goal), 0, 80)) do
-      "Your thread"
-    else
-      String.slice(title, 0, @max_title_length)
-    end
   end
 
   defp body("idle"), do: "Replied. Tap to read it."

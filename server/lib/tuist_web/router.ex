@@ -1377,6 +1377,8 @@ defmodule TuistWeb.Router do
     put "/me/push-devices/:installation_id", PushDevicesController, :update
     delete "/me/push-devices/:installation_id", PushDevicesController, :delete
     delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
+    put "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :update
+    delete "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :delete
     get "/me/notification-events", NotificationRulesController, :events
 
     get "/me/notification-events/:event/projects/:account_handle/:project_handle/condition-options",

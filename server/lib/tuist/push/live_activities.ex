@@ -1,0 +1,596 @@
+defmodule Tuist.Push.LiveActivities do
+  @moduledoc """
+  Tuist Guild's aggregate Live Activity: one ActivityKit activity per signed-in
+  app that shows the user's working threads on the Lock Screen and in the
+  Dynamic Island.
+
+  The server decides what the activity shows. `content/2` maps the user's
+  threads to a small versioned document (the activity's `content-state`) built
+  from a fixed set of parts: a summary and up to three threads, each with a
+  headline, a detail line, a phase with its SF Symbol and tint, progress (a timer
+  the device counts from `started_at`, or a step count), a trail of its recent
+  phases and a link. The widget only draws it, so new phases and copy ship from
+  the server without an app release. Raw state never leaves the server: tool
+  calls become phases (`Read`, `Glob`, `Grep` and `Ls` are Exploring, `Edit` and
+  `Write` Editing, `Bash` Running commands), and their arguments are never read.
+  Headlines are the thread title an agent gave it (`Tuist.Push.thread_title/1`),
+  which can appear on the Lock Screen.
+
+  Registrations (`Tuist.Push.LiveActivity`) are keyed by the app's UUID for the
+  activity, bound to the user and the Guild sign-in that registered it, and
+  delivered to only while that sign-in is active. They last eight hours, as
+  ActivityKit activities do. Retired rows are tombstones whose ID can never be
+  registered again; a new local activity retires the previous one of the same
+  sign-in.
+
+  Every thread change wakes `Workers.LiveActivityWorker` for the owner's live
+  registrations, coalesced to one pending job each. The worker recomputes the
+  document from committed state, pushes it when it changed, and reschedules
+  itself a minute later while threads are working, which renews the activity's
+  stale date and repairs a lost wake. A thread the last push showed working is
+  shown finished once, at priority 10 like a thread that needs the user; the
+  rest go at priority 5, which iOS does not ration. When nothing is working the
+  push ends the activity, leaving finished threads on the Lock Screen for a few
+  minutes, and retires the registration.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.User
+  alias Tuist.Environment
+  alias Tuist.Push
+  alias Tuist.Push.APNs
+  alias Tuist.Push.LiveActivity
+  alias Tuist.Push.Workers.LiveActivityWorker
+  alias Tuist.Repo
+  alias Tuist.Threads
+  alias Tuist.Threads.Message
+  alias Tuist.Threads.Run
+  alias Tuist.Threads.Thread
+  alias Tuist.Threads.ToolCall
+
+  require Logger
+
+  @version 1
+  @topic "dev.tuist.code.push-type.liveactivity"
+  @lifetime_seconds 8 * 60 * 60
+  @stale_seconds 2 * 60
+  @heartbeat_seconds 60
+  @linger_seconds 15 * 60
+  @max_live_per_user 10
+  @max_threads 3
+  @max_title_length 80
+  @max_trail 4
+  @tombstone_retention_days 180
+  @prune_batch_size 1000
+  @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
+  @token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
+
+  @working ["queued", "running", "shipping"]
+
+  # Phase => {label, SF Symbol, tint}. Tints name the widget's fixed palette.
+  @phases %{
+    "waiting" => {"Waiting", "clock", "gray"},
+    "thinking" => {"Thinking", "sparkles", "gray"},
+    "exploring" => {"Exploring", "magnifyingglass", "blue"},
+    "editing" => {"Editing", "pencil", "purple"},
+    "running" => {"Running commands", "terminal", "orange"},
+    "working" => {"Using tools", "wrench.and.screwdriver", "blue"},
+    "shipping" => {"Shipping", "paperplane", "teal"},
+    "needs_you" => {"Needs you", "bell.badge", "yellow"},
+    "done" => {"Done", "checkmark.circle", "green"},
+    "failed" => {"Failed", "xmark.circle", "red"}
+  }
+
+  @finished ["needs_you", "done", "failed"]
+
+  def version, do: @version
+  def prune_batch_size, do: @prune_batch_size
+
+  @doc """
+  Registers or refreshes Live Activity `id` for `user` under the Guild `session`
+  (`Tuist.Push.oauth_session/3`). `params` has `"token"`, the activity's hex
+  ActivityKit push token, and `"environment"`, `sandbox` or `production`.
+
+  Returns `{:ok, registration}`, or `{:error, reason}` where reason is
+  `:invalid`, `:retired` (the app must use a new UUID) or `:conflict` (another
+  user's registration).
+  """
+  def register(%User{} = user, %{app: "guild", oauth_grant_id: grant_id}, id, params) do
+    with {:ok, id} <- validate_id(id),
+         {:ok, token, environment} <- validate_params(params) do
+      hash = LiveActivity.token_hash(token)
+
+      result =
+        locked(id, user, fn
+          %LiveActivity{retired_at: %DateTime{}} ->
+            {:error, :retired}
+
+          %LiveActivity{user_id: user_id} = existing when user_id == user.id ->
+            save(existing, user, grant_id, token, environment, hash)
+
+          %LiveActivity{} ->
+            {:error, :conflict}
+
+          nil ->
+            # One activity per sign-in: a new local activity replaces the old one.
+            LiveActivity
+            |> where([a], a.user_id == ^user.id and a.oauth_grant_id == ^grant_id and is_nil(a.retired_at))
+            |> Repo.update_all(set: retired_fields("replaced"))
+
+            save(
+              %LiveActivity{id: id, expires_at: DateTime.add(now(), @lifetime_seconds)},
+              user,
+              grant_id,
+              token,
+              environment,
+              hash
+            )
+        end)
+
+      with {:ok, registration} <- result do
+        wake(registration.id)
+        {:ok, registration}
+      end
+    end
+  end
+
+  def register(_user, _session, _id, _params), do: {:error, :invalid}
+
+  @doc """
+  Retires `id` when it belongs to `user`. An unknown ID becomes a tombstone, so a
+  registration that arrives after it is rejected. Always `:ok` for a valid ID.
+  The app ends the activity itself.
+  """
+  def unregister(%User{} = user, id) do
+    with {:ok, id} <- validate_id(id) do
+      {:ok, :ok} =
+        locked(id, nil, fn
+          nil ->
+            Repo.insert!(struct(LiveActivity, [id: id, expires_at: now()] ++ retired_fields("unregistered")))
+            :ok
+
+          %LiveActivity{retired_at: nil, user_id: user_id} = registration when user_id == user.id ->
+            retire!(registration, "unregistered")
+            :ok
+
+          %LiveActivity{} ->
+            :ok
+        end)
+
+      :ok
+    end
+  end
+
+  @doc """
+  Wakes the live registrations of `user_id` after one of their threads changed.
+  Called in the transaction that changes the thread, so the wake commits with it.
+  """
+  def thread_changed(user_id) do
+    if APNs.configured?() do
+      LiveActivity
+      |> where([a], a.user_id == ^user_id and is_nil(a.retired_at))
+      |> select([a], a.id)
+      |> Repo.all()
+      |> Enum.each(&wake/1)
+    end
+
+    :ok
+  end
+
+  # A pending heartbeat is pulled forward to a second from now, so bursts of
+  # changes coalesce into one push without waiting for the heartbeat.
+  defp wake(id) do
+    {:ok, _job} =
+      %{"registration_id" => id}
+      |> LiveActivityWorker.new(schedule_in: 1, replace: [scheduled: [:scheduled_at]])
+      |> Oban.insert()
+
+    :ok
+  end
+
+  @doc false
+  def schedule_heartbeat(id) do
+    {:ok, _job} = %{"registration_id" => id} |> LiveActivityWorker.new(schedule_in: @heartbeat_seconds) |> Oban.insert()
+    :ok
+  end
+
+  @doc """
+  Pushes registration `id` its current document. Returns `:continue` while
+  threads are working (the worker schedules a heartbeat), `:done` once the
+  registration is retired or gone, `{:snooze, seconds}`, `{:retry, reason}` or
+  `{:cancel, reason}`.
+  """
+  def deliver(id) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        case Repo.one(from a in LiveActivity, where: a.id == ^id, lock: "FOR UPDATE") do
+          %LiveActivity{retired_at: nil, token: token} = registration when is_binary(token) -> push(registration)
+          _ -> :done
+        end
+      end)
+
+    result
+  end
+
+  defp push(%LiveActivity{} = registration) do
+    now = now()
+
+    with :ok <- check_live(registration, now),
+         %User{} = user <- Accounts.get_user_by_id(registration.user_id) do
+      {document, working_ids} = content(user, registration.working_thread_ids)
+      event = if working_ids == [], do: "end", else: "update"
+      digest = :crypto.hash(:sha256, JSON.encode!(document))
+      since = registration.last_sent_at && DateTime.diff(now, registration.last_sent_at)
+
+      cond do
+        event == "update" and digest == registration.last_digest and since < @heartbeat_seconds -> :continue
+        # APNs orders updates by their second-precision timestamp.
+        since == 0 -> {:snooze, 1}
+        true -> send!(registration, document, working_ids, event, digest, now)
+      end
+    else
+      {:retired, reason} ->
+        retire!(registration, reason)
+        :done
+
+      nil ->
+        retire!(registration, "session_ended")
+        :done
+    end
+  end
+
+  defp check_live(registration, now) do
+    cond do
+      DateTime.compare(registration.expires_at, now) != :gt -> {:retired, "expired"}
+      not Push.grant_active?("guild", registration.oauth_grant_id, registration.user_id) -> {:retired, "session_ended"}
+      true -> :ok
+    end
+  end
+
+  defp send!(registration, document, working_ids, event, digest, now) do
+    timestamp = DateTime.to_unix(now)
+    expires_at = DateTime.to_unix(registration.expires_at)
+    stale_at = min(timestamp + @stale_seconds, expires_at)
+    finished? = Enum.any?(document["threads"], &(&1["phase"] in @finished))
+
+    aps =
+      %{"timestamp" => timestamp, "event" => event, "content-state" => document, "stale-date" => stale_at}
+
+    aps =
+      if event == "end",
+        do: Map.put(aps, "dismissal-date", if(finished?, do: timestamp + @linger_seconds, else: timestamp)),
+        else: aps
+
+    registration.environment
+    |> APNs.deliver(registration.token, %{"aps" => aps}, @topic,
+      push_type: "liveactivity",
+      priority: if(finished?, do: 10, else: 5),
+      expiration: stale_at,
+      collapse_id: registration.id
+    )
+    |> case do
+      :ok when event == "end" ->
+        retire!(registration, "ended")
+        :done
+
+      :ok ->
+        registration
+        |> Ecto.Changeset.change(last_digest: digest, last_sent_at: now, working_thread_ids: working_ids)
+        |> Repo.update!()
+
+        :continue
+
+      {:error, :invalid_token} ->
+        retire!(registration, "invalid_token")
+        :done
+
+      {:error, {:retry, reason}} ->
+        {:retry, reason}
+
+      {:error, {:rejected, reason}} ->
+        Logger.warning("Live Activity push rejected for #{registration.id} (#{registration.environment}): #{reason}")
+        {:cancel, reason}
+    end
+  end
+
+  @doc """
+  The document `user`'s activity shows, and the IDs of the threads it shows
+  working. `previously_working` are the threads the last push showed working:
+  those that finished since are shown finished, once.
+  """
+  def content(%User{} = user, previously_working \\ []) do
+    threads =
+      Thread
+      |> where([t], t.owner_id == ^user.id and t.status == :active)
+      |> where([t], t.agent_status in @working or t.id in ^previously_working)
+      |> Repo.all()
+      |> readable(user)
+
+    runs = latest_runs(Enum.map(threads, & &1.id))
+    calls = runs |> Map.values() |> Enum.map(& &1.id) |> tool_calls()
+
+    rows =
+      threads
+      |> Enum.map(fn thread ->
+        run = Map.get(runs, thread.id)
+        row(thread, run, if(run, do: Map.get(calls, run.id, []), else: []))
+      end)
+      |> Enum.sort_by(&{rank(&1.phase), &1.started_at, &1.thread.id})
+
+    working = Enum.reject(rows, &(&1.phase in @finished))
+    top = List.first(rows)
+    count = length(working)
+
+    summary =
+      if top do
+        {label, symbol, tint} = Map.fetch!(@phases, top.phase)
+        headline = if count == 0, do: "All threads finished", else: "#{count} #{noun(count)} working"
+        %{"headline" => headline, "phase" => label, "symbol" => symbol, "tint" => tint}
+      else
+        {label, symbol, tint} = Map.fetch!(@phases, "done")
+        %{"headline" => "All threads finished", "phase" => label, "symbol" => symbol, "tint" => tint}
+      end
+
+    shown = Enum.take(rows, @max_threads)
+
+    document = %{
+      "v" => @version,
+      "summary" => summary,
+      "threads" => Enum.map(shown, &thread_document/1),
+      "fallback" => fallback(summary, top)
+    }
+
+    {document, Enum.map(working, & &1.thread.id)}
+  end
+
+  defp readable(threads, user) do
+    access =
+      threads
+      |> Enum.map(& &1.account_id)
+      |> Enum.uniq()
+      |> Map.new(fn account_id ->
+        allowed =
+          case Accounts.get_account_by_id(account_id) do
+            {:ok, account} -> Threads.authorize(user, account) == :ok
+            _ -> false
+          end
+
+        {account_id, allowed}
+      end)
+
+    Enum.filter(threads, &Map.fetch!(access, &1.account_id))
+  end
+
+  defp latest_runs([]), do: %{}
+
+  defp latest_runs(thread_ids) do
+    Run
+    |> where([r], r.thread_id in ^thread_ids)
+    |> distinct([r], r.thread_id)
+    |> order_by([r], asc: r.thread_id, desc: r.inserted_at, desc: r.id)
+    |> Repo.all()
+    |> Map.new(&{&1.thread_id, &1})
+  end
+
+  # Names and states only: a call's arguments and result never leave the server.
+  defp tool_calls([]), do: %{}
+
+  defp tool_calls(run_ids) do
+    ToolCall
+    |> join(:inner, [c], m in Message, on: m.id == c.message_id)
+    |> where([c], c.run_id in ^run_ids)
+    |> order_by([_c, m], asc: m.position)
+    |> select([c], {c.run_id, c.name, c.status})
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &{elem(&1, 1), elem(&1, 2)})
+  end
+
+  defp row(thread, run, calls) do
+    executing = calls |> Enum.filter(&(elem(&1, 1) == "executing")) |> List.last()
+    phase = phase(thread.agent_status, run, executing)
+    steps = Enum.count(calls, &(elem(&1, 1) == "completed"))
+
+    trail =
+      calls
+      |> Enum.map(&tool_phase(elem(&1, 0)))
+      |> Kernel.++([phase])
+      |> Enum.dedup()
+      |> Enum.take(-@max_trail)
+
+    %{
+      thread: thread,
+      phase: phase,
+      steps: steps,
+      trail: trail,
+      started_at: DateTime.to_unix((run && run.inserted_at) || thread.updated_at)
+    }
+  end
+
+  defp phase("queued", _run, _executing), do: "waiting"
+  defp phase("shipping", _run, _executing), do: "shipping"
+  defp phase("running", %Run{status: "running"}, {name, _}), do: tool_phase(name)
+  defp phase("running", _run, _executing), do: "thinking"
+  defp phase("idle", _run, _executing), do: "done"
+  defp phase("outcome_unknown", _run, _executing), do: "needs_you"
+  defp phase(_status, _run, _executing), do: "failed"
+
+  defp tool_phase(name) when name in ["Read", "Glob", "Grep", "Ls"], do: "exploring"
+  defp tool_phase(name) when name in ["Edit", "Write"], do: "editing"
+  defp tool_phase("Bash"), do: "running"
+  defp tool_phase(_name), do: "working"
+
+  defp rank("needs_you"), do: 0
+  defp rank(phase) when phase in ["done", "failed"], do: 1
+  defp rank(_phase), do: 2
+
+  defp thread_document(%{thread: thread, phase: phase, steps: steps} = row) do
+    {label, symbol, tint} = Map.fetch!(@phases, phase)
+
+    progress =
+      if phase in @finished,
+        do: %{"kind" => "steps", "done" => steps},
+        else: %{"kind" => "timer", "started_at" => row.started_at}
+
+    %{
+      "id" => thread.id,
+      "headline" => headline(thread),
+      "detail" => detail(phase, label, steps),
+      "phase" => phase,
+      "symbol" => symbol,
+      "tint" => tint,
+      "progress" => progress,
+      "trail" => Enum.map(row.trail, &elem(Map.fetch!(@phases, &1), 2)),
+      "link" => link(thread)
+    }
+  end
+
+  # Guild's own scheme: a widget opens an https link in Safari, not in the app.
+  defp link(thread),
+    do: "tuist-guild://app/threads/#{thread.id}?" <> URI.encode_query(%{"server" => Environment.app_url()})
+
+  defp headline(thread) do
+    title =
+      thread
+      |> Push.thread_title()
+      |> String.replace(~r/[\s\p{Z}\p{Cc}\p{Cf}]+/u, " ")
+      |> String.trim()
+      |> String.slice(0, @max_title_length)
+      |> String.trim()
+
+    if title == "", do: "Your thread", else: title
+  end
+
+  defp detail("waiting", _label, _steps), do: "Queued"
+  defp detail("needs_you", _label, _steps), do: "Check it before continuing"
+  defp detail("failed", _label, _steps), do: "Couldn't finish"
+  defp detail("done", _label, 0), do: "Replied"
+  defp detail("done", _label, steps), do: "Finished in #{steps} #{step_noun(steps)}"
+  defp detail(_phase, label, 0), do: label
+  defp detail(_phase, label, steps), do: "#{label} · #{steps} #{step_noun(steps)}"
+
+  defp fallback(summary, nil), do: summary["headline"] <> "."
+  defp fallback(summary, top), do: "#{summary["headline"]}. #{headline(top.thread)}: #{summary["phase"]}."
+
+  defp noun(1), do: "thread"
+  defp noun(_count), do: "threads"
+  defp step_noun(1), do: "step"
+  defp step_noun(_count), do: "steps"
+
+  @doc """
+  Retires up to #{@prune_batch_size} registrations past their lifetime and
+  deletes up to #{@prune_batch_size} tombstones older than
+  #{@tombstone_retention_days} days.
+  """
+  def prune do
+    now = now()
+
+    expired =
+      LiveActivity
+      |> where([a], is_nil(a.retired_at) and a.expires_at <= ^now)
+      |> limit(@prune_batch_size)
+      |> select([a], a.id)
+
+    {retired, _} =
+      LiveActivity |> where([a], a.id in subquery(expired)) |> Repo.update_all(set: retired_fields("expired"))
+
+    old =
+      LiveActivity
+      |> where([a], a.retired_at < ^DateTime.add(now, -@tombstone_retention_days, :day))
+      |> limit(@prune_batch_size)
+      |> select([a], a.id)
+
+    {deleted, _} = LiveActivity |> where([a], a.id in subquery(old)) |> Repo.delete_all()
+
+    %{retired: retired, deleted: deleted}
+  end
+
+  # Advisory locks serialize requests for one registration, including its first
+  # insert, and (taken first) the per-user cap.
+  defp locked(id, user, fun) do
+    Repo.transaction(fn ->
+      if user, do: advisory_lock!("thread_live_activity_user:#{user.id}")
+      advisory_lock!("thread_live_activity:" <> id)
+
+      LiveActivity
+      |> where([a], a.id == ^id)
+      |> lock("FOR UPDATE")
+      |> Repo.one()
+      |> fun.()
+      |> case do
+        {:error, reason} -> Repo.rollback(reason)
+        {:ok, value} -> value
+        value -> value
+      end
+    end)
+  end
+
+  defp save(registration, user, grant_id, token, environment, hash) do
+    # One live registration per token: a restored or reinstalled app reuses it.
+    LiveActivity
+    |> where([a], a.token_hash == ^hash and is_nil(a.retired_at) and a.id != ^registration.id)
+    |> Repo.update_all(set: retired_fields("superseded"))
+
+    saved =
+      registration
+      |> Ecto.Changeset.change(%{
+        user_id: user.id,
+        oauth_grant_id: grant_id,
+        environment: environment,
+        token: token,
+        token_hash: hash
+      })
+      |> Repo.insert_or_update!()
+
+    evict_oldest!(user.id)
+    {:ok, saved}
+  end
+
+  defp evict_oldest!(user_id) do
+    keep =
+      LiveActivity
+      |> where([a], a.user_id == ^user_id and is_nil(a.retired_at))
+      |> order_by([a], desc: a.inserted_at, desc: a.id)
+      |> limit(@max_live_per_user)
+      |> select([a], a.id)
+
+    LiveActivity
+    |> where([a], a.user_id == ^user_id and is_nil(a.retired_at) and a.id not in subquery(keep))
+    |> Repo.update_all(set: retired_fields("evicted"))
+  end
+
+  defp retire!(registration, reason) do
+    registration |> Ecto.Changeset.change(retired_fields(reason)) |> Repo.update!()
+  end
+
+  defp retired_fields(reason) do
+    [
+      retired_at: now(),
+      retired_reason: reason,
+      user_id: nil,
+      oauth_grant_id: nil,
+      token: nil,
+      token_hash: nil,
+      last_digest: nil,
+      working_thread_ids: []
+    ]
+  end
+
+  defp advisory_lock!(key), do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key])
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
+
+  defp validate_id(id) when is_binary(id) do
+    if Regex.match?(@uuid, id), do: {:ok, id}, else: {:error, :invalid}
+  end
+
+  defp validate_id(_id), do: {:error, :invalid}
+
+  defp validate_params(%{"token" => token, "environment" => environment})
+       when is_binary(token) and environment in ["sandbox", "production"] do
+    if Regex.match?(@token, token), do: {:ok, String.downcase(token), environment}, else: {:error, :invalid}
+  end
+
+  defp validate_params(_params), do: {:error, :invalid}
+end

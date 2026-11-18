@@ -248,6 +248,7 @@ defmodule Tuist do
       Artifacts.Package,
       Projects,
       Push,
+      Push.LiveActivities,
       Notifications,
       Projects.Project,
       Accounts.OIDCTrustPolicy,

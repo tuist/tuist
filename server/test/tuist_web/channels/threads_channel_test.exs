@@ -78,7 +78,7 @@ defmodule TuistWeb.ThreadsChannelTest do
     for topic <- [topic, String.replace_prefix(topic, "threads:", "jams:")] do
       {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
       assert {:ok, snapshot, _socket} = subscribe_and_join(socket, topic)
-      assert snapshot |> Map.keys() |> Enum.sort() == [:agent_status, :revision]
+      assert snapshot |> Map.keys() |> Enum.sort() == [:activity, :agent_status, :revision]
     end
   end
 

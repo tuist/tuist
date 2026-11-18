@@ -228,6 +228,21 @@ defmodule Tuist.Push do
     :ok
   end
 
+  @doc """
+  The title a lock screen may show for `thread`. `Tuist.Threads` titles a new
+  thread with the start of its first message, which is conversation content, so
+  only a title the agent gave it is shown; otherwise "Your thread".
+  """
+  def thread_title(%{title: title, goal: goal}) do
+    title = title |> to_string() |> String.trim()
+
+    if title == "" or title == String.trim(String.slice(to_string(goal), 0, 80)) do
+      "Your thread"
+    else
+      String.slice(title, 0, 100)
+    end
+  end
+
   @doc "The APNs topic, the bundle ID, of the app `installation` belongs to."
   def apns_topic(%Installation{app: "guild"}), do: "dev.tuist.code"
   def apns_topic(%Installation{}), do: Environment.apns_topic()
@@ -278,9 +293,16 @@ defmodule Tuist.Push do
     %{retired: retired, deleted: deleted}
   end
 
-  # Raises on database errors, so a transient failure never retires a live device.
-  defp session_active?(%Installation{oauth_grant_id: grant_id, user_id: user_id} = installation) do
-    client_id = if installation.app == "guild", do: Clients.guild_client_id(), else: Environment.oauth_client_id()
+  defp session_active?(%Installation{} = installation),
+    do: grant_active?(installation.app, installation.oauth_grant_id, installation.user_id)
+
+  @doc """
+  Whether the sign-in `grant_id` of `user_id` through `app`'s first-party OAuth
+  client is still active. Raises on database errors, so a transient failure
+  never retires a live registration.
+  """
+  def grant_active?(app, grant_id, user_id) do
+    client_id = if app == "guild", do: Clients.guild_client_id(), else: Environment.oauth_client_id()
 
     case Clients.get_client(client_id) do
       %Client{refresh_token_ttl: ttl} ->

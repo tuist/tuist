@@ -98,8 +98,9 @@ defmodule TuistWeb.ThreadsChannel do
          true <- account.id == socket.assigns.account_id,
          :ok <- Threads.authorize(user, account),
          {:ok, value} <- Threads.snapshot(user, account, socket.assigns.target) do
-      # Explicit allowlist: sockets carry invalidations, never conversation content.
-      {:ok, Map.take(value, [:revision, :agent_status])}
+      # Explicit allowlist: sockets carry invalidations and the running tool's
+      # name, never conversation content such as tool arguments.
+      {:ok, Map.take(value, [:revision, :agent_status, :activity])}
     else
       _ -> {:error, :not_found}
     end

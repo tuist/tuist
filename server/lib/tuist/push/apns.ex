@@ -40,18 +40,23 @@ defmodule Tuist.Push.APNs do
       the registration should be retired
     * `{:error, {:retry, reason}}` for throttling, server and transport errors
     * `{:error, {:rejected, reason}}` for anything else, which retrying won't fix
+
+  `opts` override `:push_type` (`alert`), `:priority` (10), `:expiration` (Unix
+  seconds, a day from now) and add `:collapse_id`, for Live Activity updates.
   """
-  def deliver(environment, device_token, payload, topic \\ Environment.apns_topic())
+  def deliver(environment, device_token, payload, topic \\ Environment.apns_topic(), opts \\ [])
       when is_map_key(@endpoints, environment) do
     url = "#{Map.fetch!(@endpoints, environment)}/3/device/#{device_token}"
+    expiration = Keyword.get_lazy(opts, :expiration, fn -> System.system_time(:second) + @expiration_seconds end)
 
-    headers = [
-      {"authorization", "bearer " <> provider_token()},
-      {"apns-topic", topic},
-      {"apns-push-type", "alert"},
-      {"apns-priority", "10"},
-      {"apns-expiration", to_string(System.system_time(:second) + @expiration_seconds)}
-    ]
+    headers =
+      [
+        {"authorization", "bearer " <> provider_token()},
+        {"apns-topic", topic},
+        {"apns-push-type", Keyword.get(opts, :push_type, "alert")},
+        {"apns-priority", to_string(Keyword.get(opts, :priority, 10))},
+        {"apns-expiration", to_string(expiration)}
+      ] ++ if(id = opts[:collapse_id], do: [{"apns-collapse-id", id}], else: [])
 
     case Req.post(url, headers: headers, json: payload, finch: Tuist.Finch, retry: false) do
       {:ok, %Req.Response{status: 200}} ->

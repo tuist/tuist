@@ -12,6 +12,7 @@ defmodule Tuist.Threads do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Push
+  alias Tuist.Push.LiveActivities
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Threads.Agent
@@ -230,7 +231,7 @@ defmodule Tuist.Threads do
           from i in "thread_inboxes", where: i.account_id == ^account.id and i.owner_id == ^user.id, select: i.revision
         ) || 0
 
-      {:ok, %{revision: revision, agent_status: "idle"}}
+      {:ok, %{revision: revision, agent_status: "idle", activity: nil}}
     end
   end
 
@@ -238,9 +239,29 @@ defmodule Tuist.Threads do
     with :ok <- authorize(user, account), {:ok, id} <- uuid(id) do
       case Repo.get_by(Thread, id: id, account_id: account.id, owner_id: user.id) do
         nil -> {:error, :not_found}
-        thread -> {:ok, %{revision: thread.revision, agent_status: thread.agent_status}}
+        thread -> {:ok, %{revision: thread.revision, agent_status: thread.agent_status, activity: activity(thread)}}
       end
     end
+  end
+
+  # The name of the tool the thread's run started most recently and is still
+  # executing, or nil. Only the name: arguments are conversation content. Calls
+  # of runs that ended stay "executing" when their outcome is unknown, so only
+  # running runs count.
+  defp activity(thread) do
+    Repo.one(
+      from(c in ToolCall,
+        join: r in Run,
+        on: r.id == c.run_id,
+        join: m in Message,
+        on: m.id == c.message_id,
+        where: r.thread_id == ^thread.id and r.status == "running" and c.status == "executing",
+        # Positions follow the thread's revision; timestamps tie within a second.
+        order_by: [desc: m.position],
+        limit: 1,
+        select: c.name
+      )
+    )
   end
 
   def ship_preview(user, account, id) do
@@ -1183,6 +1204,7 @@ defmodule Tuist.Threads do
     )
 
     Phoenix.PubSub.broadcast(Tuist.PubSub, topic(thread.owner_id, thread.account_id), :threads_changed)
+    LiveActivities.thread_changed(thread.owner_id)
     thread
   end
 
