@@ -422,4 +422,93 @@ defmodule TuistEx.GitTest do
 
     assert Git.parse_raw_parents(raw) == %{"aaa" => ["bbb", "ccc"]}
   end
+
+  describe "changed_files/4" do
+    test "diffs the baseline against the working tree, read against the baseline's blobs", %{
+      repo: repo
+    } do
+      write!(repo, "lib/a.ex", "a\n")
+      write!(repo, "lib/b.ex", "b\n")
+      write!(repo, "lib/c.ex", "c\n")
+      write!(repo, "lib/reverted.ex", "r\n")
+      baseline = commit!(repo, "baseline")
+
+      write!(repo, "lib/a.ex", "a2\n")
+      File.rm!(Path.join(repo, "lib/b.ex"))
+      write!(repo, "lib/reverted.ex", "r2\n")
+      write!(repo, "lib/new.ex", "n\n")
+      commit!(repo, "change")
+
+      # The working tree reverts one committed change, edits another file
+      # and adds one Git doesn't track.
+      write!(repo, "lib/reverted.ex", "r\n")
+      write!(repo, "lib/c.ex", "c2\n")
+      write!(repo, "lib/untracked.ex", "u\n")
+
+      assert {:ok, %{files: files, dirty?: true}} = Git.changed_files(repo, baseline, [])
+      blob = &git!(repo, ["hash-object", Path.join(repo, &1)])
+
+      assert files == [
+               %{path: "lib/a.ex", status: "M", blob: blob.("lib/a.ex")},
+               %{path: "lib/b.ex", status: "D", blob: nil},
+               %{path: "lib/c.ex", status: "M", blob: blob.("lib/c.ex")},
+               %{path: "lib/new.ex", status: "A", blob: blob.("lib/new.ex")},
+               %{path: "lib/untracked.ex", status: "A", blob: blob.("lib/untracked.ex")}
+             ]
+    end
+
+    test "a clean checkout is not dirty", %{repo: repo} do
+      write!(repo, "lib/a.ex", "a\n")
+      baseline = commit!(repo, "baseline")
+      write!(repo, "lib/a.ex", "a2\n")
+      commit!(repo, "change")
+
+      assert {:ok, %{files: [%{path: "lib/a.ex", status: "M"}], dirty?: false}} =
+               Git.changed_files(repo, baseline, [])
+    end
+
+    test "a baseline outside a full clone's history is unavailable", %{repo: repo} do
+      write!(repo, "lib/a.ex", "a\n")
+      commit!(repo, "only")
+
+      assert {:history_unavailable, "the baseline 000000000000 is not in the checkout's history"} =
+               Git.changed_files(repo, String.duplicate("0", 40), [])
+    end
+
+    test "deepens a shallow clone once to reach the baseline, and only through the given refs", %{
+      repo: repo
+    } do
+      write!(repo, "lib/a.ex", "a\n")
+      baseline = commit!(repo, "baseline")
+      empty_commits!(repo, 3)
+      write!(repo, "lib/a.ex", "a2\n")
+      commit!(repo, "change")
+
+      clone = shallow_clone!(repo, "main")
+
+      assert {:history_unavailable, "shallow clone: the baseline " <> _} =
+               Git.changed_files(clone, baseline, [])
+
+      assert {:history_unavailable, "shallow clone: the baseline " <> _} =
+               Git.changed_files(clone, baseline, ["main"], %{
+                 Git.default_limits()
+                 | remote_access: :none
+               })
+
+      assert {:ok, %{files: [%{path: "lib/a.ex", status: "M"}], dirty?: false}} =
+               Git.changed_files(clone, baseline, ["main"])
+    end
+
+    test "names the checked-out commit's parents and its ancestors", %{repo: repo} do
+      [first, second] = empty_commits!(repo, 2)
+      git!(repo, ["checkout", "--quiet", "-b", "feature", first])
+      side = hd(empty_commits!(repo, 1))
+      git!(repo, ["checkout", "--quiet", "main"])
+      git!(repo, ["merge", "--quiet", "--no-ff", "--no-edit", "feature"])
+      merge = git!(repo, ["rev-parse", "HEAD"])
+
+      assert {:ok, %{sha: ^merge, parent_shas: [^second, ^side]}} = Git.checked_out_commit(repo)
+      assert Enum.sort(Git.ancestor_shas(repo, 2)) == Enum.sort([second, side])
+    end
+  end
 end

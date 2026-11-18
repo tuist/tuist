@@ -392,6 +392,167 @@ defmodule Mix.Tasks.Tuist.TestTest do
     assert output =~ "quarantine verified"
   end
 
+  test "applies coverage-based test selection beside quarantine, and runs everything when it can't" do
+    script = ~S"""
+    Mix.start()
+    Mix.env(:test)
+
+    config = [
+      tuist: [selective_testing: [strategy: :coverage]],
+      test_coverage: [tool: :custom]
+    ]
+
+    Mix.Project.in_project(:tuist_ex, File.cwd!(), config, fn _ ->
+      {:ok, _} = Application.ensure_all_started(:mimic)
+      Code.require_file("test/test_helper.exs")
+      Mimic.copy(TuistEx.Analytics.Subprocess)
+      Mimic.copy(TuistEx.Analytics.TestSelection)
+      ExUnit.configure(autorun: false)
+
+      defmodule SelectionRegression do
+        use ExUnit.Case, async: false
+
+        test "the task applies the selection" do
+          Mimic.set_mimic_global()
+          owner = self()
+
+          Mimic.stub(TuistEx.Auth, :network_publishing?, fn options ->
+            send(owner, {:publishing_url, options[:url]})
+            false
+          end)
+
+          Mimic.stub(TuistEx.Analytics.GitHistory, :enabled?, fn _ -> false end)
+
+          Mimic.stub(TuistEx.Analytics.Quarantine, :fetch, fn _ ->
+            {:ok, %TuistEx.Analytics.Quarantine{skipped: MapSet.new([{"CartTest", "", "hangs"}])}}
+          end)
+
+          Mimic.stub(TuistEx.Analytics.HTTP, :submit_test_run, fn _payload, _opts -> :ok end)
+
+          outcome = fn outcome ->
+            Mimic.stub(TuistEx.Analytics.TestSelection, :decide, fn _index, options ->
+              send(owner, {:decided, options})
+              outcome
+            end)
+          end
+
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
+            send(owner, {:args, args, Application.get_env(:tuist_ex, :analytics_options)})
+            :ok
+          end)
+
+          run = fn args ->
+            ExUnit.CaptureIO.capture_io(fn -> assert :ok = Mix.Tasks.Tuist.Test.run(args) end)
+          end
+
+          outcome.(
+            {:selected,
+             %{
+               run_id: "run-1",
+               counts: %{"requested" => 3, "selected" => 1, "skipped" => 2},
+               skipped_tests: [%{module: "PairOneTest", suite: "", name: nil}]
+             }}
+          )
+
+          output = run.(["--cover", "--scheme", "postgres", "--url", "https://tuist.example"])
+          assert output =~ "coverage-based test selection: 1 of 3 tests selected, 2 skipped"
+          assert_received {:decided, decided}
+          assert decided[:scheme] == "postgres"
+          # The Git history, read before the task configures analytics, is
+          # read against the run's own server.
+          assert_received {:publishing_url, "https://tuist.example"}
+          refute_received {:publishing_url, nil}
+          assert_received {:args, args, options}
+          # The skip list is left out by the replaced ExUnit filter, not by
+          # arguments; quarantine keeps its own.
+          assert ["--exclude", "test:test hangs"] -- args == []
+          refute Enum.any?(args, &String.starts_with?(&1, "module:"))
+          assert function_exported?(ExUnit.Filters, :__tuist_ex_selection__, 0)
+          assert options[:selection_skipped] == [%{module: "PairOneTest", suite: "", name: nil}]
+          assert options[:test_impact_run_id] == "run-1"
+          # Leaving tests out makes the run's coverage partial, without
+          # naming them among what its own arguments left out.
+          assert options[:coverage_partial] == true
+          # A partial run's total isn't the suite's: no threshold to fail on.
+          assert options[:coverage_summary] == false
+
+          # A run with a reason runs everything and reports its impact run.
+          outcome.({:fallback, %{run_id: "run-2", reason: "no_baseline", matched_path: nil}})
+          assert run.(["--cover"]) =~ "not applied: no_baseline, so every test runs."
+          assert_received {:decided, _options}
+          assert_received {:args, _args, options}
+          refute Keyword.has_key?(options, :selection_skipped)
+          assert options[:test_impact_run_id] == "run-2"
+          assert options[:coverage_partial] == false
+          refute options[:coverage_summary] == false
+
+          # A failed request runs everything, with a warning, and reports no impact run.
+          outcome.({:failed, :timeout})
+          assert run.(["--cover"]) =~ "warning: Tuist coverage-based test selection is unavailable (:timeout)"
+          assert_received {:decided, _options}
+          assert_received {:args, _args, options}
+          refute Keyword.has_key?(options, :test_impact_run_id)
+
+          # Neither a run without coverage nor one that turns selection off asks.
+          run.([])
+          run.(["--cover", "--no-selective-testing"])
+          refute_received {:decided, _}
+          assert_received {:args, args, _options}
+          refute "--no-selective-testing" in args
+
+          # The retries leave the skip list out too, read from a file.
+          outcome.(
+            {:selected,
+             %{run_id: "run-3", counts: %{}, skipped_tests: [%{module: "PairOneTest", suite: "", name: nil}]}}
+          )
+
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, _args ->
+            run = %{test_modules: [%{name: "CartTest", status: "failure", duration: 1, test_suites: [],
+              test_cases: [%{name: "breaks", status: "failure", duration: 1}]}], status: "failure"}
+            send(self(), {:deferred_test_run, {run, [], false}})
+            Mix.raise(~s("mix test" failed))
+          end)
+
+          Mimic.stub(TuistEx.Analytics.Subprocess, :run, fn _mix, _args, env ->
+            {_, file} = List.keyfind(env, "TUIST_EX_RETRY_SELECTION", 0)
+            send(owner, {:retry_selection, :erlang.binary_to_term(File.read!(file))})
+            1
+          end)
+
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert_raise Mix.Error, fn -> Mix.Tasks.Tuist.Test.run(["--cover", "--raise", "--retries", "1"]) end
+          end)
+
+          assert_received {:retry_selection, [%{module: "PairOneTest", suite: "", name: nil}]}
+          IO.puts("selection verified")
+        end
+      end
+
+      if ExUnit.run().failures != 0, do: System.halt(1)
+    end)
+    """
+
+    paths = Enum.flat_map(:code.get_path(), &["-pa", List.to_string(&1)])
+
+    {output, status} =
+      System.cmd(System.find_executable("elixir"), paths ++ ["-e", script],
+        stderr_to_stdout: true,
+        env: [
+          {"TUIST_SHARD_INDEX", ""},
+          {"TUIST_EX_RETRY_RESULTS", ""},
+          {"TUIST_EX_RETRY_SELECTION", ""}
+        ]
+      )
+
+    assert status == 0, output
+    assert output =~ "selection verified"
+  end
+
+  test "keeps --no-selective-testing to itself" do
+    assert {[no_selective_testing: true], ["--trace"]} =
+             Task.split_args(["--no-selective-testing", "--trace"])
+  end
+
   test "declares :test as the preferred CLI env" do
     # The attribute prevents `mix tuist.test` from picking up whatever env
     # the invoker happened to be in (usually :dev), which otherwise breaks

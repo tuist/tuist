@@ -178,17 +178,12 @@ defmodule TuistEx.Analytics.Coverage do
   # A module the run never loaded still counts its lines, so every module of
   # the build is loaded first. Mimic's copies count as their originals'.
   defp native_lines(config, compiled) do
-    project = config |> Mix.Project.compile_path() |> build_modules()
-    Enum.each(project, &Code.ensure_loaded/1)
-    project = MapSet.new(project)
+    project = config |> Mix.Project.compile_path() |> build_modules() |> MapSet.new()
 
-    # Mimic's proxies count lines of Mimic's own source.
     counted =
-      for {module, _path} <- :code.all_loaded(),
+      for module <- native_modules(config),
           source = original(module),
-          MapSet.member?(project, source) and not MapSet.member?(compiled, source),
-          not function_exported?(module, :__mimic_info__, 0),
-          :code.get_coverage_mode(module) != :none,
+          not MapSet.member?(compiled, source),
           {line, count} <- :code.get_coverage(:line, module),
           do: {{source, line}, count}
 
@@ -201,6 +196,38 @@ defmodule TuistEx.Analytics.Coverage do
     (counted ++ before_swap)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
     |> Enum.map(fn {key, counts} -> {key, Enum.sum(counts)} end)
+  end
+
+  @doc """
+  The loaded modules that count the project's lines natively: every module of
+  the build, loaded first, and Mimic's copies of them, less Mimic's proxies,
+  which count lines of Mimic's own source.
+  """
+  def native_modules(config \\ Mix.Project.config()) do
+    project = config |> Mix.Project.compile_path() |> build_modules()
+    Enum.each(project, &Code.ensure_loaded/1)
+    project = MapSet.new(project)
+
+    for {module, _path} <- :code.all_loaded(),
+        MapSet.member?(project, original(module)),
+        not function_exported?(module, :__mimic_info__, 0),
+        :code.get_coverage_mode(module) != :none,
+        do: module
+  end
+
+  @doc """
+  The source file each of `modules` was compiled from, found under
+  `project_dir` when the build was compiled elsewhere, with Mimic's copies
+  under their originals'. Modules without a source in the project are left
+  out.
+  """
+  def sources(modules, project_dir \\ File.cwd!()) do
+    for module <- Enum.uniq(modules),
+        {source, _clauses} = build_info(original(module)),
+        path = locate(source, project_dir),
+        path != nil,
+        into: %{},
+        do: {module, path}
   end
 
   defp build_modules(ebin) do

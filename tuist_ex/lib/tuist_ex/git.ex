@@ -31,14 +31,14 @@ defmodule TuistEx.Git do
   standard error is discarded: a failure is an answer here, such as a
   directory that is not a repository, not something to show the user.
   """
-  def capture(dir, args) do
+  def capture(dir, args, env \\ []) do
     case System.find_executable("git") do
       nil ->
         :error
 
       git ->
         case System.cmd("sh", ["-c", ~s(exec "$0" "$@" 2>/dev/null), git, "-C", dir | args],
-               env: @hardened_env
+               env: @hardened_env ++ env
              ) do
           {output, 0} -> {:ok, output}
           _ -> :error
@@ -518,6 +518,224 @@ defmodule TuistEx.Git do
         :timed_out
     end
   end
+
+  # Coverage-based test selection: a port of the command line tool's
+  # `GitController+TestImpact.swift`, which must stay in step with it.
+
+  @test_impact_deepen 100
+
+  @doc "How many commits selection deepens a shallow clone by, at most once per run."
+  def test_impact_deepen, do: @test_impact_deepen
+
+  @doc """
+  The checked-out commit and its parents, read from the commit object, since
+  a depth-1 checkout grafts them away.
+  """
+  def checked_out_commit(dir) do
+    with {:ok, head} <- capture(dir, ["rev-parse", "HEAD"]) do
+      head = String.trim(head)
+
+      parents =
+        case capture(dir, ["log", "--no-walk", "--no-decorate", "--format=raw", head]) do
+          {:ok, raw} -> Map.get(parse_raw_parents(raw), head, [])
+          :error -> []
+        end
+
+      {:ok, %{sha: head, parent_shas: parents}}
+    end
+  end
+
+  @doc "The checkout's ancestors, nearest first, at most `limit`."
+  def ancestor_shas(_dir, limit) when limit <= 0, do: []
+
+  def ancestor_shas(dir, limit) do
+    case capture(dir, ["rev-list", "--topo-order", "--max-count=#{limit + 1}", "HEAD"]) do
+      {:ok, output} -> output |> String.split("\n", trim: true) |> Enum.drop(1)
+      :error -> []
+    end
+  end
+
+  @doc """
+  Deepens a shallow clone once by `test_impact_deepen/0` commits through
+  `refs`. Returns `:deepened`, `:not_shallow`, `:not_allowed` (no refs, or
+  remote access other than `:history`), `:failed` or `:timed_out`.
+  """
+  def deepen_once(dir, refs, limits \\ @default_limits) do
+    shallow? = match?({:ok, "true" <> _}, capture(dir, ["rev-parse", "--is-shallow-repository"]))
+
+    cond do
+      not shallow? ->
+        :not_shallow
+
+      limits.remote_access != :history or refs == [] ->
+        :not_allowed
+
+      true ->
+        deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
+
+        deepen =
+          ~w(fetch --quiet --no-tags --filter=blob:none --deepen=#{@test_impact_deepen} origin)
+
+        outcome = run_until(dir, deepen ++ refs, deadline)
+        # A pull request ref exists only on GitHub, and one missing ref fails
+        # the whole fetch, so the other refs are fetched without it.
+        others = Enum.reject(refs, &String.starts_with?(&1, "refs/pull/"))
+
+        outcome =
+          if outcome == :failed and others != [] and length(others) < length(refs),
+            do: run_until(dir, deepen ++ others, deadline),
+            else: outcome
+
+        case outcome do
+          {:succeeded, _output} -> :deepened
+          other -> other
+        end
+    end
+  end
+
+  @doc """
+  The files that differ between `baseline` and the working tree, in path
+  order, as `%{path, status, blob}` (`blob` nil for a deleted file), and
+  whether the working tree had dirty or untracked files. When the baseline
+  isn't in the checkout, a shallow clone is deepened once through `refs`;
+  `{:history_unavailable, reason}` when that doesn't reach it. Only trees
+  are read, never blobs.
+  """
+  def changed_files(dir, baseline, refs, limits \\ @default_limits) do
+    with :ok <- reach(dir, baseline, refs, limits),
+         raw = ~w(diff --raw -z --no-renames --no-abbrev --ignore-submodules=dirty),
+         {:ok, committed} <- capture(dir, raw ++ [baseline, "HEAD"]),
+         {:ok, working_tree} <- capture(dir, raw ++ ["HEAD"]),
+         {:ok, untracked} <- capture(dir, ~w(ls-files --others --exclude-standard -z)) do
+      committed = parse_raw_diff(committed)
+      working_tree = parse_raw_diff(working_tree)
+      untracked = String.split(untracked, <<0>>, trim: true)
+      changes = working_tree_changes(committed, working_tree, untracked)
+      hashed = hash_objects(dir, for(%{hash?: true, path: path} <- changes, do: path))
+
+      {:ok,
+       %{
+         files: merge_changes(committed, changes, hashed),
+         dirty?: working_tree != [] or untracked != []
+       }}
+    else
+      :error -> {:error, :diff_failed}
+      other -> other
+    end
+  end
+
+  defp reach(dir, sha, refs, limits) do
+    if commit?(dir, sha) do
+      :ok
+    else
+      short = String.slice(sha, 0, 12)
+
+      reason =
+        case deepen_once(dir, refs, limits) do
+          :not_shallow ->
+            "the baseline #{short} is not in the checkout's history"
+
+          :not_allowed ->
+            "shallow clone: the baseline #{short} is not in the checkout"
+
+          :failed ->
+            "shallow clone: the baseline #{short} is not in the checkout and deepening failed"
+
+          :timed_out ->
+            "shallow clone: the baseline #{short} was not reached within #{limits.deepen_budget_seconds}s"
+
+          :deepened ->
+            if not commit?(dir, sha),
+              do:
+                "shallow clone: the baseline #{short} is more than #{@test_impact_deepen} commits beyond the checkout"
+        end
+
+      if reason, do: {:history_unavailable, reason}, else: :ok
+    end
+  end
+
+  # A partial clone would otherwise fetch a missing commit on its own, and
+  # then its trees one by one as the diff reads them, with no budget.
+  defp commit?(dir, sha),
+    do:
+      capture(dir, ["cat-file", "-e", "#{sha}^{commit}"], [{"GIT_NO_LAZY_FETCH", "1"}]) != :error
+
+  # A working-tree change is compared with the baseline's blob, so a file the
+  # working tree reverts drops out. The baseline's blob is the committed
+  # change's source, or HEAD's when the commits didn't change the file.
+  defp working_tree_changes(committed, working_tree, untracked) do
+    by_path = Map.new(committed, &{&1.path, &1})
+    baseline_blob = fn path, head -> if c = by_path[path], do: c.src, else: head end
+
+    Enum.map(working_tree, fn change ->
+      %{
+        path: change.path,
+        baseline: baseline_blob.(change.path, change.src),
+        blob: if(change.status != "D", do: change.dst),
+        hash?: change.status != "D" and is_nil(change.dst),
+        type_changed?: change.status == "T" or match?(%{status: "T"}, by_path[change.path])
+      }
+    end) ++
+      Enum.map(untracked, fn path ->
+        %{
+          path: path,
+          baseline: baseline_blob.(path, nil),
+          blob: nil,
+          hash?: true,
+          type_changed?: false
+        }
+      end)
+  end
+
+  defp merge_changes(committed, changes, hashed) do
+    files = Map.new(committed, &{&1.path, %{path: &1.path, status: &1.status, blob: &1.dst}})
+
+    changes
+    |> Enum.reduce(files, fn change, files ->
+      blob = if change.hash?, do: Map.get(hashed, change.path), else: change.blob
+
+      if blob == change.baseline do
+        Map.delete(files, change.path)
+      else
+        status =
+          cond do
+            is_nil(change.baseline) -> "A"
+            is_nil(blob) -> "D"
+            change.type_changed? -> "T"
+            true -> "M"
+          end
+
+        Map.put(files, change.path, %{path: change.path, status: status, blob: blob})
+      end
+    end)
+    |> Map.values()
+    |> Enum.sort_by(& &1.path)
+  end
+
+  @doc """
+  The entries of `git diff --raw -z --no-renames --no-abbrev`:
+  `:<src mode> <dst mode> <src> <dst> <status>`, then the path, NUL-separated.
+  An all-zero blob is none.
+  """
+  def parse_raw_diff(output), do: output |> String.split(<<0>>) |> raw_entries()
+
+  defp raw_entries([":" <> _ = header, path | rest]) do
+    case String.split(header, " ") do
+      [_src_mode, _dst_mode, src, dst, status] ->
+        [
+          %{path: path, status: String.first(status), src: blob(src), dst: blob(dst)}
+          | raw_entries(rest)
+        ]
+
+      _ ->
+        raw_entries([path | rest])
+    end
+  end
+
+  defp raw_entries([_field | rest]), do: raw_entries(rest)
+  defp raw_entries([]), do: []
+
+  defp blob(id), do: if(String.trim(id, "0") != "", do: id)
 
   @doc "`git log --format=%H %P %ct` lines: the SHA, the parent SHAs and the committer time."
   def parse_commits(output) do
