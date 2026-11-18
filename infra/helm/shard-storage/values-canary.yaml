@@ -16,4 +16,8 @@ target:
 lifecycle:
   expirationDays: 3
 archiveBucket: sandbox-archives
+archiveBudgetGiB: 100
 sandboxNamespace: tuist-sandboxes
+actionsCache:
+  bucket: actions-cache
+  maxGB: 50

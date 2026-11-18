@@ -24,7 +24,7 @@ struct PreviewViewCreatedByBadge: View {
         if preview.createdFromCI {
             "CI"
         } else {
-            preview.createdBy?.handle ?? "Unknown"
+            preview.createdBy?.handle ?? String(localized: "Unknown")
         }
     }
 }

@@ -54,6 +54,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-alloy": {
+      "locked": {
+        "lastModified": 1776369541,
+        "narHash": "sha256-6F7ux34Gs865kgn9hHXfmwvpBZ7P/vwPjmHcdGVa+FU=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "369d1a328b403285e12dd3aa597786c7e364843a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "369d1a328b403285e12dd3aa597786c7e364843a",
+        "type": "github"
+      }
+    },
     "opnix": {
       "inputs": {
         "flake-utils": "flake-utils",
@@ -79,6 +95,7 @@
       "inputs": {
         "disko": "disko",
         "nixpkgs": "nixpkgs",
+        "nixpkgs-alloy": "nixpkgs-alloy",
         "opnix": "opnix"
       }
     },

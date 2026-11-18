@@ -1,0 +1,52 @@
+# Patched by Tuist. Published raft-engine 0.4.2 depends on protobuf 2 and
+# prometheus 0.13, and protobuf 2.28.0 is the last 2.x release. Pulse vendors
+# this copy so the lockfile can use protobuf 3.7.2. The crate version stays
+# 0.4.2. See pulse/FORK.md.
+[package]
+name = "raft-engine"
+version = "0.4.2"
+authors = ["The TiKV Project Developers"]
+edition = "2018"
+rust-version = "1.75.0"
+description = "A persistent storage engine for Multi-Raft logs"
+license = "Apache-2.0"
+repository = "https://github.com/tikv/raft-engine"
+
+[dependencies]
+byteorder = "1.2"
+crc32fast = "1.2"
+crossbeam = "0.8"
+fail = "0.5"
+fs2 = "0.4"
+hashbrown = "0.14"
+hex = "0.4"
+if_chain = "1.0"
+lazy_static = "1.3"
+libc = "0.2"
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
+lz4-sys = "1.9"
+memmap2 = { version = "0.9", optional = true }
+nix = "0.26"
+num-derive = "0.4"
+num-traits = "0.2"
+parking_lot = "0.12"
+prometheus = "0.14"
+prometheus-static-metric = "0.5"
+protobuf = "3.7.2"
+rayon = "1.5"
+rhai = { version = "1.7", features = ["sync"], optional = true }
+scopeguard = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_repr = "0.1"
+strum = { version = "0.25.0", features = ["derive"] }
+thiserror = "1.0"
+
+[features]
+default = ["internals", "scripting"]
+internals = []
+nightly = ["prometheus/nightly"]
+failpoints = ["fail/failpoints"]
+scripting = ["rhai"]
+swap = ["nightly", "memmap2"]
+std_fs = []
+nightly_group = ["nightly", "swap"]

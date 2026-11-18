@@ -129,6 +129,9 @@ type Slot struct {
 	// MountedGeneration is the older generation a branch was cloned from because
 	// its base was not on the host, or 0.
 	MountedGeneration int64 `json:"mounted_generation,omitempty"`
+	// ColdReason is why a warm identity's branch started empty (the Cold*
+	// constants), or "".
+	ColdReason string `json:"cold_reason,omitempty"`
 	// PublishCold is set for one seal when the server lets a branch that started
 	// empty replace its lineage's HEAD (the "publish" decision).
 	PublishCold bool `json:"-"`
@@ -376,6 +379,9 @@ func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
 	}
 	if cold, ok := s.backend.(interface{ Cold(Slot) bool }); ok && cold.Cold(slot) {
 		slot.Warm = false
+		if reason, ok := s.backend.(interface{ ColdReason(Slot) string }); ok {
+			slot.ColdReason = reason.ColdReason(slot)
+		}
 	}
 	if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity

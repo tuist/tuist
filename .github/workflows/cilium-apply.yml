@@ -5,8 +5,7 @@ name: Cilium Apply
 # Called by cilium-deployment.yml, which owns the ordering. Kept as a
 # reusable workflow rather than a matrix because the envs must run in a
 # guaranteed order (GitHub does not guarantee matrix execution order, and
-# `max-parallel` only caps concurrency), and because `preview` loads its
-# kubeconfig differently from the three 1Password-backed envs.
+# `max-parallel` only caps concurrency).
 #
 # The rollouts are the only steps here with real blast radius. Each is
 # gated on that workload genuinely not running its current config, tracked
@@ -19,13 +18,8 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "Workload env to reconcile (staging | canary | production | preview)"
+        description: "Workload env to reconcile (staging | canary | production)"
         required: true
-        type: string
-      kubeconfig_source:
-        description: "onepassword (default) or environment_secret (preview)"
-        required: false
-        default: onepassword
         type: string
       force_restart:
         description: "Roll the agents even if they already run the current config"
@@ -68,24 +62,13 @@ jobs:
           cache: "false"
 
       - uses: 1password/install-cli-action@v2
-        if: inputs.kubeconfig_source == 'onepassword'
       - name: Load kubeconfig from 1Password
-        if: inputs.kubeconfig_source == 'onepassword'
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-${{ inputs.environment }}" \
             --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-
-      - name: Load kubeconfig from the environment secret
-        # preview's cluster kubeconfig is a base64 env secret rather than a
-        # 1P document, matching preview-platform-reconcile.yml.
-        if: inputs.kubeconfig_source == 'environment_secret'
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
 
       - name: Verify cluster reachability

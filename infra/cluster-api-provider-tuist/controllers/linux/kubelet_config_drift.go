@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,13 +44,22 @@ const kubeletConfigHashAnnotation = "tuist.dev/kubelet-config-hash"
 // config.yaml with a missing clusterDNS); the re-push itself always writes the
 // freshly-discovered clusterDNS, only the drift fingerprint is clusterDNS-
 // independent. The sshd start-limit drop-ins the re-push also writes are folded
-// in, so changing them re-pushes too.
-func desiredKubeletConfigHash(clusterCAPEM []byte) string {
+// in, so changing them re-pushes too, and so is the kernel hardening sysctl
+// drop-in, which the self-join writes once. Kata runner hosts (exclusiveCPUs) also
+// fold in the CPU manager setup; every other host hashes exactly as before, so
+// adding it re-pushes nothing outside the runner fleets. k8sMinor is the
+// node's own kubelet minor, and the config only differs from v1.36 on, so a
+// node below it hashes as it always has.
+func desiredKubeletConfigHash(clusterCAPEM []byte, k8sMinor string, exclusiveCPUs bool) string {
 	h := sha256.New()
-	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath)))
+	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath, k8sMinor, exclusiveCPUs)))
 	h.Write(clusterCAPEM)
 	h.Write([]byte(sshServiceDropInContent))
 	h.Write([]byte(sshSocketDropInContent))
+	h.Write([]byte(kernelHardeningSysctlContent))
+	if exclusiveCPUs {
+		h.Write([]byte(kubeletCPUSetupFor("", linuxCloudInitOptions{ClusterCAPEM: clusterCAPEM, K8sMinor: k8sMinor, KataRuntime: true})))
+	}
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -72,17 +82,28 @@ func renderKubeletConfigRepushScript(opts linuxCloudInitOptions) string {
 	if len(opts.ClusterCAPEM) > 0 {
 		caWrite = heredoc(kubeletClientCAPath, string(opts.ClusterCAPEM)) + "\n"
 	}
+	// The hardening sysctls load like the self-join's (a key a kernel lacks
+	// must not fail the push), but io_uring_disabled is a security control, so
+	// on a kernel that has it (6.6 and later) the push only succeeds, and the
+	// node is only stamped, once it holds.
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
 %[1]smkdir -p /var/lib/kubelet
 %[2]s%[3]s
-%[4]s%[1]ssystemctl daemon-reload
+%[5]s%[4]s%[1]smkdir -p /etc/sysctl.d
+%[6]s
+%[1]ssysctl -p %[7]s 2>/dev/null || true
+[ ! -e /proc/sys/kernel/io_uring_disabled ] || [ "$(cat /proc/sys/kernel/io_uring_disabled)" -ge 1 ]
+%[1]ssystemctl daemon-reload
 %[1]ssystemctl restart kubelet
 `,
 		sudo,
 		caWrite,
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts))),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime)),
 		sshStartLimitDropIns(sudo, writeFileFunc(sudo)),
+		kubeletCPUSetupFor(sudo, opts),
+		heredoc(kernelHardeningSysctlPath, kernelHardeningSysctlContent),
+		kernelHardeningSysctlPath,
 	)
 }
 
@@ -97,6 +118,29 @@ func nodeInternalIP(node *corev1.Node) string {
 		}
 	}
 	return ""
+}
+
+// exclusiveCPURunnerPods returns the runner Pods on nodeName that have a
+// Pod-level CPU budget. The runners-controller gives one only to pools with
+// exclusive CPUs, and the static CPU manager pins each such Pod, idle or not,
+// to its own cores.
+func exclusiveCPURunnerPods(ctx context.Context, c client.Client, nodeName string) ([]string, error) {
+	pods := &corev1.PodList{}
+	if err := c.List(ctx, pods, client.InNamespace(runnerPodNamespace), client.MatchingLabels{runnerPodLabel: "true"}); err != nil {
+		return nil, fmt.Errorf("list runner Pods: %w", err)
+	}
+	var held []string
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName != nodeName || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		if pod.Spec.Resources != nil && !pod.Spec.Resources.Limits.Cpu().IsZero() {
+			held = append(held, pod.Name)
+		}
+	}
+	sort.Strings(held)
+	return held, nil
 }
 
 // stampKubeletConfigHash records the pushed config hash on the Node so a
@@ -138,6 +182,7 @@ func reconcileLinuxKubeletConfigDrift(
 	apiReader client.Reader,
 	cm *credentials.Manager,
 	machineName, fleet, bootstrapUser string,
+	kataRuntime bool,
 	node *corev1.Node,
 ) (requeue bool, err error) {
 	logger := log.FromContext(ctx)
@@ -149,8 +194,25 @@ func reconcileLinuxKubeletConfigDrift(
 	if err != nil {
 		return false, fmt.Errorf("mint node identity for drift check: %w", err)
 	}
-	desired := desiredKubeletConfigHash(identity.CA)
+	// Rendered for the kubelet the node actually runs, never the one a newer
+	// join would install: a v1.34 kubelet panics on the v1.36 feature gate.
+	k8sMinor := kubeletMinor(node.Status.NodeInfo.KubeletVersion, "")
+	desired := desiredKubeletConfigHash(identity.CA, k8sMinor, kataRuntime)
 	if node.Annotations[kubeletConfigHashAnnotation] == desired {
+		return false, nil
+	}
+
+	// The re-push restarts the kubelet, and a v1.36 kubelet that restarts under
+	// Pods with exclusive cores re-admits them onto new cores and never frees
+	// the old ones; its next start then fails (kubernetes/kubernetes#140989).
+	// Hold the re-push until the node holds no such Pod, which in practice means
+	// until someone cordons it and its runner Pods are gone. Returning no requeue
+	// keeps the repairs after this one running; the resync retries.
+	if held, err := exclusiveCPURunnerPods(ctx, c, node.Name); err != nil {
+		return false, err
+	} else if len(held) > 0 {
+		logger.Info("holding kubelet config re-push: the restart would leak the cores of Pods with exclusive CPUs; cordon the node and let them finish",
+			"node", node.Name, "pods", held)
 		return false, nil
 	}
 
@@ -184,7 +246,9 @@ func reconcileLinuxKubeletConfigDrift(
 	script := renderKubeletConfigRepushScript(linuxCloudInitOptions{
 		ClusterDNS:    clusterDNS,
 		ClusterCAPEM:  identity.CA,
+		K8sMinor:      k8sMinor,
 		BootstrapUser: bootstrapUser,
+		KataRuntime:   kataRuntime,
 	})
 	sshErr := bootstrapOverSSH(ctx, bootstrapUser, host, privateKey, script, hk)
 	// Persist a newly TOFU'd host key before stamping, so a repair that first-

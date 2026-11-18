@@ -101,6 +101,12 @@ pub enum Authentication {
     /// An authoritative access level for this credential and target, from the
     /// token itself or from the server.
     Access(Access),
+    /// An access level the server's action-aware grants settled after every
+    /// other route had its say. Unlike `Access`, the refusals it implies for
+    /// an action above it are final until the level is next revalidated, so a
+    /// read-only credential that keeps writing is not sent back to the server
+    /// every few seconds to hear the same answer.
+    Settled(Access),
     /// A refusal that is not an access level: the node is not configured to
     /// answer this shape of request at all, so caching it buys nothing.
     Deny(DenyDecision),
@@ -387,17 +393,34 @@ async fn via_cache_access(
 
     match response.status {
         200 => {
-            let covered = project_handles(&response.body)
+            let grants = CacheGrants::from_body(&response.body);
+            // `projects` names what the credential reaches, not what it may do
+            // there, so a read-only token or a viewer is listed alongside
+            // writers. A server that sends grants beside it is saying which
+            // action each project allows, and they decide.
+            let level = if response.body.get("cache_grants").is_some() {
+                // `level` already answers a withheld account with its payment
+                // refusal, so only a plain refusal falls back to the floor.
+                let granted = grants.level(target);
+                if granted >= Access::Read {
+                    return Authentication::Settled(granted.max(floor));
+                }
+                if granted.is_payment_refusal() {
+                    granted
+                } else {
+                    floor
+                }
+            } else if project_handles(&response.body)
                 .iter()
-                .any(|project| project == &target.identifier);
-            // A handle carries no action, so it answers as both, exactly what
-            // it authorized on its own.
-            let level = if covered {
+                .any(|project| project == &target.identifier)
+            {
+                // A server older than the grants sends handles alone. A handle
+                // carries no action, so it answers as both, exactly what it
+                // authorized on its own; refusing it would stop every opaque
+                // credential from writing until the server catches up.
                 Access::ReadWrite
             } else {
-                CacheGrants::from_body(&response.body)
-                    .payment_refusal_for(target)
-                    .unwrap_or(floor)
+                grants.payment_refusal_for(target).unwrap_or(floor)
             };
             Authentication::Access(level)
         }

@@ -48,7 +48,7 @@ defmodule Tuist.Tests.Coverage.Instrumentation do
   The runs that executed code they couldn't measure, as a set of
   `test_run_id`: a run that took any repository target from the cache
   without counters is no source of coverage (`Tuist.Tests.Coverage.TargetSources`,
-  `Tuist.Tests.Coverage.TestSources`). Which of its test targets linked that
+  `Tuist.TestImpactAnalysis.Snapshots`). Which of its test targets linked that
   code is not worth a dependency walk per fold: a coverage run's hits are
   all instrumented or all plain once the cache key tells them apart.
   """

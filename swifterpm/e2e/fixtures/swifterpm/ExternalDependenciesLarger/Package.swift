@@ -342,8 +342,8 @@ let package = Package(
         // Networking (gRPC & NIO)
         .package(url: "https://github.com/grpc/grpc-swift", .upToNextMinor(from: "1.24.2")),
         .package(url: "https://github.com/apple/swift-protobuf.git", .upToNextMinor(from: "1.33.1")),
-        .package(url: "https://github.com/apple/swift-nio", .upToNextMinor(from: "2.79.0")),
-        .package(url: "https://github.com/apple/swift-nio-http2", .upToNextMinor(from: "1.35.0")),
+        .package(url: "https://github.com/apple/swift-nio", .upToNextMinor(from: "2.100.0")),
+        .package(url: "https://github.com/apple/swift-nio-http2", .upToNextMinor(from: "1.44.0")),
         .package(url: "https://github.com/apple/swift-log", .upToNextMinor(from: "1.6.2")),
         .package(url: "https://github.com/apple/swift-atomics", .upToNextMinor(from: "1.2.0")),
 

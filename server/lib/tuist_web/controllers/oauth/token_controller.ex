@@ -11,6 +11,7 @@ defmodule TuistWeb.Oauth.TokenController do
   alias Boruta.Oauth.TokenApplication
   alias Boruta.Oauth.TokenResponse
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
 
@@ -36,6 +37,8 @@ defmodule TuistWeb.Oauth.TokenController do
       |> Map.new()
     end
   end
+
+  plug TuistWeb.Plugs.OAuthRequestObjectPlug when action == :token
 
   @jwt_bearer_grant "urn:ietf:params:oauth:grant-type:jwt-bearer"
   @claim_grant "urn:workos:agent-auth:grant-type:claim"
@@ -86,11 +89,21 @@ defmodule TuistWeb.Oauth.TokenController do
     case Request.token_request(conn) do
       {:ok, %RefreshTokenRequest{refresh_token: refresh_token} = request}
       when is_binary(refresh_token) and refresh_token != "" ->
-        exchange = fn -> oauth_module().token(conn, CapturedTokenResponse) end
+        if refresh_satisfies_sso?(refresh_token) do
+          exchange = fn -> oauth_module().token(conn, CapturedTokenResponse) end
 
-        case RefreshReplays.exchange("oauth", refresh_token, refresh_credential(request), exchange) do
-          {:ok, token_data} -> oauth_json(conn, token_data)
-          {:error, %Error{} = error} -> token_error(conn, error)
+          case RefreshReplays.exchange("oauth", refresh_token, refresh_credential(request), exchange) do
+            {:ok, token_data} -> oauth_json(conn, token_data)
+            {:error, %Error{} = error} -> token_error(conn, error)
+          end
+        else
+          # `invalid_grant` makes clients sign in again through the browser,
+          # where the organization's SSO applies.
+          oauth_error(
+            conn,
+            "invalid_grant",
+            "Your organization requires single sign-on. Sign in again through your identity provider."
+          )
         end
 
       _ ->
@@ -100,6 +113,21 @@ defmodule TuistWeb.Oauth.TokenController do
 
   def token(%Plug.Conn{} = conn, _params) do
     oauth_module().token(conn, __MODULE__)
+  end
+
+  # The tokens act for the user in every account, so they are renewed only
+  # while their SSO claims (see `Tuist.OAuth.TokenGenerator`), the user's
+  # linked identities, or the grace period still satisfy the user's
+  # SSO-enforcing organizations. See `Accounts.refresh_sso_claims/2`.
+  # Anything that doesn't decode to a user is left to Boruta to accept or
+  # reject as before.
+  defp refresh_satisfies_sso?(refresh_token) do
+    with {:ok, %{"user_id" => user_id} = claims} <- Tuist.Guardian.decode_and_verify(refresh_token),
+         %User{} = user <- Accounts.get_user_by_id(user_id) do
+      match?({:ok, _}, Accounts.refresh_sso_claims(user, claims))
+    else
+      _ -> true
+    end
   end
 
   defp refresh_credential(%RefreshTokenRequest{} = request) do

@@ -20,6 +20,7 @@ defmodule Tuist.Bundles.BundleThreshold do
     field :deviation_bytes, :integer
     field :baseline_branch, :string
     field :bundle_name, :string
+    field :tag, :string
 
     belongs_to :project, Tuist.Projects.Project, type: :integer
 
@@ -36,9 +37,13 @@ defmodule Tuist.Bundles.BundleThreshold do
       :deviation_bytes,
       :baseline_branch,
       :bundle_name,
+      :tag,
       :project_id
     ])
     |> validate_required([:name, :metric, :baseline_branch, :project_id])
+    # Matches the format `Bundle` accepts for `custom_tags`, so a rule can only name a tag a bundle can carry.
+    |> validate_length(:tag, max: 50)
+    |> validate_format(:tag, ~r/^[a-zA-Z0-9_-]+$/)
     |> validate_limit()
     |> validate_number(:deviation_percentage, greater_than: 0)
     |> validate_number(:deviation_bytes, greater_than: 0, less_than_or_equal_to: 9_223_372_036_854_775_807)

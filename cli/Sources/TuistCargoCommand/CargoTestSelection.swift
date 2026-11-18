@@ -89,7 +89,7 @@ struct CargoTestQuarantine {
             }
             return module
         }
-        return CargoTestReport(modules: modules, duration: report.duration)
+        return CargoTestReport(modules: modules, duration: report.duration, binaries: report.binaries)
     }
 
     func permitsFailure(_ error: Error, result: CargoTestResult?) -> Bool {
@@ -317,7 +317,8 @@ struct CargoTestSelection {
             fullHandle: context.reporting.handle, serverURL: context.reporting.serverURL, reference: reference,
             modules: modules.map(\.name), parallelizableModules: nil, testSuites: nil, skippedTestSuites: nil,
             shardMin: options["--shard-min"], shardMax: options["--shard-max"], shardTotal: options["--shard-total"],
-            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil
+            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil,
+            testImpactRunId: nil
         )
         try CargoShardService.emit(plan, environment: context.environment)
     }
@@ -440,7 +441,8 @@ struct CargoTestSelection {
         }
         let report = complete ? CargoTestReport(
             modules: reports.flatMap(\.modules),
-            duration: reports.reduce(0) { $0 + $1.duration }
+            duration: reports.reduce(0) { $0 + $1.duration },
+            binaries: reports.reduce(into: [:]) { $0.merge($1.binaries) { first, _ in first } }
         ) : nil
         completed(CargoTestResult(
             report: report, buildFinished: buildFinished, finished: Date(), canReportBuildFailure: false,
@@ -604,6 +606,6 @@ extension CargoTestSelection {
         } else {
             modules.append(payload)
         }
-        return CargoTestReport(modules: modules, duration: report.duration)
+        return CargoTestReport(modules: modules, duration: report.duration, binaries: report.binaries)
     }
 }

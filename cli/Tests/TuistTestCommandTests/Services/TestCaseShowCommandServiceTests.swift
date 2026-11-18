@@ -264,6 +264,46 @@ struct TestCaseShowCommandServiceTests {
         #expect(!ui().contains("Suite:"))
     }
 
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora,
+        arguments: [
+            ("LibTests/Outer/Inner/b()", "LibTests", "Outer/Inner", "b()"),
+            ("OrdersTest/create_order%2F2/creates 100%25", "OrdersTest", "create_order/2", "creates 100%"),
+        ]
+    ) func run_with_multi_part_suite_identifier(
+        identifier: String,
+        moduleName: String,
+        suiteName: String,
+        testName: String
+    ) async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value(moduleName),
+            name: .value(testName),
+            suiteName: .value(suiteName),
+            serverURL: .value(serverURL)
+        ).willReturn(.test(module: .test(name: moduleName), name: testName, suite: .test(name: suiteName)))
+
+        // When
+        try await subject.run(
+            project: nil,
+            testCaseIdentifier: identifier,
+            path: nil,
+            json: false
+        )
+
+        // Then
+        #expect(ui().contains(testName))
+    }
+
     @Test(.withMockedEnvironment()) func run_with_invalid_identifier() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
@@ -274,10 +314,10 @@ struct TestCaseShowCommandServiceTests {
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
 
         // When/Then
-        await #expect(throws: TestCaseIdentifierError.invalidIdentifier("a/b/c/d"), performing: {
+        await #expect(throws: TestCaseIdentifierError.invalidIdentifier("a/"), performing: {
             try await subject.run(
                 project: nil,
-                testCaseIdentifier: "a/b/c/d",
+                testCaseIdentifier: "a/",
                 path: nil,
                 json: false
             )

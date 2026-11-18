@@ -1,0 +1,20 @@
+defmodule Condukt.Tool.Inline do
+  @moduledoc """
+  Struct returned by `Condukt.tool/1`.
+
+  Prefer building values through `Condukt.tool/1` instead of constructing this
+  struct directly.
+  """
+
+  defstruct [
+    :name,
+    :description,
+    :parameters,
+    :call,
+    :wake,
+    :cancel,
+    on_abort: :kill,
+    replay_safe: false,
+    read_only: false
+  ]
+end

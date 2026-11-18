@@ -30,6 +30,6 @@ defmodule Noora.BadgeTest do
              "secondary"
            ]
 
-    assert Badge.badge_sizes() == ["small", "large"]
+    assert Badge.badge_sizes() == ["small", "medium", "large"]
   end
 end

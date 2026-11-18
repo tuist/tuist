@@ -1,0 +1,101 @@
+.noora-radio {
+  display: grid;
+  position: relative;
+  grid-template-rows: auto auto;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "control label"
+    ".       description";
+  justify-content: start;
+  align-items: start;
+  cursor: pointer;
+  user-select: none;
+
+  &:has([data-part="input"]:disabled) {
+    cursor: not-allowed;
+  }
+
+  /* The input stays in the page for the keyboard, forms and assistive
+     tech; the control next to it draws its state. */
+  & [data-part="input"] {
+    position: absolute;
+    opacity: 0;
+    margin: 0;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+  }
+
+  & [data-part="control"] {
+    grid-area: control;
+  }
+
+  @media (hover: hover) {
+    &:hover [data-part="input"]:not(:disabled) + [data-part="control"] {
+      --noora-radio-surface: var(--noora-surface-background-tertiary);
+
+      & > [data-part="circle"]::before {
+        box-shadow: var(--noora-button-border-primary-hover);
+        background: var(--noora-button-background-primary-hover);
+      }
+    }
+  }
+
+  & [data-part="label"] {
+    grid-area: label;
+    margin-inline-start: var(--noora-spacing-4);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+
+    &:has(+ [data-part="description"]) {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="description"] {
+    grid-area: description;
+    margin-top: var(--noora-spacing-2);
+    margin-inline-start: var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  /* On touch screens the row takes taps from 12px above and below, for a
+     44px target. */
+  @media (pointer: coarse) {
+    &::after {
+      position: absolute;
+      inset: calc(-1 * var(--noora-spacing-5)) 0;
+      content: "";
+    }
+  }
+}
+
+.noora-radio-group {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+
+  & > [data-part="label"] {
+    margin-bottom: var(--noora-spacing-4);
+    padding: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & > [data-part="items"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  &[data-orientation="horizontal"] > [data-part="items"] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-5) var(--noora-spacing-8);
+  }
+}

@@ -18,6 +18,19 @@ extension URL {
             try AbsolutePath(validating: path)
         }
     }
+
+    /// The URL with its path normalized syntactically, like SwiftPM's `AbsolutePath`: `.`, `..` and empty components
+    /// collapse, and symlinks stay as spelled. Foundation's `standardizedFileURL` also drops a leading `/private`
+    /// whenever the shorter path exists, so a directory and a child that doesn't exist yet, or SwifterPM and its
+    /// embedder, end up spelling the same directory differently.
+    var syntacticallyStandardizedFileURL: URL {
+        #if os(Windows)
+            standardizedFileURL
+        #else
+            guard isFileURL, let path = try? AbsolutePath(validating: path) else { return standardizedFileURL }
+            return URL(fileURLWithPath: path.pathString, isDirectory: hasDirectoryPath)
+        #endif
+    }
 }
 
 extension AbsolutePath {

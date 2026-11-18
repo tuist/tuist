@@ -1,4 +1,5 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistGenerateCommand
 import TuistSupport
@@ -6,6 +7,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct ListTargetsAcceptanceTests {
     @Test(
         .disabled(),

@@ -13,12 +13,13 @@ defmodule Atlas.ContractsTest do
   end
 
   describe "list_templates/1" do
-    test "returns the six expected templates for the current set" do
+    test "returns the seven expected templates for the current set" do
       templates = Contracts.list_templates()
 
       filenames = templates |> Enum.map(& &1.filename) |> Enum.sort()
 
       assert filenames == [
+               "annex-2-dpa-tuist-hosted.docx",
                "annex-2-dpa.docx",
                "annex-3-daa.docx",
                "annex-4-sla.docx",
@@ -31,6 +32,7 @@ defmodule Atlas.ContractsTest do
 
       assert kinds_by_filename["msa.docx"] == :msa
       assert kinds_by_filename["annex-2-dpa.docx"] == :annex_dpa
+      assert kinds_by_filename["annex-2-dpa-tuist-hosted.docx"] == :annex_dpa_tuist_hosted
       assert kinds_by_filename["annex-3-daa.docx"] == :annex_daa
       assert kinds_by_filename["annex-4-sla.docx"] == :annex_sla
       assert kinds_by_filename["order-form-tuist-hosted.docx"] == :order_form_tuist_hosted

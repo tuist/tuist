@@ -103,7 +103,7 @@ struct PreviewsUploadServiceTests {
     }
 
     @Test(.inTemporaryDirectory, arguments: [nil, UInt16(62), UInt16(183)])
-    func uploads_a_distribution_with_its_entry_point_resources_and_target(machine: UInt16?) async throws {
+    func uploads_a_distribution_with_its_entry_point_resources_target_and_icon(machine: UInt16?) async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let distribution = directory.appending(component: "Tool Distribution")
         let entryPoint = try RelativePath(validating: "bin/tool")
@@ -134,6 +134,10 @@ struct PreviewsUploadServiceTests {
             precompiledMetadataProvider: precompiledMetadataProvider
         )
         let uploadedArchive = directory.appending(component: "uploaded.zip")
+        let icon = machine.map { _ in directory.appending(component: "icon.png") }
+        given(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
+            .willReturn()
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(artifactPath: .any, generateUploadURL: .any, updateProgress: .any)
             .willProduce { archive, _, _ in
@@ -142,11 +146,17 @@ struct PreviewsUploadServiceTests {
             }
 
         let preview = try await subject.uploadPreview(
-            .executable(path: distribution, entryPoint: entryPoint),
+            .executable(path: distribution, entryPoint: entryPoint, icon: icon),
             fullHandle: "tuist/tuist", serverURL: serverURL,
             gitBranch: nil, gitCommitSHA: nil, gitRef: nil, track: nil, updateProgress: { _ in }
         )
         #expect(preview.url == shareURL.absoluteString)
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                icon.map { .value($0) } ?? .any, previewId: .value(preview.id),
+                serverURL: .value(serverURL), fullHandle: .value("tuist/tuist")
+            )
+            .called(icon == nil ? 0 : 1)
         let architectures = machine.map { $0 == 62 ? ["x86_64"] : ["arm64"] } ?? []
         verify(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
@@ -632,8 +642,24 @@ struct PreviewsUploadServiceTests {
         try await fileSystem.makeDirectory(at: contentsDir.appending(component: "MacOS"))
         try Data([0xCF, 0xFA, 0xED, 0xFE, 7, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0])
             .write(to: contentsDir.appending(components: "MacOS", appName).url)
+        let icns = contentsDir.appending(components: "Resources", "AppIcon.icns")
+        try await fileSystem.makeDirectory(at: icns.parentDirectory)
+        try await fileSystem.touch(icns)
 
         let expectedUUID = UUID()
+
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willProduce { arguments, _, _ in
+                // Like sips, write the converted PNG to the --out path.
+                if let index = arguments.firstIndex(of: "--out") {
+                    FileManager.default.createFile(atPath: arguments[index + 1], contents: Data("png".utf8))
+                }
+                return .init(unfolding: { nil })
+            }
+        given(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
+            .willReturn()
 
         given(fileArchiver)
             .zip(name: .any)
@@ -658,7 +684,12 @@ struct PreviewsUploadServiceTests {
         _ = try await subject.uploadPreview(
             .appBundles([.test(
                 path: preview,
-                infoPlist: .test(name: appName, executableName: appName, supportedPlatforms: [.device(.macOS)])
+                infoPlist: .test(
+                    name: appName,
+                    executableName: appName,
+                    supportedPlatforms: [.device(.macOS)],
+                    iconFile: "AppIcon"
+                )
             )]),
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
@@ -689,6 +720,71 @@ struct PreviewsUploadServiceTests {
                 releaseNotes: .any
             )
             .called(1)
+        verify(commandRunner)
+            .run(
+                arguments: .matching { $0.first == "/usr/bin/sips" && $0.contains(icns.pathString) },
+                environment: .any,
+                workingDirectory: .any
+            )
+            .called(1)
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                .matching { $0.extension == "png" && !$0.pathString.hasPrefix(preview.pathString) },
+                previewId: .any,
+                serverURL: .any,
+                fullHandle: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func upload_macos_app_bundle_succeeds_without_icon_when_conversion_fails(sipsThrows: Bool) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let appName = "MacApp"
+        let preview = temporaryDirectory.appending(component: "\(appName).app")
+        let contentsDir = preview.appending(component: "Contents")
+        try await fileSystem.makeDirectory(at: contentsDir.appending(component: "MacOS"))
+        try await fileSystem.makeDirectory(at: contentsDir.appending(component: "Resources"))
+        try await fileSystem.touch(contentsDir.appending(components: "Resources", "AppIcon.icns"))
+        try Data([0xCF, 0xFA, 0xED, 0xFE, 7, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0])
+            .write(to: contentsDir.appending(components: "MacOS", appName).url)
+        precompiledMetadataProvider.uuidsStub = { _ in [UUID()] }
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            // Real sips exits 0 without writing the PNG when it cannot read the icon.
+            .willReturn(.init(unfolding: {
+                if sipsThrows { throw CocoaError(.fileReadCorruptFile) }
+                return nil
+            }))
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(appName).zip"))
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(artifactPath: .any, generateUploadURL: .any, updateProgress: .any)
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        _ = try await subject.uploadPreview(
+            .appBundles([.test(
+                path: preview,
+                infoPlist: .test(
+                    name: appName,
+                    executableName: appName,
+                    supportedPlatforms: [.device(.macOS)],
+                    iconFile: "AppIcon"
+                )
+            )]),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
+            .called(0)
     }
 
     @Test(.inTemporaryDirectory) func upload_app_bundle_throws_when_uuid_not_found() async throws {

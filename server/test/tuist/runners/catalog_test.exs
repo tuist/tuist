@@ -7,13 +7,13 @@ defmodule Tuist.Runners.CatalogTest do
   describe "billing_multiplier/3" do
     test "each platform's baseline machine is exactly one compute unit" do
       assert Catalog.billing_multiplier(:linux, 2, 8) == Catalog.compute_unit_basis_points()
-      assert Catalog.billing_multiplier(:macos, 6, 14) == Catalog.compute_unit_basis_points()
+      assert Catalog.billing_multiplier(:macos, 8, 24) == Catalog.compute_unit_basis_points()
     end
 
     test "doubling both resources doubles the multiplier" do
       assert Catalog.billing_multiplier(:linux, 4, 16) == 2 * Catalog.billing_multiplier(:linux, 2, 8)
       assert Catalog.billing_multiplier(:linux, 8, 32) == 4 * Catalog.billing_multiplier(:linux, 2, 8)
-      assert Catalog.billing_multiplier(:macos, 12, 28) == 2 * Catalog.billing_multiplier(:macos, 6, 14)
+      assert Catalog.billing_multiplier(:macos, 16, 48) == 2 * Catalog.billing_multiplier(:macos, 8, 24)
     end
 
     test "weights CPU more heavily than memory" do
@@ -114,6 +114,49 @@ defmodule Tuist.Runners.CatalogTest do
                memory_gb: shape.memory_gb
              }) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+    end
+  end
+
+  describe "os_versions/0 and Linux pool names" do
+    # The test config lists ubuntu-24.04 (default) and ubuntu-22.04.
+    test "lists Ubuntu releases newest first with display labels" do
+      assert [
+               %{os_version: "ubuntu-24.04", tag: "ubuntu-24-04", label: "Ubuntu 24.04", default?: true},
+               %{os_version: "ubuntu-22.04", tag: "ubuntu-22-04", label: "Ubuntu 22.04", default?: false}
+             ] = Catalog.os_versions()
+    end
+
+    test "the default OS keeps the shape-only pool name, so queued jobs and pools from before OS selection match" do
+      prefix = Tuist.Environment.runners_linux_pool_name_prefix()
+      base = %{platform: :linux, vcpus: 4, memory_gb: 16}
+
+      assert Catalog.pool_name(Map.put(base, :os_version, "ubuntu-24.04")) == "#{prefix}-4vcpu-16gb"
+      assert Catalog.pool_name(Map.put(base, :os_version, nil)) == "#{prefix}-4vcpu-16gb"
+    end
+
+    test "another OS appends its tag to the shape pool name" do
+      assert Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16, os_version: "ubuntu-22.04"}) ==
+               "#{Tuist.Environment.runners_linux_pool_name_prefix()}-4vcpu-16gb-ubuntu-22-04"
+    end
+
+    test "resolves resources for every shape on every OS" do
+      for shape <- Catalog.shapes(:linux), os <- ["ubuntu-24.04", "ubuntu-22.04"] do
+        fleet_name =
+          Catalog.pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb, os_version: os})
+
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+      end
+    end
+
+    test "parse_os_versions_json/1 decodes the Helm wire form" do
+      assert [%{os_version: "ubuntu-24.04", default: true}, %{os_version: "ubuntu-22.04"}] =
+               Catalog.parse_os_versions_json(
+                 ~s([{"osVersion":"ubuntu-24.04","default":true},{"osVersion":"ubuntu-22.04"}])
+               )
+
+      assert :error = Catalog.parse_os_versions_json("{}")
+      assert :error = Catalog.parse_os_versions_json(nil)
     end
   end
 

@@ -236,8 +236,9 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     assert [%{scope_kind: "test", path: "Sources/Math.swift"}] = second
   end
 
-  test "stores nothing while the account's coverage flag is off", %{test_run: test_run} do
-    stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
+  test "stores nothing for a project whose build system has no coverage" do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_modules: @test_modules)
     Evidence.record(test_run, @evidence)
 
     assert CoverageFixtures.evidence_rows(test_run) == []

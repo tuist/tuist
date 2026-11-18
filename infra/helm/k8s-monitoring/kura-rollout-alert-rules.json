@@ -8,7 +8,7 @@
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-prom",
+        "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
           "editorMode": "code",
           "expr": "max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)",
@@ -70,7 +70,7 @@
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "15m",
     "isPaused": false,
@@ -95,7 +95,7 @@
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-prom",
+        "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
           "editorMode": "code",
           "expr": "sum_over_time((max by (cluster, env, image_tag, mode) (tuist_kura_rollout_active) - max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused))[6h:5m]) * 5 / 60",
@@ -157,7 +157,7 @@
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "5m",
     "isPaused": false,

@@ -9,12 +9,12 @@ public protocol ListOrganizationsServicing {
     ) async throws -> [String]
 }
 
-enum ListOrganizationsServiceError: LocalizedError {
+public enum ListOrganizationsServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
     case unauthorized(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The organizations could not be listed due to an unknown Tuist response of \(statusCode)."

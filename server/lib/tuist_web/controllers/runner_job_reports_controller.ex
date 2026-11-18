@@ -1,6 +1,6 @@
 defmodule TuistWeb.RunnerJobReportsController do
   @moduledoc """
-  Receives masked logs and outcomes from Buildkite and GitLab jobs.
+  Receives masked logs and outcomes from Buildkite, GitLab and API jobs.
 
   Every request authenticates with a token scoped to one existing job and
   account. The job container never receives the fleet's ServiceAccount
@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnerJobReportsController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.LogParser
   alias Tuist.Runners.GitLab
@@ -40,6 +41,10 @@ defmodule TuistWeb.RunnerJobReportsController do
   Lines are appended in the order given. The ReplacingMergeTree key
   `(workflow_job_id, line_number)` collapses a re-posted batch, so the
   hook may retry freely.
+
+  An API job's executor flushes on a short interval, so the response to it
+  is how a cancellation reaches the VM: `{"cancel_requested": true}` once
+  the caller asked to cancel the job.
   """
   def logs(conn, params) do
     first_line_number = params |> Map.get("first_line_number", 1) |> to_integer(1)
@@ -55,7 +60,11 @@ defmodule TuistWeb.RunnerJobReportsController do
       |> Enum.map(&Map.merge(&1, %{workflow_job_id: workflow_job_id, account_id: account_id}))
       |> JobLogs.append()
 
-      send_resp(conn, :no_content, "")
+      if identity[:provider] == :api do
+        json(conn, %{cancel_requested: APIJobs.cancel_requested?(workflow_job_id)})
+      else
+        send_resp(conn, :no_content, "")
+      end
     else
       error -> render_error(conn, error, "runner log ingest")
     end
@@ -86,7 +95,12 @@ defmodule TuistWeb.RunnerJobReportsController do
         conclusion: JobReports.conclusion_for(outcome(params))
       }
 
-      provider = if identity[:provider] == :gitlab, do: GitLab, else: Buildkite
+      provider =
+        case identity[:provider] do
+          :gitlab -> GitLab
+          :api -> APIJobs
+          _ -> Buildkite
+        end
 
       case provider.record_job_finished(runner_name, account_id, report) do
         :ok ->

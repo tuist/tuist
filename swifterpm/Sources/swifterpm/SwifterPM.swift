@@ -52,6 +52,9 @@ public struct SwifterPMResolutionRequest: Sendable {
     /// Warm lockfile validation always uses `manifestEnvironment`, matching cached manifest evaluation.
     public var resolutionEnvironment: [String: String]?
     public var quiet: Bool
+    /// The byte budget of the shared cache, enforced after every successful run by evicting
+    /// least recently used entries. When nil, only the 30-day retention bounds it.
+    public var cacheMaxBytes: Int?
 
     public init(
         packageDirectory: URL,
@@ -71,7 +74,8 @@ public struct SwifterPMResolutionRequest: Sendable {
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
         manifestEnvironment: [String: String]? = nil,
         resolutionEnvironment: [String: String]? = nil,
-        quiet: Bool = false
+        quiet: Bool = false,
+        cacheMaxBytes: Int? = nil
     ) {
         self.packageDirectory = packageDirectory
         self.cacheDirectory = cacheDirectory
@@ -91,6 +95,7 @@ public struct SwifterPMResolutionRequest: Sendable {
         self.manifestEnvironment = manifestEnvironment
         self.resolutionEnvironment = resolutionEnvironment
         self.quiet = quiet
+        self.cacheMaxBytes = cacheMaxBytes
     }
 }
 
@@ -106,6 +111,8 @@ public struct SwifterPMRestoreRequest: Sendable {
     public var packageInfoCacheDirectory: URL?
     public var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
     public var quiet: Bool
+    /// See `SwifterPMResolutionRequest.cacheMaxBytes`.
+    public var cacheMaxBytes: Int?
 
     public init(
         packageDirectory: URL,
@@ -118,7 +125,8 @@ public struct SwifterPMRestoreRequest: Sendable {
         disablePackageInfoCache: Bool = false,
         packageInfoCacheDirectory: URL? = nil,
         cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization? = nil,
-        quiet: Bool = false
+        quiet: Bool = false,
+        cacheMaxBytes: Int? = nil
     ) {
         self.packageDirectory = packageDirectory
         self.cacheDirectory = cacheDirectory
@@ -131,6 +139,7 @@ public struct SwifterPMRestoreRequest: Sendable {
         self.packageInfoCacheDirectory = packageInfoCacheDirectory
         self.cachedDirectoryMaterialization = cachedDirectoryMaterialization
         self.quiet = quiet
+        self.cacheMaxBytes = cacheMaxBytes
     }
 }
 
@@ -151,7 +160,11 @@ public struct SwifterPM: Sendable {
                         packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                         sharedCacheDirectory: request.cacheDirectory
                     ) {
-                        try await runResolution(request: request, preferResolvedFile: true)
+                        let result = try await runResolution(request: request, preferResolvedFile: true)
+                        try await CachePruner.pruneAfterInstallation(
+                            cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
+                        )
+                        return result
                     }
                 }
             }
@@ -172,7 +185,11 @@ public struct SwifterPM: Sendable {
                         packageDirectory: request.packageDirectory, scratchDirectory: request.scratchDirectory,
                         sharedCacheDirectory: request.cacheDirectory
                     ) {
-                        try await runResolution(request: request, preferResolvedFile: false)
+                        let result = try await runResolution(request: request, preferResolvedFile: false)
+                        try await CachePruner.pruneAfterInstallation(
+                            cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
+                        )
+                        return result
                     }
                 }
             }
@@ -189,6 +206,9 @@ public struct SwifterPM: Sendable {
                     sharedCacheDirectory: request.cacheDirectory
                 ) {
                     try await runRestore(request)
+                    try await CachePruner.pruneAfterInstallation(
+                        cacheDirectory: request.cacheDirectory, maxBytes: request.cacheMaxBytes
+                    )
                 }
             }
         }
@@ -199,7 +219,7 @@ public struct SwifterPM: Sendable {
     }
 
     private func runRestore(_ request: SwifterPMRestoreRequest) async throws {
-        let package = request.packageDirectory.standardizedFileURL
+        let package = request.packageDirectory.syntacticallyStandardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         let cache = try await Cache(root: request.cacheDirectory)
         let registryConfig = try await RegistryConfig.load(
@@ -247,7 +267,7 @@ public struct SwifterPM: Sendable {
         request: SwifterPMResolutionRequest,
         preferResolvedFile: Bool
     ) async throws -> SwifterPMResolutionResult {
-        let package = request.packageDirectory.standardizedFileURL
+        let package = request.packageDirectory.syntacticallyStandardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: scratch)
         let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
@@ -405,6 +425,17 @@ public struct SwifterPM: Sendable {
         // precomputation rather than a fresh resolve.
         if request.forceResolvedVersions, request.restorePackage {
             try await PackageResolver.assertResolvedFileUpToDate(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cache.root,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation
+            )
+        } else if request.restorePackage, request.writeResolvedFile {
+            try await PackageResolver.recordMissingPrebuilts(
+                resolved: resolved,
                 packageDir: package,
                 scratchDir: scratch,
                 cacheDir: cache.root,

@@ -3,9 +3,6 @@
 # unreachable, so it reports under its own cluster label and exports
 # KubeadmControlPlane desired/current/ready state.
 
-externalSecrets:
-  enabled: false
-
 hcloudLoadBalancerExporter:
   enabled: true
 
@@ -14,13 +11,12 @@ k8s-monitoring:
     name: tuist-management
 
   destinations:
-    grafana-cloud-metrics:
+    # Management's own Pulse (infra/flux/pulse). Metrics only, like the rest
+    # of this overlay.
+    pulse-metrics:
+      type: prometheus
       extraLabels:
         env: management
-    grafana-cloud-traces:
-      processors:
-        tailSampling:
-          enabled: false
 
   clusterEvents:
     enabled: false
@@ -55,7 +51,10 @@ k8s-monitoring:
   collectors:
     alloy-metrics:
       includeDestinations:
-        - grafana-cloud-metrics
+        - pulse-metrics
+    alloy-control-plane:
+      includeDestinations:
+        - pulse-metrics
     alloy-logs:
       enabled: false
     alloy-singleton:

@@ -7,11 +7,11 @@
 ---
 # Fragmentación de tests {#test-sharding}
 
-Los hosts de CI modernos ofrecen entornos multinúcleo que permiten cierto grado de paralelización de tests. Sin embargo, hay escenarios en los que necesitas ir más allá de lo que un solo host puede ofrecer, por ejemplo, cuando estás limitado por el número de simuladores que puedes ejecutar simultáneamente o cuando tu suite de tests simplemente supera la capacidad de una sola máquina.
+Los hosts de CI modernos ofrecen entornos multinúcleo que permiten cierto grado de paralelización de tests. Sin embargo, hay escenarios en los que necesitas ir más allá de lo que un solo host puede ofrecer — por ejemplo, cuando estás limitado por el número de simuladores que puedes ejecutar simultáneamente, o cuando tu suite de tests simplemente supera la capacidad de una sola máquina.
 
-En esos casos, necesitas un sistema que distribuya los tests entre varios runners de CI y agregue los resultados en una vista unificada. Eso es lo que hace la fragmentación de tests.
+En esos casos, necesitas un sistema que distribuya los tests entre varios runners de CI y agregue los resultados en una vista unificada. Eso es exactamente lo que hace la fragmentación de tests.
 
-Tuist utiliza datos históricos de tiempos de ejecución de tests para equilibrar inteligentemente la carga entre fragmentos mediante un [algoritmo de empaquetado en contenedores](https://en.wikipedia.org/wiki/Bin_packing_problem), de modo que cada runner termine aproximadamente al mismo tiempo. Los resultados de todos los fragmentos se agregan automáticamente en <.localized_link href="/guides/features/test-insights">Análisis de tests</.localized_link>, lo que te ofrece una única vista unificada de tu suite de tests en todos los fragmentos.
+Tuist utiliza datos históricos de tiempos de ejecución de tests para equilibrar inteligentemente la carga entre fragmentos mediante un [algoritmo de empaquetado en contenedores](https://en.wikipedia.org/wiki/Bin_packing_problem), de modo que cada runner termine aproximadamente al mismo tiempo. Los resultados de todos los fragmentos se agregan automáticamente en <.localized_link href="/guides/features/test-insights">Análisis de tests</.localized_link>, ofreciéndote una única vista unificada de tu suite de tests en todos los fragmentos.
 
 <.home_cards>
   <.home_card
@@ -36,7 +36,12 @@ Tuist utiliza datos históricos de tiempos de ejecución de tests para equilibra
 />
   <.home_card
     title="Rust"
-    details="Distribuye los targets de test de Cargo entre workers de CI en paralelo."
+    details="Distribuye destinos de test de Cargo entre workers de CI en paralelo."
     link="/guides/features/test-sharding/rust"
+/>
+  <.home_card
+    title="Once"
+    details="Distribuye lotes de tests de Once detectados entre workers de CI con un plan alojado y resultados combinados."
+    link="/guides/features/test-sharding/once"
 />
 </.home_cards>

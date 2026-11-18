@@ -22,6 +22,11 @@ type Signals struct {
 	// weeks), or 0 when the pool had no job in the last day. An older
 	// server omits it and it decodes as 0.
 	LearnedWarmFloor int32 `json:"learned_warm_floor"`
+	// HoursWithJobs is how many hours of the last two weeks had one of the
+	// pool's jobs, or 0 when the pool had no job in the last day. The
+	// floors of pools not in use are funded most used first. An older
+	// server omits it and it decodes as 0, which leaves recency to decide.
+	HoursWithJobs int32 `json:"hours_with_jobs"`
 	// PreferredNodes holds one Node per oldest queued job, in queue order: a
 	// host that holds the custom cache volumes the job is predicted to attach
 	// and has cache disk room for them. A Node repeats once per job it fits.
@@ -74,11 +79,10 @@ func (s Signals) Load() int32 {
 	return s.CurrentOccupancy() + s.Queued + s.BlockedDemand()
 }
 
-// InUse reports whether the pool has load now or held a runner session in
-// the last hour. A pool with only a learned floor is not in use: the floor
-// keeps it warm for a burst that may come, not for one that is under way.
+// InUse reports dispatchable/occupied work or a session in the last hour.
+// Withheld-only work keeps its tier-1 contender, not priority warm spare.
 func (s Signals) InUse() bool {
-	return s.Load() > 0 || s.P95ConcurrentLastHour > 0
+	return s.CurrentOccupancy()+s.Queued > 0 || s.P95ConcurrentLastHour > 0
 }
 
 // PolicyKnobs are the per-pool autoscaling parameters from the

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "498ebe9fd37fc55803e3daf80a3f6c18954e39a40370c988f2c266ee2ca12291",
+  "hash": "e513ec74311156bb89e8ee0a5cd58aa8a139db82de27db4d2937484c7cc63577",
   "hash_tree": {
     "root": {
       "children": [
@@ -10,17 +10,17 @@
             "content_hash": {
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
-                "# Shell completions": {
-                  "content_hash": "4a8b072fe5a04244c1b849f222c52ea5b169ed4b32ab694fa7310d9eeb4e8ed0"
+                "# Shell completions {#shell-completions}": {
+                  "content_hash": "aa8ee15a39e47228097a91c07711f715a7bcd9d347fcf04045d138083b5cd26f"
                 },
-                "#### Bash {#bash}": {
-                  "content_hash": "61d5fdf36df071cc4bc787cc8b842dcea5844cab226e94e38b9e7c907f108059"
+                "## Bash {#bash}": {
+                  "content_hash": "43c89cef5167ae6ae5c69ba44870fca5d82bcdc8cbfeb3c44370221051cd1813"
                 },
-                "#### Fish {#fish}": {
-                  "content_hash": "4ac826b00c032c6f1f965ebed46563bf956b7e1d66c64290190678473e999fb9"
+                "## Fish {#fish}": {
+                  "content_hash": "f6b481e61de657ffbca55bead892764ac4e6716ca6d031250587c9083db9b897"
                 },
-                "#### Zsh {#zsh}": {
-                  "content_hash": "b51586f037babcc1cd9196ffaf6560a407cc25ee3535ff153d98d6f99cb0e0ae"
+                "## Zsh {#zsh}": {
+                  "content_hash": "37c9a3697e9efd102d1a8ba77a0dc155f13a2f26bbf9fe45e2462ca76713838d"
                 },
                 "Preamble": {
                   "content_hash": "75c0fe3309b713332d5ba3ff2e0b32214744b386b5769150c1da6d31526d8e16"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8c3aa69b537e60b24a68cd264bc6f0e8b263e54e43744b82746286496452ee50",
+          "hash": "cd89b276fb250054bf0580f5ad33b8005a50aca9bbbe4a2b80bf5805bd4d5e04",
           "kind": "source",
           "label": "server/priv/docs/en/cli/shell-completions.md",
           "metadata": {
-            "content_hash": "68c4885f555cde939ffe1a20de167de2c5d8ba3913d8124daecbb11a32005ab1"
+            "content_hash": "117ebd9e055032095cc358de2cbc86bbe9b83957f2397e502c727f39a09f3f66"
           }
         },
         {
@@ -94,7 +94,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +113,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -142,11 +142,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -222,21 +222,21 @@
             }
           ],
           "details": {},
-          "hash": "1a39f666a54c51fd19599ff88109f4ce36e360bf0595ece819715234c01c96ac",
+          "hash": "4c264ad0f879a89c4c5622b0d1e615f587457fcf6f5e42b715f61f7b7e80c86a",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "498ebe9fd37fc55803e3daf80a3f6c18954e39a40370c988f2c266ee2ca12291",
+      "hash": "e513ec74311156bb89e8ee0a5cd58aa8a139db82de27db4d2937484c7cc63577",
       "kind": "translation_input",
       "label": "server/priv/docs/en/cli/shell-completions.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "cb4b75cc6c7c04e7cd001cf7837eca2261e03048f59e3413b48de0ebdf79e6cd",
+  "output_hash": "fe37634df9479d5727940d41523b00142b994b5e2e3d4cd0e0986ebbed4e9abf",
   "output_path": "server/priv/docs/ko/cli/shell-completions.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6015683fe02afd165cfac93aaea4a0a2e6b13251",
+  "source_commit_sha": "92cdb470cfe891bd71471ea92bd1b14409c523db",
   "source_path": "server/priv/docs/en/cli/shell-completions.md",
-  "translated_at": "2026-10-30T13:02:53.778328Z",
-  "translation_session_id": "01a18ce1-c02e-7bc6-a18d-aa70ecc3e653"
+  "translated_at": "2026-11-06T15:36:35.372937Z",
+  "translation_session_id": "01a1b17e-ce4a-773d-acc9-dd237d9e7e04"
 }

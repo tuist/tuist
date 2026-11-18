@@ -126,6 +126,24 @@ defmodule Tuist.Webhooks.Dispatcher do
     }
   end
 
+  @doc """
+  Dispatches a `runner_job.started` or `runner_job.completed` event for a
+  runner job created through the API. `object` is the caller's snapshot of
+  the job, built by `Tuist.Runners.APIJobs`.
+  """
+  def dispatch_runner_job_event(account_id, event_type, object)
+      when event_type in ["runner_job.started", "runner_job.completed"] do
+    case Webhooks.list_endpoints_subscribed_to(account_id, event_type) do
+      [_ | _] = endpoints ->
+        endpoints
+        |> Stream.map(&build_job(&1, event_type, %{"object" => object}))
+        |> insert_jobs()
+
+      [] ->
+        :ok
+    end
+  end
+
   defp build_job(endpoint, event_type, body) do
     event_id = Ecto.UUID.generate()
 

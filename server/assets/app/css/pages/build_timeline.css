@@ -39,7 +39,7 @@
     & > span + span::before {
       display: inline-block;
       vertical-align: middle;
-      margin-right: var(--noora-spacing-5);
+      margin-inline-end: var(--noora-spacing-5);
       border-radius: 50%;
       background: var(--noora-surface-label-tertiary);
       width: 3px;
@@ -106,8 +106,8 @@
         background: var(--noora-surface-background-secondary);
       }
       &:focus-visible {
-        outline: 2px solid var(--noora-chart-primary);
-        outline-offset: 2px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
     }
     & [data-kind="compile"] {
@@ -142,7 +142,7 @@
       --color: var(--noora-chart-secondary);
     }
     & output {
-      margin-left: auto;
+      margin-inline-start: auto;
       font-variant-numeric: tabular-nums;
     }
   }
@@ -157,7 +157,7 @@
   }
   & [data-part="timeline-chart"],
   & [data-part="metric-track"] {
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-1);
   }
   & [data-part="timeline-chart"] {
@@ -176,8 +176,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--noora-spacing-4);
   }
-  &[data-source="bazel"] [data-metric="cpu"] {
+  &[data-source="bazel"] [data-metric="cpu"],
+  & [data-metric="disk-space"] {
     grid-column: 1 / -1;
+  }
+  & [data-metric="disk-space"] [data-part="metric-heading"] {
+    flex-wrap: wrap;
   }
   & [data-part="metric-track"] {
     background: var(--noora-surface-background-primary);
@@ -198,7 +202,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     font-variant-numeric: tabular-nums;
     & output {
-      margin-left: auto;
+      margin-inline-start: auto;
       color: var(--noora-surface-label-secondary);
       font-weight: var(--noora-font-weight-regular);
     }
@@ -303,6 +307,8 @@
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+    direction: ltr;
+    unicode-bidi: isolate;
     &::-webkit-scrollbar {
       display: none;
     }
@@ -398,6 +404,8 @@
       overflow-y: hidden;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      direction: ltr;
+      unicode-bidi: isolate;
       white-space: pre;
       overflow-wrap: normal;
     }

@@ -15,7 +15,7 @@ public protocol MultipartUploadGenerateURLShardsServicing {
     ) async throws -> String
 }
 
-public enum MultipartUploadGenerateURLShardsServiceError: LocalizedError, Equatable {
+public enum MultipartUploadGenerateURLShardsServiceError: LocalizedError, Equatable, HTTPStatusCodeError {
     case unknownError(Int)
     case badRequest(String)
     case notFound(String)
@@ -28,6 +28,16 @@ public enum MultipartUploadGenerateURLShardsServiceError: LocalizedError, Equata
             return "Failed to generate shard upload URL due to an unknown server response of \(statusCode)."
         case let .badRequest(message), let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
+        }
+    }
+
+    public var httpStatusCode: Int {
+        switch self {
+        case let .unknownError(statusCode): return statusCode
+        case .badRequest: return 400
+        case .unauthorized: return 401
+        case .forbidden: return 403
+        case .notFound: return 404
         }
     }
 }

@@ -71,9 +71,11 @@ export const CustomersCarousel = {
     });
     listen(this.el, "keydown", (event) => {
       if (!event.target.closest('[data-part="tab"]')) return;
+      // The tabs run right to left in RTL, so the arrows follow them.
+      const step = this.isRtl() ? -1 : 1;
       const target = {
-        ArrowRight: this.index + 1,
-        ArrowLeft: this.index - 1,
+        ArrowRight: this.index + step,
+        ArrowLeft: this.index - step,
         Home: 0,
         End: this.tabs.length - 1,
       }[event.key];
@@ -141,14 +143,20 @@ export const CustomersCarousel = {
     }
   },
 
+  isRtl() {
+    return getComputedStyle(this.tablist || this.el).direction === "rtl";
+  },
+
   // Fades the tab row's edges while it can scroll further that way (only
-  // the phone layout ever overflows).
+  // the phone layout ever overflows). scrollLeft runs from 0 to negative
+  // values in RTL, so its distance from the start is its magnitude.
   updateFades() {
     const row = this.tablist;
     if (!row) return;
     const more = row.scrollWidth - row.clientWidth;
-    row.style.setProperty("--fade-start", row.scrollLeft > 1 ? "40px" : "0px");
-    row.style.setProperty("--fade-end", row.scrollLeft < more - 1 ? "40px" : "0px");
+    const scrolled = Math.abs(row.scrollLeft);
+    row.style.setProperty("--fade-start", scrolled > 1 ? "40px" : "0px");
+    row.style.setProperty("--fade-end", scrolled < more - 1 ? "40px" : "0px");
   },
 
   // Scrolls the tab row, never the page, to centre the selected tab.
@@ -158,7 +166,9 @@ export const CustomersCarousel = {
     if (!row || !tab || row.scrollWidth <= row.clientWidth) return;
     const left = tab.offsetLeft - (row.clientWidth - tab.offsetWidth) / 2;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    row.scrollTo({ left: Math.max(0, left), behavior: reduced ? "auto" : "smooth" });
+    // In RTL the scroll origin is the right edge and scrollLeft is <= 0.
+    const clamped = this.isRtl() ? Math.min(0, left) : Math.max(0, left);
+    row.scrollTo({ left: clamped, behavior: reduced ? "auto" : "smooth" });
   },
 
   show(index) {

@@ -13,6 +13,4 @@ Where to ask questions, discuss build tooling, and contribute to Tuist.
 
 Include the toolchain and Tuist versions, whether the project is generated, the expected and actual behavior, and a minimal reproduction. Remove tokens, credentials, and private project data from logs before posting.
 
-## Limitations
-
-Community channels have no guaranteed response time and are not a paid support agreement; Pro and Enterprise support channels are described under [pricing](/marketing-markdown/pricing). Report security vulnerabilities privately, as described in [Security](/marketing-markdown/security), never in a public issue.
+Report security vulnerabilities privately, as described in [Security](/marketing-markdown/security), never in a public issue. For Pro and Enterprise support channels, see [pricing](/marketing-markdown/pricing).

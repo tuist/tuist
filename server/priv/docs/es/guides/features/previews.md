@@ -7,13 +7,13 @@
 ---
 # Previews {#previews}
 
-Tuist Previews permite que tus compañeros prueben apps móviles, apps de escritorio y herramientas de línea de comandos sin tener que compilarlas localmente. Publica una compilación en tu proyecto de Tuist y comparte el enlace de la vista previa.
+Tuist Previews permite que tus compañeros prueben aplicaciones móviles, de escritorio y herramientas de línea de comandos sin tener que compilarlas localmente. Publica una compilación en tu proyecto de Tuist y comparte el enlace de la vista previa.
 
 ## Qué puedes previsualizar {#what-you-can-preview}
 
-- **Apps móviles:** APKs de Android y paquetes de aplicación de Apple o IPAs. Los dispositivos compatibles, los simuladores y los requisitos de firma dependen del flujo de publicación.
-- **Apps de escritorio:** Paquetes de aplicación de macOS.
-- **Herramientas de línea de comandos:** Ejecutables de macOS o Linux, por sí solos o empaquetados con sus dependencias.
+- **Aplicaciones móviles:** APKs de Android y paquetes de aplicación de Apple o IPAs. Los dispositivos compatibles, simuladores y requisitos de firma dependen del flujo de publicación.
+- **Aplicaciones de escritorio:** paquetes de aplicación de macOS.
+- **Herramientas de línea de comandos:** ejecutables de macOS o Linux, por sí solos o empaquetados con sus dependencias.
 
 Consulta <.localized_link href="/guides/features/previews/types">Tipos compatibles</.localized_link> para conocer los requisitos de empaquetado y compatibilidad. El tipo de artefacto determina dónde se puede ejecutar una vista previa; no dicta qué sistema de compilación lo produce.
 
@@ -29,17 +29,22 @@ Elige tu sistema de compilación para los comandos de configuración y publicaci
   />
   <.home_card
     title="Gradle"
-    details="Comparte apps de Android y herramientas nativas de línea de comandos desde proyectos de Gradle."
+    details="Comparte aplicaciones de Android y herramientas nativas de línea de comandos desde proyectos de Gradle."
     link="/guides/features/previews/gradle"
   />
   <.home_card
     title="Bazel"
-    details="Comparte apps de Android, apps de Apple y herramientas de línea de comandos con reglas complementarias de Bazel."
+    details="Comparte aplicaciones de Android, aplicaciones de Apple y herramientas de línea de comandos con reglas complementarias de Bazel."
     link="/guides/features/previews/bazel"
+  />
+  <.home_card
+    title="Once"
+    details="Publica aplicaciones elegibles de Android, simulador de Apple y macOS con el proveedor nativo de artefactos de Once."
+    link="/guides/features/previews/once"
   />
 </.home_cards>
 
-Si ya tienes una compilación compatible, usa <.localized_link href="/cli/share">`tuist share`</.localized_link> para publicarla sin una integración con el sistema de compilación. Siguen aplicándose los requisitos de empaquetado y firma.
+Si ya tienes una compilación compatible, usa <.localized_link href="/cli/share">`tuist share`</.localized_link> para publicarla sin integración con un sistema de compilación. Siguen aplicándose los requisitos de empaquetado y firma.
 
 ## Ejecutar una vista previa {#run-a-preview}
 
@@ -48,12 +53,12 @@ Los destinatarios no necesitan el sistema de compilación que produjo la vista p
 <.home_cards>
   <.home_card
     title="CLI"
-    details="Ejecuta apps móviles, apps de macOS y vistas previas de línea de comandos con tuist run."
+    details="Ejecuta aplicaciones móviles, aplicaciones de macOS y vistas previas de línea de comandos con tuist run."
     link="/guides/features/previews/run/cli"
   />
   <.home_card
     title="App de macOS"
-    details="Ejecuta vistas previas compatibles de Apple a través de la app de la barra de menús de Tuist."
+    details="Ejecuta vistas previas de Apple compatibles a través de la app de la barra de menús de Tuist."
     link="/guides/features/previews/run/macos"
   />
   <.home_card
@@ -83,7 +88,7 @@ Reemplaza los identificadores de cuenta y proyecto con los tuyos:
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-Si el proyecto contiene varias apps con diferentes identificadores de paquete, añade un parámetro de consulta `bundle-id` para elegir la app:
+Si el proyecto contiene varias aplicaciones con diferentes identificadores de paquete, añade un parámetro de consulta `bundle-id` para elegir la aplicación:
 
 ```markdown
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)

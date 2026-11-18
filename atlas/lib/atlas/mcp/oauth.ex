@@ -104,7 +104,10 @@ defmodule Atlas.MCP.OAuth do
         receive_timeout: server.receive_timeout
       )
 
-    case Req.post(request) do
+    request
+    |> Req.post()
+    |> decode_json_body()
+    |> case do
       {:ok, %Req.Response{status: status, body: %{"client_id" => client_id} = body}} when status in 200..299 ->
         {:ok, %{client_id: client_id, client_secret: body["client_secret"]}}
 
@@ -140,7 +143,10 @@ defmodule Atlas.MCP.OAuth do
         receive_timeout: server.receive_timeout
       )
 
-    case Req.post(request) do
+    request
+    |> Req.post()
+    |> decode_json_body()
+    |> case do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 and is_map(body) ->
         token_attrs(body)
 
@@ -173,6 +179,18 @@ defmodule Atlas.MCP.OAuth do
   end
 
   defp with_client({:error, _reason} = error, _client), do: error
+
+  # Req decodes JSON only when the response says it is JSON. OVHcloud's MCP
+  # oauth-proxy answers registration with a JSON body labelled text/plain, so
+  # without this the registration looks like a failure.
+  defp decode_json_body({:ok, %Req.Response{body: body} = response}) when is_binary(body) do
+    case JSON.decode(body) do
+      {:ok, decoded} when is_map(decoded) -> {:ok, %{response | body: decoded}}
+      _not_json -> {:ok, response}
+    end
+  end
+
+  defp decode_json_body(result), do: result
 
   defp verify_state(state) when is_binary(state) do
     Phoenix.Token.verify(Endpoint, @state_salt, state, max_age: 600)

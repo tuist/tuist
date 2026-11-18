@@ -29,7 +29,7 @@
       flex-direction: column;
       flex: 1;
       min-width: 0;
-      box-shadow: var(--noora-border-heavy);
+      box-shadow: var(--noora-border-large);
       border-radius: var(--noora-radius-8);
       background: var(--noora-surface-background-primary);
       overflow: hidden;

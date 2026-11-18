@@ -5,8 +5,11 @@ defmodule Tuist.Tests.TestRunQuery do
   @query_filter_fields %{
     "git_branch" => :git_branch,
     "scheme" => :scheme,
-    "status" => :status
+    "status" => :status,
+    "selective_testing" => :selective_testing
   }
+  # Fields only matched exactly: `~` (substring) is not supported on them.
+  @exact_fields ["selective_testing"]
 
   def filters(nil), do: {:ok, []}
   def filters(""), do: {:ok, []}
@@ -19,7 +22,12 @@ defmodule Tuist.Tests.TestRunQuery do
       |> Enum.map_join(&Enum.at(&1, 0))
       |> String.trim()
 
-    if consumed_query == String.trim(query) do
+    substring_on_exact_field? =
+      Enum.any?(captures, fn [_match, _separator, _negation, field, operator, _value] ->
+        operator == "~" and field in @exact_fields
+      end)
+
+    if consumed_query == String.trim(query) and not substring_on_exact_field? do
       filters =
         Enum.map(captures, fn [_match, _separator, negation, field, operator, value] ->
           %{

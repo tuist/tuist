@@ -1,0 +1,415 @@
+package macosandbox
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+)
+
+// Warm sandbox VMs are Pods of a runner pool (see "Warm VMs" in
+// macos-sandboxes.md), so the runners-controller budgets, preempts and drains
+// them like idle warm CI runners. This host service, not the CI Pod
+// reconciler, boots each one as a sandbox-mode VM on the private runtime,
+// keeps it in memory only, and hands it to a sandbox create.
+const (
+	WarmLabel     = "tuist.dev/macos-sandbox-warm"
+	WarmFinalizer = "tuist.dev/macos-sandbox-warm"
+	// WarmHostLabel is advertised by kubelets that own warm Pods, so an older
+	// kubelet is never given one to boot as a CI VM, and only while the host
+	// can boot one now (WarmHostLabels).
+	WarmHostLabel = "tuist.dev/macos-sandbox-warm-host"
+)
+
+// warmMemoryMB lists the warm shapes' memory, largest first. Every warm VM
+// has 8 vCPU.
+var warmMemoryMB = []int{24576, 16384, 8192}
+
+// WarmHostLabelFor is the label a warm Pod of memoryMB selects: WarmHostLabel
+// for 8 GiB, the shape it always named, and WarmHostLabel-<MB> for the
+// others. The runners-controller renders the same (podtemplate).
+func WarmHostLabelFor(memoryMB int) string {
+	if memoryMB == 8192 {
+		return WarmHostLabel
+	}
+	return fmt.Sprintf("%s-%d", WarmHostLabel, memoryMB)
+}
+
+// WarmHostLabels advertises each warm shape's label while the sandbox service
+// is ready and the disk has room for one more VM of that shape (a 24 GiB VM
+// reserves 32 GiB more than an 8 GiB one for its memory image). Otherwise the
+// scheduler keeps placing warm Pods on a host with free CPU and memory that
+// refuses each one: on 2026-11-13 b04 and b05 failed a new warm Pod every 2 s
+// for hours on "sandbox disk reserve", and no host kept a warm VM meanwhile.
+func (s *Service) WarmHostLabels(ctx context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	m, ready := s.manager, s.ready
+	s.mu.Unlock()
+	if m == nil || !ready {
+		return map[string]string{}, nil
+	}
+	runtime, ok := m.Runtime.(*TartRuntime)
+	if !ok {
+		return map[string]string{}, nil
+	}
+	labels := map[string]string{}
+	// Largest first: room for one shape is room for every smaller one, so a
+	// roomy host checks its disk once.
+	for i, memoryMB := range warmMemoryMB {
+		err := runtime.roomForClone(ctx, runtime.Client, memoryMB)
+		if errors.Is(err, ErrCapacity) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, smaller := range warmMemoryMB[i:] {
+			labels[WarmHostLabelFor(smaller)] = "v1"
+		}
+		break
+	}
+	return labels, nil
+}
+
+// SessionHostLabel is advertised while this host holds a sandbox session,
+// running or paused. Its saved state is encrypted for this Mac, so the
+// session resumes only here, and CI placement prefers hosts without it
+// (runners-controller podtemplate).
+const SessionHostLabel = "tuist.dev/macos-sandbox-sessions"
+
+// SessionHostLabels advertises SessionHostLabel. A running session counts
+// too: it pauses after its next idle grace, and CI placed beside it in the
+// meantime can still fill the host by then. A host that runs no sandbox
+// service, or has not loaded its store yet, advertises nothing.
+func (s *Service) SessionHostLabels(context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	m := s.manager
+	s.mu.Unlock()
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	for _, info := range m.Snapshot() {
+		if info.State == "running" || info.State == "paused" {
+			return map[string]string{SessionHostLabel: "true"}, nil
+		}
+	}
+	return map[string]string{}, nil
+}
+
+type warmVM struct {
+	pod       types.UID
+	namespace string
+	name      string
+	rec       *Record
+	ready     bool
+	readyAt   time.Time
+}
+
+func (s *Service) reconcileWarm(ctx context.Context) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		opCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		if err := s.warmTick(opCtx, ctx); err != nil {
+			slog.Warn("macOS sandbox warm VMs", "error", err)
+		}
+		cancel()
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) warmTick(ctx, parent context.Context) error {
+	pods, err := s.Kube.CoreV1().Pods("").List(ctx, metav1.ListOptions{LabelSelector: WarmLabel + "=true", FieldSelector: "spec.nodeName=" + s.Node})
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	m, ready := s.manager, s.ready
+	s.mu.Unlock()
+	seen := map[types.UID]bool{}
+	var errs []error
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		seen[pod.UID] = true
+		if !pod.DeletionTimestamp.IsZero() {
+			errs = append(errs, s.retireWarm(ctx, m, pod))
+			continue
+		}
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		if m == nil || !ready {
+			errs = append(errs, s.failWarm(ctx, pod, "SandboxHostNotReady", "the host's macOS sandbox service is not ready"))
+			continue
+		}
+		m.Gate.Lock()
+		w, booting := m.warm[pod.UID], m.warmBooting
+		m.Gate.Unlock()
+		if w != nil {
+			continue
+		}
+		if pod.Status.Phase == corev1.PodRunning {
+			// Warm VMs live in memory only: a restart deleted this one.
+			errs = append(errs, s.failWarm(ctx, pod, "WarmVMLost", "the host restarted and deleted the warm VM"))
+			continue
+		}
+		if booting {
+			continue
+		}
+		rec, reason := m.warmRecord(pod)
+		if reason != "" {
+			errs = append(errs, s.failWarm(ctx, pod, "WarmVMUnsupported", reason))
+			continue
+		}
+		w = &warmVM{pod: pod.UID, namespace: pod.Namespace, name: pod.Name, rec: rec}
+		if err := s.admitWarm(ctx, m, w); err != nil {
+			errs = append(errs, s.failWarm(ctx, pod, "WarmVMNoCapacity", err.Error()))
+			continue
+		}
+		go s.bootWarm(context.WithoutCancel(parent), m, w, pod)
+	}
+	// A Pod force-deleted without its finalizer still leaves a VM behind.
+	if m != nil {
+		m.Gate.Lock()
+		var gone []*warmVM
+		for uid, w := range m.warm {
+			if !seen[uid] && w.ready {
+				delete(m.warm, uid)
+				gone = append(gone, w)
+			}
+		}
+		m.Gate.Unlock()
+		for _, w := range gone {
+			errs = append(errs, m.Runtime.Delete(ctx, w.rec))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// warmRecord describes the VM a warm Pod asks for. It must match what a
+// sandbox create would boot: a prepared template's image and a supported
+// shape. Anything else cold-creates, so the Pod fails instead of booting.
+func (m *Manager) warmRecord(pod *corev1.Pod) (*Record, string) {
+	if len(pod.Spec.Containers) != 1 {
+		return nil, "a warm Pod has exactly one container"
+	}
+	c := pod.Spec.Containers[0]
+	template, ok := m.Templates.Name(c.Image)
+	if !ok {
+		return nil, fmt.Sprintf("image %q is not one of the host's prepared sandbox templates", c.Image)
+	}
+	cpu, memory := c.Resources.Requests.Cpu().MilliValue(), c.Resources.Requests.Memory().Value()
+	vcpus, memoryMB := int(cpu/1000), int(memory/(1024*1024))
+	if cpu%1000 != 0 || vcpus != 8 || (memoryMB != 8192 && memoryMB != 16384 && memoryMB != 24576) || memory%(1024*1024) != 0 {
+		return nil, "unsupported warm VM shape"
+	}
+	return &Record{VM: warmVMPrefix + string(pod.UID), RuntimePath: m.RuntimePath, ToolsPath: m.ToolsPath, NodeUID: m.NodeUID,
+		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: c.Image, VCPUs: vcpus, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB}}, ""
+}
+
+// warmWorkspaceGB is the workspace a warm VM gets before it is claimed: the
+// size the server's macOS defaults and tuist-mac request. A claim for another
+// size replaces the volume.
+const warmWorkspaceGB = 30
+
+// admitWarm charges the warm Pod like a CI launch: under the launch gate,
+// after repairing sandbox reservations, every bound Pod (this one included)
+// must fit. A warm Pod never waits for capacity.
+func (s *Service) admitWarm(ctx context.Context, m *Manager, w *warmVM) error {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	if err := s.repairReservations(ctx, m); err != nil {
+		return err
+	}
+	if err := s.capacity.Fits(ctx); err != nil {
+		return err
+	}
+	m.warm[w.pod] = w
+	m.warmBooting = true
+	return nil
+}
+
+func (s *Service) bootWarm(ctx context.Context, m *Manager, w *warmVM, pod *corev1.Pod) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	err := s.addWarmFinalizer(ctx, pod)
+	if err == nil {
+		err = m.Runtime.Warm(ctx, w.rec)
+	}
+	m.Gate.Lock()
+	m.warmBooting = false
+	if err == nil {
+		w.ready, w.readyAt = true, time.Now().UTC()
+	} else {
+		delete(m.warm, w.pod)
+	}
+	m.Gate.Unlock()
+	if err != nil {
+		slog.Warn("macOS sandbox warm VM boot", "pod", w.name, "error", err)
+		_ = m.Runtime.Delete(ctx, w.rec)
+		_ = s.failWarm(ctx, pod, "WarmVMBootFailed", err.Error())
+		return
+	}
+	if err = s.publishWarm(ctx, pod, w.readyAt); err != nil {
+		slog.Warn("macOS sandbox warm VM status", "pod", w.name, "error", err)
+	}
+}
+
+// claimWarm hands a ready warm VM of the requested image and shape to a
+// sandbox, whichever of the image's template names it asks for (`macos` and
+// the default Xcode's `macos-xcode-<version>` boot the same image). The
+// caller holds the launch gate.
+func (m *Manager) claimWarm(a protocol.CreateArgs) *warmVM {
+	for uid, w := range m.warm {
+		if w.ready && w.rec.TemplateTag == a.TemplateTag && w.rec.VCPUs == a.VCPUs && w.rec.MemoryMB == a.MemoryMB {
+			delete(m.warm, uid)
+			return w
+		}
+	}
+	return nil
+}
+
+// retireWarm deletes a warm Pod's VM, then lets the Pod go. A VM still
+// booting finishes first; a claimed one belongs to its sandbox.
+//
+// It completes the deletion with a zero grace period, as the CI Pod path
+// does: no kubelet confirms a warm Pod's termination, so a Pod deleted with
+// a grace period otherwise stays Terminating, Running and charged to its
+// host until the runners-controller force-reaps it. On 2026-11-13 a warm Pod
+// the controller retired to clear b12 for a CI job held it for 6 minutes,
+// and the job was scheduled the second the reap dropped it.
+func (s *Service) retireWarm(ctx context.Context, m *Manager, pod *corev1.Pod) error {
+	if m != nil {
+		m.Gate.Lock()
+		w := m.warm[pod.UID]
+		if w != nil && !w.ready {
+			m.Gate.Unlock()
+			return nil
+		}
+		delete(m.warm, pod.UID)
+		m.Gate.Unlock()
+		if w != nil {
+			if err := m.Runtime.Delete(ctx, w.rec); err != nil {
+				return err
+			}
+		}
+	}
+	if err := s.removeWarmFinalizer(ctx, pod); err != nil {
+		return err
+	}
+	zero := int64(0)
+	err := s.Kube.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{GracePeriodSeconds: &zero, Preconditions: &metav1.Preconditions{UID: &pod.UID}})
+	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
+		return nil
+	}
+	return err
+}
+
+func (s *Service) addWarmFinalizer(ctx context.Context, pod *corev1.Pod) error {
+	for _, f := range pod.Finalizers {
+		if f == WarmFinalizer {
+			return nil
+		}
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"uid": pod.UID, "resourceVersion": pod.ResourceVersion, "finalizers": append(append([]string{}, pod.Finalizers...), WarmFinalizer)}})
+	_, err := s.Kube.CoreV1().Pods(pod.Namespace).Patch(ctx, pod.Name, types.MergePatchType, patch, metav1.PatchOptions{})
+	return err
+}
+
+func (s *Service) removeWarmFinalizer(ctx context.Context, pod *corev1.Pod) error {
+	finalizers := []string{}
+	found := false
+	for _, f := range pod.Finalizers {
+		if f == WarmFinalizer {
+			found = true
+			continue
+		}
+		finalizers = append(finalizers, f)
+	}
+	if !found {
+		return nil
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"uid": pod.UID, "finalizers": finalizers}})
+	_, err := s.Kube.CoreV1().Pods(pod.Namespace).Patch(ctx, pod.Name, types.MergePatchType, patch, metav1.PatchOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+// publishWarm reports a booted warm VM as the runners-controller reads idle
+// warm macOS capacity: Running and Ready, warm since the guest was ready.
+func (s *Service) publishWarm(ctx context.Context, pod *corev1.Pod, readyAt time.Time) error {
+	current, err := s.Kube.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if current.UID != pod.UID {
+		return errors.New("warm Pod was replaced")
+	}
+	at := metav1.NewTime(readyAt)
+	current.Status.Phase = corev1.PodRunning
+	current.Status.StartTime = &at
+	current.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue, LastTransitionTime: at}}
+	current.Status.ContainerStatuses = []corev1.ContainerStatus{{Name: current.Spec.Containers[0].Name, Image: current.Spec.Containers[0].Image, Ready: true, Started: ptr(true), State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{StartedAt: at}}}}
+	_, err = s.Kube.CoreV1().Pods(pod.Namespace).UpdateStatus(ctx, current, metav1.UpdateOptions{})
+	return err
+}
+
+func (s *Service) failWarm(ctx context.Context, pod *corev1.Pod, reason, message string) error {
+	current, err := s.Kube.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if current.UID != pod.UID || current.Status.Phase == corev1.PodFailed {
+		return nil
+	}
+	current.Status.Phase = corev1.PodFailed
+	current.Status.Reason = reason
+	current.Status.Message = message
+	_, err = s.Kube.CoreV1().Pods(pod.Namespace).UpdateStatus(ctx, current, metav1.UpdateOptions{})
+	return err
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// onWarmVM reports whether a sandbox runs on a claimed warm VM.
+func (m *Manager) onWarmVM(id string) bool {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	r := m.records[id]
+	return r != nil && strings.HasPrefix(r.VM, warmVMPrefix)
+}
+
+// warmShapes lists the ready warm VMs a create of template would claim, for
+// the server's placement.
+func (m *Manager) warmShapes(template string) []string {
+	image, _ := m.Templates.Image(template)
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	shapes := []string{}
+	for _, w := range m.warm {
+		if w.ready && image != "" && w.rec.TemplateTag == image {
+			shapes = append(shapes, fmt.Sprintf("%dx%d", w.rec.VCPUs, w.rec.MemoryMB))
+		}
+	}
+	sort.Strings(shapes)
+	return shapes
+}

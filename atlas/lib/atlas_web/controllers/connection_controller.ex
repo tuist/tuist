@@ -65,7 +65,7 @@ defmodule AtlasWeb.ConnectionController do
 
     with {:ok, location} <-
            Provider.authorization_url(provider, callback_url(provider), state, verifier,
-             gmail: conn.params["gmail"] == "read"
+             gmail: if(is_binary(conn.params["gmail"]), do: String.split(conn.params["gmail"], ","), else: [])
            ),
          {:ok, _} <- Connections.begin_authorization(user, provider, nonce) do
       conn

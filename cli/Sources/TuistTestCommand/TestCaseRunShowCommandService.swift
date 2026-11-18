@@ -135,6 +135,20 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
             info.append("  Ran At:    \(Formatters.formatDate(ranAt))")
         }
 
+        // Selective testing
+        if let selectiveTesting = run.selective_testing {
+            info.append("")
+            info.append("Selective Testing".bold())
+            info.append("  Decision:  \(selectiveTesting.decision.rawValue)")
+            info.append("  Reason:    \(selectiveTesting.reason)")
+            if let matchedPath = selectiveTesting.matched_path {
+                info.append("  Matched:   \(matchedPath)")
+            }
+            if let shardIndex = selectiveTesting.shard_index {
+                info.append("  Shard:     \(shardIndex)")
+            }
+        }
+
         // IDs
         info.append("")
         info.append("IDs".bold())

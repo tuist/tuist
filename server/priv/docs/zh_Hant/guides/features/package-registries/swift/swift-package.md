@@ -13,10 +13,6 @@
 swift package --replace-scm-with-registry resolve
 ```
 
-若要確保每次解析相依性時都使用註冊表，你需要更新 `dependencies` 中的 `Package.swift` 檔案，改用註冊表識別碼而非 URL。註冊表識別碼的格式一律為 `{organization}.{repository}`。例如，若要為 `swift-composable-architecture` 套件使用註冊表，請執行以下操作：
-```diff
-dependencies: [
--   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
-+   .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
-]
-```
+若要確保每次解析相依性時都使用註冊表，你需要更新 `Package.swift` 檔案中的 `dependencies`，改用註冊表識別碼而非 URL。
+
+<!-- @snippet: ./_registry-identifier -->

@@ -10,9 +10,9 @@
   & > [data-part="background"] {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
-    left: 0;
+    inset-inline-end: 0;
+    inset-inline-start: 0;
 
     & > svg {
       width: 100%;
@@ -41,7 +41,7 @@
     gap: var(--noora-spacing-7);
     z-index: var(--noora-z-index-2);
     margin-top: var(--noora-spacing-12);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-6);

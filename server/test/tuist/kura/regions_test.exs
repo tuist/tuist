@@ -7,6 +7,94 @@ defmodule Tuist.Kura.RegionsTest do
 
   setup :set_mimic_from_context
 
+  test "every eligible enrolled region has at least two replicas" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> [] end)
+    ids = for region <- Regions.all(), region.provisioner_config[:storage_class] == "scw-local-nvme", do: region.id
+    refute ids == []
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ids end)
+
+    for id <- ids do
+      replicas = Regions.get(id).provisioner_config.replicas
+      assert is_integer(replicas) and replicas >= 2
+    end
+  end
+
+  test "LVM enrollment includes rack storage and leaves other regions unchanged" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+    assert Regions.get("scw-fr-par-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("scw-fr-par-runners")) == "tuist.dev/kura-disk"
+    assert Regions.disk_resource(Regions.get("us-east")) == "ephemeral-storage"
+    assert Regions.get("ber1-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("ber1-runners")) == "tuist.dev/kura-disk"
+    assert Regions.get("larch-runners").provisioner_config.storage_class == "scw-local-nvme"
+    refute Regions.get("larch-runners").provisioner_config.encrypted_volumes
+  end
+
+  test "each rack site requires its own explicit LVM enrollment" do
+    for id <- ["ber1-runners", "larch-runners"] do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> [id] end)
+      config = Regions.get(id).provisioner_config
+      assert config.storage_class == "kura-lvm-nvme"
+      assert config.encrypted_volumes
+      assert config.replicas == 2
+      assert Regions.disk_resource(Regions.get(id)) == "tuist.dev/kura-disk"
+
+      other_id = if id == "ber1-runners", do: "larch-runners", else: "ber1-runners"
+      other_config = Regions.get(other_id).provisioner_config
+      assert other_config.storage_class == "scw-local-nvme"
+      refute other_config.encrypted_volumes
+      assert other_config.replicas == 1
+    end
+  end
+
+  describe "thin_volumes?/1" do
+    test "marks only enrolled node-local regions as thin-capable, leaving their storage unchanged" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> [] end)
+      before = Regions.get("eu-west")
+      refute Regions.thin_volumes?(before)
+
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west", "hetzner-staging-runners"] end)
+      region = Regions.get("eu-west")
+
+      assert Regions.thin_volumes?(region)
+      assert region.provisioner_config.storage_class == before.provisioner_config.storage_class
+      assert Regions.disk_resource(region) == Regions.disk_resource(before)
+      assert region.provisioner_config.replicas == before.provisioner_config.replicas
+      refute Regions.thin_volumes?(Regions.get("us-east"))
+      refute Regions.thin_volumes?(Regions.get("hetzner-staging-runners"))
+    end
+
+    test "an enrolled region selects every account without reading the flag, and only that region" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.Environment, :kura_thin_enrolled_region_ids, fn -> ["us-central"] end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+      account = %Tuist.Accounts.Account{id: 42}
+
+      enrolled = Regions.get("us-central")
+      assert Regions.thin_volumes?(enrolled)
+      assert Regions.thin_volumes?(enrolled, account)
+
+      capable = Regions.get("eu-west")
+      assert Regions.thin_volumes?(capable)
+      refute Regions.thin_volumes?(capable, account)
+      refute Map.has_key?(capable.provisioner_config, :thin_enrolled)
+
+      refute Regions.thin_volumes?(Regions.get("us-east"), account)
+
+      reject(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, 1)
+      assert Regions.thin_volumes?(enrolled, account)
+    end
+
+    test "combines with LVM enrollment" do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      region = Regions.get("eu-west")
+
+      assert Regions.thin_volumes?(region)
+      assert region.provisioner_config.storage_class == "kura-lvm-nvme"
+    end
+  end
+
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
@@ -134,7 +222,7 @@ defmodule Tuist.Kura.RegionsTest do
 
     test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["16Gi", "8Gi", "8Gi"]
+      assert claims == ["16Gi", "6Gi", "6Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
@@ -179,7 +267,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       for plan <- [:enterprise, :pro, :air, :open_source] do
         {claim_gib, "Gi"} = Integer.parse(Regions.storage_profile(plan).claim_size)
-        staging = min(div(claim_gib * gib, 2), 8 * gib)
+        staging = (claim_gib * gib) |> div(8) |> min(8 * gib) |> max(2 * gib)
         ring = div((claim_gib * gib - staging - 512 * 1024 * 1024) * 97, 100)
 
         assert ring >= kura_ring_floor * 5 / 4,
@@ -592,24 +680,9 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "private runner-cache regions" do
-    test "the scaleway runner region is registered as private" do
-      assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
-      assert scw_config.private == true
-      assert scw_config.storage_class == "scw-local-nvme"
-      assert scw_config.replicas == 2
-
-      # The ring derives from the account's pinned claim, without a fixed
-      # region-wide budget or an envelope that bypasses measured sizing.
-      assert scw_config.storage_size == "50Gi"
-      assert scw_config.disk_envelope_size == nil
-      assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
-      refute Map.has_key?(scw_config, :public_host_template)
-      assert scw_config.ingress_class_name == "kura-runners"
-      assert scw_config.private_host_template =~ "-runners"
-      refute Map.has_key?(scw_config, :rollout_policy)
-
-      # The retired Hetzner entry remains fetchable only so old resources can
-      # be deleted. It is not an available serving region.
+    test "only the rack sites serve; the retired regions remain for teardown" do
+      # The retired entries remain fetchable only so old resources can be
+      # deleted, which needs the cluster and node pool they were created on.
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
                "scw-fr-par-runners",
                "ber1-runners",
@@ -618,7 +691,24 @@ defmodule Tuist.Kura.RegionsTest do
              ]
 
       assert Regions.retired?(Regions.get("hetzner-staging-runners"))
-      refute Regions.retired?(Regions.get("scw-fr-par-runners"))
+      assert Regions.retired?(Regions.get("scw-fr-par-runners"))
+      refute Regions.retired?(Regions.get("ber1-runners"))
+      refute Regions.retired?(Regions.get("larch-runners"))
+
+      assert %{cluster_id: "scw-fr-par", node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}} =
+               Regions.get("scw-fr-par-runners").provisioner_config
+    end
+
+    test "a retired region is never available, even when the gate still names it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+      end)
+
+      assert Enum.map(Regions.available(), & &1.id) == ["eu-west", "ber1-runners"]
+      refute Regions.available?("scw-fr-par-runners")
     end
   end
 
@@ -658,7 +748,7 @@ defmodule Tuist.Kura.RegionsTest do
 
   describe "private?/1" do
     test "is true only for private regions" do
-      assert Regions.private?(Regions.get("scw-fr-par-runners"))
+      assert Regions.private?(Regions.get("ber1-runners"))
       refute Regions.private?(Regions.get("eu-west"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
@@ -678,12 +768,16 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "serves_runner_platform?/2" do
-    test "scaleway region serves only the co-located macOS fleet" do
-      scw = Regions.get("scw-fr-par-runners")
+    test "a rack site region serves only the macOS fleet racked beside it" do
+      ber1 = Regions.get("ber1-runners")
 
-      assert scw.runner_platforms == [:macos]
-      assert Regions.serves_runner_platform?(scw, :macos)
-      refute Regions.serves_runner_platform?(scw, :linux)
+      assert ber1.runner_platforms == [:macos]
+      assert Regions.serves_runner_platform?(ber1, :macos)
+      refute Regions.serves_runner_platform?(ber1, :linux)
+    end
+
+    test "a retired region serves no runner platform" do
+      refute Regions.serves_runner_platform?(Regions.get("scw-fr-par-runners"), :macos)
     end
 
     test "no region serves the linux fleet" do
@@ -693,9 +787,8 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "runner gateway readiness is observed independently of the image rollout" do
-      region = Regions.get("scw-fr-par-runners")
+      region = Regions.get("ber1-runners")
       assert region.provisioner_config.data_plane == :private_gateway
-      assert region.provisioner_config.expose_node_port
       assert Regions.observed_private_endpoint?(region)
       refute Regions.observed_private_endpoint?(Regions.get("eu-west"))
       refute Regions.observed_private_endpoint?(nil)
@@ -705,7 +798,7 @@ defmodule Tuist.Kura.RegionsTest do
       for {environment, suffix} <- [prod: "", stag: "-staging", can: "-canary"] do
         stub(Tuist.Environment, :env, fn -> environment end)
 
-        assert Regions.get("scw-fr-par-runners").provisioner_config.private_host_template ==
+        assert Regions.get("ber1-runners").provisioner_config.private_host_template ==
                  "{account_handle}-{cluster_id}-runners#{suffix}.kura.tuist.dev"
       end
     end
@@ -721,13 +814,13 @@ defmodule Tuist.Kura.RegionsTest do
     test "excludes private regions a customer cannot pick" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "scw-fr-par-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ber1-runners"] end)
 
       available_ids = Enum.map(Regions.available(), & &1.id)
       selectable_ids = Enum.map(Regions.selectable(), & &1.id)
 
-      assert "scw-fr-par-runners" in available_ids
-      refute "scw-fr-par-runners" in selectable_ids
+      assert "ber1-runners" in available_ids
+      refute "ber1-runners" in selectable_ids
       assert "eu-west" in selectable_ids
     end
   end

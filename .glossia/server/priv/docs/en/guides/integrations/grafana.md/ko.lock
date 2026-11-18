@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "9f9daa5fa64fb071736c49d69076b033ea61efbab99b659af3194d9617a4d239",
+  "hash": "5a7616d1fd2840396c8c7c4d72fc506a4b2a54335c175bb9761b9afc307d9414",
   "hash_tree": {
     "root": {
       "children": [
@@ -142,7 +142,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -161,7 +161,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -190,11 +190,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -283,21 +283,21 @@
             }
           ],
           "details": {},
-          "hash": "b915e35ee273e507ccb301952fd8875c4436e109fac3ab31a6858b35247a6743",
+          "hash": "c86d153b947563def8b15db9285262d8c4151be95b588e12fe5b78bcf92293db",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "9f9daa5fa64fb071736c49d69076b033ea61efbab99b659af3194d9617a4d239",
+      "hash": "5a7616d1fd2840396c8c7c4d72fc506a4b2a54335c175bb9761b9afc307d9414",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/grafana.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "962736a61b23ee785ba207380f2afe5eb82941b74007fae443eec6ba02dfa6dd",
+  "output_hash": "53d8070b185e76f7ce642144a65292d4cbf7ea7dcb607fc56ce84d51e9472cfb",
   "output_path": "server/priv/docs/ko/guides/integrations/grafana.md",
   "protection_state": "recorded",
   "provider": "",
@@ -318,8 +318,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
+  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
   "source_path": "server/priv/docs/en/guides/integrations/grafana.md",
-  "translated_at": "2026-11-02T15:56:15.210673Z",
-  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
+  "translated_at": "2026-11-06T22:24:08.657908Z",
+  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
 }

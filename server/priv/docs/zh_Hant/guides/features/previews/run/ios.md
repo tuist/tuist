@@ -7,7 +7,7 @@
 ---
 # 使用 iPhone App 執行預覽
 
-從 App Store 安裝 [Tuist iOS App](https://apps.apple.com/us/app/tuist/id6748460335)，即可尋找並存取你的 Apple 預覽。發布流程的簽署與裝置資格要求仍然適用。
+安裝 [App Store 上的 Tuist iOS App](https://apps.apple.com/us/app/tuist/id6748460335)，即可尋找並存取你的 Apple 預覽。發布流程的簽署與裝置資格要求仍然適用。
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -17,19 +17,19 @@
     </a>
 </div>
 
-依 App 名稱或版本說明搜尋，然後選擇軌道以篩選預覽。選擇 **全部** 可瀏覽所有軌道，包括未指派軌道的預覽。開啟預覽以閱讀完整的版本說明。
+依 App 名稱或版本說明搜尋，然後選擇軌道以篩選預覽。選擇 **全部** 可瀏覽所有軌道，包含未指定軌道的預覽。開啟預覽即可查看完整版本說明。
 
 ## 用戶端與伺服器相容性 {#client-and-server-compatibility}
 
-保持 Tuist App 為最新版本。若你自行託管 Tuist，請更新伺服器以使用軌道篩選與版本說明功能。在較舊的伺服器上，你仍可瀏覽未經篩選的預覽。
+保持 Tuist App 為最新版本。若你自行託管 Tuist，請更新伺服器以支援軌道篩選與版本說明。在較舊的伺服器上，你仍可瀏覽未篩選的預覽。
 
 ## App 內更新通知 {#in-app-update-notifications}
 
-[Tuist SDK](https://github.com/tuist/sdk) 讓你的 Apple App 能夠偵測較新的預覽並通知測試人員。它會在相同的 **預覽軌道** 內檢查更新。對於使用 `tuist share --track` 發布的預覽，系統會使用該明確指定的軌道。若未指定軌道，則使用 Git 分支；因此，從 `main` 建置的預覽只會通知來自 `main` 的較新預覽。
+[Tuist SDK](https://github.com/tuist/sdk) 讓你的 Apple App 能偵測較新的預覽並通知測試人員。它會在相同的 **預覽軌道** 內檢查更新。對於使用 `tuist share --track` 發布的預覽，會使用該明確指定的軌道。若未指定軌道，則使用 git 分支，因此從 `main` 建置的預覽只會通知來自 `main` 的較新預覽。
 
 ### 安裝 {#sdk-installation}
 
-將 Tuist SDK 新增為 Swift Package 相依性：
+將 Tuist SDK 加入為 Swift Package 相依性：
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))

@@ -103,7 +103,24 @@ struct CargoCacheDetailsReportTests {
         #expect(details["truncated"] as? Bool == true)
     }
 
-    private func write(_ rows: [[String: Any]], root: URL) throws {
+    @Test(.inTemporaryDirectory)
+    func readsOneFilePerCompilationWithoutTruncatingOrdinaryBuilds() throws {
+        let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
+        for index in 0 ..< 1100 {
+            let hash = String(index, radix: 16)
+            let key = "blake3:" + String(repeating: "0", count: 64 - hash.count) + hash + ":123"
+            try write(
+                [["record": "task", "key": key, "name": "crate\(index)", "kind": "rust", "status": "miss"]],
+                root: root,
+                name: "\(index)"
+            )
+        }
+        let details = try #require(CargoCacheDetailsReport.read(root: root))
+        #expect((details["tasks"] as? [[String: Any]])?.count == 1100)
+        #expect(details["truncated"] as? Bool == false)
+    }
+
+    private func write(_ rows: [[String: Any]], root: URL, name: String = "1") throws {
         let directory = root.appendingPathComponent("cache-details")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var data = Data()
@@ -111,6 +128,6 @@ struct CargoCacheDetailsReportTests {
             data.append(try JSONSerialization.data(withJSONObject: row))
             data.append(contentsOf: [UInt8(0x0A)])
         }
-        try data.write(to: directory.appendingPathComponent("1.ndjson"))
+        try data.write(to: directory.appendingPathComponent("\(name).ndjson"))
     }
 }

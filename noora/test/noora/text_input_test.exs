@@ -5,6 +5,32 @@ defmodule Noora.TextInputTest do
 
   alias Noora.TextInput
 
+  test "visible label is associated with the explicit input ID" do
+    html =
+      render_component(&TextInput.text_input/1, %{
+        id: "api-url",
+        name: "api_url",
+        label: "API URL"
+      })
+
+    assert html =~ ~r/<label\b[^>]*\bfor="api-url"[^>]*>\s*API URL\s*<\/label>/
+    assert html =~ ~r/<input\b[^>]*\bid="api-url"/
+  end
+
+  test "visible label is associated with the generated input ID" do
+    html =
+      render_component(&TextInput.text_input/1, %{
+        name: "api_url",
+        label: "API URL"
+      })
+
+    assert [_, id] = Regex.run(~r/<input\b[^>]*\bid="([^"]+)"/, html)
+    assert id != ""
+
+    assert html =~
+             ~r/<label\b[^>]*\bfor="#{Regex.escape(id)}"[^>]*>\s*API URL\s*<\/label>/
+  end
+
   test "suffix help opens inward from the right edge and is keyboard-focusable" do
     html =
       render_component(&TextInput.text_input/1, %{

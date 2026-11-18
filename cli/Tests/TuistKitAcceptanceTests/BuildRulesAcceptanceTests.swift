@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -10,6 +11,7 @@ import XcodeProj
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct BuildRulesAcceptanceTests {
     @Test(.withFixture("generated_app_with_build_rules"), .inTemporaryDirectory)
     func app_with_build_rules() async throws {

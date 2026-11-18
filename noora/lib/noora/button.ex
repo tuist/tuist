@@ -5,35 +5,30 @@ defmodule Noora.Button do
 
   use Phoenix.Component
 
-  @button_contract_path Path.expand("../../components/button.json", __DIR__)
-  @external_resource @button_contract_path
-  @button_contract @button_contract_path |> File.read!() |> Jason.decode!()
-  @button_attributes Map.new(@button_contract["attributes"], &{&1["name"], &1})
-  @variant_contract Map.fetch!(@button_attributes, "variant")
-  @size_contract Map.fetch!(@button_attributes, "size")
-  @label_contract Map.fetch!(@button_attributes, "label")
-  @icon_only_contract Map.fetch!(@button_attributes, "icon-only")
-  @button_variants @variant_contract["values"]
-  @button_sizes @size_contract["values"]
-  @default_variant @variant_contract["default"]
-  @default_size @size_contract["default"]
-  @button_class @button_contract["className"]
+  @button_variants ~w(primary secondary destructive)
+  @ghost_button_variants ~w(primary secondary destructive outline)
+  @button_sizes ~w(small medium large)
+  @default_variant "primary"
+  @default_size "large"
+  @variant_doc "Controls the visual emphasis and semantic intent."
+  @size_doc "Controls the button dimensions and text size."
 
   def button_variants, do: @button_variants
+  def ghost_button_variants, do: @ghost_button_variants
   def button_sizes, do: @button_sizes
 
-  attr(:label, :string, default: @label_contract["default"], doc: @label_contract["description"])
+  attr(:label, :string, default: "", doc: "The text displayed in the button.")
 
   attr(:variant, :string,
     values: @button_variants,
     default: @default_variant,
-    doc: @variant_contract["description"]
+    doc: @variant_doc
   )
 
   attr(:size, :string,
     values: @button_sizes,
     default: @default_size,
-    doc: @size_contract["description"]
+    doc: @size_doc
   )
 
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
@@ -41,8 +36,8 @@ defmodule Noora.Button do
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
 
   attr(:icon_only, :boolean,
-    default: @icon_only_contract["default"],
-    doc: @icon_only_contract["description"]
+    default: false,
+    doc: "Uses the inner block as the entire button content. Provide an `aria-label`."
   )
 
   slot(:icon_left, doc: "Icon displayed on the left of an item")
@@ -99,15 +94,15 @@ defmodule Noora.Button do
   end
 
   attr(:variant, :string,
-    values: @button_variants,
+    values: @ghost_button_variants,
     default: @default_variant,
-    doc: @variant_contract["description"]
+    doc: "#{@variant_doc} Outline is secondary with a border."
   )
 
   attr(:size, :string,
     values: @button_sizes,
     default: @default_size,
-    doc: @size_contract["description"]
+    doc: @size_doc
   )
 
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
@@ -129,11 +124,11 @@ defmodule Noora.Button do
 
   attr(:rest, :global, include: ~w(phx-click disabled target rel))
 
-  def neutral_button(assigns) do
+  def ghost_button(assigns) do
     ~H"""
     <%= if @href || @navigate || @patch do %>
       <.link
-        class="noora-neutral-button"
+        class="noora-ghost-button"
         href={@href}
         navigate={@navigate}
         patch={@patch}
@@ -152,7 +147,7 @@ defmodule Noora.Button do
       </.link>
     <% else %>
       <button
-        class="noora-neutral-button"
+        class="noora-ghost-button"
         data-variant={@variant}
         data-size={@size}
         data-with-label={!is_nil(@label)}
@@ -175,13 +170,13 @@ defmodule Noora.Button do
   attr(:variant, :string,
     values: @button_variants,
     default: @default_variant,
-    doc: @variant_contract["description"]
+    doc: @variant_doc
   )
 
   attr(:size, :string,
     values: @button_sizes,
     default: @default_size,
-    doc: @size_contract["description"]
+    doc: @size_doc
   )
 
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
@@ -218,5 +213,5 @@ defmodule Noora.Button do
     """
   end
 
-  defp button_class, do: @button_class
+  defp button_class, do: "noora-button"
 end

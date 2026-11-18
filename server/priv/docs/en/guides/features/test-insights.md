@@ -2,12 +2,12 @@
 {
   "title": "Test Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Identify flaky and slow tests in Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Test Insights."
+  "description": "Identify flaky and slow tests in Xcode, Gradle, Bazel, Elixir, Rust, and Once projects with Tuist Test Insights."
 }
 ---
 # Test Insights {#test-insights}
 
-Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports Xcode, Gradle, Bazel, Elixir, and Rust.
+Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports Xcode, Gradle, Bazel, Elixir, Rust, and Once. Available results and timings depend on your runner. To follow which code your tests execute on supported build systems, see <.localized_link href="/guides/features/test-code-coverage">Code Coverage</.localized_link>. For guidance on [slow tests](https://tuist.dev/solutions/slow-tests) and [flaky tests](https://tuist.dev/solutions/flaky-tests), see the solution guides.
 
 <.home_cards>
   <.home_card
@@ -34,5 +34,10 @@ Use Test Insights to monitor your test suite's health by identifying slow tests,
     title="Rust"
     details="Track Cargo test outcomes, suite durations, and doctests with your usual test command."
     link="/guides/features/test-insights/rust"
+/>
+  <.home_card
+    title="Once"
+    details="Track reported test targets, suites, cases, failures, and retry attempts through Once's native integration."
+    link="/guides/features/test-insights/once"
 />
 </.home_cards>

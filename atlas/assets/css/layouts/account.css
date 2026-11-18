@@ -55,7 +55,7 @@
 [data-part="account-settings-page"] {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-7);
+  gap: var(--noora-spacing-6);
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-body-medium);
 
@@ -79,41 +79,163 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > [data-part="header"] > [data-part="text"] > [data-part="description"],
-  & [data-part="account-profile"] > [data-part="description"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-medium);
-  }
-
-  & [data-part="profile-details"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: var(--noora-spacing-7);
-    margin: 0 0 var(--noora-spacing-6);
-    font: var(--noora-font-body-medium);
-  }
-
-  & [data-part="profile-field"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-3);
-  }
-
-  & [data-part="profile-value"] {
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
     margin: 0;
-    overflow-wrap: anywhere;
     color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
   }
 
-  & [data-part="coding-settings-form"] {
+  & > [data-part="footnote"] {
+    margin: 0;
+    max-width: 720px;
+    color: var(--noora-surface-label-tertiary);
+    font: var(--noora-font-body-small);
+  }
+
+  /* Settings sections follow the Tuist dashboard: a title and explanation on
+     the left, the state and controls on the right, actions aligned to the end. */
+  & [data-part="settings-sections"] {
     display: flex;
     flex-direction: column;
-    align-items: stretch;
-    gap: var(--noora-spacing-5);
-    max-width: 560px;
+    gap: var(--noora-spacing-7);
+  }
 
-    & > button { align-self: flex-start; }
-    & > label { font: var(--noora-font-weight-medium) var(--noora-font-body-medium); }
-    & > p { margin: 0; color: var(--noora-surface-label-secondary); }
+  & [data-part="settings-section"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8);
+    border-radius: var(--noora-radius-8);
+
+    @media (max-width: 768px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+
+        & > [data-part="icon"] {
+          display: flex;
+          width: var(--noora-icon-size-large);
+          height: var(--noora-icon-size-large);
+          color: var(--noora-surface-label-primary);
+
+          & > svg {
+            width: 100%;
+            height: 100%;
+          }
+        }
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > .noora-link-button {
+        margin-top: var(--noora-spacing-3);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      min-width: 0;
+      margin: 0;
+    }
+
+    & [data-part="connection-row"] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--noora-spacing-5);
+      padding-bottom: var(--noora-spacing-5);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+
+      & > [data-part="account"] {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+
+    & [data-part="field"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
+
+      & > :is(label, dt) {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-medium);
+      }
+    }
+
+    & [data-part="draft"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      margin: 0;
+    }
+
+    & [data-part="draft-body"] {
+      margin: 0;
+      max-height: 24rem;
+      overflow: auto;
+      padding: var(--noora-spacing-4);
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-secondary);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    & [data-part="arguments"] {
+      margin: 0;
+      max-height: 24rem;
+      overflow: auto;
+      padding: var(--noora-spacing-4);
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-secondary);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-code-small);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    & [data-part="hint"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & [data-part="actions"] {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: var(--noora-spacing-4);
+    }
   }
 }

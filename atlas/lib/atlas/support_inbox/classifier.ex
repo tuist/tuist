@@ -16,8 +16,8 @@ defmodule Atlas.SupportInbox.Classifier do
       the decision on the thread so the notifier can route it.
 
   Confident no-action decisions also resolve fresh, untouched threads.
-  The notification worker reads the persisted classification to route
-  the inbound to the filtered Slack channel.
+  The notification worker reads the persisted classification and only
+  posts inbound that needs action to `#support`.
   """
 
   import Ecto.Query, only: [from: 2]

@@ -11,6 +11,7 @@ struct OrganizationInviteServiceTests {
     private let createOrganizationInviteService: MockCreateOrganizationInviteServicing
     private let subject: OrganizationInviteService
     private let configLoader: MockConfigLoading
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let serverURL: URL
 
     init() {
@@ -18,8 +19,10 @@ struct OrganizationInviteServiceTests {
         configLoader = MockConfigLoading()
         serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
+        given(serverEnvironmentService).url(configServerURL: .value(serverURL)).willReturn(serverURL)
         subject = OrganizationInviteService(
             createOrganizationInviteService: createOrganizationInviteService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
     }

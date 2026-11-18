@@ -10,6 +10,8 @@ public struct MachineMetricSample: Codable, Sendable, Equatable {
     public let networkBytesOut: Int
     public let diskBytesRead: Int
     public let diskBytesWritten: Int
+    public let diskTotalBytes: Int?
+    public let diskAvailableBytes: Int?
 
     public init(
         timestamp: Double,
@@ -19,7 +21,9 @@ public struct MachineMetricSample: Codable, Sendable, Equatable {
         networkBytesIn: Int,
         networkBytesOut: Int,
         diskBytesRead: Int,
-        diskBytesWritten: Int
+        diskBytesWritten: Int,
+        diskTotalBytes: Int? = nil,
+        diskAvailableBytes: Int? = nil
     ) {
         self.timestamp = timestamp
         self.cpuUsagePercent = cpuUsagePercent
@@ -29,5 +33,7 @@ public struct MachineMetricSample: Codable, Sendable, Equatable {
         self.networkBytesOut = networkBytesOut
         self.diskBytesRead = diskBytesRead
         self.diskBytesWritten = diskBytesWritten
+        self.diskTotalBytes = diskTotalBytes
+        self.diskAvailableBytes = diskAvailableBytes
     }
 }

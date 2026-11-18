@@ -2,3 +2,6 @@
 replicas: 1
 lifecycle:
   expirationDays: 3
+actionsCache:
+  bucket: actions-cache
+  maxGB: 50

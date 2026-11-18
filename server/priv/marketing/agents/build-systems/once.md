@@ -1,12 +1,12 @@
 # Tuist with Once
 
-Tuist and [Once](https://buildonce.dev/) make scripts cacheable and bring caching to build systems that do not support it natively, without rewriting project sources or native build definitions. Once support in Tuist is currently in canary, with remote execution coming soon. Shared action results and live run/action reporting bring these workflows into the same productivity platform as Tuist's Xcode, Gradle, Bazel, and Mix integrations.
+Tuist and [Once](https://buildonce.dev/) make scripts cacheable and bring caching to build systems that do not support it natively, without rewriting project sources or native build definitions. Once support in Tuist is currently in canary; remote execution requires an enabled account and available capacity. Shared action results and live run/action reporting bring these workflows into the same productivity platform as Tuist's Xcode, Gradle, Bazel, and Mix integrations.
 
 ## One productivity platform, native depth
 
 Embracing build-system diversity includes new action models, not just today's established toolchains. We believe Tuist is the best choice for organizations seeking one productivity platform across their build systems; the canary Once integration extends that direction rather than introducing a disconnected productivity product.
 
-For Once, native depth means making existing work reusable, even when its build system has no native remote-cache integration. Keep the project and toolchain; Once adds the action contract, Tuist shares compatible results, and live reporting exposes the work as it happens. Remote execution is coming soon to extend that model from reusing work to running it elsewhere. See the [cross-build-system stance](/marketing-markdown/build-systems) for why one platform should embrace these workflows, not require a build-system migration.
+For Once, native depth means making existing work reusable, even when its build system has no native remote-cache integration. Keep the project and toolchain; Once adds the action contract, Tuist shares compatible results, and live reporting exposes the work as it happens. Eligible graph command actions can also run on compatible Linux remote workers. See the [cross-build-system stance](/marketing-markdown/build-systems) for why one platform should embrace these workflows, not require a build-system migration.
 
 ## What Once already does
 
@@ -19,8 +19,8 @@ Once keeps the underlying compilers and SDKs. Its local cache works without a re
 ## How Tuist augments it
 
 - **Reuse action results across people and environments.** The [Tuist provider](https://buildonce.dev/docs/guide/infrastructure/tuist) connects Once's declared actions to a shared cache. A developer, CI runner, or agent environment can restore a compatible result produced on another machine instead of only benefiting from its own local cache.
-- **Extend acceleration beyond native cache integrations.** Scripts and build systems without a native remote cache can use the same shared action-result infrastructure. Remote execution through the Tuist integration is coming soon, extending the workflow without requiring changes to project sources or native build definitions.
-- **Follow work live.** Once reports ordered run/action events to Tuist and prints a dashboard link as a run starts. The live view exposes recorded progress, cache decisions, and captured output; Tuist's integration distinguishes actions within the same target.
+- **Extend acceleration beyond native cache integrations.** Scripts and build systems without a native remote cache can use the same shared action-result infrastructure. [Remote execution](/en/docs-markdown/guides/features/runners/once) runs eligible graph command actions on `linux/amd64` workers for accounts with execution enabled and capacity. It requires a compatible Once client/server, the advertised worker image, and actions prepared for that environment.
+- **Follow work live.** Once reports ordered run/action events to Tuist and prints a dashboard link as a run starts. The live view exposes recorded progress, cache decisions, and reported structured action errors; use CI logs for full command output. Tuist does not ingest Once's raw action log stream.
 - **Use authenticated team infrastructure.** The provider binds the repository to a Tuist account/project in `once.toml`, with developer login and documented token or OIDC automation flows. This is independent of whether CI runs on Tuist Runners.
 
 Project first, environment second still applies: improve the action boundaries and reuse compatible outputs before moving cache misses to larger or remote machines.
@@ -45,6 +45,6 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 ## Sources and review
 
-Written by Tuist. Sources reviewed on **2026-10-09**: [Once](https://buildonce.dev/), its [Tuist provider](https://buildonce.dev/docs/guide/infrastructure/tuist), [connection guide](https://buildonce.dev/docs/guide/infrastructure/connect), [script caching contract](https://buildonce.dev/docs/guide/scripted/caching), and [execution-provider guide](https://buildonce.dev/docs/guide/infrastructure/remote-execution). The canary status and upcoming remote execution describe Tuist's rollout direction.
+Written by Tuist. Sources reviewed on **2026-11-07**: [Once](https://buildonce.dev/), its [Tuist provider](https://buildonce.dev/docs/guide/infrastructure/tuist), [connection guide](https://buildonce.dev/docs/guide/infrastructure/connect), [script caching contract](https://buildonce.dev/docs/guide/scripted/caching), [execution-provider guide](https://buildonce.dev/docs/guide/infrastructure/remote-execution), and Tuist's [Once execution guide](/en/docs-markdown/guides/features/runners/once). Canary support and account-enabled execution are distinct availability conditions.
 
 [All build systems](/marketing-markdown/build-systems) · [Tuist cache infrastructure](/marketing-markdown/cache)

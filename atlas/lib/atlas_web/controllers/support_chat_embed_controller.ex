@@ -52,7 +52,7 @@ defmodule AtlasWeb.SupportChatEmbedController do
                   /* Noora's light-border-default shadow (token wins when the host
                      page defines it), plus two soft drop shadows for depth. */
                   box-shadow:
-                    var(--noora-light-border-default,
+                    var(--noora-border-small-default,
                       0 1px 1px 0 oklch(16.2% 0 0 / .05),
                       0 0 0 1px oklch(31.8% 0.011 248.2 / .08),
                       0 1px 1px 0 oklch(31.8% 0.011 248.2 / .1)),
@@ -135,7 +135,7 @@ defmodule AtlasWeb.SupportChatEmbedController do
                 [data-part="panel"] {
                   background: var(--noora-surface-background-primary, light-dark(#fff, #111));
                   box-shadow:
-                    var(--noora-light-border-default,
+                    var(--noora-border-small-default,
                       0 1px 1px 0 light-dark(oklch(16.2% 0 0 / .05), oklch(16.2% 0 0 / .3)),
                       0 0 0 1px light-dark(oklch(31.8% 0.011 248.2 / .08), oklch(54.9% 0 0 / .45)),
                       0 1px 1px 0 light-dark(oklch(31.8% 0.011 248.2 / .1), oklch(0% 0 0 / .3))),
@@ -367,9 +367,9 @@ defmodule AtlasWeb.SupportChatEmbedController do
                 }
 
                 [data-part="trigger"]:focus-visible {
-                  box-shadow: var(--noora-button-border-primary-focus,
-                    0 0 0 1px oklch(99.4% 0 0),
-                    0 0 0 2.5px oklch(53.2% 0.276 286.9),
+                  box-shadow: var(--noora-button-border-focus,
+                    0 0 0 1.5px oklch(99.4% 0 0),
+                    0 0 0 3px oklch(53.2% 0.276 286.9),
                     0 1px 0 0 oklch(100% 0 0 / .2) inset,
                     0 1px 1px 0 oklch(31.8% 0.011 248.2 / .12),
                     0 0 0 1px oklch(46.9% 0.27 286.9 / .9),

@@ -1,0 +1,6 @@
+dependencies:
+- name: openobserve
+  repository: https://charts.openobserve.ai
+  version: 1.1.4
+digest: sha256:4bddc3b1f7f5aec31e1d05f312293f9b5d48fa9b9517062d194cf23ea9f8feed
+generated: "2026-11-10T13:43:42.193536671Z"

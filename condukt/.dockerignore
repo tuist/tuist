@@ -1,0 +1,16 @@
+.git
+.github
+.superconductor
+artifacts
+dist
+target
+packages/condukt/target
+cli/_build
+cli/deps
+cli/burrito_out
+web/_build
+web/deps
+packages/condukt/generated
+web/priv/static/assets
+web/priv/static/cache_manifest.json
+web/priv/static/condukt

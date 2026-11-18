@@ -1,19 +1,19 @@
 .noora-filter {
   display: flex;
   align-items: center;
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-3);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-1) var(--noora-spacing-3);
 
   & > :not(:first-child) {
-    margin-left: var(--noora-spacing-3);
+    margin-inline-start: var(--noora-spacing-3);
   }
 
   & > :not(:last-child) {
-    border-right: 1px solid;
+    border-inline-end: 1px solid;
     border-color: var(--noora-surface-border-primary);
-    padding-right: var(--noora-spacing-3);
+    padding-inline-end: var(--noora-spacing-3);
   }
 
   & [data-part="label"] {

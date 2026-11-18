@@ -26,6 +26,7 @@ on:
       - infra/certificate-trust/pem-store.sh
       - tuist_common/**
       - noora/**
+      - condukt/**
       - mise/tasks/server/**
       - .github/workflows/server-release.yml
       - .github/workflows/server-rc.yml

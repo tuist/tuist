@@ -3,6 +3,15 @@ defmodule TuistWeb.Utilities.QueryTest do
 
   alias TuistWeb.Utilities.Query
 
+  describe "sort_order/2" do
+    test "maps only asc and desc to atoms and falls back to the default otherwise" do
+      assert Query.sort_order("asc", :desc) == :asc
+      assert Query.sort_order("desc", :asc) == :desc
+      assert Query.sort_order("ASC", :desc) == :desc
+      assert Query.sort_order(nil, :asc) == :asc
+    end
+  end
+
   describe "put/3" do
     test "puts query parameter in encoded query string" do
       assert Query.put("foo=bar", "baz", "qux") == "baz=qux&foo=bar"

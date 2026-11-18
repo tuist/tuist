@@ -2,9 +2,10 @@ name: Gradle Release
 
 # Releases the Tuist Gradle plugin. Extracted from release.yml: the plugin is a
 # client artifact independent of the server, so it gets its own lane and is
-# never queued behind a server deploy. Gradle releases by commit scope
-# (feat(gradle) etc., filtered in gradle/cliff.toml), so the workflow runs on
-# gradle source changes and release:check decides whether to publish.
+# never queued behind a server deploy. Gradle releases conventional commits
+# that change gradle/, whatever their scope (gradle/cliff.toml with the
+# include path from mise/tasks/release/components.json), so the workflow runs
+# on gradle source changes and release:check decides whether to publish.
 
 on:
   push:
@@ -148,9 +149,9 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
-            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
+            RELEASE_NOTES=$(git cliff --include-path "gradle/**/*" --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
           else
-            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
+            RELEASE_NOTES=$(git cliff --include-path "gradle/**/*" --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
           fi
 
           if [ -z "$(echo "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then

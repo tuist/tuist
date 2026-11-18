@@ -12,7 +12,6 @@ extension Client {
     static let idempotentServerOperationIDs: Set<String> = [
         "authenticate",
         "cleanCache",
-        "clearRunnerVolume",
         "completeAnalyticsArtifactsUploads",
         "completeAnalyticsArtifactsUploadsProject",
         "completeCommitCoverage",
@@ -21,8 +20,11 @@ extension Client {
         "createCommandEvent",
         "createCoverageUpload",
         "createRunnerShellSession",
+        // Each call presigns a new object; one a lost answer leaves unused is deleted with the rest.
+        "createSandboxUpload",
         "createStressPlan",
         "createTest",
+        "deleteRunnerVolume",
         "exchangeOIDCToken",
         "findMissingCommitListings",
         "findMissingCommits",
@@ -55,13 +57,14 @@ extension Client {
     }
 
     /// Tuist client for authenticated sessions
+    /// With `streaming`, response bodies arrive as the server sends them; see `TuistURLSessionTransport`.
     public static func authenticated(
         serverURL: URL, authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
-        networkTrustedPublishing: Bool = false
+        networkTrustedPublishing: Bool = false, streaming: Bool = false
     ) -> Client {
         .init(
             serverURL: serverURL,
-            transport: TuistURLSessionTransport(),
+            transport: TuistURLSessionTransport(streaming: streaming),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 serverRetryMiddleware,
                 RequestIdMiddleware(),

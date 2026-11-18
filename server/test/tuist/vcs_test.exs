@@ -27,6 +27,8 @@ defmodule Tuist.VCSTest do
     {"Authorization", "token github_token"}
   ]
 
+  @run_report_footer "\n<sub>Reported by [Tuist](https://tuist.dev), faster builds and reliable tests for Xcode, Gradle, Bazel, and more.</sub>\n"
+
   setup do
     stub(GitHub.App, :get_installation_token, fn _installation_id, _opts ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
@@ -128,6 +130,190 @@ defmodule Tuist.VCSTest do
       }
 
       assert VCS.ci_run_url(ci_metadata) == nil
+    end
+  end
+
+  describe "get_run_report/1" do
+    setup do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        project: project,
+        git_ref: "refs/heads/reused",
+        git_commit_sha: "1234567890abcdef",
+        git_remote_url_origin: nil,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}/qr-code.svg" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test-runs/#{test_run.id}" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end
+      }
+
+      %{project: project, params: params}
+    end
+
+    test "matches every result category by exact project and SHA independently of refs", %{
+      project: project,
+      params: params
+    } do
+      other_project = ProjectsFixtures.project_fixture()
+      previous_sha = "abcdef1234567890"
+
+      results =
+        [
+          {:branch, project, params.git_commit_sha, params.git_ref, "Branch"},
+          {:head, project, params.git_commit_sha, "refs/pull/1/head", "Shared"},
+          {:merge, project, params.git_commit_sha, "refs/pull/1/merge", "Merge"},
+          {:previous_branch, project, previous_sha, params.git_ref, "Shared"},
+          {:previous_pr, project, previous_sha, "refs/pull/1/head", "Stale"},
+          {:other_project, other_project, params.git_commit_sha, params.git_ref, "Other"}
+        ]
+        |> Enum.with_index()
+        |> Enum.map(fn {{key, result_project, sha, ref, name}, index} ->
+          # Nonmatching results are newer, including a reused name on the old commit.
+          inserted_at = NaiveDateTime.add(~N[2024-04-30 01:00:00], index)
+
+          attrs = [
+            project_id: result_project.id,
+            account_id: result_project.account_id,
+            git_commit_sha: sha,
+            git_ref: ref,
+            inserted_at: inserted_at
+          ]
+
+          preview =
+            AppBuildsFixtures.preview_fixture([project: result_project, display_name: name] ++ attrs)
+
+          {:ok, xcode_test} =
+            RunsFixtures.test_fixture([scheme: "#{name} Xcode", test_modules: []] ++ attrs)
+
+          {:ok, gradle_test} =
+            RunsFixtures.test_fixture([scheme: "#{name} Gradle", build_system: "gradle", test_modules: []] ++ attrs)
+
+          {:ok, xcode_build} = RunsFixtures.build_fixture([scheme: name] ++ attrs)
+          gradle_build_id = GradleFixtures.build_fixture([root_project_name: name] ++ attrs)
+
+          bundle =
+            BundlesFixtures.bundle_fixture(
+              [project: result_project, name: name, git_branch: "reused"] ++
+                Keyword.put(attrs, :inserted_at, DateTime.from_naive!(inserted_at, "Etc/UTC"))
+            )
+
+          urls = [
+            "https://tuist.dev/previews/#{preview.id}",
+            "https://tuist.dev/test-runs/#{xcode_test.id}",
+            "https://tuist.dev/test-runs/#{gradle_test.id}",
+            "https://tuist.dev/build-runs/#{xcode_build.id}",
+            "https://tuist.dev/build-runs/#{gradle_build_id}",
+            "https://tuist.dev/bundles/#{bundle.id}"
+          ]
+
+          {key, urls}
+        end)
+
+      body = VCS.get_run_report(params)
+
+      for {key, urls} <- results, url <- urls do
+        if key in [:branch, :head, :merge] do
+          assert body =~ "](#{url})"
+        else
+          refute body =~ "](#{url})"
+        end
+      end
+
+      for heading <- ["#### Previews 📦", "#### Tests 🧪", "#### Builds 🔨", "#### Bundles 🧰"] do
+        assert body =~ heading
+      end
+
+      assert body =~ "`123456789`"
+      refute body =~ "/commit/"
+      refute body =~ previous_sha
+
+      repository_url = "https://github.com/tuist/tuist"
+      commit_link = "[123456789](#{repository_url}/commit/#{params.git_commit_sha})"
+
+      assert VCS.get_run_report(%{params | git_remote_url_origin: repository_url}) ==
+               String.replace(body, "`123456789`", commit_link)
+
+      assert VCS.get_run_report(Map.delete(params, :git_ref)) == body
+      assert VCS.get_run_report(%{params | git_commit_sha: "no-results-for-this-commit"}) == nil
+
+      # Without a SHA, retain PR head/merge aggregation. Non-Xcode tests keep
+      # their existing latest-commit roll-up rather than mixing commits.
+      ref_params = params |> Map.delete(:git_commit_sha) |> Map.put(:git_ref, "refs/pull/1/merge")
+      ref_body = VCS.get_run_report(ref_params)
+
+      for {key, urls} <- results, {url, index} <- Enum.with_index(urls) do
+        if key in [:head, :merge, :previous_pr] and (index != 2 or key == :previous_pr) do
+          assert ref_body =~ "](#{url})"
+        else
+          refute ref_body =~ "](#{url})"
+        end
+      end
+
+      assert VCS.get_run_report(Map.put(ref_params, :git_commit_sha, nil)) == ref_body
+    end
+
+    test "includes only matching failed and flaky tests without requiring a connected repository", %{
+      project: project,
+      params: params
+    } do
+      for {name, sha, ref, inserted_at} <- [
+            {"current", params.git_commit_sha, "refs/pull/2/head", ~N[2024-04-30 01:00:00]},
+            {"previous", "abcdef1234567890", params.git_ref, ~N[2024-04-30 02:00:00]}
+          ] do
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_ref: ref,
+            git_commit_sha: sha,
+            inserted_at: inserted_at,
+            scheme: "ReportTests",
+            status: "failure",
+            test_modules: []
+          )
+
+        failed_run =
+          RunsFixtures.test_case_run_fixture(
+            project_id: project.id,
+            test_run_id: test_run.id,
+            name: "failed_#{name}",
+            status: "failure"
+          )
+
+        RunsFixtures.test_case_failure_fixture(
+          test_case_run_id: failed_run.id,
+          message: "expected true",
+          path: "Tests/ReportTests.swift",
+          line_number: 42
+        )
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_run_id: test_run.id,
+          name: "flaky_#{name}",
+          status: "success",
+          is_flaky: true
+        )
+      end
+
+      body = VCS.get_run_report(params)
+
+      assert body =~ "#### Failed Tests ❌"
+      assert body =~ "failed_current"
+      assert body =~ "`Tests/ReportTests.swift:42`: expected true"
+      assert body =~ "#### Flaky Tests ⚠️"
+      assert body =~ "flaky_current"
+      refute body =~ "failed_previous"
+      refute body =~ "flaky_previous"
+      refute body =~ "/commit/"
+      refute body =~ "github.com"
+    end
+
+    test "returns nil when there are no results", %{params: params} do
+      assert VCS.get_run_report(params) == nil
+      assert VCS.get_run_report(Map.delete(params, :git_commit_sha)) == nil
     end
   end
 
@@ -462,7 +648,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -555,7 +741,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -636,7 +822,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -703,7 +889,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -765,7 +951,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1331,7 +1517,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1396,7 +1582,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1516,7 +1702,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1669,7 +1855,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1743,7 +1929,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2001,7 +2187,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2066,7 +2252,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2200,7 +2386,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2266,7 +2452,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2328,7 +2514,54 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "omits the Tuist footer on self-hosted instances" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1000,
+        download_size: nil,
+        git_ref: @git_ref,
+        git_commit_sha: @git_commit_sha,
+        inserted_at: ~U[2024-01-01 04:00:00Z]
+      )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~ "#### Bundles 🧰"
+        refute opts[:json].body =~ "Reported by [Tuist]"
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2502,7 +2735,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2612,7 +2845,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2872,7 +3105,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -3125,7 +3358,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)

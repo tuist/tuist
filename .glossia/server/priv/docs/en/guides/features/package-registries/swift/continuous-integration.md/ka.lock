@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "358c65b769b4fce0a31f3eacfe6d243512eb42d3745bde4b9011f3c060824380",
+  "hash": "d0b303faf54323758246933f304e0186f3ca16d22850a45e6fa6107ed02f6f87",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,10 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Continuous Integration (CI) {#continuous-integration-ci}": {
-                  "content_hash": "dc1789e3a990187076ee0611f26710ab55c01b6326ce222d507dd687f6284409"
+                  "content_hash": "55e1820e2d90b120dc712db92b59004a15ae7e41d1c6b4b78a9f59b2b2d7c326"
                 },
-                "### Incremental resolution across environments {#incremental-resolution-across-environments}": {
-                  "content_hash": "250478718e54932b04850d02c7b9c0bb523a4d608c6498b075935ff1a87c708f"
+                "## Incremental resolution across environments {#incremental-resolution-across-environments}": {
+                  "content_hash": "028488b7f86d63efa67b412b049ee8f5325874f1781b921df4ba690744b3c604"
                 },
                 "Preamble": {
                   "content_hash": "301ef2663a37a62bc1100fb409ccffcd00d3be579f8a0b04ca02972df298bc8e"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "eb25946c8eaa1335e9971a3b25ba2ce7fe530deeb3a3283dbc9fc4f87b373a74",
+          "hash": "caf0de456760a97be9c7dbd0525483fb9410f8c2b85b77984e0af47e11593b86",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/package-registries/swift/continuous-integration.md",
           "metadata": {
-            "content_hash": "9dc38d1784579bea16bce9234ec8053465e2eae03bbf3d17de8c016b36ea6776"
+            "content_hash": "e217153a56c78ac877ce9b0b731a80d10c0b780cc755d51043aee806165d58f7"
           }
         },
         {
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -217,21 +217,21 @@
             }
           ],
           "details": {},
-          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
+          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "358c65b769b4fce0a31f3eacfe6d243512eb42d3745bde4b9011f3c060824380",
+      "hash": "d0b303faf54323758246933f304e0186f3ca16d22850a45e6fa6107ed02f6f87",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/package-registries/swift/continuous-integration.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "4bce3bf1d6622cbf43595446d99fc0d0788b7fae4386b41beb940fa72e3fca7b",
+  "output_hash": "9fed24cc35a76257f18570d11475424be9d6569e8add2009d55bb1436058540b",
   "output_path": "server/priv/docs/ka/guides/features/package-registries/swift/continuous-integration.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "224df5a9a809da6fb43951e91d50b2314ac738ba",
+  "source_commit_sha": "ca4feaa61b067aae5ee5a9248c9eaa5c839a90c4",
   "source_path": "server/priv/docs/en/guides/features/package-registries/swift/continuous-integration.md",
-  "translated_at": "2026-10-30T14:26:36.928917Z",
-  "translation_session_id": "01a18d2a-60c1-763a-9c19-b5a583c68084"
+  "translated_at": "2026-11-06T17:59:11.807314Z",
+  "translation_session_id": "01a1b201-9078-74d7-ade6-b43aaf72c649"
 }

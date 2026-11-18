@@ -48,5 +48,17 @@ defmodule Tuist.MCP.Components.Tools.ListProjectsTest do
       assert %{"structuredContent" => %{"projects" => [%{"build_system" => "once"}]}} =
                ListProjects.call(conn, %{})
     end
+
+    test "lists only projects of the scoped account" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      own_project = ProjectsFixtures.project_fixture(account: user.account)
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn = %Plug.Conn{assigns: %{current_subject: user, mcp_account_scope: user.account}}
+
+      assert %{"structuredContent" => %{"projects" => [%{"id" => project_id}]}} = ListProjects.call(conn, %{})
+      assert project_id == own_project.id
+    end
   end
 end

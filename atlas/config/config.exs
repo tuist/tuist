@@ -48,6 +48,11 @@ alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 
+# Atlas uses native model/tool sessions, not the bundled Rust sandboxes.
+# Keep these in the compile config so Once's isolated dependency builds see them too.
+System.put_env("CONDUKT_BASHKIT_DISABLE", "1")
+System.put_env("CONDUKT_MICROSANDBOX_DISABLE", "1")
+
 # Configure the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

@@ -26,12 +26,14 @@ defmodule Tuist.Runners.VolumePlacement do
 
   @doc """
   How many of `peer_count` Nodes hold a repository whose jobs ran at most
-  `peak_concurrency` at a time: one more than that, so the repository's next job
-  finds an idle holder while the others run, and never fewer than two, so one
-  busy or replaced Node does not leave it cold.
+  `peak_concurrency` at a time: half as many again, rounded up, and never fewer
+  than two, so one busy or replaced Node does not leave it cold. Holders also
+  run other repositories' jobs, so a burst as large as the week's peak finds
+  some of them busy; with only one spare holder, such a burst ran on Nodes
+  without a copy and started cold.
   """
   def replicas(peak_concurrency, peer_count) when is_integer(peak_concurrency) and is_integer(peer_count) do
-    (peak_concurrency + 1) |> max(@min_replicas) |> min(peer_count) |> max(0)
+    (peak_concurrency * 3 + 1) |> div(2) |> max(@min_replicas) |> min(peer_count) |> max(0)
   end
 
   # Weighted rendezvous: weight / -ln(u), u uniform in (0, 1) per key and Node.

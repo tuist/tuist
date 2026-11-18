@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ef3a5b5af87e686662bd3e72a3f0ce2edd7e548cbb91c85b2a39f9a9f54d0e4e",
+  "hash": "d970a960f2c21907a2c9780ce7137b299ffe33de51bfd7a2cafff9aed8175827",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Using Tuist with a Swift Package <Badge type=\"warning\" text=\"beta\" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}": {
-                  "content_hash": "6f8e27e8a3a72fa595384e0ef1c368bac7ecb81a76c341eb7f777d06e68bed60"
+                  "content_hash": "18019492a28c7ad55e8de610df186f7e99be54085370c84459d8183040bd2a7b"
                 },
                 "## Using Tuist with a Swift Package {#using-tuist-with-a-swift-package}": {
                   "content_hash": "cff2fd58e9657b13c5eb1d80eb14fe48a1caee1122a8570984471b6dd020c96a"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "542613d3567d98db09828e73106727c6d5df51818b9ec3c3f8a6650ea2ab3ff6",
+          "hash": "754f85072b85d27ea85b2ffe9c1b13f1027dbac07a639b950a0967a27e82a98c",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/adoption/swift-package.md",
           "metadata": {
-            "content_hash": "6a2713a6bdc44b486669d8a4a9392329725d5149e8c5b04971c19fd0991309df"
+            "content_hash": "e2c36537139ed579b2a86eb021172d9c84d75b6f436398ae14aefa42ec142c2d"
           }
         },
         {
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -217,21 +217,21 @@
             }
           ],
           "details": {},
-          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
+          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ef3a5b5af87e686662bd3e72a3f0ce2edd7e548cbb91c85b2a39f9a9f54d0e4e",
+      "hash": "d970a960f2c21907a2c9780ce7137b299ffe33de51bfd7a2cafff9aed8175827",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/adoption/swift-package.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "70920aa3b152f3f332ef77c4f107e78d1cfcfc54781387bcc5aff19406feaff7",
+  "output_hash": "16d683cd792b3f723bb07755182e86556d5f744d1d2f7eae7c51a9b8a514a4eb",
   "output_path": "server/priv/docs/ka/guides/features/projects/adoption/swift-package.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "aaeed04192348d04a09c45c3b067c57b92c475c6",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/adoption/swift-package.md",
-  "translated_at": "2026-10-30T15:01:58.419648Z",
-  "translation_session_id": "01a18d53-6f8f-7683-bfce-9c9617a51ea0"
+  "translated_at": "2026-11-06T18:38:51.894189Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

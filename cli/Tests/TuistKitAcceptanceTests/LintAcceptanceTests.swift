@@ -1,3 +1,4 @@
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistAlert
@@ -6,6 +7,7 @@ import TuistTesting
 @testable import TuistInspectCommand
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct LintAcceptanceTests {
     @Test(.disabled(), .withFixture("generated_ios_app_with_headers"), .withMockedDependencies())
     func ios_app_with_headers() async throws {

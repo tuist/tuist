@@ -223,6 +223,7 @@ public protocol StressNewTestsServicing {
         firstPassFailed: Bool,
         fullHandle: String,
         serverURL: URL,
+        coverage: Bool,
         mutedTests: [TestIdentifier],
         resultBundleDirectory: AbsolutePath?,
         stressPass: @escaping StressNewTestsPass
@@ -256,6 +257,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         firstPassFailed: Bool,
         fullHandle: String,
         serverURL: URL,
+        coverage: Bool,
         mutedTests: [TestIdentifier],
         resultBundleDirectory: AbsolutePath? = nil,
         stressPass: @escaping StressNewTestsPass
@@ -277,7 +279,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
         }
 
         let executed = testSummary.testCases.filter { $0.status != .skipped }
-        await publishGitHistory(fullHandle: fullHandle, serverURL: serverURL)
+        await publishGitHistory(fullHandle: fullHandle, serverURL: serverURL, coverage: coverage)
 
         let plan: Components.Schemas.StressPlan
         do {
@@ -394,7 +396,7 @@ public struct StressNewTestsService: StressNewTestsServicing {
     /// The plan reads which commits the default branch reached, and this run may be the first to have
     /// seen its newest one, so the run's history goes up before the plan is asked for. The checkout is
     /// the one the run is reported from, so the report reuses this collection.
-    private func publishGitHistory(fullHandle: String, serverURL: URL) async {
+    private func publishGitHistory(fullHandle: String, serverURL: URL, coverage: Bool) async {
         guard let currentWorkingDirectory = try? await Environment.current.currentWorkingDirectory() else { return }
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
         guard await gitController.isInGitRepository(workingDirectory: workingDirectory),
@@ -405,7 +407,8 @@ public struct StressNewTestsService: StressNewTestsServicing {
             gitInfo: gitInfo,
             workingDirectory: rootDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: coverage
         )
     }
 

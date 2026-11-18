@@ -111,7 +111,7 @@ defmodule TuistWeb.RunnersController do
 
       GET /api/internal/runners/desired_replicas?fleet=<name>
       → 200 { fleet, claimed, occupied, queued, withheld,
-              p95_concurrent_last_hour, learned_warm_floor }
+              p95_concurrent_last_hour, learned_warm_floor, hours_with_jobs }
 
   Authentication: same SA-token + TokenReview path as the dispatch
   endpoint. Anyone with a valid in-cluster SA token can read —
@@ -224,6 +224,8 @@ defmodule TuistWeb.RunnersController do
       }
     }
   end
+
+  defp credential_fields(%{kind: :api, job: job}), do: %{api_job: job}
 
   defp credential_fields(%{kind: :bitrise} = credential) do
     %{bitrise_intro_secret: credential.intro_secret, bitrise_report_token: credential.report_token}

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7d3f9bdf740982821c45514376e70e669c7f99de02855cb172f802f3a94b13e7",
+  "hash": "2153e191f2660bb22a7ce88a2c1d00cd2606b09030cb1784efc2722fa5cf1a40",
   "hash_tree": {
     "root": {
       "children": [
@@ -38,7 +38,7 @@
                   "content_hash": "4de6f1e9fff1d0576ed7ceee684727c618561ac39ce7ae5561fd8b55362b8821"
                 },
                 "## Xcode compilation cache": {
-                  "content_hash": "b0a82e331c35d42b8d8934e54dee4a21ff9855de2b9e17c7540af876e823d608"
+                  "content_hash": "739bbc9f7ced2772798019247f89bbf58efd9a200cb2a07c565d8aac57dcfb40"
                 },
                 "Preamble": {
                   "content_hash": "302b09014d31fea6524e4cf13aaffcf198063b35d55543d0fd204de0d1be3c6b"
@@ -47,11 +47,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "fb779f9538b2a3f12e90afedcbc81e42251d003efb9f932945f77f125bad6e36",
+          "hash": "0243708bb329a83cd626d024522ca7c4d497019712e276c06b14d14f8583aaf0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started/existing-xcode-project.md",
           "metadata": {
-            "content_hash": "57ff76560d796b6f3dc9c0f88a5e6f04d7c5ff7d6b66519362aa7b2644f1ec42"
+            "content_hash": "1f220e6042e740be1ca34f31063ddc64f342ff131e63395ec34be92da5f6d37d"
           }
         },
         {
@@ -112,7 +112,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -131,7 +131,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -160,11 +160,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -225,19 +225,25 @@
                         "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
                         "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
                         "translation_hash": "f3b93a96d0c47359402fb9cb980277e799697cd9bbafc1d0c19e87944a85cf0e"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "a2a24843a769fbec02fe1d2b48949350d6baf7c8a86bafe3e5cb2dac81f7fb27"
                       }
                     }
                   },
-                  "hash": "9f3491635f8d9d0e3bcccc5d5f0d32fea44c272954e67a423c7083cdfe999f36",
+                  "hash": "8d85f73253bc7b8a1ab0a24e3d7ae0cf7b49567fea36bfb06e5f41712bee0a29",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "a5df879150a5d5e56732495503415937347f624fc49537aee2793767b3910a85"
+                    "content_hash": "a63fe1d7f8bfb3632203e78005d7c4585504ff806f2380f31524357721dca7ac"
                   }
                 }
               ],
               "details": {},
-              "hash": "acce736967ff80d1bdce7c43ee911463fb4e64937bdd490c7499cd48d66a4605",
+              "hash": "0079da5e947c9c82d267f418d1de244cf76507af62a757f44cca9152f1e07e62",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -247,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "57d5ec4f00a0f4b5481964bcfd84314d755e67076bb776e84ea10b396565ab40",
+          "hash": "b2d612290f7c27fec594f31393ff70528e7835c4c17341372df373336ee6372b",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "7d3f9bdf740982821c45514376e70e669c7f99de02855cb172f802f3a94b13e7",
+      "hash": "2153e191f2660bb22a7ce88a2c1d00cd2606b09030cb1784efc2722fa5cf1a40",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/existing-xcode-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7f81374fd04f534cf27283c1291bbe382616a73eda2beab6fef72098973fd7e2",
+  "output_hash": "f1200c12cd536f635407f940a2d205fb24a442bb71073fbe153dd02f5d2fab9d",
   "output_path": "server/priv/docs/zh_Hans/guides/get-started/existing-xcode-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,10 +275,11 @@
     "compiler_version": 3,
     "glossary": {
       "applied": [
+        "repo:features",
         "repo:selective-testing",
         "repo:tests"
       ],
-      "content_hash": "a5df879150a5d5e56732495503415937347f624fc49537aee2793767b3910a85",
+      "content_hash": "a63fe1d7f8bfb3632203e78005d7c4585504ff806f2380f31524357721dca7ac",
       "shadowed": [],
       "version": null
     },
@@ -282,8 +289,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b733764844499811e416b12ea58c83090dabc0f6",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/get-started/existing-xcode-project.md",
-  "translated_at": "2026-11-02T15:24:08.326479Z",
-  "translation_session_id": "01a19cd5-7349-71ea-bf79-3b644843be50"
+  "translated_at": "2026-11-06T21:29:08.462754Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

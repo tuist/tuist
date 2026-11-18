@@ -644,7 +644,7 @@ defmodule AtlasWeb.ProjectLive.Show do
                   label={Webhook.source_label(webhook.source)}
                   color="information"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 >
                   <:icon><.bell /></:icon>
                 </.badge>

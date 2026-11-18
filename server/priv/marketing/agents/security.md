@@ -4,7 +4,7 @@ How to evaluate Tuist's security posture and how to report a vulnerability.
 
 ## Assurance
 
-Tuist is SOC 2 Type II certified. The [trust center](https://security.tuist.dev/) provides details and access to the latest report. The [full security statement](/marketing-markdown/source/security) describes the practices: TLS in transit and encryption of sensitive data at rest, role-based access with least privilege, code review with static analysis and automated testing, dependency monitoring, continuous monitoring and incident response, data minimization, and retention limits.
+Tuist's [trust center](https://security.tuist.dev/) lists a SOC 2 Type II report for February 2025–February 2026 and provides a report-access request. Review the report for its audited scope and controls. The [full security statement](/marketing-markdown/source/security) describes Tuist's practices: TLS in transit and encryption of sensitive data at rest, role-based access with least privilege, code review with static analysis and automated testing, dependency monitoring, continuous monitoring and incident response, data minimization, and retention limits.
 
 ## Evaluating an integration
 
@@ -16,8 +16,4 @@ Tuist is SOC 2 Type II certified. The [trust center](https://security.tuist.dev/
 
 ## Reporting vulnerabilities
 
-Email [contact@tuist.dev](mailto:contact@tuist.dev) with a description, reproduction steps, and relevant evidence. Give Tuist reasonable time to investigate before public disclosure, and avoid accessing other users' data or disrupting the service. There is no paid bug bounty; valid reports can be acknowledged publicly on request.
-
-## Limitations
-
-Certification evidences audited controls; it does not guarantee that every integration or customer configuration is secure. This guide does not replace the audit report, your contract, or your own review. Do not include credentials or unnecessary customer data in a report.
+Email [contact@tuist.dev](mailto:contact@tuist.dev) with a description, reproduction steps, and relevant evidence. Give Tuist reasonable time to investigate before public disclosure, and avoid accessing other users' data or disrupting the service. Do not include credentials or unnecessary customer data. There is no paid bug bounty; valid reports can be acknowledged publicly on request.

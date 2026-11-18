@@ -57,6 +57,9 @@ class ClusterCookieTests(unittest.TestCase):
                 self.assertFalse("refreshInterval:" in external, "Cookie must not refresh on a timer")
                 self.assertFalse(document(output, "server-cluster-secret.yaml"), "Competing Helm Secret owner")
                 deployment = document(output, "server-deployment.yaml")
+                # Agents pods join the same Erlang cluster, so they are the one
+                # other container that reads the cookie.
+                agents = document(output, "agents-deployment.yaml")
                 self.assertTrue(re.search(
                     r"- name: RELEASE_COOKIE\s+valueFrom:\s+secretKeyRef:\s+"
                     r'name: tuist-server-cluster-cookie\s+key: "release-cookie"', deployment
@@ -65,10 +68,11 @@ class ClusterCookieTests(unittest.TestCase):
                 self.assertTrue(cookie_entry is not None)
                 self.assertFalse("optional:" in cookie_entry.group(1), "Cookie reference must not be optional")
                 for doc in output.split("---\n"):
-                    if doc != deployment:
+                    if doc not in (deployment, agents):
                         self.assertFalse("name: tuist-server-cluster-cookie" in doc and "kind: ExternalSecret\n" not in doc,
                                          "Cookie exposed outside web container")
-                self.assertEqual(output.count("name: tuist-server-cluster-cookie"), 3, "Unexpected cookie Secret consumer")
+                self.assertEqual(output.count("name: tuist-server-cluster-cookie"), 3 + bool(agents),
+                                 "Unexpected cookie Secret consumer")
 
     def test_disabled_cluster_does_not_sync_or_inject_cookie(self):
         output = self.rendered(
@@ -77,6 +81,9 @@ class ClusterCookieTests(unittest.TestCase):
         )
         self.assertFalse(document(output, "server-cluster-external-secret.yaml"))
         self.assertFalse("- name: RELEASE_COOKIE" in document(output, "server-deployment.yaml"))
+        # Agents pods need the cluster, so the server keeps hosting sessions.
+        self.assertFalse(document(output, "agents-deployment.yaml"))
+        self.assertFalse("TUIST_DELEGATE_AGENTS" in document(output, "server-deployment.yaml"))
 
     def test_self_hosted_still_generates_cookie_without_eso(self):
         output = self.rendered(["values-self-hosted-ci.yaml", "values-cluster-ci.yaml"])

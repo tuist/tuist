@@ -10,4 +10,10 @@ defmodule Tuist.MarkdownTest do
     refute html =~ "javascript:"
     refute html =~ "<script>"
   end
+
+  test "escapes the input when markdown rendering fails" do
+    html = Markdown.to_html(<<0xFF, "<script>alert(1)</script>">>)
+
+    assert html == <<0xFF, "&lt;script&gt;alert(1)&lt;/script&gt;">>
+  end
 end

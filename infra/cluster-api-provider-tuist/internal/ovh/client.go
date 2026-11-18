@@ -201,6 +201,17 @@ type AdoptParams struct {
 	DisplayNamePrefix string
 }
 
+// MatchesShape reports whether the server is in the fleet's datacenter and
+// offer, the cheap filters that need no display-name lookup. The datacenter is a
+// region-prefix match, so a short code like "bhs" matches whatever specific
+// datacenter OVH reports (bhs6/bhs8/...).
+func (p AdoptParams) MatchesShape(server *Server) bool {
+	if p.Datacenter != "" && !strings.HasPrefix(strings.ToLower(server.Datacenter), strings.ToLower(p.Datacenter)) {
+		return false
+	}
+	return p.Offer == "" || strings.Contains(strings.ToLower(server.CommercialRange), strings.ToLower(p.Offer))
+}
+
 // ListServers returns every dedicated-server service name on the account.
 func (c *Client) ListServers(ctx context.Context) ([]string, error) {
 	var names []string
@@ -237,6 +248,23 @@ func (c *Client) ServerDisplayName(ctx context.Context, serviceName string) (str
 	return svc.Resource.DisplayName, nil
 }
 
+// SetServerDisplayName writes the server's displayName on its service. OVH
+// answers 200 whether or not the rename applied, and drops it while a task is
+// pending on the server, so callers read it back with ServerDisplayName (the
+// endpoint adoption reads) before relying on it. The body nests the name under
+// "resource": a flat {"displayName": ...} is rejected.
+func (c *Client) SetServerDisplayName(ctx context.Context, serviceName, displayName string) error {
+	var info serviceInfos
+	if err := c.API.GetWithContext(ctx, "/dedicated/server/"+serviceName+"/serviceInfos", &info); err != nil {
+		return fmt.Errorf("get serviceInfos for %s: %w", serviceName, err)
+	}
+	body := map[string]any{"resource": map[string]any{"displayName": displayName}}
+	if err := c.API.PutWithContext(ctx, fmt.Sprintf("/service/%d", info.ServiceID), body, nil); err != nil {
+		return fmt.Errorf("set displayName of %s: %w", serviceName, err)
+	}
+	return nil
+}
+
 // FindAdoptableServer scans the account for a pre-ordered server matching the
 // fleet's datacenter/offer/display-name prefix that no live Machine has already
 // claimed (claimed is the set of service names already on sibling CRs' status),
@@ -250,7 +278,6 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 	if err != nil {
 		return nil, err
 	}
-	offer := strings.ToLower(p.Offer)
 	for _, name := range names {
 		if claimed[name] {
 			continue
@@ -259,12 +286,7 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 		if err != nil {
 			return nil, err
 		}
-		// Region-prefix match so a short code like "bhs" claims a server whatever
-		// specific datacenter OVH reports (bhs6/bhs8/...).
-		if p.Datacenter != "" && !strings.HasPrefix(strings.ToLower(server.Datacenter), strings.ToLower(p.Datacenter)) {
-			continue
-		}
-		if offer != "" && !strings.Contains(strings.ToLower(server.CommercialRange), offer) {
+		if !p.MatchesShape(server) {
 			continue
 		}
 		// Display-name marker last: it costs two extra calls (serviceInfos +
@@ -606,35 +628,68 @@ type installTask struct {
 	Status   string `json:"status"`
 }
 
-// InstallState polls the server's most recent install task and maps it to the
-// coarse lifecycle. OVH models the install as a task whose function is one of
-// the (re)install variants; its status walks todo -> doing -> done (or
-// problem/error/cancelled on failure). No install task yet means Pending.
-func (c *Client) InstallState(ctx context.Context, serviceName string) (InstallState, error) {
+// Task is one of a server's OVH tasks. ID is the id the task list returns,
+// which OVH allocates in increasing order, so a higher ID is a later task.
+type Task struct {
+	ID       int64
+	Function string
+	Status   string
+}
+
+// IsInstall reports whether the task is one of OVH's OS-install variants.
+func (t Task) IsInstall() bool { return isInstallFunction(t.Function) }
+
+// State maps the task's status onto the install lifecycle. For any task,
+// InstallRunning means it is still pending on the server.
+func (t Task) State() InstallState { return mapTaskStatus(t.Status) }
+
+// Tasks lists the server's tasks. A task that disappears between the list and
+// its read is skipped.
+func (c *Client) Tasks(ctx context.Context, serviceName string) ([]Task, error) {
 	var ids []int64
 	if err := c.API.GetWithContext(ctx, "/dedicated/server/"+serviceName+"/task", &ids); err != nil {
-		return InstallPending, fmt.Errorf("list tasks for %s: %w", serviceName, err)
+		return nil, fmt.Errorf("list tasks for %s: %w", serviceName, err)
 	}
-	latest := InstallPending
-	var latestID int64 = -1
+	tasks := make([]Task, 0, len(ids))
 	for _, id := range ids {
 		task := &installTask{}
 		if err := c.API.GetWithContext(ctx, fmt.Sprintf("/dedicated/server/%s/task/%d", serviceName, id), task); err != nil {
 			if IsNotFound(err) {
 				continue
 			}
-			return InstallPending, fmt.Errorf("get task %d for %s: %w", id, serviceName, err)
+			return nil, fmt.Errorf("get task %d for %s: %w", id, serviceName, err)
 		}
-		if !isInstallFunction(task.Function) {
-			continue
-		}
-		if id <= latestID {
-			continue
-		}
-		latestID = id
-		latest = mapTaskStatus(task.Status)
+		tasks = append(tasks, Task{ID: id, Function: task.Function, Status: task.Status})
 	}
-	return latest, nil
+	return tasks, nil
+}
+
+// LatestInstallTask returns the install task with the highest ID, if any.
+func LatestInstallTask(tasks []Task) (Task, bool) {
+	var latest Task
+	found := false
+	for _, t := range tasks {
+		if t.IsInstall() && (!found || t.ID > latest.ID) {
+			latest, found = t, true
+		}
+	}
+	return latest, found
+}
+
+// InstallState polls the server's most recent install task and maps it to the
+// coarse lifecycle. OVH models the install as a task whose function is one of
+// the (re)install variants; its status walks todo -> doing -> done (or
+// problem/error/cancelled on failure). No install task yet means Pending.
+func (c *Client) InstallState(ctx context.Context, serviceName string) (InstallState, error) {
+	tasks, err := c.Tasks(ctx, serviceName)
+	if err != nil {
+		return InstallPending, err
+	}
+	latest, ok := LatestInstallTask(tasks)
+	if !ok {
+		return InstallPending, nil
+	}
+	return latest.State(), nil
 }
 
 // isInstallFunction reports whether a task function is one of OVH's OS-install

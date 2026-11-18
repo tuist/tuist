@@ -79,7 +79,7 @@ defmodule TuistWeb.Plugs.PublicPageChallengePlug do
 
       true ->
         conn
-        |> put_session(@return_to_key, return_to(conn))
+        |> Authentication.put_return_to(@return_to_key, return_to(conn))
         |> redirect(to: @challenge_path)
         |> halt()
     end

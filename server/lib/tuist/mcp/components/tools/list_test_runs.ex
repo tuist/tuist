@@ -26,7 +26,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
         "query" => %{
           "type" => "string",
           "description" =>
-            ~s(Search query for richer filtering. Supported fields: `git_branch`, `scheme`, and `status`. Supports exact matches with `field:"value"` and case-insensitive substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"` excludes branches containing `gh-readonly-queue`. Whitespace-separated query filters compose with each other and the explicit arguments using AND semantics.)
+            ~s(Search query for richer filtering. Supported fields: `git_branch`, `scheme`, `status`, and `selective_testing`. Supports exact matches with `field:"value"` and case-insensitive substring matches with `field~"value"`, except on `selective_testing`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"` excludes branches containing `gh-readonly-queue`. Whitespace-separated query filters compose with each other and the explicit arguments using AND semantics.)
         },
         "status" => %{
           "type" => "string",
@@ -35,6 +35,12 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
         "scheme" => %{
           "type" => "string",
           "description" => "Filter by scheme name."
+        },
+        "selective_testing" => %{
+          "type" => "string",
+          "enum" => ["coverage", "module_hash"],
+          "description" =>
+            "Filter by selective testing strategy: `coverage` (coverage-based test selection, fallbacks included) or `module_hash` (the default, which skips the test modules whose hash already passed)."
         },
         "page" => %{
           "type" => "integer",
@@ -67,7 +73,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
               "ran_at" => %{"type" => "string"},
               "total_test_count" => %{"type" => "integer"},
               "ran_tests" => %{"type" => "integer"},
-              "skipped_tests" => %{"type" => "integer"}
+              "skipped_tests" => %{"type" => "integer"},
+              "selective_testing_strategy" => Tuist.MCP.Tool.json_schema(Tuist.Tests.Selections.Schemas.strategy())
             },
             "required" => [
               "id",
@@ -81,7 +88,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
               "ran_at",
               "total_test_count",
               "ran_tests",
-              "skipped_tests"
+              "skipped_tests",
+              "selective_testing_strategy"
             ],
             "additionalProperties" => false
           }
@@ -95,6 +103,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
   alias Tuist.Tests.TestRunQuery
 
   @impl EMCP.Tool
@@ -122,6 +131,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
           |> Tests.Analytics.test_runs_metrics(runs)
           |> Map.new(&{&1.test_run_id, &1})
 
+        strategies = SelectionQuery.strategies(project.id, runs)
+
         {:ok,
          %{
            test_runs:
@@ -141,7 +152,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
                  ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
                  total_test_count: Map.get(metrics, :total_tests, 0),
                  ran_tests: Map.get(metrics, :ran_tests, 0),
-                 skipped_tests: Map.get(metrics, :skipped_tests, 0)
+                 skipped_tests: Map.get(metrics, :skipped_tests, 0),
+                 selective_testing_strategy: Map.get(strategies, run.id)
                }
              end),
            pagination_metadata: MCPTool.pagination_metadata(meta)
@@ -157,7 +169,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
 
     with {:ok, query_filters} <- TestRunQuery.filters(Map.get(args, "query")) do
       filters =
-        Enum.reduce(["git_branch", "status", "scheme"], base, fn key, filters ->
+        Enum.reduce(["git_branch", "status", "scheme", "selective_testing"], base, fn key, filters ->
           case Map.get(args, key) do
             nil -> filters
             value -> filters ++ [%{field: String.to_existing_atom(key), op: :==, value: value}]

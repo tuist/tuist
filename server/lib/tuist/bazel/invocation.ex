@@ -4,7 +4,16 @@ defmodule Tuist.Bazel.Invocation do
 
   @derive {
     Flop.Schema,
-    filterable: [:failure_category, :project_id, :status, :command, :is_ci, :inserted_at],
+    filterable: [
+      :failure_category,
+      :project_id,
+      :status,
+      :command,
+      :is_ci,
+      :git_branch,
+      :git_commit_sha,
+      :inserted_at
+    ],
     sortable: [
       :failure_category,
       :invocation_id,

@@ -8,24 +8,43 @@
 # deploy's own check then finds ready, so that deploy moves the pools.
 # Explicitly pinned tags are left alone; a digest-pinned explicit pool is
 # staged needlessly and its helper removed by the next deploy.
-# Usage: linux-runner-image-stage.sh <image@sha256> <release> <namespace>
+# Pools of the default Ubuntu release (`tuist.dev/os-default`, or no
+# `tuist.dev/os-version` label, from before profiles picked an OS) take
+# <image@sha256>; each other release's pools take its `<os-version>=<image>`
+# argument and are left alone without one, so no pool stages another
+# release's image.
+# Usage: linux-runner-image-stage.sh <image@sha256> <release> <namespace> [<os-version>=<image@sha256>...]
 # Waits up to LINUX_IMAGE_STAGING_WAIT_SECONDS (default 3600, as macOS) and exits non-zero
 # when hosts are not ready by then; the caller warns and the deploy holds.
 set -euo pipefail
 image="${1:?image digest reference required}"
 release="${2:?Helm release required}"
 namespace="${3:?Helm namespace required}"
-[[ "$image" =~ ^ghcr\.io/tuist/tuist-linux-runner@sha256:[a-f0-9]{64}$ ]] ||
+shift 3
+digest_ref='^ghcr\.io/tuist/tuist-linux-runner@sha256:[a-f0-9]{64}$'
+[[ "$image" =~ $digest_ref ]] ||
   { echo "Not a Linux runner image digest: $image" >&2; exit 1; }
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+os_images='{}'
+for entry in "$@"; do
+  os="${entry%%=*}"
+  os_image="${entry#*=}"
+  [[ "$os" =~ ^ubuntu-[0-9]{2}\.[0-9]{2}$ && "$os_image" =~ $digest_ref ]] ||
+    { echo "Not an <os-version>=<image digest> pair: $entry" >&2; exit 1; }
+  os_images="$(jq -c --arg os "$os" --arg image "$os_image" '. + {($os): $image}' <<< "$os_images")"
+done
 kubectl --request-timeout=30s get runnerpools.tuist.dev --all-namespaces -o json > "$work/pools.json"
-jq -c --arg image "$image" --arg release "$release" --arg namespace "$namespace" '[.items[]
+jq -c --arg image "$image" --arg release "$release" --arg namespace "$namespace" --argjson os_images "$os_images" '[.items[]
   | select(.spec.os == "linux")
   | select(.metadata.annotations["meta.helm.sh/release-name"] == $release
       and .metadata.annotations["meta.helm.sh/release-namespace"] == $namespace)
   | select(.spec.image | test("^ghcr\\.io/tuist/tuist-linux-runner@sha256:[a-f0-9]{64}$"))
-  | .kind = "RunnerPool" | .spec.image = $image]' "$work/pools.json" > "$work/candidates.json"
+  | (.metadata.labels // {}) as $labels
+  | (if $labels["tuist.dev/os-default"] == "true" or $labels["tuist.dev/os-version"] == null
+     then $image else $os_images[$labels["tuist.dev/os-version"]] end) as $target
+  | select($target != null)
+  | .kind = "RunnerPool" | .spec.image = $target]' "$work/pools.json" > "$work/candidates.json"
 # A fleet without Ready, schedulable hosts has nothing to stage; the deploy
 # moves its pools as before rather than this job waiting out its timeout.
 echo '[]' > "$work/render.json"

@@ -107,6 +107,59 @@ defmodule TuistWeb.API.RecordedBuildStepsControllerTest do
     end
   end
 
+  test "REST and MCP expose nullable server phases with the same project-scoped remote filter", %{
+    conn: conn,
+    user: user,
+    project: project,
+    paths: paths,
+    tools: tools
+  } do
+    {path, "Bazel"} = Enum.find(paths, fn {_, source} -> source == "Bazel" end)
+    {_, _, args} = Enum.find(tools, fn {list, _, _} -> list == ListBazelBuildSteps end)
+    id = args["invocation_id"]
+
+    events = [
+      %{
+        ph: "X",
+        pid: 1,
+        tid: 5,
+        cat: "action processing",
+        name: "Remote compile",
+        ts: 0,
+        dur: 90_000,
+        args: %{target: "//:app", mnemonic: "CppCompile"}
+      },
+      %{ph: "X", pid: 1, tid: 5, cat: "Remote execution process wall time", name: "execute", ts: 1000, dur: 27_000}
+    ]
+
+    assert :ok =
+             Bazel.Profile.ingest(
+               project,
+               id,
+               :zlib.gzip(JSON.encode!(%{otherData: %{build_id: id}, traceEvents: events}))
+             )
+
+    response = conn |> get(path, %{remote_execution: true}) |> json_response(200)
+    assert_schema(response, "BazelBuildStepsList", Spec.spec())
+    assert %{"steps" => [%{"remote_execution_ms" => 27.0, "remote_queue_ms" => nil} = step]} = response
+    mcp_conn = %Plug.Conn{assigns: %{current_user: user}}
+    result = ListBazelBuildSteps.call(mcp_conn, Map.put(args, "remote_execution", true))
+    refute result["isError"]
+    assert decode(result) == response
+    detail = conn |> get(path <> "/" <> step["id"]) |> json_response(200)
+    assert_schema(detail, "BazelBuildStepDetail", Spec.spec())
+    mcp_detail = GetBazelBuildStep.call(mcp_conn, Map.put(args, "step_id", step["id"]))
+    refute mcp_detail["isError"]
+    assert decode(mcp_detail) == detail
+    assert conn |> get(path, %{remote_execution: "invalid"}) |> json_response(400)
+    stranger = AccountsFixtures.user_fixture()
+
+    assert ListBazelBuildSteps.call(
+             %Plug.Conn{assigns: %{current_user: stranger}},
+             Map.put(args, "remote_execution", true)
+           )["isError"]
+  end
+
   defp decode(result), do: result["content"] |> hd() |> Map.fetch!("text") |> JSON.decode!()
 
   test "scopes both endpoints to their parent project and authorizes access", %{

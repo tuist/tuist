@@ -144,6 +144,30 @@ while true; do
 
   case "${http}" in
     200)
+      # A job created through the Tuist API: the server is its coordinator,
+      # so the whole job, with its report token, is staged for the executor.
+      if jq -e '.api_job' /tmp/dispatch.json >/dev/null; then
+        if [ -z "${JIT_OUTPUT_PATH}" ]; then
+          echo "API job dispatch requires the isolated poller container"
+          exit 1
+        fi
+        api_path="${JIT_OUTPUT_PATH}.api-job.json"
+        if ! { (umask 077; jq --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.api_job + {report_url: $report_url}' /tmp/dispatch.json >"${api_path}.tmp") &&
+          chmod 0644 "${api_path}.tmp" && mv -f "${api_path}.tmp" "${api_path}"; }; then
+          rm -f "${api_path}.tmp" 2>/dev/null || true
+          echo "API job could not be staged"
+          exit 1
+        fi
+        # Sidecars use the JIT path as their job-start marker.
+        stage_cache_endpoint
+        if ! printf 'api\n' >"${JIT_OUTPUT_PATH}"; then
+          rm -f "${api_path}" 2>/dev/null || true
+          echo "API job marker could not be staged"
+          exit 1
+        fi
+        exit 0
+      fi
       if jq -e '.gitlab_job' /tmp/dispatch.json >/dev/null; then
         if [ -z "${JIT_OUTPUT_PATH}" ]; then
           echo "GitLab dispatch requires the isolated poller container"

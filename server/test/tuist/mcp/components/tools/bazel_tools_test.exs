@@ -65,6 +65,43 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert invocation["cache"]["invocation_id"] == nil
   end
 
+  test "returns the latest failing invocation on a branch", %{conn: conn, user: user, project: project} do
+    create_invocation(project, "main-older-failure",
+      git_branch: "main",
+      status: "failure",
+      finished_at: ~N[2026-11-01 10:00:00]
+    )
+
+    create_invocation(project, "main-latest-failure",
+      git_branch: "main",
+      status: "failure",
+      is_ci: false,
+      finished_at: ~N[2026-11-02 10:00:00]
+    )
+
+    create_invocation(project, "main-latest-success", git_branch: "main", finished_at: ~N[2026-11-03 10:00:00])
+
+    create_invocation(project, "other-branch-failure",
+      git_branch: "feature/other",
+      status: "failure",
+      finished_at: ~N[2026-11-04 10:00:00]
+    )
+
+    list = fn filters ->
+      %{"content" => [%{"type" => "text", "text" => text}]} =
+        ListBazelInvocations.call(
+          conn,
+          Map.merge(%{"account_handle" => user.account.name, "project_handle" => project.name}, filters)
+        )
+
+      %{"invocations" => invocations, "pagination_metadata" => pagination} = JSON.decode!(text)
+      {Enum.map(invocations, & &1["invocation_id"]), pagination["total_count"]}
+    end
+
+    assert list.(%{"status" => "failure", "git_branch" => "main", "page_size" => 1}) == {["main-latest-failure"], 2}
+    assert list.(%{"is_ci" => false}) == {["main-latest-failure"], 1}
+  end
+
   test "gets a Bazel invocation", %{conn: conn, user: user, project: project} do
     create_invocation(project, "invocation-1")
 
@@ -122,6 +159,48 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
 
     assert %{"content" => [%{"type" => "text", "text" => text}]} = result
     assert %{"id" => ^first_id, "message" => "first"} = JSON.decode!(text)
+  end
+
+  test "filters invocation logs to Bazel-reported errors and test logs", %{conn: conn, user: user, project: project} do
+    create_invocation_log(project, "invocation-1", 4, "ERROR: BUILD:3:1: Compiling a.c failed", "stderr")
+    create_invocation_log(project, "invocation-1", 5, "ERROR: printed by the program", "stdout")
+
+    create_invocation_log(project, "invocation-1", 6, "[Bazel test log for //a:test]\nassertion", "stdout",
+      target_label: "//a:test",
+      status: "failure"
+    )
+
+    create_invocation_log(project, "invocation-1", 8, "[Bazel test log for //b:test]\nok", "stdout",
+      target_label: "//b:test",
+      status: "success"
+    )
+
+    messages = fn filters ->
+      result =
+        ListBazelInvocationLogs.call(
+          conn,
+          Map.merge(
+            %{
+              "account_handle" => user.account.name,
+              "project_handle" => project.name,
+              "invocation_id" => "invocation-1"
+            },
+            filters
+          )
+        )
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      text |> JSON.decode!() |> Map.fetch!("logs") |> Enum.map(& &1["message"])
+    end
+
+    assert messages.(%{"errors" => true}) == [
+             "ERROR: BUILD:3:1: Compiling a.c failed",
+             "[Bazel test log for //a:test]\nassertion"
+           ]
+
+    assert messages.(%{"target_label" => "//b:test"}) == ["[Bazel test log for //b:test]\nok"]
+    assert messages.(%{"stream" => "stdout", "source" => "progress"}) == ["ERROR: printed by the program"]
+    assert %{"source" => "test_log"} |> messages.() |> length() == 2
   end
 
   test "returns not found for an invalid invocation log identifier", %{conn: conn, user: user, project: project} do
@@ -193,9 +272,9 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         invocation_id: invocation_id,
         command: "test",
         target_patterns: ["//..."],
-        git_branch: "feature/bazel",
+        git_branch: Keyword.get(options, :git_branch, "feature/bazel"),
         git_commit_sha: "abcdef",
-        is_ci: true,
+        is_ci: Keyword.get(options, :is_ci, true),
         custom_values: %{"environment" => "local", "runner" => "linux-arm64"},
         bazel_version: "9.1.0",
         cpu_time_ms: 1_250,
@@ -214,10 +293,10 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         critical_path_action_descriptions:
           if(Keyword.get(options, :critical_path_actions, true), do: ["Compile //app:app"], else: []),
         critical_path_action_durations_ms: if(Keyword.get(options, :critical_path_actions, true), do: [1_000], else: []),
-        status: "success",
-        exit_code: 0,
+        status: Keyword.get(options, :status, "success"),
+        exit_code: if(Keyword.get(options, :status) == "failure", do: 1, else: 0),
         started_at: ~N[2023-11-14 22:13:20],
-        finished_at: ~N[2023-11-14 22:13:35],
+        finished_at: Keyword.get(options, :finished_at, ~N[2023-11-14 22:13:35]),
         duration_ms: 15_000,
         project_id: project.id,
         account_handle: project.account.name,
@@ -227,7 +306,7 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     ])
   end
 
-  defp create_invocation_log(project, invocation_id, sequence_number, message) do
+  defp create_invocation_log(project, invocation_id, sequence_number, message, stream \\ "stdout", attribution \\ []) do
     id = UUIDv7.generate()
 
     Bazel.create_invocation_logs([
@@ -235,8 +314,10 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         id: id,
         invocation_id: invocation_id,
         sequence_number: sequence_number,
-        stream: "stdout",
+        stream: stream,
         message: message,
+        target_label: Keyword.get(attribution, :target_label, ""),
+        status: Keyword.get(attribution, :status, ""),
         project_id: project.id,
         observed_at: ~N[2026-09-04 12:00:00]
       }

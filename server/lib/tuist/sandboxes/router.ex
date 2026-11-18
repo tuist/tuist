@@ -7,7 +7,7 @@ defmodule Tuist.Sandboxes.Router do
   Anthropic re-queues it on the session's next event.
 
   The residency that creates a sandbox also stages the repository the
-  agent session asked for under `/workspace` and binds the sandbox to the
+  agent session asked for under the sandbox's workspace and binds the sandbox to the
   `Tuist.Sandboxes.AgentSession` row.
   """
 
@@ -19,7 +19,10 @@ defmodule Tuist.Sandboxes.Router do
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Xcode
   alias Tuist.VCS
 
   require Logger
@@ -29,11 +32,17 @@ defmodule Tuist.Sandboxes.Router do
   @checkout_timeout_ms 60_000
   @commit_sha ~r/\A[0-9a-f]{7,64}\z/
 
-  def dispatch(%AgentEnvironment{} = agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
+  def dispatch(%AgentEnvironment{} = connected, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
       when is_binary(work_id) and is_binary(session_id) do
-    with {:ok, sandbox} <- find_or_create_sandbox(agent_environment, session_id, item),
-         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
-         {:ok, _data} <- start_worker(sandbox, worker_env(agent_environment, item, session_id)) do
+    with {:ok, agent_environment} <- session_environment(connected, item),
+         {:ok, sandbox, created?} <- find_or_create_sandbox(agent_environment, session_id),
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
+         :ok <- if(created?, do: prepare_workspace(agent_environment, sandbox, session_id, item), else: :ok),
+         {:ok, _data} <-
+           start_worker(
+             sandbox,
+             worker_environment(agent_environment, item, session_id, sandbox)
+           ) do
       Logger.info("sandboxes: worker started",
         sandbox_id: sandbox.id,
         node: sandbox.node_name,
@@ -44,15 +53,26 @@ defmodule Tuist.Sandboxes.Router do
 
       :ok
     else
+      {:error, {:unserved_xcode_version, version}} = error ->
+        Logger.error(
+          "sandboxes: the session asks for Xcode #{version}, which macOS sandboxes do not serve; stopping its work item. Served: #{Enum.join(Xcode.versions(), ", ")}",
+          agent_environment_id: connected.id,
+          session_id: session_id,
+          work_id: work_id
+        )
+
+        release(connected, work_id)
+        error
+
       {:error, reason} ->
         Logger.error("sandboxes: failed to route work item",
-          agent_environment_id: agent_environment.id,
+          agent_environment_id: connected.id,
           session_id: session_id,
           work_id: work_id,
           reason: inspect(reason)
         )
 
-        release(agent_environment, work_id)
+        release(connected, work_id)
         {:error, reason}
     end
   end
@@ -63,43 +83,174 @@ defmodule Tuist.Sandboxes.Router do
     {:error, :malformed_work_item}
   end
 
-  defp find_or_create_sandbox(agent_environment, session_id, item) do
+  @doc """
+  Whether the work item's session could start now:
+  `Tuist.Sandboxes.Capacity.admission/2` on its session environment
+  (`session_environment/2`). A session that asks for an Xcode the hosts do not
+  serve is admitted, so `dispatch/2` stops it at once instead of holding it.
+  """
+  def admission(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}} = item) do
+    case session_environment(agent_environment, item) do
+      {:ok, session_environment} -> Capacity.admission(session_environment, session_id)
+      {:error, {:unserved_xcode_version, _version}} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  The environment as the work item's session runs on it. A session keeps
+  the platform and template of the sandbox it already has. A new one runs
+  the platform and Xcode named on its `AgentSession` row, else the
+  `tuist_platform` (`linux`, `darwin` or `macos`) and `tuist_xcode_version`
+  keys of the session metadata, else the environment's. An Xcode asks for
+  macOS when no platform is named, and applies only on macOS. A platform
+  other than the environment's takes that platform's default template and
+  shape, so one environment serves both Linux and macOS; the environment's
+  Xcode applies only on its own platform.
+
+  `{:error, {:unserved_xcode_version, version}}` names an Xcode the hosts do
+  not serve. A metadata read that fails falls back to the environment's
+  platform, except on macOS: there it would boot the environment's Xcode
+  where the session may have asked for another, so the item is held
+  (`{:error, :session_metadata_unavailable}`) and checked again.
+  """
+  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}})
+      when is_binary(session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-      %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
-        {:ok, sandbox}
+      %Sandbox{platform: platform} ->
+        {:ok, on_platform(agent_environment, platform, nil)}
+
+      nil ->
+        agent_session = AgentSessions.get_agent_session_by_anthropic_session_id(session_id)
+
+        with {:ok, platform, xcode_version} <- requested(agent_session, agent_environment, session_id),
+             platform = platform || agent_environment.platform,
+             xcode_version = if(platform == :darwin, do: xcode_version),
+             :ok <- Xcode.served(xcode_version) do
+          {:ok, on_platform(agent_environment, platform, xcode_version)}
+        end
+    end
+  end
+
+  def session_environment(%AgentEnvironment{} = agent_environment, _item), do: {:ok, agent_environment}
+
+  defp on_platform(agent_environment, platform, xcode_version) do
+    cond do
+      platform != agent_environment.platform ->
+        struct(agent_environment, Sandboxes.platform_defaults(%{platform: platform, xcode_version: xcode_version}))
+
+      is_nil(xcode_version) or xcode_version == agent_environment.xcode_version ->
+        agent_environment
+
+      true ->
+        %{agent_environment | xcode_version: xcode_version, template: Xcode.template(xcode_version)}
+    end
+  end
+
+  defp requested(%AgentSession{platform: platform, xcode_version: xcode_version}, _agent_environment, _session_id)
+       when not is_nil(platform), do: {:ok, platform, xcode_version}
+
+  # Work items carry only the session id, so the session's own metadata
+  # comes from the control plane, with the environment's credential.
+  defp requested(_agent_session, %AgentEnvironment{} = agent_environment, session_id) do
+    case AgentSessions.credential(agent_environment) do
+      {:ok, credential} -> read_metadata(credential, agent_environment, session_id)
+      {:error, _reason} -> {:ok, nil, nil}
+    end
+  end
+
+  defp read_metadata(credential, agent_environment, session_id) do
+    case ControlPlane.get_session(credential, session_id) do
+      {:ok, %{"metadata" => %{} = metadata}} ->
+        xcode_version = present(metadata["tuist_xcode_version"])
+        {:ok, metadata_platform(metadata["tuist_platform"]) || (xcode_version && :darwin), xcode_version}
+
+      {:ok, _session} ->
+        {:ok, nil, nil}
+
+      {:error, reason} when agent_environment.platform == :darwin ->
+        Logger.warning("sandboxes: could not read session metadata, holding the work item until its Xcode is known",
+          agent_environment_id: agent_environment.id,
+          session_id: session_id,
+          reason: inspect(reason)
+        )
+
+        {:error, :session_metadata_unavailable}
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: could not read session metadata, using the environment's platform",
+          agent_environment_id: agent_environment.id,
+          session_id: session_id,
+          reason: inspect(reason)
+        )
+
+        {:ok, nil, nil}
+    end
+  end
+
+  defp metadata_platform("linux"), do: :linux
+  defp metadata_platform(platform) when platform in ["darwin", "macos"], do: :darwin
+  defp metadata_platform(_platform), do: nil
+
+  defp present(value) when is_binary(value) and value != "", do: String.trim(value)
+  defp present(_value), do: nil
+
+  defp metadata(item), do: get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
+
+  @doc """
+  The session's sandbox, created from the environment when it has none or
+  only one that died, with whether this call created it. A created sandbox
+  is cloned from `opts[:from_disk_snapshot]` when given, and otherwise goes
+  to the `prefer_nodes:` first when they have room
+  (`Tuist.Sandboxes.create_sandbox/3`).
+  """
+  def find_or_create_sandbox(agent_environment, session_id, opts \\ []) do
+    case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
+      # An archived one is restored by `Sandboxes.prepare_residency/3`.
+      %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming, :archived] ->
+        {:ok, sandbox, false}
+
+      %Sandbox{platform: :darwin, state: :error} ->
+        {:error, :sandbox_recovery_required}
 
       # A sandbox that died or was deleted from under us cannot be
       # resumed; drop what is left of it and start the session afresh.
       %Sandbox{} = sandbox ->
         with {:ok, _deleted} <- Sandboxes.delete(sandbox) do
-          create_sandbox(agent_environment, session_id, item)
+          create_sandbox(agent_environment, session_id, opts)
         end
 
       nil ->
-        create_sandbox(agent_environment, session_id, item)
+        create_sandbox(agent_environment, session_id, opts)
     end
   end
 
-  defp create_sandbox(agent_environment, session_id, item) do
+  defp create_sandbox(agent_environment, session_id, opts) do
     with {:ok, account} <- Accounts.get_account_by_id(agent_environment.account_id),
          {:ok, sandbox} <-
-           Sandboxes.create_sandbox(account, %{
-             agent_environment_id: agent_environment.id,
-             anthropic_session_id: session_id,
-             template: agent_environment.template,
-             vcpus: agent_environment.vcpus,
-             memory_mb: agent_environment.memory_mb,
-             workspace_gb: agent_environment.workspace_gb
-           }) do
-      prepare_workspace(account, sandbox, session_id, item)
-      {:ok, sandbox}
+           Sandboxes.create_sandbox(
+             account,
+             %{
+               agent_environment_id: agent_environment.id,
+               anthropic_session_id: session_id,
+               platform: agent_environment.platform,
+               template: agent_environment.template,
+               vcpus: agent_environment.vcpus,
+               memory_mb: agent_environment.memory_mb,
+               workspace_gb: agent_environment.workspace_gb
+             },
+             Keyword.take(opts, [:from_disk_snapshot, :prefer_nodes])
+           ) do
+      {:ok, sandbox, true}
     end
   end
 
-  # Runs once per sandbox, on the residency that created it. A failed
-  # clone is logged and the worker still starts, so the agent can retry
-  # from inside the VM.
-  defp prepare_workspace(account, sandbox, session_id, item) do
+  # Runs once per sandbox, inside the residency that created it, so the
+  # clone needs no admission of its own: on macOS a CI grant that closed
+  # while the VM booted would otherwise refuse it. A failed clone is logged
+  # and the worker still starts, so the agent can retry from inside the VM.
+  defp prepare_workspace(agent_environment, sandbox, session_id, item) do
+    {:ok, account} = Accounts.get_account_by_id(agent_environment.account_id)
     agent_session = AgentSessions.get_agent_session_by_anthropic_session_id(session_id)
 
     if agent_session do
@@ -121,12 +272,12 @@ defmodule Tuist.Sandboxes.Router do
   end
 
   defp repository(_agent_session, item) do
-    metadata = get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
+    metadata = metadata(item)
     {blank_to_nil(metadata["repository_url"]), blank_to_nil(metadata["repository_ref"]), :anonymous}
   end
 
   defp clone_repository(account, sandbox, url, ref, trust) do
-    destination = "/workspace/" <> repository_name(url)
+    destination = Sandboxes.workspace(sandbox) <> "/" <> repository_name(url)
     {git_env, secret} = credentials(account, url, trust)
     sha = if is_binary(ref) and Regex.match?(@commit_sha, ref), do: ref
     branch = if is_binary(ref) and is_nil(sha), do: ["--branch", ref], else: []
@@ -176,12 +327,15 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  # Private github.com repositories the account named are cloned with a
-  # token minted for that one repository with read access to its
-  # contents, passed to git as an HTTP header through its environment.
-  # Without an installation, or for anonymous repositories, git gets no
-  # credentials.
-  defp credentials(account, url, :account) do
+  @doc """
+  The git environment that clones `url` with the account's credentials, and
+  the secret to redact from git's output. Private github.com repositories
+  the account named are cloned with a token minted for that one repository
+  with read access to its contents, passed to git as an HTTP header through
+  its environment. Without an installation, or for anonymous repositories,
+  git gets no credentials.
+  """
+  def credentials(account, url, :account) do
     with %URI{scheme: "https", host: "github.com", path: "/" <> _ = path} <- URI.parse(url),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{token: token}} when is_binary(token) <-
@@ -198,7 +352,7 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  defp credentials(_account, _url, :anonymous), do: {%{}, nil}
+  def credentials(_account, _url, :anonymous), do: {%{}, nil}
 
   defp redact(output, nil), do: output
   defp redact(output, secret), do: String.replace(output, secret, "[REDACTED]")
@@ -218,8 +372,9 @@ defmodule Tuist.Sandboxes.Router do
   defp blank_to_nil(value) when is_binary(value) and value != "", do: value
   defp blank_to_nil(_value), do: nil
 
-  defp start_worker(sandbox, env) do
-    case Sandboxes.start_worker(sandbox, env) do
+  @doc "Starts `sbx-worker` with `env`, ending the residency when it does not start."
+  def start_worker(sandbox, env, checkout \\ nil) do
+    case Sandboxes.start_worker(sandbox, env, checkout) do
       {:ok, _data} = ok ->
         ok
 
@@ -243,6 +398,11 @@ defmodule Tuist.Sandboxes.Router do
 
         :ok
     end
+  end
+
+  defp worker_environment(environment, item, session_id, sandbox) do
+    env = worker_env(environment, item, session_id)
+    if sandbox.platform == :darwin, do: Map.put(env, "SBX_WORKDIR", Sandboxes.workspace(sandbox)), else: env
   end
 
   defp worker_env(agent_environment, item, session_id) do

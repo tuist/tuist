@@ -32,7 +32,6 @@ impl Resource {
                 "assignee_id",
                 "account_id",
                 "due_on",
-                "remind_at",
             ],
             Self::Accounts => &[
                 "name",
@@ -65,7 +64,7 @@ impl Resource {
     fn visible(self, field: &str) -> bool {
         self.editable().contains(&field)
             || matches!(self, Self::Tasks)
-                && ["status", "assignee_name", "account_name", "reminder_group"].contains(&field)
+                && ["status", "assignee_name", "account_name"].contains(&field)
             || matches!(self, Self::Accounts)
                 && [
                     "contract_value",
@@ -82,8 +81,6 @@ impl Resource {
             (Self::Tasks, "assignee_id") => {
                 return value.is_empty() || crate::time_off::validate_id(value).is_ok();
             }
-            (Self::Tasks, "reminder") => &["overdue", "upcoming", "none"],
-            (Self::Tasks, "group_by") => &["reminder"],
             (Self::Accounts, "segment") => &["customer", "lead", "prospect"],
             (Self::Accounts, "status") => &["active", "churned", "paused", "trial"],
             (Self::Accounts, "deal_stage") => &[

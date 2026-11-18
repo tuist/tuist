@@ -1,8 +1,7 @@
 name: Noora Release
 
-# Noora is published independently from the server deployment. The same
-# version is released to both package registries before the GitHub release
-# advances the noora@ tag.
+# Noora is published to Hex independently from the server deployment before
+# the GitHub release advances the noora@ tag.
 
 on:
   push:
@@ -19,7 +18,7 @@ permissions:
 
 concurrency:
   # Keep version calculation and publication serialized. Never cancel a
-  # publication after one registry may already have accepted the package.
+  # publication after Hex may already have accepted the package.
   group: noora-release
   cancel-in-progress: false
 
@@ -72,36 +71,33 @@ jobs:
           mix deps.get
           aube install
 
-      - name: Validate generated files and tests
+      - name: Run tests
         working-directory: noora
         run: |
-          aube run check:generated
           aube run test -- --run
           mix test
 
       - name: Validate release artifacts
         working-directory: noora
         run: |
-          npm pack --dry-run
+          aube run build
           mix hex.build
 
   publish:
     name: Publish Noora
     needs: [check, validate]
     if: needs.check.outputs.should-release == 'true'
-    # npm provenance and trusted publishing require a GitHub-hosted runner.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 30
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise-install
         with:
-          install: "erlang elixir node aube git-cliff 1password-cli"
+          install: "erlang elixir node aube git-cliff"
           cache: "false"
           working-directory: noora
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -124,7 +120,6 @@ jobs:
         working-directory: noora
         run: |
           sed -i 's/version: ".*"/version: "${{ needs.check.outputs.next-version-number }}"/' mix.exs
-          npm pkg set version="${{ needs.check.outputs.next-version-number }}"
 
       - name: Generate changelog
         working-directory: noora
@@ -136,44 +131,17 @@ jobs:
           mix deps.get
           aube install
 
-      - name: Build release artifacts
+      - name: Build JS assets
         working-directory: noora
-        run: |
-          npm pack --pack-destination "$RUNNER_TEMP"
-          mix hex.build
+        run: aube run build
 
-      # npm is attempted first so missing npm credentials cannot leave a new
-      # Hex release on its own. npm versions are immutable, while Hex can
-      # safely retry the same version with --replace if the second publish
-      # or GitHub release creation is interrupted.
-      - name: Publish packages
+      # Hex can safely retry the same version with --replace if GitHub
+      # release creation is interrupted.
+      - name: Publish to hex.pm
         working-directory: noora
-        run: |
-          set -euo pipefail
-          if NPM_TOKEN=$(op read "op://tuist/NPM_TOKEN/password" 2>/dev/null); then
-            export NPM_TOKEN
-            printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$NPM_CONFIG_USERCONFIG"
-            npm whoami >/dev/null
-          fi
-
-          package="$RUNNER_TEMP/tuist-noora-${{ needs.check.outputs.next-version-number }}.tgz"
-          local_integrity=$(node -e 'const crypto = require("node:crypto"); const fs = require("node:fs"); console.log(`sha512-${crypto.createHash("sha512").update(fs.readFileSync(process.argv[1])).digest("base64")}`);' "$package")
-
-          if published_integrity=$(npm view "@tuist/noora@${{ needs.check.outputs.next-version-number }}" dist.integrity 2>/dev/null); then
-            if [ "$published_integrity" != "$local_integrity" ]; then
-              echo "The published npm package has different contents for this version" >&2
-              exit 1
-            fi
-            echo "@tuist/noora@${{ needs.check.outputs.next-version-number }} is already published with matching contents"
-          else
-            npm publish "$package" --access public --provenance
-          fi
-
-          mix hex.publish --yes --replace
+        run: mix hex.publish --yes --replace
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/noora-npmrc
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Create Noora GitHub Release
         uses: softprops/action-gh-release@v2
@@ -185,7 +153,6 @@ jobs:
           tag_name: ${{ needs.check.outputs.next-version }}
           body: |
             hex.pm: https://hex.pm/packages/noora/${{ needs.check.outputs.next-version-number }}
-            npm: https://www.npmjs.com/package/@tuist/noora/v/${{ needs.check.outputs.next-version-number }}
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
         env:

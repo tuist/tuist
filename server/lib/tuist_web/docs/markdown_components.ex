@@ -9,6 +9,23 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   alias Tuist.Docs.Paths
 
+  attr :status, :any, required: true
+  attr :components, :string, required: true
+  attr :calendar_path, :string, default: nil
+  attr :locale, :string, default: "en"
+
+  def release_status(assigns) do
+    components =
+      assigns.components
+      |> String.split(",", trim: true)
+      |> Enum.map(&Map.fetch!(%{"cli" => :cli, "server" => :server, "kura" => :kura}, &1))
+
+    assigns
+    |> assign(:components, components)
+    |> assign(:calendar_url, if(assigns.calendar_path, do: Paths.public_path(assigns.locale, assigns.calendar_path)))
+    |> TuistWeb.Docs.ReleaseStatus.panel()
+  end
+
   attr :locale, :string, default: "en"
   slot :inner_block, required: true
 
@@ -47,7 +64,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
   attr :supported_for, :string,
     default: nil,
     doc:
-      ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel", "elixir", "rust".)
+      ~s(Comma-separated build-system slugs to render under the card. Accepts "apple", "android", "gradle", "bazel", "elixir", "rust", "once".)
 
   def home_card(assigns) do
     href =
@@ -61,7 +78,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
       (assigns.supported_for || "")
       |> String.split(",", trim: true)
       |> Enum.map(&String.trim/1)
-      |> Enum.filter(&(&1 in ~w(apple android gradle bazel elixir rust)))
+      |> Enum.filter(&(&1 in ~w(apple android gradle bazel elixir rust once)))
 
     assigns =
       assigns

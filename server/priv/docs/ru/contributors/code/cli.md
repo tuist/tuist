@@ -2,16 +2,16 @@
 {
   "title": "CLI",
   "titleTemplate": ":title · Код · Участники · Tuist",
-  "description": "Внесите вклад в разработку CLI Tuist."
+  "description": "Внесите свой вклад в разработку CLI Tuist."
 }
 ---
 # CLI {#cli}
 
 Исходный код: [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist) и [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## Для чего нужен {#what-it-is-for}
+## Для чего это нужно {#what-it-is-for}
 
-CLI — это ядро Tuist. Он отвечает за генерацию проектов, автоматизацию рабочих процессов (тестирование, запуск, анализ графа зависимостей и инспекцию) и предоставляет интерфейс к серверу Tuist для таких возможностей, как аутентификация, кэширование, аналитика, превью, реестр и выборочное тестирование.
+CLI — это ядро Tuist. Он отвечает за генерацию проектов, автоматизацию рабочих процессов (тестирование, запуск, построение графа и инспекцию) и предоставляет интерфейс к серверу Tuist для таких возможностей, как аутентификация, кэш, аналитика, превью, реестр и выборочное тестирование.
 
 ## Как внести вклад {#how-to-contribute}
 
@@ -23,14 +23,14 @@ CLI — это ядро Tuist. Он отвечает за генерацию п�
 ### Локальная настройка {#set-up-locally}
 
 - Клонируйте репозиторий: `git clone git@github.com:tuist/tuist.git`
-- Установите Mise, используя [их официальный скрипт установки](https://mise.jdx.dev/getting-started.html) (не Homebrew), и выполните `mise install`
+- Установите Mise с помощью [официального скрипта установки](https://mise.jdx.dev/getting-started.html) (не через Homebrew) и выполните `mise install`
 - Установите зависимости Tuist: `tuist install`
 - Сгенерируйте рабочее пространство: `tuist generate`
 
 Сгенерированный проект открывается автоматически. Если вам нужно будет открыть его позже, выполните `open Tuist.xcworkspace`.
 
 > [!NOTE]
-> **Xed .**
+> **`xed .`**
 >
 > Если вы попытаетесь открыть проект с помощью `xed .`, откроется пакет, а не сгенерированное Tuist рабочее пространство. Используйте `Tuist.xcworkspace`.
 
@@ -39,12 +39,12 @@ CLI — это ядро Tuist. Он отвечает за генерацию п�
 
 #### Из Xcode {#from-xcode}
 
-Отредактируйте схему `tuist` и задайте аргументы, например `generate --no-open`. Укажите рабочую директорию в корне проекта (или используйте `--path`).
+Отредактируйте схему `tuist` и задайте аргументы, например `generate --no-open`. Укажите рабочую директорию как корень проекта (или используйте `--path`).
 
 > [!WARNING]
 > **Компиляция ProjectDescription**
 >
-> CLI зависит от сборки `ProjectDescription`. Если запуск не удается, сначала соберите схему `Tuist-Workspace`.
+> CLI зависит от сборки `ProjectDescription`. Если запуск не удаётся, сначала соберите схему `Tuist-Workspace`.
 
 
 #### Из терминала {#from-the-terminal}
@@ -55,7 +55,7 @@ CLI — это ядро Tuist. Он отвечает за генерацию п�
 tuist generate --no-open
 ```
 
-Затем соберите исполняемый файл `tuist` с помощью Xcode и запустите его из DerivedData:
+Затем соберите исполняемый файл `tuist` в Xcode и запустите его из DerivedData:
 
 ```bash
 tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -destination 'platform=macOS' -showBuildSettings | awk -F' = ' '/BUILT_PRODUCTS_DIR/{print $2; exit}')"

@@ -48,6 +48,39 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
+    ) func devices_should_throwSimctlError_whenOutputIsEmpty() async throws {
+        commandRunner.succeedCommand(
+            ["/usr/bin/xcrun", "simctl", "list", "devices", "--json"],
+            output: "",
+            error: "CoreSimulatorService connection became invalid."
+        )
+
+        await #expect(
+            throws: SimulatorControllerError.simctlError(
+                "`simctl list devices --json` returned no output.\nCoreSimulatorService connection became invalid."
+            )
+        ) {
+            try await subject.devices()
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func runtimes_should_throwSimctlError_whenOutputIsWhitespace() async throws {
+        commandRunner.succeedCommand(
+            ["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"],
+            output: " \n"
+        )
+
+        await #expect(throws: SimulatorControllerError.simctlError("`simctl list runtimes --json` returned no output.")) {
+            try await subject.runtimes()
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)

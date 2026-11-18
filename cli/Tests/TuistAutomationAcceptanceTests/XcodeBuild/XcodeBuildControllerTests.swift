@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistCore
 import TuistSupport
@@ -7,6 +8,7 @@ import TuistSupport
 @testable import TuistAutomation
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct XcodeBuildControllerTests {
     @Test func showBuildSettings() async throws {
         // Given

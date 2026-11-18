@@ -66,6 +66,45 @@ struct StaticXCFrameworkModuleMapGraphMapperPlatformConditionTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func map_when_a_bundle_declares_mac_but_is_consumed_by_ios_tests() async throws {
+        let fixture = try await makeFixture()
+        let dynamicFramework: GraphDependency = .testXCFramework(
+            path: fixture.temporaryDirectory.appending(component: "Renderer.xcframework")
+        )
+        let graph: Graph = .test(
+            name: "App",
+            path: fixture.projectPath,
+            projects: [
+                fixture.projectPath: .test(
+                    path: fixture.projectPath,
+                    targets: [
+                        .test(name: "App", destinations: [.iPhone], product: .app),
+                        .test(name: "Helper", destinations: [.mac], product: .bundle),
+                        .test(name: "Tests", destinations: [.iPhone], product: .uiTests),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: fixture.projectPath): [dynamicFramework, fixture.nativeRenderer],
+                .target(name: "Helper", path: fixture.projectPath): [
+                    .target(name: "App", path: fixture.projectPath), dynamicFramework,
+                ],
+                .target(name: "Tests", path: fixture.projectPath): [.target(name: "Helper", path: fixture.projectPath)],
+                dynamicFramework: [fixture.nativeRenderer],
+            ]
+        )
+
+        let (mapped, effects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        let fallback = fixture.vendorModuleMapSettings(sdkCondition: "sdk=macosx*")
+        #expect(mapped == graph.withTargetSettings(
+            ["App": [:], "Helper": fallback, "Tests": fallback],
+            at: fixture.projectPath
+        ))
+        #expect(effects == fixture.derivedModuleMapSideEffects)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func map_when_processed_by_a_static_target_through_a_cached_static_xcframework() async throws {
         // Given
         let fixture = try await makeFixture()
@@ -158,7 +197,8 @@ struct StaticXCFrameworkModuleMapGraphMapperPlatformConditionTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let settings = fixture.vendorModuleMapSettings(sdkCondition: nil)
+        let settings = fixture.vendorModuleMapSettings(sdkCondition: "sdk=iphoneos*")
+            .merging(fixture.vendorModuleMapSettings(sdkCondition: "sdk=iphonesimulator*")) { _, new in new }
         #expect(gotGraph == graph.withTargetSettings(["App": settings, "Consumer": settings], at: fixture.projectPath))
         #expect(gotSideEffects == fixture.derivedModuleMapSideEffects)
     }

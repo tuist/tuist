@@ -1,7 +1,7 @@
 defmodule Tuist.Sandboxes.Anthropic.Manager do
   @moduledoc """
-  Keeps one `Tuist.Sandboxes.Anthropic.Poller` running per enabled agent
-  environment across the cluster. Every web replica runs a manager that
+  Keeps one `Tuist.Sandboxes.Anthropic.Poller` running per enabled Managed
+  Agents environment across the cluster. Every web replica runs a manager that
   reconciles on start and every 30s: it asks its local dynamic
   supervisor to start a poller for every enabled environment, which is a
   no-op (`already_started`) when another replica already holds the
@@ -51,7 +51,8 @@ defmodule Tuist.Sandboxes.Anthropic.Manager do
 
   defp do_reconcile do
     enabled =
-      Sandboxes.list_enabled_agent_environments()
+      :managed_agents
+      |> Sandboxes.list_enabled_agent_environments()
       |> Enum.filter(&FeatureFlags.sandboxes_enabled?(&1.account))
       |> Enum.map(& &1.id)
 

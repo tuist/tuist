@@ -1,7 +1,6 @@
 import TuistCache
 import TuistConfig
 import TuistEnvironment
-import TuistServer
 
 extension BinaryCacheCoverage {
     static let enabledVariable = "TUIST_COVERAGE_ENABLED"
@@ -16,10 +15,8 @@ extension BinaryCacheCoverage {
     }
 
     /// The variant a command reads and warms: `TUIST_COVERAGE_ENABLED`, then `Tuist.swift`'s `coverage.enabled`, off
-    /// otherwise. Coverage is in early access behind the `COVERAGE` client feature flag, so without it every command
-    /// stays on the plain variant.
+    /// otherwise.
     public static func resolved(config: Tuist) -> BinaryCacheCoverage {
-        guard ClientFeatureFlags.contains("COVERAGE") else { return .off }
         if Environment.current.variables[enabledVariable] != nil {
             return Environment.current.isVariableTruthy(enabledVariable) ? .on : .off
         }

@@ -21,8 +21,9 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
           %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
 
-      assert {:error, {:redirect, %{to: "/users/log_in"}}} =
-               live(conn, ~p"/auth/invitations/#{invitation.token}")
+      path = ~p"/auth/invitations/#{invitation.token}"
+      assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+      assert destination == ~p"/users/log_in?#{%{return_to: path}}"
     end
 
     test "shows the accept form when the signed-in user matches the invitee", %{conn: conn} do
@@ -162,10 +163,13 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
       assert {:error, :not_found} = Accounts.get_invitation_by_token(invitation.token)
     end
 
-    test "does not resume to router-equivalent invitation paths" do
+    test "does not resume to unsafe or router-equivalent invitation paths" do
       return_path_builders = [
         fn token -> "/auth/invitations/#{token}/" end,
-        fn token -> "/auth/invitations//#{token}" end
+        fn token -> "/auth/invitations//#{token}" end,
+        fn _token -> "/\\evil.example" end,
+        fn _token -> "/%09/evil.example" end,
+        fn _token -> "/page\0" end
       ]
 
       Enum.each(Enum.with_index(return_path_builders), fn {return_path_builder, index} ->

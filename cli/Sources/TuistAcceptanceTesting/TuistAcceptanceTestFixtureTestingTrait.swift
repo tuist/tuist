@@ -15,11 +15,13 @@ import TuistTesting
 @testable import TuistKit
 
 public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
-    let fixtureDirectory: AbsolutePath
+    let fixture: String
+    let fixturesDirectory: AbsolutePath
     let accountHandle: String?
 
     init(fixture: String, fixturesDirectory: AbsolutePath = Fixtures.directory, accountHandle: String? = nil) {
-        fixtureDirectory = fixturesDirectory.appending(component: fixture)
+        self.fixture = fixture
+        self.fixturesDirectory = fixturesDirectory
         self.accountHandle = accountHandle
     }
 
@@ -28,98 +30,114 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let fileSystem = FileSystem()
-        let fixtureAccountHandle = accountHandle ?? String(UUID().uuidString.prefix(12).lowercased())
-        let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-        let fullHandle = "\(fixtureAccountHandle)/\(projectHandle)"
-        let createsOrganization = accountHandle == nil
-        let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
-        let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
+        try await TuistAcceptanceTesting.withFixtureConnectedToCanary(
+            fixture,
+            fixturesDirectory: fixturesDirectory,
+            accountHandle: accountHandle,
+            function
+        )
+    }
+}
 
-        try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
-            let existingEnvVariables = Environment.current.variables
+/// What `.withFixtureConnectedToCanary` does, for tests that can't take traits, such as XCTest.
+public func withFixtureConnectedToCanary(
+    _ fixture: String,
+    fixturesDirectory: AbsolutePath = Fixtures.directory,
+    accountHandle: String? = nil,
+    _ closure: () async throws -> Void
+) async throws {
+    let fixtureDirectory = fixturesDirectory.appending(component: fixture)
+    let fileSystem = FileSystem()
+    let fixtureAccountHandle = accountHandle ?? String(UUID().uuidString.prefix(12).lowercased())
+    let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
+    let fullHandle = "\(fixtureAccountHandle)/\(projectHandle)"
+    let createsOrganization = accountHandle == nil
+    let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
+    let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
 
-            try await TuistEnvironmentTesting
-                .withMockedEnvironment {
-                    existingEnvVariables
-                        .forEach { Environment.mocked?.variables[$0.key] = $0.value }
+    try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
+        let existingEnvVariables = Environment.current.variables
 
-                    let fixtureTemporaryDirectory = temporaryDirectory.appending(
-                        component: fixtureDirectory.basename
-                    )
-                    try await fileSystem.copy(fixtureDirectory, to: fixtureTemporaryDirectory)
-                    try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
-                        try await TuistTest.$fixtureAccountHandle.withValue(fixtureAccountHandle) {
-                            try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
-                                let serverURL = Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"
+        try await TuistEnvironmentTesting
+            .withMockedEnvironment {
+                existingEnvVariables
+                    .forEach { Environment.mocked?.variables[$0.key] = $0.value }
 
-                                try await fileSystem.writeText(
-                                    """
-                                    import ProjectDescription
+                let fixtureTemporaryDirectory = temporaryDirectory.appending(
+                    component: fixtureDirectory.basename
+                )
+                try await fileSystem.copy(fixtureDirectory, to: fixtureTemporaryDirectory)
+                try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
+                    try await TuistTest.$fixtureAccountHandle.withValue(fixtureAccountHandle) {
+                        try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
+                            let serverURL = Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"
 
-                                    let tuist = Tuist(
-                                        fullHandle: "\(fullHandle)",
-                                        url: "\(serverURL)"
-                                    )
-                                    """,
-                                    at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"),
-                                    options: Set([.overwrite])
+                            try await fileSystem.writeText(
+                                """
+                                import ProjectDescription
+
+                                let tuist = Tuist(
+                                    fullHandle: "\(fullHandle)",
+                                    url: "\(serverURL)"
                                 )
+                                """,
+                                at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"),
+                                options: Set([.overwrite])
+                            )
 
+                            try await TuistTest.run(
+                                LoginCommand.self,
+                                [
+                                    "--email",
+                                    email,
+                                    "--password",
+                                    password,
+                                    "--url",
+                                    serverURL,
+                                ]
+                            )
+                            if createsOrganization {
                                 try await TuistTest.run(
-                                    LoginCommand.self,
-                                    [
-                                        "--email",
-                                        email,
-                                        "--password",
-                                        password,
-                                        "--url",
-                                        serverURL,
-                                    ]
+                                    OrganizationCreateCommand.self,
+                                    [fixtureAccountHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                )
+                            }
+                            try await TuistTest.run(
+                                ProjectCreateCommand.self,
+                                [fullHandle, "--path", fixtureTemporaryDirectory.pathString, "--build-system", "xcode"]
+                            )
+                            resetUI()
+
+                            let revert = {
+                                try await TuistTest.run(
+                                    ProjectDeleteCommand.self,
+                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
                                 )
                                 if createsOrganization {
                                     try await TuistTest.run(
-                                        OrganizationCreateCommand.self,
+                                        OrganizationDeleteCommand.self,
                                         [fixtureAccountHandle, "--path", fixtureTemporaryDirectory.pathString]
                                     )
                                 }
                                 try await TuistTest.run(
-                                    ProjectCreateCommand.self,
-                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString, "--build-system", "xcode"]
+                                    LogoutCommand.self
                                 )
-                                resetUI()
-
-                                let revert = {
-                                    try await TuistTest.run(
-                                        ProjectDeleteCommand.self,
-                                        [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
-                                    )
-                                    if createsOrganization {
-                                        try await TuistTest.run(
-                                            OrganizationDeleteCommand.self,
-                                            [fixtureAccountHandle, "--path", fixtureTemporaryDirectory.pathString]
-                                        )
-                                    }
-                                    try await TuistTest.run(
-                                        LogoutCommand.self
-                                    )
-                                }
-
-                                do {
-                                    try await TuistTest.$fixtureServerURL
-                                        .withValue(URL(string: serverURL)) {
-                                            try await function()
-                                        }
-                                } catch {
-                                    try await revert()
-                                    throw error
-                                }
-                                try await revert()
                             }
+
+                            do {
+                                try await TuistTest.$fixtureServerURL
+                                    .withValue(URL(string: serverURL)) {
+                                        try await closure()
+                                    }
+                            } catch {
+                                try await revert()
+                                throw error
+                            }
+                            try await revert()
                         }
                     }
                 }
-        }
+            }
     }
 }
 

@@ -2,7 +2,7 @@
 {
   "title": "Xcode 미리보기",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "기존 Xcode 프로젝트와 Tuist로 생성된 프로젝트에서 애플리케이션 미리보기를 공유하세요."
+  "description": "기존 Xcode 프로젝트와 Tuist가 생성한 프로젝트에서 앱 미리보기를 공유하세요."
 }
 ---
 # Xcode 미리보기
@@ -28,11 +28,11 @@ tuist xcodebuild build -scheme App -project App.xcodeproj \
 tuist share App --configuration Debug --platforms iOS
 ```
 
-스킴, 프로젝트, 워크스페이스 이름을 자신의 것으로 바꾸세요. Release 빌드를 공유하려면 빌드 시 `-configuration Release`를 사용하고 공유 시 `--configuration Release`를 사용하세요.
+스킴, 프로젝트 및 워크스페이스 이름을 자신의 것으로 대체하세요. Release 빌드를 공유하려면 빌드할 때 `-configuration Release`를 사용하고 공유할 때 `--configuration Release`를 사용하세요.
 
 ## 실제 기기
 
-수신자의 기기에 설치할 수 있는 프로비저닝 프로필로 기기용 빌드에 서명하는 책임은 귀하에게 있습니다. 시뮬레이터 SDK 대신 기기 대상(destination)으로 빌드하세요:
+수신자의 기기에 설치할 수 있는 프로비저닝 프로필로 기기용 빌드에 서명하는 것은 여러분의 책임입니다. 시뮬레이터 SDK 대신 기기 대상을 사용하여 빌드하세요:
 
 ```bash
 tuist xcodebuild build -scheme App -project App.xcodeproj \
@@ -56,8 +56,8 @@ tuist share App.ipa
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-게시된 빌드 실행, 접근 권한, 트랙, README 배지에 대해서는 <.localized_link href="/guides/features/previews#run-a-preview">미리보기 실행</.localized_link>을 참조하세요.
+게시된 빌드 실행, 접근 권한, 트랙 및 README 배지에 대해서는 <.localized_link href="/guides/features/previews#run-a-preview">미리보기 실행</.localized_link>을 참조하세요.
 
 <!-- @snippet: ./_tuist-share -->
 
-수신자는 빌드 시스템 통합과 무관하게 <.localized_link href="/guides/features/previews/run/macos">Tuist macOS 앱</.localized_link> 또는 <.localized_link href="/guides/features/previews/run/ios">iPhone 앱</.localized_link>을 사용할 수 있습니다. iPhone 가이드에는 Tuist SDK를 사용한 <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">인앱 업데이트 알림</.localized_link>도 포함되어 있습니다.
+수신자는 빌드 시스템 통합과 무관하게 <.localized_link href="/guides/features/previews/run/macos">Tuist macOS 앱</.localized_link> 또는 <.localized_link href="/guides/features/previews/run/ios">iPhone 앱</.localized_link>을 사용할 수 있습니다. iPhone 가이드에는 Tuist SDK를 사용한 <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">앱 내 업데이트 알림</.localized_link>도 포함되어 있습니다.

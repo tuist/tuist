@@ -22,14 +22,17 @@ struct ServerSessionControllerProgramStatusTests {
         let getAuthTokenService = MockGetAuthTokenServicing()
         let uniqueIDGenerator = MockUniqueIDGenerating()
         let credentialsStore = MockServerCredentialsStoring()
+        let createDeviceCodeService = MockCreateDeviceCodeServicing()
         let subject = ServerSessionController(
             opener: opener,
             getAuthTokenService: getAuthTokenService,
+            createDeviceCodeService: createDeviceCodeService,
             uniqueIDGenerator: uniqueIDGenerator,
             serverAuthenticationController: MockServerAuthenticationControlling()
         )
         let serverURL = try #require(URL(string: "https://tuist.dev"))
         given(opener).open(url: .any).willReturn()
+        given(createDeviceCodeService).createDeviceCode(serverURL: .any).willReturn(nil)
         given(uniqueIDGenerator).uniqueID().willReturn("device-code")
         given(credentialsStore).store(credentials: .any, serverURL: .any).willReturn()
         given(getAuthTokenService).getAuthToken(serverURL: .any, deviceCode: .any).willProduce { _, _ in
@@ -44,6 +47,7 @@ struct ServerSessionControllerProgramStatusTests {
                     try await subject.authenticate(
                         serverURL: serverURL,
                         deviceCodeType: .cli,
+                        onUserCode: { _ in },
                         onOpeningBrowser: { _ in },
                         onAuthWaitBegin: {}
                     )

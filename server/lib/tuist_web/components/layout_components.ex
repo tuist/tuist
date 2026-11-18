@@ -10,10 +10,23 @@ defmodule TuistWeb.LayoutComponents do
 
   def head_favicon_links(assigns) do
     ~H"""
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link
+      :for={
+        {href, type, sizes} <- [
+          {~p"/favicon.ico", nil, "any"},
+          {~p"/favicon.svg", "image/svg+xml", nil},
+          {~p"/favicon-32x32.png", "image/png", "32x32"},
+          {~p"/favicon-16x16.png", "image/png", "16x16"}
+        ]
+      }
+      rel="icon"
+      href={href}
+      type={type}
+      sizes={sizes}
+      data-favicon-success={~p"/images/favicon-success.png"}
+      data-favicon-failure={~p"/images/favicon-failure.png"}
+      data-favicon-in-progress={~p"/images/favicon-in-progress.png"}
+    />
     """
   end
 
@@ -36,7 +49,7 @@ defmodule TuistWeb.LayoutComponents do
   defp default_description do
     dgettext(
       "dashboard",
-      "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
+      "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
     )
   end
 
@@ -57,7 +70,10 @@ defmodule TuistWeb.LayoutComponents do
 
   def head_canonical_link(assigns) do
     ~H"""
-    <link rel="canonical" href={SEO.canonical_url(assigns[:current_path])} />
+    <link
+      rel="canonical"
+      href={SEO.canonical_url(assigns[:head_canonical_path] || assigns[:current_path])}
+    />
     """
   end
 
@@ -67,7 +83,10 @@ defmodule TuistWeb.LayoutComponents do
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
-    <meta property="og:url" content={SEO.canonical_url(assigns[:current_path])} />
+    <meta
+      property="og:url"
+      content={SEO.canonical_url(assigns[:head_canonical_path] || assigns[:current_path])}
+    />
     <meta property="og:type" content={assigns[:head_og_type] || "website"} />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
     <meta property="og:description" content={description(assigns)} />

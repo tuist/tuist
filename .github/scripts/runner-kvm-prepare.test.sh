@@ -12,7 +12,7 @@ echo "$*" >> "$KVM_TEST_WORK/calls"
 if [[ "$*" == *'get nodes'* ]]; then
   cat "$KVM_TEST_WORK/nodes.json"
 elif [[ "$*" == *'apply -f'* ]]; then
-  cp "${@: -1}" "$KVM_TEST_WORK/applied.json"
+  cp "${@: -1}" "$KVM_TEST_WORK/applied-$(basename "${@: -1}")"
 fi
 STUB
 chmod +x "$work/bin/kubectl"
@@ -25,8 +25,16 @@ jq -n '[
 ]' > "$work/render.json"
 cp "$work/ready.json" "$work/nodes.json"
 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/render.json" tuist tuist-staging
-jq -e '(.items | length == 4) and all(.items[]; .metadata.annotations["meta.helm.sh/release-name"] == "tuist" and .metadata.annotations["meta.helm.sh/release-namespace"] == "tuist-staging")' "$work/applied.json" >/dev/null
+jq -e '(.items | length == 4) and all(.items[]; .metadata.annotations["meta.helm.sh/release-name"] == "tuist" and .metadata.annotations["meta.helm.sh/release-namespace"] == "tuist-staging")' "$work/applied-plugin.json" >/dev/null
 awk '/set image/ {image=NR} /apply -f/ {plugin=NR} END {exit !(image > 0 && plugin > image)}' "$work/calls"
+test ! -e "$work/applied-nri.json"
+# A release that renders the NRI plugin rolls it out after the device plugin.
+jq '. + [{kind:"DaemonSet",metadata:{name:"kvm-nri",namespace:"runners",labels:{"app.kubernetes.io/component":"kvm-nri-plugin"}}}]' "$work/render.json" > "$work/nri-render.json"
+: > "$work/calls"
+bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/nri-render.json" tuist tuist-staging
+jq -e '(.items | length == 1) and .items[0].kind == "DaemonSet" and .items[0].metadata.annotations["meta.helm.sh/release-name"] == "tuist" and .items[0].metadata.annotations["meta.helm.sh/release-namespace"] == "tuist-staging" and .items[0].metadata.labels["app.kubernetes.io/managed-by"] == "Helm"' "$work/applied-nri.json" >/dev/null
+jq -e '.items | length == 4' "$work/applied-plugin.json" >/dev/null
+awk '/rollout status daemonset\/kvm --/ {plugin=NR} /apply -f .*nri.json/ {apply=NR} /rollout status daemonset\/kvm-nri --/ {nri=NR} END {exit !(plugin > 0 && apply > plugin && nri > apply)}' "$work/calls"
 for mutation in \
  '.items[0].metadata.annotations["tuist.dev/kata-kvm-config"] = "revision:previous-boot"' \
  '.items[0].status.allocatable["devices.tuist.dev/kvm"] = "16"' \

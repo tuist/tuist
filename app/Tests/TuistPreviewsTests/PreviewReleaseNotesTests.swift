@@ -16,4 +16,13 @@ import TuistServer
         #expect(preview.releaseNotesSummary == firstLine)
         #expect(preview.releaseNotes?.contains("Detailed instructions") == true)
     }
+
+    @Test func notes_follow_the_direction_of_their_language() {
+        #expect(ServerPreview.test(releaseNotes: "Fixes the crash when opening a preview")
+            .releaseNotesLayoutDirection == .leftToRight)
+        #expect(ServerPreview.test(releaseNotes: "يصلح التعطل عند فتح المعاينة على الجهاز")
+            .releaseNotesLayoutDirection == .rightToLeft)
+        #expect(ServerPreview.test(releaseNotes: "מתקן קריסה בעת פתיחת תצוגה מקדימה").releaseNotesLayoutDirection == .rightToLeft)
+        #expect(ServerPreview.test(releaseNotes: nil).releaseNotesLayoutDirection == nil)
+    }
 }

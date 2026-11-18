@@ -241,4 +241,115 @@ struct CacheTests {
             )
         }
     }
+
+    @Test
+    func pruneEvictsUnusedEntriesAndLeavesNativeSwiftPMFilesAndLocks() async throws {
+        try await withTemporaryDirectory { root in
+            _ = try await Cache(root: root)
+            let now = Date()
+            let old = now.addingTimeInterval(-31 * 24 * 60 * 60)
+            let stale = try await cacheEntry(root, "sources/foo/1.0.0-aaa", bytes: 10, lastUsed: old)
+            let fresh = try await cacheEntry(
+                root, "sources/foo/2.0.0-bbb", bytes: 10, lastUsed: now.addingTimeInterval(-29 * 24 * 60 * 60)
+            )
+            let staleArchive = try await cacheFile(root, "archives/x-aaa.tar.gz", lastUsed: old)
+            let nativeArtifact = try await cacheFile(root, "artifacts/https___example_com_A_zip", lastUsed: old)
+            let nativeRepository = try await cacheEntry(root, "repositories/foo-123", bytes: 10, lastUsed: old)
+            let lock = try await cacheFile(root, "locks/sources/abc.lock", lastUsed: old)
+
+            try await CachePruner.prune(root: root, maxBytes: nil, now: now)
+
+            #expect(!fileSystem.existsIncludingSymlinks(stale))
+            #expect(!fileSystem.existsIncludingSymlinks(staleArchive))
+            for kept in [fresh, nativeArtifact, nativeRepository, lock] {
+                #expect(fileSystem.existsIncludingSymlinks(kept))
+            }
+        }
+    }
+
+    @Test
+    func pruneSkipsAnEntryARestoreIsLinking() async throws {
+        try await withTemporaryDirectory { root in
+            let cache = try await Cache(root: root)
+            let now = Date()
+            let entry = try await cacheEntry(
+                root, "artifacts/foo/Foo-abc", bytes: 10, lastUsed: now.addingTimeInterval(-60 * 24 * 60 * 60)
+            )
+            var restoreLock: PathLock? = try await cache.lock(namespace: "artifacts", key: entry.path, shared: true)
+
+            try await CachePruner.prune(root: root, maxBytes: nil, now: now)
+            #expect(fileSystem.existsIncludingSymlinks(entry))
+
+            restoreLock = nil
+            #expect(restoreLock == nil)
+            try await CachePruner.prune(root: root, maxBytes: nil, now: now)
+            #expect(!fileSystem.existsIncludingSymlinks(entry))
+        }
+    }
+
+    @Test
+    func pruneEvictsLeastRecentlyUsedEntriesToFitTheBudget() async throws {
+        try await withTemporaryDirectory { root in
+            _ = try await Cache(root: root)
+            let now = Date()
+            let megabyte = 1_000_000
+            // Oldest first: a, b and c are past the grace period; d was used in the last hour.
+            let a = try await cacheEntry(
+                root, "sources/a/1-a", bytes: megabyte, lastUsed: now.addingTimeInterval(-4 * 3600)
+            )
+            let b = try await cacheEntry(
+                root, "sources/b/1-b", bytes: megabyte, lastUsed: now.addingTimeInterval(-3 * 3600)
+            )
+            let c = try await cacheEntry(
+                root, "artifacts/c/C-c", bytes: megabyte, lastUsed: now.addingTimeInterval(-2 * 3600)
+            )
+            let d = try await cacheEntry(
+                root, "sources/d/1-d", bytes: megabyte, lastUsed: now.addingTimeInterval(-60)
+            )
+
+            try await CachePruner.prune(root: root, maxBytes: 2_500_000, now: now)
+
+            #expect(!fileSystem.existsIncludingSymlinks(a))
+            #expect(!fileSystem.existsIncludingSymlinks(b))
+            #expect(fileSystem.existsIncludingSymlinks(c))
+            #expect(fileSystem.existsIncludingSymlinks(d))
+
+            // Even a budget nothing fits keeps entries in use.
+            try await CachePruner.prune(root: root, maxBytes: 0, now: now)
+            #expect(!fileSystem.existsIncludingSymlinks(c))
+            #expect(fileSystem.existsIncludingSymlinks(d))
+        }
+    }
+
+    @Test
+    func pruneMeasuresAnEntryOnceAndRemeasuresAReplacedOne() async throws {
+        try await withTemporaryDirectory { root in
+            _ = try await Cache(root: root)
+            let entry = try await cacheEntry(root, "sources/a/1-a", bytes: 1_000_000, lastUsed: Date())
+            let pruneEntry = try #require(try await CachePruner.entries(root: root).first)
+            let first = try #require(try await CachePruner.sizes(of: [pruneEntry])[pruneEntry.url])
+            #expect(first >= 1_000_000)
+            #expect(fileSystem.existsIncludingSymlinks(CachePruner.sizeRecord(for: pruneEntry.url)))
+
+            try await fileSystem.removePath(entry)
+            _ = try await cacheEntry(root, "sources/a/1-a", bytes: 3_000_000, lastUsed: Date())
+            let second = try #require(try await CachePruner.sizes(of: [pruneEntry])[pruneEntry.url])
+            #expect(second >= 3_000_000)
+        }
+    }
+
+    private func cacheEntry(_ root: URL, _ path: String, bytes: Int, lastUsed: Date) async throws -> URL {
+        let entry = root.appendingPathComponent(path)
+        try await fileSystem.makeDirectory(at: entry.absolutePath, options: [.createTargetParentDirectories])
+        try await fileSystem.atomicWrite(Data(repeating: 0x41, count: bytes), to: entry.appendingPathComponent("payload"))
+        try await fileSystem.setFileTimes(of: entry.absolutePath, lastAccessDate: nil, lastModificationDate: lastUsed)
+        return entry
+    }
+
+    private func cacheFile(_ root: URL, _ path: String, lastUsed: Date) async throws -> URL {
+        let file = root.appendingPathComponent(path)
+        try await fileSystem.atomicWrite(Data("x".utf8), to: file)
+        try await fileSystem.setFileTimes(of: file.absolutePath, lastAccessDate: nil, lastModificationDate: lastUsed)
+        return file
+    }
 }

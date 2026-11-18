@@ -16,6 +16,16 @@ defmodule SlackWeb.Admin.InvitationsLiveTest do
       assert conn.status == 401
     end
 
+    test "does not let anonymous visitors live-navigate from the public page" do
+      {:ok, view, _html} = live(Phoenix.ConnTest.build_conn(), ~p"/")
+
+      assert {:error, {:redirect, %{to: to}}} = live_redirect(view, to: ~p"/admin/invitations")
+      assert URI.parse(to).path == "/admin/invitations"
+
+      # The full page load the browser falls back to goes through basic auth.
+      assert Phoenix.ConnTest.build_conn() |> get(to) |> Map.fetch!(:status) == 401
+    end
+
     test "lets requests through with the configured credentials", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/admin/invitations")
       assert html =~ "Invitation requests"

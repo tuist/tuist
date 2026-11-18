@@ -3,6 +3,7 @@ defmodule Tuist.AccountTest do
   use Mimic
 
   alias Tuist.Accounts.Account
+  alias Tuist.Environment
 
   test "account is created when customer_id is present and billing is enabled" do
     # Given
@@ -33,6 +34,16 @@ defmodule Tuist.AccountTest do
   end
 
   describe "handle validity" do
+    test "app remains reserved for account creation and renaming" do
+      create_changeset = Account.create_changeset(%Account{}, %{name: "app", user_id: 1, billing_email: "app@tuist.dev"})
+      update_changeset = Account.update_changeset(%Account{name: "existing"}, %{name: "app"})
+
+      for changeset <- [create_changeset, update_changeset] do
+        refute changeset.valid?
+        assert "is reserved" in errors_on(changeset).name
+      end
+    end
+
     test "it fails the validation if a handle starts or ends with a hyphen" do
       for name <- ["-handle", "handle-", "-"] do
         changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1})
@@ -42,13 +53,12 @@ defmodule Tuist.AccountTest do
     end
 
     test "it fails the validation if a handle is included in the block list" do
-      changeset =
-        Account.create_changeset(%Account{}, %{
-          name: Enum.random(Application.get_env(:tuist, :blocked_handles))
-        })
+      for name <- Environment.blocked_account_handles() do
+        changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1, billing_email: "account@tuist.dev"})
 
-      assert changeset.valid? == false
-      assert "is reserved" in errors_on(changeset).name
+        refute changeset.valid?
+        assert "is reserved" in errors_on(changeset).name
+      end
     end
   end
 

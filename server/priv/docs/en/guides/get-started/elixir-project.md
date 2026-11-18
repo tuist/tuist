@@ -27,13 +27,7 @@ Set up Tuist once, then keep using `mix compile` and `mix test`. The `tuist_ex` 
 
 Create a project in the Tuist dashboard and choose **Mix (Elixir)** as its build system. Add the package to the dependencies in your `mix.exs`:
 
-```elixir
-defp deps do
-  [
-    {:tuist_ex, "~> 0.3", runtime: false}
-  ]
-end
-```
+<!-- @snippet: ../_tuist-ex-dependency -->
 
 Fetch it, configure your project, and log in:
 

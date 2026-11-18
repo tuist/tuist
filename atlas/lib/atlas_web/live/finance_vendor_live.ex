@@ -395,20 +395,20 @@ defmodule AtlasWeb.FinanceVendorLive do
                         />
                       </div>
                       <div data-part="expense-toggle">
-                        <.neutral_button
+                        <.ghost_button
                           data-part="closed-collapsible-button"
                           variant="secondary"
                           size="small"
                         >
                           <.chevron_down />
-                        </.neutral_button>
-                        <.neutral_button
+                        </.ghost_button>
+                        <.ghost_button
                           data-part="open-collapsible-button"
                           variant="secondary"
                           size="small"
                         >
                           <.chevron_up />
-                        </.neutral_button>
+                        </.ghost_button>
                       </div>
                     </div>
                   </div>

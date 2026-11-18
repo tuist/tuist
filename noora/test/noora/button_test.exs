@@ -5,7 +5,7 @@ defmodule Noora.ButtonTest do
 
   alias Noora.Button
 
-  test "renders the defaults from the shared button contract" do
+  test "renders the default variant and size" do
     html = render_component(&Button.button/1, %{label: "Create project"})
 
     assert html =~ ~s(class="noora-button")
@@ -14,7 +14,7 @@ defmodule Noora.ButtonTest do
     assert html =~ ">Create project</span>"
   end
 
-  test "keeps LiveView navigation in the Phoenix adapter" do
+  test "renders LiveView navigation links" do
     html = render_component(&Button.button/1, %{label: "Projects", navigate: "/projects"})
 
     assert html =~ ~s(href="/projects")

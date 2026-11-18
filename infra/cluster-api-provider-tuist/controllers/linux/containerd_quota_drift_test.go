@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/cluster-api/util/conditions"
 )
 
 // The lift is additive and instantaneous: one xfs_quota call and one line of
@@ -96,7 +96,7 @@ func TestContainerdQuotaLeftInPlaceOnCacheBoxes(t *testing.T) {
 	h.machine.Spec.NodeTaints = cacheFleetTaints()
 
 	requeue, err := reconcileLinuxContainerdQuotaDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err != nil || requeue {
 		t.Fatalf("expected a no-op on a cache box, got requeue=%v err=%v", requeue, err)
 	}
@@ -115,7 +115,7 @@ func TestContainerdQuotaPresentIsSurfacedBeforeTheLift(t *testing.T) {
 	h.machine.Spec.NodeTaints = []corev1.Taint{{Key: "tuist.dev/runner-tier", Value: "bare-metal", Effect: corev1.TaintEffectNoSchedule}}
 
 	requeue, err := reconcileLinuxContainerdQuotaDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err != nil || !requeue {
 		t.Fatalf("expected a deferral without an InternalIP, got requeue=%v err=%v", requeue, err)
 	}
@@ -140,7 +140,7 @@ func TestContainerdQuotaLiftFailureNeverStampsTheNode(t *testing.T) {
 	}
 
 	requeue, err := reconcileLinuxContainerdQuotaDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err == nil {
 		t.Fatalf("expected the lift to fail against an unreachable host, got requeue=%v", requeue)
 	}
@@ -167,7 +167,7 @@ func TestContainerdQuotaLiftNoOpWhenStamped(t *testing.T) {
 	}
 
 	requeue, err := reconcileLinuxContainerdQuotaDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err != nil || requeue {
 		t.Fatalf("expected a no-op on a stamped node, got requeue=%v err=%v", requeue, err)
 	}

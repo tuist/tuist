@@ -95,7 +95,6 @@
            border hairline draws inside it), left-aligned to the page
            container edge. */
         top: calc(100% + var(--noora-spacing-2));
-        left: 0;
         transform: translateY(-8px);
         visibility: hidden;
         opacity: 0;
@@ -104,6 +103,7 @@
           opacity 0.18s var(--ease-out-cubic),
           transform 0.18s var(--ease-out-cubic),
           visibility 0.18s;
+        inset-inline-start: 0;
         width: max-content;
         min-width: 250px;
 
@@ -144,8 +144,8 @@
       gap: var(--noora-spacing-4);
       /* Menus sit next to the logo (not centered): spacing-8 from the logo,
          spacing-4 between items; the actions cluster absorbs the slack via
-         margin-left: auto. */
-      margin-left: var(--noora-spacing-8);
+         margin-inline-start: auto. */
+      margin-inline-start: var(--noora-spacing-8);
 
       @media (min-width: 960px) {
         display: flex;
@@ -169,16 +169,16 @@
           border-radius: var(--noora-radius-2);
           background: transparent;
           padding-top: var(--noora-spacing-2);
-          padding-right: var(--noora-spacing-3);
+          padding-inline-end: var(--noora-spacing-3);
           padding-bottom: var(--noora-spacing-2);
-          padding-left: var(--noora-spacing-3);
+          padding-inline-start: var(--noora-spacing-3);
           font: inherit;
           text-decoration: none;
 
           /* Reduce padding on medium screens */
           @media (min-width: 960px) and (max-width: 1024px) {
-            padding-right: var(--noora-spacing-2);
-            padding-left: var(--noora-spacing-2);
+            padding-inline-start: var(--noora-spacing-2);
+            padding-inline-end: var(--noora-spacing-2);
           }
 
           /* Labels rest at secondary, chevrons at tertiary; both lift to
@@ -218,10 +218,10 @@
             padding: var(--noora-spacing-2) var(--noora-spacing-3);
 
             @media (min-width: 960px) and (max-width: 1024px) {
-              margin-right: calc(-1 * var(--noora-spacing-2));
-              margin-left: calc(-1 * var(--noora-spacing-2));
-              padding-right: var(--noora-spacing-2);
-              padding-left: var(--noora-spacing-2);
+              margin-inline-start: calc(-1 * var(--noora-spacing-2));
+              margin-inline-end: calc(-1 * var(--noora-spacing-2));
+              padding-inline-start: var(--noora-spacing-2);
+              padding-inline-end: var(--noora-spacing-2);
             }
           }
 
@@ -254,7 +254,7 @@
       align-items: center;
       gap: var(--noora-spacing-5);
       /* Push the actions to the right edge now that the menus hug the logo. */
-      margin-left: auto;
+      margin-inline-start: auto;
 
       /* On mobile only Sign up remains; Log in lives in the sign-up flow. */
       & > [data-part="log-in"] {
@@ -263,17 +263,12 @@
         }
       }
 
-      /* Slack/GitHub neutral buttons: 20px icons + the button's 6px padding
-         match the 32px height of the text buttons. Hover comes from the
-         neutral button itself. */
+      /* Slack/GitHub ghost buttons, sized and styled by the ghost button
+         itself: a 16px icon in a 32px square, the height of the text
+         buttons. */
       & > [data-part="icon"] {
         @media (max-width: 960px) {
           display: none;
-        }
-
-        & > svg {
-          width: 20px;
-          height: 20px;
         }
       }
 
@@ -332,7 +327,7 @@
           margin-top: 0;
           /* Noora hairline ring; its [data-theme="dark"] override swaps in
              the dark-scheme ring. */
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           border-radius: var(--noora-radius-6);
           background: var(--noora-surface-background-primary);
 
@@ -376,7 +371,7 @@
           display: none;
         }
 
-        /* Unlike other neutral buttons, the burger has no hover or press
+        /* Unlike other ghost buttons, the burger has no hover or press
            fill, and no native tap highlight either. */
         -webkit-tap-highlight-color: transparent;
 
@@ -428,8 +423,6 @@
        attempt; iOS resolved it to the content height, exposing the page
        below the menu.) */
     top: var(--marketing-navbar-height);
-    right: 0;
-    left: 0;
     flex-direction: column;
     align-items: stretch;
     /* spacing-8 (24px) between top-level rows. */
@@ -443,6 +436,8 @@
       transform 0.18s var(--ease-out-cubic),
       visibility 0s linear 0.18s;
     box-sizing: border-box;
+    inset-inline-end: 0;
+    inset-inline-start: 0;
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-7) var(--noora-spacing-4);
     height: calc(100vh - var(--marketing-navbar-height));
@@ -495,7 +490,7 @@
         width: 100%;
         color: inherit;
         font: inherit;
-        text-align: left;
+        text-align: start;
         -webkit-tap-highlight-color: transparent;
 
         & > [data-part="title"] {
@@ -512,7 +507,7 @@
           justify-content: center;
           align-items: center;
           padding: 0 var(--noora-spacing-3);
-          color: var(--noora-button-neutral-label);
+          color: var(--noora-button-ghost-secondary-label);
 
           & svg {
             transform: rotate(-90deg);
@@ -936,7 +931,7 @@
     /* Hairline ring from Noora + the Figma depth layer (0 8px 32px #08090a)
        rebuilt from the Noora neutral ramp at 10% alpha. */
     box-shadow:
-      var(--noora-border-light-default),
+      var(--noora-border-small-default),
       0 8px 32px
         color-mix(
           in oklch,
@@ -991,6 +986,23 @@
     &[data-motion="to-end"] {
       animation-name: marketing-nav-exit-to-right;
     }
+
+    /* The triggers run right to left in RTL, so start/end swap sides. */
+    [dir="rtl"] &[data-motion="from-start"] {
+      animation-name: marketing-nav-enter-from-right;
+    }
+
+    [dir="rtl"] &[data-motion="from-end"] {
+      animation-name: marketing-nav-enter-from-left;
+    }
+
+    [dir="rtl"] &[data-motion="to-start"] {
+      animation-name: marketing-nav-exit-to-right;
+    }
+
+    [dir="rtl"] &[data-motion="to-end"] {
+      animation-name: marketing-nav-exit-to-left;
+    }
   }
 
   /* Item hover: an arrow slides in next to the title (no background
@@ -1003,7 +1015,7 @@
        global focus ring (see marketing.css) inward so the clip can't
        shave it. */
     &:focus-visible {
-      outline-offset: -2px;
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
       border-radius: var(--noora-radius-2);
     }
 
@@ -1119,7 +1131,7 @@
 
       /* Middle/right columns carry the vertical hairlines. */
       &:not(:nth-child(3n + 1)) {
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
       }
 
       /* Second row carries the horizontal hairline. */
@@ -1195,7 +1207,7 @@
       display: flex;
       position: relative;
       flex-direction: column;
-      border-left: 1px solid var(--marketing-stroke-default);
+      border-inline-start: 1px solid var(--marketing-stroke-default);
       background: var(--noora-surface-background-primary);
       overflow: hidden;
 
@@ -1307,7 +1319,7 @@
 
       /* Right column cells (Slack onwards) carry the vertical hairline. */
       &:nth-child(n + 4) {
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
       }
 
       /* Horizontal hairlines between rows: every cell below the first row

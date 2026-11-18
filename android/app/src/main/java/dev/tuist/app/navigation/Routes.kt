@@ -20,6 +20,9 @@ sealed class HomeTabs {
     data object Profile : HomeTabs()
 
     @Serializable
+    data object Notifications : HomeTabs()
+
+    @Serializable
     data class PreviewDetail(
         val previewId: String,
         val fullHandle: String,

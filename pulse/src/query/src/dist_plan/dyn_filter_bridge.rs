@@ -1,0 +1,1220 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::any::Any;
+use std::sync::Arc;
+
+use common_query::request::{
+    DynFilterPayload, INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY, InitialDynFilterReg,
+    InitialDynFilterRegs, InitialDynFilterSnapshot, REMOTE_DYN_FILTER_PAYLOAD_MAX_BYTES,
+};
+use datafusion::physical_plan::filter_pushdown::PushedDown;
+use datafusion_common::Result;
+use datafusion_common::tree_node::{Transformed, TreeNode, TreeNodeRecursion};
+use datafusion_expr::ColumnarValue;
+use datafusion_physical_expr::PhysicalExpr;
+use datafusion_physical_expr::expressions::{
+    Column, DynamicFilterPhysicalExpr, InListExpr, Literal, lit,
+};
+use datafusion_physical_expr::scalar_subquery::ScalarSubqueryExpr;
+use datafusion_physical_expr::utils::collect_columns;
+use session::context::{QueryContext, QueryContextRef};
+use store_api::storage::RegionId;
+
+use crate::dist_plan::filter_id::build_remote_dyn_filter_id;
+use crate::dist_plan::{
+    FilterId, QueryDynFilterRegistry, RemoteDynFilterProducerId, Subscriber, SubscriberRegistration,
+};
+use crate::region_query::RegionQueryTarget;
+
+#[derive(Debug, Clone)]
+pub(crate) struct CapturedDynFilter {
+    filter_id: FilterId,
+    initial_registration: InitialDynFilterReg,
+    pub(crate) alive_dyn_filter: Arc<DynamicFilterPhysicalExpr>,
+    /// A parent filter that references uncorrelated scalar subqueries. Its value is only
+    /// known once `ScalarSubqueryExec` has run the subqueries, so `alive_dyn_filter`
+    /// starts as `true` and is replaced by the resolved filter before regions are queried.
+    // TODO(discord9): temporary bridge. DataFusion fills the scalar subquery results in
+    // `ScalarSubqueryExec` but does not expose predicates using them as
+    // `DynamicFilterPhysicalExpr`, so we keep the predicate and bind it ourselves. Once
+    // upstream does and the pinned DataFusion includes it, remove this field and the
+    // scalar subquery capture/resolve path in favor of the regular dyn filter capture.
+    // Keep the per-phase bookkeeping in `MergeScanExec`.
+    scalar_subquery_filter: Option<Arc<dyn PhysicalExpr>>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RemoteDynFilterPushdown {
+    pub(crate) captured_dyn_filters: Vec<CapturedDynFilter>,
+    /// Preflight result per parent filter.
+    pub(crate) pushed_down: Vec<PushedDown>,
+}
+
+/// Captures `parent_filters` as remote dyn filters. `accepted` holds filters captured by
+/// another pushdown phase; they are sent in the same request, so the initial registration
+/// budget is checked against both and they are kept if the new filters do not fit.
+pub(crate) fn capture_remote_dyn_filters_for_pushdown(
+    remote_dyn_filter_producer_id: RemoteDynFilterProducerId,
+    first_producer_local_ordinal: usize,
+    accepted: &[CapturedDynFilter],
+    parent_filters: Vec<Arc<dyn datafusion::physical_plan::PhysicalExpr>>,
+) -> RemoteDynFilterPushdown {
+    let mut pushed_down = Vec::with_capacity(parent_filters.len());
+    let mut captured_dyn_filters = Vec::new();
+
+    for (index, filter) in parent_filters.into_iter().enumerate() {
+        let producer_local_ordinal = first_producer_local_ordinal + index;
+        let captured = if let Some(alive_dyn_filter) = downcast_dynamic_filter(filter.clone()) {
+            build_captured_dyn_filter(
+                remote_dyn_filter_producer_id,
+                producer_local_ordinal,
+                alive_dyn_filter,
+            )
+            .map(|captured| (captured, PushedDown::Yes))
+        } else if is_scalar_subquery_filter(&filter) {
+            // The filter is only forwarded to regions for pruning; the parent keeps
+            // evaluating it, so report it as not pushed down.
+            build_scalar_subquery_dyn_filter(
+                remote_dyn_filter_producer_id,
+                producer_local_ordinal,
+                filter,
+            )
+            .map(|captured| (captured, PushedDown::No))
+        } else {
+            pushed_down.push(PushedDown::No);
+            continue;
+        };
+
+        match captured {
+            Ok((captured_dyn_filter, pushdown)) => {
+                pushed_down.push(pushdown);
+                captured_dyn_filters.push(captured_dyn_filter);
+            }
+            Err(error) => {
+                common_telemetry::warn!(error; "Remote dyn filter is not pushed down because initial registration cannot be built");
+                pushed_down.push(PushedDown::No);
+            }
+        }
+    }
+
+    let combined = accepted
+        .iter()
+        .chain(&captured_dyn_filters)
+        .cloned()
+        .collect::<Vec<_>>();
+    if let Err(error) = validate_initial_registrations_for_pushdown(&combined) {
+        common_telemetry::warn!(error; "Remote dyn filters are not pushed down because initial registrations are invalid");
+        return RemoteDynFilterPushdown {
+            captured_dyn_filters: Vec::new(),
+            pushed_down: vec![PushedDown::No; pushed_down.len()],
+        };
+    }
+
+    RemoteDynFilterPushdown {
+        captured_dyn_filters,
+        pushed_down,
+    }
+}
+
+/// Returns true if `filter` references at least one scalar subquery and is otherwise
+/// built only from columns and literals, so it becomes a plain predicate once the
+/// subqueries are resolved.
+///
+/// Filters containing `IN` lists are rejected: an oversized payload replaces `IN` with
+/// `true`, which only widens a conjunction but can narrow an arbitrary predicate such as
+/// `(host IN (...)) = false`.
+// TODO(dennis): make the bounds-only fallback in `DynFilterPayload` replace only `IN` lists
+// in conjunctive positions, then drop this restriction.
+fn is_scalar_subquery_filter(filter: &Arc<dyn PhysicalExpr>) -> bool {
+    let mut has_scalar_subquery = false;
+    let mut supported = true;
+    let _ = filter.apply(|expr| {
+        if expr.is::<ScalarSubqueryExpr>() {
+            has_scalar_subquery = true;
+        } else if expr.is::<InListExpr>()
+            || (expr.children().is_empty() && !expr.is::<Column>() && !expr.is::<Literal>())
+        {
+            supported = false;
+            return Ok(TreeNodeRecursion::Stop);
+        }
+        Ok(TreeNodeRecursion::Continue)
+    });
+    has_scalar_subquery && supported
+}
+
+fn build_scalar_subquery_dyn_filter(
+    remote_dyn_filter_producer_id: RemoteDynFilterProducerId,
+    producer_local_ordinal: usize,
+    filter: Arc<dyn PhysicalExpr>,
+) -> Result<CapturedDynFilter> {
+    let mut columns = collect_columns(&filter).into_iter().collect::<Vec<_>>();
+    columns.sort_by_key(|column| column.index());
+    let children = columns
+        .into_iter()
+        .map(|column| Arc::new(column) as Arc<dyn PhysicalExpr>)
+        .collect();
+    let alive_dyn_filter = Arc::new(DynamicFilterPhysicalExpr::new(children, lit(true)));
+    let mut captured = build_captured_dyn_filter(
+        remote_dyn_filter_producer_id,
+        producer_local_ordinal,
+        alive_dyn_filter,
+    )?;
+    captured.scalar_subquery_filter = Some(filter);
+    Ok(captured)
+}
+
+/// Replaces the scalar subqueries in captured filters with their results.
+///
+/// `ScalarSubqueryExec` runs its subqueries before executing its input, so the results
+/// are available when `MergeScanExec` is executed. This runs on every execution because
+/// `ScalarSubqueryExec::reset_state` clears the results for re-execution. A filter whose
+/// subqueries are unresolved falls back to `true`, which only disables pruning.
+pub(crate) fn resolve_scalar_subquery_dyn_filters(captured_dyn_filters: &[CapturedDynFilter]) {
+    for captured in captured_dyn_filters {
+        let Some(filter) = &captured.scalar_subquery_filter else {
+            continue;
+        };
+        let resolved = replace_scalar_subqueries(filter).unwrap_or_else(|error| {
+            common_telemetry::debug!(
+                "Scalar subquery filter {} is not forwarded to regions: {}",
+                filter,
+                error
+            );
+            lit(true)
+        });
+        if captured
+            .alive_dyn_filter
+            .current()
+            .is_ok_and(|current| current.as_ref() == resolved.as_ref())
+        {
+            continue;
+        }
+        if let Err(error) = captured.alive_dyn_filter.update(resolved) {
+            common_telemetry::warn!(error; "Failed to update scalar subquery remote dyn filter");
+        }
+    }
+}
+
+fn replace_scalar_subqueries(filter: &Arc<dyn PhysicalExpr>) -> Result<Arc<dyn PhysicalExpr>> {
+    let empty_batch =
+        arrow::record_batch::RecordBatch::new_empty(Arc::new(arrow_schema::Schema::empty()));
+    filter
+        .clone()
+        .transform_up(|expr| {
+            if !expr.is::<ScalarSubqueryExpr>() {
+                return Ok(Transformed::no(expr));
+            }
+            // Fails if the subquery has not been executed yet.
+            match expr.evaluate(&empty_batch)? {
+                ColumnarValue::Scalar(value) => Ok(Transformed::yes(lit(value))),
+                ColumnarValue::Array(_) => Err(datafusion_common::DataFusionError::Internal(
+                    "scalar subquery evaluated to an array".to_string(),
+                )),
+            }
+        })
+        .map(|transformed| transformed.data)
+}
+
+fn downcast_dynamic_filter(
+    expr: Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+) -> Option<Arc<DynamicFilterPhysicalExpr>> {
+    (expr as Arc<dyn Any + Send + Sync + 'static>)
+        .downcast::<DynamicFilterPhysicalExpr>()
+        .ok()
+}
+
+pub(crate) fn register_remote_dyn_filters(
+    registry: &QueryDynFilterRegistry,
+    captured_dyn_filters: &[CapturedDynFilter],
+) {
+    for captured_dyn_filter in captured_dyn_filters {
+        let _ = registry.register_remote_dyn_filter(
+            captured_dyn_filter.filter_id.clone(),
+            captured_dyn_filter.alive_dyn_filter.clone(),
+        );
+    }
+}
+
+pub(crate) fn register_dyn_filter_subscribers_for_region(
+    registry: &QueryDynFilterRegistry,
+    region_id: RegionId,
+    target: RegionQueryTarget,
+    captured_dyn_filters: &[CapturedDynFilter],
+) -> Vec<(FilterId, Subscriber)> {
+    let mut added = Vec::new();
+    for captured_dyn_filter in captured_dyn_filters {
+        let subscriber = Subscriber::new(region_id, target.clone());
+        let registration =
+            registry.register_subscriber(&captured_dyn_filter.filter_id, subscriber.clone());
+        match registration {
+            SubscriberRegistration::Added => {
+                added.push((captured_dyn_filter.filter_id.clone(), subscriber))
+            }
+            SubscriberRegistration::Duplicate => {}
+            SubscriberRegistration::MissingFilter => {
+                common_telemetry::warn!(
+                    "Remote dynamic filter {} missing when registering subscriber for region {} at target {:?}",
+                    captured_dyn_filter.filter_id,
+                    region_id,
+                    target
+                );
+            }
+        }
+    }
+    added
+}
+
+fn build_captured_dyn_filter(
+    remote_dyn_filter_producer_id: RemoteDynFilterProducerId,
+    producer_local_ordinal: usize,
+    alive_dyn_filter: Arc<DynamicFilterPhysicalExpr>,
+) -> Result<CapturedDynFilter> {
+    let children = alive_dyn_filter
+        .children()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    let filter_id = build_remote_dyn_filter_id(
+        remote_dyn_filter_producer_id,
+        producer_local_ordinal,
+        &children,
+    )?;
+    let initial_registration =
+        InitialDynFilterReg::from_filter_id_and_children(filter_id.to_string(), &children)?;
+
+    Ok(CapturedDynFilter {
+        filter_id,
+        initial_registration: attach_initial_snapshot(initial_registration, &alive_dyn_filter),
+        alive_dyn_filter,
+        scalar_subquery_filter: None,
+    })
+}
+
+fn validate_initial_registrations_for_pushdown(
+    captured_dyn_filters: &[CapturedDynFilter],
+) -> std::result::Result<(), String> {
+    let regs = build_initial_dyn_filter_regs_for_region(captured_dyn_filters);
+    regs.validate_default_bounds()?;
+    regs.to_extension_value()
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn attach_initial_snapshot(
+    initial_registration: InitialDynFilterReg,
+    alive_dyn_filter: &DynamicFilterPhysicalExpr,
+) -> InitialDynFilterReg {
+    let Some(initial_snapshot) = initial_snapshot(alive_dyn_filter) else {
+        return initial_registration;
+    };
+
+    initial_registration.with_initial_snapshot(initial_snapshot)
+}
+
+fn initial_snapshot(
+    alive_dyn_filter: &DynamicFilterPhysicalExpr,
+) -> Option<InitialDynFilterSnapshot> {
+    let generation = alive_dyn_filter.snapshot_generation();
+    let current = match alive_dyn_filter.current() {
+        Ok(current) => current,
+        Err(error) => {
+            common_telemetry::warn!(error; "Failed to read remote dyn filter initial snapshot");
+            return None;
+        }
+    };
+
+    let payload = match DynFilterPayload::from_datafusion_expr(
+        &current,
+        REMOTE_DYN_FILTER_PAYLOAD_MAX_BYTES,
+    ) {
+        Ok(payload) => payload,
+        Err(error) => {
+            common_telemetry::warn!(error; "Failed to encode remote dyn filter initial snapshot");
+            return None;
+        }
+    };
+
+    // Current DataFusion exposes `wait_complete()`, but no non-blocking completion getter.
+    let is_complete = false;
+    Some(InitialDynFilterSnapshot::new(
+        payload,
+        generation,
+        is_complete,
+    ))
+}
+
+fn build_initial_dyn_filter_regs_for_region(
+    captured_dyn_filters: &[CapturedDynFilter],
+) -> InitialDynFilterRegs {
+    InitialDynFilterRegs::new(
+        captured_dyn_filters
+            .iter()
+            .map(|captured| captured.initial_registration.clone())
+            .collect(),
+    )
+}
+
+pub(crate) fn query_context_with_initial_dyn_filter_regs(
+    query_ctx: &QueryContextRef,
+    region_id: RegionId,
+    captured_dyn_filters: &[CapturedDynFilter],
+) -> QueryContext {
+    let regs = build_initial_dyn_filter_regs_for_region(captured_dyn_filters);
+    query_context_with_initial_dyn_filter_regs_value(query_ctx, region_id, &regs)
+}
+
+pub(crate) fn query_context_with_refreshed_initial_dyn_filter_regs(
+    query_ctx: &QueryContextRef,
+    _region_id: RegionId,
+    captured_dyn_filters: &[CapturedDynFilter],
+) -> QueryContext {
+    let refreshed = InitialDynFilterRegs::new(
+        captured_dyn_filters
+            .iter()
+            .map(|captured| {
+                attach_initial_snapshot(
+                    captured.initial_registration.clone(),
+                    &captured.alive_dyn_filter,
+                )
+            })
+            .collect(),
+    );
+    let serialized = match serialize_initial_dyn_filter_regs(&refreshed) {
+        Ok(serialized) => serialized,
+        Err(error) => {
+            common_telemetry::warn!(error; "Failed to refresh remote dynamic filter initial registrations; using optimization-time snapshots");
+            return query_context_with_initial_dyn_filter_regs(
+                query_ctx,
+                _region_id,
+                captured_dyn_filters,
+            );
+        }
+    };
+    query_context_with_serialized_initial_dyn_filter_regs(query_ctx, serialized)
+}
+
+fn query_context_with_initial_dyn_filter_regs_value(
+    query_ctx: &QueryContextRef,
+    region_id: RegionId,
+    regs: &InitialDynFilterRegs,
+) -> QueryContext {
+    let region_query_ctx = query_ctx.as_ref().clone();
+    if regs.is_empty() {
+        return region_query_ctx;
+    }
+
+    match serialize_initial_dyn_filter_regs(regs) {
+        Ok(serialized) => {
+            return query_context_with_serialized_initial_dyn_filter_regs(query_ctx, serialized);
+        }
+        Err(error) => {
+            common_telemetry::warn!(error; "Failed to serialize initial remote dyn filter registrations for region {}", region_id)
+        }
+    }
+
+    region_query_ctx
+}
+
+fn query_context_with_serialized_initial_dyn_filter_regs(
+    query_ctx: &QueryContextRef,
+    serialized: String,
+) -> QueryContext {
+    let mut region_query_ctx = query_ctx.as_ref().clone();
+    region_query_ctx.set_extension(
+        INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY,
+        serialized,
+    );
+    region_query_ctx
+}
+
+fn serialize_initial_dyn_filter_regs(
+    regs: &InitialDynFilterRegs,
+) -> std::result::Result<String, String> {
+    regs.validate_default_bounds()?;
+    regs.to_extension_value().map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt;
+    use std::hash::{Hash, Hasher};
+
+    use common_meta::peer::Peer;
+    use datafusion::execution::TaskContext;
+    use datafusion_common::ScalarValue;
+    use datafusion_expr::ColumnarValue;
+    use datafusion_expr::Operator;
+    use datafusion_expr::physical_planning_context::{ScalarSubqueryResults, SubqueryIndex};
+    use datafusion_physical_expr::expressions::BinaryExpr;
+    use session::query_id::QueryId;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::region_query::RegionQueryTarget;
+
+    #[derive(Debug)]
+    struct UnserializableExpr;
+
+    impl fmt::Display for UnserializableExpr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "unserializable_expr")
+        }
+    }
+
+    impl Hash for UnserializableExpr {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            "unserializable_expr".hash(state);
+        }
+    }
+
+    impl PartialEq for UnserializableExpr {
+        fn eq(&self, _other: &Self) -> bool {
+            true
+        }
+    }
+
+    impl Eq for UnserializableExpr {}
+
+    impl datafusion_physical_expr::PhysicalExpr for UnserializableExpr {
+        fn data_type(
+            &self,
+            _input_schema: &arrow_schema::Schema,
+        ) -> datafusion_common::Result<arrow_schema::DataType> {
+            Ok(arrow_schema::DataType::Boolean)
+        }
+
+        fn nullable(
+            &self,
+            _input_schema: &arrow_schema::Schema,
+        ) -> datafusion_common::Result<bool> {
+            Ok(false)
+        }
+
+        fn evaluate(
+            &self,
+            _batch: &common_recordbatch::DfRecordBatch,
+        ) -> datafusion_common::Result<ColumnarValue> {
+            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
+        }
+
+        fn children(&self) -> Vec<&Arc<dyn datafusion_physical_expr::PhysicalExpr>> {
+            Vec::new()
+        }
+
+        fn with_new_children(
+            self: Arc<Self>,
+            _children: Vec<Arc<dyn datafusion_physical_expr::PhysicalExpr>>,
+        ) -> datafusion_common::Result<Arc<dyn datafusion_physical_expr::PhysicalExpr>> {
+            Ok(self)
+        }
+
+        fn fmt_sql(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{self}")
+        }
+    }
+
+    fn test_query_id(value: u128) -> QueryId {
+        QueryId::from(Uuid::from_u128(value))
+    }
+
+    fn test_remote_dyn_filter_producer_id(value: u64) -> RemoteDynFilterProducerId {
+        RemoteDynFilterProducerId::new(value)
+    }
+
+    fn test_target(id: u64) -> RegionQueryTarget {
+        RegionQueryTarget::new(Peer {
+            id,
+            addr: format!("127.0.0.1:{id}"),
+        })
+    }
+
+    fn test_captured_dyn_filter(
+        remote_dyn_filter_producer_id: RemoteDynFilterProducerId,
+        producer_local_ordinal: usize,
+        column_name: &str,
+        column_index: usize,
+    ) -> CapturedDynFilter {
+        build_captured_dyn_filter(
+            remote_dyn_filter_producer_id,
+            producer_local_ordinal,
+            Arc::new(DynamicFilterPhysicalExpr::new(
+                vec![Arc::new(Column::new(column_name, column_index)) as Arc<_>],
+                lit(true) as _,
+            )),
+        )
+        .unwrap()
+    }
+
+    fn test_dyn_filter_with_snapshot_payload(
+        column_name: &str,
+        column_index: usize,
+        payload_bytes: usize,
+    ) -> Arc<DynamicFilterPhysicalExpr> {
+        let dyn_filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new(column_name, column_index)) as Arc<_>],
+            lit(true) as _,
+        ));
+        dyn_filter
+            .update(lit(ScalarValue::Utf8(Some("x".repeat(payload_bytes)))) as _)
+            .unwrap();
+        dyn_filter
+    }
+
+    fn refreshed_regs(captured: &[CapturedDynFilter]) -> InitialDynFilterRegs {
+        let query_ctx = QueryContext::arc();
+        let region_query_ctx = query_context_with_refreshed_initial_dyn_filter_regs(
+            &query_ctx,
+            RegionId::new(1024, 7),
+            captured,
+        );
+        InitialDynFilterRegs::from_extension_value(
+            region_query_ctx
+                .extension(INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY)
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn decode_snapshot(snapshot: &InitialDynFilterSnapshot, column_name: &str) -> String {
+        snapshot
+            .payload
+            .decode_datafusion_expr(
+                &TaskContext::default(),
+                &arrow_schema::Schema::new(vec![arrow_schema::Field::new(
+                    column_name,
+                    arrow_schema::DataType::Utf8,
+                    false,
+                )]),
+                REMOTE_DYN_FILTER_PAYLOAD_MAX_BYTES,
+            )
+            .unwrap()
+            .to_string()
+    }
+
+    fn pushed_down(pushdown: &RemoteDynFilterPushdown) -> Vec<bool> {
+        pushdown
+            .pushed_down
+            .iter()
+            .map(|pushed_down| matches!(pushed_down, PushedDown::Yes))
+            .collect()
+    }
+
+    fn host_eq_scalar_subquery(results: &ScalarSubqueryResults) -> Arc<dyn PhysicalExpr> {
+        Arc::new(BinaryExpr::new(
+            Arc::new(Column::new("host", 0)),
+            Operator::Eq,
+            Arc::new(ScalarSubqueryExpr::new(
+                arrow_schema::DataType::Utf8,
+                true,
+                SubqueryIndex::new(0),
+                results.clone(),
+            )),
+        ))
+    }
+
+    #[test]
+    fn scalar_subquery_filter_is_captured_but_left_to_parent() {
+        let results = ScalarSubqueryResults::new(1);
+        let parent_filters = vec![
+            host_eq_scalar_subquery(&results),
+            Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("host", 0)),
+                Operator::Eq,
+                lit("a"),
+            )) as Arc<dyn PhysicalExpr>,
+        ];
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![false, false]);
+        assert_eq!(pushdown.captured_dyn_filters.len(), 1);
+        assert_eq!(
+            pushdown.captured_dyn_filters[0]
+                .filter_id
+                .producer_ordinal(),
+            0
+        );
+    }
+
+    #[test]
+    fn scalar_subquery_filter_with_in_list_is_left_to_parent() {
+        let results = ScalarSubqueryResults::new(1);
+        let schema = arrow_schema::Schema::new(vec![arrow_schema::Field::new(
+            "host",
+            arrow_schema::DataType::Utf8,
+            true,
+        )]);
+        let host_in_list = datafusion_physical_expr::expressions::in_list(
+            Arc::new(Column::new("host", 0)),
+            vec![lit("a"), lit("b")],
+            &false,
+            &schema,
+        )
+        .unwrap();
+        // `(host IN ('a', 'b')) = (SELECT flag ...)`
+        let filter = Arc::new(BinaryExpr::new(
+            host_in_list,
+            Operator::Eq,
+            Arc::new(ScalarSubqueryExpr::new(
+                arrow_schema::DataType::Boolean,
+                true,
+                SubqueryIndex::new(0),
+                results,
+            )),
+        )) as Arc<dyn PhysicalExpr>;
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            vec![filter],
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![false]);
+        assert!(pushdown.captured_dyn_filters.is_empty());
+    }
+
+    #[test]
+    fn scalar_subquery_dyn_filter_follows_subquery_results() {
+        let results = ScalarSubqueryResults::new(1);
+        let captured = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            vec![host_eq_scalar_subquery(&results)],
+        )
+        .captured_dyn_filters;
+        let snapshot = |captured: &[CapturedDynFilter]| {
+            decode_snapshot(
+                refreshed_regs(captured).regs[0]
+                    .initial_snapshot
+                    .as_ref()
+                    .unwrap(),
+                "host",
+            )
+        };
+
+        // Not executed yet: regions must not be filtered.
+        resolve_scalar_subquery_dyn_filters(&captured);
+        assert_eq!(snapshot(&captured), "true");
+
+        results
+            .set(
+                SubqueryIndex::new(0),
+                ScalarValue::Utf8(Some("a".to_string())),
+            )
+            .unwrap();
+        resolve_scalar_subquery_dyn_filters(&captured);
+        assert_eq!(snapshot(&captured), "host@0 = a");
+
+        // `ScalarSubqueryExec::reset_state` clears the results before re-execution.
+        results.clear();
+        resolve_scalar_subquery_dyn_filters(&captured);
+        assert_eq!(snapshot(&captured), "true");
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_preserves_parent_filter_ordinals() {
+        let parent_filters = vec![
+            Arc::new(Column::new("service", 0)) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+            Arc::new(DynamicFilterPhysicalExpr::new(
+                vec![Arc::new(Column::new("host", 1)) as Arc<_>],
+                lit(true) as _,
+            )) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+            Arc::new(Column::new("zone", 2)) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+            Arc::new(DynamicFilterPhysicalExpr::new(
+                vec![Arc::new(Column::new("pod", 3)) as Arc<_>],
+                lit(true) as _,
+            )) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+        ];
+
+        let remote_dyn_filter_producer_id = test_remote_dyn_filter_producer_id(42);
+        let captured = capture_remote_dyn_filters_for_pushdown(
+            remote_dyn_filter_producer_id,
+            0,
+            &[],
+            parent_filters,
+        )
+        .captured_dyn_filters;
+
+        assert_eq!(captured.len(), 2);
+        assert_eq!(
+            captured[0].filter_id.remote_dyn_filter_producer_id(),
+            remote_dyn_filter_producer_id
+        );
+        assert_eq!(
+            captured[1].filter_id.remote_dyn_filter_producer_id(),
+            remote_dyn_filter_producer_id
+        );
+        assert_eq!(captured[0].filter_id.producer_ordinal(), 1);
+        assert_eq!(captured[1].filter_id.producer_ordinal(), 3);
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_marks_only_valid_initial_regs() {
+        let parent_filters = vec![
+            Arc::new(Column::new("service", 0)) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+            Arc::new(DynamicFilterPhysicalExpr::new(
+                vec![Arc::new(Column::new("host", 1)) as Arc<_>],
+                lit(true) as _,
+            )) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+            Arc::new(Column::new("zone", 2)) as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+        ];
+
+        let remote_dyn_filter_producer_id = test_remote_dyn_filter_producer_id(42);
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            remote_dyn_filter_producer_id,
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![false, true, false]);
+        assert_eq!(pushdown.captured_dyn_filters.len(), 1);
+        assert_eq!(
+            pushdown.captured_dyn_filters[0]
+                .filter_id
+                .remote_dyn_filter_producer_id(),
+            remote_dyn_filter_producer_id
+        );
+        assert_eq!(
+            pushdown.captured_dyn_filters[0]
+                .filter_id
+                .producer_ordinal(),
+            1
+        );
+        assert!(
+            pushdown.captured_dyn_filters[0]
+                .initial_registration
+                .initial_snapshot
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_rejects_unencodable_registration() {
+        let parent_filters = vec![Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(UnserializableExpr) as Arc<_>],
+            lit(true) as _,
+        ))
+            as Arc<dyn datafusion::physical_plan::PhysicalExpr>];
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![false]);
+        assert!(pushdown.captured_dyn_filters.is_empty());
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_attaches_initial_snapshot() {
+        let parent_filters = vec![Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("host", 1)) as Arc<_>],
+            lit(true) as _,
+        ))
+            as Arc<dyn datafusion::physical_plan::PhysicalExpr>];
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![true]);
+        assert!(
+            pushdown.captured_dyn_filters[0]
+                .initial_registration
+                .initial_snapshot
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_attaches_initial_snapshot_after_update() {
+        let dyn_filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("host", 1)) as Arc<_>],
+            lit(true) as _,
+        ));
+        dyn_filter.update(lit(false) as _).unwrap();
+        let parent_filters = vec![dyn_filter as Arc<dyn datafusion::physical_plan::PhysicalExpr>];
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![true]);
+        let snapshot = pushdown.captured_dyn_filters[0]
+            .initial_registration
+            .initial_snapshot
+            .as_ref()
+            .unwrap();
+        assert_eq!(snapshot.generation, 2);
+        assert!(!snapshot.is_complete);
+        assert!(matches!(
+            snapshot.payload,
+            DynFilterPayload::Datafusion(ref bytes) if !bytes.is_empty()
+        ));
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_rejects_oversized_snapshots() {
+        let oversized_total_snapshot_bytes = REMOTE_DYN_FILTER_PAYLOAD_MAX_BYTES * 3 / 5;
+        let parent_filters = vec![
+            test_dyn_filter_with_snapshot_payload("host", 0, oversized_total_snapshot_bytes)
+                as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+            test_dyn_filter_with_snapshot_payload("pod", 1, oversized_total_snapshot_bytes)
+                as Arc<dyn datafusion::physical_plan::PhysicalExpr>,
+        ];
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![false, false]);
+        assert!(pushdown.captured_dyn_filters.is_empty());
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_keeps_accepted_filters_within_budget() {
+        const MAX_INITIAL_REGS: usize = 64;
+
+        let accepted = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            (0..MAX_INITIAL_REGS)
+                .map(|ordinal| {
+                    test_dyn_filter_with_snapshot_payload(&format!("host_{ordinal}"), ordinal, 1)
+                        as Arc<dyn PhysicalExpr>
+                })
+                .collect(),
+        )
+        .captured_dyn_filters;
+        assert_eq!(accepted.len(), MAX_INITIAL_REGS);
+
+        let results = ScalarSubqueryResults::new(1);
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            1 << 31,
+            &accepted,
+            vec![host_eq_scalar_subquery(&results)],
+        );
+
+        assert_eq!(pushed_down(&pushdown), vec![false]);
+        assert!(pushdown.captured_dyn_filters.is_empty());
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_rejects_too_many_regs_with_snapshots() {
+        const TOO_MANY_INITIAL_REGS: usize = 65;
+
+        let parent_filters = (0..TOO_MANY_INITIAL_REGS)
+            .map(|ordinal| {
+                test_dyn_filter_with_snapshot_payload(&format!("host_{ordinal}"), ordinal, 1)
+                    as Arc<dyn datafusion::physical_plan::PhysicalExpr>
+            })
+            .collect::<Vec<_>>();
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert!(pushdown.captured_dyn_filters.is_empty());
+        assert_eq!(pushed_down(&pushdown), vec![false; TOO_MANY_INITIAL_REGS]);
+    }
+
+    #[test]
+    fn capture_remote_dyn_filters_for_pushdown_rejects_regs_exceeding_bounds() {
+        const TOO_MANY_INITIAL_REGS: usize = 65;
+
+        let parent_filters = (0..TOO_MANY_INITIAL_REGS)
+            .map(|_| {
+                Arc::new(DynamicFilterPhysicalExpr::new(
+                    vec![Arc::new(Column::new("host", 0)) as Arc<_>],
+                    lit(true) as _,
+                )) as Arc<dyn datafusion::physical_plan::PhysicalExpr>
+            })
+            .collect::<Vec<_>>();
+
+        let pushdown = capture_remote_dyn_filters_for_pushdown(
+            test_remote_dyn_filter_producer_id(42),
+            0,
+            &[],
+            parent_filters,
+        );
+
+        assert!(pushdown.captured_dyn_filters.is_empty());
+        assert_eq!(pushed_down(&pushdown), vec![false; TOO_MANY_INITIAL_REGS]);
+    }
+
+    #[test]
+    fn register_dyn_filter_subscribers_for_region_reuses_existing_entry() {
+        let registry = QueryDynFilterRegistry::new(test_query_id(1));
+        let captured_dyn_filters = vec![test_captured_dyn_filter(
+            test_remote_dyn_filter_producer_id(42),
+            2,
+            "host",
+            0,
+        )];
+        let first_region_id = RegionId::new(1024, 7);
+        let second_region_id = RegionId::new(1024, 8);
+
+        register_remote_dyn_filters(&registry, &captured_dyn_filters);
+        register_dyn_filter_subscribers_for_region(
+            &registry,
+            first_region_id,
+            test_target(1),
+            &captured_dyn_filters,
+        );
+        register_dyn_filter_subscribers_for_region(
+            &registry,
+            second_region_id,
+            test_target(2),
+            &captured_dyn_filters,
+        );
+
+        assert_eq!(registry.entry_count(), 1);
+        let entry = registry.entries().pop().unwrap();
+        assert_eq!(
+            entry.filter_id().remote_dyn_filter_producer_id(),
+            test_remote_dyn_filter_producer_id(42)
+        );
+        assert_eq!(entry.filter_id().producer_ordinal(), 2);
+        let subscribers = entry.subscribers();
+        assert_eq!(subscribers.len(), 2);
+        assert!(
+            subscribers
+                .iter()
+                .any(|subscriber| subscriber.region_id() == first_region_id)
+        );
+        assert!(
+            subscribers
+                .iter()
+                .any(|subscriber| subscriber.region_id() == second_region_id)
+        );
+    }
+
+    #[test]
+    fn register_remote_dyn_filters_keeps_independent_producer_ids_distinct() {
+        let registry = QueryDynFilterRegistry::new(test_query_id(1));
+        let make_filter = |remote_dyn_filter_producer_id| {
+            test_captured_dyn_filter(remote_dyn_filter_producer_id, 2, "host", 0)
+        };
+
+        register_remote_dyn_filters(
+            &registry,
+            &[make_filter(test_remote_dyn_filter_producer_id(42))],
+        );
+        register_remote_dyn_filters(
+            &registry,
+            &[make_filter(test_remote_dyn_filter_producer_id(43))],
+        );
+
+        assert_eq!(registry.entry_count(), 2);
+    }
+
+    #[test]
+    fn query_context_includes_region_initial_dyn_filter_regs() {
+        let captured_dyn_filters = vec![test_captured_dyn_filter(
+            test_remote_dyn_filter_producer_id(42),
+            2,
+            "host",
+            0,
+        )];
+        let region_id = RegionId::new(1024, 7);
+        let query_ctx = QueryContext::arc();
+
+        let region_query_ctx = query_context_with_initial_dyn_filter_regs(
+            &query_ctx,
+            region_id,
+            &captured_dyn_filters,
+        );
+        let extension = region_query_ctx
+            .extension(INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY)
+            .unwrap();
+        let regs = InitialDynFilterRegs::from_extension_value(extension).unwrap();
+        let decoded_children = regs.regs[0]
+            .decode_children(
+                &TaskContext::default(),
+                &arrow_schema::Schema::new(vec![arrow_schema::Field::new(
+                    "host",
+                    arrow_schema::DataType::Utf8,
+                    false,
+                )]),
+                1024,
+            )
+            .unwrap();
+        assert_eq!(regs.regs.len(), 1);
+        assert_eq!(
+            regs.regs[0].filter_id,
+            captured_dyn_filters[0].filter_id.to_string()
+        );
+        assert_eq!(decoded_children.len(), 1);
+        assert!(decoded_children[0].is::<Column>());
+    }
+
+    #[test]
+    fn refreshed_initial_regs_use_live_filter_snapshot_without_mutating_capture() {
+        let dyn_filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("host", 0)) as Arc<_>],
+            lit(true) as _,
+        ));
+        let captured = vec![
+            build_captured_dyn_filter(
+                test_remote_dyn_filter_producer_id(42),
+                0,
+                dyn_filter.clone(),
+            )
+            .unwrap(),
+        ];
+        let original_generation = captured[0]
+            .initial_registration
+            .initial_snapshot
+            .as_ref()
+            .unwrap()
+            .generation;
+        dyn_filter.update(lit(false) as _).unwrap();
+        dyn_filter.mark_complete();
+
+        let regs = refreshed_regs(&captured);
+
+        let snapshot = regs.regs[0].initial_snapshot.as_ref().unwrap();
+        assert_eq!(snapshot.generation, 2);
+        assert!(!snapshot.is_complete);
+        assert_ne!(decode_snapshot(snapshot, "host"), "true");
+        assert_eq!(
+            captured[0]
+                .initial_registration
+                .initial_snapshot
+                .as_ref()
+                .unwrap()
+                .generation,
+            original_generation
+        );
+    }
+
+    #[test]
+    fn refresh_keeps_old_snapshot_when_one_live_filter_cannot_encode() {
+        let good = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("good", 0)) as Arc<_>],
+            lit(true) as _,
+        ));
+        let bad = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("bad", 0)) as Arc<_>],
+            lit(true) as _,
+        ));
+        let captured = vec![
+            build_captured_dyn_filter(test_remote_dyn_filter_producer_id(42), 0, good.clone())
+                .unwrap(),
+            build_captured_dyn_filter(test_remote_dyn_filter_producer_id(42), 1, bad.clone())
+                .unwrap(),
+        ];
+        let old_bad_generation = captured[1]
+            .initial_registration
+            .initial_snapshot
+            .as_ref()
+            .unwrap()
+            .generation;
+        good.update(lit(false) as _).unwrap();
+        bad.update(Arc::new(UnserializableExpr) as _).unwrap();
+
+        let regs = refreshed_regs(&captured);
+        assert_eq!(
+            regs.regs[0].initial_snapshot.as_ref().unwrap().generation,
+            2
+        );
+        assert_eq!(
+            regs.regs[1].initial_snapshot.as_ref().unwrap().generation,
+            old_bad_generation
+        );
+    }
+
+    #[test]
+    fn refresh_aggregate_overflow_falls_back_to_original_snapshots() {
+        let payload_bytes = REMOTE_DYN_FILTER_PAYLOAD_MAX_BYTES * 3 / 5;
+        let first = test_dyn_filter_with_snapshot_payload("first", 0, 1);
+        let second = test_dyn_filter_with_snapshot_payload("second", 0, 1);
+        let captured = vec![
+            build_captured_dyn_filter(test_remote_dyn_filter_producer_id(42), 0, first.clone())
+                .unwrap(),
+            build_captured_dyn_filter(test_remote_dyn_filter_producer_id(42), 1, second.clone())
+                .unwrap(),
+        ];
+        let original = captured
+            .iter()
+            .map(|captured| {
+                captured
+                    .initial_registration
+                    .initial_snapshot
+                    .clone()
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        first
+            .update(lit(ScalarValue::Utf8(Some("x".repeat(payload_bytes)))) as _)
+            .unwrap();
+        second
+            .update(lit(ScalarValue::Utf8(Some("y".repeat(payload_bytes)))) as _)
+            .unwrap();
+
+        let regs = refreshed_regs(&captured);
+        for (refreshed, original) in regs.regs.iter().zip(original) {
+            let refreshed = refreshed.initial_snapshot.as_ref().unwrap();
+            assert_eq!(refreshed.generation, original.generation);
+            assert_eq!(refreshed.payload, original.payload);
+        }
+    }
+
+    #[test]
+    fn query_context_drops_initial_regs_when_duplicate_filter_ids_exceed_bounds() {
+        let captured_dyn_filters = vec![
+            test_captured_dyn_filter(test_remote_dyn_filter_producer_id(42), 2, "host", 0),
+            test_captured_dyn_filter(test_remote_dyn_filter_producer_id(42), 2, "host", 0),
+        ];
+        let region_id = RegionId::new(1024, 7);
+        let query_ctx = QueryContext::arc();
+
+        let region_query_ctx = query_context_with_initial_dyn_filter_regs(
+            &query_ctx,
+            region_id,
+            &captured_dyn_filters,
+        );
+
+        assert!(
+            region_query_ctx
+                .extension(INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY)
+                .is_none()
+        );
+    }
+}

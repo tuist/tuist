@@ -12,6 +12,7 @@ defmodule TuistWeb.API.GitHistoryController do
 
   alias OpenApiSpex.Schema
   alias Tuist.GitHistory
+  alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Schemas.Error
 
@@ -250,8 +251,12 @@ defmodule TuistWeb.API.GitHistoryController do
 
   def missing_listings(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     case repository_id(project, body.repository_url) do
-      nil -> bad_request(conn)
-      repository_id -> json(conn, %{missing: GitHistory.missing_listings(repository_id, body.shas)})
+      nil ->
+        bad_request(conn)
+
+      repository_id ->
+        missing = GitHistory.missing_listings(repository_id, body.shas)
+        json(conn, %{missing: missing -- Runs.write_file_changes(project, repository_id, missing)})
     end
   end
 

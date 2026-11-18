@@ -175,7 +175,8 @@ struct XcodeBuildBuildCommandService {
                 buildRunId: buildRunId,
                 requestedTestIdentifiers: [],
                 skipUpload: shardSkipUpload,
-                archivePath: shardArchivePath
+                archivePath: shardArchivePath,
+                testImpactRunId: nil
             )
         }
     }
