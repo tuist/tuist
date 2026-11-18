@@ -18,6 +18,8 @@ defmodule Tuist.Threads.Message do
     # A `card` message's NSH bundle and size class (`Tuist.Threads.Cards`).
     field :card_size, :string
     field :card_source, :string
+    # A `progress` message's plan: `%{"steps" => [%{"title", "status"}]}`.
+    field :progress, :map
     timestamps(type: :utc_datetime)
   end
 end

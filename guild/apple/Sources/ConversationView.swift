@@ -26,6 +26,30 @@ struct AppMessage: Decodable, Identifiable {
     }()
     /// A card the model wrote, sized by the Rust core; `content` is its text.
     var ui: AppCard?
+    /// The plan the agent shares with `update_progress`, counted by the Rust core;
+    /// `content` is the plan as a checklist.
+    var progress: AppProgress?
+}
+
+struct AppProgress: Decodable {
+    struct Step: Decodable {
+        let title: String
+        /// `pending`, `in_progress` or `completed`.
+        let status: String
+    }
+
+    let steps: [Step]
+    let completed: Int
+    let total: Int
+    /// The run that shows this plan is still working on it.
+    let active: Bool
+}
+
+/// What the thread is doing now: the active plan's current step.
+struct AppActivity: Decodable {
+    let title: String
+    let step: Int
+    let total: Int
 }
 
 struct AppConversation: Decodable {
@@ -36,6 +60,8 @@ struct AppConversation: Decodable {
     let working: Bool
     let state: String?
     let messages: [AppMessage]
+    /// The current step of the answering run's plan, when it shared one.
+    var activity: AppActivity?
     /// Earlier messages stay on the server; `next_before` loads the page before these.
     var has_more: Bool?
     var next_before: Int?
@@ -213,8 +239,15 @@ struct ConversationView: View {
                     if thread?.working == true {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text("Thinking…").foregroundStyle(Noora.labelSecondary)
+                            if let activity = thread?.activity {
+                                Text(verbatim: activity.title).foregroundStyle(Noora.labelPrimary).lineLimit(1)
+                                Text("Step \(activity.step) of \(activity.total)")
+                                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+                            } else {
+                                Text("Thinking…").foregroundStyle(Noora.labelSecondary)
+                            }
                         }
+                        .accessibilityElement(children: .combine)
                     }
                     if let error {
                         Text(verbatim: error).font(.callout).foregroundStyle(Noora.labelDestructive)
@@ -508,6 +541,63 @@ private struct ToolStatusIcon: View {
     }
 }
 
+/// The agent's plan as a checklist it updates in place: done steps checked,
+/// the current one spinning while its run works, the rest open.
+private struct PlanView: View {
+    let progress: AppProgress
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Plan").font(.subheadline.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                Spacer()
+                Text("\(progress.completed) of \(progress.total) done")
+                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+            }
+            ProgressView(value: Double(progress.completed), total: Double(max(progress.total, 1)))
+                .tint(Noora.primary)
+            ForEach(Array(progress.steps.enumerated()), id: \.offset) { _, step in
+                // Centered: the spinner has no text baseline to align with.
+                HStack(spacing: 8) {
+                    icon(step.status).frame(width: 18)
+                    Text(verbatim: step.title)
+                        .font(.subheadline)
+                        .foregroundStyle(step.status == "completed" ? Noora.labelSecondary : Noora.labelPrimary)
+                        .strikethrough(step.status == "completed", color: Noora.labelSecondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityValue(Text(label(step.status)))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func icon(_ status: String) -> some View {
+        switch status {
+        case "completed":
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(Noora.primary).accessibilityHidden(true)
+        case "in_progress" where progress.active:
+            ProgressView().controlSize(.mini)
+        case "in_progress":
+            Image(systemName: "circle.lefthalf.filled").foregroundStyle(Noora.labelSecondary).accessibilityHidden(true)
+        default:
+            Image(systemName: "circle").foregroundStyle(Noora.labelSecondary).accessibilityHidden(true)
+        }
+    }
+
+    private func label(_ status: String) -> LocalizedStringKey {
+        switch status {
+        case "completed": "Completed"
+        case "in_progress": "In progress"
+        default: "Not started"
+        }
+    }
+}
+
 struct MessageRow: View {
     let message: AppMessage
     /// Puts a card's reply in the composer.
@@ -516,6 +606,8 @@ struct MessageRow: View {
     var body: some View {
         if let card = message.ui {
             CardView(card: card, fallback: message.content, reply: reply)
+        } else if let progress = message.progress {
+            PlanView(progress: progress)
         } else {
             text
         }

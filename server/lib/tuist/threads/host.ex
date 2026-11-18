@@ -485,7 +485,7 @@ defmodule Tuist.Threads.Host do
         ]
       end
 
-    base = if Cards.available?(), do: [naming, card(run)], else: [naming]
+    base = if Cards.available?(), do: [naming, progress(run), card(run)], else: [naming, progress(run)]
     base ++ requesting ++ workspace
   end
 
@@ -564,6 +564,48 @@ defmodule Tuist.Threads.Host do
          "#{name} is the thread's repository, but checking it out did not finish. " <>
            "It is checked out again at the start of the next turn."}
     end
+  end
+
+  # Tuist Guild shows the plan as a live checklist, and its current step while
+  # the run works; other clients show it as a Markdown checklist.
+  defp progress(run) do
+    Condukt.tool(
+      name: "update_progress",
+      description: """
+      Show the person your plan for this request as a live checklist, so they can follow along while you work.
+      Use it when the work takes several steps, such as investigating, changing and verifying code; skip it for a
+      quick answer. Call it once you know the plan, then again whenever a step starts or finishes. Each call
+      replaces the whole plan, so always send every step, and change the plan when you learn more.
+
+      Write 2 to 7 short steps in the order you'll do them, each a few words that say what it does, such as
+      "Find where tokens refresh" or "Run the session tests". Mark the step you're working on `in_progress`, the
+      ones you finished `completed` and the rest `pending`. Keep one step in progress at a time, and mark every step
+      completed, or remove it, before your reply.
+      """,
+      parameters: %{
+        type: "object",
+        properties: %{
+          steps: %{
+            type: "array",
+            minItems: 1,
+            maxItems: 20,
+            items: %{
+              type: "object",
+              properties: %{
+                title: %{type: "string", maxLength: 120},
+                status: %{type: "string", enum: ["pending", "in_progress", "completed"]}
+              },
+              required: ["title", "status"],
+              additionalProperties: false
+            }
+          }
+        },
+        required: ["steps"],
+        additionalProperties: false
+      },
+      call: fn args, _ -> Threads.update_progress(run, args["steps"]) end,
+      replay_safe: true
+    )
   end
 
   # Tuist Guild runs the card natively; other clients show its summary.

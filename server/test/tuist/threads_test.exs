@@ -325,6 +325,47 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, _} = Threads.rename(second, "Current title")
   end
 
+  test "each run shows one plan, which its updates replace in place", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+
+    assert {:error, :invalid_arguments} = Threads.update_progress(run, [])
+    assert {:error, :invalid_arguments} = Threads.update_progress(run, [%{"title" => "Read", "status" => "done"}])
+
+    assert {:ok, _} =
+             Threads.update_progress(run, [
+               %{"title" => "Read the code", "status" => "in_progress"},
+               %{"title" => "Run tests", "status" => "pending"}
+             ])
+
+    {:ok, _} = Threads.rename(run, "Plan")
+
+    assert {:ok, _} =
+             Threads.update_progress(run, [
+               %{"title" => " Read the code ", "status" => "completed"},
+               %{"title" => "Run tests", "status" => "in_progress"}
+             ])
+
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+    {:ok, _} = Threads.message(user, account, thread.id, request("Again"))
+    {:ok, {next, _}} = claim(Repo.one!(from r in Run, where: r.status == "queued").id)
+    {:ok, _} = Threads.update_progress(next, [%{"title" => "Answer", "status" => "in_progress"}])
+
+    messages = Threads.serialize(Threads.history(Repo.reload!(thread))).messages
+    assert [first, second] = Enum.filter(messages, &Map.get(&1, :progress))
+    assert Enum.map(messages, & &1.role) == ["user", "system", "assistant", "user", "system"]
+    assert first.content == "- [x] Read the code\n- [ ] Run tests (in progress)"
+
+    assert first.progress == %{
+             "steps" => [
+               %{"title" => "Read the code", "status" => "completed"},
+               %{"title" => "Run tests", "status" => "in_progress"}
+             ]
+           }
+
+    assert second.progress == %{"steps" => [%{"title" => "Answer", "status" => "in_progress"}]}
+  end
+
   # A host whose lease lapsed still receives the thread's wakes until it is
   # drained; it must not start the work the new host starts.
   test "a host whose lease lapsed cannot claim the thread's next run", %{user: user, account: account} do

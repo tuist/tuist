@@ -38,6 +38,14 @@ the colors it overrides, and `live_receive` hands it to the edge with ID
 `custom`. Edges keep that one custom theme beside the catalog, select it at
 once, and show it as **Custom** until the person picks another.
 
+A thread's agent can share its plan with the server's `update_progress` tool.
+The plan arrives as a message whose `progress` holds its `steps` (`title`,
+`status`: `pending`, `in_progress` or `completed`). `thread` adds `completed`,
+`total` and `active` (the run showing it still works) to each plan, drops a plan
+it can't show so edges render the message's `content` checklist, and sets the
+conversation's `activity` to `{"title","step","total"}` (the active plan's
+current step) or null. Edges show `activity` in place of a generic working label.
+
 The tab catalog is `threads` (index 0, the default), `halls`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The hall operations live in `Halls`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 

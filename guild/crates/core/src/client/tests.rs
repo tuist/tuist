@@ -1758,6 +1758,65 @@ fn cards_get_the_height_of_their_size_class_and_unshowable_ones_fall_back_to_tex
 }
 
 #[test]
+fn only_the_answering_runs_plan_is_active_and_says_what_the_thread_does_now() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let plan =
+        |steps: Value| json!({"role":"system","content":"- [ ] Plan","progress":{"steps":steps}});
+    let step = |title: &str, status: &str| json!({"title":title,"status":status});
+    let messages = json!([
+        {"role":"user","content":"First"},
+        plan(json!([step("Read", "completed"), step("Answer", "in_progress")])),
+        {"role":"assistant","content":"Done"},
+        {"role":"user","content":"Second"},
+        plan(json!([step("Read", "done")])),
+        plan(json!([step("Find the bug", "completed"), step("Fix it", "in_progress"), step("Test it", "pending")])),
+        {"role":"tool","content":"Working…","toolName":"Bash","toolStatus":"running"},
+    ]);
+    h.responses
+        .push_back((200, server_thread(messages.clone())));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    let data = &thread["data"];
+    assert_eq!(
+        data["activity"],
+        json!({"title":"Fix it","step":2,"total":3}),
+        "{thread}"
+    );
+    let progress: Vec<Value> = data["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m.get("progress").cloned().unwrap_or(Value::Null))
+        .collect();
+    assert_eq!(progress[1]["active"], false);
+    assert_eq!(
+        (&progress[1]["completed"], &progress[1]["total"]),
+        (&json!(1), &json!(2))
+    );
+    // A plan with a step this core can't show falls back to its content.
+    assert_eq!(progress[4], Value::Null);
+    assert_eq!(data["messages"][4]["content"], "- [ ] Plan");
+    assert_eq!(progress[5]["active"], true);
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}));
+    assert_eq!(cached["data"]["activity"], data["activity"], "{cached}");
+
+    // Once the run ends, its plan is no longer active, even with a step left.
+    let mut ended = server_thread(messages);
+    ended["status"] = json!("idle");
+    h.responses.push_back((200, ended));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(thread["data"]["activity"], Value::Null, "{thread}");
+    assert_eq!(thread["data"]["messages"][5]["progress"]["active"], false);
+
+    // A new message's run has no plan yet, so the previous one isn't current.
+    let asked = json!([{"role":"user","content":"First"}, plan(json!([step("Read", "in_progress")])), {"role":"user","content":"Third"}]);
+    h.responses.push_back((200, server_thread(asked)));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(thread["data"]["activity"], Value::Null, "{thread}");
+    assert_eq!(thread["data"]["messages"][1]["progress"]["active"], false);
+}
+
+#[test]
 fn push_registration_keeps_one_installation_per_profile_and_rotates_when_retired() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

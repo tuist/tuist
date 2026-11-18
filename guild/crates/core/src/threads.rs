@@ -235,8 +235,66 @@ fn present(thread: &mut Value) {
     thread["state"] = json!(state);
     thread["section"] = json!(section);
     thread["working"] = json!(working && !archived);
-    for message in thread["messages"].as_array_mut().into_iter().flatten() {
-        present_card(message);
+    let mut activity = Value::Null;
+    if let Some(messages) = thread["messages"].as_array_mut() {
+        // The plan the run that's answering now shows: one after the person's
+        // latest message.
+        let current = messages
+            .iter()
+            .rposition(|m| m["role"] == "user" || m["progress"].is_object())
+            .filter(|&i| working && !archived && messages[i]["role"] != "user");
+        for (index, message) in messages.iter_mut().enumerate() {
+            present_card(message);
+            let plan = present_progress(message, current == Some(index));
+            if current == Some(index) {
+                activity = plan;
+            }
+        }
+    }
+    thread["activity"] = activity;
+}
+
+/// A message's `progress` is the plan the agent shares with `update_progress`:
+/// its `steps`, each a `title` and a `status` (`pending`, `in_progress` or
+/// `completed`). The core counts the `completed` steps of the `total`, and
+/// marks the plan `active` while the run that shows it still works, so edges
+/// animate only a step that's really running. A plan this core can't show is
+/// dropped, and the edge shows the message's `content`, the plan as a
+/// checklist. Returns, for an active plan, what the thread is doing now: the
+/// step in progress, or else the next one, with the counts.
+fn present_progress(message: &mut Value, active: bool) -> Value {
+    let Some(progress) = message.get_mut("progress") else {
+        return Value::Null;
+    };
+    let steps = progress["steps"].as_array().filter(|steps| {
+        !steps.is_empty()
+            && steps.iter().all(|step| {
+                step["title"].as_str().is_some_and(|t| !t.trim().is_empty())
+                    && matches!(
+                        step["status"].as_str(),
+                        Some("pending" | "in_progress" | "completed")
+                    )
+            })
+    });
+    let Some(steps) = steps else {
+        message.as_object_mut().map(|m| m.remove("progress"));
+        return Value::Null;
+    };
+    let total = steps.len();
+    let completed = steps.iter().filter(|s| s["status"] == "completed").count();
+    let now = steps
+        .iter()
+        .find(|s| s["status"] == "in_progress")
+        .or_else(|| steps.iter().find(|s| s["status"] == "pending"))
+        .map(|s| s["title"].clone());
+    progress["completed"] = json!(completed);
+    progress["total"] = json!(total);
+    progress["active"] = json!(active);
+    match now {
+        Some(title) if active => {
+            json!({"title": title, "step": (completed + 1).min(total), "total": total})
+        }
+        _ => Value::Null,
     }
 }
 

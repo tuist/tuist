@@ -578,6 +578,65 @@ defmodule Tuist.Threads do
     end)
   end
 
+  @progress_statuses ["pending", "in_progress", "completed"]
+
+  @doc """
+  Shows the run's plan as one `progress` message, which each call replaces
+  in place: the first call appends it after what the run has shown so far,
+  so the person follows one checklist per run. `steps` are 1 to 20 maps of
+  a `title` (at most 120 codepoints) and a `status` (#{Enum.join(@progress_statuses, ", ")}).
+  The body is the plan as a Markdown checklist, for clients that don't
+  render steps.
+  """
+  def update_progress(run, steps) do
+    with {:ok, steps} <- progress_steps(steps) do
+      with_attempt(run, fn thread, _ ->
+        %Message{position: since} = Repo.get!(Message, run.message_id)
+        attrs = %{body: progress_body(steps), progress: %{"steps" => steps}}
+
+        case Repo.one(
+               from m in Message,
+                 where: m.thread_id == ^thread.id and m.kind == "progress" and m.position > ^since,
+                 order_by: [desc: m.position],
+                 limit: 1
+             ) do
+          nil ->
+            append!(thread, Map.put(attrs, :kind, "progress"))
+
+          message ->
+            Repo.update!(Changeset.change(message, attrs), log: false)
+            update_thread!(thread, %{})
+        end
+
+        "The person sees this plan, updated in place. Update it as each step starts and finishes; don't repeat it in your reply."
+      end)
+    end
+  end
+
+  defp progress_steps(steps) when is_list(steps) and steps != [] and length(steps) <= 20 do
+    Enum.reduce_while(steps, {:ok, []}, fn
+      %{"title" => title, "status" => status}, {:ok, valid} when is_binary(title) and status in @progress_statuses ->
+        title = String.trim(title)
+
+        if title != "" and String.length(title) <= 120,
+          do: {:cont, {:ok, valid ++ [%{"title" => title, "status" => status}]}},
+          else: {:halt, {:error, :invalid_arguments}}
+
+      _step, _ ->
+        {:halt, {:error, :invalid_arguments}}
+    end)
+  end
+
+  defp progress_steps(_steps), do: {:error, :invalid_arguments}
+
+  defp progress_body(steps) do
+    Enum.map_join(steps, "\n", fn
+      %{"title" => title, "status" => "completed"} -> "- [x] " <> title
+      %{"title" => title, "status" => "in_progress"} -> "- [ ] " <> title <> " (in progress)"
+      %{"title" => title} -> "- [ ] " <> title
+    end)
+  end
+
   def call_external_tool(run, invocation_id, name, args, dispatch) do
     # Condukt may admit a parallel batch. Contention must fail before reserving
     # an effect, not masquerade as an interrupted command that may have run.
@@ -973,6 +1032,15 @@ defmodule Tuist.Threads do
     |> Map.put(:kind, "agent")
     |> serialize_message()
     |> Map.put(:ui, %{size: message.card_size, source: message.card_source})
+  end
+
+  # A `system` message with its steps; clients that don't render them show
+  # the body, the plan as a checklist, as they show other notices.
+  defp serialize_message(%Message{kind: "progress"} = message) do
+    message
+    |> Map.put(:kind, "notice")
+    |> serialize_message()
+    |> Map.put(:progress, message.progress)
   end
 
   defp serialize_message(message) do
