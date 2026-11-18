@@ -707,6 +707,9 @@ server:
       item: ""
       field: password
       secret: ""
+      # Secret (key targets.json) the shard-storage-rustfs chart publishes for
+      # its public store, merged with the map above.
+      publicSecret: ""
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:

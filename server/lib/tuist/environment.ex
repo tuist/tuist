@@ -985,11 +985,16 @@ defmodule Tuist.Environment do
     end
   end
 
-  @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
+  @doc """
+  Configured immutable shard target IDs. Each store release publishes its own
+  map, so the runner-local and public stores arrive in separate variables. A
+  malformed map contributes no targets.
+  """
   def shard_storage_targets do
-    case JSON.decode(System.get_env("TUIST_SHARD_STORAGE_TARGETS") || "{}") do
-      {:ok, targets} when is_map(targets) -> targets
-      _ -> %{}
+    for name <- ["TUIST_SHARD_STORAGE_TARGETS", "TUIST_PUBLIC_SHARD_STORAGE_TARGETS"],
+        {:ok, targets} when is_map(targets) <- [JSON.decode(System.get_env(name) || "{}")],
+        reduce: %{} do
+      acc -> Map.merge(targets, acc)
     end
   end
 
