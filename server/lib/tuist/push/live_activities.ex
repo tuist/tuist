@@ -27,11 +27,27 @@ defmodule Tuist.Push.LiveActivities do
   registrations, coalesced to one pending job each. The worker recomputes the
   document from committed state, pushes it when it changed, and reschedules
   itself a minute later while threads are working, which renews the activity's
-  stale date and repairs a lost wake. A thread the last push showed working is
-  shown finished once, at priority 10 like a thread that needs the user; the
-  rest go at priority 5, which iOS does not ration. When nothing is working the
-  push ends the activity, leaving finished threads on the Lock Screen for a few
+  stale date and repairs a lost wake. A push that changes what the activity
+  shows of the threads' phases (a thread starting, moving from exploring to
+  editing, finishing) goes at priority 10, so the Lock Screen and Dynamic
+  Island follow the work as it happens; the app declares
+  `NSSupportsLiveActivitiesFrequentUpdates` for the larger budget. Step counts
+  and heartbeats go at priority 5, which iOS does not ration. A thread the last
+  push showed working is shown finished once. When nothing is working the push
+  ends the activity, leaving finished threads on the Lock Screen for a few
   minutes, and retires the registration.
+
+  The app also registers its push-to-start token (`Tuist.Push.LiveActivityStarter`,
+  one per sign-in). When one of the user's threads starts working and that
+  sign-in has no live registration, `Workers.LiveActivityStartWorker` creates a
+  pending registration and starts the activity with it on the device, so the
+  activity appears for threads started anywhere, without opening the app. The
+  app then registers the started activity's update token under that ID within
+  ten minutes; when it doesn't, the sign-in isn't started again for an hour,
+  so a device that can't register doesn't collect cards that never update.
+  A push-to-start token goes when the app unregisters it, another sign-in
+  presents it, the server finds its sign-in ended or APNs rejects it, or no
+  app registered it for 60 days.
   """
 
   import Ecto.Query
@@ -42,6 +58,8 @@ defmodule Tuist.Push.LiveActivities do
   alias Tuist.Push
   alias Tuist.Push.APNs
   alias Tuist.Push.LiveActivity
+  alias Tuist.Push.LiveActivityStarter
+  alias Tuist.Push.Workers.LiveActivityStartWorker
   alias Tuist.Push.Workers.LiveActivityWorker
   alias Tuist.Repo
   alias Tuist.Threads
@@ -58,6 +76,15 @@ defmodule Tuist.Push.LiveActivities do
   @stale_seconds 2 * 60
   @heartbeat_seconds 60
   @linger_seconds 15 * 60
+  # How long a pushed start waits for the app to register the activity's update
+  # token before the sign-in can be started again.
+  @pending_seconds 10 * 60
+  # How long a sign-in whose device never registered a started activity waits
+  # before the server starts another.
+  @start_backoff_seconds 60 * 60
+  # Apps register their push-to-start token on every launch; one not seen for
+  # this long belongs to an app that's gone.
+  @starter_stale_days 60
   @max_live_per_user 10
   @max_threads 3
   @max_title_length 80
@@ -65,6 +92,7 @@ defmodule Tuist.Push.LiveActivities do
   @tombstone_retention_days 180
   @prune_batch_size 1000
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
+  @profile_id ~r/\A[A-Za-z0-9_-]{1,128}\z/
   @token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
 
   @working ["queued", "running", "shipping"]
@@ -106,6 +134,18 @@ defmodule Tuist.Push.LiveActivities do
         locked(id, user, fn
           %LiveActivity{retired_at: %DateTime{}} ->
             {:error, :retired}
+
+          # A pending registration the server started gets the activity's full
+          # lifetime, unless the device registered it too late: the server may
+          # have started another since.
+          %LiveActivity{user_id: user_id, token: nil} = pending when user_id == user.id ->
+            if DateTime.after?(pending.expires_at, now()) do
+              save(pending, user, grant_id, token, environment, hash, %{
+                expires_at: DateTime.add(now(), @lifetime_seconds)
+              })
+            else
+              {:error, :retired}
+            end
 
           %LiveActivity{user_id: user_id} = existing when user_id == user.id ->
             save(existing, user, grant_id, token, environment, hash)
@@ -164,8 +204,63 @@ defmodule Tuist.Push.LiveActivities do
   end
 
   @doc """
-  Wakes the live registrations of `user_id` after one of their threads changed.
-  Called in the transaction that changes the thread, so the wake commits with it.
+  Saves the ActivityKit push-to-start `"token"` of `user`'s Luft `session`,
+  with its `"environment"` and the app's `"profile_id"` for the sign-in. One per
+  sign-in and per token: a profile switch on the same device moves the token.
+  Returns `:ok` or `{:error, :invalid}`.
+  """
+  def register_starter(%User{} = user, %{app: "luft", oauth_grant_id: grant_id}, params) do
+    with {:ok, token, environment} <- validate_params(params),
+         profile_id when is_binary(profile_id) <- params["profile_id"],
+         true <- Regex.match?(@profile_id, profile_id) do
+      hash = LiveActivityStarter.token_hash(token)
+
+      {:ok, :ok} =
+        Repo.transaction(fn ->
+          # Serializes sign-ins presenting the same token, which share its unique index.
+          advisory_lock!("thread_live_activity_starter:" <> Base.encode16(hash))
+
+          LiveActivityStarter
+          |> where([s], s.token_hash == ^hash and s.oauth_grant_id != ^grant_id)
+          |> Repo.delete_all()
+
+          Repo.insert!(
+            %LiveActivityStarter{
+              user_id: user.id,
+              oauth_grant_id: grant_id,
+              profile_id: profile_id,
+              environment: environment,
+              token: token,
+              token_hash: hash
+            },
+            on_conflict: {:replace, [:user_id, :profile_id, :environment, :token, :token_hash, :updated_at]},
+            conflict_target: :oauth_grant_id
+          )
+
+          :ok
+        end)
+
+      :ok
+    else
+      _ -> {:error, :invalid}
+    end
+  end
+
+  def register_starter(_user, _session, _params), do: {:error, :invalid}
+
+  @doc "Forgets the push-to-start token of `user`'s Luft `session`, such as before signing out."
+  def unregister_starter(%User{} = user, %{oauth_grant_id: grant_id}) do
+    LiveActivityStarter
+    |> where([s], s.user_id == ^user.id and s.oauth_grant_id == ^grant_id)
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @doc """
+  Wakes the live registrations of `user_id` after one of their threads changed,
+  and the push-to-start tokens of their sign-ins without one. Called in the
+  transaction that changes the thread, so the wake commits with it.
   """
   def thread_changed(user_id) do
     if APNs.configured?() do
@@ -174,9 +269,169 @@ defmodule Tuist.Push.LiveActivities do
       |> select([a], a.id)
       |> Repo.all()
       |> Enum.each(&wake/1)
+
+      if working?(user_id) do
+        now = now()
+
+        # `user_id` first, so the query uses its index rather than scanning tombstones.
+        live =
+          from(a in LiveActivity,
+            where:
+              a.user_id == parent_as(:starter).user_id and a.oauth_grant_id == parent_as(:starter).oauth_grant_id and
+                is_nil(a.retired_at) and a.expires_at > ^now
+          )
+
+        from(s in LiveActivityStarter, as: :starter, where: s.user_id == ^user_id and not exists(live), select: s.id)
+        |> Repo.all()
+        |> Enum.each(&wake_starter/1)
+      end
     end
 
     :ok
+  end
+
+  defp working?(user_id) do
+    Repo.exists?(from(t in Thread, where: t.owner_id == ^user_id and t.status == :active and t.agent_status in @working))
+  end
+
+  defp wake_starter(id) do
+    {:ok, _job} =
+      %{"starter_id" => id}
+      |> LiveActivityStartWorker.new(schedule_in: 1, replace: [scheduled: [:scheduled_at]])
+      |> Oban.insert()
+
+    :ok
+  end
+
+  @doc """
+  Starts the activity on the device of push-to-start token `id` when its user
+  has threads working and its sign-in has no live registration: creates a
+  pending registration and pushes the activity's attributes, naming it, with
+  its first document. Returns `:ok`, `{:retry, reason}` or `{:cancel, reason}`.
+  """
+  def start(id) do
+    fn ->
+      with %LiveActivityStarter{} = starter <- Repo.get(LiveActivityStarter, id),
+           # The same lock `register/4` takes, so a local start and a pushed one don't race.
+           _ = advisory_lock!("thread_live_activity_user:#{starter.user_id}"),
+           :ok <- check_starter(starter),
+           %User{} = user <- Accounts.get_user_by_id(starter.user_id),
+           {document, [_ | _] = working_ids} <- content(user) do
+        push_start(starter, document, working_ids)
+      else
+        _ -> :ok
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, result} -> result
+      {:error, retry} -> retry
+    end
+  end
+
+  defp check_starter(starter) do
+    now = now()
+
+    cond do
+      not Push.grant_active?("luft", starter.oauth_grant_id, starter.user_id) ->
+        Repo.delete!(starter)
+        {:retired, "session_ended"}
+
+      Repo.exists?(
+        from(a in LiveActivity,
+          where:
+            a.user_id == ^starter.user_id and a.oauth_grant_id == ^starter.oauth_grant_id and is_nil(a.retired_at) and
+                a.expires_at > ^now
+        )
+      ) ->
+        {:retired, "live"}
+
+      unregistered_start?(starter, now) ->
+        {:retired, "backing_off"}
+
+      true ->
+        :ok
+    end
+  end
+
+  # The device never registered the last activity the server started, such as
+  # when iOS didn't wake the app: starting another would only add a card that
+  # never updates, so the sign-in waits before the next try.
+  defp unregistered_start?(%LiveActivityStarter{last_start_id: nil}, _now), do: false
+
+  defp unregistered_start?(starter, now) do
+    DateTime.diff(now, starter.last_started_at) < @start_backoff_seconds and
+      Repo.exists?(
+        from(a in LiveActivity,
+          where:
+            a.id == ^starter.last_start_id and is_nil(a.token) and
+              (is_nil(a.retired_at) or a.retired_reason == "expired")
+        )
+      )
+  end
+
+  defp push_start(starter, document, working_ids) do
+    now = now()
+    timestamp = DateTime.to_unix(now)
+    id = Ecto.UUID.generate()
+
+    starter |> Ecto.Changeset.change(last_start_id: id, last_started_at: now) |> Repo.update!()
+
+    pending =
+      Repo.insert!(
+        struct(
+          LiveActivity,
+          Map.merge(digests(document), %{
+            id: id,
+            user_id: starter.user_id,
+            oauth_grant_id: starter.oauth_grant_id,
+            environment: starter.environment,
+            expires_at: DateTime.add(now, @pending_seconds),
+            last_sent_at: now,
+            working_thread_ids: working_ids
+          })
+        )
+      )
+
+    aps = %{
+      "timestamp" => timestamp,
+      "event" => "start",
+      "content-state" => document,
+      "stale-date" => timestamp + @stale_seconds,
+      "attributes-type" => "LuftActivityAttributes",
+      "attributes" => %{
+        "registrationID" => id,
+        "profileID" => starter.profile_id,
+        "server" => Environment.app_url()
+      },
+      # iOS 18 and later hand the app the activity's update token only when asked.
+      "input-push-token" => 1,
+      "alert" => %{"title" => document["summary"]["headline"], "body" => document["fallback"]}
+    }
+
+    starter.environment
+    |> APNs.deliver(starter.token, %{"aps" => aps}, @topic,
+      push_type: "liveactivity",
+      priority: 10,
+      expiration: timestamp + @stale_seconds
+    )
+    |> case do
+      :ok ->
+        :ok
+
+      {:error, :invalid_token} ->
+        retire!(pending, "invalid_token")
+        Repo.delete!(starter)
+        :ok
+
+      {:error, {:retry, reason}} ->
+        Repo.rollback({:retry, reason})
+
+      {:error, {:rejected, reason}} ->
+        Logger.warning("Live Activity start rejected for #{starter.id} (#{starter.environment}): #{reason}")
+        retire!(pending, "rejected")
+        {:cancel, reason}
+    end
   end
 
   # A pending heartbeat is pulled forward to a second from now, so bursts of
@@ -221,14 +476,19 @@ defmodule Tuist.Push.LiveActivities do
          %User{} = user <- Accounts.get_user_by_id(registration.user_id) do
       {document, working_ids} = content(user, registration.working_thread_ids)
       event = if working_ids == [], do: "end", else: "update"
-      digest = :crypto.hash(:sha256, JSON.encode!(document))
+      digests = digests(document)
       since = registration.last_sent_at && DateTime.diff(now, registration.last_sent_at)
 
       cond do
-        event == "update" and digest == registration.last_digest and since < @heartbeat_seconds -> :continue
+        event == "update" and digests.last_digest == registration.last_digest and since < @heartbeat_seconds ->
+          :continue
+
         # APNs orders updates by their second-precision timestamp.
-        since == 0 -> {:snooze, 1}
-        true -> send!(registration, document, working_ids, event, digest, now)
+        since == 0 ->
+          {:snooze, 1}
+
+        true ->
+          send!(registration, document, working_ids, event, digests, now)
       end
     else
       {:retired, reason} ->
@@ -249,7 +509,31 @@ defmodule Tuist.Push.LiveActivities do
     end
   end
 
-  defp send!(registration, document, working_ids, event, digest, now) do
+  # A digest of the whole document, which decides whether to push, and one of
+  # only the phases it shows, which decides how urgently.
+  defp digests(document) do
+    phases = [document["summary"]["headline"] | Enum.map(document["threads"], &[&1["id"], settled_phase(&1)])]
+
+    %{
+      last_digest: :crypto.hash(:sha256, JSON.encode!(document)),
+      last_phase_digest: :crypto.hash(:sha256, JSON.encode!(phases))
+    }
+  end
+
+  # A running thread thinks between every two tool calls; that pause isn't
+  # news, so it counts as the phase before it. The document only carries the
+  # trail's tints, so phases compare by tint (exploring and using tools share
+  # one): a thinking thread's is the trail's second-to-last, as the trail ends
+  # with the current phase's.
+  defp settled_phase(%{"phase" => "thinking", "trail" => [_, _ | _] = trail}), do: Enum.at(trail, -2)
+  defp settled_phase(%{"tint" => tint}), do: tint
+
+  # Phase changes and the end are news; step counts and heartbeats aren't.
+  defp priority("end", _digests, _registration), do: 10
+  defp priority(_event, %{last_phase_digest: digest}, %LiveActivity{last_phase_digest: digest}), do: 5
+  defp priority(_event, _digests, _registration), do: 10
+
+  defp send!(registration, document, working_ids, event, digests, now) do
     timestamp = DateTime.to_unix(now)
     expires_at = DateTime.to_unix(registration.expires_at)
     stale_at = min(timestamp + @stale_seconds, expires_at)
@@ -266,7 +550,7 @@ defmodule Tuist.Push.LiveActivities do
     registration.environment
     |> APNs.deliver(registration.token, %{"aps" => aps}, @topic,
       push_type: "liveactivity",
-      priority: if(finished?, do: 10, else: 5),
+      priority: priority(event, digests, registration),
       expiration: stale_at,
       collapse_id: registration.id
     )
@@ -277,7 +561,7 @@ defmodule Tuist.Push.LiveActivities do
 
       :ok ->
         registration
-        |> Ecto.Changeset.change(last_digest: digest, last_sent_at: now, working_thread_ids: working_ids)
+        |> Ecto.Changeset.change(Map.merge(digests, %{last_sent_at: now, working_thread_ids: working_ids}))
         |> Repo.update!()
 
         :continue
@@ -480,7 +764,8 @@ defmodule Tuist.Push.LiveActivities do
   @doc """
   Retires up to #{@prune_batch_size} registrations past their lifetime and
   deletes up to #{@prune_batch_size} tombstones older than
-  #{@tombstone_retention_days} days.
+  #{@tombstone_retention_days} days and push-to-start tokens no app registered
+  for #{@starter_stale_days} days.
   """
   def prune do
     now = now()
@@ -502,7 +787,15 @@ defmodule Tuist.Push.LiveActivities do
 
     {deleted, _} = LiveActivity |> where([a], a.id in subquery(old)) |> Repo.delete_all()
 
-    %{retired: retired, deleted: deleted}
+    stale_starters =
+      LiveActivityStarter
+      |> where([s], s.updated_at < ^DateTime.add(now, -@starter_stale_days, :day))
+      |> limit(@prune_batch_size)
+      |> select([s], s.id)
+
+    {starters, _} = LiveActivityStarter |> where([s], s.id in subquery(stale_starters)) |> Repo.delete_all()
+
+    %{retired: retired, deleted: deleted, starters: starters}
   end
 
   # Advisory locks serialize requests for one registration, including its first
@@ -525,7 +818,7 @@ defmodule Tuist.Push.LiveActivities do
     end)
   end
 
-  defp save(registration, user, grant_id, token, environment, hash) do
+  defp save(registration, user, grant_id, token, environment, hash, changes \\ %{}) do
     # One live registration per token: a restored or reinstalled app reuses it.
     LiveActivity
     |> where([a], a.token_hash == ^hash and is_nil(a.retired_at) and a.id != ^registration.id)
@@ -533,13 +826,15 @@ defmodule Tuist.Push.LiveActivities do
 
     saved =
       registration
-      |> Ecto.Changeset.change(%{
-        user_id: user.id,
-        oauth_grant_id: grant_id,
-        environment: environment,
-        token: token,
-        token_hash: hash
-      })
+      |> Ecto.Changeset.change(
+        Map.merge(changes, %{
+          user_id: user.id,
+          oauth_grant_id: grant_id,
+          environment: environment,
+          token: token,
+          token_hash: hash
+        })
+      )
       |> Repo.insert_or_update!()
 
     evict_oldest!(user.id)
@@ -572,6 +867,7 @@ defmodule Tuist.Push.LiveActivities do
       token: nil,
       token_hash: nil,
       last_digest: nil,
+      last_phase_digest: nil,
       working_thread_ids: []
     ]
   end

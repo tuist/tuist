@@ -1397,6 +1397,8 @@ defmodule TuistWeb.Router do
     delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
     put "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :update
     delete "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :delete
+    put "/me/thread-live-activity-starter", ThreadLiveActivitiesController, :update_starter
+    delete "/me/thread-live-activity-starter", ThreadLiveActivitiesController, :delete_starter
     # OTLP/HTTP's signal paths under an exporter's endpoint, and the envelope
     # path Sentry SDKs derive from the DSN `<server>/api/telemetry/1`.
     post "/telemetry/v1/:signal", TelemetryController, :otlp

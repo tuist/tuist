@@ -11,9 +11,9 @@ defmodule Tuist.Push.Workers.PruneWorker do
   @impl Oban.Worker
   def perform(_job) do
     %{retired: retired, deleted: deleted} = Push.prune()
-    %{retired: activities_retired, deleted: activities_deleted} = LiveActivities.prune()
+    %{retired: activities_retired, deleted: activities_deleted, starters: starters} = LiveActivities.prune()
 
-    if Push.prune_batch_size() in [retired, deleted, activities_retired, activities_deleted],
+    if Push.prune_batch_size() in [retired, deleted, activities_retired, activities_deleted, starters],
       do: {:snooze, 1},
       else: :ok
   end
