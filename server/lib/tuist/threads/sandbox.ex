@@ -31,7 +31,8 @@ defmodule Tuist.Threads.Sandbox do
   `thread_id` and `attempt`), the run whose Bash calls' build and test
   progress reading a command records (`Threads.record_build_progress/3`):
   every command sets `ONCE_PROGRESS`, so a Once build or test in it reports
-  as it goes.
+  as it goes; and `:progress_interval` (default 1000), how many milliseconds
+  a reading process waits before reporting an unchanged snapshot again.
 
   Not implemented, because the sandbox node has nothing for them yet:
   `snapshot/2` (project snapshots keyed for threads) and `expose_port/3`
@@ -221,7 +222,8 @@ defmodule Tuist.Threads.Sandbox do
          residency: Keyword.get(opts, :residency),
          cwd: Keyword.get(opts, :cwd, @default_cwd),
          commands_end_by: Keyword.get(opts, :commands_end_by),
-         run: Keyword.get(opts, :run)
+         run: Keyword.get(opts, :run),
+         progress_interval: Keyword.get(opts, :progress_interval, 1_000)
        }}
     else
       _ -> {:error, :sandbox_not_found}
@@ -387,15 +389,17 @@ defmodule Tuist.Threads.Sandbox do
   #
   # A command's watcher reads it every few hundred milliseconds, and Once
   # rewrites its snapshot at most once a second, mostly with only the clock
-  # moved on, so the reading process skips a snapshot it reported in the
-  # last few seconds. Reporting it again later lets counts the server held
-  # back (`Threads.record_build_progress/3`) show while a target runs long.
-  defp report_progress(%{run: %{thread_id: thread_id, id: run_id} = run}, id, %{progress: %{} = snapshot}) do
+  # moved on, so the reading process skips a snapshot it reported less than
+  # `:progress_interval` milliseconds ago. Reporting it again soon after
+  # lets counts the server held back (`Threads.record_build_progress/3`)
+  # show within its own interval while a target runs long.
+  defp report_progress(%{run: %{thread_id: thread_id, id: run_id} = run} = state, id, %{progress: %{} = snapshot}) do
     seen = Map.delete(snapshot, "elapsed_ms")
     now = System.monotonic_time(:millisecond)
+    reported = Process.get({__MODULE__, :progress, id})
 
     with ["", invocation_id] <- String.split(id, "condukt-bash:#{thread_id}:#{run_id}:", parts: 2),
-         false <- reported_recently?(Process.get({__MODULE__, :progress, id}), seen, now) do
+         false <- reported_recently?(reported, seen, now - state.progress_interval) do
       Process.put({__MODULE__, :progress, id}, {seen, now})
       Threads.record_build_progress(run, invocation_id, snapshot)
     else
@@ -409,8 +413,8 @@ defmodule Tuist.Threads.Sandbox do
 
   defp report_progress(_state, _id, _read), do: :ok
 
-  defp reported_recently?({seen, at}, seen, now), do: now - at < 5_000
-  defp reported_recently?(_reported, _seen, _now), do: false
+  defp reported_recently?({seen, at}, seen, since), do: at > since
+  defp reported_recently?(_reported, _seen, _since), do: false
 
   # Kills the command and forgets it, so its id starts afresh, as stopping
   # does on every Condukt sandbox. Its guest log goes with the sandbox.

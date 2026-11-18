@@ -690,7 +690,9 @@ defmodule Tuist.Push.LiveActivities do
       calls
       |> Enum.map(&trail_phase/1)
       |> Kernel.++([phase])
-      |> Enum.dedup()
+      # The widget draws a trail's tints, so neighbours of one tint, such as
+      # a Once build and the commands after it, are one dot.
+      |> Enum.dedup_by(&elem(Map.fetch!(@phases, &1), 2))
       |> Enum.take(-@max_trail)
 
     %{
@@ -711,9 +713,9 @@ defmodule Tuist.Push.LiveActivities do
   defp phase("outcome_unknown", _run, _executing), do: "needs_you"
   defp phase(_status, _run, _executing), do: "failed"
 
-  # A call's place in the trail stays what it did, so it doesn't change, and
-  # push again, when its Once run or the call ends: a Bash call that ran a
-  # Once build or test was Building or Testing, whatever its last state.
+  # A call's place in the trail is what it did: a Bash call that ran a Once
+  # build or test was Building or Testing, whatever state its last snapshot
+  # had when its run or the call ended.
   defp trail_phase({"Bash", _status, %{"command" => "test"}}), do: "testing"
   defp trail_phase({"Bash", _status, %{"command" => "build"}}), do: "building"
   defp trail_phase(call), do: tool_phase(call)
