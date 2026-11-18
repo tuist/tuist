@@ -37,6 +37,26 @@ line under its license header, or a `Tuist:` comment at the change. Files
 without a license header, such as test expectations and configuration, are
 covered by this list.
 
+- **Exact count-rollup prototype.** `tests/perf/count_aggregate_benchmark.py`
+  compares raw dashboard-style counts with minute summaries plus uncovered raw
+  rows in a disposable local database. Immutable ingestion batches and an
+  explicit, manually published coverage frontier keep late arrivals visible;
+  partially covered minutes remain raw. The harness checks independent event
+  counts, tenant filters, nanosecond boundaries, unpublished summaries,
+  idempotent rebuilds, and persisted results after restart. It is not connected
+  to customer ingestion or dashboard reads and does not implement production
+  publication or recovery coordination.
+- **Lower PromQL range-query allocation.** `RangeManipulate` borrows window
+  descriptors while building each field and timestamp range array instead of
+  cloning the descriptor vector twice per column, and no longer gathers a time
+  index that it immediately replaces with aligned timestamps. `RangeArray`
+  validates dictionary keys in place instead of collecting a temporary vector,
+  retaining null-key rejection and range bounds checks. These changes live in
+  `src/promql/src/extension_plan/range_manipulate.rs` and
+  `src/promql/src/range_array.rs`; window membership and output formats are
+  unchanged. Focused `RangeArray` tests cover sliced dictionary keys, null keys,
+  and out-of-bounds ranges, including empty ranges past the end and lengths
+  that would overflow a 32-bit bounds calculation.
 - **Lower write and projected-scan allocation.** The cached-size WAL encoder
   reserves its first length cache from the message shape rather than repeatedly
   growing it; reused encoders keep amortized geometric growth. The encoded bytes

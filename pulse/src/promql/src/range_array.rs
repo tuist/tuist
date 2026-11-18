@@ -11,13 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Modified by Tuist; see pulse/FORK.md.
 
 //！An extended "array" based on [DictionaryArray].
 
 use datafusion::arrow::datatypes::Field;
 use datatypes::arrow::array::{Array, ArrayData, ArrayRef, DictionaryArray, Int64Array};
 use datatypes::arrow::datatypes::{DataType, Int64Type};
-use snafu::{OptionExt, ensure};
+use snafu::ensure;
 
 use crate::error::{EmptyRangeSnafu, IllegalRangeSnafu, Result};
 
@@ -76,12 +77,8 @@ impl RangeArray {
     }
 
     pub fn try_new(dict: DictionaryArray<Int64Type>) -> Result<Self> {
-        let ranges_iter = dict
-            .keys()
-            .iter()
-            .map(|compound_key| compound_key.map(unpack))
-            .collect::<Option<Vec<_>>>()
-            .context(EmptyRangeSnafu)?;
+        ensure!(dict.keys().null_count() == 0, EmptyRangeSnafu);
+        let ranges_iter = dict.keys().values().iter().copied().map(unpack);
         Self::check_ranges(dict.values().len(), ranges_iter)?;
 
         Ok(Self { array: dict })
@@ -261,6 +258,20 @@ mod test {
     use datatypes::arrow::array::UInt64Array;
 
     use super::*;
+    use crate::error::Error;
+
+    fn dict_with_keys(keys: Int64Array) -> DictionaryArray<Int64Type> {
+        let values = UInt64Array::from(vec![11, 23, 47, 83]);
+        let data = ArrayData::builder(RangeArray::convert_data_type(DataType::UInt64))
+            .len(keys.len())
+            .add_buffer(keys.to_data().buffers()[0].clone())
+            .nulls(keys.nulls().cloned())
+            .add_child_data(values.to_data());
+        // Packed range keys are not Arrow dictionary offsets. Bypass Arrow's
+        // offset validation, as from_ranges_unchecked does, so try_new can
+        // validate the ranges and nulls in these deliberately malformed inputs.
+        DictionaryArray::from(unsafe { data.build_unchecked() })
+    }
 
     fn expand_format(range_array: &RangeArray) -> String {
         let mut result = String::new();
@@ -319,9 +330,28 @@ mod test {
 
     #[test]
     fn illegal_range() {
-        let values_array = Arc::new(UInt64Array::from_iter([1, 2, 3, 4, 5, 6, 7, 8, 9]));
-        let ranges = [(9, 1)];
-        assert!(RangeArray::from_ranges(values_array, ranges).is_err());
+        for (offset, length) in [(0, 5), (3, 2), (5, 0), (u32::MAX, 1), (1, u32::MAX)] {
+            let dict = dict_with_keys(Int64Array::from(vec![
+                pack(0, 2),
+                pack(offset, length),
+                pack(1, 1),
+            ]));
+            let from_ranges = RangeArray::from_ranges(dict.values().clone(), [(offset, length)]);
+            let from_dict = RangeArray::try_new(dict.slice(1, 1));
+            for result in [from_ranges, from_dict] {
+                match result.unwrap_err() {
+                    Error::IllegalRange {
+                        offset: actual_offset,
+                        length: actual_length,
+                        len,
+                        ..
+                    } => assert_eq!((actual_offset, actual_length, len), (offset, length, 4)),
+                    error => {
+                        panic!("Expected IllegalRange for ({offset}, {length}), got {error:?}")
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -384,6 +414,45 @@ mod test {
         let rounded_range_array = RangeArray::try_new(dict_array).unwrap();
         let formatted = expand_format(&rounded_range_array);
         assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn dict_array_sliced_keys() {
+        let dict = dict_with_keys(Int64Array::from(vec![
+            Some(pack(5, 0)),
+            None,
+            Some(pack(1, 2)),
+            Some(pack(3, 1)),
+            Some(pack(4, 0)),
+            Some(pack(3, 2)),
+            None,
+        ]));
+        // Invalid and null keys outside the logical slice must not be checked.
+        let range_array = RangeArray::try_new(dict.slice(2, 3)).unwrap();
+        assert_eq!(range_array.len(), 3);
+        for (index, expected) in [vec![23, 47], vec![83], vec![]].into_iter().enumerate() {
+            let values = range_array.get(index).unwrap();
+            assert_eq!(
+                values.as_any().downcast_ref::<UInt64Array>().unwrap(),
+                &UInt64Array::from(expected)
+            );
+        }
+        assert!(range_array.get(3).is_none());
+    }
+
+    #[test]
+    fn dict_array_null_keys() {
+        let dict = dict_with_keys(Int64Array::from(vec![
+            Some(pack(1, 2)),
+            None,
+            Some(pack(0, 1)),
+        ]));
+        for dict in [dict.clone(), dict.slice(1, 1)] {
+            assert!(matches!(
+                RangeArray::try_new(dict),
+                Err(Error::EmptyRange { .. })
+            ));
+        }
     }
 
     #[test]
