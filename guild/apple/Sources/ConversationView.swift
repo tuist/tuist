@@ -84,14 +84,25 @@ extension AppClient {
     }
 }
 
-/// Asks what to talk about and starts a conversation on the server. There is
-/// no repository, machine or model to choose: the core picks what runs it.
+/// One of the person's own machines a conversation can run on.
+struct AppRunner: Decodable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let platform: String
+    let online: Bool
+}
+
+/// Asks what to talk about and where it runs: on Tuist, or on one of the
+/// person's runners. The core picks the model.
 struct StartConversationView: View {
     /// What the sheet starts with: the keyboard, or dictation from a shortcut.
     enum Input { case text, voice }
 
     let client: AppClient
     var input = Input.text
+    @State private var runners: [AppRunner] = []
+    /// Nil runs the conversation on Tuist.
+    @State private var runner: String?
     @State private var content = ""
     @State private var starting = false
     @State private var error: String?
@@ -112,9 +123,28 @@ struct StartConversationView: View {
             if let message = voice.errorMessage {
                 Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
             }
+            if !runners.isEmpty {
+                Picker("Run on", selection: $runner) {
+                    Text("Tuist").tag(String?.none)
+                    ForEach(runners) { runner in
+                        Text(verbatim: runner.online
+                            ? runner.name
+                            : String(format: String(localized: "%@ (offline)"), runner.name))
+                            .tag(Optional(runner.id))
+                    }
+                }
+                .disabled(starting || voice.busy)
+            }
             if let error {
                 Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
             }
+        }
+        // People without runners see no choice; a failure to list them changes nothing.
+        .task {
+            if let data = try? await client.call("runners"),
+               let list = data["runners"],
+               let decoded = try? JSONDecoder().decode([AppRunner].self, from: JSONSerialization.data(withJSONObject: list))
+            { runners = decoded }
         }
         #if os(macOS)
         .formStyle(.grouped)
@@ -174,7 +204,9 @@ struct StartConversationView: View {
         let generation = client.view.generation
         let revision = client.view.navigation.revision
         do {
-            let thread = try await client.conversation("start_thread", ["content": content])
+            var args: [String: Any] = ["content": content]
+            if let runner { args["runner_id"] = runner }
+            let thread = try await client.conversation("start_thread", args)
             guard !Task.isCancelled, generation == client.view.generation,
                   revision == client.view.navigation.revision else { return }
             // The core also checks these versions when this queued call executes.

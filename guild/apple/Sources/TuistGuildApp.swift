@@ -10,21 +10,30 @@ struct TuistGuildApp: App {
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     #endif
 
+    /// One client for the window and, on the Mac, Settings, which registers runners.
+    @State private var client = AppClient()
+
     var body: some Scene {
         WindowGroup(id: WorkspaceCommands.window) {
             #if targetEnvironment(simulator)
                 if ProcessInfo.processInfo.arguments.contains("-GuildCardPreview") {
                     CardPreview()
                 } else {
-                    AppWorkspace()
+                    AppWorkspace(client: client)
                 }
             #else
-                AppWorkspace()
+                AppWorkspace(client: client)
             #endif
         }
         .commands { WorkspaceCommands() }
         #if os(macOS)
         .defaultSize(width: 960, height: 640)
+        #endif
+        #if os(macOS)
+            // Tuist Guild ▸ Settings… (⌘,): runs threads on this Mac.
+            Settings { SettingsView(client: client) }
+                // The window follows the pane: short until the runner is installed.
+                .windowResizability(.contentSize)
         #endif
     }
 }

@@ -47,6 +47,10 @@ identity=$(security find-identity -v -p codesigning "$keychain" \
     | awk -v team="($team)\"" 'index($0, "\"Developer ID Application:") && index($0, team) { print $2; exit }')
 [[ $identity =~ ^[A-F0-9]{40}$ ]] || fail 'No Developer ID Application identity for the Tuist team'
 
+# The runner daemon is a second executable in Contents/MacOS: sign it first, with
+# its own identifier, so notarization finds every Mach-O signed with the runtime.
+codesign --force --sign "$identity" --keychain "$keychain" --options runtime --timestamp \
+    --identifier dev.tuist.guild.runner "$app/Contents/MacOS/tuist-guild-runner"
 # Hardened runtime; the microphone exception lets dictation capture audio.
 codesign --force --sign "$identity" --keychain "$keychain" --options runtime --timestamp \
     --entitlements macos/distribution/entitlements.plist "$app"

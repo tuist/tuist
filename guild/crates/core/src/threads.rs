@@ -7,6 +7,11 @@ use url::Url;
 
 use crate::client::{NOT_FOUND, Result, segment, successful, text};
 
+/// The server refuses a thread on a runner that hasn't polled in the last
+/// minute, rather than leaving every tool call to time out.
+const RUNNER_OFFLINE: &str =
+    "That runner is offline. Open Tuist Guild on that machine and check its runner is connected";
+
 // The server answers 404 when threads are off for the user (the `code` flag)
 // or it predates them.
 pub const THREADS_UNAVAILABLE: &str = "Threads aren't enabled for this account or server";
@@ -101,15 +106,24 @@ impl Threads {
                         })
                     })
                     .ok_or("Connect a ChatGPT subscription in your Tuist account settings to start conversations")?;
-                let body = json!({
-                    "request_id": self.request_id(args, server, handle, "", content)?,
+                let runner = runner_id(args)?;
+                let mut body = json!({
+                    "request_id": self.request_id(args, server, handle, runner.unwrap_or(""), content)?,
                     "content": content,
                     "provider": model["provider"],
                     "model": model["id"],
                 });
-                let mut thread = match request(transport, "POST", url(""), Some(body)) {
-                    Err(NOT_FOUND) => return Err(THREADS_UNAVAILABLE),
-                    result => result?,
+                if let Some(runner) = runner {
+                    body["runner_id"] = json!(runner);
+                }
+                let mut thread = match transport.send("POST", url(""), Some(body))? {
+                    (409, data) if data["reason"] == "runner_offline" => {
+                        return Err(RUNNER_OFFLINE);
+                    }
+                    response => match successful(response) {
+                        Err(NOT_FOUND) => return Err(THREADS_UNAVAILABLE),
+                        result => result?,
+                    },
                 };
                 self.pending = None;
                 present(&mut thread);
@@ -158,7 +172,8 @@ impl Threads {
     ) -> Result<String> {
         let thread = match operation {
             "send_message" => thread_id(args)?,
-            _ => "",
+            // The same request on another runner is another thread.
+            _ => runner_id(args)?.unwrap_or(""),
         };
         self.request_id(args, server, handle, thread, message_content(args)?)
     }
@@ -361,4 +376,17 @@ pub(crate) fn new_request_id() -> String {
         &hex[16..20],
         &hex[20..32]
     )
+}
+
+/// The runner a new thread runs on: absent for Tuist's own sandbox.
+fn runner_id(args: &Value) -> Result<Option<&str>> {
+    match args.get("runner_id") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(id))
+            if id.len() == 36 && id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') =>
+        {
+            Ok(Some(id))
+        }
+        Some(_) => Err("Invalid runner"),
+    }
 }

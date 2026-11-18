@@ -2123,3 +2123,119 @@ fn notifications_open_in_the_owners_profile_when_several_share_the_account() {
     assert_eq!(refused["view"]["active_profile_id"], ana);
     assert_ne!(ana, ben);
 }
+
+#[test]
+fn threads_start_on_a_runner_only_online_and_runners_register_with_their_secret() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let runner = "9a1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+
+    h.responses.push_back((
+        201,
+        json!({"id":runner,"name":"macbook","platform":"macos","online":false,"token":"tgr_secret"}),
+    ));
+    let registered = call(
+        &mut c,
+        &mut h,
+        "register_runner",
+        json!({"name":"macbook","platform":"macos"}),
+    );
+    assert_eq!(registered["data"]["token"], "tgr_secret", "{registered}");
+    assert_eq!(registered["data"]["server"], "https://one.test");
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/me/thread-runners"
+    );
+    let refused = call(
+        &mut c,
+        &mut h,
+        "register_runner",
+        json!({"name":"x","platform":"beos"}),
+    );
+    assert!(refused.get("error").is_some());
+
+    h.responses.extend([
+        (
+            200,
+            json!({"models":[{"provider":"chatgpt","id":"gpt-a"}],"errors":[]}),
+        ),
+        (
+            200,
+            server_thread(json!([{"role":"user","content":"Look around"}])),
+        ),
+    ]);
+    let started = call(
+        &mut c,
+        &mut h,
+        "start_thread",
+        json!({"content":"Look around","runner_id":runner}),
+    );
+    assert!(started.get("error").is_none(), "{started}");
+    let body = sent_body(&h);
+    assert_eq!(body["runner_id"], runner);
+    let on_runner = body["request_id"].clone();
+
+    // The same text on Tuist's sandbox is another thread, under another key.
+    h.responses.extend([
+        (
+            200,
+            json!({"models":[{"provider":"chatgpt","id":"gpt-a"}],"errors":[]}),
+        ),
+        (
+            200,
+            server_thread(json!([{"role":"user","content":"Look around"}])),
+        ),
+    ]);
+    call(
+        &mut c,
+        &mut h,
+        "start_thread",
+        json!({"content":"Look around"}),
+    );
+    assert!(sent_body(&h).get("runner_id").is_none());
+    assert_ne!(sent_body(&h)["request_id"], on_runner);
+
+    // A runner the server hasn't heard from is refused, with its own message.
+    h.responses.extend([
+        (
+            200,
+            json!({"models":[{"provider":"chatgpt","id":"gpt-a"}],"errors":[]}),
+        ),
+        (
+            409,
+            json!({"reason":"runner_offline","message":"The runner is offline."}),
+        ),
+    ]);
+    let refused = call(
+        &mut c,
+        &mut h,
+        "start_thread",
+        json!({"content":"Look again","runner_id":runner}),
+    );
+    assert_eq!(
+        refused["error"],
+        "That runner is offline. Open Tuist Guild on that machine and check its runner is connected"
+    );
+
+    // Offline, a thread on a runner fails instead of queueing without its runner.
+    h.offline = true;
+    let offline = call(
+        &mut c,
+        &mut h,
+        "start_thread",
+        json!({"content":"Later","runner_id":runner}),
+    );
+    assert_eq!(
+        offline["error"],
+        "Connect to the internet to start a thread on a runner"
+    );
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert!(
+        inbox["data"]["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["pending"] != true),
+        "{inbox}"
+    );
+}

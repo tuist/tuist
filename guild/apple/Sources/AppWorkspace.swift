@@ -14,8 +14,7 @@ struct AppWorkspace: View {
     @State private var startingConversation = false
     @Environment(\.scenePhase) private var scenePhase
 
-    init() {
-        let client = AppClient()
+    init(client: AppClient) {
         _client = State(initialValue: client)
         _updater = State(initialValue: PreviewUpdater(client: client))
     }

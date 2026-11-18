@@ -395,6 +395,7 @@ impl MobileClient {
             }
             "preview_update" => self.preview_update(args, host),
             "push_register" => self.push_register(args, host),
+            op @ ("runners" | "register_runner" | "remove_runner") => self.runners(op, args, host),
             "push_enable" => self.push_enable(args, host),
             "live_activity_register" => self.live_activity_register(args, host),
             "live_activity_unregister" => self.live_activity_unregister(args, host),
@@ -469,6 +470,14 @@ impl MobileClient {
         } else {
             self.thread_call(index, &account, op, &args, host)
         };
+        // The outbox replays a thread's text only, so a thread on a runner is
+        // started online or not at all.
+        if op == "start_thread"
+            && !args.get("runner_id").is_none_or(Value::is_null)
+            && result == Err(OFFLINE)
+        {
+            return Err(RUNNER_NEEDS_NETWORK);
+        }
         let now = now()?;
         let recorded = match self.store(index, host) {
             Ok(store) => store::record(store, op, &account, &args, result.clone(), now),
@@ -949,6 +958,37 @@ impl MobileClient {
             Ok(data) => updates::select(&data, platform, binary_id),
             Err("Access denied" | NOT_FOUND) => Ok(json!({"update":null})),
             Err(error) => Err(error),
+        }
+    }
+
+    /// The signed-in person's runners: their own machines, which threads can
+    /// run on. `register_runner` answers with the runner's secret, which the
+    /// edge hands to the runner daemon on this machine and never keeps.
+    fn runners(&mut self, op: &str, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let server = server_url(&self.vault.profiles[index].server)?;
+        let collection = endpoint(&server, "api/me/thread-runners");
+        match op {
+            "runners" => successful(self.send(index, "GET", collection, None, host)?),
+            "register_runner" => {
+                let platform = text(args, "platform")?;
+                if !matches!(platform, "macos" | "linux" | "windows") {
+                    return Err("Invalid runner");
+                }
+                let body = json!({"name": text(args, "name")?, "platform": platform});
+                let mut runner =
+                    successful(self.send(index, "POST", collection, Some(body), host)?)?;
+                runner["server"] = json!(server.as_str().trim_end_matches('/'));
+                Ok(runner)
+            }
+            _ => {
+                let id = text(args, "id")?;
+                if !is_uuid(id) {
+                    return Err("Invalid runner");
+                }
+                let url = endpoint(&server, &format!("api/me/thread-runners/{id}"));
+                successful(self.send(index, "DELETE", url, None, host)?).map(|_| Value::Null)
+            }
         }
     }
 
@@ -1439,6 +1479,7 @@ const UNSUPPORTED_SERVER: &str =
     "This server doesn't support signing in from Tuist Guild; ask your administrator to update it";
 const BUSY: &str = "The thread is busy; try again when it finishes";
 const REFUSED: &str = "The server refused the request";
+const RUNNER_NEEDS_NETWORK: &str = "Connect to the internet to start a thread on a runner";
 pub(crate) fn successful((status, data): (u64, Value)) -> Result<Value> {
     match status {
         200..=299 => Ok(data),

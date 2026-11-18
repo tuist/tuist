@@ -12,7 +12,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent
 DEST = ROOT / "native-dependencies"
-PACKAGES = ("core", "oauth", "jwt", "credentials")
+PACKAGES = ("core", "oauth", "jwt", "credentials", "runner")
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     manifest = (ROOT / "Cargo.toml").read_text()
     manifest, count = re.subn(
         r"^members = .*?$",
-        'members = ["crates/core", "crates/oauth", "crates/jwt", "crates/credentials"]',
+        'members = ["crates/core", "crates/oauth", "crates/jwt", "crates/credentials", "crates/runner"]',
         manifest,
         count=1,
         flags=re.MULTILINE,
@@ -38,6 +38,8 @@ def main():
             text = text.replace('default = ["network"]', 'default = []')
         (directory / "Cargo.toml").write_text(text)
         (directory / "src/lib.rs").write_text("// Metadata only; Once compiles the original sources.\n")
+        if (ROOT / "crates" / package / "src/main.rs").exists():
+            (directory / "src/main.rs").write_text("fn main() {}\n")
     shutil.copyfile(ROOT / "Cargo.lock", DEST / "Cargo.lock")
     subprocess.run(
         ["cargo", "metadata", "--format-version", "1"],

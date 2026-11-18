@@ -149,8 +149,10 @@ postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/e
 name = "TuistGuildMacOS"
 kind = "apple_application"
 srcs = ["apple/Sources/**/*.swift"]
-deps = ["./TuistGuildCoreMacOS", "./TuistGuildCoreFFI"]
+deps = ["./TuistGuildCoreMacOS", "./TuistGuildCoreFFI", "./TuistGuildRunnerApple"]
 [target.attrs]
+# Copies the runner daemon beside the app's executable before signing.
+prepackage_actions = ["{\"id\": \"embed-runner\", \"display_name\": \"Embed the runner daemon\", \"cacheable\": true, \"inputs\": [\".once/out/TuistGuildRunnerApple/tuist-guild-runner\"], \"outputs\": [\".once/out/TuistGuildMacOS/Tuist Guild.app/Contents/MacOS/tuist-guild-runner\"], \"script\": \"install -m 755 .once/out/TuistGuildRunnerApple/tuist-guild-runner \\\".once/out/TuistGuildMacOS/Tuist Guild.app/Contents/MacOS/tuist-guild-runner\\\"\"}"]
 platform = "macos"
 bundle_id = "dev.tuist.code"
 product_name = "Tuist Guild"
@@ -344,3 +346,47 @@ target = "aarch64-linux-android"
 name = "TuistGuildBrowser"
 kind = "tuist_browser"
 srcs = ["android/dependencies.py", "android/dependencies.lock.json", "android/AndroidManifest.xml", "android/res/**/*"]
+
+# The runner daemon (crates/runner): a library, the binary every desktop app
+# bundles, and its tests. The macOS app embeds the binary as
+# Contents/MacOS/tuist-guild-runner, which installs itself as a launchd agent.
+[[target]]
+name = "TuistGuildRunnerLibMacOS"
+kind = "rust_library"
+srcs = ["crates/runner/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_guild_runner"
+crate_root = "crates/runner/src/lib.rs"
+cargo_package = "tuist-guild-runner"
+edition = "2024"
+target = "aarch64-apple-darwin"
+
+[[target]]
+name = "TuistGuildRunnerMacOS"
+kind = "rust_binary"
+srcs = ["crates/runner/src/main.rs"]
+deps = ["native-dependencies/Host", "./TuistGuildRunnerLibMacOS"]
+[target.attrs]
+crate_name = "tuist_guild_runner_bin"
+crate_root = "crates/runner/src/main.rs"
+cargo_package = "tuist-guild-runner"
+edition = "2024"
+target = "aarch64-apple-darwin"
+_binary_output_name = "tuist-guild-runner"
+
+[[target]]
+name = "TuistGuildRunnerApple"
+kind = "guild_runner_apple"
+deps = ["./TuistGuildRunnerMacOS"]
+
+[[target]]
+name = "TuistGuildRunnerTests"
+kind = "rust_test"
+srcs = ["crates/runner/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_guild_runner_tests"
+cargo_package = "tuist-guild-runner"
+crate_root = "crates/runner/src/lib.rs"
+edition = "2024"
