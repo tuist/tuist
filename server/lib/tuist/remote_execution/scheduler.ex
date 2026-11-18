@@ -852,7 +852,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp outcome(14), do: "unavailable"
   defp outcome(_code), do: "other"
 
-  defp queue_limit(settings), do: min(settings.max_concurrency * 4, 512)
+  # `tuist bazel setup` gives every client `--jobs` of twice max_concurrency, so
+  # the queue holds about eight cold clients at once, such as a CI pipeline's
+  # parallel Bazel jobs. Queued operations past max_concurrency hold no inputs.
+  defp queue_limit(settings), do: min(settings.max_concurrency * 16, 2048)
   defp put_op(state, op), do: %{state | ops: Map.put(state.ops, op.id, op)}
   defp put_vm(state, vm), do: %{state | vms: Map.put(state.vms, vm.id, vm)}
   defp now_ms, do: System.monotonic_time(:millisecond)
