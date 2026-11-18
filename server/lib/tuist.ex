@@ -304,6 +304,8 @@ defmodule Tuist do
       Environment,
       FeatureFlags,
       Pulse,
+      Pulse.LuftTelemetry,
+      Pulse.OTLP,
       Pulse.Schemas,
       Ecto.Utils,
       GitHub.InstallationAuthorization,

@@ -52,9 +52,9 @@
       "sandboxes": { "text": "샌드박스" },
       "scim-provisioning": { "text": "SCIM 프로비저닝" },
       "server-api": { "text": "서버 API" },
-      "single-sign-on": { "text": "Single Sign-On" },
+      "single-sign-on": { "text": "싱글 사인온" },
       "supported-types": { "text": "지원 유형" },
-      "webhooks": { "text": "Webhooks" },
+      "webhooks": { "text": "웹훅" },
       "xcodegen-project": { "text": "XcodeGen 프로젝트" },
       "xcodeproj-integration": { "text": "Xcodeproj 통합" },
       "ufeatures-architecture": { "text": "uFeatures 아키텍처" }
@@ -91,9 +91,9 @@
           "recent-searches-title": "검색 기록",
           "no-recent-searches-text": "검색 기록 없음",
           "save-recent-search-button-title": "검색 기록에 저장",
-          "remove-recent-search-button-title": "검색 기록에서 제거",
+          "remove-recent-search-button-title": "검색 기록에서 삭제",
           "favorite-searches-title": "즐겨찾기",
-          "remove-favorite-search-button-title": "즐겨찾기에서 제거"
+          "remove-favorite-search-button-title": "즐겨찾기에서 삭제"
         },
         "error-screen": {
           "title-text": "결과를 가져올 수 없습니다",
@@ -101,7 +101,7 @@
         },
         "footer": {
           "select-text": "선택",
-          "navigate-text": "이동",
+          "navigate-text": "탐색",
           "close-text": "닫기",
           "search-by-text": "검색 제공자"
         },
@@ -201,7 +201,7 @@
           }
         },
         "configuration": {
-          "text": "설정",
+          "text": "구성",
           "items": {
             "tuist-toml": {
               "text": "tuist.toml"
@@ -264,7 +264,7 @@
           "text": "소개",
           "items": {
             "why-server": {
-              "text": "왜 서버인가요?"
+              "text": "왜 서버인가?"
             },
             "accounts-and-projects": {
               "text": "계정 및 프로젝트"
@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "상태"
-        },
-        "metrics-dashboard": {
-          "text": "메트릭 대시보드"
         }
       }
     },
@@ -424,7 +421,7 @@
                   "text": "합성 파일"
                 },
                 "dynamic-configuration": {
-                  "text": "동적 설정"
+                  "text": "동적 구성"
                 },
                 "templates": {
                   "text": "템플릿"
@@ -439,7 +436,7 @@
                   "text": "검사",
                   "items": {
                     "implicit-imports": {
-                      "text": "암시적 import"
+                      "text": "암시적 임포트"
                     }
                   }
                 },
@@ -447,7 +444,7 @@
                   "text": "편의성의 비용"
                 },
                 "tma-architecture": {
-                  "text": "모듈형 아키텍처"
+                  "text": "모듈식 아키텍처"
                 },
                 "metadata-tags": {
                   "text": "메타데이터 태그"

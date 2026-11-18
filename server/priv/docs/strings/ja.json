@@ -18,7 +18,7 @@
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "キャッシュボリューム" },
       "calendar": { "text": "カレンダー" },
-      "channels": { "text": "チャネル" },
+      "channels": { "text": "チャンネル" },
       "claude": { "text": "Claude" },
       "compatibility": { "text": "互換性" },
       "coverage": { "text": "カバレッジ" },
@@ -44,8 +44,8 @@
       "project-description": { "text": "プロジェクトの説明" },
       "release": { "text": "リリース" },
       "release-calendar": { "text": "リリースカレンダー" },
-      "release-channels": { "text": "リリースチャネル" },
-      "run-previews": { "text": "プレビューを実行" },
+      "release-channels": { "text": "リリースチャンネル" },
+      "run-previews": { "text": "プレビューの実行" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rustキャッシュ" },
       "rust-project": { "text": "Rustプロジェクト" },
@@ -53,10 +53,10 @@
       "scim-provisioning": { "text": "SCIMプロビジョニング" },
       "server-api": { "text": "サーバーAPI" },
       "single-sign-on": { "text": "シングルサインオン" },
-      "supported-types": { "text": "サポートされているタイプ" },
+      "supported-types": { "text": "対応タイプ" },
       "webhooks": { "text": "Webhook" },
       "xcodegen-project": { "text": "XcodeGenプロジェクト" },
-      "xcodeproj-integration": { "text": "Xcodeproj統合" },
+      "xcodeproj-integration": { "text": "Xcodeproj連携" },
       "ufeatures-architecture": { "text": "uFeaturesアーキテクチャ" }
     }
   },
@@ -66,7 +66,7 @@
         "text": "言語 🌍"
       },
       "description": {
-        "text": "Tuistがより多くの言語をサポートしたり、このページの言語ガイダンスを改善したりするのに役立ちます。"
+        "text": "Tuistがより多くの言語に対応できるよう支援したり、このページの言語ガイドを改善することができます。"
       },
       "cta": {
         "text": "貢献する"
@@ -106,7 +106,7 @@
           "search-by-text": "検索プロバイダー"
         },
         "no-results-screen": {
-          "no-results-text": "関連する結果が見つかりませんでした",
+          "no-results-text": "関連する結果が見つかりません",
           "suggested-query-text": "次のクエリを試してみてください",
           "report-missing-results-text": "このクエリに結果があるべきだと思いますか？",
           "report-missing-results-link-text": "クリックしてフィードバックを送信"
@@ -155,7 +155,7 @@
               "text": "ディレクトリ"
             },
             "shell-completions": {
-              "text": "シェルの補完"
+              "text": "シェル補完"
             }
           }
         },
@@ -231,7 +231,7 @@
           }
         },
         "issue-reporting": {
-          "text": " issue報告"
+          "text": "Issueの報告"
         },
         "code-reviews": {
           "text": "コードレビュー"
@@ -261,7 +261,7 @@
     "server": {
       "items": {
         "introduction": {
-          "text": "概要",
+          "text": "はじめに",
           "items": {
             "why-server": {
               "text": "なぜサーバーが必要か"
@@ -273,7 +273,7 @@
               "text": "認証"
             },
             "integrations": {
-              "text": "統合"
+              "text": "連携"
             }
           }
         },
@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "ステータス"
-        },
-        "metrics-dashboard": {
-          "text": "メトリクスダッシュボード"
         }
       }
     },
@@ -306,7 +303,7 @@
           "text": "Xcode",
           "items": {
             "create-a-generated-project": {
-              "text": "生成されたプロジェクトを作成"
+              "text": "生成されたプロジェクトを作成する"
             }
           }
         }
@@ -421,7 +418,7 @@
                   "text": "コード共有"
                 },
                 "synthesized-files": {
-                  "text": "生成ファイル"
+                  "text": "自動生成ファイル"
                 },
                 "dynamic-configuration": {
                   "text": "動的設定"
@@ -489,7 +486,7 @@
                   "text": "生成されたプロジェクト"
                 },
                 "xcodeproj-integration": {
-                  "text": "XcodeProjベースの統合"
+                  "text": "XcodeProjベースの連携"
                 },
                 "swift-package": {
                   "text": "Swiftパッケージ"
@@ -569,7 +566,7 @@
           }
         },
         "integrations": {
-          "text": "統合",
+          "text": "連携",
           "items": {
             "continuous-integration": {
               "text": "継続的インテグレーション"

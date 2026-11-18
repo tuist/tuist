@@ -20,8 +20,8 @@
         {
           "current": {
             "selected": false,
-            "text": "grafanacloud-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": 0,
           "includeAll": false,
@@ -31,7 +31,7 @@
           "options": [],
           "query": "prometheus",
           "refresh": 1,
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false,
           "type": "datasource"
         },
@@ -1671,7 +1671,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "min by (pool) (\n  label_replace(max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"queued\", \"\", \"\")\n  or\n  label_replace(max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"idle\", \"\", \"\")\n)\n# Both operands must exist. `or` keeps a lone series, and `min` would\n# then chart it alone: a static or autoscaling-disabled pool clears the\n# demand series while idle capacity keeps publishing, so idle=5 with no\n# queued series would read as 5 starved replicas.\nand on (pool) (max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}))\nand on (pool) (max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}))",
+            "expr": "min by (pool) (\n  label_replace(max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"queued\", \"\", \"\")\n  or\n  label_replace(max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"idle\", \"\", \"\")\n)\n# Both operands must exist. `or` keeps a lone series, and `min` would\n# then chart it alone: a static or autoscaling-disabled pool clears the\n# demand series while idle capacity keeps publishing, so idle=5 with no\n# queued series would read as 5 starved replicas. Multiplying by `x * 0 + 1`\n# keeps that filter: Pulse cannot plan `and on` when either side is empty.\n* on (pool) group_left () (max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}) * 0 + 1)\n* on (pool) group_left () (max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}) * 0 + 1)",
             "legendFormat": "{{pool}}",
             "refId": "A"
           }

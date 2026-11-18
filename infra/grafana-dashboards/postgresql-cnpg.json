@@ -2704,8 +2704,8 @@
         {
           "current": {
             "selected": false,
-            "text": "grafanacloud-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": 0,
           "includeAll": false,
@@ -2715,7 +2715,7 @@
           "options": [],
           "query": "prometheus",
           "refresh": 1,
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false,
           "type": "datasource"
         },

@@ -391,6 +391,8 @@ defmodule Tuist.Application do
           Tuist.Marketing.BazelShowcase,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          # Subscribe only after PubSub is running, not while dependencies boot.
+          FunWithFlags.Supervisor,
           Tuist.Sandboxes.NodePresence,
           Tuist.Threads.Clients,
           Tuist.Halls.Presence,

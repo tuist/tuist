@@ -26,9 +26,11 @@
           "label": "Data Source",
           "type": "datasource",
           "query": "prometheus",
+          "regex": "/^Tuist Pulse Metrics/",
           "current": {
-            "text": "grafanacloud-prom",
-            "value": "grafanacloud-prom"
+            "selected": false,
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": 0,
           "refresh": 1

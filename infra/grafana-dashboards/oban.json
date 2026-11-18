@@ -70,7 +70,7 @@
         "type": "row"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs in each queue that are in the available state.",
         "fieldConfig": {
           "defaults": {
@@ -134,7 +134,7 @@
         "type": "bargauge"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs processed across all queues and states.",
         "fieldConfig": {
           "defaults": {
@@ -191,7 +191,7 @@
         "type": "stat"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs that resulted in an error across all queues.",
         "fieldConfig": {
           "defaults": {
@@ -248,7 +248,7 @@
         "type": "stat"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs that have been enqueued.",
         "fieldConfig": {
           "defaults": {
@@ -331,7 +331,7 @@
           "mode": "spectrum"
         },
         "dataFormat": "tsbuckets",
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "A heatmap showing the time it took to process jobs across all queues.",
         "fieldConfig": {
           "defaults": {
@@ -403,7 +403,7 @@
           "mode": "spectrum"
         },
         "dataFormat": "tsbuckets",
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "A heatmap showing how long jobs are waiting in queue for processing.",
         "fieldConfig": {
           "defaults": {
@@ -467,7 +467,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average time it took to process jobs per queue. This will include jobs that ended with a successful, snoozed, or discarded state.",
         "fieldConfig": {
           "defaults": {
@@ -564,7 +564,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average time a job waited in queue for processing.",
         "fieldConfig": {
           "defaults": {
@@ -661,7 +661,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average time it took to process jobs per queue. This will include jobs that ended with a successful, snoozed, or discarded state.",
         "fieldConfig": {
           "defaults": {
@@ -780,7 +780,7 @@
           "mode": "spectrum"
         },
         "dataFormat": "tsbuckets",
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "A heatmap showing the time it took to process jobs across all queues that resulted in an error.",
         "fieldConfig": {
           "defaults": {
@@ -852,7 +852,7 @@
           "mode": "spectrum"
         },
         "dataFormat": "tsbuckets",
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "A heatmap showing how long jobs are waiting in queue for processing that resulted in an error.",
         "fieldConfig": {
           "defaults": {
@@ -916,7 +916,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average time it took to process jobs per queue that resulted in an error.",
         "fieldConfig": {
           "defaults": {
@@ -1013,7 +1013,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average time a job waited in queue for processing prior to resulting in an error.",
         "fieldConfig": {
           "defaults": {
@@ -1110,7 +1110,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average time it took to process jobs per queue that resulted in an error.",
         "fieldConfig": {
           "defaults": {
@@ -1221,7 +1221,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs marked as available in each queue.",
         "fieldConfig": {
           "defaults": {
@@ -1316,7 +1316,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs marked as completed in each queue.",
         "fieldConfig": {
           "defaults": {
@@ -1411,7 +1411,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs marked as executing in each queue.",
         "fieldConfig": {
           "defaults": {
@@ -1506,7 +1506,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of jobs marked as retryable in each queue.",
         "fieldConfig": {
           "defaults": {
@@ -1623,7 +1623,7 @@
           "mode": "spectrum"
         },
         "dataFormat": "tsbuckets",
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "A heatmap showing how long jobs to be dispatched.",
         "fieldConfig": {
           "defaults": {
@@ -1695,7 +1695,7 @@
           "mode": "spectrum"
         },
         "dataFormat": "tsbuckets",
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "A heatmap showing the number of jobs that were dispatched.",
         "fieldConfig": {
           "defaults": {
@@ -1759,7 +1759,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average amount of time it took to dispatch jobs to each queue.",
         "fieldConfig": {
           "defaults": {
@@ -1852,7 +1852,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average number of jobs dispatched to each queue.",
         "fieldConfig": {
           "defaults": {
@@ -1945,7 +1945,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The average amount of time it took to encounter an encounter an error.",
         "fieldConfig": {
           "defaults": {
@@ -2048,7 +2048,7 @@
         "type": "row"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "This is the total number of trip events that have been encountered by the selected application and Oban instances.",
         "fieldConfig": {
           "defaults": {
@@ -2108,7 +2108,7 @@
         "type": "stat"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "This is the total number of trip events that have been encountered by the selected application and Oban instances.",
         "fieldConfig": {
           "defaults": {
@@ -2168,7 +2168,7 @@
         "type": "stat"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "This is the total number of open events that have been encountered by the selected application and Oban instances.",
         "fieldConfig": {
           "defaults": {
@@ -2228,7 +2228,7 @@
         "type": "stat"
       },
       {
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "This is the total number of open events that have been encountered by the selected application and Oban instances.",
         "fieldConfig": {
           "defaults": {
@@ -2292,7 +2292,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of circuit breaker trip events that occurred along with what component tripped the breaker.",
         "fieldConfig": {
           "defaults": {
@@ -2385,7 +2385,7 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
-        "datasource": "grafanacloud-tuist-prom",
+        "datasource": "$datasource",
         "description": "The number of circuit breaker open events that occurred along with what component tripped the breaker.",
         "fieldConfig": {
           "defaults": {
@@ -2485,13 +2485,31 @@
     "templating": {
       "list": [
         {
+          "current": {
+            "selected": false,
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Data Source",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "prometheus",
+          "refresh": 1,
+          "regex": "/^Tuist Pulse Metrics/",
+          "skipUrlSync": false,
+          "type": "datasource"
+        },
+        {
           "allValue": null,
           "current": {
             "selected": false,
-            "text": "elixir_app",
-            "value": "elixir_app"
+            "text": "tuist",
+            "value": "tuist"
           },
-          "datasource": "grafanacloud-tuist-prom",
+          "datasource": "$datasource",
           "definition": "label_values(tuist_oban_queue_length_count, job)",
           "hide": 0,
           "includeAll": false,
@@ -2517,7 +2535,7 @@
             "text": "production",
             "value": "production"
           },
-          "datasource": "grafanacloud-tuist-prom",
+          "datasource": "$datasource",
           "definition": "label_values(tuist_oban_queue_length_count{job=\"$job\"}, env)",
           "hide": 0,
           "includeAll": false,
@@ -2538,7 +2556,7 @@
         },
         {
           "allValue": null,
-          "datasource": "grafanacloud-tuist-prom",
+          "datasource": "$datasource",
           "definition": "label_values(tuist_oban_queue_length_count, name)",
           "hide": 0,
           "includeAll": false,

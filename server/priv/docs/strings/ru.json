@@ -39,7 +39,7 @@
       "once-cache": { "text": "Кэш Once" },
       "once-project": { "text": "Проект Once" },
       "once-remote-execution": { "text": "Удалённое выполнение Once" },
-      "origin": { "text": "Источник" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "Профили" },
       "project-description": { "text": "Описание проекта" },
       "release": { "text": "Релиз" },
@@ -48,10 +48,10 @@
       "run-previews": { "text": "Запуск превью" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
-      "rust-project": { "text": "Проект на Rust" },
+      "rust-project": { "text": "Проект Rust" },
       "sandboxes": { "text": "Песочницы" },
-      "scim-provisioning": { "text": "SCIM-провижининг" },
-      "server-api": { "text": "API сервера" },
+      "scim-provisioning": { "text": "SCIM-подготовка" },
+      "server-api": { "text": "Server API" },
       "single-sign-on": { "text": "Единый вход (SSO)" },
       "supported-types": { "text": "Поддерживаемые типы" },
       "webhooks": { "text": "Вебхуки" },
@@ -66,7 +66,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить рекомендации по переводу для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку новых языков или улучшить рекомендации по переводу для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -77,8 +77,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Искать в документации",
-        "button-aria-label": "Искать в документации"
+        "button-text": "Поиск в документации",
+        "button-aria-label": "Поиск в документации"
       },
       "modal": {
         "search-box": {
@@ -106,8 +106,8 @@
           "search-by-text": "Поисковый провайдер"
         },
         "no-results-screen": {
-          "no-results-text": "Релевантных результатов не найдено",
-          "suggested-query-text": "Попробуйте другой запрос",
+          "no-results-text": "Релевантные результаты не найдены",
+          "suggested-query-text": "Попробуйте запрос",
           "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
@@ -152,7 +152,7 @@
               "text": "Отладка"
             },
             "directories": {
-              "text": "Директории"
+              "text": "Каталоги"
             },
             "shell-completions": {
               "text": "Автодополнение в оболочке"
@@ -278,7 +278,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальная установка",
+          "text": "On-premise",
           "items": {
             "install": {
               "text": "Установка"
@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "Статус"
-        },
-        "metrics-dashboard": {
-          "text": "Панель метрик"
         }
       }
     },
@@ -393,7 +390,7 @@
                           "text": "Проект Xcode"
                         },
                         "swift-package": {
-                          "text": "Swift-пакет"
+                          "text": "Пакет Swift"
                         },
                         "xcodegen-project": {
                           "text": "Проект XcodeGen"
@@ -409,7 +406,7 @@
                   "text": "Манифесты"
                 },
                 "directory-structure": {
-                  "text": "Структура директорий"
+                  "text": "Структура каталогов"
                 },
                 "editing": {
                   "text": "Редактирование"
@@ -492,7 +489,7 @@
                   "text": "Интеграция на основе XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Swift-пакет"
+                  "text": "Пакет Swift"
                 },
                 "continuous-integration": {
                   "text": "Непрерывная интеграция"
@@ -524,7 +521,7 @@
               }
             },
             "test-insights": {
-              "text": "Аналитика тестов",
+              "text": "Аналитика",
               "items": {
                 "flaky-tests": {
                   "text": "Нестабильность",
@@ -537,7 +534,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Аналитика бандлов",
+              "text": "Аналитика",
               "items": {
                 "apple": {
                   "text": "Apple"
