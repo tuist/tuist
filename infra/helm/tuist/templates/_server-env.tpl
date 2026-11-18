@@ -198,6 +198,10 @@ cluster and integration settings in every mode. Mode-specific variables
             # off the web pods whenever that deployment is enabled.
             - name: TUIST_DELEGATE_PROCESS_BAZEL_TESTS
               value: "1"
+            # Snapshot comparisons decode full-resolution images; keep their
+            # memory off the pods that serve requests.
+            - name: TUIST_DELEGATE_PROCESS_SNAPSHOTS
+              value: "1"
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Hand off the :process_xcresult queue to the macOS xcresult-

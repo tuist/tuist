@@ -1744,6 +1744,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def delegate_process_snapshots? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_SNAPSHOTS", "0"))
+  end
+
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
@@ -1759,6 +1763,13 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)
       _ -> if processor_mode?(), do: 5, else: 2
+    end
+  end
+
+  def process_snapshots_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_SNAPSHOTS_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 2
     end
   end
 

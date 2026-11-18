@@ -70,6 +70,10 @@ defmodule Tuist do
       # This module contains Tuist features that are not expected to have inter-dependencies
       # among them. They must only depend on core and utility modules.
       Bundles,
+      Snapshots,
+      Snapshots.Build,
+      Snapshots.Commit,
+      Snapshots.Image,
       Bundles.Artifact,
       Bundles.Bundle,
       Bundles.BundleSizeApprover,

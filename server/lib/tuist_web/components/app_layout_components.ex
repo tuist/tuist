@@ -454,6 +454,18 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+        label={dgettext("dashboard", "Snapshots")}
+        icon="photo"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"
+          )
+        }
+      />
+      <.sidebar_item
         :if={Project.supports_previews?(@selected_project) or @previews_available}
         label={dgettext("dashboard", "Previews")}
         icon="devices"

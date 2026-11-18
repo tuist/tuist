@@ -1,0 +1,334 @@
+<%= if @library_sources == [] do %>
+  <.empty_state
+    id="snapshots-empty-state"
+    title={dgettext("dashboard_snapshots", "Catch visual regressions on every pull request")}
+    subtitle={
+      if Tuist.Projects.Project.gradle_project?(@selected_project) do
+        dgettext(
+          "dashboard_snapshots",
+          "Enable snapshots in the Tuist Gradle plugin, then run your tests in CI on %{branch} to set the baselines pull requests are compared with.",
+          branch: @selected_project.default_branch
+        )
+      else
+        dgettext(
+          "dashboard_snapshots",
+          "Turn your SwiftUI previews into snapshot tests with the tuist/snapshots library, then run your tests in CI on %{branch} to set the baselines pull requests are compared with.",
+          branch: @selected_project.default_branch
+        )
+      end
+    }
+    command={
+      if Tuist.Projects.Project.gradle_project?(@selected_project),
+        do: "./gradlew test",
+        else: "tuist xcodebuild test -scheme MyApp"
+    }
+  >
+    <:light_background>
+      <.empty_state_illustration theme="light" />
+    </:light_background>
+    <:dark_background>
+      <.empty_state_illustration theme="dark" />
+    </:dark_background>
+    <:actions>
+      <ul data-part="hints">
+        <%= if Tuist.Projects.Project.gradle_project?(@selected_project) do %>
+          <li>
+            {dgettext("dashboard_snapshots", "Turn them on in your build first:")}
+            <code>tuist &#123; snapshots &#123; enabled = true &#125; &#125;</code>
+          </li>
+        <% else %>
+          <li>
+            {dgettext("dashboard_snapshots", "Generated project? Run")}
+            <code>tuist test</code>
+          </li>
+          <li>
+            {dgettext("dashboard_snapshots", "Recording images another way? Upload them with")}
+            <code>tuist snapshots upload &lt;directory&gt; --set &lt;name&gt;</code>
+          </li>
+        <% end %>
+      </ul>
+    </:actions>
+  </.empty_state>
+<% else %>
+  <div id="snapshots">
+    <div data-part="filters">
+      <.date_picker
+        id="snapshots-analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_snapshots", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_snapshots", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_snapshots", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_snapshots", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_snapshots", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_snapshots", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "snapshots-analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_snapshots", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "snapshots-analytics-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </div>
+
+    <.card
+      title={dgettext("dashboard_snapshots", "Analytics")}
+      icon="chart_arcs"
+      data-part="analytics"
+    >
+      <.async_section :let={ready?} results={[@analytics]}>
+        <div data-part="analytics-content">
+          <div data-part="widgets">
+            <.widget
+              :for={widget <- ~w(snapshot_runs visual_changes snapshots)}
+              id={"widget-#{widget}"}
+              loading={!ready?}
+              title={widget_title(widget)}
+              description={widget_description(widget)}
+              value={
+                if ready?,
+                  do:
+                    format_number(
+                      Map.fetch!(@analytics.result, String.to_existing_atom(widget)).count
+                    )
+              }
+              legend_color={widget_color(widget)}
+              trend_value={
+                if ready?,
+                  do: Map.fetch!(@analytics.result, String.to_existing_atom(widget)).trend
+              }
+              trend_type={:neutral}
+              trend_label={@analytics_trend_label}
+              phx_click="select_widget"
+              phx_value_widget={widget}
+              selected={@selected_widget == widget}
+            />
+          </div>
+          <.card_section data-chart-frame="standard">
+            <div data-part="analytics-chart">
+              <%= if ready? do %>
+                <.chart
+                  id="snapshots-analytics-chart"
+                  type="line"
+                  extra_options={
+                    %{
+                      grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
+                      xAxis: %{
+                        boundaryGap: false,
+                        type: "category",
+                        axisLabel: %{
+                          color: "var:noora-surface-label-secondary",
+                          formatter: "fn:toLocaleDate",
+                          customValues: [
+                            List.first(@analytics.result.snapshot_runs.dates),
+                            List.last(@analytics.result.snapshot_runs.dates)
+                          ],
+                          padding: [10, 0, 0, 0]
+                        }
+                      },
+                      yAxis: %{
+                        splitNumber: 4,
+                        minInterval: 1,
+                        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                        axisLabel: %{color: "var:noora-surface-label-secondary"}
+                      },
+                      legend: %{show: false},
+                      tooltip:
+                        if(@analytics_preset == "last-24-hours",
+                          do: %{dateFormat: "hour"},
+                          else: %{}
+                        )
+                    }
+                  }
+                  series={[
+                    %{
+                      color: "var:noora-chart-#{widget_color(@selected_widget)}",
+                      data: chart_series(@analytics.result, @selected_widget),
+                      name: widget_title(@selected_widget),
+                      type: "line",
+                      step: if(@selected_widget == "snapshots", do: "end", else: false),
+                      smooth: if(@selected_widget == "snapshots", do: false, else: 0.1),
+                      connectNulls: false,
+                      symbol: "circle",
+                      symbolSize: 4,
+                      showAllSymbol: true
+                    }
+                  ]}
+                  y_axis_min={0}
+                />
+              <% else %>
+                <.skeleton_chart />
+              <% end %>
+            </div>
+          </.card_section>
+        </div>
+      </.async_section>
+    </.card>
+
+    <.card icon="photo" title={dgettext("dashboard_snapshots", "Snapshots")} data-part="library">
+      <.card_section data-part="library-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-snapshots"
+              name="search"
+              placeholder={dgettext("dashboard_snapshots", "Search snapshots...")}
+              value={@search}
+            />
+          </.form>
+          <.dropdown
+            :if={length(@set_names) > 1}
+            id="snapshots-set"
+            label={@set_name || dgettext("dashboard_snapshots", "All")}
+            secondary_text={dgettext("dashboard_snapshots", "Set:")}
+          >
+            <.dropdown_item
+              :for={set_name <- [nil | @set_names]}
+              value={set_name || "all"}
+              label={set_name || dgettext("dashboard_snapshots", "All")}
+              patch={
+                "?#{if(set_name, do: Query.put(@uri.query, "set", set_name), else: Query.drop(@uri.query, "set")) |> Query.drop("page")}"
+              }
+              data-selected={@set_name == set_name}
+            >
+              <:right_icon :if={@set_name == set_name}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.dropdown
+            :if={@groups != []}
+            id="snapshots-group"
+            label={@group || dgettext("dashboard_snapshots", "All")}
+            secondary_text={dgettext("dashboard_snapshots", "Group:")}
+          >
+            <:search>
+              <input
+                type="text"
+                placeholder={dgettext("dashboard_snapshots", "Search groups...")}
+                data-part="search-input"
+              />
+            </:search>
+            <.dropdown_item
+              value="all"
+              label={dgettext("dashboard_snapshots", "All")}
+              patch={"?#{@uri.query |> Query.drop("group") |> Query.drop("page")}"}
+              data-selected={is_nil(@group)}
+            >
+              <:right_icon :if={is_nil(@group)}><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              :for={%{group: group, count: count} <- @groups}
+              value={group}
+              label={group}
+              secondary_text={format_number(count)}
+              patch={"?#{@uri.query |> Query.put("group", group) |> Query.drop("page")}"}
+              data-selected={@group == group}
+            >
+              <:right_icon :if={@group == group}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <span :if={(@search != "" or @set_name) || @group} data-part="count">
+            {dgettext("dashboard_snapshots", "%{count} of %{total}",
+              count: format_number(@image_count),
+              total: format_number(@snapshot_count)
+            )}
+          </span>
+        </div>
+        <p :if={@images == []} data-part="notice">
+          {dgettext("dashboard_snapshots", "No snapshots match this search.")}
+        </p>
+        <div :if={@images != []} data-part="grid">
+          <.link
+            :for={image <- @images}
+            id={"snapshot-#{image.id}"}
+            navigate={
+              history_path(@selected_account, @selected_project, image.set_name, image.name)
+            }
+            data-part="tile"
+          >
+            <div data-part="thumbnail">
+              <img
+                src={
+                  SnapshotBuildLive.image_src(
+                    @selected_account,
+                    @selected_project,
+                    image,
+                    :thumbnail
+                  )
+                }
+                alt={image.display_name || image.name}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <span data-part="tile-name" title={image.name}>
+              {image.display_name || image.name}
+            </span>
+            <span data-part="tile-meta">
+              {Enum.join(
+                Enum.reject(
+                  [image.group, length(@set_names) > 1 && image.set_name],
+                  &(&1 in [nil, false])
+                ),
+                " · "
+              )}
+            </span>
+            <div :if={image.tags not in [nil, %{}]} data-part="tile-tags">
+              <.badge
+                :for={tag <- visible_tags(image.tags)}
+                label={tag}
+                title={tag}
+                color="neutral"
+                style="light-fill"
+                size="small"
+              />
+              <span :if={map_size(image.tags) > @visible_tag_count} data-part="more-tags">
+                +{map_size(image.tags) - @visible_tag_count}
+              </span>
+            </div>
+          </.link>
+        </div>
+        <.pagination_group
+          :if={@total_pages > 1}
+          current_page={@page}
+          number_of_pages={@total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+        />
+      </.card_section>
+    </.card>
+  </div>
+<% end %>

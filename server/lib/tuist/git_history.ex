@@ -216,6 +216,17 @@ defmodule Tuist.GitHistory do
   def repository_key(_url), do: nil
 
   @doc """
+  The id of the account's repository for a remote URL when one exists,
+  without creating it: a repository nothing recorded has no graph to read.
+  """
+  def existing_repository_id(account_id, url) do
+    case repository_key(url) do
+      nil -> nil
+      key -> Repo.one(from(r in Repository, where: r.account_id == ^account_id and r.key == ^key, select: r.id))
+    end
+  end
+
+  @doc """
   The id of the account's repository for a remote URL, created on first
   sight, or nil when the URL names no repository.
   """

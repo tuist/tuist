@@ -1135,6 +1135,14 @@ defmodule TuistWeb.Router do
           post "/", BundlesController, :create
         end
 
+        get "/snapshots/baseline", SnapshotsController, :baseline
+
+        scope "/snapshots/builds" do
+          post "/", SnapshotsController, :create
+          get "/:build_id", SnapshotsController, :show
+          post "/:build_id/complete", SnapshotsController, :complete
+        end
+
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
@@ -2067,6 +2075,12 @@ defmodule TuistWeb.Router do
       live "/tests/flaky-tests", FlakyTestsLive, metadata: @public_project_route_metadata
       live "/tests/quarantined-tests", QuarantinedTestsLive, metadata: @public_project_route_metadata
       live "/tests/shards", ShardsLive, metadata: @public_project_route_metadata
+      live "/snapshots", SnapshotsLive
+      live "/snapshots/commits/:git_commit_sha", SnapshotCommitLive
+      live "/snapshots/images/:set_name/*name", SnapshotHistoryLive
+      live "/snapshots/:build_id", SnapshotBuildLive
+
+      get "/snapshots/:build_id/images/:image_id/:variant", SnapshotImagesController, :show
       live "/module-cache", ModuleCacheLive, metadata: @public_project_route_metadata
       live "/module-cache/cache-runs", CacheRunsLive, metadata: @public_project_route_metadata
       live "/module-cache/generate-runs", GenerateRunsLive, metadata: @public_project_route_metadata
