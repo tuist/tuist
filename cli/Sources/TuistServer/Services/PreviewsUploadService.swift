@@ -172,7 +172,7 @@ public protocol PreviewsUploadServicing {
                     let root = try RelativePath(validating: path.basename)
                     let executable = entryPoint.map { root.appending($0) } ?? root
                     let executablePath = entryPoint.map { path.appending($0) } ?? path
-                    let target = try ExecutablePreviewTarget.read(at: executablePath.url)
+                    let target = try ExecutablePreviewTarget.read(at: URL(fileURLWithPath: executablePath.pathString))
                     let manifestPath = temporaryDirectory.appending(component: ExecutablePreviewManifest.filename)
                     try await fileSystem.writeAsJSON(
                         ExecutablePreviewManifest(executable: executable),
@@ -312,7 +312,9 @@ public protocol PreviewsUploadServicing {
                             let executable = bundle.path.appending(
                                 components: "Contents", "MacOS", bundle.infoPlist.executableName ?? bundle.infoPlist.name
                             )
-                            architectures = (try? ExecutablePreviewTarget.read(at: executable.url))?.architectures ?? []
+                            architectures = (try? ExecutablePreviewTarget.read(
+                                at: URL(fileURLWithPath: executable.pathString)
+                            ))?.architectures ?? []
                         }
 
                         preview = try await uploadPreviewBuild(
@@ -437,7 +439,7 @@ public protocol PreviewsUploadServicing {
         // MARK: - Content identity (cross-platform)
 
         private func contentHash(at path: AbsolutePath) async throws -> String {
-            let data = try Data(contentsOf: path.url)
+            let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
             let digest = SHA256.hash(data: data)
             return digest.map { String(format: "%02x", $0) }.joined()
         }
