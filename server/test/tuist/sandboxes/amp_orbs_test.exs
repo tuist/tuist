@@ -196,6 +196,25 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
   end
 
+  test "refuses a pause while a restore's disks still load and keeps the Orb running", %{account: account} do
+    sandbox =
+      sandbox_fixture(
+        account: account,
+        amp_orb_id: "amp-thread",
+        node_name: "node-a",
+        residency_work_id: "amp:amp-thread"
+      )
+
+    expect_setup_read()
+
+    expect(Nodes, :call, fn "node-a", "pause", _args, _opts ->
+      {:error, "sandbox disks are still loading from its archive: #{sandbox.id}"}
+    end)
+
+    assert {:error, :restoring} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause"})
+    assert %{state: :running, residency_work_id: "amp:amp-thread"} = Repo.reload!(sandbox)
+  end
+
   test "records the setup that ran in the Orb from its log before pausing", %{account: account} do
     sandbox =
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")

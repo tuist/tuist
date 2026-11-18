@@ -131,6 +131,10 @@ while true; do
         echo 'The Orb paused, but Tuist could not save its project snapshot, so new threads will run .agents/setup.' >&2
         exit 1
     fi
+    if grep -Eiq $'^x-tuist-orb-refusal: restoring\r?$' "$headers"; then
+        echo 'The Orb is still restoring its disks from its archive, so it cannot pause yet. It keeps running; the next pause succeeds once the disks have loaded, usually within a few minutes, and Tuist pauses it after ten idle minutes otherwise.' >&2
+        exit 1
+    fi
     if grep -Eiq $'^x-tuist-orb-refusal: orb-type-mismatch\r?$' "$headers"; then
         echo "This thread's Orb was created for another platform than orb type '${ORB_TYPE:-}'. Start a new thread with the type you need." >&2
         exit 1
