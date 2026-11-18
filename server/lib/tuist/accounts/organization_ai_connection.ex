@@ -13,8 +13,21 @@ defmodule Tuist.Accounts.OrganizationAIConnection do
     field :name, :string
     field :base_url, :string
     field :api_key, Binary, redact: true
+    # `api_key` connections call `base_url` with `api_key`. A `claude_linked_billing`
+    # connection has neither: Tuist calls Anthropic as its operator account and
+    # bills the organization's linked Claude organization (`ClaudeLinkedBilling`).
+    field :kind, :string, default: "api_key"
+    field :anthropic_connection_id, :string
 
     timestamps(type: :utc_datetime)
+  end
+
+  def linked_billing_changeset(connection, anthropic_connection_id) do
+    change(connection,
+      kind: "claude_linked_billing",
+      name: "Claude Platform",
+      anthropic_connection_id: anthropic_connection_id
+    )
   end
 
   def changeset(connection, attrs) do

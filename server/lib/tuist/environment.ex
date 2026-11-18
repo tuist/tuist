@@ -2281,6 +2281,31 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Tuist's Claude Platform OAuth app for linked billing
+  (`Tuist.Accounts.ClaudeLinkedBilling`): its client ID, the client
+  assertion audience its Client authentication tab shows, and the
+  Workload Identity Federation ids of its operator service account.
+  Linked billing stays unavailable until every value is set.
+  """
+  def anthropic_linked_billing_config(secrets \\ secrets()) do
+    Map.new(
+      [
+        :client_id,
+        :client_assertion_audience,
+        :organization_id,
+        :workspace_id,
+        :service_account_id,
+        :federation_rule_id
+      ],
+      &{&1, get([:anthropic, :linked_billing, &1], secrets)}
+    )
+  end
+
+  def anthropic_auth_url do
+    get([:anthropic, :auth_url], secrets(), default_value: "https://auth.claude.com")
+  end
+
+  @doc """
   Prefix the dispatch path prepends to a shape key when addressing a
   Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
 
