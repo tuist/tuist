@@ -836,7 +836,9 @@ defmodule TuistWeb.Router do
     delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
-    # The query carries the authorization code and state; keep them out of request logs.
+    get "/claude/start", ClaudeLinkedBillingController, :start
+    # The queries carry authorization codes and state; keep them out of request logs.
+    get "/claude/callback", ClaudeLinkedBillingController, :callback, log: false
     get "/mcp/callback", MCPServerOAuthController, :callback, log: false
   end
 
@@ -876,6 +878,15 @@ defmodule TuistWeb.Router do
     get "/.well-known/openid-configuration", OIDCIssuerController, :openid_configuration, metadata: %{robots_txt: false}
 
     get "/jwks.json", OIDCIssuerController, :jwks, metadata: %{robots_txt: false}
+  end
+
+  scope "/oidc/claude-linked-billing", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/.well-known/openid-configuration", OIDCIssuerController, :claude_linked_billing_openid_configuration,
+      metadata: %{robots_txt: false}
+
+    get "/jwks.json", OIDCIssuerController, :claude_linked_billing_jwks, metadata: %{robots_txt: false}
   end
 
   scope "/.well-known", TuistWeb do

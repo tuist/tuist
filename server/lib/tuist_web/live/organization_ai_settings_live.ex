@@ -3,6 +3,7 @@ defmodule TuistWeb.OrganizationAISettingsLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Tuist.Accounts.ClaudeLinkedBilling
   alias Tuist.Accounts.OrganizationAI
 
   @impl true
@@ -14,7 +15,9 @@ defmodule TuistWeb.OrganizationAISettingsLive do
          |> assign(:head_title, "#{dgettext("dashboard", "AI")} · #{socket.assigns.selected_account.name} · Tuist")
          |> assign(:provider_templates, OrganizationAI.provider_templates())
          |> assign(:configuration, configuration)
+         |> assign(:claude_linking_available, ClaudeLinkedBilling.configured?())
          |> assign(:pending_removal, nil)
+         |> assign(:removal_error, nil)
          |> assign(:connection_error, nil)
          |> assign(:model_error, nil)
          |> assign(:default_error, nil)
@@ -164,6 +167,7 @@ defmodule TuistWeb.OrganizationAISettingsLive do
     {:noreply,
      socket
      |> assign(:pending_removal, nil)
+     |> assign(:removal_error, nil)
      |> push_event("close-modal", %{id: "organization-ai-removal"})}
   end
 
@@ -180,9 +184,18 @@ defmodule TuistWeb.OrganizationAISettingsLive do
          socket
          |> refresh()
          |> assign(:pending_removal, nil)
+         |> assign(:removal_error, nil)
          |> connection_form(%{})
          |> model_form(%{})
          |> push_event("close-modal", %{id: "organization-ai-removal"})}
+
+      {:error, :unlink_failed} ->
+        {:noreply,
+         assign(
+           socket,
+           :removal_error,
+           dgettext("dashboard_account", "Claude couldn't unlink your organization right now. Try again later.")
+         )}
 
       {:error, _} ->
         {:noreply, unavailable(socket)}
@@ -210,7 +223,13 @@ defmodule TuistWeb.OrganizationAISettingsLive do
          record when not is_nil(record) <- Enum.find(configuration[kind], &(to_string(&1.id) == id)) do
       {:noreply,
        socket
-       |> assign(:pending_removal, %{kind: kind, id: record.id, name: record.name})
+       |> assign(:pending_removal, %{
+         kind: kind,
+         id: record.id,
+         name: record.name,
+         linked?: Map.get(record, :kind) == "claude_linked_billing"
+       })
+       |> assign(:removal_error, nil)
        |> push_event("open-modal", %{id: "organization-ai-removal"})}
     else
       _ -> {:noreply, unavailable(socket)}
@@ -262,6 +281,8 @@ defmodule TuistWeb.OrganizationAISettingsLive do
         :default_form,
         to_form(%{"model_id" => to_string(configuration.default_model_id || "none")}, as: "default")
       )
+
+  defp claude_linked?(configuration), do: Enum.any?(configuration.connections, &(&1.kind == "claude_linked_billing"))
 
   defp connection_name(configuration, id), do: Enum.find(configuration.connections, &(&1.id == id)).name
 

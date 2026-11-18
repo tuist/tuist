@@ -58,6 +58,8 @@ defmodule Tuist.Accounts.Organization do
     field :oauth2_authorize_url, :string
     field :oauth2_token_url, :string
     field :oauth2_user_info_url, :string
+    # The user profile in Tuist's Claude organization that this organization links for billing.
+    field :anthropic_user_profile_id, :string
 
     has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)
     has_many(:invitations, Invitation)

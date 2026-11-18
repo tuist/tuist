@@ -3158,7 +3158,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:604
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
-#: lib/tuist_web/live/organization_ai_settings_live.ex:14
+#: lib/tuist_web/live/organization_ai_settings_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "AI"
 msgstr ""

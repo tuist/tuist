@@ -11,10 +11,17 @@
       <span data-part="title">{dgettext("dashboard_account", "Providers")}</span>
       <span data-part="subtitle">{dgettext(
         "dashboard_account",
-        "Connect AI providers using your organization's API keys. Each provider can be used by multiple models."
+        "Connect AI providers using your organization's API keys, or link your Claude organization so Anthropic bills it directly. Each provider can be used by multiple models."
       )}</span>
     </div>
     <div data-part="button-container">
+      <.button
+        :if={@claude_linking_available and not claude_linked?(@configuration)}
+        id="link-claude-organization"
+        href={~p"/integrations/claude/start?#{[account_id: @selected_account.id]}"}
+        label={dgettext("dashboard_account", "Link Claude organization")}
+        variant="secondary"
+      />
       <.button
         id="add-ai-connection"
         label={dgettext("dashboard_account", "Add provider")}
@@ -23,6 +30,22 @@
       />
     </div>
     <div data-part="content">
+      <.alert
+        :if={Phoenix.Flash.get(@flash, :info)}
+        id="claude-link-info"
+        status="success"
+        type="secondary"
+        size="small"
+        title={Phoenix.Flash.get(@flash, :info)}
+      />
+      <.alert
+        :if={Phoenix.Flash.get(@flash, :error)}
+        id="claude-link-error"
+        status="error"
+        type="secondary"
+        size="small"
+        title={Phoenix.Flash.get(@flash, :error)}
+      />
       <.table
         id="ai-connections-table"
         rows={@configuration.connections}
@@ -32,7 +55,14 @@
           <.text_cell label={connection.name} />
         </:col>
         <:col :let={connection} label={dgettext("dashboard_account", "API base URL")}>
-          <.text_cell label={connection.base_url} />
+          <.text_cell
+            :if={connection.kind == "claude_linked_billing"}
+            label={dgettext("dashboard_account", "Linked Claude organization")}
+          />
+          <.text_cell
+            :if={connection.kind != "claude_linked_billing"}
+            label={connection.base_url}
+          />
         </:col>
         <:col :let={connection} label="">
           <.button_cell>
@@ -40,6 +70,7 @@
               <.dropdown id={"ai-connection-actions-#{connection.id}"} icon_only>
                 <:icon><.dots_vertical /></:icon>
                 <.dropdown_item
+                  :if={connection.kind != "claude_linked_billing"}
                   label={dgettext("dashboard_account", "Edit provider")}
                   value="edit"
                   phx-click="edit-connection"
@@ -48,7 +79,21 @@
                   <:left_icon><.pencil /></:left_icon>
                 </.dropdown_item>
                 <.dropdown_item
-                  label={dgettext("dashboard_account", "Remove provider")}
+                  :if={connection.kind == "claude_linked_billing"}
+                  label={dgettext("dashboard_account", "Manage spend limit")}
+                  value="spend-limit"
+                  href={ClaudeLinkedBilling.linked_platforms_url()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <:left_icon><.external_link /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={
+                    if connection.kind == "claude_linked_billing",
+                      do: dgettext("dashboard_account", "Unlink"),
+                      else: dgettext("dashboard_account", "Remove provider")
+                  }
                   value="remove"
                   phx-click="remove-connection"
                   phx-value-id={connection.id}
@@ -421,9 +466,16 @@
   <.modal
     id="organization-ai-removal"
     title={
-      if @pending_removal,
-        do: dgettext("dashboard_account", "Remove %{name}?", name: @pending_removal.name),
-        else: dgettext("dashboard_account", "Remove")
+      cond do
+        @pending_removal && @pending_removal.linked? ->
+          dgettext("dashboard_account", "Unlink your Claude organization?")
+
+        @pending_removal ->
+          dgettext("dashboard_account", "Remove %{name}?", name: @pending_removal.name)
+
+        true ->
+          dgettext("dashboard_account", "Remove")
+      end
     }
     header_size="large"
     on_dismiss="cancel-removal"
@@ -434,24 +486,43 @@
     <.line_divider />
     <div :if={@pending_removal} data-part="ai-modal-content">
       <.alert
+        :if={@removal_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={@removal_error}
+      />
+      <%!-- Unlinking is reversible, so it needs no warning; the only alert is a failure. --%>
+      <p :if={@pending_removal.linked?}>
+        {dgettext(
+          "dashboard_account",
+          "Anthropic stops billing your Claude organization for Tuist, and models using it are removed. If one is the default, routing stops until you select another."
+        )}
+      </p>
+      <.alert
+        :if={not @pending_removal.linked?}
         status="warning"
         type="secondary"
         size="small"
         title={
-          if @pending_removal.kind == :connections,
-            do:
+          cond do
+            @pending_removal.kind == :connections ->
               dgettext(
                 "dashboard_account",
                 "This deletes the stored key and all models using this provider. If one is the default, routing stops until you select another. Revoke the key at the provider to revoke access there."
-              ),
-            else:
+              )
+
+            true ->
               dgettext(
                 "dashboard_account",
                 "This removes the configured model, not its provider. If it is the default, routing stops until you select another."
               )
+          end
         }
       />
-      <p>{dgettext("dashboard_account", "Requests already sent may finish.")}</p>
+      <p :if={not @pending_removal.linked?}>
+        {dgettext("dashboard_account", "Requests already sent may finish.")}
+      </p>
     </div>
     <.line_divider />
     <:footer>
@@ -469,7 +540,11 @@
             id="confirm-ai-removal"
             type="button"
             variant="destructive"
-            label={dgettext("dashboard_account", "Remove")}
+            label={
+              if @pending_removal && @pending_removal.linked?,
+                do: dgettext("dashboard_account", "Unlink"),
+                else: dgettext("dashboard_account", "Remove")
+            }
             phx-click="confirm-removal"
           />
         </:action>

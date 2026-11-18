@@ -343,6 +343,16 @@ operations; retain them until an administrator removes them.
     WHERE a.id = $1;
     ```
 
+  - **Linked Claude organizations**: a connection with `kind` `claude_linked_billing` (other connections are `api_key`) stands for the organization's Claude Platform organization, linked through Anthropic's hosted approval page (`Tuist.Accounts.ClaudeLinkedBilling`). It has no `base_url` or `api_key`; it stores `anthropic_connection_id` (an `ocon_` ID Anthropic returns). Anthropic's per-connection access tokens are discarded, never stored. At most one exists per organization. `organizations.anthropic_user_profile_id` stores the `uprof_` ID of the user profile created for the organization in Tuist's own Claude organization; it is reused for every later link and kept after unlinking. Removing the connection first ends the link at Anthropic. Export with:
+
+    ```sql
+    SELECT c.id, c.kind, c.anthropic_connection_id, o.anthropic_user_profile_id
+    FROM organization_ai_connections c
+    JOIN organizations o ON o.id = c.organization_id
+    JOIN accounts a ON a.organization_id = c.organization_id
+    WHERE a.id = $1 AND c.kind = 'claude_linked_billing';
+    ```
+
   - **Configured models** (`organization_ai_models`): `id`, `organization_id`, `connection_id` referencing the owning organization's connection, display `name`, `model_id` containing the exact upstream model ID, and `inserted_at`/`updated_at`. Credentials are held only on the connection. Export with:
 
     ```sql
