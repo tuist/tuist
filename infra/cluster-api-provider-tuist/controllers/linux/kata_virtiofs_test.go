@@ -90,12 +90,10 @@ func TestKataVirtiofsDropInKeepsKataDefaults(t *testing.T) {
 	}
 }
 
-// virtiofsd writes the guest's file writes to host files, and those dirty host
-// pages count against the runner Pod's memory cgroup. Next to a full guest, the
-// default 20% dirty ratio let them reach 1.3 to 1.5 GB plus 0.4 to 0.5 GB of
-// writeback, past the Pod's headroom, and the host OOM-killed QEMU
-// (2026-11-18 probes on 8x32 and 16x64).
-func TestKataVirtiofsSysctlCapsDirtyMemory(t *testing.T) {
+// A host-wide dirty byte cap throttled every writer on the host, including
+// runner cache publication. Hosts that applied the cap keep it until a ratio is
+// written, so the file must set both ratios rather than omit the byte caps.
+func TestKataVirtiofsSysctlRestoresDefaultDirtyRatios(t *testing.T) {
 	values := map[string]int{}
 	for _, line := range strings.Split(strings.TrimSpace(kataVirtiofsSysctl), "\n") {
 		var key string
@@ -104,12 +102,13 @@ func TestKataVirtiofsSysctlCapsDirtyMemory(t *testing.T) {
 			values[key] = value
 		}
 	}
-	dirty, background := values["vm.dirty_bytes"], values["vm.dirty_background_bytes"]
-	if dirty == 0 || dirty > 512<<20 {
-		t.Fatalf("vm.dirty_bytes = %d, want a cap of at most 512 MiB", dirty)
+	if values["vm.dirty_ratio"] != 20 || values["vm.dirty_background_ratio"] != 10 {
+		t.Fatalf("dirty ratios = %d/%d, want the kernel defaults 20/10", values["vm.dirty_ratio"], values["vm.dirty_background_ratio"])
 	}
-	if background == 0 || background >= dirty {
-		t.Fatalf("vm.dirty_background_bytes = %d, want a positive value below vm.dirty_bytes (%d)", background, dirty)
+	for _, key := range []string{"vm.dirty_bytes", "vm.dirty_background_bytes"} {
+		if _, ok := values[key]; ok {
+			t.Fatalf("%s is set; byte caps zero the ratios", key)
+		}
 	}
 }
 
