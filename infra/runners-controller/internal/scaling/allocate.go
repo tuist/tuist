@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// PoolDemand is one pool's input to the fleet-capacity allocation.
-// All pools in a single AllocateFleet call share one capacity budget
+// PoolDemand is one pool's input to the compute allocation.
+// All pools in a single AllocateCompute call share one capacity budget
 // (the contention domain): the schedulable memory across the fleet's
 // nodes, for both Linux bare metal and macOS Mac minis.
 type PoolDemand struct {
@@ -65,11 +65,11 @@ type PoolDemand struct {
 	// ShapeKey groups pools whose Pods place identically on a node, so
 	// their grants can be capped against what the fleet's nodes can
 	// actually seat for that shape. Empty opts the pool out of the cap.
-	// See AllocateFleet's `shapeCaps`.
+	// See AllocateCompute's `shapeCaps`.
 	ShapeKey string
 }
 
-// AllocateFleet distributes `fleetCapacity` across pools sharing a
+// AllocateCompute distributes `fleetCapacity` across pools sharing a
 // capacity domain, in three priority tiers:
 //
 //  1. Load — the capacity held by live runner Pods, plus work waiting for
@@ -113,7 +113,7 @@ type PoolDemand struct {
 // the fleet can actually place for that shape, applied before the byte
 // budget. A nil or empty map disables it. See capByShape for why the
 // byte budget cannot express this on its own.
-func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string]int32) map[string]int32 {
+func AllocateCompute(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string]int32) map[string]int32 {
 	pools = capByShape(pools, shapeCaps)
 
 	out := make(map[string]int32, len(pools))

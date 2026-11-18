@@ -1224,7 +1224,7 @@ concurrency limit at the shape its profile names, and one that spills over to
 the rented fleet runs at that shape.
 
 The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
-its guest slots through the runners-controller's fleet allocator. When one of
+its guest slots through the runners-controller's compute allocator. When one of
 them has queued jobs whose Pods the scheduler refuses for lack of resources,
 the others give up idle warm runners straight away instead of after their
 scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool

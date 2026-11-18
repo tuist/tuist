@@ -86,7 +86,7 @@ cancellable and leaves the reserve intact. See
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
   competes. The reconciler runs the per-pool target through
-  `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
+  `internal/scaling/allocate.go`'s `AllocateCompute`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
   (1) real load (`occupied + queued`, plus one withheld contender),
   (2) baselines and learned warm spare, then (3) the speculative
@@ -254,7 +254,7 @@ cancellable and leaves the reserve intact. See
     all. It also cannot see CPU, which binds a guest whose memory-per-
     vCPU is richer than its host's. So the autoscaler additionally
     computes, per shape, the sum over Ready nodes of each node's OWN
-    `min(cpu, memory)` quotient, and `AllocateFleet` caps every pool
+    `min(cpu, memory)` quotient, and `AllocateCompute` caps every pool
     sharing that shape at it.
 
     This has to be a shared cap rather than `maxReplicas`, because a
