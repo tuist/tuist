@@ -33,7 +33,7 @@ waiting on it.
 ## Server release
 
 `.github/actions/xcresult-processor-release` builds the macOS release on a
-`tuist-macos-27-0` runner and pushes it to
+`tuist-macos` runner and pushes it to
 `ghcr.io/tuist/tuist-xcresult-processor-release:sha-<12>`, the server
 image's tag. The artifact has one `release.tar.gz` layer, so the layer
 digest is the tarball's sha256; the package is public, so the guest pulls it

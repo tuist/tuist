@@ -580,7 +580,7 @@ jobs:
     name: Build xcresult processor release
     needs: guard_production_source
     if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.xcresult_processor_release_digest == ''
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     outputs:
       tarball_digest: ${{ steps.release.outputs.tarball-digest }}

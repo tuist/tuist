@@ -43,7 +43,7 @@ jobs:
   lint-swift:
     name: Lint Swift
     if: github.event.pull_request.draft != true
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 10
     env:
       ONCE_CACHE_PROVIDER: local
@@ -81,11 +81,11 @@ jobs:
           - platform: android
             runner: ubuntu-24.04
           - platform: ios
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: ios-device
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: macos
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: cli
             runner: tuist-linux-large
     runs-on: ${{ matrix.runner }}
@@ -114,11 +114,11 @@ jobs:
           - platform: android
             runner: ubuntu-24.04
           - platform: ios
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: ios-device
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: macos
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: cli
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
@@ -147,9 +147,9 @@ jobs:
           - platform: core
             runner: tuist-linux-large
           - platform: ios
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: macos
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: cli
             runner: tuist-linux-large
     runs-on: ${{ matrix.runner }}
@@ -176,9 +176,9 @@ jobs:
           - platform: core
             runner: ubuntu-24.04
           - platform: ios
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: macos
-            runner: tuist-macos-27-0
+            runner: tuist-macos
           - platform: cli
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
@@ -195,7 +195,7 @@ jobs:
   test-distribution:
     name: Test preview packaging
     if: github.event.pull_request.draft != true
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -232,7 +232,7 @@ jobs:
     name: Publish internal previews
     needs: [build, test, test-distribution, lint-rust, lint-swift, lint-kotlin]
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 20
     environment: atlas-mobile-previews
     permissions:
