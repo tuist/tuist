@@ -322,9 +322,9 @@ defmodule Tuist.ProjectsTest do
       assert Repo.all(
                from(p in "projects",
                  where: p.id in ^[first.id, second.id],
-                 select: {p.token, p.token_hash}
+                 select: p.token_hash
                )
-             ) == [{nil, nil}, {nil, nil}]
+             ) == [nil, nil]
     end
 
     test "seeds a default 'Flaky test detection' alert" do

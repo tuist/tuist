@@ -80,13 +80,14 @@ defmodule Tuist.Accounts.CredentialRevocationTest do
       assert Accounts.get_user_by_session_token(other.session)
     end
 
-    test "does not store the legacy tokens in plaintext afterwards" do
+    test "clears the stored legacy project token digests" do
       %{account: account} = organization_with_credentials()
 
       {:ok, _} = CredentialRevocation.revoke_account(account.id)
 
-      assert Repo.all(from(p in "projects", where: p.account_id == ^account.id and not is_nil(p.token), select: p.id)) ==
-               []
+      assert Repo.all(
+               from(p in "projects", where: p.account_id == ^account.id and not is_nil(p.token_hash), select: p.id)
+             ) == []
     end
 
     test "returns an error for an unknown account" do

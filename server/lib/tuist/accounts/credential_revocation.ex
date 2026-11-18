@@ -42,7 +42,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
 
     counts = %{
       accounts: count(Repo.update_all(from(a in Account), set: [credentials_revoked_at: now])),
-      users: count(Repo.update_all(from(u in "users"), set: [token: nil, token_hash: nil, credentials_revoked_at: now])),
+      users: count(Repo.update_all(from(u in "users"), set: [token_hash: nil, credentials_revoked_at: now])),
       browser_tokens: count(Repo.delete_all(UserToken)),
       refresh_tokens: count(Repo.delete_all("guardian_tokens")),
       oauth_tokens: count(Repo.update_all(unrevoked_oauth_tokens(), set: oauth_revocation(now))),
@@ -52,11 +52,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
       account_tokens: count(Repo.delete_all(AccountToken)),
       project_tokens: count(Repo.delete_all(ProjectToken)),
       legacy_project_tokens:
-        count(
-          Repo.update_all(from(p in "projects", where: not is_nil(p.token) or not is_nil(p.token_hash)),
-            set: [token: nil, token_hash: nil]
-          )
-        )
+        count(Repo.update_all(from(p in "projects", where: not is_nil(p.token_hash)), set: [token_hash: nil]))
     }
 
     disconnect(session_tokens)
@@ -92,10 +88,8 @@ defmodule Tuist.Accounts.CredentialRevocation do
           legacy_project_tokens:
             count(
               Repo.update_all(
-                from(p in "projects",
-                  where: p.account_id == ^account_id and (not is_nil(p.token) or not is_nil(p.token_hash))
-                ),
-                set: [token: nil, token_hash: nil]
+                from(p in "projects", where: p.account_id == ^account_id and not is_nil(p.token_hash)),
+                set: [token_hash: nil]
               )
             )
         }

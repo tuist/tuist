@@ -2455,9 +2455,9 @@ defmodule Tuist.AccountsTest do
       assert Repo.all(
                from(u in "users",
                  where: u.id in ^[first.id, second.id],
-                 select: {u.token, u.token_hash}
+                 select: u.token_hash
                )
-             ) == [{nil, nil}, {nil, nil}]
+             ) == [nil, nil]
     end
 
     test "suffixes reserved email-derived handles and retries collisions" do

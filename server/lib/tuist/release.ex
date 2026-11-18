@@ -51,7 +51,7 @@ defmodule Tuist.Release do
   # Column-level rather than table-level because application data sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
-  # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
+  # `users.token_hash`, `projects.token_hash`, `accounts.s3_secret_access_key`, and
   # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
   # the dashboard needs only the signup timestamp. The runner cache volume
   # columns leave out the account, repository and pod the rows belong to.
@@ -419,8 +419,7 @@ defmodule Tuist.Release do
            from(r in table,
              select: %{
                set: filter(count(r.id), not is_nil(r.token_hash)),
-               used_since: filter(count(r.id), r.legacy_token_last_used_at >= ^since),
-               plaintext: filter(count(r.id), not is_nil(r.token))
+               used_since: filter(count(r.id), r.legacy_token_last_used_at >= ^since)
              }
            )
          )}
@@ -428,28 +427,6 @@ defmodule Tuist.Release do
 
     Logger.info("Legacy tokens (used within #{days} days): #{inspect(usage)}")
     usage
-  end
-
-  @doc """
-  Hashes the legacy tokens written by replicas that predate hashing and clears
-  the plaintext `users.token` and `projects.token` columns. The digest is taken
-  from the plaintext, so a token an old replica replaced during the rollout
-  (a password reset) is not left matching its previous digest. Run it once every
-  replica runs the hashed lookup; a later migration drops the columns:
-
-      bin/tuist rpc 'Tuist.Release.clear_plaintext_legacy_tokens()'
-  """
-  def clear_plaintext_legacy_tokens do
-    for table <- ["users", "projects"], into: %{} do
-      {:ok, %{num_rows: count}} =
-        SQL.query(
-          Repo,
-          "UPDATE #{table} SET token_hash = sha256(convert_to(token, 'UTF8')), token = NULL WHERE token IS NOT NULL",
-          []
-        )
-
-      {table, count}
-    end
   end
 
   defp with_insert_only_oban(fun) do

@@ -3007,7 +3007,7 @@ defmodule Tuist.Accounts do
 
   @doc """
   Revokes the credentials that act for the user and outlive browser sessions:
-  CLI, app, OAuth and agent tokens, device codes, and the legacy `users.token`.
+  CLI, app, OAuth and agent tokens, device codes, and the legacy user token.
 
   `credentials_revoked_at` rejects every user-issued JWT authenticated at or
   before now (see `credentials_revoked?/2`), including access tokens, which are
@@ -3024,9 +3024,6 @@ defmodule Tuist.Accounts do
     Repo.update_all(from(u in User, where: u.id == ^id),
       set: [token_hash: nil, credentials_revoked_at: DateTime.truncate(now, :second)]
     )
-
-    # The plaintext column predates hashing; see `Tuist.Release.clear_plaintext_legacy_tokens/0`.
-    Repo.update_all(from(u in "users", where: u.id == ^id), set: [token: nil])
 
     Repo.delete_all(
       from(t in "guardian_tokens",
