@@ -22,6 +22,8 @@ defmodule Tuist.Threads do
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Repository
   alias Tuist.Threads.Run
+  alias Tuist.Threads.Runner
+  alias Tuist.Threads.Runners
   alias Tuist.Threads.Shipping
   alias Tuist.Threads.Thread
   alias Tuist.Threads.ToolCall
@@ -103,7 +105,15 @@ defmodule Tuist.Threads do
          {:ok, request_id} <- uuid(attrs["request_id"]),
          {:ok, body} <- content(attrs["content"]),
          {:ok, repository, branch} <- repository(account, user, attrs),
-         hash = fingerprint({body, repository, branch, provider, model}),
+         {:ok, runner} <- runner(user, account, request_id, repository, attrs),
+         runner_id = runner && runner.id,
+         # Without a runner the fingerprint keeps its earlier shape, so retries across a deploy still match.
+         hash =
+           fingerprint(
+             if runner_id,
+               do: {body, repository, branch, provider, model, runner_id},
+               else: {body, repository, branch, provider, model}
+           ),
          :ok <- creation_model(user, account, request_id, hash, provider, model) do
       fn ->
         # The account row serializes first-use request keys across replicas.
@@ -113,6 +123,8 @@ defmodule Tuist.Threads do
 
         case Repo.get_by(Thread, account_id: account.id, owner_id: user.id, request_id: request_id) do
           nil ->
+            # Only a new thread: a retry of one already created still answers with it.
+            require_online!(runner)
             id = Ecto.UUID.generate()
 
             thread =
@@ -128,6 +140,7 @@ defmodule Tuist.Threads do
                   provider: provider,
                   model: model,
                   repository: repository,
+                  runner_id: runner_id,
                   base_branch: branch,
                   branch: if(repository, do: "threads/#{id}"),
                   ship_mode: :branch
@@ -912,6 +925,10 @@ defmodule Tuist.Threads do
      "This thread's saved conversation could not be read, so it cannot continue. Start a new thread to keep working.", []}
   end
 
+  defp run_outcome(_thread, _run, {false, {:error, :runner_not_found}}) do
+    {"failed", "This thread's runner was removed. Start a new thread on another runner or on Tuist.", []}
+  end
+
   defp run_outcome(_thread, _run, {false, _}) do
     {"failed",
      "The run could not complete. Check the connected AI account and workspace, then send a new message to retry.", []}
@@ -1021,6 +1038,7 @@ defmodule Tuist.Threads do
       provider: thread.provider,
       model: thread.model,
       repository: thread.repository || "",
+      runner_id: thread.runner_id,
       branch: thread.branch || "",
       profile: "linux",
       status: thread.agent_status,
@@ -1149,6 +1167,37 @@ defmodule Tuist.Threads do
   end
 
   def repository(_, _, _), do: {:ok, nil, nil}
+
+  # A thread runs on the server's sandbox, or on one of the owner's own
+  # runners, never both: a runner works in the folders its owner shared, not
+  # in a checkout the server prepares.
+  defp runner(_user, _account, _request_id, _repository, %{"runner_id" => value}) when value in [nil, ""], do: {:ok, nil}
+
+  defp runner(user, account, request_id, nil, %{"runner_id" => id}) do
+    with {:error, :runner_not_found} = error <- Runners.usable(user, id) do
+      # A retry of a thread already created on the runner still answers with
+      # that thread after the runner is removed.
+      with {:ok, id} <- Ecto.UUID.cast(id),
+           %Thread{runner_id: ^id} <-
+             Repo.get_by(Thread, account_id: account.id, owner_id: user.id, request_id: request_id) do
+        {:ok, %Runner{id: id}}
+      else
+        _ -> error
+      end
+    end
+  end
+
+  defp runner(_user, _account, _request_id, _repository, %{"runner_id" => _}), do: {:error, :invalid_arguments}
+  defp runner(_user, _account, _request_id, _repository, _attrs), do: {:ok, nil}
+
+  # A runner that hasn't polled in the last minute would leave every tool call
+  # to time out, so the thread is refused instead.
+  defp require_online!(nil), do: :ok
+
+  defp require_online!(runner) do
+    if not Runners.online?(runner), do: Repo.rollback(:runner_offline)
+    :ok
+  end
 
   defp require_access!(user, account, thread) do
     if thread.owner_id != user.id or authorize(user, account) != :ok, do: Repo.rollback(:forbidden)

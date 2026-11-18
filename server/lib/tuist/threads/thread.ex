@@ -21,6 +21,7 @@ defmodule Tuist.Threads.Thread do
     field :branch, :string
     field :base_sha, :string
     field :sandbox_id, :binary_id
+    field :runner_id, :binary_id
     field :workspace_ready, :boolean, default: false
     field :ship_mode, Ecto.Enum, values: [:direct, :branch], default: :branch
     field :status, Ecto.Enum, values: [:active, :archived], default: :active

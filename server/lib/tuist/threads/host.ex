@@ -32,6 +32,11 @@ defmodule Tuist.Threads.Host do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Condukt.Tools.Bash
+  alias Condukt.Tools.Edit
+  alias Condukt.Tools.Ls
+  alias Condukt.Tools.Read
+  alias Condukt.Tools.Write
   alias Tuist.Accounts
   alias Tuist.Agents.Kind
   alias Tuist.Agents.Lease
@@ -46,6 +51,8 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Threads.ModelFence
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Repository
+  alias Tuist.Threads.Runners
+  alias Tuist.Threads.RunnerSandbox
   alias Tuist.Threads.ToolLog
   alias Tuist.Threads.TuistTools
   alias Tuist.Threads.Workspace
@@ -59,13 +66,13 @@ defmodule Tuist.Threads.Host do
   # sandbox's commands outlive this node, so Bash may follow an interrupted
   # call's command on resume.
   @repository_tools [
-    Condukt.Tools.Read,
+    Read,
     Condukt.Tools.Glob,
     Condukt.Tools.Grep,
-    Condukt.Tools.Ls,
-    Condukt.Tools.Write,
-    Condukt.Tools.Edit,
-    {Condukt.Tools.Bash, replay_safe: true}
+    Ls,
+    Write,
+    Edit,
+    {Bash, replay_safe: true}
   ]
   @logged_tools ["Read", "Glob", "Grep", "Ls", "Write", "Edit", "Bash"]
 
@@ -257,13 +264,23 @@ defmodule Tuist.Threads.Host do
   defp unreadable?({:unsupported_snapshot_version, _version}), do: true
   defp unreadable?(_reason), do: false
 
+  defp execute(run, thread, epoch, host, attempts \\ @busy_attempts)
+
+  # A thread on the owner's own machine works there, through its runner.
+  defp execute(run, %{runner_id: runner_id} = thread, epoch, host, _attempts) when is_binary(runner_id) do
+    case Runners.for_thread(thread) do
+      {:ok, runner} -> infer(run, thread, {:runner, runner}, epoch, host)
+      {:error, _} -> {:error, :runner_not_found}
+    end
+  end
+
   # Every run works in the thread's sandbox. A thread without a repository
   # has nothing there the conversation depends on yet, so when no sandbox can
   # be had (capacity, quota, no nodes in development, a sandbox that broke)
   # it still answers, without workspace tools, instead of failing. Contention
   # on the workspace or the account's quota row is brief: it is retried, and
   # never turns into a tool-less answer.
-  defp execute(run, thread, epoch, host, attempts \\ @busy_attempts) do
+  defp execute(run, thread, epoch, host, attempts) do
     case Workspace.prepare(thread, run) do
       {:ok, context} ->
         result = infer(run, context.thread, context, epoch, host)
@@ -310,7 +327,7 @@ defmodule Tuist.Threads.Host do
           [
             id: "#{thread.id}:#{run.id}",
             session_store: SessionStore.store("thread", thread.id, epoch),
-            system_prompt: Agent.prompt(thread, context),
+            system_prompt: system_prompt(thread, context),
             tools: tools(run, context) ++ mcp_tools ++ client_tools(run, thread, author),
             hooks: [{ToolLog, run: run, tools: @logged_tools}],
             load_project_instructions: false,
@@ -369,7 +386,17 @@ defmodule Tuist.Threads.Host do
 
   defp left(deadline, margin), do: max(deadline - margin - System.monotonic_time(:millisecond), 1)
 
+  defp system_prompt(_thread, {:runner, runner}), do: Agent.runner_prompt(runner, runner_cwd(runner))
+  defp system_prompt(thread, context), do: Agent.prompt(thread, context)
+
+  defp runner_cwd(runner), do: runner.capabilities["new_project_folder"] || "~"
+
   defp sandbox(_thread, nil, _deadline), do: []
+
+  defp sandbox(_thread, {:runner, runner}, _deadline) do
+    cwd = runner_cwd(runner)
+    [cwd: cwd, sandbox: {RunnerSandbox, runner_id: runner.id, cwd: cwd}]
+  end
 
   # A checked-out thread works in its checkout, as its history's relative
   # paths expect; one without a repository works in the workspace.
@@ -446,44 +473,55 @@ defmodule Tuist.Threads.Host do
         replay_safe: true
       )
 
-    workspace = if context, do: @repository_tools, else: []
+    workspace =
+      case context do
+        nil -> []
+        {:runner, runner} -> runner_tools(runner)
+        _ -> @repository_tools
+      end
 
     # Only a thread without a repository may ask for one. Its run is the
-    # thread's, not the checkout's: these need no sandbox.
+    # thread's, not the checkout's: these need no sandbox. A thread on a
+    # runner works in its owner's folders and never takes a repository.
     requesting =
-      if context && context.thread.repository do
-        []
-      else
-        [
-          Condukt.tool(
-            name: "list_repositories",
-            description:
-              "List the account's GitHub repositories request_repository can ask for, with their default branches.",
-            parameters: schema(%{}),
-            call: fn _args, _ -> list_repositories(run) end,
-            replay_safe: true
-          ),
-          Condukt.tool(
-            name: "request_repository",
-            description: """
-            Check out a GitHub repository this request needs at /workspace/repository, on this thread's own branch.
-            It becomes the thread's one repository, which Ship publishes to, so pick the one the person means; it
-            is refused when the person cannot read it on GitHub. base_branch defaults to the repository's default
-            branch.
-            """,
-            parameters: %{
-              type: "object",
-              properties: %{
-                repository: %{type: "string", description: "owner/name, as list_repositories shows it"},
-                base_branch: %{type: "string"}
+      case context do
+        {:runner, _runner} ->
+          []
+
+        %{thread: %{repository: repository}} when not is_nil(repository) ->
+          []
+
+        _ ->
+          [
+            Condukt.tool(
+              name: "list_repositories",
+              description:
+                "List the account's GitHub repositories request_repository can ask for, with their default branches.",
+              parameters: schema(%{}),
+              call: fn _args, _ -> list_repositories(run) end,
+              replay_safe: true
+            ),
+            Condukt.tool(
+              name: "request_repository",
+              description: """
+              Check out a GitHub repository this request needs at /workspace/repository, on this thread's own branch.
+              It becomes the thread's one repository, which Ship publishes to, so pick the one the person means; it
+              is refused when the person cannot read it on GitHub. base_branch defaults to the repository's default
+              branch.
+              """,
+              parameters: %{
+                type: "object",
+                properties: %{
+                  repository: %{type: "string", description: "owner/name, as list_repositories shows it"},
+                  base_branch: %{type: "string"}
+                },
+                required: ["repository"],
+                additionalProperties: false
               },
-              required: ["repository"],
-              additionalProperties: false
-            },
-            call: fn args, _ -> request_repository(run, context, args) end,
-            replay_safe: true
-          )
-        ]
+              call: fn args, _ -> request_repository(run, context, args) end,
+              replay_safe: true
+            )
+          ]
       end
 
     base = if Cards.available?(), do: [naming, progress(run), card(run)], else: [naming, progress(run)]
@@ -606,6 +644,83 @@ defmodule Tuist.Threads.Host do
       },
       call: fn args, _ -> Threads.update_progress(run, args["steps"]) end,
       replay_safe: true
+    )
+  end
+
+  # Glob and Grep need sandbox primitives the runner doesn't serve; Bash
+  # covers them while terminal access is on. Ls lists through the runner. A runner whose owner turned
+  # terminal access off still reads and edits files.
+  defp runner_tools(runner) do
+    capabilities = runner.capabilities || %{}
+    files = [Read, Ls, Write, Edit]
+    shell = if capabilities["terminal"], do: [Bash], else: []
+    display = if capabilities["display"], do: display_tools(runner), else: []
+    files ++ shell ++ display
+  end
+
+  defp display_tools(runner) do
+    point = %{x: %{type: "number"}, y: %{type: "number"}}
+
+    [
+      display_tool(runner, "screenshot", "Take a screenshot of the runner's main display.", %{}, fn _ -> %{} end),
+      display_tool(
+        runner,
+        "click",
+        "Click at a point on the runner's main display, in points from its top left, as screenshots are laid out.",
+        Map.merge(point, %{
+          button: %{type: "string", enum: ["left", "right"]},
+          count: %{type: "integer", minimum: 1, maximum: 3}
+        }),
+        &Map.take(&1, ["x", "y", "button", "count"])
+      ),
+      display_tool(
+        runner,
+        "mouse_move",
+        "Move the pointer on the runner's main display.",
+        point,
+        &Map.take(&1, ["x", "y"])
+      ),
+      display_tool(
+        runner,
+        "scroll",
+        "Scroll the runner's display under the pointer, in pixels; negative dy scrolls down.",
+        %{dx: %{type: "integer"}, dy: %{type: "integer"}},
+        &Map.take(&1, ["dx", "dy"])
+      ),
+      display_tool(
+        runner,
+        "type_text",
+        "Type text on the runner's display.",
+        %{text: %{type: "string", maxLength: 4000}},
+        &Map.take(&1, ["text"])
+      ),
+      display_tool(
+        runner,
+        "key",
+        "Press a named key (return, tab, escape, left, a, …) with optional modifiers (command, shift, option, control).",
+        %{key: %{type: "string"}, modifiers: %{type: "array", items: %{type: "string"}}},
+        &Map.take(&1, ["key", "modifiers"])
+      )
+    ]
+  end
+
+  defp display_tool(runner, op, description, properties, payload) do
+    Condukt.tool(
+      name: "display_" <> op,
+      description: description,
+      parameters: %{type: "object", properties: properties, additionalProperties: false},
+      call: fn args, _ ->
+        case RunnerSandbox.display(runner.id, op, payload.(args)) do
+          {:ok, %{"mime_type" => media_type, "data" => data}} ->
+            {:ok, %{type: :image, media_type: media_type, data: data}}
+
+          {:ok, _} ->
+            {:ok, "Done."}
+
+          {:error, reason} ->
+            {:error, to_string(reason)}
+        end
+      end
     )
   end
 

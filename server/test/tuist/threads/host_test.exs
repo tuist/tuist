@@ -20,6 +20,7 @@ defmodule Tuist.Threads.HostTest do
   alias Tuist.Threads.Message
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
+  alias Tuist.Threads.Runners
   alias Tuist.Threads.ToolCall
   alias Tuist.Threads.TuistTools
   alias Tuist.Threads.Workspace
@@ -141,6 +142,74 @@ defmodule Tuist.Threads.HostTest do
     assert card.ui == %{size: "medium", source: "compiled card"}
     assert reply.content == "TuistKit misses the cache most."
     refute Map.has_key?(reply, :ui)
+  end
+
+  test "a thread on a runner works through the runner, with the tools its owner allowed" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, runner, _token} = Runners.register(user, %{"name" => "macbook", "platform" => "macos"})
+
+    # The runner reports what it allows on every poll.
+    info = %{"folders" => ["/src"], "new_project_folder" => "/src", "terminal" => true, "display" => true}
+    Runners.poll(runner, info, 0)
+
+    calls = start_supervised!({Agent, fn -> 0 end})
+
+    # The runner's daemon: answers the one read it receives, relative to its new project folder.
+    daemon =
+      Task.async(fn ->
+        [%{"op" => "read_file", "path" => path, "id" => id}] = Runners.poll(runner, info, 10_000)
+        :ok = Runners.respond(runner, id, %{"ok" => true, "result" => %{"text" => "hello from the Mac"}})
+        path
+      end)
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(calls, &{&1, &1 + 1})
+      names = Enum.map(request["tools"], & &1["function"]["name"])
+
+      message =
+        case turn do
+          0 ->
+            assert request["messages"] |> hd() |> Map.fetch!("content") =~ "person's own machine"
+
+            assert Enum.all?(
+                     ["Read", "Ls", "Write", "Edit", "Bash", "display_screenshot", "display_click"],
+                     &(&1 in names)
+                   )
+
+            refute "Glob" in names
+
+            call = %{id: "read", type: "function", function: %{name: "Read", arguments: ~s({"path":"README.md"})}}
+            %{role: "assistant", content: nil, tool_calls: [call]}
+
+          1 ->
+            assert Enum.find(request["messages"], &(&1["tool_call_id"] == "read"))["content"] =~ "hello from the Mac"
+            %{role: "assistant", content: JSON.encode!(%{reply: "It says hello.", suggestions: []})}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: if(turn == 0, do: "tool_calls", else: "stop")}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    answer_with(user, plug)
+
+    assert {:ok, thread} =
+             Threads.create(user, user.account, Map.put(request("What's in the README?"), "runner_id", runner.id))
+
+    host_until_idle(thread.id)
+
+    assert Task.await(daemon, 15_000) == "/src/README.md"
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert List.last(Threads.serialize(fresh).messages).content == "It says hello."
   end
 
   test "the agent calls a tool the app showing the thread offers, and the thread records its answer" do

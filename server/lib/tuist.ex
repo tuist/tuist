@@ -16,6 +16,7 @@ defmodule Tuist do
       Threads,
       Threads.Thread,
       Threads.Clients,
+      Threads.Runners,
       Threads.RecoveryWorker,
       # Marketing
       # -----

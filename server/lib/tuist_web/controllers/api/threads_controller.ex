@@ -133,10 +133,28 @@ defmodule TuistWeb.API.ThreadsController do
     conn |> put_status(:forbidden) |> json(%{code: reason, message: message})
   end
 
+  defp error(conn, :runner_offline) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{
+      reason: "runner_offline",
+      message: "The runner is offline. Start a thread on it once it is connected."
+    })
+  end
+
+  @bad_request_reasons [
+    :invalid,
+    :invalid_arguments,
+    :invalid_cursor,
+    :invalid_status,
+    :invalid_request,
+    :runner_not_found
+  ]
+
   defp error(conn, reason) do
     # Never render upstream errors or changeset values, which may contain prompts or credentials.
     status =
-      if reason in [:invalid, :invalid_arguments, :invalid_cursor, :invalid_status, :invalid_request],
+      if reason in @bad_request_reasons,
         do: :bad_request,
         else: :conflict
 

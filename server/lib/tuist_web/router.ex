@@ -975,6 +975,24 @@ defmodule TuistWeb.Router do
     post "/:id/read", HallsController, :read, log: false
   end
 
+  # A person's runners, which Tuist Guild registers for threads to run on.
+  scope "/api/me/thread-runners", TuistWeb.API do
+    pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
+
+    get "/", ThreadRunnersController, :index
+    post "/", ThreadRunnersController, :create, log: false
+    delete "/:id", ThreadRunnersController, :delete
+  end
+
+  # The runner daemon, with its own secret rather than a person's session.
+  # Bodies hold files and command output, so params are never logged.
+  scope "/api/thread-runner", TuistWeb.API do
+    pipe_through [:threads_no_store, :non_authenticated_api, :on_premise_api]
+
+    post "/poll", ThreadRunnerConnectionController, :poll, log: false
+    post "/requests/:id/response", ThreadRunnerConnectionController, :respond, log: false
+  end
+
   # Sentry's envelope endpoint, which SDKs derive from a DSN ending in
   # /pulse/sentry/:service/:project_id.
   scope "/api/accounts/:account_handle/pulse/sentry", TuistWeb.API do
