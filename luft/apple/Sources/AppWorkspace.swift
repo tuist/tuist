@@ -21,6 +21,8 @@ struct AppWorkspace: View {
     /// Whether Start conversation shows. `ThreadsView` decides from the core's `navigation.compose`;
     /// the sheet lives here so rebuilding the signed-in views for a new generation keeps it and its draft.
     @State private var startingConversation = false
+    /// Whether the ⌘K palette is over the window.
+    @State private var showingPalette = false
     #if os(iOS)
         /// Whether the iPhone's sidebar is over the open destination.
         @State private var sidebarOpen = false
@@ -86,6 +88,25 @@ struct AppWorkspace: View {
         // Deep links, notification taps and profile switches change the tab in the core.
         .onChange(of: client.view.navigation.tab, initial: true) { _, coreTab in tab = coreTab }
         .focusedSceneValue(\.selectTab, client.view.active == nil ? nil : SelectTabAction { tab = $0 })
+        .focusedSceneValue(\.commandPalette, client.view.active == nil ? nil : CommandPaletteAction {
+            showingPalette.toggle()
+        })
+        .overlay(alignment: .top) {
+            if showingPalette, client.view.active != nil {
+                ZStack(alignment: .top) {
+                    // Clicking outside closes it, like Spotlight.
+                    Color.black.opacity(0.12)
+                        .ignoresSafeArea()
+                        .onTapGesture { showingPalette = false }
+                        .accessibilityHidden(true)
+                    CommandPalette(client: client) { showingPalette = false }
+                        .padding(.top, 72)
+                        .padding(.horizontal, 16)
+                }
+            }
+        }
+        // Another account has other threads and halls.
+        .onChange(of: client.view.generation) { _, _ in showingPalette = false }
         .tint(Noora.primary)
         // Omarchy themes have one appearance; system controls and bars follow it.
         .preferredColorScheme(Themes.shared.selected.appearance)

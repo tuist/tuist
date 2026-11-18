@@ -6,6 +6,7 @@ pub mod compose;
 mod halls;
 mod live;
 pub mod navigation;
+mod palette;
 mod presence;
 pub mod store;
 pub mod theme;

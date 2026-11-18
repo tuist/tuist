@@ -2536,3 +2536,59 @@ fn snoozed_threads_leave_their_section_until_the_snooze_ends() {
     let cached = call(&mut c, &mut h, "thread", json!({"id":id}));
     assert_eq!(cached["data"]["section"], "snoozed", "{cached}");
 }
+
+#[test]
+fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses
+        .push_back((200, json!({"organizations":[{"name":"team"}]})));
+    call(&mut c, &mut h, "organizations", json!({}));
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":"team"}),
+    );
+    h.responses.push_back((
+        200,
+        json!({"threads":[{"id":SERVER_ID,"title":"Release plan","status":"idle","archive_status":"active"}],"next_cursor":null}),
+    ));
+    call(&mut c, &mut h, "threads", json!({}));
+    let hall = "11111111-1111-1111-1111-111111111111";
+    h.responses.push_back((
+        200,
+        json!({"halls":[{"id":hall,"kind":"hall","name":"releases","members":[],"unread":0}],"directs":[]}),
+    ));
+    call(&mut c, &mut h, "halls", json!({}));
+
+    // Offline and without requests: the palette reads only what is stored.
+    h.offline = true;
+    let before = h.actions.len();
+    let found = call(&mut c, &mut h, "palette", json!({"query":"release"}));
+    assert_eq!(h.actions.len(), before);
+    let urls: Vec<&str> = found["data"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        urls,
+        [format!("/threads/{SERVER_ID}"), format!("/halls/{hall}")]
+    );
+    // Navigating to a result opens it like any link.
+    call(&mut c, &mut h, "navigate", json!({"url":urls[1]}));
+    let view = call(&mut c, &mut h, "snapshot", json!({}));
+    assert_eq!(view["view"]["navigation"]["hall_id"], hall);
+
+    // Another account's halls are not offered.
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":null}),
+    );
+    let personal = call(&mut c, &mut h, "palette", json!({"query":"#rel"}));
+    assert_eq!(personal["data"]["items"], json!([]));
+}
