@@ -225,40 +225,60 @@ defmodule TuistWeb.PreviewControllerTest do
   end
 
   describe "download_preview/2" do
-    test "redirects to presigned preview download url", %{conn: conn, user: user} do
+    test "streams a zip whose entries are named after the app and platform", %{conn: conn, user: user} do
       # Given
       preview =
-        Tuist.Repo.preload(
-          AppBuildsFixtures.preview_fixture(project: ProjectsFixtures.project_fixture(account_id: user.account.id)),
-          project: :account
-        )
+        [
+          project: ProjectsFixtures.project_fixture(account_id: user.account.id),
+          display_name: "My App",
+          version: "1.2.0",
+          git_commit_sha: "0192b36aa1b2c3d4"
+        ]
+        |> AppBuildsFixtures.preview_fixture()
+        |> Tuist.Repo.preload(project: :account)
 
-      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+      device = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa, supported_platforms: [:ios])
+
+      simulator =
+        AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:ios_simulator])
+
+      second_simulator =
+        AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:ios_simulator])
+
+      mac = AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:macos])
 
       account_name = preview.project.account.name
       project_name = preview.project.name
 
-      storage_key =
-        AppBuilds.storage_key(%{
-          account_handle: account_name,
-          project_handle: project_name,
-          app_build: app_build
-        })
+      contents =
+        Map.new([device, simulator, second_simulator, mac], fn app_build ->
+          {AppBuilds.storage_key(%{account_handle: account_name, project_handle: project_name, app_build: app_build}),
+           app_build.id}
+        end)
 
-      expect(Storage, :object_exists?, fn ^storage_key, _actor -> true end)
-
-      stub(Storage, :stream_object, fn _object_key, _actor ->
-        Stream.map(["zip-content"], fn chunk -> chunk end)
-      end)
-
-      stub(Zstream, :zip, fn _ -> ["zip-stream"] end)
+      stub(Storage, :object_exists?, fn _object_key, _actor -> true end)
+      stub(Storage, :stream_object, fn object_key, _actor -> [Map.fetch!(contents, object_key)] end)
 
       # When
       conn = get(conn, ~p"/#{account_name}/#{project_name}/previews/#{preview.id}/download")
 
       # Then
-      response = response(conn, :ok)
-      assert response == "zip-stream"
+      assert get_resp_header(conn, "content-disposition") == [
+               ~s(attachment; filename="My-App-1.2.0-0192b36.zip")
+             ]
+
+      {:ok, entries} = :zip.unzip(response(conn, :ok), [:memory])
+
+      entries = Map.new(entries, fn {name, content} -> {to_string(name), content} end)
+
+      assert Map.keys(entries) ==
+               ["My-App-iOS-Simulator-2.zip", "My-App-iOS-Simulator.zip", "My-App-iOS.ipa", "My-App-macOS.zip"]
+
+      assert entries["My-App-iOS.ipa"] == device.id
+      assert entries["My-App-macOS.zip"] == mac.id
+
+      assert Enum.sort([entries["My-App-iOS-Simulator.zip"], entries["My-App-iOS-Simulator-2.zip"]]) ==
+               Enum.sort([simulator.id, second_simulator.id])
     end
 
     test "returns not found when a preview object is missing", %{conn: conn, user: user} do

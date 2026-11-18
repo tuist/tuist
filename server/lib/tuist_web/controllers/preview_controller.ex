@@ -248,13 +248,14 @@ defmodule TuistWeb.PreviewController do
           |> put_resp_content_type("application/zip")
           |> put_resp_header(
             "content-disposition",
-            "attachment; filename=\"preview-#{preview.id}.zip\""
+            "attachment; filename=\"#{preview_download_filename(preview)}\""
           )
           |> send_chunked(200)
 
         zip_stream =
           app_builds
-          |> Enum.map(fn app_build ->
+          |> Enum.zip(app_build_entry_filenames(preview, app_builds))
+          |> Enum.map(fn {app_build, filename} ->
             storage_key =
               AppBuilds.storage_key(%{
                 account_handle: account_handle,
@@ -262,11 +263,7 @@ defmodule TuistWeb.PreviewController do
                 app_build: app_build
               })
 
-            content_stream = Storage.stream_object(storage_key, account)
-            extension = if app_build.type == :apk, do: "apk", else: "zip"
-            filename = "#{app_build.id}.#{extension}"
-
-            Zstream.entry(filename, content_stream)
+            Zstream.entry(filename, Storage.stream_object(storage_key, account))
           end)
           |> Zstream.zip()
 
@@ -300,6 +297,47 @@ defmodule TuistWeb.PreviewController do
     else
       {:error, :missing_object}
     end
+  end
+
+  defp preview_download_filename(preview) do
+    short_sha = preview.git_commit_sha && String.slice(preview.git_commit_sha, 0, 7)
+
+    [preview_file_name(preview), preview.version, short_sha]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.map_join("-", &sanitize_filename_part/1)
+    |> Kernel.<>(".zip")
+  end
+
+  # Name each build after the platforms it runs on so people can tell the
+  # device, simulator, and desktop builds apart once the archive is extracted.
+  defp app_build_entry_filenames(preview, app_builds) do
+    {filenames, _seen} =
+      Enum.map_reduce(app_builds, %{}, fn app_build, seen ->
+        platforms =
+          case app_build.supported_platforms do
+            [_ | _] = platforms -> Enum.map_join(platforms, "-", &AppBuilds.platform_string/1)
+            _ -> to_string(app_build.type)
+          end
+
+        base = sanitize_filename_part("#{preview_file_name(preview)}-#{platforms}")
+        count = Map.get(seen, base, 0) + 1
+        name = if count == 1, do: base, else: "#{base}-#{count}"
+
+        {"#{name}.#{app_build_extension(app_build.type)}", Map.put(seen, base, count)}
+      end)
+
+    filenames
+  end
+
+  defp preview_file_name(%{display_name: name}) when is_binary(name) and name != "", do: name
+  defp preview_file_name(_preview), do: "preview"
+
+  defp app_build_extension(:ipa), do: "ipa"
+  defp app_build_extension(:apk), do: "apk"
+  defp app_build_extension(_type), do: "zip"
+
+  defp sanitize_filename_part(part) do
+    String.replace(part, ~r/[^A-Za-z0-9._-]+/u, "-")
   end
 
   defp authorize_preview_download(%{assigns: %{current_preview: preview}} = conn, _opts) do
