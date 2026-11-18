@@ -38,6 +38,13 @@ defmodule TuistWeb.API.HallsController do
     )
   end
 
+  def invite(conn, _params) do
+    respond(
+      conn,
+      Halls.invite(conn.assigns.app_user, conn.assigns.hall_account, conn.path_params["id"], conn.body_params)
+    )
+  end
+
   def read(conn, _params) do
     respond(
       conn,

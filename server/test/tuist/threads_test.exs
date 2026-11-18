@@ -129,6 +129,62 @@ defmodule Tuist.ThreadsTest do
     end
   end
 
+  test "mentions name account handles, not email addresses or words inside other text" do
+    assert Threads.mentions("@Ana, ask @ben-c (not ana@ben.dev, x@cai or @-dan) about @ana again.") ==
+             ["ana", "ben-c"]
+  end
+
+  test "mentioning organization members loops them into the thread on the owner's subscription", %{user: ana} do
+    stub(FeatureFlags, :luft_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    [ben, cai] = for _ <- 1..2, do: AccountsFixtures.user_fixture(preload: [:account])
+    outsider = AccountsFixtures.user_fixture(preload: [:account])
+    :ok = Accounts.add_user_to_organization(ana, organization, role: :admin)
+    # Participants need only be members, not the admins who own threads.
+    :ok = Accounts.add_user_to_organization(ben, organization, role: :user)
+    :ok = Accounts.add_user_to_organization(cai, organization, role: :user)
+
+    content = "Ship it with @#{String.upcase(ben.account.name)} and @#{outsider.account.name}"
+    {:ok, thread} = Threads.create(ana, account, request(content))
+    assert [%{id: ben_id}] = Threads.serialize(thread).participants
+    assert ben_id == ben.id
+    assert {:error, :not_found} = Threads.get(cai, account, thread.id)
+    assert {:error, :forbidden} = Threads.get(outsider, account, thread.id)
+
+    assert {:ok, %{threads: [%{id: id}]}} = Threads.list(ben, account)
+    assert id == thread.id
+    assert {:ok, %{revision: _}} = Threads.snapshot(ben, account, thread.id)
+
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+
+    # Ben prompts it on Ana's subscription, and loops Cai in.
+    expect(Provider, :client_opts, fn owner, _thread ->
+      assert owner.id == ana.id
+      {:ok, []}
+    end)
+
+    assert {:ok, prompted} = Threads.message(ben, account, thread.id, request("Over to you, @#{cai.account.name}"))
+    serialized = Threads.serialize(prompted)
+    assert Enum.map(serialized.participants, & &1.id) == [ben.id, cai.id]
+    assert serialized.owner.id == ana.id
+    assert %{author: %{id: ^ben_id}} = List.last(serialized.messages)
+    assert {:ok, %{threads: [_]}} = Threads.list(cai, account)
+
+    # Archiving and shipping stay the owner's.
+    assert {:error, :forbidden} = Threads.archive(ben, account, thread.id, "archived")
+    assert {:error, :forbidden} = Threads.ship_preview(ben, account, thread.id)
+  end
+
+  test "mentions in a personal account's threads loop nobody in", %{user: user, account: account} do
+    other = AccountsFixtures.user_fixture(preload: [:account])
+    {:ok, thread} = Threads.create(user, account, request("Ask @#{other.account.name}"))
+    assert Threads.serialize(thread).participants == []
+    assert {:error, :forbidden} = Threads.get(other, account, thread.id)
+  end
+
   test "creation binds the selected model and retries never switch it", %{user: user, account: account} do
     attrs = request()
     assert {:error, :model_unavailable} = Threads.create(user, account, Map.delete(attrs, "model"))

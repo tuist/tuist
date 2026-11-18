@@ -90,7 +90,9 @@ defmodule TuistWeb.API.ThreadsController do
   defp load_scope(conn, _opts) do
     with %User{} = user <- Authentication.app_user(conn) || {:error, :app_required},
          %Account{} = account <- Accounts.get_account_by_handle(conn.path_params["account_handle"]),
-         :ok <- Threads.authorize(user, account) do
+         # Participants reach a thread someone looped them into; each operation
+         # checks what they may do in it.
+         :ok <- Threads.authorize_reader(user, account) do
       conn |> assign(:app_user, user) |> assign(:thread_account, account)
     else
       nil -> conn |> error(:not_found) |> halt()

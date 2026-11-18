@@ -973,6 +973,7 @@ defmodule TuistWeb.Router do
     get "/:id", HallsController, :show, log: false
     post "/:id/messages", HallsController, :message, log: false
     post "/:id/read", HallsController, :read, log: false
+    post "/:id/members", HallsController, :invite, log: false
   end
 
   # A person's runners, which Luft registers for threads to run on.
