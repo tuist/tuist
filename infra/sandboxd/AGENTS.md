@@ -212,7 +212,9 @@ memory image until they cold boot.
   VM state with a `Uffd` memory backend: `internal/uffd` takes
   Firecracker's userfaultfd on the jail's `mem.sock`, fetches the chunk of
   each first-touched page by ranged GET (checked against the index's
-  SHA-256) ahead of a two-stream fill of the rest, answers
+  SHA-256) ahead of an eight-stream fill of the rest, whose streams also
+  take the chunks a vCPU waits on first (a restored guest touches most of
+  its memory before its agent answers), answers
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
@@ -222,8 +224,10 @@ memory image until they cold boot.
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or
-  writes first is fetched then into `<disk>.fill`, a four-stream fill per
-  disk fetches the rest, and once both are complete the files replace the
+  writes first is fetched then into `<disk>.fill`, an eight-stream fill per
+  disk fetches the rest once the memory is loaded (or a pause needs the
+  disks), so the memory every vCPU waits on gets the bandwidth first, and
+  once both are complete the files replace the
   mounts (detached lazily) and Firecracker reopens its drives on them
   (`PATCH /drives`); `memory_loaded` waits for the disks too. A pause
   waits up to 30 s for the fill with the guest still running, so it stays
