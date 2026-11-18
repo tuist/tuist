@@ -41,7 +41,8 @@ struct LogInView: View {
                 .textInputAutocapitalization(.never)
             #endif
             Button("Sign in") { signIn(server: server.trimmingCharacters(in: .whitespaces), provider: "tuist") }
-                .disabled(URL(string: server.trimmingCharacters(in: .whitespaces))?.scheme != "https")
+                // The core's rule: HTTPS, or HTTP to this machine for a local server.
+                .disabled(!secure(URL(string: server.trimmingCharacters(in: .whitespaces))))
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Use the root address of your Tuist server")
@@ -119,6 +120,10 @@ struct LogInView: View {
 
     private var divider: some View {
         Rectangle().fill(LogInColors.labelTertiary.opacity(0.3)).frame(height: 1)
+    }
+
+    private func secure(_ url: URL?) -> Bool {
+        url?.scheme == "https" || (url?.scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(url?.host ?? ""))
     }
 
     private func signIn(server: String, provider: String) {
