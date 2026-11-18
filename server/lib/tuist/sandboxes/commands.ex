@@ -78,7 +78,7 @@ defmodule Tuist.Sandboxes.Commands do
                   ~S"""
                   set -eu
                   mkdir -p "$d"
-                  printf '%s' "$TUIST_COMMAND" > "$d/command"
+                  printf 'export PATH="$HOME/.local/share/mise/shims:$PATH"\n%s' "$TUIST_COMMAND" > "$d/command"
                   : > "$d/stdout"
                   : > "$d/stderr"
                   : > "$d/stdin"

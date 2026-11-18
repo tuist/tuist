@@ -68,7 +68,7 @@ Tools that can't log in interactively, such as an agent plugin that builds in a 
 
 ### Tuist inside the sandbox {#tuist-in-sandbox}
 
-Sandbox images don't ship the Tuist CLI, so your project's own pinned version is the one that runs. After the first `tuist sandbox sync`, run `mise install` in the repository root on the sandbox (`mise` and `brew` are installed), then run `tuist` through mise, for example with `$HOME/.local/share/mise/shims` on `PATH`.
+Sandbox images don't ship the Tuist CLI, so your project's own pinned version is the one that runs. After the first `tuist sandbox sync`, run `mise install` in the repository root on the sandbox (`mise` and `brew` are installed), Every command you start with `tuist sandbox exec` has mise's shims (`$HOME/.local/share/mise/shims`) first on `PATH`, so `tuist` and other mise tools run in your commands and in Xcode build phases, such as a scheme's post-actions.
 
 Every command you start with `tuist sandbox exec` also gets what a Tuist runner gets, so builds in the sandbox use your account's <.localized_link href="/guides/features/cache">cache</.localized_link> without you passing credentials:
 

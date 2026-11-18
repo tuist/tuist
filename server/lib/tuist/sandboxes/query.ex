@@ -142,7 +142,10 @@ defmodule Tuist.Sandboxes.Query do
   def error(:command_id_taken),
     do: {:conflict, "Another command already uses this id. Choose a new id for a new command."}
 
-  def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
+  def error(:no_capacity),
+    do:
+      {:service_unavailable,
+       "No sandbox node has memory or disk left for this sandbox right now. Macs are shared with CI jobs, which free up within minutes: retry shortly, and prefer the default shape, which more hosts can take."}
 
   # A paused macOS sandbox resumes warm only on the Mac that holds it, which
   # it shares with CI. A refused resume also moves it to storage, so a later
