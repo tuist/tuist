@@ -442,7 +442,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   node, so while the runners-controller's allocation for a node asks for a
   reclaim (`Capacity.ci_reclaim?/1`, a host reservation or unhealthy node,
   not an expired grant), `ReclaimCapacityWorker` calls
-  `Archives.move_off_node/1` after pausing the idle ones: it archives the
+  `Archives.move_off_node/1` after pausing the idle ones: two minutes later,
+  if CI still reclaims the node (most Linux host reservations end within
+  that, and a moved session waits for a restore instead of a resume), it
+  archives the
   least recently paused sandbox there of any source (not remote execution),
   whatever its pause age, one upload from the node at a time, each
   allocation observation queuing the next, and rechecks the reclaim before

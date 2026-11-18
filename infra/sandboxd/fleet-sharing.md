@@ -79,8 +79,8 @@ work. There is no sandbox count: the account's disk limit charges every sandbox
 on a node, paused ones included, with its workspace and memory image.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
-sandboxes. It also moves the node's paused sandboxes to object storage, one upload
-at a time, with their memory images, so their sessions resume warm on
+sandboxes. Once the reclaim has lasted two minutes, it also moves the node's
+paused sandboxes to object storage, one upload at a time, with their memory images, so their sessions resume warm on
 another node of the same snapshot compatibility (processes kept) instead of
 waiting for this one; a resume the node refuses for room does the same for
 that sandbox. CI waits on neither: a paused sandbox holds no memory, and its
