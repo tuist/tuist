@@ -24,6 +24,13 @@ mise run test
 
 These commands upload build/test insights and use the hosted `tuist/luft` cache. Set `ONCE_CACHE_PROVIDER=local` for credential-free offline builds instead. Cache reuse requires the same platform, toolchain, and build inputs; warm local outputs alone do not demonstrate remote reuse.
 
+For a signed-out iOS motion study, launch the simulator app with
+`-LuftSandboxPreview`. It uses the native conversation components and readiness
+overlay with a clearly labeled, simulated two-second sandbox startup, not a
+real VM. Add `-LuftSandboxLight` or `-LuftSandboxFailure` to capture those states;
+the preview also offers replay, failure and appearance controls. The overlay
+respects the simulator's Reduced Motion accessibility setting.
+
 Apple builds require Apple Silicon macOS/Xcode and `rustup target add aarch64-apple-ios-sim aarch64-apple-ios`. Android needs Java 17+, Kotlin, compile SDK 36 (target SDK remains 35), build-tools 35.0.0, `ANDROID_HOME`, `ANDROID_NDK_HOME`, `rustup target add aarch64-linux-android`, and a local debug keystore. Once resolves the NDK linker from `ANDROID_NDK_HOME`; C build scripts, such as bundled SQLite's, also need the NDK's `toolchains/llvm/prebuilt/<host>/bin` on `PATH`. Python 3.11+ is required for preparation. Build products live under `.once/out/<target>/`: `LuftIOS`, `LuftIOSDevice`, `LuftMacOS`, and `LuftAndroid`. The iOS device output is ad-hoc signed; `mise run bundle:ios-device` signs an installable copy for registered devices (see [Signed device previews](#signed-device-previews)). Simulator-only entitlements give its separate preview sandbox Keychain access.
 
 Swift imports the core's C module, Kotlin calls its JNI bridge, and the existing Rust navigation crate re-exports the same `Tab` type. GPUI and its dependency graph are not in the native frontend build closures. Platform code supplies localized presentation, browser callbacks, secure storage and ordinary platform-trusted HTTPS; Rust owns authentication, refresh and authorized API operations, without its own mobile HTTP/TLS stack. See [the bridge contract](crates/core/README.md).

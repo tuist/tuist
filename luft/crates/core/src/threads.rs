@@ -348,12 +348,17 @@ pub(crate) fn present_snooze(thread: &mut Value, now: i64) {
     }
 }
 
-/// Presents again the snoozes of a thread, or of an inbox's `threads`, that
-/// came from the store.
-pub(crate) fn present_snoozes(view: &mut Value, now: i64) {
+/// Reconciles time-sensitive presentation after a thread came from the store.
+/// Cached readiness is history, never evidence that the VM is ready now.
+pub(crate) fn present_stored(view: &mut Value, now: i64) {
     match view.get_mut("threads").and_then(Value::as_array_mut) {
         Some(threads) => threads.iter_mut().for_each(|t| present_snooze(t, now)),
-        None => present_snooze(view, now),
+        None => {
+            present_snooze(view, now);
+            if view["freshness"]["state"] != "live" || view["working"] != true {
+                view["workspace_ready_id"] = Value::Null;
+            }
+        }
     }
 }
 

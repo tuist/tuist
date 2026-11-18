@@ -235,7 +235,7 @@ impl MobileClient {
             op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread"
             | "archive_thread") => {
                 let mut view = self.threads_operation(op, args, host)?;
-                crate::threads::present_snoozes(&mut view, now()?);
+                crate::threads::present_stored(&mut view, now()?);
                 Ok(view)
             }
             // Answer from the store without the network, so screens render at once.
@@ -248,7 +248,7 @@ impl MobileClient {
                 } else {
                     store.conversation(text(args, "id")?)?
                 };
-                crate::threads::present_snoozes(&mut view, now()?);
+                crate::threads::present_stored(&mut view, now()?);
                 Ok(view)
             }
             "snooze_options" => Ok(crate::threads::snooze_options(

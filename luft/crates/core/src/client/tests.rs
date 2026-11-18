@@ -671,6 +671,36 @@ fn conversations_start_on_the_server_without_a_repository_and_retry_idempotently
     assert_eq!(disabled["error"], THREADS_UNAVAILABLE);
     assert_eq!(posts(&h).len(), 4);
 }
+
+#[test]
+fn workspace_readiness_is_live_only_and_not_replayed_from_cached_history() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    h.responses.push_back((
+        200,
+        json!({"id":id,"status":"running","archive_status":"active",
+            "workspace_ready_id":"threads:run:3","messages":[]}),
+    ));
+    let live = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(live["data"]["workspace_ready_id"], "threads:run:3");
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":id}));
+    assert!(cached["data"]["workspace_ready_id"].is_null());
+    h.offline = true;
+    let offline = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(offline["data"]["freshness"]["state"], "cached");
+    assert!(offline["data"]["workspace_ready_id"].is_null());
+    h.offline = false;
+    for status in ["idle", "failed"] {
+        h.responses.push_back((
+            200,
+            json!({"id":id,"status":status,"archive_status":"active",
+                "workspace_ready_id":"threads:run:3","messages":[]}),
+        ));
+        let ended = call(&mut c, &mut h, "thread", json!({"id":id}));
+        assert!(ended["data"]["workspace_ready_id"].is_null());
+    }
+}
 #[test]
 fn complete_project_enumeration_detects_repeated_pages_and_filters_account() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());

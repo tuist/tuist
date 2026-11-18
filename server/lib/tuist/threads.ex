@@ -1338,6 +1338,7 @@ defmodule Tuist.Threads do
       model: thread.model,
       repository: thread.repository || "",
       runner_id: thread.runner_id,
+      workspace_ready_id: thread.workspace_ready_id,
       branch: thread.branch || "",
       profile: "linux",
       status: thread.agent_status,
@@ -1399,12 +1400,31 @@ defmodule Tuist.Threads do
     %{
       thread
       | messages: messages,
+        workspace_ready_id: workspace_ready_id(thread),
         has_more: has_more,
         next_before: if(has_more, do: hd(messages).position),
         participant_ids: participant_ids,
         people: people
     }
   end
+
+  # Only the detail read needs this projection. A bound sandbox may still be
+  # booting or checking out, and a previous run's residency must not signal
+  # readiness for the next attempt. Nothing new is persisted.
+  defp workspace_ready_id(%{status: :active, runner_id: nil, sandbox_id: id} = thread) when not is_nil(id) do
+    if is_nil(thread.repository) or thread.workspace_ready do
+      Repo.one(
+        from s in Sandboxes.Sandbox,
+          join: r in Run,
+          on: r.thread_id == ^thread.id and r.status == "running",
+          where: s.id == ^id and s.account_id == ^thread.account_id and s.state == :running,
+          where: s.residency_work_id == fragment("'threads:' || ?::text || ':' || ?::text", r.id, r.attempt),
+          select: s.residency_work_id
+      )
+    end
+  end
+
+  defp workspace_ready_id(_thread), do: nil
 
   defp serialize_message(%Message{kind: "card"} = message, people) do
     message
