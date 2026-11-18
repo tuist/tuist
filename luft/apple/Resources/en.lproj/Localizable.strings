@@ -231,4 +231,7 @@
 "Invite" = "Invite";
 "Invite (type @)" = "Invite (type @)";
 "Type @ to loop someone in." = "Type @ to loop someone in.";
+"Type a name to mention someone from your organization." = "Type a name to mention someone from your organization.";
+"No one in your organization matches @%@." = "No one in your organization matches @%@.";
+"%lld people match @%@. Keep typing their name." = "%1$lld people match @%2$@. Keep typing their name.";
 "Shared with %@" = "Shared with %@";

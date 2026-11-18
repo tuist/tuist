@@ -71,7 +71,7 @@ pub fn compose(input: &Value) -> Value {
     };
 
     let query = query(&content, cursor);
-    let suggestions = query
+    let (suggestions, matches) = query
         .as_ref()
         .map(|(text, _, _)| suggest(&people, &mentioned, text))
         .unwrap_or_default();
@@ -80,6 +80,7 @@ pub fn compose(input: &Value) -> Value {
         "cursor": cursor,
         "query": query.map(|(text, start, end)| json!({"text": text, "start": start, "end": end})),
         "suggestions": suggestions,
+        "matches": matches,
         "mentioned": mentioned,
         "loop_in": loop_in,
         "invite": invite,
@@ -135,8 +136,10 @@ fn query(content: &str, cursor: usize) -> Option<(String, usize, usize)> {
 }
 
 /// People whose handle starts with `query` first, then those containing it,
-/// leaving out anyone already mentioned.
-fn suggest(people: &[&Value], mentioned: &[&Value], query: &str) -> Vec<Value> {
+/// leaving out anyone already mentioned, and how many match. Suggests nobody
+/// until a name is typed or while more than `SUGGESTIONS` match, so a large
+/// organization never shows an arbitrary few; edges ask to keep typing instead.
+fn suggest(people: &[&Value], mentioned: &[&Value], query: &str) -> (Vec<Value>, usize) {
     let query = query.to_ascii_lowercase();
     let mut matches: Vec<(bool, String, &Value)> = people
         .iter()
@@ -148,12 +151,15 @@ fn suggest(people: &[&Value], mentioned: &[&Value], query: &str) -> Vec<Value> {
                 .then(|| (!handle.starts_with(&query), handle, *p))
         })
         .collect();
+    if query.is_empty() || matches.len() > SUGGESTIONS {
+        return (vec![], matches.len());
+    }
     matches.sort_by(|a, b| (a.0, &a.1).cmp(&(b.0, &b.1)));
-    matches
-        .into_iter()
-        .take(SUGGESTIONS)
-        .map(|(_, _, p)| p.clone())
-        .collect()
+    let count = matches.len();
+    (
+        matches.into_iter().map(|(_, _, p)| p.clone()).collect(),
+        count,
+    )
 }
 
 fn handle(person: &Value) -> Option<&str> {
@@ -238,6 +244,12 @@ mod tests {
         assert_eq!(result["query"], json!({"text": "b", "start": 5, "end": 6}));
         // "rob" contains "b" but doesn't start with it, so it comes last.
         assert_eq!(handles(&result["suggestions"]), ["Bea-Marie", "ben", "rob"]);
+        assert_eq!(result["matches"], 3);
+        // A bare `@` suggests nobody yet, but counts who could be mentioned.
+        let bare = run("thread", "ask @", json!({}));
+        assert_eq!(bare["query"]["text"], "");
+        assert!(handles(&bare["suggestions"]).is_empty());
+        assert_eq!(bare["matches"], 3);
         // An email address isn't a mention being typed.
         assert!(run("thread", "mail ana@b", json!({}))["query"].is_null());
         // Nor is text after the handle ends.
@@ -287,5 +299,21 @@ mod tests {
     fn people_already_mentioned_are_not_suggested_again() {
         let result = run("thread", "@ben and @b", json!({}));
         assert_eq!(handles(&result["suggestions"]), ["Bea-Marie", "rob"]);
+    }
+
+    #[test]
+    fn too_many_matches_suggest_nobody_until_the_name_narrows_them() {
+        let people: Vec<Value> = (0..7)
+            .map(|i| json!({"id": 10 + i, "handle": format!("sam{i}")}))
+            .chain([json!({"id": 30, "handle": "sara"})])
+            .collect();
+        let input =
+            |content: &str| json!({"context": "thread", "content": content, "people": people});
+        let broad = compose(&input("@sa"));
+        assert!(handles(&broad["suggestions"]).is_empty());
+        assert_eq!(broad["matches"], 8);
+        let narrow = compose(&input("@sar"));
+        assert_eq!(handles(&narrow["suggestions"]), ["sara"]);
+        assert_eq!(narrow["matches"], 1);
     }
 }

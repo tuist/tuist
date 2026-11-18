@@ -5,8 +5,13 @@ import LuftCore
 /// core's `compose`: the `@` query being typed and its suggestions, and who a
 /// thread would loop in or a hall would suggest inviting.
 struct ComposeState: Decodable {
+    struct Query: Decodable { var text: String }
+
     var content = ""
+    var query: Query?
     var suggestions: [HallPerson] = []
+    /// How many people match the query; the core suggests none while too many do.
+    var matches = 0
     var mentioned: [HallPerson] = []
     var loop_in: [HallPerson] = []
     var invite: [HallPerson] = []
@@ -87,6 +92,10 @@ struct MentionBar: View {
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(Text("People to mention"))
+            } else if let hint {
+                Text(verbatim: hint)
+                    .font(.callout).foregroundStyle(Noora.labelSecondary)
+                    .padding(.horizontal, 12).frame(minHeight: 36, alignment: .leading)
             }
             if let note {
                 Label { Text(verbatim: note) } icon: {
@@ -96,6 +105,15 @@ struct MentionBar: View {
                 .padding(.horizontal, 12)
             }
         }
+    }
+
+    /// Instead of suggestions while an `@` is being typed: an organization can
+    /// have more people than chips fit, so the person narrows them by name.
+    private var hint: String? {
+        guard let query = mentions.state.query?.text, !mentions.people.isEmpty else { return nil }
+        if query.isEmpty { return String(localized: "Type a name to mention someone from your organization.") }
+        if mentions.state.matches == 0 { return String(localized: "No one in your organization matches @\(query).") }
+        return String(localized: "\(mentions.state.matches) people match @\(query). Keep typing their name.")
     }
 
     private var note: String? {

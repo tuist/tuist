@@ -131,7 +131,7 @@ struct StartConversationView: View {
                 MentionBar(mentions: mentions, text: $content)
                     .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
             } footer: {
-                if mentions.people.isEmpty == false, mentions.state.loop_in.isEmpty {
+                if mentions.people.isEmpty == false, mentions.state.loop_in.isEmpty, mentions.state.query == nil {
                     Text("Type @ to loop someone in.")
                 }
             }
@@ -374,8 +374,16 @@ struct ConversationView: View {
             .task(id: id) { await follow() }
             .task { await mentions.load(client) }
             .toolbar {
+                // Shared threads list who is in them under the title, like a group chat.
                 if shared, let thread {
-                    ToolbarItem(placement: .status) { ParticipantsLabel(owner: thread.owner, participants: thread.participants ?? []) }
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 1) {
+                            Text(verbatim: thread.title ?? thread.goal ?? "")
+                                .font(.headline).lineLimit(1)
+                            ParticipantsLabel(owner: thread.owner, participants: thread.participants ?? [])
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                 }
             }
             // The live socket: server changes and the agent's calls to this app's tools.
