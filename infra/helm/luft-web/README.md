@@ -38,14 +38,15 @@ One-time Cloudflare setup, outside this repository:
 1. Add the `luft.work` zone (ID `35d2834627c7070a7f687ca722a59c7b`) to the
    Tuist Cloudflare account.
 2. Grant the Cloudflare operator's token `Cache Rules:Edit` on `luft.work`.
-   Switch the rule to `mode: active` once it reports the expected proposed
-   create.
 3. Grant the `cloudflare-api-token` used by the production platform release
    `Zone.DNS:Edit` on `luft.work` (external-dns and the DNS-01 solver share it).
 4. Set the zone's SSL/TLS mode to **Full (strict)**.
 
-Production's platform overlay (`infra/helm/platform/values-tuist.yaml`) adds
-`luft.work` to external-dns's domain filters.
+Production's platform overlay (`infra/helm/platform/values-tuist.yaml`) enables
+`luftDNS`, an external-dns instance of its own that watches only the `luft`
+namespace and writes only `luft.work`. It uses the `_extdns-%{record_type}.` TXT
+prefix because the shared instance's registry names an apex record's ownership
+entry `a-luft.work`, outside the zone, and rewrites the record every sync.
 
 ## Local validation
 
