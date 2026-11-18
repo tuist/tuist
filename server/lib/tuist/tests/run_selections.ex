@@ -13,8 +13,9 @@ defmodule Tuist.Tests.RunSelections do
   and the avoided ones come from the selection, never from a skipped status.
   The scope is the executed tests plus the avoided ones.
 
-  How a run's avoided tests are counted, Xcode being the only build system
-  that selects today:
+  How a run's avoided tests are counted. Xcode hashes modules before
+  coverage decides; Mix has no hashing, so its impact runs skip no modules
+  and a Mix run without a baseline avoided nothing:
 
   - A run whose impact run (`Tuist.TestImpactAnalysis.Run`) confirmed a
     baseline takes its `skipped_count`: the tests coverage skipped, and the

@@ -78,6 +78,36 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       assert conn |> post(path, params) |> json_response(:ok) == %{"baseline_sha" => "base", "diff_cached" => true}
     end
 
+    test "scopes a Mix request's baseline to its block's scheme", %{conn: conn, user: user, project: project} do
+      stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
+
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        repository_id: repository_id,
+        commit_sha: "base",
+        scheme: "postgres-16",
+        platform: ""
+      )
+
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
+      params = &%{build_system: "mix", commit_sha: "head", mix: %{scheme: &1, app: "my_app"}}
+
+      assert conn |> post(path, params.("postgres-16")) |> json_response(:ok) ==
+               %{"baseline_sha" => "base", "diff_cached" => false}
+
+      assert conn |> post(path, params.("postgres-17")) |> json_response(:ok) ==
+               %{"baseline_sha" => nil, "reason" => "no_baseline", "diff_cached" => false}
+
+      assert conn |> post(path, %{build_system: "mix", commit_sha: "head"}) |> json_response(:ok) ==
+               %{"baseline_sha" => "base", "diff_cached" => false}
+    end
+
     test "returns the reason there's no baseline", %{conn: conn, user: user, project: project} do
       stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
 

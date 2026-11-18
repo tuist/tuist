@@ -197,7 +197,25 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       end
     end
 
-    test "is not found for a project that isn't an Xcode one", %{
+    test "shows a Mix project's runs, named by their application", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+      %{test_run: test_run} = selection(project, build_system: "mix", build_context: %{"app" => "my_app"})
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
+
+      assert has_element?(lv, "#test-selection-runs-table", "my_app")
+
+      assert has_element?(
+               lv,
+               "#test-selection-runs-table a[href$='/tests/test-runs/#{test_run.id}?tab=test-optimizations']"
+             )
+    end
+
+    test "is not found for a project whose build system doesn't select", %{
       conn: conn,
       organization: organization,
       project: project

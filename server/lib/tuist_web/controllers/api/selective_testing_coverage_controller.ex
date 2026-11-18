@@ -5,6 +5,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
   alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.BuildSystem
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Storage
   alias TuistWeb.API.Responses
@@ -47,6 +48,19 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     }
   }
 
+  @mix_schema %Schema{
+    type: :object,
+    description: "Mix only: the scope the invocation tests.",
+    properties: %{
+      scheme: %Schema{
+        type: :string,
+        description:
+          "The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any."
+      },
+      app: %Schema{type: :string, description: "The OTP application whose suite runs, for display."}
+    }
+  }
+
   operation(:baseline,
     summary: "Resolve the baseline for coverage-based test selection.",
     description:
@@ -85,7 +99,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none."
            },
-           xcode: @xcode_schema
+           xcode: @xcode_schema,
+           mix: @mix_schema
          },
          required: [:build_system, :commit_sha]
        }},
@@ -115,7 +130,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
       parent_shas: Map.get(params, :parent_shas) || [],
       ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
-      scheme: get_in(params, [:xcode, :scheme])
+      scheme: BuildSystem.scheme(params)
     }
 
     case Baselines.resolve(project, scope) do
@@ -231,7 +246,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description: "The platform the tests run on. Absent where the build system has none."
            },
            git_branch: %Schema{type: :string, description: "The git branch, shown on the overview."},
-           xcode: @xcode_schema
+           xcode: @xcode_schema,
+           mix: @mix_schema
          },
          required: [:build_system, :head_sha, :modules]
        }},

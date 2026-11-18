@@ -38,7 +38,13 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
         type: :array,
         items: SkippedTest,
         description:
-          "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
+          "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. A plan that distributes the selection by module (Mix) gives every shard the run's whole list. Absent for other plans."
+      },
+      test_impact_run_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description:
+          "For a plan that distributes a selection by module (Mix): the impact run, which the shard reports with its tests. Absent for other plans."
       },
       download_url: %Schema{
         type: :string,

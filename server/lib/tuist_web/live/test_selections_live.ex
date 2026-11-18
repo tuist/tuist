@@ -17,6 +17,7 @@ defmodule TuistWeb.TestSelectionsLive do
   import TuistWeb.TestSelection.Components
 
   alias Tuist.FeatureFlags
+  alias Tuist.TestImpactAnalysis.BuildSystem
   alias Tuist.Tests.Selections
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
@@ -100,11 +101,11 @@ defmodule TuistWeb.TestSelectionsLive do
   end
 
   @doc """
-  Whether the project gets the page and its sidebar item: selection is only
-  recorded for Xcode projects so far, behind `FeatureFlags.test_impact_analysis_enabled?/2`.
+  Whether the project gets the page and its sidebar item: its build system
+  selects (`BuildSystem.selects?/1`), behind `FeatureFlags.test_impact_analysis_enabled?/2`.
   """
   def enabled?(account, project),
-    do: project.build_system == :xcode and FeatureFlags.test_impact_analysis_enabled?(account, project)
+    do: BuildSystem.selects?(project.build_system) and FeatureFlags.test_impact_analysis_enabled?(account, project)
 
   defp path(%{assigns: %{selected_account: account, selected_project: project}}),
     do: "/#{account.name}/#{project.name}/tests/test-selection"
@@ -122,12 +123,9 @@ defmodule TuistWeb.TestSelectionsLive do
   defp path_from_assigns(%{selected_account: account, selected_project: project}),
     do: "/#{account.name}/#{project.name}/tests/test-selection"
 
-  @doc "What an impact run ran: its test plan, or else its scheme."
+  @doc "What an impact run ran: its test plan, or else its scheme, or else its application (Mix)."
   def run_scope(%{build_context: context}) do
-    case Map.get(context, "test_plan", "") do
-      "" -> Map.get(context, "scheme", "")
-      test_plan -> test_plan
-    end
+    Enum.find_value(~w(test_plan scheme app), "", &if(Map.get(context, &1, "") != "", do: Map.get(context, &1)))
   end
 
   @doc false
