@@ -27,7 +27,8 @@ namespace: cloudflare-operator
 # item must expose a field named `token` scoped with:
 #   - Zone:Read
 #   - Zone WAF:Edit (rate limits and custom firewall rules)
-#   - (once cache-rules land) Cache Rules:Edit
+#   - Cache Rules:Edit (CloudflareCacheRule)
+#   - Zone Settings:Edit (CloudflareBotManagement)
 externalSecret:
   enabled: true
   secretStoreRef:

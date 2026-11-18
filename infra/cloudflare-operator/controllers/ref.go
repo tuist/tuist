@@ -26,6 +26,7 @@ func makeRef(kindPrefix, name, uid string) string {
 const (
 	rateLimitRefPrefix  = "cfrl_"
 	customRuleRefPrefix = "cfcustom_"
+	cacheRuleRefPrefix  = "cfcache_"
 )
 
 // sanityRef panics if the produced ref would violate Cloudflare's
