@@ -74,6 +74,44 @@ defmodule Tuist.ThreadsTest do
     assert revision > 0
   end
 
+  test "attachments persist, serialize privately and participate in replay identity", %{user: user, account: account} do
+    file = %{"name" => "notes.txt", "mime_type" => "text/plain", "data_base64" => Base.encode64("private notes")}
+    attrs = Map.put(request(""), "attachments", [file])
+    assert {:ok, thread} = Threads.create(user, account, attrs)
+    assert thread.title == "notes.txt"
+    assert [%{attachments: [^file], body: ""}] = thread.messages
+    assert %{messages: [%{attachments: [^file], content: ""}]} = Threads.serialize(thread)
+    assert {:ok, %{id: id}} = Threads.create(user, account, attrs)
+    assert id == thread.id
+
+    assert {:error, :request_conflict} =
+             Threads.create(user, account, %{attrs | "attachments" => [], "content" => "text"})
+
+    changed = %{file | "data_base64" => Base.encode64("different")}
+    assert {:error, :request_conflict} = Threads.create(user, account, %{attrs | "attachments" => [changed]})
+
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+    followup = Map.put(request(nil), "attachments", [file])
+    assert {:ok, sent} = Threads.message(user, account, thread.id, followup)
+    assert List.last(sent.messages).attachments == [file]
+    assert {:ok, _} = Threads.message(user, account, thread.id, followup)
+
+    assert {:error, :request_conflict} =
+             Threads.message(user, account, thread.id, %{followup | "attachments" => [changed]})
+
+    stranger = AccountsFixtures.user_fixture()
+    assert {:error, :forbidden} = Threads.get(stranger, account, thread.id)
+  end
+
+  test "explicit empty attachments preserve text-only replay", %{user: user, account: account} do
+    attrs = request()
+    assert {:ok, thread} = Threads.create(user, account, attrs)
+    assert {:ok, %{id: id}} = Threads.create(user, account, Map.put(attrs, "attachments", []))
+    assert id == thread.id
+    assert {:error, :invalid_arguments} = Threads.create(user, account, request(""))
+  end
+
   test "deleting a thread deletes its agent session and its stored conversation", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
     {:ok, other} = Threads.create(user, account, request())
@@ -710,6 +748,37 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, older} = Threads.get(user, account, thread.id, before: page.next_before)
     assert Enum.map(older.messages, & &1.position) == [1 | Enum.to_list(10..19)]
     refute older.has_more
+  end
+
+  test "history pages bound inline attachments without losing messages", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+
+    file = %{
+      "name" => "big.bin",
+      "mime_type" => "application/octet-stream",
+      "data_base64" => Base.encode64(:binary.copy("a", 1_048_576))
+    }
+
+    for position <- 10..12 do
+      Repo.insert!(%Message{
+        thread_id: thread.id,
+        position: position,
+        kind: "human",
+        body: "files",
+        attachments: List.duplicate(file, 4)
+      })
+    end
+
+    {:ok, latest} = Threads.get(user, account, thread.id)
+    assert Enum.map(latest.messages, & &1.position) == [12]
+    assert latest.has_more
+    assert byte_size(JSON.encode!(Threads.serialize(latest))) < 6 * 1024 * 1024
+    {:ok, middle} = Threads.get(user, account, thread.id, before: latest.next_before)
+    assert Enum.map(middle.messages, & &1.position) == [11]
+    {:ok, oldest} = Threads.get(user, account, thread.id, before: middle.next_before)
+    assert Enum.map(oldest.messages, & &1.position) == [1, 10]
+    refute oldest.has_more
+    assert Enum.flat_map([oldest, middle, latest], &Enum.map(&1.messages, fn m -> m.position end)) == [1, 10, 11, 12]
   end
 
   test "Ship authorizes one exact persisted review, never arbitrary client fields", %{user: user, account: account} do

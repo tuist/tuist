@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5efc3cdb9a9db6eca570623d0cc85c33791403c153f1202814d95fbd1eb97ac6",
+  "hash": "357f304d554ae760a7ba3ef1e5d9ec51a77f81e9a1f12c85e578bc6206a49c2d",
   "hash_tree": {
     "root": {
       "children": [
@@ -136,7 +136,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,7 +155,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -184,11 +184,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -271,21 +271,21 @@
             }
           ],
           "details": {},
-          "hash": "0007633d8ed38c501c96b06cca9add6721fd1fb71e24694296e56fb01413e7dd",
+          "hash": "bb871d4ba07f607d010d17a71ca5482f0c7dbac2126064b6093c5491c9a0fb6c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "5efc3cdb9a9db6eca570623d0cc85c33791403c153f1202814d95fbd1eb97ac6",
+      "hash": "357f304d554ae760a7ba3ef1e5d9ec51a77f81e9a1f12c85e578bc6206a49c2d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e23265b89359f2bcb29ad202caaf36cec5e8cfc6d2685ba00c336f089003c9d8",
+  "output_hash": "0a7bc9357f959a0a2de0930a41832819b4e9bfe9a9dbf99cea11d14a1a350ac5",
   "output_path": "server/priv/docs/ka/guides/features/cache/xcode-cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -306,8 +306,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "e2abfcf60261156e17c59e05aedf2321e2ebf539",
+  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
   "source_path": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
-  "translated_at": "2026-11-18T17:58:23.691918Z",
-  "translation_session_id": "01a1efc9-ccb5-74ba-936f-29492d418160"
+  "translated_at": "2026-11-18T21:23:04.529354Z",
+  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
 }

@@ -18,6 +18,7 @@ defmodule Tuist.Threads do
   alias Tuist.Sandboxes
   alias Tuist.Threads.Agent
   alias Tuist.Threads.Approval
+  alias Tuist.Threads.Attachments
   alias Tuist.Threads.Checkout
   alias Tuist.Threads.Message
   alias Tuist.Threads.Participant
@@ -183,16 +184,19 @@ defmodule Tuist.Threads do
 
     with :ok <- authorize(user, account),
          {:ok, request_id} <- uuid(attrs["request_id"]),
-         {:ok, body} <- content(attrs["content"]),
+         {:ok, attachments} <- Attachments.validate(attrs["attachments"]),
+         {:ok, body} <- content(attrs["content"], attachments),
          {:ok, repository, branch} <- repository(account, user, attrs),
          {:ok, runner} <- runner(user, account, request_id, repository, attrs),
          runner_id = runner && runner.id,
          # Without a runner the fingerprint keeps its earlier shape, so retries across a deploy still match.
          hash =
-           fingerprint(
-             if runner_id,
+           creation_fingerprint(
+             if(runner_id,
                do: {body, repository, branch, provider, model, runner_id},
                else: {body, repository, branch, provider, model}
+             ),
+             attachments
            ),
          :ok <- creation_model(user, account, request_id, hash, provider, model) do
       fn ->
@@ -216,7 +220,7 @@ defmodule Tuist.Threads do
                   request_id: request_id,
                   request_hash: hash,
                   goal: body,
-                  title: String.slice(body, 0, 80),
+                  title: String.slice(if(String.trim(body) == "", do: hd(attachments)["name"], else: body), 0, 80),
                   provider: provider,
                   model: model,
                   repository: repository,
@@ -228,7 +232,15 @@ defmodule Tuist.Threads do
                 log: false
               )
 
-            message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
+            message =
+              append!(thread, %{
+                kind: "human",
+                body: body,
+                attachments: attachments,
+                request_id: request_id,
+                author_id: user.id
+              })
+
             loop_in!(thread, user, account, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
@@ -260,7 +272,8 @@ defmodule Tuist.Threads do
   def message(user, account, id, attrs) do
     with {:ok, thread} <- get(user, account, id),
          {:ok, request_id} <- uuid(attrs["request_id"]),
-         {:ok, body} <- content(attrs["content"]),
+         {:ok, attachments} <- Attachments.validate(attrs["attachments"]),
+         {:ok, body} <- content(attrs["content"], attachments),
          %User{} = owner <- owner(user, thread),
          {:ok, _opts} <- Provider.client_opts(owner, thread) do
       fn ->
@@ -268,7 +281,7 @@ defmodule Tuist.Threads do
         if access(user, account, thread) != :ok, do: Repo.rollback(:forbidden)
 
         case Repo.get_by(Message, thread_id: thread.id, request_id: request_id) do
-          %Message{body: ^body} ->
+          %Message{body: ^body, attachments: ^attachments} ->
             history(thread)
 
           %Message{} ->
@@ -276,7 +289,16 @@ defmodule Tuist.Threads do
 
           nil ->
             require_idle!(thread)
-            message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
+
+            message =
+              append!(thread, %{
+                kind: "human",
+                body: body,
+                attachments: attachments,
+                request_id: request_id,
+                author_id: user.id
+              })
+
             loop_in!(thread, user, account, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
@@ -1336,8 +1358,29 @@ defmodule Tuist.Threads do
   def history(thread, before \\ nil) do
     query = from m in Message, where: m.thread_id == ^thread.id
     query = if before, do: from(m in query, where: m.position < ^before), else: query
-    rows = Repo.all(from m in query, order_by: [desc: m.position], limit: 51)
-    messages = rows |> Enum.take(50) |> Enum.reverse()
+    # Choose a contiguous suffix without loading up to 50 attachment payloads
+    # into the server. A single maximum-size prompt fits the 6 MiB budget.
+    rows =
+      Repo.all(
+        from m in query,
+          order_by: [desc: m.position],
+          limit: 51,
+          select: %{id: m.id, attachment_bytes: fragment("octet_length(?::text)", m.attachments)}
+      )
+
+    {page, _bytes} =
+      rows
+      |> Enum.take(50)
+      |> Enum.reduce_while({[], 0}, fn row, {page, bytes} ->
+        if bytes + row.attachment_bytes <= 6 * 1024 * 1024 do
+          {:cont, {[row.id | page], bytes + row.attachment_bytes}}
+        else
+          {:halt, {page, bytes}}
+        end
+      end)
+
+    messages = Repo.all(from m in query, where: m.id in ^page, order_by: [asc: m.position])
+    has_more = length(rows) > length(messages)
 
     participant_ids =
       Repo.all(
@@ -1356,8 +1399,8 @@ defmodule Tuist.Threads do
     %{
       thread
       | messages: messages,
-        has_more: length(rows) > 50,
-        next_before: if(length(rows) > 50, do: hd(messages).position),
+        has_more: has_more,
+        next_before: if(has_more, do: hd(messages).position),
         participant_ids: participant_ids,
         people: people
     }
@@ -1399,6 +1442,7 @@ defmodule Tuist.Threads do
           _ -> "system"
         end,
       content: message.body || "",
+      attachments: message.attachments,
       position: message.position,
       toolName: message.tool_name,
       toolStatus: message.tool_state,
@@ -1655,13 +1699,19 @@ defmodule Tuist.Threads do
     end
   end
 
-  defp content(value) when is_binary(value) do
-    if String.valid?(value) and String.trim(value) != "" and byte_size(value) <= 16_000,
+  # Preserve text-only fingerprints from before attachments were supported.
+  defp creation_fingerprint(value, []), do: fingerprint(value)
+  defp creation_fingerprint(value, attachments), do: fingerprint({value, attachments})
+
+  defp content(nil, [_ | _]), do: {:ok, ""}
+
+  defp content(value, attachments) when is_binary(value) do
+    if String.valid?(value) and (String.trim(value) != "" or attachments != []) and byte_size(value) <= 16_000,
       do: {:ok, value},
       else: {:error, :invalid_arguments}
   end
 
-  defp content(_), do: {:error, :invalid_arguments}
+  defp content(_, _), do: {:error, :invalid_arguments}
   defp before_position(nil), do: {:ok, nil}
   defp before_position(value) when is_integer(value) and value > 0, do: {:ok, value}
 

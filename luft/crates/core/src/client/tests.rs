@@ -478,6 +478,91 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
     );
 }
 #[test]
+fn thread_attachments_preserve_bytes_and_retry_identity_without_text_only_offline_queueing() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let file = json!({"name":"notes.txt", "mime_type":"text/plain", "data_base64":"SGVsbG8="});
+    let args = json!({"id":id, "content":"", "attachments":[file.clone()]});
+    h.offline = true;
+    let offline = call(&mut c, &mut h, "send_message", args.clone());
+    assert!(offline["error"].as_str().unwrap().contains("internet"));
+    h.offline = false;
+    assert_eq!(
+        call(&mut c, &mut h, "flush_outbox", json!({}))["data"]["sent"],
+        0
+    );
+    for _ in 0..3 {
+        h.responses.push_back((503, json!({})));
+    }
+    call(&mut c, &mut h, "send_message", args.clone());
+    call(&mut c, &mut h, "send_message", args.clone());
+    let mut changed = args.clone();
+    changed["attachments"][0]["data_base64"] = json!("V29ybGQ=");
+    call(&mut c, &mut h, "send_message", changed);
+    let posts: Vec<Value> = h
+        .actions
+        .iter()
+        .filter(|a| {
+            a["method"] == "POST" && a["url"].as_str().unwrap_or_default().ends_with("/messages")
+        })
+        .map(|a| serde_json::from_str(a["body"].as_str().unwrap()).unwrap())
+        .collect();
+    let last = &posts[posts.len() - 3..];
+    assert_eq!(last[0]["attachments"], json!([file]));
+    assert_eq!(last[0]["content"], "");
+    assert_eq!(last[0]["request_id"], last[1]["request_id"]);
+    assert_ne!(last[1]["request_id"], last[2]["request_id"]);
+    let mut files = vec![file.clone(); 4];
+    files[0]["data_base64"] =
+        json!(base64::engine::general_purpose::STANDARD.encode(vec![42; 1_048_576]));
+    let message = json!({"id":"message-1","role":"user","content":"","attachments":files});
+    h.responses.push_back((
+        200,
+        json!({"id":id,"status":"idle","archive_status":"active","messages":[message.clone()]}),
+    ));
+    let sent = call(
+        &mut c,
+        &mut h,
+        "send_message",
+        json!({"id":id,"content":"","attachments":files}),
+    );
+    assert!(sent.get("error").is_none(), "{sent}");
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":id}));
+    assert_eq!(
+        cached["data"]["messages"][0]["attachments"],
+        message["attachments"]
+    );
+    let count = h.actions.len();
+    assert!(
+        call(
+            &mut c,
+            &mut h,
+            "send_message",
+            json!({"id":id,"content":"x","attachments":vec![file; 5]})
+        )["error"]
+            .is_string()
+    );
+    for invalid in [
+        json!({"name":"../secret", "mime_type":"text/plain", "data_base64":"YQ=="}),
+        json!({"name":"empty", "mime_type":"text/plain", "data_base64":""}),
+        json!({"name":"bad", "mime_type":"text/plain", "data_base64":"???"}),
+        json!({"name":"large", "mime_type":"text/plain", "data_base64":base64::engine::general_purpose::STANDARD.encode(vec![42; 1_048_577])}),
+    ] {
+        assert!(
+            call(
+                &mut c,
+                &mut h,
+                "send_message",
+                json!({"id":id,"content":"x","attachments":[invalid]})
+            )["error"]
+                .is_string()
+        );
+    }
+    assert_eq!(h.actions.len(), count);
+}
+
+#[test]
 fn conversations_start_on_the_server_without_a_repository_and_retry_idempotently() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

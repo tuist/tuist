@@ -9,6 +9,7 @@ publish.workspace = true
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
+base64.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
@@ -23,6 +24,5 @@ web-time = "1.1"
 jni = "0.21"
 
 [dev-dependencies]
-base64.workspace = true
 # Compile-check JNI marshalling in Linux unit-test builds as well as Android.
 jni = "0.21"

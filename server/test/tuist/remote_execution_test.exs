@@ -510,8 +510,8 @@ defmodule Tuist.RemoteExecutionTest do
       assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
       assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
       assert_receive {:holding, _task}, 2_000
-      for size <- 11..14, do: assert({:ok, %{done: false}} = submit(project, %{"size" => size}, wait: 0))
-      assert {:error, :queue_full} = submit(project, %{"size" => 15}, wait: 0)
+      for size <- 11..26, do: assert({:ok, %{done: false}} = submit(project, %{"size" => size}, wait: 0))
+      assert {:error, :queue_full} = submit(project, %{"size" => 27}, wait: 0)
 
       assert_receive {:telemetry, [:tuist, :remote_execution, :submission], _, %{outcome: "deduplicated"}}
       assert_receive {:telemetry, [:tuist, :remote_execution, :submission], _, %{outcome: "queue_full"}}

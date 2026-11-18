@@ -1,13 +1,14 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 #if os(macOS)
     import AppKit
 #else
     import UIKit
 #endif
 
-/// The reply field, ported from Atlas's thread composer: one glass pill that
-/// switches between text and dictation. While recording it shows measured
-/// audio levels between the stop microphone and a separate discard control.
+/// Draft attachments stay on content surfaces, above the glass control layer.
+/// The input switches between text and dictation without replacing its native touch target.
 struct ReplyComposer: View {
     @Binding var reply: String
     /// Blocks sending, not editing: the server takes no message while the agent works.
@@ -21,23 +22,111 @@ struct ReplyComposer: View {
     var placeholder: LocalizedStringKey = "Reply"
     /// Lets the caller raise or hide the keyboard.
     var focus: FocusState<Bool>.Binding?
+    /// Nil keeps hall/DM composers text-only.
+    var attachments: Binding<[PromptAttachment]>?
     let send: () -> Void
+    @State private var pickingFiles = false
+    @State private var pickingPhotos = false
+    @State private var photos: [PhotosPickerItem] = []
+    @State private var importing = false
+    @State private var attachmentError: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var recording: Bool { voice.phase != .idle }
     private var canSend: Bool {
-        !disabled && !sending && !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !disabled && !sending && !importing
+            && (!reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || attachments?.wrappedValue.isEmpty == false)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let attachments, !attachments.wrappedValue.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(attachments.wrappedValue) { file in
+                            HStack(spacing: 0) {
+                                AttachmentLabel(file: file)
+                                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 240 : 156, alignment: .leading)
+                                Button {
+                                    attachments.wrappedValue.removeAll { $0.id == file.id }
+                                } label: {
+                                    Image(systemName: "xmark").font(.caption.weight(.semibold))
+                                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain).foregroundStyle(.secondary).disabled(sending)
+                                .accessibilityLabel(Text("Remove attachment: \(file.name)"))
+                            }
+                            .padding(.leading, 8).padding(.vertical, 4)
+                            .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            if importing { ProgressView("Adding attachments…").font(.caption) }
+            if let attachmentError {
+                Text(verbatim: attachmentError).font(.caption).foregroundStyle(Noora.labelDestructive)
+                    .padding(.horizontal, 12)
+            }
             if let mentions, !recording {
                 MentionBar(mentions: mentions, text: $reply, place: place)
             }
             if let message = voice.errorMessage {
                 Text(verbatim: message).font(.caption).foregroundStyle(Noora.labelDestructive)
                     .padding(.horizontal, 12)
+            }
+            if #available(iOS 26, macOS 26, *) {
+                GlassEffectContainer(spacing: 8) { composerControls }
+            } else {
+                composerControls
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .onChange(of: reply) { _, text in mentions?.update(text) }
+        .fileImporter(isPresented: $pickingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+            switch result {
+            case let .success(urls):
+                guard urls.count + (attachments?.wrappedValue.count ?? 0) <= 4 else {
+                    attachmentError = String(localized: "Attach up to four files.")
+                    return
+                }
+                importFiles { try urls.map { try PromptAttachment.read($0) } }
+            case let .failure(error): attachmentError = error.localizedDescription
+            }
+        }
+        .photosPicker(isPresented: $pickingPhotos, selection: $photos, maxSelectionCount: max(1, 4 - (attachments?.wrappedValue.count ?? 0)), matching: .images)
+        .onChange(of: photos) { _, items in
+            guard !items.isEmpty else { return }
+            importFiles {
+                var files: [PromptAttachment] = []
+                for item in items {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        throw AppClientError(message: String(localized: "Could not read this image."))
+                    }
+                    files.append(try PromptAttachment.photo(data))
+                }
+                return files
+            }
+            photos = []
+        }
+    }
+
+    private var composerControls: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            if let attachments, !recording {
+                Menu {
+                    Section("Up to 4 files, 1 MiB each") {
+                        Button("Photos", systemImage: "photo") { pickingPhotos = true }
+                        Button("Files", systemImage: "doc") { pickingFiles = true }
+                    }
+                } label: {
+                    Image(systemName: "plus").font(.system(size: 18)).frame(width: 20, height: 20)
+                }
+                .glassButtonStyle().buttonBorderShape(.circle).controlSize(.large)
+                .accessibilityLabel("Add attachments")
+                .disabled(sending || importing || attachments.wrappedValue.count >= 4)
             }
             HStack(alignment: .bottom, spacing: 4) {
                 Group {
@@ -80,59 +169,61 @@ struct ReplyComposer: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Discard dictation")
                     .accessibilityHint("Keeps your typed reply unchanged.")
-                } else {
-                    Button(action: send) {
-                        Group {
-                            if sending {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "arrow.up").font(.system(size: 18, weight: .bold))
-                            }
-                        }
-                        .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(SendButtonStyle())
-                    .disabled(!canSend)
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .accessibilityLabel("Send")
                 }
             }
             .overlay(alignment: recording ? .bottomLeading : .bottomTrailing) {
-                // One native target stays alive as it moves, so a held microphone still receives its release.
+                // Keep the native touch target alive while a held microphone moves.
                 MicrophoneButton(
                     active: recording,
                     start: { voice.begin() },
                     stop: { voice.finish { reply = VoiceInput.appending($0, to: reply) } },
                     cancel: { voice.cancel() }
                 )
-                // Dictation only edits the reply, so like typing it stays open while the agent works.
                 .disabled(sending && !voice.busy)
-                .padding(.trailing, recording ? 0 : 48)
             }
             .padding(4)
             .foregroundStyle(Noora.labelPrimary)
             .interactiveGlass(in: RoundedRectangle(cornerRadius: 26))
+            if !recording {
+                Button(action: send) {
+                    Group {
+                        if sending {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.up").font(.system(size: 18, weight: .bold))
+                        }
+                    }
+                    .frame(width: 20, height: 20)
+                }
+                .prominentGlassButtonStyle().tint(Noora.primary)
+                .buttonBorderShape(.circle).controlSize(.large)
+                .disabled(!canSend)
+                .keyboardShortcut(.return, modifiers: .command)
+                .accessibilityLabel("Send")
+            }
         }
-        .accessibilityElement(children: .contain)
-        .onChange(of: reply) { _, text in mentions?.update(text) }
+    }
+
+    private func importFiles(_ load: @escaping @Sendable () async throws -> [PromptAttachment]) {
+        guard !importing, !sending else { return }
+        importing = true
+        attachmentError = nil
+        Task {
+            defer { importing = false }
+            do {
+                let files = try await Task.detached { try await load() }.value
+                guard let attachments, attachments.wrappedValue.count + files.count <= 4 else {
+                    throw AppClientError(message: String(localized: "Attach up to four files."))
+                }
+                attachments.wrappedValue.append(contentsOf: files)
+            } catch { attachmentError = error.localizedDescription }
+        }
     }
 }
 
 private extension View {
     @ViewBuilder func focused(given focus: FocusState<Bool>.Binding?) -> some View {
         if let focus { focused(focus) } else { self }
-    }
-}
-
-private struct SendButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var enabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(Noora.primaryLabel)
-            .background { Circle().fill(Noora.primary).padding(4) }
-            .contentShape(Rectangle())
-            .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.3)
     }
 }
 
