@@ -11,11 +11,22 @@ defmodule Tuist.Repo.Migrations.DropLegacyPlaintextTokenIndexes do
 
   def up do
     drop_if_exists unique_index(:users, [:token], name: :index_users_on_token, concurrently: true)
-    drop_if_exists unique_index(:projects, [:token], name: :index_projects_on_token, concurrently: true)
+
+    drop_if_exists unique_index(:projects, [:token],
+                     name: :index_projects_on_token,
+                     concurrently: true
+                   )
   end
 
   def down do
-    create_if_not_exists unique_index(:users, [:token], name: :index_users_on_token, concurrently: true)
-    create_if_not_exists unique_index(:projects, [:token], name: :index_projects_on_token, concurrently: true)
+    create_if_not_exists unique_index(:users, [:token],
+                           name: :index_users_on_token,
+                           concurrently: true
+                         )
+
+    create_if_not_exists unique_index(:projects, [:token],
+                           name: :index_projects_on_token,
+                           concurrently: true
+                         )
   end
 end
