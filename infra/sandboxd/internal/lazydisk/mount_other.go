@@ -2,7 +2,10 @@
 
 package lazydisk
 
-import "errors"
+import (
+	"errors"
+	"os"
+)
 
 func Supported() bool { return false }
 
@@ -21,3 +24,5 @@ func (m *Mount) Done() <-chan struct{} {
 }
 
 func Unmount(string) {}
+
+func dropCache(*os.File, int64, int64) error { return nil }

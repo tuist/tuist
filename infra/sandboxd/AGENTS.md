@@ -224,8 +224,9 @@ memory image until they cold boot.
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or
-  writes first is fetched then into `<disk>.fill`, an eight-stream fill per
-  disk fetches the rest once the memory is loaded (or a pause needs the
+  writes first is fetched then into `<disk>.fill`, a four-stream fill per
+  disk (written back and dropped from the daemon's page cache chunk by
+  chunk) fetches the rest once the memory is loaded (or a pause needs the
   disks), so the memory every vCPU waits on gets the bandwidth first, and
   once both are complete the files replace the
   mounts (detached lazily) and Firecracker reopens its drives on them
