@@ -396,6 +396,10 @@ defmodule Tuist.MixProject do
   end
 
   defp releases do
-    [tuist: []]
+    # FunWithFlags is an included application (Tuist.Application starts its
+    # supervisor after PubSub), but fun_with_flags_ui lists it as a regular
+    # dependency, which `mix release` rejects. Loading both without starting
+    # them keeps the boot order that `included_applications` sets up.
+    [tuist: [applications: [fun_with_flags: :load, fun_with_flags_ui: :load]]]
   end
 end
