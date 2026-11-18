@@ -138,7 +138,10 @@ defmodule Tuist.Push.LiveActivitiesTest do
 
       {document, _working} = LiveActivities.content(user)
 
-      assert [%{"phase" => "running", "detail" => detail, "progress" => progress}] = document["threads"]
+      # Building, then running commands: one tint, so one dot.
+      assert [%{"phase" => "running", "detail" => detail, "progress" => progress, "trail" => ["orange"]}] =
+               document["threads"]
+
       refute detail =~ "targets"
       refute Map.has_key?(progress, "total")
     end
@@ -148,7 +151,7 @@ defmodule Tuist.Push.LiveActivitiesTest do
 
       call!(run, 1, "Bash", "completed", %{
         "command" => "test",
-        "state" => "running",
+        "state" => "succeeded",
         "planned" => 2,
         "done" => 1,
         "cached" => 0,
@@ -158,8 +161,8 @@ defmodule Tuist.Push.LiveActivitiesTest do
 
       {document, _working} = LiveActivities.content(user)
 
-      # Killed while running, its last snapshot still says so; it was a test
-      # run either way, and the thread now thinks.
+      # Its run ended, so it no longer runs, but it was a test run, and the
+      # thread now thinks.
       assert [%{"phase" => "thinking", "trail" => ["teal", "gray"]}] = document["threads"]
     end
 

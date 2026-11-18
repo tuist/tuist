@@ -153,7 +153,9 @@ defmodule Tuist.Threads.SandboxTest do
         sandbox_id: record.id,
         account_id: record.account_id,
         residency: "threads:run:1",
-        run: run
+        run: run,
+        # Long enough that the reads below never outlast it.
+        progress_interval: 60_000
       )
 
     test_pid = self()
