@@ -74,7 +74,13 @@ struct ThreadRoute: Hashable, Identifiable {
 extension AppClient {
     func conversation(_ operation: String, _ args: [String: Any]) async throws -> AppConversation {
         let data = try await call(operation, args)
-        return try JSONDecoder().decode(AppConversation.self, from: JSONSerialization.data(withJSONObject: data))
+        let conversation = try JSONDecoder().decode(
+            AppConversation.self, from: JSONSerialization.data(withJSONObject: data)
+        )
+        // Starting, replying to and refreshing a conversation all pass here; a
+        // cached one can show work that finished since.
+        if conversation.working, operation != "cached_thread" { ThreadLiveActivity.shared.threadsWorking() }
+        return conversation
     }
 }
 

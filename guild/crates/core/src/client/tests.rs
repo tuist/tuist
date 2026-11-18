@@ -1817,6 +1817,67 @@ fn only_the_answering_runs_plan_is_active_and_says_what_the_thread_does_now() {
 }
 
 #[test]
+fn live_activities_register_for_the_active_profile_and_report_retired_ids() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "11111111-1111-4111-8111-111111111111";
+    let token = "ab".repeat(32);
+    let last = |h: &Fake| {
+        h.actions
+            .iter()
+            .rev()
+            .find(|a| a["type"] == "http")
+            .unwrap()
+            .clone()
+    };
+    let register = json!({"id":id,"token":token,"environment":"sandbox"});
+
+    h.responses.push_back((204, Value::Null));
+    let registered = call(&mut c, &mut h, "live_activity_register", register.clone());
+    assert_eq!(registered["data"], json!({"registered":true}));
+    let request = last(&h);
+    assert_eq!(request["method"], "PUT");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/me/thread-live-activities/{id}")
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(request["body"].as_str().unwrap()).unwrap(),
+        json!({"token":token,"environment":"sandbox"})
+    );
+
+    h.responses.push_back((410, json!({"message":"retired"})));
+    let retired = call(&mut c, &mut h, "live_activity_register", register.clone());
+    assert_eq!(
+        retired["data"],
+        json!({"registered":false,"reason":"retired"})
+    );
+
+    // Servers from before Live Activities answer 404: nothing to show, no error.
+    h.responses.push_back((404, Value::Null));
+    let old = call(&mut c, &mut h, "live_activity_register", register);
+    assert_eq!(
+        old["data"],
+        json!({"registered":false,"reason":"unavailable"})
+    );
+
+    let before = h.actions.len();
+    let invalid = call(
+        &mut c,
+        &mut h,
+        "live_activity_register",
+        json!({"id":id,"token":"not-hex","environment":"sandbox"}),
+    );
+    assert!(invalid["error"].is_string());
+    assert_eq!(h.actions.len(), before);
+
+    h.responses.push_back((204, Value::Null));
+    let gone = call(&mut c, &mut h, "live_activity_unregister", json!({"id":id}));
+    assert_eq!(gone["data"], json!({"unregistered":true}));
+    assert_eq!(last(&h)["method"], "DELETE");
+}
+
+#[test]
 fn push_registration_keeps_one_installation_per_profile_and_rotates_when_retired() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

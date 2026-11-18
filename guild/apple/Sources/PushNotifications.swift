@@ -141,6 +141,7 @@ final class PushNotifications: NSObject, UNUserNotificationCenterDelegate {
     /// launch or until the person turns notifications on again.
     func signOut() async {
         guard let client else { return }
+        await ThreadLiveActivity.shared.signOut()
         do {
             let data = try await client.call("sign_out")
             if data["push_unregister_failed"] as? Bool == true {

@@ -111,8 +111,8 @@ header_dirs = ["crates/core/include"]
 [[target]]
 name = "TuistGuildIOS"
 kind = "apple_application"
-srcs = ["apple/Sources/**/*.swift"]
-deps = ["./TuistGuildCoreIOS", "./TuistGuildCoreFFI", "./TuistGuildNSHSimulator"]
+srcs = ["apple/Sources/**/*.swift", "ios/LiveActivity/GuildActivityAttributes.swift"]
+deps = ["./TuistGuildCoreIOS", "./TuistGuildCoreFFI", "./TuistGuildNSHSimulator", "./TuistGuildLiveActivitySimulator"]
 [target.attrs]
 platform = "ios"
 bundle_id = "dev.tuist.code"
@@ -125,13 +125,13 @@ info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NA
 entitlements = "ios/Simulator.entitlements"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js"]
-postbuild_actions = ['{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".once/out/TuistGuildIOS/TuistGuild.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/TuistGuildIOS/TuistGuild.app/Metadata.appintents"],"cacheable":false}']
+postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".once/out/TuistGuildIOS/GuildLiveActivity.appex",".once/out/TuistGuildIOS/TuistGuild.app/PlugIns/GuildLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".once/out/TuistGuildIOS/GuildLiveActivity.appex"],"outputs":[".once/out/TuistGuildIOS/TuistGuild.app/PlugIns/GuildLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".once/out/TuistGuildIOS/TuistGuild.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/TuistGuildIOS/TuistGuild.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]
 name = "TuistGuildIOSDevice"
 kind = "apple_application"
-srcs = ["apple/Sources/**/*.swift"]
-deps = ["./TuistGuildCoreIOSDevice", "./TuistGuildCoreFFI", "./TuistGuildNSHDevice"]
+srcs = ["apple/Sources/**/*.swift", "ios/LiveActivity/GuildActivityAttributes.swift"]
+deps = ["./TuistGuildCoreIOSDevice", "./TuistGuildCoreFFI", "./TuistGuildNSHDevice", "./TuistGuildLiveActivityDevice"]
 [target.attrs]
 platform = "ios"
 bundle_id = "dev.tuist.code"
@@ -143,7 +143,7 @@ info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos", GUILD_PUSH_ENVIRONMENT = "" }
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
-postbuild_actions = ['{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphoneos","apple/Sources/AppShortcuts.swift",".once/out/TuistGuildIOSDevice/TuistGuild.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/TuistGuildIOSDevice/TuistGuild.app/Metadata.appintents"],"cacheable":false}']
+postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".once/out/TuistGuildIOSDevice/GuildLiveActivity.appex",".once/out/TuistGuildIOSDevice/TuistGuild.app/PlugIns/GuildLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".once/out/TuistGuildIOSDevice/GuildLiveActivity.appex"],"outputs":[".once/out/TuistGuildIOSDevice/TuistGuild.app/PlugIns/GuildLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphoneos","apple/Sources/AppShortcuts.swift",".once/out/TuistGuildIOSDevice/TuistGuild.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/TuistGuildIOSDevice/TuistGuild.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]
 name = "TuistGuildMacOS"
@@ -159,6 +159,27 @@ minimum_os = "14.0"
 info_plist = "macos/Info.plist"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "macos/Resources/AppIcon.icns"]
+
+# The threads Live Activity's WidgetKit extension (modules/widget.star), which
+# each iOS host embeds before Once signs it. It only draws the document the
+# server pushes; see ios/LiveActivity/AGENTS.md.
+[[target]]
+name = "TuistGuildLiveActivitySimulator"
+kind = "guild_widget_extension"
+srcs = ["ios/LiveActivity/*.swift"]
+[target.attrs]
+sdk_variant = "simulator"
+bundle_id = "dev.tuist.code.live-activity"
+info_plist = "ios/LiveActivity/Info.plist"
+
+[[target]]
+name = "TuistGuildLiveActivityDevice"
+kind = "guild_widget_extension"
+srcs = ["ios/LiveActivity/*.swift"]
+[target.attrs]
+sdk_variant = "device"
+bundle_id = "dev.tuist.code.live-activity"
+info_plist = "ios/LiveActivity/Info.plist"
 
 # NSH's iOS runtime, which shows the cards models write in conversations
 # (modules/nsh.star). macOS has no NSH slice yet; it shows the cards' text.

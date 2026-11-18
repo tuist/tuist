@@ -100,6 +100,7 @@ struct AppWorkspace: View {
         .task(id: client.view.active?.id) { await updater.check() }
         // Notifications reach the active profile when it has them on; switching moves them to the new one.
         .task(id: client.view.active?.id) {
+            ThreadLiveActivity.shared.profileChanged()
             guard client.view.active != nil else { return }
             await PushNotifications.shared.refresh()
             await PushNotifications.shared.sync()

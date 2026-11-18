@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
 # Signs a copy of the TuistGuildIOSDevice build for registered devices and packages
 # delivery/ios-device/TuistGuild.ipa. Follows atlas-native/ios/distribution/bundle.sh:
-# the shared Apple Distribution certificate plus the Tuist Code Ad Hoc profile, both
-# read from 1Password into a disposable keychain. Never mutates Once's outputs.
+# the shared Apple Distribution certificate plus the Tuist Code Ad Hoc profile for the
+# app and the Tuist Code Live Activity Ad Hoc profile for its extension, all read from
+# 1Password into a disposable keychain. Never mutates Once's outputs.
 set -euo pipefail
 umask 077
 
 cd "$(dirname "$0")/../.."
 # shellcheck source-path=SCRIPTDIR/../..
 source ios/distribution/keychain.sh
+# shellcheck source-path=SCRIPTDIR/../..
+source ios/distribution/live-activity.sh
 app_source="$PWD/.once/out/TuistGuildIOSDevice/TuistGuild.app"
 team=U6LC622NKF
 application_id="$team.dev.tuist.code"
 profile_ref="op://tuist/Tuist Code Ad Hoc/Tuist_Code_Ad_Hoc.mobileprovision"
+activity_profile_ref="op://tuist/Tuist Code Live Activity Ad Hoc/Tuist_Code_Live_Activity_Ad_Hoc.mobileprovision"
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
 test -d "$app_source" || fail "Run mise run build:ios-device first"
+validate_live_activity_bundle "$app_source" || fail "Expected the device GuildLiveActivity.appex embedded in the app"
 
 tmp=$(mktemp -d)
 keychain="$tmp/signing.keychain-db"
@@ -37,6 +42,9 @@ security cms -D -i "$tmp/profile.mobileprovision" > "$tmp/profile.plist"
 expires=$(plutil -extract ExpirationDate raw "$tmp/profile.plist")
 [[ $(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$expires" +%s) -gt $(date +%s) ]] || fail "The Tuist Guild provisioning profile has expired"
 identity=$(plutil -extract DeveloperCertificates.0 raw "$tmp/profile.plist" | base64 -D | shasum -a 1 | awk '{print toupper($1)}')
+op read "$activity_profile_ref" --out-file "$tmp/activity.mobileprovision" >/dev/null
+security cms -D -i "$tmp/activity.mobileprovision" > "$tmp/activity-profile.plist"
+validate_live_activity_profile "$tmp/activity-profile.plist" "$tmp/profile.plist" "$identity" || fail "The Tuist Code Live Activity Ad Hoc profile can't sign this build"
 
 # The vault is private to this app: keep Keychain access to its own group only.
 plutil -extract Entitlements xml1 -o "$tmp/entitlements.plist" "$tmp/profile.plist"
@@ -66,8 +74,8 @@ case "$("$plist" -c 'Print :Entitlements:aps-environment' "$tmp/profile.plist" 2
 esac
 # Keep preview versions increasing without putting delivery metadata in cached outputs.
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Info.plist"
-codesign --force --sign "$identity" --keychain "$keychain" --entitlements "$tmp/entitlements.plist" --timestamp=none "$app"
-codesign --verify --strict --deep "$app"
+prepare_live_activity_distribution "$app" "$tmp/activity.mobileprovision" "$tmp/activity-entitlements.plist"
+sign_live_activity_distribution "$app" "$identity" "$keychain" "$tmp/entitlements.plist" "$tmp/activity-entitlements.plist"
 
 mkdir -p delivery/ios-device
 rm -f delivery/ios-device/TuistGuild.ipa

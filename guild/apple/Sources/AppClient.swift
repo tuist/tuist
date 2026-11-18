@@ -305,6 +305,7 @@ final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding
         await perform("boot")
         // A notification tap that launched the app opens once the core is up.
         await PushNotifications.shared.attach(self)
+        ThreadLiveActivity.shared.attach(self)
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--navigate"), index + 1 < arguments.count {
             await perform("navigate", ["url": arguments[index + 1]])

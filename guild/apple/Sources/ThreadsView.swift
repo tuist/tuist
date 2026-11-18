@@ -263,6 +263,12 @@ struct ThreadsView: View {
             error = nil
             // An inbox never loaded on this device isn't empty, only unknown yet.
             if page.freshness?.state != "never_loaded" { loaded = true }
+            // Only what the server just said: a cached inbox can show threads that finished since.
+            if operation == "threads", page.freshness?.state == "live",
+               page.threads.contains(where: { $0.section == "in_progress" })
+            {
+                ThreadLiveActivity.shared.threadsWorking()
+            }
         } catch {
             guard !Task.isCancelled else { return }
             self.error = error.localizedDescription

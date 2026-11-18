@@ -396,6 +396,8 @@ impl MobileClient {
             "preview_update" => self.preview_update(args, host),
             "push_register" => self.push_register(args, host),
             "push_enable" => self.push_enable(args, host),
+            "live_activity_register" => self.live_activity_register(args, host),
+            "live_activity_unregister" => self.live_activity_unregister(args, host),
             "open_notification" => self.open_notification(args, host),
             "delete_account" => {
                 let index = self.active()?;
@@ -1060,6 +1062,71 @@ impl MobileClient {
             self.dirty = false;
         }
         Ok(())
+    }
+
+    /// Registers the threads Live Activity the edge started, `id` (the edge's
+    /// lowercase UUID for it) with its ActivityKit push `token`, for the active
+    /// profile at `/api/me/thread-live-activities/{id}`. The server then pushes
+    /// the activity's content itself. Refreshing the same ID is idempotent.
+    /// Returns `{registered:true}`, or `{registered:false,reason}`: `retired`
+    /// (the edge ends the activity and starts another with a new ID) or
+    /// `unavailable` (a server from before Live Activities).
+    fn live_activity_register(&mut self, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let index = self.active()?;
+        let id = text(args, "id")?;
+        let token = text(args, "token")?;
+        let environment = text(args, "environment")?;
+        if !is_uuid(id)
+            || !matches!(environment, "sandbox" | "production")
+            || token.len() < 32
+            || token.len() % 2 != 0
+            || !token.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err("Invalid Live Activity");
+        }
+        let url = endpoint(
+            &server_url(&self.vault.profiles[index].server)?,
+            &format!("api/me/thread-live-activities/{id}"),
+        );
+        let body = json!({"token":token,"environment":environment});
+        match self.send(index, "PUT", url, Some(body), host)? {
+            (200..=299, _) => Ok(json!({"registered":true})),
+            (410, _) => Ok(json!({"registered":false,"reason":"retired"})),
+            (404, _) => Ok(json!({"registered":false,"reason":"unavailable"})),
+            // `successful` reads 409 as a busy thread; here it's a registration the server refused.
+            (409, _) => Err("Server request failed"),
+            response => successful(response).map(|_| Value::Null),
+        }
+    }
+
+    /// Retires Live Activity `id` on the server, best effort, for the profile
+    /// `profile_id` that registered it (the active one when omitted), such as
+    /// when the edge ends the activity because that profile signed out or is no
+    /// longer active. Returns `{unregistered}`; the server also retires it when
+    /// the sign-in ends or the activity expires.
+    fn live_activity_unregister(&mut self, args: &Value, host: &mut dyn Host) -> Result<Value> {
+        let id = text(args, "id")?;
+        if !is_uuid(id) {
+            return Err("Invalid Live Activity");
+        }
+        let index = match args.get("profile_id").and_then(Value::as_str) {
+            Some(profile) => self
+                .vault
+                .profiles
+                .iter()
+                .position(|p| p.id == profile)
+                .ok_or("Unknown profile")?,
+            None => self.active()?,
+        };
+        let url = endpoint(
+            &server_url(&self.vault.profiles[index].server)?,
+            &format!("api/me/thread-live-activities/{id}"),
+        );
+        let unregistered = matches!(
+            self.send(index, "DELETE", url, None, host),
+            Ok((200..=299 | 404, _))
+        );
+        Ok(json!({"unregistered":unregistered}))
     }
 
     /// Best effort before sign-out, which doesn't revoke the grant: a
