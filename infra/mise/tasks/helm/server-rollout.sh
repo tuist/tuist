@@ -94,6 +94,8 @@ for overlay in values-tuist.yaml values-tuist-canary.yaml values-tuist-staging.y
   render "platform-$overlay" platform "$HELM/platform" -f "$HELM/platform/values-hetzner.yaml" -f "$HELM/platform/$overlay"
   retry="$(jq -r '[.[] | select(.kind == "ConfigMap" and .metadata.name == "platform-ingress-nginx-controller")][0].data["retry-non-idempotent"]' "$WORK/platform-$overlay.json")"
   [ "$retry" = "false" ] || fail "$overlay: the main ingress-nginx controller must set retry-non-idempotent to \"false\", got $retry"
+  http2="$(jq -r '[.[] | select(.kind == "ConfigMap" and .metadata.name == "platform-ingress-nginx-controller")][0].data["use-http2"]' "$WORK/platform-$overlay.json")"
+  [ "$http2" = "false" ] || fail "$overlay: the main ingress-nginx controller must set use-http2 to \"false\" (nginx2root), got $http2"
 done
 
 echo "Server pods drain before they stop, and the edge retries only requests that never reached a pod."
