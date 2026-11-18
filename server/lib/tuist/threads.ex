@@ -7,6 +7,7 @@ defmodule Tuist.Threads do
 
   alias Ecto.Changeset
   alias Tuist.Accounts
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Agents.Lease
   alias Tuist.Authorization
@@ -19,6 +20,7 @@ defmodule Tuist.Threads do
   alias Tuist.Threads.Approval
   alias Tuist.Threads.Checkout
   alias Tuist.Threads.Message
+  alias Tuist.Threads.Participant
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Repository
   alias Tuist.Threads.Run
@@ -49,12 +51,58 @@ defmodule Tuist.Threads do
 
   def authorize(_, _), do: {:error, :forbidden}
 
+  @doc """
+  Whether `user` may take part in an organization's threads that someone
+  looped them into: the same `luft` flags, but any member of the organization,
+  not only its admins. Personal accounts have no participants.
+  """
+  def authorize_participant(%User{active: true, disabled_at: nil} = user, %{organization_id: id} = account)
+      when not is_nil(id) do
+    with true <- FeatureFlags.luft_enabled?(user) and FeatureFlags.organization_luft_enabled?(account),
+         {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(id),
+         true <- Accounts.belongs_to_organization?(user, organization) do
+      :ok
+    else
+      _ -> {:error, :forbidden}
+    end
+  end
+
+  def authorize_participant(_, _), do: {:error, :forbidden}
+
+  @doc "Whether `user` may reach the account's threads at all: as an owner or as a participant."
+  def authorize_reader(user, account) do
+    with {:error, _} <- authorize(user, account), do: authorize_participant(user, account)
+  end
+
+  @mention ~r/(?<![A-Za-z0-9_.@-])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)/
+
+  @doc """
+  The account handles `text` mentions, lowercased: `@handle` at the start or
+  after anything but a letter, digit, `_`, `.`, `@` or `-`, so email
+  addresses don't count. Luft's core parses mentions the same way.
+  """
+  def mentions(text) when is_binary(text) do
+    @mention
+    |> Regex.scan(text, capture: :all_but_first)
+    |> List.flatten()
+    |> Enum.map(&String.downcase/1)
+    |> Enum.uniq()
+  end
+
   def topic(user_id, account_id), do: "threads:#{account_id}:#{user_id}"
 
   def list(user, account, cursor \\ nil) do
-    with :ok <- authorize(user, account),
+    with :ok <- authorize_reader(user, account),
          {:ok, boundary} <- decode_cursor(cursor) do
-      query = from t in Thread, where: t.owner_id == ^user.id and t.account_id == ^account.id
+      shared = from p in Participant, where: p.user_id == ^user.id, select: p.thread_id
+
+      # The threads the person owns, when they may own threads here, and the
+      # ones someone looped them into.
+      query =
+        if authorize(user, account) == :ok,
+          do:
+            from(t in Thread, where: t.account_id == ^account.id and (t.owner_id == ^user.id or t.id in subquery(shared))),
+          else: from(t in Thread, where: t.account_id == ^account.id and t.id in subquery(shared))
 
       query =
         if boundary,
@@ -77,10 +125,11 @@ defmodule Tuist.Threads do
     end
   end
 
+  @doc "A thread its owner, or someone looped into it, can read."
   def get(user, account, id, opts \\ []) do
-    with :ok <- authorize(user, account),
-         {:ok, id} <- uuid(id),
-         %Thread{} = thread <- Repo.get_by(Thread, id: id, account_id: account.id, owner_id: user.id),
+    with {:ok, id} <- uuid(id),
+         %Thread{} = thread <- Repo.get_by(Thread, id: id, account_id: account.id),
+         :ok <- access(user, account, thread),
          {:ok, before} <- before_position(Keyword.get(opts, :before)) do
       {:ok, history(thread, before)}
     else
@@ -88,6 +137,33 @@ defmodule Tuist.Threads do
       {:error, _} = error -> error
     end
   end
+
+  # Archiving and shipping stay the owner's.
+  defp owned(user, account, id) do
+    case get(user, account, id) do
+      {:ok, %Thread{owner_id: owner_id} = thread} when owner_id == user.id -> {:ok, thread}
+      {:ok, _thread} -> {:error, :forbidden}
+      error -> error
+    end
+  end
+
+  defp access(user, account, %Thread{owner_id: owner_id}) when owner_id == user.id, do: authorize(user, account)
+
+  defp access(user, account, thread) do
+    cond do
+      Repo.exists?(from p in Participant, where: p.thread_id == ^thread.id and p.user_id == ^user.id) ->
+        authorize_participant(user, account)
+
+      authorize_reader(user, account) == :ok ->
+        {:error, :not_found}
+
+      true ->
+        {:error, :forbidden}
+    end
+  end
+
+  defp owner(%User{id: id} = user, %Thread{owner_id: id}), do: user
+  defp owner(_user, thread), do: Accounts.get_user_by_id(thread.owner_id) || {:error, :not_found}
 
   def repositories(user, account) do
     with :ok <- authorize(user, account), do: Repository.list(account)
@@ -149,6 +225,7 @@ defmodule Tuist.Threads do
               )
 
             message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
+            loop_in!(thread, user, account, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
 
@@ -172,14 +249,19 @@ defmodule Tuist.Threads do
     end
   end
 
+  @doc """
+  Prompts a thread, as its owner or someone looped into it. People the
+  message mentions join the thread. Every run uses the owner's subscription.
+  """
   def message(user, account, id, attrs) do
     with {:ok, thread} <- get(user, account, id),
          {:ok, request_id} <- uuid(attrs["request_id"]),
          {:ok, body} <- content(attrs["content"]),
-         {:ok, _opts} <- Provider.client_opts(user, thread) do
+         %User{} = owner <- owner(user, thread),
+         {:ok, _opts} <- Provider.client_opts(owner, thread) do
       fn ->
         thread = lock_thread(thread.id)
-        require_access!(user, account, thread)
+        if access(user, account, thread) != :ok, do: Repo.rollback(:forbidden)
 
         case Repo.get_by(Message, thread_id: thread.id, request_id: request_id) do
           %Message{body: ^body} ->
@@ -191,6 +273,7 @@ defmodule Tuist.Threads do
           nil ->
             require_idle!(thread)
             message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
+            loop_in!(thread, user, account, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
         end
@@ -201,7 +284,7 @@ defmodule Tuist.Threads do
   end
 
   def archive(user, account, id, status) when status in ["active", "archived"] do
-    with {:ok, thread} <- get(user, account, id) do
+    with {:ok, thread} <- owned(user, account, id) do
       result =
         transact(fn ->
           thread = lock_thread(thread.id)
@@ -238,7 +321,7 @@ defmodule Tuist.Threads do
   defp cancel_archived_runs!(_thread, :active), do: :ok
 
   def snapshot(user, account, :inbox) do
-    with :ok <- authorize(user, account) do
+    with :ok <- authorize_reader(user, account) do
       revision =
         Repo.one(
           from i in "thread_inboxes", where: i.account_id == ^account.id and i.owner_id == ^user.id, select: i.revision
@@ -249,11 +332,13 @@ defmodule Tuist.Threads do
   end
 
   def snapshot(user, account, id) do
-    with :ok <- authorize(user, account), {:ok, id} <- uuid(id) do
-      case Repo.get_by(Thread, id: id, account_id: account.id, owner_id: user.id) do
-        nil -> {:error, :not_found}
-        thread -> {:ok, %{revision: thread.revision, agent_status: thread.agent_status, activity: activity(thread)}}
-      end
+    with {:ok, id} <- uuid(id),
+         %Thread{} = thread <- Repo.get_by(Thread, id: id, account_id: account.id),
+         :ok <- access(user, account, thread) do
+      {:ok, %{revision: thread.revision, agent_status: thread.agent_status, activity: activity(thread)}}
+    else
+      nil -> {:error, :not_found}
+      error -> error
     end
   end
 
@@ -278,7 +363,7 @@ defmodule Tuist.Threads do
   end
 
   def ship_preview(user, account, id) do
-    with {:ok, thread} <- get(user, account, id),
+    with {:ok, thread} <- owned(user, account, id),
          {:ok, preview} <- Shipping.preview(user, thread) do
       transact(fn ->
         fresh = lock_thread(thread.id)
@@ -295,7 +380,7 @@ defmodule Tuist.Threads do
   end
 
   def ship(user, account, id, attrs) do
-    with {:ok, thread} <- get(user, account, id), {:ok, request_id} <- uuid(attrs["request_id"]) do
+    with {:ok, thread} <- owned(user, account, id), {:ok, request_id} <- uuid(attrs["request_id"]) do
       transact(fn ->
         thread = lock_thread(thread.id)
         require_access!(user, account, thread)
@@ -323,7 +408,7 @@ defmodule Tuist.Threads do
   end
 
   def reconcile_ship(user, account, id, attrs) do
-    with {:ok, thread} <- get(user, account, id),
+    with {:ok, thread} <- owned(user, account, id),
          {:ok, request_id} <- uuid(attrs["request_id"]),
          %Approval{} = approval <- Repo.get_by(Approval, thread_id: thread.id, request_id: request_id),
          {:ok, _} <- Shipping.reconcile(thread, approval) do
@@ -1048,7 +1133,9 @@ defmodule Tuist.Threads do
       has_more: thread.has_more,
       next_before: thread.next_before,
       diff: "",
-      messages: Enum.map(thread.messages, &serialize_message/1)
+      owner: thread.people[thread.owner_id] || %{id: thread.owner_id, handle: nil},
+      participants: Enum.map(thread.participant_ids, &(thread.people[&1] || %{id: &1, handle: nil})),
+      messages: Enum.map(thread.messages, &serialize_message(&1, thread.people))
     }
   end
 
@@ -1058,31 +1145,47 @@ defmodule Tuist.Threads do
     rows = Repo.all(from m in query, order_by: [desc: m.position], limit: 51)
     messages = rows |> Enum.take(50) |> Enum.reverse()
 
+    participant_ids =
+      Repo.all(
+        from p in Participant, where: p.thread_id == ^thread.id, order_by: [p.inserted_at, p.user_id], select: p.user_id
+      )
+
+    # Handles of the owner, the participants and the people who wrote the
+    # page's prompts, loaded at once.
+    ids = Enum.uniq([thread.owner_id | participant_ids] ++ Enum.flat_map(messages, &List.wrap(&1.author_id)))
+
+    people =
+      from(u in User, join: a in assoc(u, :account), where: u.id in ^ids, select: {u.id, %{id: u.id, handle: a.name}})
+      |> Repo.all()
+      |> Map.new()
+
     %{
       thread
       | messages: messages,
         has_more: length(rows) > 50,
-        next_before: if(length(rows) > 50, do: hd(messages).position)
+        next_before: if(length(rows) > 50, do: hd(messages).position),
+        participant_ids: participant_ids,
+        people: people
     }
   end
 
-  defp serialize_message(%Message{kind: "card"} = message) do
+  defp serialize_message(%Message{kind: "card"} = message, people) do
     message
     |> Map.put(:kind, "agent")
-    |> serialize_message()
+    |> serialize_message(people)
     |> Map.put(:ui, %{size: message.card_size, source: message.card_source})
   end
 
   # A `system` message with its steps; clients that don't render them show
   # the body, the plan as a checklist, as they show other notices.
-  defp serialize_message(%Message{kind: "progress"} = message) do
+  defp serialize_message(%Message{kind: "progress"} = message, people) do
     message
     |> Map.put(:kind, "notice")
-    |> serialize_message()
+    |> serialize_message(people)
     |> Map.put(:progress, message.progress)
   end
 
-  defp serialize_message(message) do
+  defp serialize_message(message, people) do
     %{
       id: message.id,
       role:
@@ -1097,6 +1200,8 @@ defmodule Tuist.Threads do
       toolName: message.tool_name,
       toolStatus: message.tool_state,
       suggestions: message.suggestions,
+      # Who wrote a prompt, so a thread with participants shows who asked.
+      author: if(message.kind == "human" and not is_nil(message.author_id), do: people[message.author_id]),
       createdAt: DateTime.to_iso8601(message.inserted_at)
     }
   end
@@ -1247,14 +1352,45 @@ defmodule Tuist.Threads do
         log: false
       )
 
-    Repo.insert_all("thread_inboxes", [%{owner_id: thread.owner_id, account_id: thread.account_id, revision: 1}],
+    # Everyone in the thread sees it change in their inbox; `owner_id` is the
+    # inbox's person, whoever owns the thread.
+    readers = [thread.owner_id | Repo.all(from p in Participant, where: p.thread_id == ^thread.id, select: p.user_id)]
+
+    Repo.insert_all(
+      "thread_inboxes",
+      Enum.map(readers, &%{owner_id: &1, account_id: thread.account_id, revision: 1}),
       conflict_target: [:owner_id, :account_id],
       on_conflict: from(i in "thread_inboxes", update: [inc: [revision: 1]])
     )
 
-    Phoenix.PubSub.broadcast(Tuist.PubSub, topic(thread.owner_id, thread.account_id), :threads_changed)
+    Enum.each(readers, &Phoenix.PubSub.broadcast(Tuist.PubSub, topic(&1, thread.account_id), :threads_changed))
     LiveActivities.thread_changed(thread.owner_id)
     thread
+  end
+
+  # Loops the people `body` mentions into the thread: members of its
+  # organization who may use Luft there, other than the owner. Mentions of
+  # anyone else, and every mention in a personal account, stay plain text.
+  defp loop_in!(thread, user, account, body) do
+    handles = mentions(body)
+
+    if handles != [] and not is_nil(account.organization_id) do
+      now = now()
+
+      rows =
+        from(u in User,
+          join: a in assoc(u, :account),
+          where: fragment("lower(?)", a.name) in ^handles and u.id != ^thread.owner_id,
+          where: u.active == true and is_nil(u.disabled_at)
+        )
+        |> Repo.all()
+        |> Enum.filter(&(authorize_participant(&1, account) == :ok))
+        |> Enum.map(&%{thread_id: thread.id, user_id: &1.id, added_by_id: user.id, inserted_at: now, updated_at: now})
+
+      Repo.insert_all(Participant, rows, on_conflict: :nothing, conflict_target: [:thread_id, :user_id])
+    end
+
+    :ok
   end
 
   # The run and the session's want commit together; the host is told on

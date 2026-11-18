@@ -49,6 +49,8 @@ struct AppHall: Decodable, Identifiable {
     var messages: [HallMessage]?
     var has_more: Bool?
     var next_before: Int?
+    /// Everyone in a hall: who opened, wrote in or was invited to it.
+    var member_ids: [Int]?
 }
 
 private struct HallsPage: Decodable {
@@ -278,6 +280,10 @@ struct HallConversationView: View {
     @State private var error: String?
     @State private var atLatest = true
     @State private var voice = VoiceInput()
+    @State private var mentions: Mentions?
+    /// People the last message mentioned who aren't in the hall, offered an invite.
+    @State private var inviting: [HallPerson] = []
+    @State private var invitingBusy = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -328,8 +334,12 @@ struct HallConversationView: View {
         .background(Noora.backgroundPrimary)
         .overlay { if hall == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
-            ReplyComposer(reply: $reply, disabled: hall == nil, sending: sending, voice: voice) {
-                Task { await send() }
+            VStack(spacing: 8) {
+                if !inviting.isEmpty, let hall { inviteBanner(hall) }
+                ReplyComposer(reply: $reply, disabled: hall == nil, sending: sending, voice: voice,
+                              mentions: mentions, place: hall?.title) {
+                    Task { await send() }
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -348,6 +358,37 @@ struct HallConversationView: View {
                 if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
             }
             .onDisappear { voice.cancel() }
+    }
+
+    /// Suggests inviting the people a message mentioned who aren't in the hall.
+    private func inviteBanner(_ hall: AppHall) -> some View {
+        let names = inviting.compactMap { $0.handle.map { "@\($0)" } }.formatted(.list(type: .and))
+        return HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "person.badge.plus").foregroundStyle(Noora.primary).accessibilityHidden(true)
+            Text("\(names) isn’t in \(hall.title). Invite them?")
+                .font(.callout).foregroundStyle(Noora.labelPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Not Now") { inviting = [] }
+                .font(.callout).foregroundStyle(Noora.labelSecondary).frame(minHeight: 44)
+            Button("Invite") { Task { await invite() } }
+                .font(.callout.weight(.semibold)).frame(minHeight: 44)
+                .disabled(invitingBusy)
+        }
+        .padding(.horizontal, 12)
+        .interactiveGlass(in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func invite() async {
+        invitingBusy = true
+        defer { invitingBusy = false }
+        do {
+            show(try await client.hall("invite_hall", ["id": id, "user_ids": inviting.map(\.id)]))
+            inviting = []
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     private func intro(_ hall: AppHall) -> some View {
@@ -396,6 +437,13 @@ struct HallConversationView: View {
             older += previous.filter { !kept.contains($0.id) }
         }
         hall = latest
+        if mentions == nil {
+            // Mentions in a hall suggest invites; in a direct conversation they are only mentions.
+            let mentions = Mentions(context: latest.kind == "hall" ? "hall" : "direct")
+            self.mentions = mentions
+            Task { await mentions.load(client) }
+        }
+        mentions?.members = latest.member_ids ?? latest.members.map(\.id)
         if latest.unread > 0 {
             Task { _ = try? await client.call("read_hall", ["id": id, "position": latest.last_position]) }
         }
@@ -421,9 +469,11 @@ struct HallConversationView: View {
         guard !sending, !voice.busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         sending = true
         defer { sending = false }
+        let absent = mentions?.state.invite ?? []
         do {
             show(try await client.hall("send_hall_message", ["id": id, "content": text]))
             reply = ""
+            inviting = absent
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -490,6 +540,8 @@ private struct NewHallView: View {
     let created: (AppHall) -> Void
     @State private var name = ""
     @State private var topic = ""
+    @State private var invites = ""
+    @State private var mentions = Mentions(context: "new_hall")
     @State private var creating = false
     @State private var error: String?
     @FocusState private var focused: Bool
@@ -511,15 +563,26 @@ private struct NewHallView: View {
             } footer: {
                 Text("Everyone in your organization can read and write in it.")
             }
+            Section {
+                TextField("Invite (type @)", text: $invites, axis: .vertical)
+                    .autocorrectionDisabled()
+                #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                #endif
+                    .onChange(of: invites) { _, text in mentions.update(text) }
+                MentionBar(mentions: mentions, text: $invites)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
+            }
             if let error {
                 Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
             }
         }
         #if os(macOS)
         .formStyle(.grouped)
-        .frame(width: 440, height: 280)
+        .frame(width: 440, height: 380)
         #endif
         .disabled(creating)
+        .task { await mentions.load(client) }
         .navigationTitle("New Hall")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -540,7 +603,9 @@ private struct NewHallView: View {
         creating = true
         defer { creating = false }
         do {
-            let hall = try await client.hall("create_hall", ["name": name, "topic": topic])
+            let hall = try await client.hall("create_hall", [
+                "name": name, "topic": topic, "user_ids": mentions.state.loop_in.map(\.id),
+            ])
             dismiss()
             created(hall)
         } catch {

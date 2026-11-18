@@ -245,6 +245,8 @@ impl MobileClient {
                 }
             }
             "flush_outbox" => self.flush_outbox(host),
+            // Pure; edges may also call `tuist_app_compose` to skip the client lock.
+            "compose" => Ok(crate::compose::compose(args)),
             // The live sockets of the threads screens show (`crate::live`),
             // by a handle the edge picks for each. Opening one refreshes the
             // bearer first, which the edge needs to open it.
@@ -278,7 +280,7 @@ impl MobileClient {
                 Ok(Value::Null)
             }
             op @ ("halls" | "hall" | "send_hall_message" | "read_hall" | "create_hall"
-            | "start_direct" | "hall_people") => {
+            | "start_direct" | "hall_people" | "invite_hall") => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
                 let organization = self.vault.profiles[index].organization.is_some();

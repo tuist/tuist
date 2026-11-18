@@ -122,10 +122,12 @@ impl Halls {
                 if topic.chars().count() > 250 {
                     return Err("The topic is too long");
                 }
+                let invited = user_ids(args, 50)?;
                 let body = json!({
                     "request_id": self.request_id(&format!("{server}\n{handle}\n#{name}")),
                     "name": name,
                     "topic": topic,
+                    "user_ids": invited,
                 });
                 let mut hall = match transport.send("POST", url(""), Some(body))? {
                     // Other conflicts (a reused request) stay generic errors.
@@ -153,6 +155,19 @@ impl Halls {
                 let body = json!({"request_id": self.request_id(&key), "user_ids": ids});
                 let mut hall = request("POST", url("directs"), Some(body))?;
                 self.pending = None;
+                present(&mut hall);
+                Ok(hall)
+            }
+            "invite_hall" => {
+                let ids = user_ids(args, 50)?;
+                if ids.is_empty() {
+                    return Err("Choose who to invite");
+                }
+                let mut hall = request(
+                    "POST",
+                    url(&format!("{}/members", id(args)?)),
+                    Some(json!({"user_ids": ids})),
+                )?;
                 present(&mut hall);
                 Ok(hall)
             }
@@ -207,6 +222,25 @@ fn present(hall: &mut Value) {
         }
     };
     hall["title"] = json!(title);
+}
+
+/// The optional `user_ids` people to invite: at most `limit`, without repeats.
+fn user_ids(args: &Value, limit: usize) -> Result<Vec<u64>> {
+    let Some(ids) = args.get("user_ids").filter(|v| !v.is_null()) else {
+        return Ok(vec![]);
+    };
+    let mut ids: Vec<u64> = ids
+        .as_array()
+        .ok_or("Invalid person")?
+        .iter()
+        .map(|v| v.as_u64().ok_or("Invalid person"))
+        .collect::<Result<_>>()?;
+    ids.sort_unstable();
+    ids.dedup();
+    if ids.len() > limit {
+        return Err("Invite at most 50 people at once");
+    }
+    Ok(ids)
 }
 
 fn id(args: &Value) -> Result<&str> {
@@ -444,6 +478,60 @@ mod tests {
             .unwrap_err();
         assert_eq!(error, NAME_TAKEN);
         assert_eq!(transport.requests[0].2.as_ref().unwrap()["name"], "general");
+    }
+
+    #[test]
+    fn invites_post_the_people_to_the_halls_members() {
+        let mut transport = recorder(vec![
+            (200, json!({"kind":"hall","name":"design","member_ids":[3]})),
+            (200, json!({"kind":"hall","name":"design","member_ids":[2]})),
+        ]);
+        let mut halls = Halls::new();
+        let hall = halls
+            .call(
+                &server(),
+                "tuist",
+                true,
+                "invite_hall",
+                &json!({"id":ID,"user_ids":[3,3]}),
+                &mut transport,
+            )
+            .unwrap();
+        assert_eq!(hall["title"], "#design");
+        assert_eq!(
+            transport.requests[0].1,
+            format!("https://tuist.dev/api/accounts/tuist/halls/{ID}/members")
+        );
+        assert_eq!(
+            transport.requests[0].2.as_ref().unwrap()["user_ids"],
+            json!([3])
+        );
+        assert!(
+            halls
+                .call(
+                    &server(),
+                    "tuist",
+                    true,
+                    "invite_hall",
+                    &json!({"id":ID,"user_ids":[]}),
+                    &mut transport
+                )
+                .is_err()
+        );
+        halls
+            .call(
+                &server(),
+                "tuist",
+                true,
+                "create_hall",
+                &json!({"name":"design","user_ids":[2]}),
+                &mut transport,
+            )
+            .unwrap();
+        assert_eq!(
+            transport.requests[1].2.as_ref().unwrap()["user_ids"],
+            json!([2])
+        );
     }
 
     #[test]

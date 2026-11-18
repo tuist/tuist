@@ -19,7 +19,7 @@ defmodule TuistWeb.ThreadsChannel do
          {:ok, target} <- target(id),
          %Account{} = account <- Accounts.get_account_by_handle(handle),
          {:ok, user} <- ThreadsSocket.authenticate(socket.assigns.bearer),
-         :ok <- Threads.authorize(user, account) do
+         :ok <- Threads.authorize_reader(user, account) do
       # Subscribe before the authoritative read so a concurrent commit cannot
       # fall between the initial snapshot and subscription.
       Phoenix.PubSub.subscribe(Tuist.PubSub, Threads.topic(user.id, account.id))
@@ -96,7 +96,7 @@ defmodule TuistWeb.ThreadsChannel do
          true <- user.id == socket.assigns.app_user.id,
          %Account{} = account <- Accounts.get_account_by_handle(socket.assigns.account_handle),
          true <- account.id == socket.assigns.account_id,
-         :ok <- Threads.authorize(user, account),
+         :ok <- Threads.authorize_reader(user, account),
          {:ok, value} <- Threads.snapshot(user, account, socket.assigns.target) do
       # Explicit allowlist: sockets carry invalidations and the running tool's
       # name, never conversation content such as tool arguments.

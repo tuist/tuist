@@ -221,3 +221,14 @@
 "The runner’s settings can’t be read" = "The runner’s settings can’t be read";
 "Until they are fixed, the runner keeps the settings it last read, or shares nothing. Resetting shares only the projects folder, with everything else off." = "Until they are fixed, the runner keeps the settings it last read, or shares nothing. Resetting shares only the projects folder, with everything else off.";
 "This Mac is disconnected, but Tuist still lists the runner. Remove it while signed in to the account that connected it." = "This Mac is disconnected, but Tuist still lists the runner. Remove it while signed in to the account that connected it.";
+"Mention %@" = "Mention %@";
+"People to mention" = "People to mention";
+"Sending loops in %@: they can read and prompt this thread." = "Sending loops in %@: they can read and prompt this thread.";
+"Creating the hall invites %@." = "Creating the hall invites %@.";
+"%@ isn’t in %@ yet. You can invite them after sending." = "%1$@ isn’t in %2$@ yet. You can invite them after sending.";
+"%@ isn’t in %@. Invite them?" = "%1$@ isn’t in %2$@. Invite them?";
+"Not Now" = "Not Now";
+"Invite" = "Invite";
+"Invite (type @)" = "Invite (type @)";
+"Type @ to loop someone in." = "Type @ to loop someone in.";
+"Shared with %@" = "Shared with %@";

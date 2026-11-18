@@ -18,6 +18,10 @@ char *tuist_app_call(const char *request_json,
                     void *context);
 void tuist_app_free(char *response_json);
 
+// The composer's mention state (`compose` in the README), without the client's
+// lock. Returns owned JSON; release it with tuist_app_free.
+char *tuist_app_compose(const char *input_json);
+
 // Noora's semantic colors as immutable process-lifetime JSON:
 // {"light":{"<token>":"#rrggbb",...},"dark":{...}}. Never free it.
 const char *tuist_app_theme(void);

@@ -62,6 +62,27 @@ pub unsafe extern "C" fn tuist_app_call(
     CString::new(result).unwrap_or_default().into_raw()
 }
 
+/// Runs `compose` (see the README) without taking the client's lock, so the
+/// composer never waits behind a network operation. Free the result with
+/// `tuist_app_free`.
+///
+/// # Safety
+/// Input must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn tuist_app_compose(input: *const c_char) -> *mut c_char {
+    let result = std::panic::catch_unwind(|| {
+        let input = if input.is_null() {
+            ""
+        } else {
+            unsafe { CStr::from_ptr(input) }.to_str().unwrap_or("")
+        };
+        let value: Value = serde_json::from_str(input).unwrap_or(Value::Null);
+        crate::compose::compose(&value).to_string()
+    })
+    .unwrap_or_else(|_| "{}".into());
+    CString::new(result).unwrap_or_default().into_raw()
+}
+
 /// # Safety
 /// The pointer must be null or returned by `tuist_app_call`, and freed only once.
 #[unsafe(no_mangle)]
@@ -118,6 +139,19 @@ mod android {
         _instance: JObject,
     ) -> jstring {
         env.new_string(crate::theme::json().to_str().unwrap_or("{}"))
+            .map(JString::into_raw)
+            .unwrap_or(std::ptr::null_mut())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_dev_tuist_guild_AppCore_compose(
+        mut env: JNIEnv,
+        _instance: JObject,
+        input: JString,
+    ) -> jstring {
+        let input: String = env.get_string(&input).map(Into::into).unwrap_or_default();
+        let value: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+        env.new_string(crate::compose::compose(&value).to_string())
             .map(JString::into_raw)
             .unwrap_or(std::ptr::null_mut())
     }

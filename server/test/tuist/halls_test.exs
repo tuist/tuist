@@ -127,6 +127,34 @@ defmodule Tuist.HallsTest do
     refute cai.id in ids
   end
 
+  test "inviting people makes them members of a hall, from its creation or later", %{
+    account: account,
+    ana: ana,
+    ben: ben,
+    cai: cai
+  } do
+    assert {:ok, hall} =
+             Halls.create(ana, account, %{"request_id" => uuid(), "name" => "design", "user_ids" => [ben.id]})
+
+    assert hall.member_ids == [ben.id]
+    assert {:ok, %{member_ids: members}} = Halls.invite(ben, account, hall.id, %{"user_ids" => [cai.id, ben.id]})
+    assert members == Enum.sort([ben.id, cai.id])
+    # Opening a hall joins it too, and inviting someone again changes nothing.
+    {:ok, _} = Halls.read(cai, account, hall.id, 1)
+    assert {:ok, %{member_ids: ^members}} = Halls.invite(ana, account, hall.id, %{"user_ids" => [cai.id]})
+
+    outsider = AccountsFixtures.user_fixture()
+    assert {:error, :invalid_arguments} = Halls.invite(ana, account, hall.id, %{"user_ids" => [outsider.id]})
+    assert {:error, :invalid_arguments} = Halls.invite(ana, account, hall.id, %{"user_ids" => []})
+
+    assert {:error, :invalid_arguments} =
+             Halls.create(ana, account, %{"request_id" => uuid(), "name" => "other", "user_ids" => [outsider.id]})
+
+    # A direct conversation keeps the people it started with.
+    {:ok, direct} = Halls.direct(ana, account, %{"request_id" => uuid(), "user_ids" => [ben.id]})
+    assert {:error, :invalid_arguments} = Halls.invite(ana, account, direct.id, %{"user_ids" => [cai.id]})
+  end
+
   defp uuid, do: Ecto.UUID.generate()
   defp message(content), do: %{"request_id" => uuid(), "content" => content}
 end
