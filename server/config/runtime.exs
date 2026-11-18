@@ -805,6 +805,8 @@ base_queues = [
   storage_retention: 1,
   kura_provisioning: 10,
   coverage_deltas: 2,
+  # Copies coverage rows into a new layout once per release that changes it.
+  coverage_backfills: 1,
   sandbox_archives: 2,
   sandbox_snapshot_copies: 1
 ]
