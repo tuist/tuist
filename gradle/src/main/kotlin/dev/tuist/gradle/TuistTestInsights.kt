@@ -851,7 +851,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor(
         if (repetition == null && project.path == ":") {
             project.tasks.register("tuistCoverageComplete", TuistCoverageCompleteTask::class.java) {
                 group = "tuist"
-                description = "Tells Tuist that every run of the commit that measures coverage has reported."
+                description = "Tells Tuist that every run of the commit that measures coverage or uploads snapshots has reported."
                 serverUrl.set(config.url)
                 config.project?.let { tuistProject.set(it) }
                 useEnvironmentProxy.set(config.network.proxy)
