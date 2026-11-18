@@ -8,7 +8,8 @@ defmodule Tuist.Runners.ConcurrencySizing do
   consumes the asynchronous ClickHouse replica or bypasses normal admission.
 
   An account/platform grows at most once per 24h, by at most 50%, and no more
-  than doubles in a rolling week. Existing grants, including contractual
+  than doubles in a rolling week, counted from its latest plan or operator
+  grant. Existing grants, including contractual
   minima, are never reduced, even when above the automatic safety ceilings.
   """
   import Ecto.Query
@@ -104,7 +105,7 @@ defmodule Tuist.Runners.ConcurrencySizing do
     with %{} <- target,
          true <- may_grow?(platform_history, now),
          true <- budget_available?(now),
-         resources = bounded_target(limit.platform, limit, target, since_plan_grant(platform_history)),
+         resources = bounded_target(limit.platform, limit, target, since_latest_grant(platform_history)),
          true <- resources.vcpus > limit.vcpus or resources.memory_gb > limit.memory_gb do
       apply_growth(limit, resources, mode, now)
       resources
@@ -173,11 +174,14 @@ defmodule Tuist.Runners.ConcurrencySizing do
     |> Kernel.<(@hourly_budget)
   end
 
-  # A plan's defaults are a grant, not growth: the weekly doubling bound counts
-  # from the latest one, so an account upgraded from Air is not held at twice
-  # Air's limit for a week. History is oldest first.
-  defp since_plan_grant(history) do
-    case history |> Enum.reverse() |> Enum.find_index(&(&1.source == "plan")) do
+  # Plan defaults and operator edits are grants, not growth: the weekly
+  # doubling bound counts from the latest one, so automatic growth can always
+  # double what was last granted. An upgrade records no `plan` row when an
+  # operator had already raised the account above the plan's defaults, so
+  # counting only plan rows would hold it at twice its pre-upgrade limit for a
+  # week. History is oldest first.
+  defp since_latest_grant(history) do
+    case history |> Enum.reverse() |> Enum.find_index(&(&1.source in ["plan", "manual"])) do
       nil -> history
       index -> Enum.take(history, -(index + 1))
     end
