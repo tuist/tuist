@@ -685,7 +685,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1298,7 +1298,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1322,7 +1322,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1346,7 +1346,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1474,7 +1474,30 @@
                 {
                   "kind": "PanelQuery",
                   "spec": {
-                    "hidden": false,
+                    "hidden": true,
+                    "query": {
+                      "datasource": {
+                        "name": "cg3i1jh2k1v5sb"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range]))",
+                        "format": "time_series",
+                        "instant": true,
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "K"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": true,
                     "query": {
                       "datasource": {
                         "name": "grafanacloud-prom"
@@ -1483,12 +1506,30 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "100 * (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) / (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__range]))))",
+                        "expr": "sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__range]))",
                         "format": "time_series",
                         "instant": true,
-                        "legendFormat": "Module (requests)",
                         "queryType": "instant",
                         "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "L"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "__expr__"
+                      },
+                      "group": "__expr__",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expression": "100 * $K / ($K + $L)",
+                        "type": "math"
                       },
                       "version": "v0"
                     },
@@ -1557,7 +1598,20 @@
                   },
                   "unit": "percent"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byFrameRefID",
+                      "options": "A"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Module (requests)"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "displayMode": "gradient",
@@ -1598,7 +1652,29 @@
                 {
                   "kind": "PanelQuery",
                   "spec": {
-                    "hidden": false,
+                    "hidden": true,
+                    "query": {
+                      "datasource": {
+                        "name": "cg3i1jh2k1v5sb"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval]))",
+                        "instant": false,
+                        "queryType": "range",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "K"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": true,
                     "query": {
                       "datasource": {
                         "name": "grafanacloud-prom"
@@ -1607,11 +1683,29 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "100 * (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) / (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval]))))",
+                        "expr": "sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "Module (requests)",
                         "queryType": "range",
                         "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "L"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "__expr__"
+                      },
+                      "group": "__expr__",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expression": "100 * $K / ($K + $L)",
+                        "type": "math"
                       },
                       "version": "v0"
                     },
@@ -1708,10 +1802,14 @@
                 "overrides": [
                   {
                     "matcher": {
-                      "id": "byName",
-                      "options": "Module (requests)"
+                      "id": "byFrameRefID",
+                      "options": "A"
                     },
                     "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Module (requests)"
+                      },
                       {
                         "id": "color",
                         "value": {
@@ -1784,7 +1882,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -1951,7 +2049,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2118,7 +2216,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2741,7 +2839,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2854,7 +2952,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",
@@ -2877,7 +2975,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "grafanacloud-prom"
+                        "name": "cg3i1jh2k1v5sb"
                       },
                       "group": "prometheus",
                       "kind": "DataQuery",

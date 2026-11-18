@@ -1064,10 +1064,10 @@
       {
         "kind": "DatasourceVariable",
         "spec": {
-          "allowCustomValue": true,
+          "allowCustomValue": false,
           "current": {
-            "text": "grafanacloud-tuist-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": "dontHide",
           "includeAll": false,
@@ -1077,7 +1077,7 @@
           "options": [],
           "pluginId": "prometheus",
           "refresh": "onDashboardLoad",
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false
         }
       },

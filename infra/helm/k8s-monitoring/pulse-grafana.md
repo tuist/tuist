@@ -319,8 +319,30 @@ before cutting them over.
    error policies, labels, contact points, silences and routing. Test a firing
    and resolved notification through each existing receiver before relying on it.
    Migrate dashboard fixed UIDs, variable selections, links and correlations
-   deliberately; Git Sync definitions still reference the Cloud sources until
-   changed. Do not bulk-repoint the default source and assume this is sufficient.
+   deliberately. Do not bulk-repoint the default source and assume this is sufficient.
+
+## Dashboards
+
+Since November 18, the Prometheus panels in `infra/grafana-dashboards/` read
+Pulse. Their `$datasource` variables default to Tuist Pulse Metrics and offer
+only `/^Tuist Pulse Metrics/` sources: select the staging, canary or
+management source to view that environment. Every `A and on (L) B` became
+`A * on (L) group_left () (max by (L) (B) * 0 + 1)`, because Pulse fails to plan
+`and on` when either side is empty. These still read Grafana Cloud on purpose:
+the cache VM dashboards (`cache-service`, `tuist-cache-server-overview`) and
+the legacy cache half of the Kura adoption share panels, whose senders only
+report to Cloud, plus the Loki and Tempo panels, which no Pulse source can
+serve.
+
+`page-load-apdex` reads Pulse SQL: the server's `request_kind=page_load`
+`Request completed` lines in `opentelemetry_logs`, parsing `status` and
+`duration_ms` and leaving out the `/ready` kubelet probe, which is most of
+them. Its old LogQL parsed `Sent 200 in 12ms`, a format page loads stopped
+logging before November 1, so it had shown nothing since. For November 16,
+12:00 to 13:00, the SQL and Cloud Loki agree on 72 page loads and a P99 of
+704.34 ms. The static-asset panels still parse `Sent N in Xms`, which
+`MarketingStaticAssetObservabilityPlug` logs only when the origin serves an
+asset; neither store had such a line in the 36 hours checked.
 
 ## Cloud storage stopped on November 17, 2026
 

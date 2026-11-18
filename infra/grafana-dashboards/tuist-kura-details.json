@@ -8877,7 +8877,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_node_budget_mbps{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_node_budget_mbps{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}}",
                         "range": true
@@ -8990,7 +8990,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "reconciles {{node}}",
                         "range": true
@@ -9011,7 +9011,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_errors_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_errors_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "errors {{node}}",
                         "range": true
@@ -9124,7 +9124,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_attached_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_attached_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "attached {{node}}",
                         "range": true
@@ -9145,7 +9145,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "skipped {{node}}",
                         "range": true
@@ -9258,7 +9258,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_link_reattach_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_link_reattach_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "link reattach {{node}}",
                         "range": true
@@ -9279,7 +9279,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_attach_failures_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_attach_failures_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "return attach failures {{node}}",
                         "range": true
@@ -9300,7 +9300,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_sibling_overflow_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_sibling_overflow_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "sibling overflow {{node}}",
                         "range": true
@@ -9413,7 +9413,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)) * 8",
                         "instant": false,
                         "legendFormat": "sent {{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9434,7 +9434,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_rate_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_rate_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)) * 8",
                         "instant": false,
                         "legendFormat": "rate {{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9455,7 +9455,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_ceil_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_ceil_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)) * 8",
                         "instant": false,
                         "legendFormat": "ceil {{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9568,7 +9568,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9681,7 +9681,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9794,7 +9794,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_direct_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_direct_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "direct {{node}}",
                         "range": true
@@ -9815,7 +9815,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_returned_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_returned_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "returned {{node}}",
                         "range": true
@@ -9836,7 +9836,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_dropped_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_dropped_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "return dropped {{node}}",
                         "range": true
@@ -18803,7 +18803,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) / (sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) + sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_lended_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) / (sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) + sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_lended_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -22587,7 +22587,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(time() - kura_startup_recovery_last_progress_timestamp_seconds{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) and on (cluster, pod) (kura_startup_recovery_phase{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"} < 4)",
+                        "expr": "(time() - kura_startup_recovery_last_progress_timestamp_seconds{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * on (cluster, pod) group_left () (max by (cluster, pod) (kura_startup_recovery_phase{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"} < 4) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}}",
                         "range": true
@@ -27720,10 +27720,10 @@
       {
         "kind": "DatasourceVariable",
         "spec": {
-          "allowCustomValue": true,
+          "allowCustomValue": false,
           "current": {
-            "text": "grafanacloud-tuist-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": "dontHide",
           "includeAll": false,
@@ -27733,7 +27733,7 @@
           "options": [],
           "pluginId": "prometheus",
           "refresh": "onDashboardLoad",
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false
         }
       },

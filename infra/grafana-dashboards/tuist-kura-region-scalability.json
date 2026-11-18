@@ -74,17 +74,17 @@
           "name": "datasource",
           "label": "Data Source",
           "pluginId": "prometheus",
-          "allowCustomValue": true,
+          "allowCustomValue": false,
           "current": {
-            "text": "grafanacloud-tuist-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": "dontHide",
           "includeAll": false,
           "multi": false,
           "options": [],
           "refresh": "onDashboardLoad",
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false
         }
       },
@@ -2307,7 +2307,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "count by (cluster, region) (max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "expr": "count by (cluster, region) ((max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"})) * on (cluster, pod) group_left () ((max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100) * 0 + 1))",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -2330,7 +2330,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100))",
+                        "expr": "min by (cluster, region) ((histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"})))) * on (cluster, pod) group_left () (max by (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100) * 0 + 1))",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -2753,7 +2753,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100)",
+                        "expr": "(histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"})))) * on (cluster, pod) group_left () (max by (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100) * 0 + 1)",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -3693,7 +3693,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100))",
+                        "expr": "min by (cluster, region) ((histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"})))) * on (cluster, pod) group_left () (max by (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100) * 0 + 1))",
                         "legendFormat": "{{region}}",
                         "instant": false,
                         "range": true

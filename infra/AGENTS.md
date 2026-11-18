@@ -248,6 +248,8 @@ Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.c
 
 Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
 
+Kubernetes metrics live in Pulse, not Grafana Cloud: point Prometheus panels at `$datasource` restricted to `/^Tuist Pulse Metrics/`, and write queries that Pulse can plan (no `and on`, no `absent()`, and label-values queries that name a metric). See "Dashboards" in `helm/k8s-monitoring/pulse-grafana.md`.
+
 `processor-service.json` compares application database queues and query phases
 across the web and processor runtimes using the shared `tuist_repo_*` metrics
 and the `workload` label. Cloud, shadow, and ops pools have distinct repository
