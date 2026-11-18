@@ -2510,9 +2510,11 @@ runnersFleetLinux:
   nestedVirtualization:
     nri:
       enabled: true
-  # Off since 2026-11-17, when the Pod-level limit plus the then 2560Mi
-  # podFixed capped each VM's host cgroup at its guest RAM plus 512 MiB, and the host OOM killer
-  # stopped full guests mid-job (GitHub's "runner lost communication").
+  # Off by default since 2026-11-17, when the Pod-level limit plus the then
+  # 2560Mi podFixed capped each VM's host cgroup at its guest RAM plus 512 MiB,
+  # and the host OOM killer stopped full guests mid-job (GitHub's "runner lost
+  # communication"). Shapes come back one at a time with `exclusiveCPUs: true`
+  # once the runners-vm-memory-probe workflow passes on them.
   # Turning it back on rolls idle Pods; never restart the kubelet on a host
   # running exclusive Pods: it leaks their cores (kubernetes/kubernetes#140989,
   # see infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
@@ -2578,8 +2580,11 @@ runnersFleetLinux:
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     # Each idle 32 GiB runner reserves 35.5 GiB with the kata overhead.
+    # First shape back on exclusive CPUs: no customer jobs, and the tuist
+    # account's `linux-xlarge` profile probes it.
     - vcpus: 8
       memoryGb: 32
+      exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
     - vcpus: 16
