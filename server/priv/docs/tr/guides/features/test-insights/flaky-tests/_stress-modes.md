@@ -1,8 +1,8 @@
 ### Etkinleştirme {#enabling-stress-testing}
 
-Kontrol varsayılan olarak kapalıdır. Bir mod ayarlayın:
+Kontrol varsayılan olarak kapalıdır. Bir mod belirleyin:
 
-- **`report`**: Her kararsız test senaryosu için uyarı verir. Çalıştırma yine kendi sonucuyla sonlanır.
-- **`enforce`**: Kararsız bir test senaryosu çalıştırmayı başarısız kılar ve başarısız bir testle aynı çıkış kodunu döndürür.
+- **`report`**: her kararsız test senaryosu için uyarı verir. Çalıştırma yine kendi sonucuyla sonlanır.
+- **`enforce`**: bir kararsız test senaryosu çalıştırmayı başarısız kılar; çıkış kodu başarısız bir testle aynı olur.
 
-`enforce` öğesinin neleri engelleyeceğini görmek için birkaç hafta boyunca `report` ile başlayın.
+Birkaç hafta boyunca `report` ile başlayarak `enforce` modunun neleri engelleyeceğini görün.

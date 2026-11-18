@@ -11,6 +11,7 @@ defmodule Tuist.ThreadsTest do
   alias Tuist.Agents.Workers.PurgeDeletedSessionsWorker
   alias Tuist.FeatureFlags
   alias Tuist.Push.Workers.ThreadFinishedWorker
+  alias Tuist.Sandboxes.Sandbox
   alias Tuist.Threads
   alias Tuist.Threads.Approval
   alias Tuist.Threads.Message
@@ -110,6 +111,47 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, %{id: id}} = Threads.create(user, account, Map.put(attrs, "attachments", []))
     assert id == thread.id
     assert {:error, :invalid_arguments} = Threads.create(user, account, request(""))
+  end
+
+  test "workspace readiness belongs to the live run's running sandbox, after checkout", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    run = Repo.one!(from r in Run, where: r.thread_id == ^thread.id)
+    Repo.update!(Ecto.Changeset.change(run, status: "running", attempt: 3))
+    residency = "threads:#{run.id}:3"
+    sandbox = Repo.insert!(%Sandbox{account_id: account.id, state: :running, residency_work_id: residency})
+    thread = Repo.update!(Ecto.Changeset.change(thread, sandbox_id: sandbox.id))
+
+    ready = fn ->
+      {:ok, current} = Threads.get(user, account, thread.id)
+      Threads.serialize(current).workspace_ready_id
+    end
+
+    assert ready.() == residency
+
+    for state <- [:creating, :resuming, :paused, :error, :archived] do
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: state))
+      assert ready.() == nil
+    end
+
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: :running, residency_work_id: "threads:#{run.id}:2"))
+    assert ready.() == nil
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: :running, residency_work_id: residency))
+    assert ready.() == residency
+
+    Repo.update!(Ecto.Changeset.change(thread, repository: "tuist/tuist", workspace_ready: false))
+    assert ready.() == nil
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(thread), workspace_ready: true))
+    assert ready.() == residency
+
+    for status <- ["queued", "succeeded", "failed"] do
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(run), status: status))
+      assert ready.() == nil
+    end
+
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(run), status: "running"))
+    assert ready.() == residency
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), residency_work_id: nil))
+    assert ready.() == nil
   end
 
   test "deleting a thread deletes its agent session and its stored conversation", %{user: user, account: account} do

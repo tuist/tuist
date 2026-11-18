@@ -46,6 +46,13 @@ it can't show so edges render the message's `content` checklist, and sets the
 conversation's `activity` to `{"title","step","total"}` (the active plan's
 current step) or null. Edges show `activity` in place of a generic working label.
 
+An open thread's optional `workspace_ready_id` identifies its current ready
+sandbox residency, not merely a working agent. The server supplies it only when
+the current run owns a running sandbox and its repository checkout is ready.
+The core clears it for cached/offline history and ended runs. iOS presents one
+brief edge glow per residency, a static cue with Reduced Motion, and a ready
+label; no readiness cue is inferred from agent status alone.
+
 The tab catalog is `threads` (index 0, the default), `halls`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The hall operations live in `Halls`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 

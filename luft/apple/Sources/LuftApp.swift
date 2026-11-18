@@ -18,6 +18,8 @@ struct LuftApp: App {
             #if targetEnvironment(simulator)
                 if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") {
                     CardPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("-LuftSandboxPreview") {
+                    SandboxReadyPreview()
                 } else {
                     AppWorkspace(client: client)
                 }

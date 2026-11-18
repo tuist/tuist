@@ -94,6 +94,8 @@ struct AppConversation: Decodable {
     var snooze: AppSnooze?
     /// The current step of the answering run's plan, when it shared one.
     var activity: AppActivity?
+    /// The core exposes this only for a live, ready sandbox residency.
+    var workspace_ready_id: String?
     /// The thread's owner and the people looped into it by a mention.
     var owner: HallPerson?
     var participants: [HallPerson]?
@@ -402,7 +404,6 @@ struct ConversationView: View {
                 withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(target, anchor: .top) }
             }
         }
-        .background(Noora.backgroundPrimary)
         .safeAreaInset(edge: .top) {
             if let current = thread?.snooze {
                 HStack(spacing: 8) {
@@ -420,6 +421,12 @@ struct ConversationView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .trailing, spacing: 8) {
                 #if os(iOS)
+                    if thread?.workspace_ready_id != nil {
+                        Label("Sandbox ready", systemImage: "checkmark.circle")
+                            .font(.caption)
+                            .foregroundStyle(Noora.labelSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     // Floats over the messages, right above Send, so it is in reach of the thumb.
                     promptsButton
                         .labelStyle(.iconOnly)
@@ -434,6 +441,12 @@ struct ConversationView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
+        }
+        .background {
+            Noora.backgroundPrimary
+            #if os(iOS)
+                .overlay { SandboxReadyEffect(residency: thread?.workspace_ready_id) }
+            #endif
         }
         .navigationTitle(Text(verbatim: thread?.title ?? thread?.goal ?? ""))
         #if os(iOS)
