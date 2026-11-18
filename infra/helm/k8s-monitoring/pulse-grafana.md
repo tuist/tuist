@@ -76,7 +76,9 @@ treated errors as Normal kept that. Seven rules that page through IRM keep
 **Error: Error**, so a Pulse outage still reaches the on-call: `tuist-production-http-5xx`,
 `runner-cache-volume-saves-failing`, `dfkmt5dtpx43kb`, `cfl2e4b9eg8aoc`,
 `ffxqtj0ye58g0b`, `tuist-production-vm-allocator-burst` and
-`ffz1ualjy8fswd-prod`.
+`ffz1ualjy8fswd-prod`. The `-prod`, `-stg` and `-can` copies of
+`pulse-scan-memory-rejections` and `pulse-datanode-telemetry-missing` also keep
+**Error: Error**, since they watch Pulse itself.
 
 Because Keep last state hides an unreachable Pulse, four watchdogs in group
 **Pulse** alert on it, each pending five minutes with no-data and error set
@@ -162,6 +164,7 @@ deployed:
   [#14001](https://github.com/tuist/tuist/pull/14001).
 - `Linux fleet cannot seat a shape` (`bfxmy59vtljpca`): the free seats per
   shape come from draft [#12991](https://github.com/tuist/tuist/pull/12991).
+
 The Cloud originals of `pulse-scan-memory-rejections` and
 `pulse-datanode-telemetry-missing` were deleted; their per-environment copies
 read each Pulse, and the datanode copies stay paused until the `pulse-datanode`

@@ -8,8 +8,12 @@
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-prom",
+        "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cg3i1jh2k1v5sb"
+          },
           "editorMode": "code",
           "expr": "sum by (cluster, pod) (increase(pulse_mito_scan_requests_rejected_total[10m]))",
           "instant": true,
@@ -82,21 +86,204 @@
     "orgID": 1,
     "ruleGroup": "Pulse",
     "title": "Pulse rejecting scans for lack of memory",
-    "uid": "pulse-scan-memory-rejections"
+    "uid": "pulse-scan-memory-rejections-prod"
   },
   {
     "annotations": {
-      "summary": "Pulse datanode scrape targets have disappeared in {{ $labels.cluster }}",
+      "summary": "Pulse datanode {{ $labels.pod }} ({{ $labels.cluster }}) rejected {{ $values.A.Value }} scans in 10 minutes for lack of scan memory",
+      "description": "Each rejected scan is a failed PromQL or SQL read: Grafana alert rules on Pulse error and the Tuist Pulse pages fail or stall. The scan budget is 25% of the datanode memory limit and is shared by every region the datanode serves, including the single metric region. Check which datanode holds the metric region, raise the datanode memory limit in infra/helm/pulse/values-production.yaml, or spread the regions.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-rejecting-scans-for-lack-of-memory"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "pulse-metrics-staging",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "pulse-metrics-staging"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster, pod) (increase(pulse_mito_scan_requests_rejected_total[10m]))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "env": "staging",
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Pulse",
+    "title": "Pulse rejecting scans for lack of memory",
+    "uid": "pulse-scan-memory-rejections-stg"
+  },
+  {
+    "annotations": {
+      "summary": "Pulse datanode {{ $labels.pod }} ({{ $labels.cluster }}) rejected {{ $values.A.Value }} scans in 10 minutes for lack of scan memory",
+      "description": "Each rejected scan is a failed PromQL or SQL read: Grafana alert rules on Pulse error and the Tuist Pulse pages fail or stall. The scan budget is 25% of the datanode memory limit and is shared by every region the datanode serves, including the single metric region. Check which datanode holds the metric region, raise the datanode memory limit in infra/helm/pulse/values-production.yaml, or spread the regions.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-rejecting-scans-for-lack-of-memory"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "pulse-metrics-canary",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "pulse-metrics-canary"
+          },
+          "editorMode": "code",
+          "expr": "sum by (cluster, pod) (increase(pulse_mito_scan_requests_rejected_total[10m]))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Pulse",
+    "title": "Pulse rejecting scans for lack of memory",
+    "uid": "pulse-scan-memory-rejections-can"
+  },
+  {
+    "annotations": {
+      "summary": "Pulse datanode scrape targets have disappeared",
       "description": "The pulse-datanode scrape job in k8s-monitoring stopped finding targets, so Pulse rejecting scans for lack of memory can no longer fire. Check the alloy-metrics collector, the datanode pods, and the pulse-datanode-metrics NetworkPolicy.",
       "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-datanode-telemetry-missing"
     },
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-prom",
+        "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cg3i1jh2k1v5sb"
+          },
           "editorMode": "code",
-          "expr": "absent_over_time(up{cluster=\"tuist-production\", job=\"pulse-datanode\"}[15m])\nor\nabsent_over_time(up{cluster=\"tuist-staging\", job=\"pulse-datanode\"}[15m])\nor\nabsent_over_time(up{cluster=\"tuist-canary\", job=\"pulse-datanode\"}[15m])",
+          "expr": "((sum(count_over_time(up{job=\"pulse-datanode\"}[15m])) or vector(0)) + 0) < bool 1",
           "instant": true,
           "intervalMs": 1000,
           "legendFormat": "__auto",
@@ -158,7 +345,7 @@
     "execErrState": "Error",
     "folderUID": "df5dn1g4rckxsf",
     "for": "0s",
-    "isPaused": false,
+    "isPaused": true,
     "keep_firing_for": "0s",
     "labels": {
       "severity": "warning"
@@ -167,6 +354,185 @@
     "orgID": 1,
     "ruleGroup": "Pulse",
     "title": "Pulse datanode telemetry missing",
-    "uid": "pulse-datanode-telemetry-missing"
+    "uid": "pulse-datanode-telemetry-missing-prod"
+  },
+  {
+    "annotations": {
+      "summary": "Pulse datanode scrape targets have disappeared",
+      "description": "The pulse-datanode scrape job in k8s-monitoring stopped finding targets, so Pulse rejecting scans for lack of memory can no longer fire. Check the alloy-metrics collector, the datanode pods, and the pulse-datanode-metrics NetworkPolicy.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-datanode-telemetry-missing"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "pulse-metrics-staging",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "pulse-metrics-staging"
+          },
+          "editorMode": "code",
+          "expr": "((sum(count_over_time(up{job=\"pulse-datanode\"}[15m])) or vector(0)) + 0) < bool 1",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": true,
+    "keep_firing_for": "0s",
+    "labels": {
+      "env": "staging",
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Pulse",
+    "title": "Pulse datanode telemetry missing",
+    "uid": "pulse-datanode-telemetry-missing-stg"
+  },
+  {
+    "annotations": {
+      "summary": "Pulse datanode scrape targets have disappeared",
+      "description": "The pulse-datanode scrape job in k8s-monitoring stopped finding targets, so Pulse rejecting scans for lack of memory can no longer fire. Check the alloy-metrics collector, the datanode pods, and the pulse-datanode-metrics NetworkPolicy.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-datanode-telemetry-missing"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "pulse-metrics-canary",
+        "model": {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "pulse-metrics-canary"
+          },
+          "editorMode": "code",
+          "expr": "((sum(count_over_time(up{job=\"pulse-datanode\"}[15m])) or vector(0)) + 0) < bool 1",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": true,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Pulse",
+    "title": "Pulse datanode telemetry missing",
+    "uid": "pulse-datanode-telemetry-missing-can"
   }
 ]

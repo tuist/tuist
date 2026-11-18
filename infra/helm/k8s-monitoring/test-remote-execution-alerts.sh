@@ -6,9 +6,9 @@ temporary="$(mktemp -d)"
 trap 'rm -rf "${temporary}"' EXIT
 source="${directory}/remote-execution-alert-rules.json"
 
-jq -e 'length == 13 and all(.[];
+jq -e 'length == 12 and all(.[];
   .condition == "C" and .labels.severity == "warning" and
-  .noDataState == "OK" and .execErrState == (if .data[0].datasourceUid == "grafanacloud-prom" then "Error" else "KeepLast" end) and .notification_settings == null and
+  .noDataState == "OK" and .execErrState == "KeepLast" and .notification_settings == null and
   (.data[] | select(.refId == "C") | .model | .expression == "A" and .type == "threshold"))' "${source}" >/dev/null
 # test-pulse-environment-copies.sh keeps the other copies in step with these.
 jq 'map(select(.data[0].datasourceUid == "cg3i1jh2k1v5sb"))' "${source}" > "${temporary}/production.json"

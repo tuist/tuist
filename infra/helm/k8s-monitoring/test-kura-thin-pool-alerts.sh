@@ -14,9 +14,9 @@ amtool="${AMTOOL:-amtool}"
 
 # Policy routing only: paging comes from the notification policy, so staging
 # and canary never page.
-jq -e 'length == 6 and all(.[];
+jq -e 'length == 8 and all(.[];
   .condition == "C" and .ruleGroup == "Kura thin pools" and .isPaused == false and
-  .noDataState == "OK" and .execErrState == (if .data[0].datasourceUid == "grafanacloud-prom" then "Error" else "KeepLast" end) and
+  .noDataState == "OK" and .execErrState == "KeepLast" and
   (has("notification_settings") | not) and
   (.labels.severity | IN("warning", "critical")) and
   (.data[] | select(.refId == "C") | .model |
@@ -26,6 +26,9 @@ jq -e --slurpfile rules "${source}" '
   | all(.[]; (.object_matchers[0] | .[0] == "alertname" and .[1] == "=~")
              and (.object_matchers[0][2] | split("|") | sort) == $paging)
 ' "${policy}" >/dev/null
+# test-pulse-environment-copies.sh keeps the other copies in step with these.
+jq 'map(select(.data[0].datasourceUid == "cg3i1jh2k1v5sb"))' "${source}" > "${temporary}/production.json"
+source="${temporary}/production.json"
 
 jq '{groups: [{name: "Kura thin pools", interval: "1m", rules: map({
   alert: .uid,

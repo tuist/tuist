@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "596e5f64d73adcbc082c3cfc65a38c87ecfed55b04fcca3dd28af9c3fe5f012d",
+  "hash": "6df338c8383a606fe100945a0d10891b00150daad1a1c6f65dd2326858f8e2e8",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,10 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Once remote execution {#once-remote-execution}": {
-                  "content_hash": "40ef1d8a6ae1f59ce521baa8c24d5cc575a9401af6e494762308918d89bc5e28"
+                  "content_hash": "c9b79175b185749345013ea434a1ac3b3b69aeb4290ce8e555aaf49c0eea887e"
+                },
+                "## Inspect remote execution {#inspect-remote-execution}": {
+                  "content_hash": "de258f1e1439eda424f23484df15e8f97eb1e371581fe3f97836c3f7b0b49714"
                 },
                 "## Prepare actions for workers {#prepare-actions-for-workers}": {
-                  "content_hash": "bb4a8cdb5e6e0e0111932afb493453c1b87f58f4d2b2f7cddaeacd4dadecf63e"
+                  "content_hash": "76003a37c5360391fb50705a71088d14aca4dbdd68d5e3d9df82b5fc6c4a2bac"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "37b51116bc7976cf51c8219b1fdf5896b2e5ca37f59af39690f186efae66264d"
@@ -26,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9e46f3cf83df25bd75009bc6e2b59a59edfcd82824fa2b1f039fc571cc9f2d3a",
+          "hash": "bef4044f2ce1f11e9c3ce5d1b2a2aa485e5aabbf09d6dde1bf75a7464f00d3d8",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/once.md",
           "metadata": {
-            "content_hash": "72cf1b7ddb3bb79faddeeeb49fe23eaeaf1129abd8b5748f2d783bf0eea19d31"
+            "content_hash": "300550bb2a9381ae8f63bda31f1aed0ad764a004cec868e9c295bc3cd0266cba"
           }
         },
         {
@@ -227,14 +230,14 @@
         }
       ],
       "details": {},
-      "hash": "596e5f64d73adcbc082c3cfc65a38c87ecfed55b04fcca3dd28af9c3fe5f012d",
+      "hash": "6df338c8383a606fe100945a0d10891b00150daad1a1c6f65dd2326858f8e2e8",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/once.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "0b51e4be23a270a6c028ebe7c1a544bec6c99e43d662978db7ebe44a0b809d12",
+  "output_hash": "e88fd8986b926458e92eeb2d542b6fdb60c69b08c118fce76bf936ac599fa84f",
   "output_path": "server/priv/docs/zh_Hans/guides/features/runners/once.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "b1980781033908322e1bcf9d50abb18fdacb059f",
   "source_path": "server/priv/docs/en/guides/features/runners/once.md",
-  "translated_at": "2026-11-06T19:16:50.216160Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-18T07:03:28.108568Z",
+  "translation_session_id": "01a1ed75-f051-784a-a4e0-97349e553daf"
 }

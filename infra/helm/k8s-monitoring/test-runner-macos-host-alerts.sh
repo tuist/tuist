@@ -8,7 +8,7 @@ source="${directory}/runner-macos-host-alert-rules.json"
 
 jq -e 'all(.[];
   .condition == "C" and .labels.severity == "warning" and
-  .noDataState == "OK" and .execErrState == (if .data[0].datasourceUid == "grafanacloud-prom" then "Error" else "KeepLast" end) and
+  .noDataState == "OK" and .execErrState == "KeepLast" and
   (.data[] | select(.refId == "C") | .model |
     .expression == "A" and .type == "threshold" and
     .conditions[0].evaluator == {params: [0], type: "gt"}))' "${source}" >/dev/null

@@ -228,6 +228,77 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorkerTest do
              )
   end
 
+  test "a pause racing creator capture waits quietly and never resumes the Orb" do
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
+    reject(&OIDC.amp_creator/2)
+    reject(&Sandboxes.exec/3)
+    reject(&Sentry.capture_message/2)
+
+    # The daemon starts pausing before the control plane updates the running row.
+    for reason <- ["sandbox is being paused: #{sandbox.id}", "sandbox is not running: #{sandbox.id}"] do
+      stub(Sandboxes, :exec_running, fn _, _, _ -> {:error, reason} end)
+      assert {:snooze, 60} = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+      assert is_nil(Repo.reload!(sandbox).amp_creator_user_id)
+    end
+
+    sandbox |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+    reject(&Sandboxes.exec_running/3)
+    assert :ok = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+    assert Repo.reload!(sandbox).state == :paused
+  end
+
+  test "captures the creator when the Orb resumes before the snoozed retry" do
+    uuid = Ecto.UUID.generate()
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> uuid)
+    reject(&Sandboxes.exec/3)
+    reject(&Sentry.capture_message/2)
+
+    stub(Sandboxes, :exec_running, fn _, _, _ ->
+      {:error, "sandbox is being paused: #{sandbox.id}"}
+    end)
+
+    assert {:snooze, 60} = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+    assert is_nil(Repo.reload!(sandbox).amp_creator_user_id)
+
+    # The lifecycle completes a pause and resume between attribution attempts.
+    sandbox |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+    sandbox |> Repo.reload!() |> Ecto.Changeset.change(state: :running) |> Repo.update!()
+
+    stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "proof"}} end)
+
+    stub(OIDC, :amp_creator, fn "proof", "https://tuist.dev" ->
+      {:ok,
+       %{
+         user_id: "user_creator",
+         name: "amp-name",
+         username: "amp-handle",
+         email: "creator@example.com",
+         thread_id: "T-" <> uuid
+       }}
+    end)
+
+    assert :ok = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id}, attempt: 2)
+
+    assert %{
+             amp_creator_user_id: "user_creator",
+             amp_creator_name: "amp-name",
+             amp_creator_username: "amp-handle",
+             amp_creator_email: "creator@example.com",
+             state: :running
+           } = Repo.reload!(sandbox)
+  end
+
+  test "preserves genuine execution failure reasons for retries" do
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
+
+    for reason <- [:timeout, :node_disconnected, "guest agent unavailable"] do
+      stub(Sandboxes, :exec_running, fn _, _, _ -> {:error, reason} end)
+
+      assert {:error, {:creator_unavailable, ^reason}} =
+               perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+    end
+  end
+
   test "reports invalid proofs" do
     sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
     stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "untrusted proof"}} end)

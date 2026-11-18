@@ -6,7 +6,7 @@ temporary="$(mktemp -d)"
 trap 'rm -rf "${temporary}"' EXIT
 source="${directory}/runner-host-disk-alert-rule.json"
 
-jq -e 'length == 4 and all(.[]; .execErrState == (if .data[0].datasourceUid == "grafanacloud-prom" then "Error" else "KeepLast" end)) and
+jq -e 'length == 3 and all(.[]; .execErrState == "KeepLast") and
   (.[] | select(.data[0].datasourceUid == "cg3i1jh2k1v5sb") |
     .noDataState == "NoData" and
     .for == "15m" and .condition == "C" and .isPaused == false and
