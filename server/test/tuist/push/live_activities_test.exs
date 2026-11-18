@@ -143,6 +143,26 @@ defmodule Tuist.Push.LiveActivitiesTest do
       refute Map.has_key?(progress, "total")
     end
 
+    test "a finished Once test stays Testing in the trail", %{user: user} do
+      run = run!(thread!(user, "Run the tests", "running"), "running")
+
+      call!(run, 1, "Bash", "completed", %{
+        "command" => "test",
+        "state" => "running",
+        "planned" => 2,
+        "done" => 1,
+        "cached" => 0,
+        "failed" => 0,
+        "tests" => %{"passed" => 3, "failed" => 0, "skipped" => 0}
+      })
+
+      {document, _working} = LiveActivities.content(user)
+
+      # Killed while running, its last snapshot still says so; it was a test
+      # run either way, and the thread now thinks.
+      assert [%{"phase" => "thinking", "trail" => ["teal", "gray"]}] = document["threads"]
+    end
+
     test "shows a thread that finished since the last push once, first and with its steps", %{user: user} do
       working = thread!(user, "Bump Kura to 0.9", "running", ago: 200)
       run!(working, "running")

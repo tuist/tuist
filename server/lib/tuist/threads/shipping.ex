@@ -55,10 +55,11 @@ defmodule Tuist.Threads.Shipping do
           metadata, path = entry.split(b'\t', 1)
           mode, kind, oid = metadata.decode('ascii').split()
           original[path] = (mode, kind, oid)
-      # .once/ is Once's cache and runtime state from building in the
-      # workspace, never part of the change, even where the repository
-      # does not ignore it. Tracked paths under it are left alone.
-      paths = set(git(['ls-files', '--cached', '--others', '--exclude-standard', '--exclude=/.once/', '-z'], limit=16777216).split(b'\x00')) - {b''}
+      # A .once/ directory, at the root or next to any project Once built,
+      # is Once's cache and runtime state, never part of the change, even
+      # where the repository does not ignore it. Tracked paths under it are
+      # left alone.
+      paths = set(git(['ls-files', '--cached', '--others', '--exclude-standard', '--exclude=.once/', '-z'], limit=16777216).split(b'\x00')) - {b''}
       if len(paths) > 50000: raise ValueError()
       tree, total = {}, 0
       for raw in sorted(paths):
