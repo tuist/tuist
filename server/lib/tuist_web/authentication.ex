@@ -305,6 +305,23 @@ defmodule TuistWeb.Authentication do
   end
 
   @doc """
+  Binds this browser to a replacement session token, such as one issued when
+  an MFA factor changes.
+
+  The browser stays signed in across restarts only if its previous login did.
+  The remember-me cookie is the record of that choice: it outlives the
+  browser-session `_tuist_key` cookie, which mobile Safari often discards.
+  """
+  def replace_session_token(conn, token, auth_method) do
+    remember? = conn |> fetch_cookies() |> Map.fetch!(:req_cookies) |> Map.has_key?(@remember_me_cookie)
+    conn = BrowserSession.put_authentication(conn, token, auth_method, remember?)
+
+    if remember?,
+      do: put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options),
+      else: delete_remember_me_cookie(conn)
+  end
+
+  @doc """
   Clears the remember-me cookie with the attributes it was written with.
   """
   def delete_remember_me_cookie(conn) do
