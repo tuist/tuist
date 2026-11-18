@@ -128,11 +128,29 @@ jobs:
         run: |
           python3 prepare-native.py
           once build TuistGuildDesktop
-          # Concurrent test batches race on shared per-package outputs on Windows,
-          # so run them one at a time there, as distribution/release.sh does.
-          jobs=
-          test "$RUNNER_OS" != Windows || jobs=1
-          once test --all ${jobs:+--jobs "$jobs"}
+          status=0
+          if test "$RUNNER_OS" = Windows; then
+            # The Android client's Kotlin tests need a Kotlin toolchain and cover
+            # nothing Windows ships, so Windows runs every other test target. Its
+            # batches race on shared per-package outputs, so run them one at a time,
+            # as distribution/release.sh does.
+            targets=$(once --format json query 'MATCH (t:Target)-[:EXPOSES]->(c:Capability {name: "test"}) RETURN t.id, t.kind' |
+              jq -r '.rows[] | select(.[1] != "kotlin_jvm_test") | .[0]' | tr -d '\r')
+            test -n "$targets"
+            for target in $targets; do
+              once test "$target" --jobs 1 || status=1
+            done
+          else
+            once test --all || status=1
+          fi
+          if test "$status" != 0; then
+            for log in .once/out/*/test/rust-libtest.log; do
+              test -f "$log" || continue
+              printf '\n--- %s ---\n' "$log"
+              cat "$log"
+            done
+            exit 1
+          fi
       - name: Script tests and shared navigation fixture
         run: |
           for test in distribution/test_*.sh; do bash "$test"; done

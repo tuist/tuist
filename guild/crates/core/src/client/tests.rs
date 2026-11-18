@@ -1166,8 +1166,10 @@ fn offline_reads_come_from_the_store_and_queued_threads_replay_once_online() {
     // Earlier pages are never stored: offline they fail rather than repeat the latest page.
     let earlier = call(&mut c, &mut h, "thread", json!({"id":seen,"before":10}));
     assert!(earlier.get("error").is_some(), "{earlier}");
-    // Relaunched, still offline: the store is on disk, not in memory.
-    let mut c = MobileClient::new();
+    // Relaunched, still offline: the store is on disk, not in memory. Replacing
+    // the client closes its database, which Windows needs before sign-out
+    // can delete the file.
+    c = MobileClient::new();
     let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
     assert_eq!(inbox["data"]["threads"][0]["pending"], true);
     assert_eq!(inbox["data"]["threads"][1]["id"], seen);
@@ -1510,7 +1512,7 @@ fn the_store_never_masks_what_the_server_said() {
         .clone()
         .unwrap()
         .join(format!("{profile}.sqlite3"));
-    let mut c = MobileClient::new();
+    c = MobileClient::new();
     rusqlite::Connection::open(&path)
         .unwrap()
         .pragma_update(None, "user_version", store::MIGRATIONS.len() as i64 + 1)
