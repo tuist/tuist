@@ -264,6 +264,15 @@ impl Change {
 mod tests {
     use super::*;
 
+    /// An absolute folder on this platform: Windows needs a drive.
+    fn abs(path: &str) -> String {
+        if cfg!(windows) {
+            format!("C:{path}")
+        } else {
+            path.into()
+        }
+    }
+
     #[test]
     fn names_read_like_host_names() {
         assert_eq!(
@@ -279,31 +288,30 @@ mod tests {
     #[test]
     fn the_new_project_folder_stays_inside_a_runner_folder() {
         let mut config = Config {
-            folders: vec!["/srv/work".into()],
-            new_project_folder: "/srv/work".into(),
+            folders: vec![abs("/srv/work")],
+            new_project_folder: abs("/srv/work"),
             ..Config::default()
         };
         config
-            .apply(&Change::NewProjectFolder("/srv/work/new".into()))
+            .apply(&Change::NewProjectFolder(abs("/srv/work/new")))
             .unwrap();
-        assert_eq!(config.new_project_folder, "/srv/work/new");
+        assert_eq!(config.new_project_folder, abs("/srv/work/new"));
         // A sibling that only shares a string prefix is outside.
         assert!(
             config
-                .apply(&Change::NewProjectFolder("/srv/workshop".into()))
+                .apply(&Change::NewProjectFolder(abs("/srv/workshop")))
                 .is_err()
         );
-        assert_eq!(config.new_project_folder, "/srv/work/new");
+        assert_eq!(config.new_project_folder, abs("/srv/work/new"));
 
+        config.apply(&Change::AddFolder(abs("/opt/code"))).unwrap();
         config
-            .apply(&Change::AddFolder("/opt/code".into()))
+            .apply(&Change::RemoveFolder(abs("/srv/work")))
             .unwrap();
-        config
-            .apply(&Change::RemoveFolder("/srv/work".into()))
-            .unwrap();
-        assert_eq!(config.folders, ["/opt/code"]);
+        assert_eq!(config.folders, [abs("/opt/code")]);
         assert_eq!(
-            config.new_project_folder, "/opt/code",
+            config.new_project_folder,
+            abs("/opt/code"),
             "removing its folder moves it to one that remains"
         );
     }
@@ -319,14 +327,10 @@ mod tests {
                 .apply(&Change::AddFolder("relative/path".into()))
                 .is_err()
         );
-        assert!(
-            config
-                .apply(&Change::AddFolder("/a/../etc".into()))
-                .is_err()
-        );
-        config.apply(&Change::AddFolder("/a".into())).unwrap();
-        config.apply(&Change::AddFolder("/a".into())).unwrap();
-        assert_eq!(config.folders, ["/a"]);
+        assert!(config.apply(&Change::AddFolder(abs("/a/../etc"))).is_err());
+        config.apply(&Change::AddFolder(abs("/a"))).unwrap();
+        config.apply(&Change::AddFolder(abs("/a"))).unwrap();
+        assert_eq!(config.folders, [abs("/a")]);
     }
 
     #[test]
