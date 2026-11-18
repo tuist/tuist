@@ -35,6 +35,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
+      included_applications: [:fun_with_flags, :fun_with_flags_ui],
       extra_applications: [:logger, :runtime_tools, :os_mon, :ssh, :inets]
     ]
   end
