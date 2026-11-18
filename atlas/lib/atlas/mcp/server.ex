@@ -356,6 +356,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
+  alias Atlas.MCP.Tools.UpdateTuistRunnerTrial
   alias Atlas.MCP.Tools.UploadPostalLetter
   alias Atlas.Users.BusinessProfile
 
@@ -585,7 +586,8 @@ defmodule Atlas.MCP.Server do
     GetTuistAccountPlan,
     UpdateTuistAccountPlan,
     GetTuistRunnerBilling,
-    ActivateTuistRunnerPrepaidPool
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial
   ]
   # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
   @feature_flag_read_tools [
@@ -601,7 +603,8 @@ defmodule Atlas.MCP.Server do
     UpdateTuistFeatureFlag,
     UpdateTuistRunnerConcurrencyLimits,
     UpdateTuistAccountPlan,
-    ActivateTuistRunnerPrepaidPool
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial
   ]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
@@ -874,6 +877,7 @@ defmodule Atlas.MCP.Server do
     UpdateTuistAccountPlan,
     GetTuistRunnerBilling,
     ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial,
     ListAssets,
     GetAsset,
     ListAssetFinancings,

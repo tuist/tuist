@@ -358,7 +358,7 @@ defmodule Atlas.MCP.ServerTest do
   @flag_tool_names ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag
                       get_tuist_account get_tuist_runner_concurrency_limits update_tuist_runner_concurrency_limits
                       get_tuist_account_plan update_tuist_account_plan
-                      get_tuist_runner_billing activate_tuist_runner_prepaid_pool)
+                      get_tuist_runner_billing activate_tuist_runner_prepaid_pool update_tuist_runner_trial)
 
   test "feature flag discovery and dispatch require dedicated scopes in addition to the observability group" do
     stub(Proxy, :list_hoisted_tools, fn _conn -> [] end)
@@ -375,7 +375,7 @@ defmodule Atlas.MCP.ServerTest do
            ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag
               get_tuist_account get_tuist_runner_concurrency_limits update_tuist_runner_concurrency_limits
               get_tuist_account_plan update_tuist_account_plan
-              get_tuist_runner_billing activate_tuist_runner_prepaid_pool)}
+              get_tuist_runner_billing activate_tuist_runner_prepaid_pool update_tuist_runner_trial)}
         ] do
       stub(Users, :has_scope?, fn %User{}, scope -> Atlas.Authorization.granted?(granted, scope) end)
       conn = %{assigns: %{current_user: %User{}, mcp_claims: %{"mcp_tool_groups" => groups}}}
