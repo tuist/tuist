@@ -6,7 +6,10 @@
 }: let
   hostName = config.networking.hostName;
   isNonProduction = lib.hasSuffix "-staging" hostName || lib.hasSuffix "-canary" hostName;
-  cachePromexScrapeInterval = if isNonProduction then "120s" else "60s";
+  cachePromexScrapeInterval =
+    if isNonProduction
+    then "120s"
+    else "60s";
   internalExporterScrapeInterval = "60s";
 
   grafanaCloudUrl = config.services.onepassword-secrets.secrets.grafanaCloudPromRemoteWriteUrl.path;
@@ -186,7 +189,7 @@
       // Drop routine completion duplicates from Docker while preserving every
       // warning, error, and unusual response.
       stage.match {
-        selector = "{app=\"cache-docker\"} |~ \"status=(2[0-9]{2}|404).*\\[info\\] Request completed\""
+        selector = "{app=\"cache-docker\"} |~ \"status=(2[0-9]{2}|404).*\\\\[info\\\\] Request completed\""
         action   = "drop"
 
         drop_counter_reason = "cache_request_completion_duplicate"

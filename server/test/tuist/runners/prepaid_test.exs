@@ -27,6 +27,26 @@ defmodule Tuist.Runners.PrepaidTest do
     :ok
   end
 
+  describe "on_demand_cost_for_milliseconds/2" do
+    test "charges a macOS baseline minute $0.05" do
+      assert Prepaid.on_demand_cost_for_milliseconds(:macos, 100 * 60_000) == Money.new(500, :USD)
+    end
+
+    test "charges a Linux baseline minute $0.0024, as the pricing page lists for 2 vCPU / 8 GB" do
+      assert Prepaid.on_demand_cost_for_milliseconds(:linux, 1_000 * 60_000) == Money.new(240, :USD)
+    end
+
+    test "charges the 1 vCPU / 2 GB Linux machine $0.001 a minute through its multiplier" do
+      multiplier = Tuist.Runners.Catalog.billing_multiplier(:linux, 1, 2)
+      units = div(10_000 * 60_000 * multiplier, 10_000)
+
+      # The multiplier truncates to a basis point, so 10,000 minutes come
+      # to a hair under $10.
+      assert Prepaid.on_demand_cost_for_milliseconds(:linux, units) == Money.new(999, :USD)
+      assert_in_delta Prepaid.on_demand_dollars(:linux, units), 10.0, 0.01
+    end
+  end
+
   describe "refresh_balance/1" do
     test "writes the cache even when nothing is left" do
       # summarize/1 answers nil for an account holding nothing, and the
@@ -100,6 +120,29 @@ defmodule Tuist.Runners.PrepaidTest do
       assert Enum.map(balance.grants, & &1.id) == [live.id]
     end
 
+    test "strict pools stop showing spendable credit at the usage cutoff, before settlement grace ends" do
+      stub(DateTime, :utc_now, fn -> ~U[2027-06-01 00:00:00Z] end)
+
+      settled_later =
+        grant(%{
+          expires_at: DateTime.to_unix(~U[2027-06-05 00:00:00Z]),
+          metadata: %{"tuist_runner_credit" => "pool", "tuist_prepaid_expires_on" => "2027-05-31"}
+        })
+
+      stub(CreditGrants, :list_for_customer, fn _ -> {:ok, [settled_later]} end)
+      assert is_nil(Prepaid.balance(account()))
+    end
+
+    test "a warmed balance cannot remain spendable past its contractual cutoff" do
+      cutoff = ~U[2027-06-01 00:00:00Z]
+      stub(DateTime, :utc_now, fn -> cutoff end)
+      cached = %{available: Money.new(694_500, :USD), expires_at: cutoff}
+      stub(KeyValueStore, :get, fn _, _ -> cached end)
+      stub(CreditGrants, :list_for_customer, fn _ -> {:ok, []} end)
+
+      assert is_nil(Prepaid.balance(account()))
+    end
+
     test "ignores grants that are not runner credit" do
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
         {:ok, [grant(%{metadata: %{"some_other_product" => "true"}}), grant(%{metadata: nil})]}
@@ -156,8 +199,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
       assert balance.available == Money.new(37_500, :USD)
       assert balance.granted == Money.new(75_000, :USD)
-      # $750 of credit buys 12,500 minutes at the $0.06 standard rate.
-      assert balance.granted_minutes == 12_500
+      # $750 of credit buys 15,000 minutes at the $0.05 standard rate.
+      assert balance.granted_minutes == 15_000
     end
 
     test "counts a pool by what it has left toward the period, and a monthly grant in full" do
@@ -194,8 +237,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
       balance = Prepaid.balance(%Account{customer_id: customer_id})
 
-      assert balance.granted_minutes == 262_500
-      assert balance.period_minutes == 62_500
+      assert balance.granted_minutes == 315_000
+      assert balance.period_minutes == 75_000
       assert Enum.find(balance.grants, &(&1.id == "credgr_pool")).kind == "pool"
     end
   end
@@ -286,6 +329,31 @@ defmodule Tuist.Runners.PrepaidTest do
       end)
 
       assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs())
+    end
+
+    test "an audited strict activation funds the exact minutes but only the final contract-boundary invoice" do
+      stub(Billing, :current_billing_period, fn _account -> {~U[2026-09-21 08:48:39Z], ~U[2026-10-21 08:48:39Z]} end)
+      activation_id = Ecto.UUID.generate()
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 694_500
+        assert attrs.price_ids == [@macos_price]
+        assert attrs.expires_at == ~U[2027-06-05 00:00:00Z]
+        assert attrs.metadata["tuist_prepaid_activation_id"] == activation_id
+        assert attrs.metadata["tuist_prepaid_expires_on"] == "2027-05-31"
+        {:ok, %{id: "credgr_order"}}
+      end)
+
+      assert {:ok, _} =
+               Prepaid.grant_pool(
+                 pool_account(),
+                 pool_attrs(%{
+                   paid_cents: 625_000,
+                   credit_multiplier: Decimal.new("1.1112"),
+                   expires_on: ~D[2027-05-31],
+                   activation_id: activation_id
+                 })
+               )
     end
 
     test "dates the pool from the contract alone when the account has no billing cycle" do

@@ -41,7 +41,7 @@ The [Tuist Agent Plugin](https://github.com/tuist/agent-plugin) follows the open
 git clone https://github.com/tuist/agent-plugin.git
 ```
 
-It installs Tuist skills and registers `https://tuist.dev/mcp` as a remote MCP server. For clients that do not yet support Agent Plugins, install the [skills](/guides/features/agentic-coding/skills) or configure the [MCP server](/guides/features/agentic-coding/mcp) separately.
+It installs Tuist skills and registers `https://tuist.dev/mcp` as a remote MCP server. For clients that do not yet support Agent Plugins, install the <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> or configure the <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> separately.
 
 ## Authentication
 
@@ -51,4 +51,4 @@ Most skills use the Tuist command-line interface, so authenticate it once before
 tuist auth login
 ```
 
-The hosted MCP server requests its own sign-in when needed. See the [MCP guide](/guides/features/agentic-coding/mcp) for client-specific setup and authentication details.
+The hosted MCP server requests its own sign-in when needed. See the <.localized_link href="/guides/features/agentic-coding/mcp">MCP guide</.localized_link> for client-specific setup and authentication details.

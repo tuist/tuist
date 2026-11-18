@@ -59,32 +59,11 @@ server:
     license:
       item: TUIST_LICENSE_KEY
       field: password
-  # Static ingress configuration for the preview cluster. The dynamic per-deploy
-  # bits (enabled, host, and the matching appUrl) are passed by CI:
-  #
-  #   --set server.ingress.enabled=true
-  #   --set server.ingress.host=pr-1234.preview.tuist.dev
-  #   --set server.appUrl=https://pr-1234.preview.tuist.dev
-  #
-  # Convention for the host label:
-  #   pr-<number>      for PR builds (stable across pushes; redeploys upgrade)
-  #   sha-<7chars>     for one-off commits / branches without a PR
-  #
-  # TLS comes from a wildcard cert for *.preview.tuist.dev issued by the
-  # platform chart's tuist-preview overlay. Two ways to plug it in:
-  #
-  #   1. ingress-nginx default-ssl-certificate: start the controller with
-  #      --default-ssl-certificate=ingress-nginx/preview-tuist-dev-wildcard-tls
-  #      and leave tlsSecretName empty here. Every Ingress without its own
-  #      tls: block falls back to the wildcard. No per-namespace plumbing.
-  #   2. cert-manager + reflector: mirror the wildcard Secret into each
-  #      preview-* namespace and set tlsSecretName below to its name.
-  #
-  # The managed preview cluster uses option 1 through
-  # infra/helm/platform/values-tuist-preview.yaml. The ingress controller's
-  # LoadBalancer Service owns the wildcard record through ExternalDNS, so it
-  # automatically follows the current preview ingress address and resolves
-  # every per-pull-request subdomain.
+  # Ingress stays off by default: `mise -C infra run helm:preview-up` deploys
+  # to kind, which has no ingress or public DNS. To expose a release, set
+  # server.ingress.enabled, server.ingress.host, and the matching
+  # server.appUrl; tlsSecretName names the certificate Secret, or leave it
+  # empty when the ingress controller has a default certificate.
   ingress:
     enabled: false
     className: nginx

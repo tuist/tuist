@@ -7,10 +7,10 @@
 ---
 # Migrate an XcodeGen project {#migrate-an-xcodegen-project}
 
-[XcodeGen](https://github.com/yonaskolb/XcodeGen) is a project-generation tool that uses YAML as [a configuration format](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) to define Xcode projects. Many organizations **adopted it trying to escape from the frequent Git conflicts that arise when working with Xcode projects.** However, frequent Git conflicts is just one of the many problems that organizations experience. Xcode exposes developers with a lot of intricacies and implicit configurations that make it hard to maintain and optimize projects at scale. XcodeGen falls short there by design because it's a tool that generates Xcode projects, not a project manager. If you need a tool that helps you beyond generating Xcode projects, you might want to consider Tuist.
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) is a project-generation tool that uses YAML as [a configuration format](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md) to define Xcode projects. Many organizations **adopted it trying to escape from the frequent Git conflicts that arise when working with Xcode projects.** However, frequent Git conflicts is just one of the many problems that organizations experience. Xcode exposes developers with a lot of intricacies and implicit configurations that make it hard to maintain and optimize projects at scale. XcodeGen falls short there by design because it's a tool that generates Xcode projects, not a project manager. If you need a tool that helps you beyond generating Xcode projects, you might want to consider Tuist. You don't have to migrate to use Tuist: [XcodeGen vs Tuist](https://tuist.dev/compare/xcodegen) explains which capabilities, such as the Xcode cache and build insights, work with an XcodeGen project and when migrating is worth it.
 
 > [!TIP]
-> **Swift Over Yaml**
+> **Swift over YAML**
 >
 > Many organizations prefer Tuist as a project generation tool too because it uses Swift as a configuration format. Swift is a programming language that developers are familiar with, and that provides them with the convenience of using Xcode's autocompletion, type-checking, and validation features.
 
@@ -56,14 +56,14 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
 :::
 
 > [!TIP]
-> **Xcode's Language**
+> **Xcode's language**
 >
 > Both XcodeGen and Tuist embrace Xcode's language and concepts. However, Tuist's Swift-based configuration provides you with the convenience of using Xcode's autocompletion, type-checking, and validation features.
 
 
 ## Spec templates {#spec-templates}
 
-One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own propietary solution named *"templates"*. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named <.localized_link href="/guides/features/projects/code-sharing">project description helpers</.localized_link>, which allow reusing code across all your manifest files.
+One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own proprietary solution named *"templates"*. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named <.localized_link href="/guides/features/projects/code-sharing">project description helpers</.localized_link>, which allow reusing code across all your manifest files.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
@@ -80,8 +80,9 @@ extension Target {
 ```
 ```swift [Project.swift]
 import ProjectDescription
-import ProjectDescriptionHelpers // [!code highlight]
+import ProjectDescriptionHelpers
 
 let project = Project(name: "MyProject",
-                      targets: Target.featureTargets(name: "MyFeature")) // [!code highlight]
+                      targets: Target.featureTargets(name: "MyFeature"))
 ```
+:::

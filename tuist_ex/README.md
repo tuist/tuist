@@ -56,7 +56,8 @@ mix tuist.login --email person@example.com --password secret
 mix tuist.login --url https://tuist.example.com
 ```
 
-Without credentials, the task opens a browser and waits for authorization. If
+Without credentials, the task prints a short sign-in code, opens a browser
+where you enter it, and waits for authorization. If
 you provide only `--email` or `--password`, it prompts for the missing value.
 On a continuous integration provider, it exchanges an
 [OpenID Connect](https://openid.net/developers/how-connect-works/) identity token

@@ -11,6 +11,9 @@ export function bindInspectorResize(divider, { availableWidth, setWidth, signal 
     divider.setAttribute("aria-valuemax", max);
     divider.setAttribute("aria-valuenow", Math.round(current));
   };
+  // The inspector sits after the divider in inline order: on the right in LTR, on the left in RTL.
+  const inlineSign = () =>
+    typeof getComputedStyle === "function" && getComputedStyle(divider).direction === "rtl" ? -1 : 1;
   const on = (name, fn) => divider.addEventListener(name, fn, { signal });
   const finish = (restore = false) => {
     if (!drag) return;
@@ -34,7 +37,7 @@ export function bindInspectorResize(divider, { availableWidth, setWidth, signal 
   on("pointermove", (event) => {
     if (!drag || event.pointerId !== drag.id) return;
     const { min, max } = limits();
-    preferred = Math.max(min, Math.min(max, drag.width + drag.x - event.clientX));
+    preferred = Math.max(min, Math.min(max, drag.width + inlineSign() * (drag.x - event.clientX)));
     update();
   });
   on("pointerup", (event) => {
@@ -53,7 +56,11 @@ export function bindInspectorResize(divider, { availableWidth, setWidth, signal 
     finish();
     const { min, max } = limits();
     preferred =
-      event.key === "Home" ? min : event.key === "End" ? max : current + (event.key === "ArrowLeft" ? 20 : -20);
+      event.key === "Home"
+        ? min
+        : event.key === "End"
+          ? max
+          : current + inlineSign() * (event.key === "ArrowLeft" ? 20 : -20);
     preferred = Math.max(min, Math.min(max, preferred));
     update();
   });

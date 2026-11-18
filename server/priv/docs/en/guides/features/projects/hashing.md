@@ -13,21 +13,21 @@ Features like <.localized_link href="/guides/features/cache">caching</.localized
 - The target's files
 - The hash of the target's dependencies
 
-### Cache attributes {#cache-attributes}
+## Cache attributes {#cache-attributes}
 
 Additionally, when calculating the hash for <.localized_link href="/guides/features/cache">caching</.localized_link>, we also hash the following attributes.
 
-#### Swift version {#swift-version}
+### Swift version {#swift-version}
 
 We hash the Swift version obtained from running the command `/usr/bin/xcrun swift --version` to prevent compilation errors due to Swift version mismatches between the targets and the binaries.
 
 > [!NOTE]
-> **Module Stability**
+> **Module stability**
 >
 > Previous versions of binary caching relied on the `BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support) and enable using binaries with any compiler version. However, it caused compilation issues in projects with targets that don't support module stability. Generated binaries are bound to the Swift version used to compile them, and the Swift version must match the one used to compile the project.
 
 
-#### Configuration {#configuration}
+### Configuration {#configuration}
 
 When calculating cache hashes, Tuist scopes each project's and target's settings to the resolved build configuration. That is the one named with `--configuration`, otherwise the project's `defaultConfiguration`, otherwise the first debug configuration. Tuist hashes that configuration's name, variant, build settings, and configuration file contents together with the shared base settings that apply to it. Adding, removing, or changing another configuration does not affect the resolved configuration's cache hashes. Because only the resolved configuration matters, a cache filled with an explicit `--configuration` is readable by a command that resolves to the same configuration without passing the flag.
 
@@ -43,6 +43,6 @@ If the hashes are still non-deterministic, let us know and we can help with the 
 
 
 > [!NOTE]
-> **Better Debugging Experience Planned**
+> **Better debugging experience planned**
 >
 > Improving our debugging experience is in our roadmap. The print-hashes command, which lacks the context to understand the differences, will be replaced by a more user-friendly command that uses a tree-like structure to show the differences between the hashes.

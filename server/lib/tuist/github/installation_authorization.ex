@@ -1,5 +1,10 @@
 defmodule Tuist.GitHub.InstallationAuthorization do
-  @moduledoc "Verifies access to a github.com installation using GitHub App user authorization."
+  @moduledoc """
+  Verifies access to a github.com installation using GitHub App user authorization.
+
+  Returns the GitHub account that owns the installation, so callers can tell personal-account
+  installations from organization installations.
+  """
 
   alias Tuist.Environment
 
@@ -47,17 +52,21 @@ defmodule Tuist.GitHub.InstallationAuthorization do
 
   defp verify_installation(_token, _installation_id, _page), do: {:error, :invalid_github_installation}
 
-  defp verify_administrator(token, %{"type" => "User", "id" => account_id}) when is_integer(account_id) do
+  defp verify_administrator(token, %{"type" => "User", "id" => account_id, "login" => login})
+       when is_integer(account_id) and is_binary(login) do
     case user_request(token, "/user") do
-      {:ok, %{status: 200, body: %{"id" => ^account_id}}} -> :ok
+      {:ok, %{status: 200, body: %{"id" => ^account_id}}} -> {:ok, %{type: :user, login: login}}
       _ -> {:error, :invalid_github_installation}
     end
   end
 
   defp verify_administrator(token, %{"type" => "Organization", "login" => login}) when is_binary(login) do
     case user_request(token, "/user/memberships/orgs/" <> URI.encode_www_form(login)) do
-      {:ok, %{status: 200, body: %{"state" => "active", "role" => "admin"}}} -> :ok
-      _ -> {:error, :invalid_github_installation}
+      {:ok, %{status: 200, body: %{"state" => "active", "role" => "admin"}}} ->
+        {:ok, %{type: :organization, login: login}}
+
+      _ ->
+        {:error, :invalid_github_installation}
     end
   end
 

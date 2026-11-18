@@ -1,0 +1,63 @@
+[
+  {
+    "object_matchers": [
+      [
+        "alertname",
+        "=~",
+        "Kura thin pool data almost full|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
+      ],
+      [
+        "cluster",
+        "!=",
+        "tuist-production"
+      ],
+      [
+        "grafana_folder",
+        "=",
+        "Alerts"
+      ]
+    ],
+    "receiver": "Slack #notifications-non-prod"
+  },
+  {
+    "continue": true,
+    "object_matchers": [
+      [
+        "alertname",
+        "=~",
+        "Kura thin pool data almost full|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
+      ],
+      [
+        "cluster",
+        "=",
+        "tuist-production"
+      ],
+      [
+        "grafana_folder",
+        "=",
+        "Alerts"
+      ]
+    ],
+    "receiver": "Slack #notifications 2"
+  },
+  {
+    "object_matchers": [
+      [
+        "alertname",
+        "=~",
+        "Kura thin pool data almost full|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
+      ],
+      [
+        "cluster",
+        "=",
+        "tuist-production"
+      ],
+      [
+        "grafana_folder",
+        "=",
+        "Alerts"
+      ]
+    ],
+    "receiver": "Incidents"
+  }
+]

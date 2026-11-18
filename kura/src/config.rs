@@ -53,6 +53,8 @@ const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS
 const KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS: &str = "KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS";
 const MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS: u64 = 60_000;
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
+const KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY: &str =
+    "KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
 const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
@@ -145,6 +147,7 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
+const KURA_SENTRY_PULSE_DSN: &str = "KURA_SENTRY_PULSE_DSN";
 const KURA_REQUEST_LOG_SAMPLE_RATE: &str = "KURA_REQUEST_LOG_SAMPLE_RATE";
 const KURA_SLOW_REQUEST_THRESHOLD_MS: &str = "KURA_SLOW_REQUEST_THRESHOLD_MS";
 const KURA_WARNING_LOG_INTERVAL_MS: &str = "KURA_WARNING_LOG_INTERVAL_MS";
@@ -213,6 +216,9 @@ pub struct Config {
     /// interval of acknowledged writes. A process crash loses nothing. `None`
     /// keeps the default: every acknowledged write is fsynced first.
     pub relaxed_durability_sync_interval_ms: Option<u64>,
+    /// `SpliceBlob` verifications that may stream chunks at once. Further
+    /// splices wait for a slot instead of being refused.
+    pub reapi_splice_verification_concurrency: usize,
     pub segment_handle_cache_size: usize,
     pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
@@ -285,6 +291,11 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
+    /// A second DSN that receives a copy of every Sentry envelope, for
+    /// comparing Pulse with the primary backend. Only used alongside
+    /// `sentry_dsn`; an unparseable value is reported and ignored rather than
+    /// failing startup, so this copy can never stop Kura.
+    pub sentry_pulse_dsn: Option<String>,
     pub request_log_sample_rate: f64,
     pub slow_request_threshold_ms: u64,
     pub warning_log_interval_ms: u64,
@@ -390,6 +401,7 @@ struct DerivedRuntimeDefaults {
     file_descriptor_acquire_timeout_ms: u64,
     drain_completion_timeout_ms: u64,
     segment_handle_cache_size: usize,
+    reapi_splice_verification_concurrency: usize,
     memory_soft_limit_bytes: u64,
     memory_hard_limit_bytes: u64,
     manifest_cache_max_bytes: usize,
@@ -466,6 +478,9 @@ impl DerivedRuntimeDefaults {
             file_descriptor_acquire_timeout_ms: DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS,
             drain_completion_timeout_ms: DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS,
             segment_handle_cache_size,
+            // Each verification hashes chunks through one 256 KiB buffer, so
+            // the limit is CPU- and disk-bound rather than memory-bound.
+            reapi_splice_verification_concurrency: clamp_usize(host_resources.cpu_count, 4, 16),
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
             manifest_cache_max_bytes,
@@ -1003,6 +1018,22 @@ impl Config {
         if segment_handle_cache_size >= file_descriptor_pool_size {
             invalid.push(format!(
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
+            ));
+        }
+        let reapi_splice_verification_concurrency = optional_parsed_value(
+            &mut lookup,
+            KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(derived_defaults.reapi_splice_verification_concurrency);
+        if reapi_splice_verification_concurrency == 0 {
+            invalid.push(format!(
+                "{KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY} must be greater than 0"
             ));
         }
         let memory_soft_limit_bytes_override = optional_parsed_value(
@@ -1806,6 +1837,9 @@ impl Config {
                 "{KURA_SENTRY_DSN} must be a valid Sentry DSN: {error}"
             ));
         }
+        let sentry_pulse_dsn = lookup(KURA_SENTRY_PULSE_DSN)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let request_log_sample_rate = optional_parsed_value(
             &mut lookup,
             KURA_REQUEST_LOG_SAMPLE_RATE,
@@ -2032,6 +2066,7 @@ impl Config {
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
             relaxed_durability_sync_interval_ms,
+            reapi_splice_verification_concurrency,
             segment_handle_cache_size,
             memory_limit_bytes,
             memory_soft_limit_bytes,
@@ -2073,6 +2108,7 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
+            sentry_pulse_dsn,
             request_log_sample_rate,
             slow_request_threshold_ms,
             warning_log_interval_ms,
@@ -3595,6 +3631,23 @@ mod tests {
             config.sentry_dsn.as_deref(),
             Some("https://public@example.ingest.sentry.io/12345")
         );
+    }
+
+    #[test]
+    fn from_lookup_reads_optional_sentry_pulse_dsn() {
+        let config = config_from(&[(
+            KURA_SENTRY_PULSE_DSN,
+            " http://sentry:secret@pulse.observability:4000/v1/sentry/kura/1 ",
+        )])
+        .expect("expected sentry pulse dsn to be accepted");
+        assert_eq!(
+            config.sentry_pulse_dsn.as_deref(),
+            Some("http://sentry:secret@pulse.observability:4000/v1/sentry/kura/1")
+        );
+
+        let config = config_from(&[(KURA_SENTRY_PULSE_DSN, "not-a-sentry-dsn")])
+            .expect("an invalid sentry pulse dsn must not fail configuration");
+        assert_eq!(config.sentry_pulse_dsn.as_deref(), Some("not-a-sentry-dsn"));
     }
 
     #[test]

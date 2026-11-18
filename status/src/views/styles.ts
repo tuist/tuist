@@ -119,8 +119,8 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));
-  outline-offset: 2px;
+  outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+  outline-offset: var(--noora-focus-ring-offset);
 }
 
 /* Present to assistive tech only: the skip link and the live region. The
@@ -144,7 +144,7 @@ a.visually-hidden:focus {
   clip: auto;
   z-index: 1;
   margin: 0;
-  border-radius: var(--noora-radius-medium, 8px);
+  border-radius: var(--noora-radius-4);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-3) var(--noora-spacing-5);
   width: auto;

@@ -16,16 +16,38 @@ extension CargoClangInvocation {
                       URL(fileURLWithPath: String($0)).appendingPathComponent("cc")
                   }).first(where: { FileManager.default.isExecutableFile(atPath: $0.path) })?.path == "/usr/bin/cc"
             else { return environment }
-            let path = try await process.capture(
-                "/usr/bin/xcrun", arguments: ["--find", "clang"], environment: environment, directory: directory
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard path.hasSuffix("/XcodeDefault.xctoolchain/usr/bin/clang") else { return environment }
-            let libraries = try await process.capture(
-                "/usr/bin/otool", arguments: ["-L", path], environment: environment, directory: directory
-            )
-            guard libraries.split(separator: "\n").dropFirst().allSatisfy({
-                $0.trimmingCharacters(in: .whitespaces).hasPrefix("/usr/lib/")
-            }) else { return environment }
+            /// The probes cost two process starts per build, so their answer is kept with what selects the compiler:
+            /// the developer directory and toolchain choice, and the found compiler's identity.
+            let selection = [
+                environment["DEVELOPER_DIR"] ?? "", environment["TOOLCHAINS"] ?? "",
+                (try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link")) ?? "",
+            ].joined(separator: "\n")
+            let memo = URL(fileURLWithPath: cache).appendingPathComponent("wrappers/clang")
+            func identity(_ path: String) -> String? {
+                var info = stat()
+                guard stat(path, &info) == 0 else { return nil }
+                return "\(info.st_dev):\(info.st_ino):\(info.st_size):\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec)"
+            }
+            let remembered = (try? String(contentsOf: memo, encoding: .utf8))?.components(separatedBy: "\n")
+            let path: String
+            if let remembered, remembered.count == 5, remembered.prefix(3).joined(separator: "\n") == selection,
+               identity(remembered[3]) == remembered[4]
+            {
+                path = remembered[3]
+            } else {
+                path = try await process.capture(
+                    "/usr/bin/xcrun", arguments: ["--find", "clang"], environment: environment, directory: directory
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard path.hasSuffix("/XcodeDefault.xctoolchain/usr/bin/clang") else { return environment }
+                let libraries = try await process.capture(
+                    "/usr/bin/otool", arguments: ["-L", path], environment: environment, directory: directory
+                )
+                guard libraries.split(separator: "\n").dropFirst().allSatisfy({
+                    $0.trimmingCharacters(in: .whitespaces).hasPrefix("/usr/lib/")
+                }), let found = identity(path) else { return environment }
+                try? FileManager.default.createDirectory(at: memo.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? (selection + "\n" + path + "\n" + found).write(to: memo, atomically: true, encoding: .utf8)
+            }
             // A stable path avoids making cc-rs's rerun-if-env-changed invalidate every no-op build.
             let wrapper = URL(fileURLWithPath: cache).appendingPathComponent("wrappers/cc")
             let wrapperDirectory = CargoInvocation.shellQuote(wrapper.deletingLastPathComponent().path)
@@ -102,7 +124,8 @@ extension CargoClangInvocation {
                 exec -a cc -- "$@"
               ' -- "${BASH_ENV+x}" "${BASH_ENV-}" "${SHLVL-0}" "$TUIST_CARGO_CC_COMPILER" "$@"
             fi
-            if [ -n "${TUIST_CARGO_CACHE_REMOTE_URL:-}" ]; then
+            # A recorded build script's compiler must reach the hook, which records it too.
+            if [ -n "${TUIST_CARGO_CACHE_REMOTE_URL:-}" ] && [ -z "${TUIST_CARGO_READ_SCRIPT:-}" ]; then
               for TUIST_CARGO_CC_INPUT do
                 case "$TUIST_CARGO_CC_INPUT" in
                   *.c)
@@ -115,12 +138,24 @@ extension CargoClangInvocation {
                 esac
               done
             fi
-            exec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __native /usr/bin/cc "$@"
+            # A served session's hook client asks the outer command instead of starting Tuist for every compilation.
+            TUIST_CARGO_CC_HOOK=${TUIST_CARGO_NATIVE-}
+            if [ -z "$TUIST_CARGO_CC_HOOK" ]; then
+              TUIST_CARGO_CC_HOOK=\(CargoInvocation.shellQuote(try CargoProcess.ownExecutable()))
+            fi
+            exec "$TUIST_CARGO_CC_HOOK" cargo __native /usr/bin/cc "$@"
 
             """
-            try FileManager.default.createDirectory(at: wrapper.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try script.write(to: wrapper, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: wrapper.path)
+            if (try? String(contentsOf: wrapper, encoding: .utf8)) != script
+                || !FileManager.default.isExecutableFile(atPath: wrapper.path)
+            {
+                try FileManager.default.createDirectory(
+                    at: wrapper.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try script.write(to: wrapper, atomically: true, encoding: .utf8)
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: wrapper.path)
+            }
             var result = environment
             result["PATH"] = wrapper.deletingLastPathComponent().path + ":" + (environment["PATH"] ?? "")
             result["TUIST_CARGO_CACHE_CLANG"] = path

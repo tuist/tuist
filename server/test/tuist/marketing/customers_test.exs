@@ -2,6 +2,7 @@ defmodule Tuist.Marketing.CustomersTest do
   use ExUnit.Case, async: true
 
   alias Tuist.Marketing.Customers
+  alias Tuist.Marketing.Customers.CaseStudy
 
   describe "get_case_study/2" do
     test "returns localized content when a translation exists" do
@@ -17,6 +18,22 @@ defmodule Tuist.Marketing.CustomersTest do
 
       assert case_study.title == "Trendyol reduced build times by 65%"
       assert case_study.excerpt =~ "Trendyol reduced build times by 65%"
+    end
+
+    test "rejects a result without a before figure" do
+      attrs = %{
+        "title" => "Example",
+        "date" => "2026-01-01",
+        "company" => "Example",
+        "url" => "https://example.com",
+        "founded_date" => "2020",
+        "excerpt" => "Example",
+        "results" => [%{"metric" => "CI time", "after" => "10 min"}]
+      }
+
+      assert_raise ArgumentError, ~r/without metric, before, and after/, fn ->
+        CaseStudy.build("example.md", attrs, "")
+      end
     end
 
     test "returns external case studies with their source article URL" do

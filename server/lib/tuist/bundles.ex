@@ -392,6 +392,25 @@ defmodule Tuist.Bundles do
     |> Enum.map(fn app -> %{app | supported_platforms: decode_platforms(app.supported_platforms)} end)
   end
 
+  def project_bundle_tags(%Project{} = project, search \\ "") do
+    tags =
+      from(b in Bundle,
+        where: b.project_id == ^project.id,
+        where: b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day),
+        select: %{tag: fragment("arrayJoin(?)", b.custom_tags)}
+      )
+
+    ClickHouseRepo.all(
+      from(t in subquery(tags),
+        where: fragment("positionCaseInsensitiveUTF8(?, ?) > 0", t.tag, ^search),
+        select: t.tag,
+        distinct: true,
+        order_by: t.tag,
+        limit: 1000
+      )
+    )
+  end
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def last_project_bundle(%Project{} = project, opts \\ []) do
     query = where(from(b in Bundle), [b], b.project_id == ^project.id)
@@ -417,6 +436,15 @@ defmodule Tuist.Bundles do
         query
       else
         where(query, [b], b.name == ^name)
+      end
+
+    tag = Keyword.get(opts, :tag)
+
+    query =
+      if is_nil(tag) do
+        query
+      else
+        where(query, [b], fragment("has(?, ?)", b.custom_tags, ^tag))
       end
 
     inserted_before = Keyword.get(opts, :inserted_before)
@@ -748,20 +776,30 @@ defmodule Tuist.Bundles do
   end
 
   defp evaluate_single_threshold(project, bundle, threshold) do
-    if threshold.bundle_name && threshold.bundle_name != bundle.name do
-      :ok
-    else
-      baseline =
-        last_project_bundle(project,
-          git_branch: threshold.baseline_branch,
-          name: bundle.name,
-          type: bundle.type,
-          supported_platforms: bundle.supported_platforms,
-          fallback: false
-        )
+    cond do
+      threshold.bundle_name && threshold.bundle_name != bundle.name ->
+        :ok
 
-      check_threshold_deviation(threshold, bundle, baseline)
+      threshold.tag && threshold.tag not in (bundle.custom_tags || []) ->
+        :ok
+
+      true ->
+        evaluate_threshold_against_baseline(project, bundle, threshold)
     end
+  end
+
+  defp evaluate_threshold_against_baseline(project, bundle, threshold) do
+    baseline =
+      last_project_bundle(project,
+        git_branch: threshold.baseline_branch,
+        name: bundle.name,
+        tag: threshold.tag,
+        type: bundle.type,
+        supported_platforms: bundle.supported_platforms,
+        fallback: false
+      )
+
+    check_threshold_deviation(threshold, bundle, baseline)
   end
 
   defp check_threshold_deviation(_threshold, _bundle, nil), do: :ok

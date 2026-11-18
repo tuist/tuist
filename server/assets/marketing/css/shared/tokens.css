@@ -27,6 +27,25 @@
     --marketing-page-margin: var(--noora-spacing-2);
   }
 
+  /*
+   * Unfolded foldables (an iPhone Fold's inner screen measures 951x543 CSS
+   * px in Safari) are wide enough for Noora's 768px type step-up but only
+   * phone-tall, so headings would render at desktop size on a phone-sized
+   * screen. Keep Noora's mobile type scale there. Tablets don't match:
+   * portrait is too tall, landscape too wide.
+   */
+  @media screen and (min-width: 768px) and (max-width: 1023px) and (max-height: 760px) {
+    --noora-font-display-xlarge: 2.5rem/3rem var(--noora-font-heading);
+    --noora-font-display-large: 2.375rem/2.875rem var(--noora-font-heading);
+    --noora-font-display-medium: 2.25rem/2.625rem var(--noora-font-heading);
+    --noora-font-display-small: 2.125rem/2.5rem var(--noora-font-heading);
+    --noora-font-heading-2xlarge: 2rem/2.375rem var(--noora-font-heading);
+    --noora-font-heading-xlarge: 1.5rem/2rem var(--noora-font-heading);
+    --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
+    --noora-font-heading-medium: 1.125rem/1.5rem var(--noora-font-heading);
+    --noora-font-heading-small: 1rem/1.375rem var(--noora-font-heading);
+  }
+
   --marketing-stroke-default: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
 
   /*

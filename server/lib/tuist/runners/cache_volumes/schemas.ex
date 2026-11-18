@@ -64,6 +64,7 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
     object("RunnerJobVolumes", %{volumes: array(object("RunnerJobVolume", %{volume: volume(), usage: usage()}))})
   end
 
+  def response(:delete), do: object("RunnerVolumeDeleted", %{id: string(), deleted: %Schema{type: :boolean}})
   def response(:clear), do: object("RunnerVolumeCleared", %{id: string(), cleared: %Schema{type: :boolean}})
 
   def response(:analytics) do
@@ -129,7 +130,7 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
 
     required =
       case action do
-        a when a in [:show, :jobs, :clear] -> [:account_handle, :volume_id]
+        a when a in [:show, :jobs, :delete, :clear] -> [:account_handle, :volume_id]
         :job_volumes -> [:account_handle, :workflow_job_id]
         _ -> [:account_handle]
       end

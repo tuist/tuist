@@ -234,7 +234,7 @@ spec:
                   # Flux ownership label rather than an exclusion list: objects
                   # applied by a Kustomization carry
                   # kustomize.toolkit.fluxcd.io/name, and Clusters owned by
-                  # mgmt-cluster-apply.yml (preview, pentest, and any future
+                  # mgmt-cluster-apply.yml (pentest, and any future
                   # flat cluster-*.yaml) never do. A hardcoded exclusion list
                   # silently rots the moment another non-Flux cluster is added.
                   git_clusters=$(kubectl get kustomizations.kustomize.toolkit.fluxcd.io \

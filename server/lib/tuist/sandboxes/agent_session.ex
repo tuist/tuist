@@ -3,8 +3,10 @@ defmodule Tuist.Sandboxes.AgentSession do
   A Managed Agents session Tuist started on an account's connected
   environment. Anthropic owns the conversation; this row keeps the ids
   needed to follow it (`anthropic_session_id`, `anthropic_agent_id`), what
-  was asked (`prompt`, repository), the budget and the last status the
-  server saw. `sandbox_id` is bound by the router once the session's first
+  was asked (`prompt`, repository, `platform`), the budget and the last
+  status the server saw. A nil `platform` runs the environment's, and an
+  `xcode_version` (macOS only) the Xcode its sandbox boots instead of the
+  environment's. `sandbox_id` is bound by the router once the session's first
   work item creates its VM.
   """
   use Ecto.Schema
@@ -15,6 +17,7 @@ defmodule Tuist.Sandboxes.AgentSession do
   alias Tuist.Accounts.User
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Xcode
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandbox_agent_sessions" do
@@ -26,6 +29,8 @@ defmodule Tuist.Sandboxes.AgentSession do
     field :repository_ref, :string
     field :model, :string
     field :budget_cents, :integer
+    field :platform, Ecto.Enum, values: [:linux, :darwin]
+    field :xcode_version, :string
     field :last_status, :string
     field :last_stop_reason, :string
 
@@ -43,8 +48,19 @@ defmodule Tuist.Sandboxes.AgentSession do
   """
   def params_changeset(agent_session, attrs) do
     agent_session
-    |> cast(attrs, [:prompt, :title, :repository_url, :repository_ref, :model, :budget_cents])
+    |> cast(attrs, [
+      :prompt,
+      :title,
+      :repository_url,
+      :repository_ref,
+      :model,
+      :budget_cents,
+      :platform,
+      :xcode_version
+    ])
     |> validate_required([:prompt])
+    |> xcode_implies_macos()
+    |> Xcode.validate()
     |> validate_length(:title, max: 255)
     |> validate_length(:model, min: 1, max: 255)
     |> validate_length(:repository_url, max: 512)
@@ -52,6 +68,14 @@ defmodule Tuist.Sandboxes.AgentSession do
     |> validate_length(:repository_ref, max: 255)
     |> validate_format(:repository_ref, ~r{\A[A-Za-z0-9][A-Za-z0-9._/-]*\z})
     |> validate_number(:budget_cents, greater_than: 0)
+  end
+
+  # An Xcode only runs on macOS, so asking for one without a platform asks
+  # for macOS.
+  defp xcode_implies_macos(changeset) do
+    if get_field(changeset, :xcode_version) && is_nil(get_field(changeset, :platform)),
+      do: put_change(changeset, :platform, :darwin),
+      else: changeset
   end
 
   def create_changeset(agent_session, attrs) do

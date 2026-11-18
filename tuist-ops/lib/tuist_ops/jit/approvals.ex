@@ -54,7 +54,8 @@ defmodule TuistOps.JIT.Approvals do
   `:ttl_seconds` (default #{div(@default_ttl_seconds, 60)} min,
   capped at #{div(@max_ttl_seconds, 60)} min). GitHub admin requests
   also need `:github_login`, which must be an active organization
-  member that is not already an admin.
+  member that is not already an admin. Orb thread elevations go
+  through `grant_atlas_approved/1` instead.
   """
   def request_elevation(attrs) when is_map(attrs) do
     ttl = attrs |> Map.get(:ttl_seconds, @default_ttl_seconds) |> clamp_ttl()
@@ -82,6 +83,58 @@ defmodule TuistOps.JIT.Approvals do
       {:error, reason} ->
         Logger.warning("tailscale_jit: request_elevation failed: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  @doc """
+  Grants an orb thread elevation that its requester already approved in
+  Atlas, where an agent filed the request and the person approved that
+  exact call from their browser session. Nothing goes to Slack.
+
+  `attrs` must include `:requester_email` (the Atlas user, who must
+  hold an engineering tailnet role), `:target_group` (canary or
+  production), `:orb_thread_id`, `:intent` and `:atlas_approval_id`,
+  and may include `:ttl_seconds`. One Atlas approval grants at most
+  once: replaying its ID returns `{:error, :approval_already_used}`.
+  """
+  def grant_atlas_approved(attrs) when is_map(attrs) do
+    ttl = attrs |> Map.get(:ttl_seconds, @default_ttl_seconds) |> clamp_ttl()
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    changeset =
+      attrs
+      |> Map.put(:ttl_seconds, ttl)
+      |> Map.put(:expires_at, now)
+      |> Request.create_changeset()
+
+    env = Policy.env_for(Ecto.Changeset.get_field(changeset, :target_group))
+
+    cond do
+      not changeset.valid? ->
+        {:error, changeset}
+
+      is_nil(env) or Policy.always_write_env?(env) ->
+        {:error, :not_elevatable}
+
+      not Policy.self_approval_allowed?(attrs[:requester_email], attrs[:target_group]) ->
+        {:error, :not_authorized}
+
+      true ->
+        Repo.transaction(fn ->
+          case Repo.insert(changeset) do
+            {:ok, req} -> do_grant(req, nil, req.requester_email)
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+        end)
+        |> case do
+          {:ok, {req, elev}} ->
+            {:ok, req, elev}
+
+          {:error, %Ecto.Changeset{errors: errors} = changeset} ->
+            if Keyword.has_key?(errors, :atlas_approval_id),
+              do: {:error, :approval_already_used},
+              else: {:error, changeset}
+        end
     end
   end
 
@@ -219,6 +272,7 @@ defmodule TuistOps.JIT.Approvals do
         requester_email: req.requester_email,
         target_group: req.target_group,
         github_login: req.github_login,
+        orb_thread_id: req.orb_thread_id,
         expires_at: elev_expires_at
       }
       |> Elevation.create_changeset()
@@ -300,6 +354,9 @@ defmodule TuistOps.JIT.Approvals do
     |> RevertWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
+
+  # Requests approved in Atlas have no Slack card to update.
+  defp notify_active(%Request{slack_message_ts: nil}, _elev), do: :ok
 
   defp notify_active(%Request{} = req, %Elevation{} = elev) do
     SlackClient.update_message(

@@ -1,0 +1,5 @@
+{
+  "runner-image-builder-1": ["27.3-beta", "27.0", "26.5", "26.1.1"],
+  "runner-image-builder-2": ["27.2", "26.6", "26.3"],
+  "runner-image-builder-3": ["27.1", "26.4.1", "26.0.1"]
+}

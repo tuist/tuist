@@ -102,7 +102,6 @@ defmodule AtlasWeb.NativeControllerTest do
         assignee_id: "",
         account_id: account.id,
         due_on: "2027-02-03",
-        remind_at: "2027-02-02T14:30:00+02:00",
         status: "completed"
       })
       |> json_response(201)
@@ -112,7 +111,6 @@ defmodule AtlasWeb.NativeControllerTest do
     assert fields["assignee_id"] == teammate.id
     assert fields["assignee_name"] == teammate.name
     assert fields["account_name"] == account.name
-    assert fields["remind_at"] == "2027-02-02T12:30:00Z"
     assert fields["description"] == ""
     assert Enum.all?(fields, fn {_key, value} -> is_binary(value) end)
     assert api |> get("/api/native/tasks/#{id}") |> json_response(200) == created
@@ -444,92 +442,6 @@ defmodule AtlasWeb.NativeControllerTest do
       assert %{"items" => [], "total_count" => 0} =
                api |> get("/api/native/#{resource}?query=%25") |> json_response(200)
     end
-  end
-
-  test "reminder grouping is global across pages and includes the exact UTC boundary", %{api: api, user: user} do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-    past = DateTime.add(now, -1, :second)
-    future = DateTime.add(now, 1, :second)
-
-    overdue =
-      for index <- 1..26 do
-        task!(user, %{
-          title: "Overdue #{index}",
-          remind_at: if(index <= 24, do: past, else: now),
-          reminded_at: now
-        })
-      end
-
-    upcoming = task!(user, %{remind_at: future, due_on: Date.add(Date.utc_today(), -1)})
-    none = task!(user, %{due_on: Date.add(Date.utc_today(), -1)})
-    completed = task!(user, %{status: "completed", remind_at: past})
-    stub(DateTime, :utc_now, fn -> now end)
-
-    expected_overdue = Enum.sort_by(overdue, &{DateTime.to_unix(&1.remind_at), &1.id}) |> Enum.map(& &1.id)
-    first = api |> get("/api/native/tasks?group_by=reminder") |> json_response(200)
-    second = api |> get("/api/native/tasks?group_by=reminder&page=2") |> json_response(200)
-    assert %{"total_count" => 29, "total_pages" => 2} = first
-    assert length(first["items"]) == 25
-    assert Enum.map(first["items"], & &1["fields"]["reminder_group"]) == List.duplicate("overdue", 25)
-    assert Enum.map(second["items"], & &1["fields"]["reminder_group"]) == ~w(overdue upcoming none completed)
-
-    assert Enum.map(first["items"] ++ second["items"], & &1["id"]) ==
-             expected_overdue ++ [upcoming.id, none.id, completed.id]
-
-    for {filter, expected_ids} <- [
-          {"overdue", expected_overdue},
-          {"upcoming", [upcoming.id]},
-          {"none", [none.id]}
-        ] do
-      pages =
-        for page <- 1..ceil(length(expected_ids) / 25),
-            do: api |> get("/api/native/tasks?reminder=#{filter}&group_by=reminder&page=#{page}") |> json_response(200)
-
-      assert hd(pages)["total_count"] == length(expected_ids)
-      assert Enum.flat_map(pages, &Enum.map(&1["items"], fn item -> item["id"] end)) == expected_ids
-    end
-
-    assert %{"items" => [], "total_count" => 0} =
-             api |> get("/api/native/tasks?status=completed&reminder=overdue") |> json_response(200)
-
-    assert api
-           |> get("/api/native/tasks/#{completed.id}")
-           |> json_response(200)
-           |> get_in(["item", "fields", "reminder_group"]) ==
-             "completed"
-
-    default = api |> get("/api/native/tasks") |> json_response(200)
-    all = api |> get("/api/native/tasks?status=&assignee_id=&reminder=&group_by=") |> json_response(200)
-    assert default == all
-
-    expected_default =
-      (overdue ++ [upcoming, none, completed])
-      |> Enum.sort_by(&{DateTime.to_unix(&1.inserted_at), &1.id}, :desc)
-      |> Enum.take(25)
-      |> Enum.map(& &1.id)
-
-    assert Enum.map(default["items"], & &1["id"]) == expected_default
-  end
-
-  test "combined task filters apply before the Flop count and both pages", %{api: api, user: user} do
-    {_api, other} = api_user([])
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    expected = for _index <- 1..26, do: task!(user, %{title: "Needle", remind_at: now})
-    task!(other, %{title: "Needle", remind_at: now})
-    task!(user, %{title: "Needle", status: "completed", remind_at: now})
-    task!(user, %{title: "Needle", remind_at: DateTime.add(now, 1, :second)})
-    task!(user, %{title: "Needle"})
-    task!(user, %{title: "Different", remind_at: now})
-    stub(DateTime, :utc_now, fn -> now end)
-
-    params = "query=Needle&status=open&assignee_id=#{user.id}&reminder=overdue&group_by=reminder"
-    first = api |> get("/api/native/tasks?#{params}") |> json_response(200)
-    second = api |> get("/api/native/tasks?#{params}&page=2") |> json_response(200)
-    assert %{"total_count" => 26, "total_pages" => 2} = first
-    assert length(first["items"]) == 25
-    assert length(second["items"]) == 1
-    assert Enum.map(first["items"] ++ second["items"], & &1["id"]) == Enum.sort(Enum.map(expected, & &1.id))
   end
 
   test "account enum filters combine with search before pagination", %{api: api} do

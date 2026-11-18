@@ -143,6 +143,25 @@ the merge base is found), `:base_head` otherwise (a checkout without the base
 branch gets its latest commit from one `git ls-remote`, killed at the budget),
 `:none` with `TUIST_GIT_UNSHALLOW_ENABLED=false`. Every remote call is a round
 trip whatever it transfers, which is why only coverage fetches.
+`Git.connected_history/5` then closes the gap a shallow clone leaves between
+the run's commits and the server's: the server places a commit on its branch
+from the parents it has when the commit arrives, so a depth-1 push whose
+parent another run has not uploaded yet would leave that parent off the branch
+for good. It takes the first parents the clone stops at on the first-parent
+chain of each head the run reports (the commit, and the base branch's when the
+checkout has it; a chain that ends at a root or at the history window has
+none), asks which of them the server lacks (`GitHistory.collect/4` asks
+`commits/missing`; a server that cannot be asked counts as having them), and
+while any is missing deepens through the base branch, or the run's own on a
+push, with the merge base's steps and bounds (`--filter=blob:none`, 50 then
+doubling, within the window and one budget, stopping at a failed fetch; with
+`--refmap=`, so the checkout's `origin/<branch>` does not move) and lists the
+commits again; a parent a fetch leaves out of reach (the remote's branch was
+rewritten) is dropped rather than fetched for again. Only with `:history`
+access and a branch to name, fetched through its full ref
+(`refs/heads/<branch>`, never read as a tag or an option), and only on CI
+(`Env.ci?/1`): the fetch turns the clone into a partial one, which a
+developer's own clone must not become.
 `GitHistory.publish/2` sends the commits the server lacks and the branch heads
 (the run's, and the base branch's when it differs, listed or not: it is how
 the default branch's head advances between its own runs) before the runs are
@@ -184,8 +203,10 @@ dashboard presentation belong in `server/`.
   `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
   VM's code path) are the places where it is expected.
 - `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
-  an OpenID Connect exchange on GitHub Actions, CircleCI, Bitrise, or a supplied
-  `TUIST_OIDC_TOKEN`, so CI needs no login step. The explicit workload token
+  an OpenID Connect exchange on GitHub Actions, CircleCI, Bitrise, an Amp orb
+  (`AMP_ORB`, through `amp orb id-token --audience https://tuist.dev`, the
+  audience the command line tool uses), or a supplied `TUIST_OIDC_TOKEN`, so CI
+  and connected Amp workspaces need no login step. The explicit workload token
   takes precedence over provider detection, is trimmed, and empty values fail
   without browser fallback. `mix tuist.login` also accepts it outside CI. Fly.io
   callers mint it through the Machine's local socket with audience `tuist`; the

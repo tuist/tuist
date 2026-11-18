@@ -237,7 +237,7 @@ func TestInUse(t *testing.T) {
 		{
 			name:    "a job blocked on its account's limit",
 			signals: Signals{Withheld: 2},
-			want:    true,
+			want:    false,
 		},
 	}
 

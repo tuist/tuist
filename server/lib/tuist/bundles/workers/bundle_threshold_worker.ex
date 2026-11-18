@@ -58,9 +58,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   # `Tuist.ClickHouseRepo`, a separate connection that does not always see the
   # row by the time this job runs. The upload already holds every field the
   # check reads, so it carries them on the job rather than reading them back.
-  # Only those fields are populated here. `type` and `supported_platforms` are
-  # absent from jobs enqueued before they were carried, which leaves the
-  # baseline unfiltered by them.
+  # Only those fields are populated here. `custom_tags` was the last field to be
+  # carried, so a job that has it also carries `type` and `supported_platforms`.
   defp resolve_bundle(
          %{
            "bundle_id" => id,
@@ -68,7 +67,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
            "git_commit_sha" => git_commit_sha,
            "git_ref" => git_ref,
            "install_size" => install_size,
-           "download_size" => download_size
+           "download_size" => download_size,
+           "custom_tags" => custom_tags
          } = args
        ) do
     {:ok,
@@ -80,11 +80,14 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
        install_size: install_size,
        download_size: download_size,
        type: args["type"],
-       supported_platforms: args["supported_platforms"]
+       supported_platforms: args["supported_platforms"],
+       custom_tags: custom_tags
      }}
   end
 
-  # Jobs enqueued before the bundle fields were carried on the job.
+  # Jobs enqueued before the bundle fields, or before its tags, were carried on
+  # the job. Reading the bundle back gives tag-scoped thresholds the bundle's
+  # tags instead of skipping them.
   defp resolve_bundle(%{"bundle_id" => id}), do: Bundles.get_bundle(id)
 
   defp should_run?(bundle) do
@@ -188,7 +191,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     |--------|----------|---------|--------|
     | #{metric_label} | #{format_size(baseline_size, threshold)} | #{format_size(current_size, threshold)} | #{change} |
 
-    **Threshold:** #{BundleThreshold.limit_label(threshold)} on `#{threshold.baseline_branch}`#{if threshold.bundle_name, do: " (bundle: #{threshold.bundle_name})", else: ""}
+    **Threshold:** #{BundleThreshold.limit_label(threshold)} on `#{threshold.baseline_branch}`#{threshold_scope(threshold)}
 
     [View bundle details](#{bundle_url})
     """
@@ -198,6 +201,19 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
        title: "Bundle size threshold exceeded",
        summary: String.trim(summary)
      }}
+  end
+
+  defp threshold_scope(threshold) do
+    scopes =
+      Enum.reject(
+        [
+          threshold.bundle_name && "bundle: #{threshold.bundle_name}",
+          threshold.tag && "tag: #{threshold.tag}"
+        ],
+        &is_nil/1
+      )
+
+    if scopes == [], do: "", else: " (#{Enum.join(scopes, ", ")})"
   end
 
   defp format_size(size, %{deviation_bytes: bytes}) when is_integer(bytes), do: "#{BundleThreshold.megabytes(size)} MB"

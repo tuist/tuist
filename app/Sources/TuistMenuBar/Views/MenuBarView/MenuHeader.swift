@@ -7,10 +7,10 @@ struct MenuHeader: View {
     var body: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading) {
-                Text("Tuist")
+                Text(verbatim: "Tuist")
                     .font(.headline)
                     .fontWeight(.medium)
-                Text(accountHandle ?? "Logged out")
+                Text(accountHandle ?? String(localized: "Logged out"))
                     .font(.caption)
                     .fontWeight(.light)
                     .foregroundColor(.gray)

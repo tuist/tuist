@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"sigs.k8s.io/cluster-api/util/conditions"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power/eatontest"

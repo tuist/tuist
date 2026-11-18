@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bfe9cdfba4bd03ae1a54ba7db93dd9eca9032288aadae1f04c380b46de3fc324",
+  "hash": "bebc0b12ba3dd05a9a536a67d1e3d37bf54058cca0ffd4fde63d9e5bbf18c285",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Rust test insights {#rust-test-insights}": {
-                  "content_hash": "18ddb66844adc4b61bccb393e3587097ada0f4dfc442110902248034aae8ef85"
+                  "content_hash": "83132ff4916b0c50f1ef4baa9d3ddcdd2b069a346c8d34de609138ad6d89349d"
                 },
                 "## Doctests and durations {#cargo-test}": {
                   "content_hash": "7143968557ce7c99cd88393267c4b8b9e4eb947d8599abd79f6b959531bcf2f9"
@@ -41,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ee53dcabecc63368dd31b47f6d51cd4a387aac20cd7cb7ba8ce5214e8bfad7a9",
+          "hash": "32acd0f7c2521633ba203a90773b5360fa17223765d16171807072f4178dec74",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/rust.md",
           "metadata": {
-            "content_hash": "c4a635b0546bf63e8d7f53ffbd9bc98a44cd9eb1ab3f07cda6a2ecb04d3ce255"
+            "content_hash": "cd4a30902b4a96eea5084d616a789576a2d37f0106c42e194f28e3637ce76ac9"
           }
         },
         {
@@ -106,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -125,7 +125,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -154,11 +154,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -247,21 +247,21 @@
             }
           ],
           "details": {},
-          "hash": "c4c38a07f7eec055e67cec9c201c3cb94e704d7bf48f30134276757679042bbd",
+          "hash": "026c343c85fddc5dc35fdd625fb27565267e4b718f584712fa35f31778d3249c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "bfe9cdfba4bd03ae1a54ba7db93dd9eca9032288aadae1f04c380b46de3fc324",
+      "hash": "bebc0b12ba3dd05a9a536a67d1e3d37bf54058cca0ffd4fde63d9e5bbf18c285",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e0231ad7d127720013fd216cd123ab33a3cf6bb06ad1dda42bec0d2304f70332",
+  "output_hash": "edca449593632084439dcb4af735493d7fd4e763cb41e77f1b1ca19df3c9be03",
   "output_path": "server/priv/docs/yue_Hant/guides/features/test-insights/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -283,8 +283,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "d898a2e179dc435fad5461a5ce39f42cdac74dee",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/rust.md",
-  "translated_at": "2026-11-02T15:10:11.121097Z",
-  "translation_session_id": "01a19ccd-c167-7b0e-8031-09b3a8a20582"
+  "translated_at": "2026-11-06T21:25:56.343771Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

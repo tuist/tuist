@@ -171,7 +171,7 @@ pub static SECTIONS: &[Section] = &[
     section!(
         "tasks",
         "Tasks",
-        "Your team's work and reminders",
+        "Your team's work",
         "/tasks",
         "overview",
         "tasks",

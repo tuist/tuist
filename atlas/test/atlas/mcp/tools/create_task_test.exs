@@ -11,6 +11,6 @@ defmodule Atlas.MCP.Tools.CreateTaskTest do
 
     assert task.title == "Review proposal"
     assert task.assignee_id == user.id
-    assert task.remind_at == nil
+    assert task.due_on == nil
   end
 end

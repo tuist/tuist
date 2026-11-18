@@ -338,6 +338,29 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert "#{organization.account.name}/#{project.name}" in project_reads
     end
 
+    # Remote execution authorizes every action with one; resolving it as an API
+    # credential first costs database lookups that can only come back empty.
+    test "answers a cache token without resolving it as an API credential" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "cache-token-direct-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      ProjectsFixtures.project_fixture(account: organization.account)
+      {:ok, token, _claims} = Cache.issue_cache_token(user)
+      reject(&Tuist.Authentication.authenticated_subject/1)
+
+      assert %{active: true} = Introspection.token_response(token, organization.account)
+      assert %{active: true} = Introspection.token_response(token)
+    end
+
+    test "reports a forged cache token inactive" do
+      account = AccountsFixtures.organization_fixture().account
+      forged = JOSE.JWT.sign(JOSE.JWK.generate_key({:oct, 32}), %{"alg" => "HS512"}, %{"typ" => "cache"})
+      {_, token} = JOSE.JWS.compact(forged)
+
+      assert Introspection.token_response(token, account) == %{active: false}
+      assert Introspection.token_response(token) == %{active: false}
+    end
+
     test "reports a cache token inactive when its grants do not touch the account" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "granted-org", creator: user)

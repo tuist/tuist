@@ -1,14 +1,14 @@
 ---
-title: "XCBeautify: Supporting GitHub Actions Annotations"
+title: "xcbeautify: Format xcodebuild Output with GitHub Actions Annotations"
 category: "product"
 tags: ['xcbeautify', 'GitHub Actions', 'Developer tools', 'DevOps', 'Open Source']
-excerpt: "Learn about the latest xcbeautify renderer."
+excerpt: "Use xcbeautify's GitHub Actions renderer to turn xcodebuild output into annotations for warnings, errors, and test failures."
 author: cpisciotta
 ---
 
 # Overview
 
-[XCBeautify](https://github.com/tuist/xcbeautify) now features an output format option for GitHub Actions.
+[xcbeautify](https://github.com/cpisciotta/xcbeautify) now features an output format option for GitHub Actions.
 
 # Getting Started
 
@@ -32,9 +32,13 @@ Furthermore, you'll find native inline feedback on PRs. This includes compiler w
 
 By using this feature, you may avoid the need for additional third-party tools, such as [Danger](https://github.com/danger/swift) and related dependencies, to report a summary of xcodebuild output.
 
+If you run builds and tests through Tuist, `tuist build`, `tuist test`, and `tuist xcodebuild` already format their output with xcbeautify and switch to this renderer on GitHub Actions. See [xcodebuild output formatting](/en/docs/guides/integrations/continuous-integration#xcodebuild-output-formatting).
+
+> **Editor's note:** xcbeautify makes a single build's log readable, but it doesn't tell you which targets are getting slower or how build times compare across machines and branches. [Tuist Build Insights](/en/docs/guides/features/build-insights) records your local and CI builds so you can track those trends, and [Measure, analyze, and improve your build times](/blog/2025/06/05/build-insights) walks through using it.
+
 # Introducing Renderers
 
-As of [0.21.0](https://github.com/tuist/xcbeautify/releases/tag/0.21.0), xcbeautify adds the `Renderer` concept. `Renderer` specifies the way you want xcbeautify to format its output.
+As of [0.21.0](https://github.com/cpisciotta/xcbeautify/releases/tag/0.21.0), xcbeautify adds the `Renderer` concept. `Renderer` specifies the way you want xcbeautify to format its output.
 
 Historically, xcbeautify has only supported one command line output format. This is now the format provided by the `TerminalRenderer`, and it's the default option.
 
@@ -42,10 +46,10 @@ Historically, xcbeautify has only supported one command line output format. This
 
 # Final Thoughts
 
-If you'd like to learn more about this change, you can find the introductory pull request [here](https://github.com/tuist/xcbeautify/pull/107).
+If you'd like to learn more about this change, you can find the introductory pull request [here](https://github.com/cpisciotta/xcbeautify/pull/107).
 
 Thank you to [Eli Perkins](https://eliperkins.com) for providing support and direction on this change and supporting GitHub Actions annotations.
 
 # Feedback
 
-If you'd like to provide feedback or a contribution, please consider opening an [issue](https://github.com/tuist/xcbeautify/issues) or [pull request](https://github.com/tuist/xcbeautify/pulls).
+If you'd like to provide feedback or a contribution, please consider opening an [issue](https://github.com/cpisciotta/xcbeautify/issues) or [pull request](https://github.com/cpisciotta/xcbeautify/pulls).

@@ -1,3 +1,10 @@
+/* Mobile Safari (and every iOS browser) inflates long paragraphs but not
+   flex or grid content, so sizes drift between sections; keep authored sizes. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /*
  * Page container for the redesigned pages: yields exactly
  * --marketing-page-width of content on wide viewports, with
@@ -32,12 +39,12 @@
   & > figure {
     position: relative;
     z-index: var(--noora-z-index-1);
-    margin-right: var(--noora-spacing-6);
+    margin-inline-end: var(--noora-spacing-6);
     margin: var(--noora-spacing-6);
 
     @media (min-width: 1024px) {
-      margin-right: var(--noora-spacing-14);
-      margin-left: var(--noora-spacing-14);
+      margin-inline-start: var(--noora-spacing-14);
+      margin-inline-end: var(--noora-spacing-14);
       max-width: 1296px;
     }
   }

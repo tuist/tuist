@@ -1,0 +1,21 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: openobserve-metadata
+spec:
+  instances: {{ .Values.metadata.instances }}
+  enableSuperuserAccess: false
+  bootstrap:
+    initdb:
+      database: openobserve
+      owner: openobserve
+  storage:
+    storageClass: {{ .Values.metadata.storageClass }}
+    size: {{ .Values.metadata.size }}
+  affinity:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: general
+    podAntiAffinityType: preferred
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 1Gi}

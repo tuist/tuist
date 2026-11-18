@@ -83,12 +83,40 @@ defmodule TuistEx.Analytics.GitHistory do
 
         case Git.history(dir, head, base_branch, limits) do
           {:ok, history} ->
+            history = connected(history, base, limits, options, environment)
+
             %{base | settings: settings, dirty?: dirty?, history: history}
             |> Map.put(:fallback_reason, history.fallback_reason)
 
           {:error, reason} ->
             %{base | settings: settings, dirty?: dirty?} |> Map.put(:fallback_reason, reason)
         end
+    end
+  end
+
+  # A shallow clone's history with the commits between it and the server's
+  # fetched, through the base branch on a pull request and the run's own branch
+  # on a push. A server that cannot be asked counts as having them, and nothing
+  # is fetched. Only on CI, where runs race each other and the clone is thrown
+  # away: the fetch makes it a partial clone.
+  defp connected(history, collected, limits, options, environment) do
+    if Env.ci?(environment) and collected.repository_url not in [nil, ""] do
+      Git.connected_history(
+        collected.dir,
+        history,
+        collected.base_branch || collected.branch,
+        limits,
+        &unknown_commits(&1, collected.repository_url, options)
+      )
+    else
+      history
+    end
+  end
+
+  defp unknown_commits(shas, repository_url, options) do
+    case missing(shas, "/tests/git-history/commits/missing", repository_url, options) do
+      {:ok, missing} -> MapSet.to_list(missing)
+      {:error, _reason} -> []
     end
   end
 

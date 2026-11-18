@@ -1,4 +1,5 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistLoggerTesting
@@ -10,6 +11,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct ProjectAcceptanceTests {
     @Test(
         .disabled(),

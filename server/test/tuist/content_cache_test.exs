@@ -226,8 +226,9 @@ defmodule Tuist.ContentCacheTest do
         Kernel.ParallelCompiler.compile([caller_path, dependency_path], return_diagnostics: true)
       end)
 
-    assert_receive :loader_started
-    assert_receive {:dependency_compiling, dependency_compiler}
+    # Parallel compilation can take seconds when the machine is busy.
+    assert_receive :loader_started, 5_000
+    assert_receive {:dependency_compiling, dependency_compiler}, 5_000
     send(dependency_compiler, :continue)
 
     assert {:ok, modules, _diagnostics} = Task.await(compilation)

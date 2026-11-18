@@ -193,6 +193,9 @@ jobs:
         run: |
           flags=(--cache-path "$PWD/.build/dependency-cache" --replace-scm-with-registry --force-resolved-versions)
           bin_path="$(swift build "${flags[@]}" --configuration debug --show-bin-path)"
+          # The cached scratch path may hold the previous pins, which --force-resolved-versions rejects after a bump.
+          swift package --cache-path "$PWD/.build/dependency-cache" --scratch-path .build/project-description \
+            resolve --replace-scm-with-registry
           swift build "${flags[@]}" --scratch-path .build/project-description --product ProjectDescription \
             --enable-parseable-module-interfaces -Xswiftc -enable-library-evolution
           pd_path="$(swift build "${flags[@]}" --scratch-path .build/project-description --show-bin-path)"

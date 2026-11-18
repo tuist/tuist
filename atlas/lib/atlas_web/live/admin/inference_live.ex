@@ -37,7 +37,7 @@ defmodule AtlasWeb.Admin.InferenceLive do
     else
       {:ok,
        socket
-       |> assign(:page_title, gettext("Inference profiles · Atlas"))
+       |> assign(:page_title, gettext("Inference profiles"))
        |> assign(:available_filters, [])
        |> assign(:active_filters, [])
        |> assign(:profiles_meta, %{

@@ -1,39 +1,26 @@
 ---
 {
-  "title": "Templates",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to create and use templates in Tuist to generate code in your projects."
+  "title": "Şablonlar",
+  "titleTemplate": ":title · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Projelerinizde kod oluşturmak için Tuist'te şablonların nasıl oluşturulup kullanılacağını öğrenin."
 }
 ---
 # Şablonlar {#templates}
 
-Yerleşik bir mimariye sahip projelerde, geliştiriciler proje ile tutarlı yeni
-bileşenleri veya özellikleri önyüklemek isteyebilir. ` tuist scaffold` ile bir
-şablondan dosya oluşturabilirsiniz. Kendi şablonlarınızı tanımlayabilir veya
-Tuist ile satılanları kullanabilirsiniz. Bunlar, iskelenin yararlı olabileceği
-bazı senaryolardır:
+Yerleşik bir mimariye sahip projelerde, geliştiriciler projeyle tutarlı yeni bileşenler veya özellikler başlatmak isteyebilir. `tuist scaffold` ile bir şablondan dosyalar oluşturabilirsiniz. Kendi şablonlarınızı tanımlayabilir veya Tuist ile birlikte gelen şablonları kullanabilirsiniz. İskele oluşturmanın yararlı olabileceği bazı senaryolar şunlardır:
 
-- Belirli bir mimariyi izleyen yeni bir özellik oluşturun: `tuist scaffold viper
-  --name MyFeature`.
+- Belirli bir mimariyi takip eden yeni bir özellik oluşturun: `tuist scaffold viper --name MyFeature`.
 - Yeni projeler oluşturun: `tuist scaffold feature-project --name Home`
 
 > [!NOTE]
-> **Non-opinionated**
+> **Tarayışsız**
 >
-> Tuist, şablonlarınızın içeriği ve bunları ne için kullandığınız konusunda fikir
-> sahibi değildir. Sadece belirli bir dizinde olmaları gerekmektedir.
+> Tuist, şablonlarınızın içeriği ve bunları ne amaçla kullandığınız konusunda herhangi bir dayatmada bulunmaz. Tek gereksinim, belirli bir dizinde bulunmalarıdır.
 
 
-## Bir şablon tanımlama {#defining-a-template}
+## Şablon tanımlama {#defining-a-template}
 
-Şablonları tanımlamak için,
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> çalıştırabilir ve ardından şablonunuzu temsil eden
-`Tuist/Templates` altında `name_of_template` adlı bir dizin oluşturabilirsiniz.
-Şablonlar, şablonu tanımlayan `name_of_template.swift` adında bir manifesto
-dosyasına ihtiyaç duyar. Dolayısıyla, `framework` adında bir şablon
-oluşturuyorsanız, `Tuist/Templates` adresinde `framework` adında yeni bir dizin
-oluşturmalı ve `framework.swift` adında aşağıdaki gibi görünebilecek bir
-bildirim dosyası oluşturmalısınız:
+Şablonları tanımlamak için <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link> komutunu çalıştırabilir ve ardından şablonunuzu temsil eden `name_of_template` adında bir dizini `Tuist/Templates` altında oluşturabilirsiniz. Şablonların, şablonu açıklayan bir bildirim dosyasına, yani `name_of_template.swift` dosyasına ihtiyacı vardır. Dolayısıyla, `framework` adında bir şablon oluşturuyorsanız, `Tuist/Templates` konumunda `framework` adında yeni bir dizin ve içinde `framework.swift` adında bir bildirim dosyası oluşturmalısınız; bu dosya şu şekilde görünebilir:
 
 
 ```swift
@@ -66,34 +53,23 @@ let template = Template(
 
 ## Şablon kullanma {#using-a-template}
 
-Şablonu tanımladıktan sonra `scaffold` komutundan kullanabiliriz:
+Şablonu tanımladıktan sonra, onu `scaffold` komutuyla kullanabiliriz:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
 > [!NOTE]
-> Platform isteğe bağlı bir argüman olduğundan, komutu `--platform macos` argümanı
-> olmadan da çağırabiliriz.
+> platform isteğe bağlı bir bağımsız değişken olduğundan, komutu `--platform macos` bağımsız değişkeni olmadan da çağırabiliriz.
 
 
-`.string` ve `.files` yeterince esneklik sağlamıyorsa, `.file` durumu
-aracılığıyla [Stencil](https://stencil.fuller.li/en/latest/) şablonlama dilinden
-yararlanabilirsiniz. Bunun yanı sıra, burada tanımlanan ek filtreleri de
-kullanabilirsiniz.
+Eğer `.string` ve `.files` yeterli esneklik sağlamıyorsa, `.file` durumu aracılığıyla [Stencil](https://stencil.fuller.li/en/latest/) şablonlama dilinden yararlanabilirsiniz. Bunun yanı sıra, burada tanımlanan ek filtreleri de kullanabilirsiniz.
 
-Dize enterpolasyonu kullanıldığında, `\(nameAttribute)` yukarıdaki `{{ name }}`
-şeklinde çözümlenir. Şablon tanımında Stencil filtrelerini kullanmak isterseniz,
-bu enterpolasyonu manuel olarak kullanabilir ve istediğiniz filtreleri
-ekleyebilirsiniz. Örneğin, `{ { isim | küçük harf } }` yerine `\(nameAttribute)`
-name niteliğinin küçük harfli değerini almak için.
+Dize enterpolasyonu kullanarak, yukarıdaki `\(nameAttribute)` ifadesi `{{ name }}` olarak çözümlenir. Şablon tanımında Stencil filtrelerini kullanmak isterseniz, bu enterpolasyonu manuel olarak uygulayabilir ve istediğiniz filtreleri ekleyebilirsiniz. Örneğin, name özelliğinin küçük harfli değerini almak için `\(nameAttribute)` yerine `{ { name | lowercase } }` kullanabilirsiniz.
 
-Ayrıca, tüm klasörleri belirli bir yola kopyalama imkanı veren `.directory`
-adresini de kullanabilirsiniz.
+Ayrıca, tüm klasörleri belirtilen bir yola kopyalama olanağı sağlayan `.directory` öğesini de kullanabilirsiniz.
 
 > [!TIP]
-> **Project Description Helpers**
+> **Proje açıklama yardımcıları**
 >
-> Şablonlar, kodun şablonlar arasında yeniden kullanılması için
-> <LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarının</LocalizedLink> kullanımını destekler.
-
+> Şablonlar, kodu şablonlar arasında yeniden kullanmak için <.localized_link href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</.localized_link> kullanımını destekler.

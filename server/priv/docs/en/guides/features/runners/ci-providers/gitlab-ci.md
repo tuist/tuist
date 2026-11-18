@@ -7,10 +7,7 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-> [!IMPORTANT]
-> **Invite-only**
->
-> Tuist Runners are currently invite-only. [Reach out](mailto:contact@tuist.dev) to request access for your account.
+<!-- @snippet: ./_invite-only -->
 
 Your pipelines stay in GitLab. Tuist provides an isolated Linux or macOS machine for each job and reports its logs and outcome to GitLab and the Tuist dashboard. GitLab 19.3 or newer is required. GitLab.com and self-managed instances reachable over public HTTPS are supported.
 

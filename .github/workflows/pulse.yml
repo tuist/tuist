@@ -1,0 +1,76 @@
+name: Pulse
+
+# Pulse is Tuist's observability database (pulse/FORK.md). Upstream's own CI is not
+# imported; this checks what the fork changes and that the server still builds.
+on:
+  push:
+    branches: [main]
+    paths:
+      - pulse/**
+      - .github/workflows/pulse.yml
+  pull_request:
+    paths:
+      - pulse/**
+      - .github/workflows/pulse.yml
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulse-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: pulse
+    shell: bash
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Pulse ${{ matrix.check.name }}
+    runs-on: ${{ matrix.check.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - name: Format
+            runner: tuist-linux
+            command: cargo fmt --all -- --check
+          # The crates the fork changes. `nesting` holds the stack-overflow guards.
+          - name: Test
+            runner: tuist-linux-large
+            command: cargo test --locked -p sql --lib
+          - name: Build
+            runner: tuist-linux-large
+            command: cargo check --locked --bin pulse
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked protoc"
+          github_token: ${{ github.token }}
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      # rust-toolchain.toml pins the fork's toolchain. Newer rustup no longer
+      # installs it on `rustup show`, so install it by name.
+      - name: Install the pinned toolchain
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component rustfmt
+      - name: Cache Rust build
+        if: matrix.check.name != 'Format'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pulse -> target
+          key: pulse-${{ matrix.check.name }}
+      - name: ${{ matrix.check.name }}
+        run: ${{ matrix.check.command }}

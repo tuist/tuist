@@ -1,0 +1,99 @@
+/* A 20px box, the line height of medium body text, with the 16px circle
+   centered inside. The state comes from the control's own data-state, or
+   from the radio input rendered right before it. */
+.noora-radio-control {
+  /* The unselected fill, which a hover can change. */
+  --noora-radio-surface: var(--noora-surface-background-primary);
+
+  display: flex;
+  flex: none;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+
+  /* The circle is always drawn unselected, like an outline ghost button. */
+  & > [data-part="circle"] {
+    position: relative;
+    box-sizing: border-box;
+    box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+    border-radius: var(--noora-radius-99);
+    background: var(--noora-radio-surface);
+    width: 16px;
+    height: 16px;
+  }
+
+  /* The selected fill, drawn like a primary button on a layer over the
+     circle, and the 9px dot on top of it. */
+  & > [data-part="circle"]::before,
+  & > [data-part="circle"]::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    content: "";
+  }
+
+  /* The fill fades in place. */
+  & > [data-part="circle"]::before {
+    opacity: 0;
+    transition: opacity 100ms var(--ease-out-cubic);
+    box-shadow: var(--noora-button-border-primary);
+    background: var(--noora-button-background-primary);
+  }
+
+  /* The dot grows from its center, out of nothing, and shrinks back into
+     it. */
+  & > [data-part="circle"]::after {
+    transform: scale(0);
+    transition: transform 100ms var(--ease-out-cubic);
+    margin: auto;
+    background: var(--noora-button-primary-label);
+    width: 9px;
+    height: 9px;
+  }
+
+  /* Transitions, not animations, so a radio that loads or re-renders
+     selected doesn't replay them. */
+  &[data-state="checked"] > [data-part="circle"]::before,
+  input:checked + &:not([data-state]) > [data-part="circle"]::before {
+    opacity: 1;
+    transition: opacity 150ms var(--ease-out-cubic);
+  }
+
+  &[data-state="checked"] > [data-part="circle"]::after,
+  input:checked + &:not([data-state]) > [data-part="circle"]::after {
+    transform: none;
+    transition: transform 200ms var(--ease-out-cubic);
+  }
+
+  /* Keyboard focus draws the button focus ring, over hover. */
+  input:focus-visible + & > [data-part="circle"] {
+    box-shadow: var(--noora-button-border-focus) !important;
+  }
+
+  /* Disabled, selected or not, the circle keeps the outline and the dot
+     takes the disabled button label. */
+  &[data-disabled],
+  input:disabled + & {
+    --noora-radio-surface: var(--noora-surface-background-secondary);
+
+    cursor: not-allowed;
+
+    /* Over the selected state, whose selector is more specific. */
+    & > [data-part="circle"]::before {
+      opacity: 0 !important;
+    }
+
+    & > [data-part="circle"]::after {
+      background: var(--noora-button-disabled-label);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & > [data-part="circle"]::before,
+    & > [data-part="circle"]::after {
+      transition: none !important;
+    }
+  }
+}

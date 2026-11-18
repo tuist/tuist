@@ -6,6 +6,63 @@ defmodule Tuist.Bazel.ProfileTest do
   alias Tuist.Bazel.Timeline
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  test "remote phases require exact server descriptions and unambiguous thread containment" do
+    action = %{
+      "ph" => "X",
+      "pid" => 1,
+      "tid" => 7,
+      "ts" => 0,
+      "dur" => 20_000,
+      "cat" => "action processing",
+      "name" => "Compile",
+      "args" => %{"mnemonic" => "CppCompile"}
+    }
+
+    phase = %{
+      "ph" => "X",
+      "pid" => 1,
+      "tid" => 7,
+      "ts" => 1000,
+      "dur" => 3000,
+      "cat" => "Remote execution process wall time",
+      "name" => "execute"
+    }
+
+    for events <- [
+          [action, %{phase | "tid" => 8}],
+          [action, %{phase | "pid" => 2}],
+          [action, Map.delete(phase, "tid")],
+          [action, %{phase | "ts" => 19_000}],
+          [action, %{action | "ts" => 500}, phase],
+          [action, %{phase | "cat" => "Remote execution upload time", "name" => "upload outputs"}],
+          [action, %{phase | "cat" => "Remote execution upload time", "name" => "upload missing inputs"}]
+        ] do
+      assert {:ok, timeline} =
+               Profile.normalize(%{"otherData" => %{"build_id" => "id"}, "traceEvents" => events}, "id", "app")
+
+      refute Enum.any?(timeline.events, &Map.has_key?(&1, :remote_execution_ms))
+      refute Enum.any?(timeline.events, &Map.has_key?(&1, :remote_output_upload_ms))
+    end
+
+    # Input order is not temporal order; an expired action must not claim a later phase.
+    events = [phase, %{action | "ts" => 30_000}, action, %{phase | "ts" => 31_000, "dur" => 1000}]
+
+    assert {:ok, %{events: steps}} =
+             Profile.normalize(%{"otherData" => %{"build_id" => "id"}, "traceEvents" => events}, "id", "app")
+
+    assert %{remote_execution_ms: 3.0} = Enum.find(steps, &(&1.event_id == "profile:2"))
+    assert %{remote_execution_ms: 1.0} = Enum.find(steps, &(&1.event_id == "profile:1"))
+
+    assert {:ok, %{events: steps}} =
+             Profile.normalize(
+               %{"otherData" => %{"build_id" => "id"}, "traceEvents" => [action, %{phase | "dur" => 0}]},
+               "id",
+               "app"
+             )
+
+    assert Enum.find(steps, &(&1.event_id == "profile:0")).remote_execution_ms == 0.0
+  end
+
   test "availability accepts metric-only profiles and excludes empty profiles and padded samples" do
     project = ProjectsFixtures.project_fixture(build_system: :bazel)
 

@@ -1,7 +1,7 @@
 # The controller is independent of the guest: it needs no KVM or cluster API access.
 FROM ubuntu:24.04
-ARG AMP_VERSION=0.0.1793104576-gc52692
-ARG AMP_SHA256=fdc30a88aeca5aad920ee32af6e87c9875e5e055497911183ed0265f49a53fa0
+ARG AMP_VERSION=0.0.1793868001-g0e9889
+ARG AMP_SHA256=f945e79dde17eeaf7304fa564a5f0ff86c37419e879b420d8ba6f73ad3a98911
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash ca-certificates curl jq coreutils util-linux tini libstdc++6 \
     && rm -rf /var/lib/apt/lists/*

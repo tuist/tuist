@@ -74,7 +74,7 @@
         <div data-part="usage-details-title">
           <span data-part="label">{dgettext("dashboard_account", "Usage details")}</span>
           <.badge
-            :if={usage_allowance_exceeded?(@usage_pricing)}
+            :if={usage_allowance_exceeded?(@usage_pricing, @storage_usage)}
             label={dgettext("dashboard_account", "Free tier exceeded")}
             color="attention"
             size="small"
@@ -108,6 +108,18 @@
           max={@usage_pricing.tests.included}
           max_label={format_number(@usage_pricing.tests.included)}
           title={dgettext("dashboard_account", "Passing test cases:")}
+        />
+        <.progress_bar
+          :if={
+            @storage_usage &&
+              (@runner_usage.enabled or TuistWeb.UsageLive.storage_used?(@storage_usage))
+          }
+          id="cache-volume-storage-progress"
+          value={@storage_usage.byte_months}
+          value_label={TuistWeb.UsageLive.gigabyte_months_label(@storage_usage.byte_months)}
+          max={@storage_usage.included}
+          max_label={TuistWeb.UsageLive.gigabyte_months_label(@storage_usage.included)}
+          title={dgettext("dashboard_account", "Cache volume storage:")}
         />
         <.progress_bar
           :if={@runner_usage.enabled or @runner_usage.total_ms > 0}
@@ -299,7 +311,7 @@
     <.pricing_cards id="billing-pricing-plans" plan={@plan} />
   </div>
   <.card
-    :if={@plan == :pro and usage_pricing_rows(@usage_pricing) != []}
+    :if={@plan == :pro and usage_pricing_rows(@usage_pricing, @storage_usage) != []}
     data-part="usage-card"
     icon="history"
     title={dgettext("dashboard_account", "Usage")}
@@ -311,7 +323,7 @@
           "You’ve exceeded your free tier quota and will incur charges for additional usage."
         )}
       </span>
-      <.table id="usage-pricing-table" rows={usage_pricing_rows(@usage_pricing)}>
+      <.table id="usage-pricing-table" rows={usage_pricing_rows(@usage_pricing, @storage_usage)}>
         <:col :let={usage_item} label={dgettext("dashboard_account", "Usage")}>
           <.text_and_description_cell
             label={usage_item.label}

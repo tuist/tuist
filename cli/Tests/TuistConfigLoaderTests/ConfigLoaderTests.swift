@@ -121,10 +121,27 @@ struct ConfigLoaderTests {
         #expect(config.url == URL(string: "https://custom.tuist.dev")!)
         #expect(config.network.proxy == false)
         #expect(HTTPSettings.current.useEnvironmentProxy == false)
+        verify(loader).loadCargoManifestConfig(at: .any).called(0)
         #if os(macOS)
             verify(swift).locateConfig(at: .any).called(0)
             verify(swift).loadConfig(path: .any).called(0)
         #endif
+    }
+
+    @Test(.inTemporaryDirectory)
+    func loadCargoConfig_falls_back_to_cargo_manifest() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let loader = MockTuistTomlConfigLoading()
+        let previousSettings = HTTPSettings.current
+        defer { HTTPSettings.current = previousSettings }
+        given(loader).loadConfig(at: .any).willReturn(nil)
+        given(loader).loadCargoManifestConfig(at: .any).willReturn(TuistTomlConfig(
+            project: "org/cargo-project",
+            testInsights: .init(coverage: .init(upload: true))
+        ))
+        let config = try await makeConfigLoader(tomlConfigLoader: loader).loadCargoConfig(path: directory)
+        #expect(config.fullHandle == "org/cargo-project")
+        #expect(config.testInsights.coverage.upload == true)
     }
 
     @Test(.inTemporaryDirectory)
@@ -134,6 +151,7 @@ struct ConfigLoaderTests {
         let previousSettings = HTTPSettings.current
         defer { HTTPSettings.current = previousSettings }
         given(loader).loadConfig(at: .any).willReturn(nil)
+        given(loader).loadCargoManifestConfig(at: .any).willReturn(nil)
         let config = try await makeConfigLoader(tomlConfigLoader: loader).loadCargoConfig(path: directory)
         #expect(config.fullHandle == nil)
         #expect(config.url == Constants.URLs.production)

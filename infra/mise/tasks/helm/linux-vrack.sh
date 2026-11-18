@@ -21,18 +21,18 @@ for ENVIRONMENT in staging canary production; do
     any(.[]; .kind == "DaemonSet" and .spec.template.metadata.labels["app.kubernetes.io/component"] == "runner-cache-volumes" and
       .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == "runners-linux")
   ' "$WORK/render.json" >/dev/null
-  if [[ "$ENVIRONMENT" != staging ]]; then
-    case "$ENVIRONMENT" in
-      canary) VRACK=pn-2024092; REPLICAS=1 ;;
-      production) VRACK=pn-2024093; REPLICAS=10 ;;
-    esac
-    jq -e --arg environment "$ENVIRONMENT" --arg vrack "$VRACK" --argjson replicas "$REPLICAS" '
-      any(.[]; .kind == "OVHDedicatedMachineTemplate" and
-        .spec.template.spec.adoptDisplayNamePrefix == ("tuist-runners-ovh-" + $environment) and
-        .spec.template.spec.vRackID == $vrack) and
-      any(.[]; .kind == "MachineDeployment" and
-        .spec.template.metadata.labels["node.cluster.x-k8s.io/pool"] == "runners-linux" and .spec.replicas == $replicas)
-    ' "$WORK/render.json" >/dev/null
-  fi
+  case "$ENVIRONMENT" in
+    staging) VRACK=pn-2023588; REPLICAS=1 ;;
+    canary) VRACK=pn-2024092; REPLICAS=1 ;;
+    production) VRACK=pn-2024093; REPLICAS=10 ;;
+  esac
+  jq -e --arg environment "$ENVIRONMENT" --arg vrack "$VRACK" --argjson replicas "$REPLICAS" '
+    any(.[]; .kind == "OVHDedicatedMachineTemplate" and
+      .spec.template.spec.adoptDisplayNamePrefix == ("tuist-runners-ovh-" + $environment) and
+      .spec.template.spec.vRackID == $vrack) and
+    any(.[]; .kind == "MachineDeployment" and
+      .spec.template.metadata.labels["node.cluster.x-k8s.io/pool"] == "runners-linux" and .spec.replicas == $replicas and
+      .spec.template.metadata.labels["node.cluster.x-k8s.io/shard-storage-site"] == "gra")
+  ' "$WORK/render.json" >/dev/null
   echo "$ENVIRONMENT: one Linux pool, direct cache access, no account-path mapping or relay."
 done

@@ -1,10 +1,8 @@
 import Foundation
-import Logging
 import Path
 import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
-import TuistLogging
 import TuistServer
 
 public protocol WhoamiServicing {
@@ -18,15 +16,18 @@ public struct WhoamiService: WhoamiServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
+    private let write: (String) -> Void
 
     public init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        write: @escaping (String) -> Void = { print($0) }
     ) {
         self.serverSessionController = serverSessionController
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
+        self.write = write
     }
 
     public func run(
@@ -47,7 +48,9 @@ public struct WhoamiService: WhoamiServicing {
         }
 
         let whoami = try await serverSessionController.authenticatedHandle(serverURL: resolvedServerURL)
-        Logger.current.notice("\(whoami)")
+        // Print to stdout rather than log: on Linux the logger writes notices only to the session log, so
+        // scripts and agents read nothing and take an empty answer for being signed out.
+        write(whoami)
     }
 }
 

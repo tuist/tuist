@@ -2,12 +2,13 @@ defmodule Atlas.TuistFeatureFlags do
   @moduledoc """
   Authorized, audited access to Tuist's persisted feature flag rules.
 
-  Tuist owns flag allowlisting, actor resolution, revision checks, idempotency
+  Tuist owns flag name and actor validation, actor resolution, revision checks, idempotency
   and the atomic rule/change audit. Atlas records request outcomes, not proof
   that a failed remote request had no effect.
   """
 
   alias Atlas.Audit
+  alias Atlas.MCP, as: MCPContext
   alias Atlas.MCP.Tool
   alias Atlas.TuistServer
   alias Atlas.Users
@@ -59,7 +60,7 @@ defmodule Atlas.TuistFeatureFlags do
       "type" => "object",
       "properties" => %{
         "name" => %{"type" => "string"},
-        "actor_type" => %{"type" => "string", "enum" => ~w(global account project)},
+        "actor_type" => %{"type" => "string", "enum" => ~w(global account project any)},
         "description" => %{"type" => "string"},
         "revision" => %{"type" => "string"},
         "gates" => %{
@@ -140,7 +141,8 @@ defmodule Atlas.TuistFeatureFlags do
            :ok <- authorize(user, "feature_flags:write"),
            :ok <- validate(@update_schema, args),
            :ok <- validate_name(args["name"]),
-           :ok <- validate_update(args) do
+           :ok <- validate_update(args),
+           :ok <- approve_write(user, "update-feature-flag", args, opts) do
         attrs =
           args
           |> Map.delete("name")
@@ -158,6 +160,30 @@ defmodule Atlas.TuistFeatureFlags do
       end
 
     record("updated", user, target_name(args), metadata, result, opts)
+  end
+
+  @doc """
+  Holds a production write until the calling person approves this exact call
+  (`mcp_tool_approvals`, recorded under `tuist-server`). Approvals are single
+  use and only a person's own MCP connection can spend one, so worker, API and
+  Slack contexts never reach the write.
+  """
+  def approve_write(%User{} = user, tool, args, opts) do
+    if Keyword.get(opts, :interface, "mcp") == "mcp" do
+      case MCPContext.authorize_tool_call(user, "tuist-server", tool, args) do
+        {:ok, _approval} ->
+          :ok
+
+        {:approval_required, approval} ->
+          {:error,
+           "This Tuist production write needs a person's approval for this exact call. Ask the person you are working " <>
+             "for to approve request #{approval.id} at #{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
+             "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
+             "Never approve it yourself."}
+      end
+    else
+      {:error, "Tuist production writes need a person's approval and are only callable over Atlas MCP."}
+    end
   end
 
   defp authorize(%User{} = user, scope) do

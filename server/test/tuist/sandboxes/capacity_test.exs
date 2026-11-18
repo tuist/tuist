@@ -92,6 +92,39 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert %Sandbox{node_name: ^free, state: :creating} = Repo.reload!(sandbox)
     end
 
+    test "place/3 takes a preferred node with room over a freer one, and passes over a full one", %{template: template} do
+      free = connect(node_name(), template)
+      holder = connect(node_name(), template)
+      sandbox_fixture(template: template, state: :running, node_name: holder, residency_work_id: "work", memory_mb: 8192)
+
+      assert {:ok, ^holder} = Capacity.place(new_sandbox(template), fn _node -> true end, prefer: [holder])
+
+      # (8192 + 4096 + 4096 + 3 x 64) MiB leaves less than a fourth sandbox's
+      # charge on the holder's 19.5 GiB budget, and its residents are busy.
+      sandbox_fixture(template: template, state: :running, node_name: holder, residency_work_id: "work", memory_mb: 4096)
+      reject(&Nodes.call/4)
+      sandbox = new_sandbox(template)
+
+      assert {:ok, ^free} = Capacity.place(sandbox, fn _node -> true end, prefer: [holder])
+      assert %Sandbox{node_name: ^free} = Repo.reload!(sandbox)
+    end
+
+    test "place/3 takes an avoided node only when no other can take the sandbox", %{template: template} do
+      origin = connect(node_name(), template)
+      other = connect(node_name(), template)
+      # The origin is the freer node, which place/1 would pick.
+      sandbox_fixture(template: template, state: :running, node_name: other, residency_work_id: "work", memory_mb: 4096)
+
+      assert {:ok, ^other} = Capacity.place(new_sandbox(template), fn _node -> true end, avoid: [origin])
+
+      # (4096 + 4096 + 4096 + 3 x 64) MiB leaves no room for a fourth on
+      # the other node's 19.5 GiB budget, and its residents are busy.
+      sandbox_fixture(template: template, state: :running, node_name: other, residency_work_id: "work", memory_mb: 8192)
+      reject(&Nodes.call/4)
+
+      assert {:ok, ^origin} = Capacity.place(new_sandbox(template), fn _node -> true end, avoid: [origin])
+    end
+
     test "answers no_node when no connected node has the template ready", %{template: template} do
       connect(node_name(), template, %{templates: [%{name: template, tag: "sha-1", ready: false}]})
       connect(node_name(), "other-#{template}")
@@ -463,6 +496,56 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
     end
 
+    test "grows a preferred node's carve-out over a freer node's", %{template: template} do
+      free = connect_elastic(template)
+      holder = connect_elastic(template)
+      set_grant(holder, allocation_free_bytes: 20 * @gib)
+      resident(template, free)
+      resident(template, holder)
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", "sandboxd-" <> node, bytes ->
+        :ok = Nodes.update(node, %{capacity: %{memory_bytes: bytes, cpus: 16}})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, ^holder} = Capacity.place(new_sandbox(template), fn _node -> true end, prefer: [holder])
+      assert Repo.get(SandboxNode, holder).memory_limit_bytes == 9 * @gib
+      assert Repo.get(SandboxNode, free).memory_limit_bytes == 8 * @gib
+    end
+
+    test "grows a preferred node's carve-out before taking another node's room", %{template: template} do
+      free = connect_elastic(template)
+      holder = connect_elastic(template)
+      resident(template, holder)
+      apply_resizes(holder)
+
+      # The free node holds the newcomer as it is; the holder needs 9 GiB.
+      assert {:ok, ^holder} = Capacity.place(new_sandbox(template), fn _node -> true end, prefer: [holder])
+      assert Repo.get(SandboxNode, holder).memory_limit_bytes == 9 * @gib
+      assert Repo.get(SandboxNode, free).memory_limit_bytes == 8 * @gib
+    end
+
+    test "an admission growth goes to a preferred node over a freer one", %{template: template} do
+      free = connect_elastic(template)
+      holder = connect_elastic(template)
+      set_grant(holder, allocation_free_bytes: 20 * @gib)
+      resident(template, free)
+      resident(template, holder)
+      agent_environment = agent_environment_fixture(template: template)
+      test_pid = self()
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, pod, _bytes ->
+        send(test_pid, {:resized, pod})
+        {:ok, %{}}
+      end)
+
+      stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => applied_status("9Gi")}} end)
+
+      assert Capacity.admissible?(agent_environment, "sesn_new", prefer: [holder])
+      assert_received {:resized, "sandboxd-" <> ^holder}
+      refute_received {:resized, "sandboxd-" <> ^free}
+    end
+
     test "pauses idle sandboxes before it grows", %{template: template} do
       node = connect_elastic(template)
       idle = sandbox_fixture(template: template, state: :running, node_name: node, memory_mb: 4096)
@@ -661,6 +744,198 @@ defmodule Tuist.Sandboxes.CapacityTest do
       # One 4160 MiB guest plus the 512 MiB reserve rounds up to 5 GiB.
       assert {:ok, ^node} = Capacity.place(new_sandbox(template))
       assert Capacity.memory_limit_bytes(node_info(node)) == 5 * @gib
+    end
+
+    defp connect_execution(overrides) do
+      image = "sha-" <> String.duplicate("e", 40)
+
+      node =
+        connect_elastic(
+          "bazel-#{TuistTestSupport.Utilities.unique_integer()}",
+          Map.merge(
+            %{
+              execution_slots: 8,
+              execution_deadlines: true,
+              capacity: %{memory_bytes: 9 * @gib, cpus: 16},
+              templates: [%{name: "bazel", tag: image, ready: true}],
+              elastic: %{memory_floor_bytes: 9 * @gib, memory_ceiling_bytes: 17 * @gib}
+            },
+            overrides
+          )
+        )
+
+      {node, image}
+    end
+
+    defp execution_vm(node \\ nil) do
+      sandbox_fixture(purpose: :remote_execution, template: "bazel", state: :creating, node_name: node, memory_mb: 4096)
+    end
+
+    defp set_grant(node, attrs) do
+      SandboxNode |> Repo.get!(node) |> Ecto.Changeset.change(attrs) |> Repo.update!()
+    end
+
+    test "execution VMs use a shared host's floor while CI has revoked its grant" do
+      {node, image} = connect_execution(%{})
+      set_grant(node, allocation_reclaim: true, allocation_memory_bytes: 0)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      # A 9 GiB floor holds two 4160 MiB guests beside the 512 MiB reserve.
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), image)
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), image)
+      # Past the floor, a revoked grant refuses the growth.
+      assert {:error, :no_capacity} = Capacity.place_execution(execution_vm(), image)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 9 * @gib
+    end
+
+    test "execution VMs grow a shared host's carve-out past the grant, up to its ceiling" do
+      {node, image} = connect_execution(%{})
+      # The grant has no memory to offer beyond what the daemon holds: every runner is busy.
+      set_grant(node, allocation_memory_bytes: 9 * @gib, allocation_free_bytes: 0)
+      apply_resizes(node)
+      for _ <- 1..2, do: execution_vm(node)
+
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), image)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 13 * @gib
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), image)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 17 * @gib
+      # Five guests would pass the 17 GiB ceiling.
+      assert {:error, :no_capacity} = Capacity.place_execution(execution_vm(), image)
+    end
+
+    defp grown_execution_daemon(last_vm_placed_at) do
+      {node, _image} = connect_execution(%{capacity: %{memory_bytes: 17 * @gib, cpus: 16}})
+      set_grant(node, memory_limit_bytes: 17 * @gib, grown_at: DateTime.add(DateTime.utc_now(:second), -600, :second))
+      # The last action's VM is already gone, so nothing running holds memory.
+      sandbox_fixture(
+        purpose: :remote_execution,
+        template: "bazel",
+        state: :deleted,
+        node_name: node,
+        inserted_at: last_vm_placed_at
+      )
+
+      node
+    end
+
+    test "an execution carve-out holds between actions" do
+      node = grown_execution_daemon(DateTime.utc_now())
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert :unchanged = Capacity.shrink(node_info(node))
+    end
+
+    test "an execution carve-out shrinks once the daemon has placed nothing for a minute" do
+      node = grown_execution_daemon(DateTime.add(DateTime.utc_now(), -61, :second))
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 9 * @gib
+    end
+
+    test "CI pressure shrinks an execution carve-out between actions" do
+      node = grown_execution_daemon(DateTime.utc_now())
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      assert {:ok, limit} = Capacity.shrink(node_info(node), true)
+      assert limit == 9 * @gib
+    end
+
+    test "agent sandboxes still need the grant's memory to grow", %{template: template} do
+      node = connect_elastic(template)
+      set_grant(node, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)
+      resident(template, node)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+    end
+
+    test "explains why each node cannot take a sandbox", %{template: template} do
+      reclaiming = connect_elastic(template)
+      set_grant(reclaiming, allocation_reclaim: true)
+      # A second guest does not fit the 8 GiB floor, and the grant does not
+      # offer the 8.6 GiB a growth needs.
+      limited = connect_elastic(template)
+      resident(template, limited)
+      set_grant(limited, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)
+      # The grant offers the growth; the carve-out only has not grown.
+      unsized = connect_elastic(template)
+      resident(template, unsized)
+      roomy = connect_elastic(template)
+
+      assert Capacity.refusal_reasons(new_sandbox(template), [reclaiming, limited, unsized, roomy, "gone"]) == %{
+               reclaiming => :ci_reclaim,
+               limited => :allocation_limit,
+               unsized => :growth_failed,
+               roomy => :room,
+               "gone" => :not_ready
+             }
+    end
+
+    test "a carve-out row created at 1 GiB before the daemon connected budgets and shrinks from the floor" do
+      {node, image} = connect_execution(%{})
+      set_grant(node, memory_limit_bytes: @gib)
+      # Shrinking the Pod below its floor would be refused by nothing else.
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+
+      assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
+      assert :unchanged = Capacity.shrink(node_info(node))
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), image)
+    end
+
+    test "the execution image is the template most execution daemons have ready" do
+      old = "sha-" <> String.duplicate("a", 40)
+      new = "sha-" <> String.duplicate("b", 40)
+      daemon = fn tags -> %{execution_slots: 4, execution_deadlines: true, templates: tags} end
+      ready = &%{name: "bazel", tag: &1, ready: true}
+
+      stub(Nodes, :connected_nodes, fn ->
+        [
+          daemon.([ready.(new)]),
+          daemon.([ready.(new), %{name: "bazel", tag: old, ready: false}]),
+          daemon.([ready.(old)]),
+          # Agent daemons and other templates are not execution images.
+          %{execution_slots: 0, templates: [ready.(old)]},
+          %{execution_slots: 0, templates: [ready.(old)]},
+          daemon.([%{name: "default", tag: old, ready: true}])
+        ]
+      end)
+
+      assert Capacity.execution_image_tag() == new
+
+      stub(Nodes, :connected_nodes, fn -> [%{execution_slots: 0, templates: [ready.(old)]}] end)
+      assert Capacity.execution_image_tag() == nil
+    end
+
+    test "execution daemons vote for their configured tag over the older tags they keep" do
+      # The older tag sorts greater, so a tie between everything ready would pick it.
+      old = "sha-" <> String.duplicate("b", 40)
+      new = "sha-" <> String.duplicate("a", 40)
+      ready = &%{name: "bazel", tag: &1, ready: true}
+
+      daemon = fn configured, templates ->
+        %{
+          execution_slots: 4,
+          execution_deadlines: true,
+          default_template: "bazel",
+          default_template_tag: configured,
+          templates: templates
+        }
+      end
+
+      rolled = daemon.(new, [ready.(old), ready.(new)])
+      stub(Nodes, :connected_nodes, fn -> [rolled, rolled] end)
+      assert Capacity.execution_image_tag() == new
+
+      # Until its tag is ready, and when it reports none, a daemon votes for every tag it has ready:
+      # two votes each, a tie the older tag wins, where a daemon voting for nothing would hand it to the new one.
+      building = daemon.(new, [ready.(old), %{name: "bazel", tag: new, ready: false}])
+      unconfigured = %{execution_slots: 4, execution_deadlines: true, templates: [ready.(old)]}
+      stub(Nodes, :connected_nodes, fn -> [rolled, rolled, building, unconfigured] end)
+      assert Capacity.execution_image_tag() == old
     end
 
     defp insert_row(node, pod_name, limit, grown_at) do

@@ -38,10 +38,13 @@ class CachedValueStore<T>(
      * @param deadlineNanos a [System.nanoTime] after which waiting for another caller's computation,
      * or for the file lock, gives up with a [TimeoutException]. `null` waits for as long as it takes.
      * It does not bound [compute] itself.
+     * @param current a value that needs neither [compute] nor the file lock, such as a stored token
+     * that has not expired, or `null` when [compute] must run.
      */
     fun getValue(
         forceRefresh: Boolean = false,
         deadlineNanos: Long? = null,
+        current: (() -> Pair<T, Long?>?)? = null,
         compute: () -> Pair<T, Long?>
     ): T {
         if (!forceRefresh) {
@@ -73,7 +76,7 @@ class CachedValueStore<T>(
         }
 
         try {
-            val (value, expiresAtMs) = if (lockFilePath != null) {
+            val (value, expiresAtMs) = current?.invoke() ?: if (lockFilePath != null) {
                 withFileLock(deadlineNanos) { compute() }
             } else {
                 compute()

@@ -103,15 +103,38 @@ defmodule Atlas.Connections do
 
       with :ok <- check_binding(connection, binding),
            {:ok, connection} <- usable_connection(connection, user) do
-        if scopes == [] or Enum.any?(scopes, &(&1 in connection.scopes)),
-          do: {:ok, connection.access_token},
-          else: {:error, :insufficient_scope}
+        scoped_token(connection, scopes)
       end
     end)
     |> case do
       {:ok, result} -> result
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  @doc """
+  Replaces an access token the provider rejected (HTTP 401) before its recorded
+  expiry. The refresh only runs while the stored token is still the rejected
+  one, so concurrent callers that hit the same 401 share a single refresh.
+  """
+  def refresh_access_token(%User{} = user, provider, scopes, rejected_token) when is_binary(rejected_token) do
+    Repo.transaction(fn ->
+      with {:ok, connection} <- user |> locked_connection(provider) |> usable_connection(user),
+           {:ok, connection} <-
+             if(connection.access_token == rejected_token, do: refresh(connection, user), else: {:ok, connection}) do
+        scoped_token(connection, scopes)
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp scoped_token(connection, scopes) do
+    if scopes == [] or Enum.any?(scopes, &(&1 in connection.scopes)),
+      do: {:ok, connection.access_token},
+      else: {:error, :insufficient_scope}
   end
 
   defp check_binding(_connection, nil), do: :ok

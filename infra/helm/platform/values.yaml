@@ -476,6 +476,11 @@ external-secrets:
   installCRDs: true
   webhook:
     port: 9443
+  # Keep off. It lets an ExternalSecret render into a ConfigMap, which the
+  # view tier reads, and the JIT write tier may patch ExternalSecrets
+  # (`tuist-write-externalsecrets` in infra/helm/pomerium).
+  genericTargets:
+    enabled: false
 
 # Backs the pods.metrics.k8s.io API the HPA reads. Without it, HPAs report
 # `FailedGetResourceMetric` and refuse to scale.
@@ -654,82 +659,12 @@ ciliumEgressGateway:
       tuist.dev/stable-egress-gateway: server
     egressIP: ""
 
-# Optional in-cluster cleanup loop for the managed preview cluster. Disabled
-# by default so ordinary platform installs do not get cluster-wide delete
-# permissions. The tuist-preview overlay enables it.
-previewJanitor:
-  enabled: false
-  schedule: "0 * * * *"
-  suspend: false
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
-  startingDeadlineSeconds: 900
-  backoffLimit: 0
-  activeDeadlineSeconds: 900
-  stuckCreateAgeSeconds: 1800
-  teardownTimeout: 5m
-  kuraNamespace: kura
-  serviceAccount:
-    name: preview-janitor
-  image:
-    repository: alpine/k8s
-    tag: "1.36.1"
-    pullPolicy: IfNotPresent
-  nodeSelector: {}
-  tolerations: []
-  resources:
-    requests:
-      cpu: 25m
-      memory: 96Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
-
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.
 clusterIssuer:
   enabled: true
   name: letsencrypt-cloudflare
   server: https://acme-v02.api.letsencrypt.org/directory
-
-# Same regional gateway as managed Kura, reached directly over the runner PN.
-# The per-account ingress restricts both HTTP and gRPC to clientCIDRs. Never
-# trust forwarded client IPs here: there is no trusted proxy in front of nginx.
-kura-runners-ingress-nginx:
-  enabled: false
-  controller:
-    kind: DaemonSet
-    hostNetwork: true
-    dnsPolicy: ClusterFirstWithHostNet
-    electionID: kura-runners-ingress-nginx-leader
-    ingressClass: kura-runners
-    ingressClassResource:
-      name: kura-runners
-      controllerValue: k8s.io/kura-runners-ingress-nginx
-    podLabels:
-      tuist.dev/kura-ingress-class: kura-runners
-    nodeSelector:
-      node.cluster.x-k8s.io/pool: kura-scw-fr-par
-    tolerations:
-      - key: tuist.dev/runner-cache
-        operator: Exists
-        effect: NoSchedule
-    publishService:
-      enabled: false
-    extraArgs:
-      update-status: "false"
-    service:
-      type: ClusterIP
-      externalTrafficPolicy: ""
-    admissionWebhooks: *kuraGatewayAdmissionWebhooks
-    config:
-      <<: *kuraGatewayNginxConfig
-      use-forwarded-headers: "false"
-      use-proxy-protocol: "false"
-      enable-real-ip: "false"
-      compute-full-forwarded-for: "false"
-    metrics:
-      enabled: true
 
 # The BER1 rack's runner-cache gateway, on its storage nodes beside the rack's
 # minis, which reach it over the machines segment. A rack node runs a pod

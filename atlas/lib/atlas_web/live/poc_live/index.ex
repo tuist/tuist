@@ -61,13 +61,21 @@ defmodule AtlasWeb.POCLive.Index do
               />
             </:col>
             <:col :let={poc} label="Hosting">
-              <span>{humanize(poc.hosting)}</span>
+              <.text_cell label={humanize(poc.hosting)} />
             </:col>
             <:col :let={poc} label="Status">
-              <span>{humanize(poc.status)}</span>
+              <.badge_cell
+                label={humanize(poc.status)}
+                color={status_color(poc.status)}
+                style="light-fill"
+              />
             </:col>
             <:col :let={poc} label="Public">
-              <span>{if poc.public_token, do: "Published", else: "Draft"}</span>
+              <.badge_cell
+                label={if poc.public_token, do: "Published", else: "Draft"}
+                color={if poc.public_token, do: "information", else: "neutral"}
+                style="light-fill"
+              />
             </:col>
             <:col :let={poc} label="Updated">
               <.time_cell time={poc.updated_at} />
@@ -81,6 +89,11 @@ defmodule AtlasWeb.POCLive.Index do
 
   defp account_label(%{account: %{name: name}}) when is_binary(name), do: name
   defp account_label(_poc), do: nil
+
+  defp status_color("active"), do: "information"
+  defp status_color("closed_won"), do: "success"
+  defp status_color("closed_lost"), do: "destructive"
+  defp status_color(_status), do: "neutral"
 
   defp humanize(value) when is_binary(value) do
     value |> String.replace("_", " ") |> String.capitalize()

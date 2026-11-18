@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistGenerateCommand
 import TuistProcess
@@ -9,6 +10,7 @@ import TuistTesting
 import XcodeProj
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct HostedNativeDynamicPackageAcceptanceTests {
     @Test(.withFixture("generated_app_with_native_dynamic_package_hosted_tests"), .inTemporaryDirectory)
     func hostedTestsShareStaticStateAndLinkDynamicProducts() async throws {

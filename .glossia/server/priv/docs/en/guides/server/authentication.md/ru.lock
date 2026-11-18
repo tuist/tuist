@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3d1701a2cbdc8e40fc5a10f227defb6d6bb5db322c830d6dd4276ae3110070cf",
+  "hash": "6e4b6f0ed892ae64d53d87fea3e972b1acb764d81f0437b5a253f6c011e68add",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,13 +26,13 @@
                   "content_hash": "b1c077bade147435ccce756eda243e9c6a01d8817c48e33c4fe0fba55aab566a"
                 },
                 "### Available scopes {#available-scopes}": {
-                  "content_hash": "d8edf016597486b1c95afc71ab2cd5bd4f08e8731af844e2bbbdee28928291b3"
+                  "content_hash": "7711d1ba7323a69d5558b2824de8d119fd8a2fa7465e74fb97654561dfea4ecd"
                 },
                 "### Continuous Integration {#continuous-integration}": {
                   "content_hash": "4fa151154c0eff8b9c52c723e83c4f4305c47b0fd421f0612a0bc9b5994c7584"
                 },
                 "### Creating an account token {#creating-an-account-token}": {
-                  "content_hash": "f651fbd6fe225e0070adf76814500a21628fa070e937a7db4e42b7d05d2de2d8"
+                  "content_hash": "79579f7a2931c49bb7f33c5eed0c52bdb814195d6ebd51a91d1a60af2764004a"
                 },
                 "### Fly.io Machines {#flyio-machines}": {
                   "content_hash": "071a624a55ad5e74ab566e15628f7bc140726877fc0a73a034684286031260f5"
@@ -41,7 +41,7 @@
                   "content_hash": "f186d778088a628199c937579423e9cc3a7fbd49e01652b7ec6c61f80e246f3c"
                 },
                 "### OIDC token scopes {#oidc-token-scopes}": {
-                  "content_hash": "fe850ee2082590ae27c9c2b916d11bf1430256808ac5249f34d4cc49ce953af9"
+                  "content_hash": "fe26bcc7c058273bc5edc9639abc404cfb71c13a8ab0199dfe0645af3caaf66e"
                 },
                 "### Scope groups {#scope-groups}": {
                   "content_hash": "6118e79ed7ace9a4ee5075957ab20331909e6ffa2ef49efb33756f8880502861"
@@ -53,7 +53,7 @@
                   "content_hash": "da77d1bcebde7fcf56d342f86e67304e8ae0e83f391ccd424f4bb93ac40e554a"
                 },
                 "### Using account tokens {#using-account-tokens}": {
-                  "content_hash": "886b5f66734c728a0109aecdcaa7091667b8c6e93830466564f03b187a8ec531"
+                  "content_hash": "56edb04d344ab4745bf9b51d580aa7507bc1ab88da0b3c1d3610c7db1cd1229c"
                 },
                 "### Workload identity trust policies {#workload-identity-trust-policies}": {
                   "content_hash": "33603d44eee7057d5ea114db53133c117ec1fbf948b694aad91007bd65401709"
@@ -71,11 +71,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "e9d918ff7dabf11e5d5ad006b8a2d145c5672d7e39079769eebf51a05aa7624b",
+          "hash": "5b81fcd19f156b7c78c6658e43b70651c1979a3e0516292c53be60dead057e62",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/authentication.md",
           "metadata": {
-            "content_hash": "fc75d0184ee4c52f65b661b8cddc0195f0b2186e5e1781ec6fa3fceacdbfa378"
+            "content_hash": "251558a496be8adf89b96c18c3eb614fa2dc93f3b541a9d9ab1942f5ead082f3"
           }
         },
         {
@@ -136,7 +136,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,7 +155,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -184,11 +184,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -265,21 +265,21 @@
             }
           ],
           "details": {},
-          "hash": "a49af79f8375be66b9805d4e3e3a965646606d792d579b16bb19cfca30f9c48d",
+          "hash": "70a8f8d4eff356ba379fb7289630f4d35afc8f323b098fcb16353ea61222d073",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "3d1701a2cbdc8e40fc5a10f227defb6d6bb5db322c830d6dd4276ae3110070cf",
+      "hash": "6e4b6f0ed892ae64d53d87fea3e972b1acb764d81f0437b5a253f6c011e68add",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/authentication.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3f02f4c717d5798b71cfda4f9b4c1e2993e5a262e1739fb3fcb8aef440cae417",
+  "output_hash": "23fa35c40f9ea4cf21098ffc20f1675c176a9c3b193589b811b4d62ebb5ce7e6",
   "output_path": "server/priv/docs/ru/guides/server/authentication.md",
   "protection_state": "recorded",
   "provider": "",
@@ -299,8 +299,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "47de8087187321c968dc8ec0896ccf03909576f0",
+  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
   "source_path": "server/priv/docs/en/guides/server/authentication.md",
-  "translated_at": "2026-11-02T18:04:25.218798Z",
-  "translation_session_id": "01a19d6d-632d-783c-b021-3d78f66cf7d0"
+  "translated_at": "2026-11-06T22:38:46.287076Z",
+  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
 }

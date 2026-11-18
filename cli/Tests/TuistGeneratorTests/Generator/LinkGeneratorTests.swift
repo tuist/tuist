@@ -20,6 +20,61 @@ final class LinkGeneratorPathTests: TuistUnitTestCase {
     }
 }
 
+struct LinkGeneratorUnlinkedDependencyTests {
+    @Test func embedsButDoesNotLinkAFrameworkDependedOnWithNoneStatus() throws {
+        // Given: an app that depends on a package's framework target with `.none`, which is what
+        // `.external(name: "MCP", status: .none)` maps to
+        let subject = LinkGenerator(embedScriptGenerator: MockEmbedScriptGenerator())
+        let app = Target.test(name: "App", product: .app)
+        let appProject = Project.test(path: "/App", targets: [app], type: .local)
+        let packageProject = Project.test(
+            path: "/Packages/MCP",
+            targets: [.test(name: "MCP", product: .framework)],
+            type: .external(hash: nil)
+        )
+        let graph = Graph.test(
+            projects: [appProject.path: appProject, packageProject.path: packageProject],
+            dependencies: [
+                .target(name: "App", path: appProject.path): [
+                    .target(name: "MCP", path: packageProject.path, status: .none),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: "App")
+        let fileElements = ProjectFileElements()
+        let mcpFile = PBXFileReference()
+        pbxproj.add(object: mcpFile)
+        fileElements.products["MCP"] = mcpFile
+
+        // When
+        try subject.generateEmbedPhase(
+            target: app,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: appProject.path,
+            path: appProject.path,
+            graphTraverser: graphTraverser
+        )
+        try subject.generateLinkingPhase(
+            target: app,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: appProject.path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let embedBuildPhase = try #require(pbxTarget.embedFrameworksBuildPhases().first)
+        #expect(embedBuildPhase.files?.map(\.file) == [mcpFile])
+        let linkBuildPhase = try #require(try pbxTarget.frameworksBuildPhase())
+        #expect((linkBuildPhase.files ?? []).isEmpty)
+    }
+}
+
 struct LinkGeneratorPackageTests {
     @Test func generatePackagesAddsRuntimePackageFromStaticTargetChainAsBuildOnlyDependency() throws {
         // Given

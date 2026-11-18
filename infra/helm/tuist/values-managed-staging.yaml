@@ -26,11 +26,13 @@ pdcAgent:
   # Staging serves one dashboard; a brief tunnel gap here is acceptable, so
   # it stays at one replica rather than paying for three.
   replicas: 1
-  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Pin the tunnel to CNPG, ClickHouse and the private Pulse query endpoint.
   # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist-staging.svc.cluster.local:8123
+    - pulse.observability.svc.cluster.local:4000
+    - pulse.observability.svc.cluster.local:4003
 
 capi:
   ovhRunnerEgress:
@@ -72,6 +74,19 @@ egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
 
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  enabled: true
+  # Public half of the staging KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: t1i8qEBEdu1wb6Gvl7uaf5tmXwTvCQ89lxokelDjKQ8=
+  # Staging runs Kura on thin volumes only, as production does. Both cache
+  # hosts (the ca-east box and the Gravelines box serving eu-west) were
+  # reinstalled lvm-v1 with thin pools on 2026-11-16; their earlier legacy
+  # volumes were discarded rather than migrated.
+  thinRegions: [ca-east, eu-west]
+  thinEnrolledRegions: [ca-east, eu-west]
+
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
@@ -102,7 +117,20 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
+      enabled: true
+    apns:
+      enabled: true
+    fcm:
+      enabled: true
+    # Reuse the existing environment-scoped readonly dashboard credential.
+    pulse:
       enabled: true
     externalSecrets:
       fields:
@@ -153,18 +181,32 @@ server:
       value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    # Must equal the first tier of the runner Price above (2 minutes).
-    # Production leaves this unset and takes the 100 minute default.
+    # Must equal the first tier of each runner Price below (2 macOS and
+    # 50 Linux minutes). Production leaves these unset and takes the 100
+    # and 2,500 minute defaults.
     - name: TUIST_RUNNER_FREE_MONTHLY_MINUTES
       value: "2"
+    - name: TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      value: "50"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # Staging's tuist account ID is 2 (production uses 3). Membership and
+    # the account-scoped pulse feature flag remain independently required.
+    - name: TUIST_PULSE_ACCOUNT_ID
+      value: "2"
+    - name: TUIST_PULSE_URL
+      value: http://pulse.observability.svc.cluster.local:4000
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Linux runners reuse ordinary regional instances. Before deploying,
       # complete the staging migration in linux-runner-private-cache.md:
       # drain the retired experiment and qualify the existing GRA host as EU-West.
-      # Preserve the independent macOS private cache.
-      value: scw-fr-par-runners,eu-west,ca-east
+      # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
+      # tears down its leftovers whether or not it is listed here.
+      value: eu-west,ca-east
+    # The remote-execution chart's gateway Ingress host, which accounts'
+    # Bazel workspaces use as --remote_executor (capabilities API).
+    - name: TUIST_REMOTE_EXECUTION_ENDPOINT
+      value: grpcs://execution-staging.tuist.dev
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -199,21 +241,12 @@ server:
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
     # Unset, this defaults to `linux` (kata Pods on the CNI reaching
-    # `*.svc.cluster.local`). For `macos` the endpoint is the
-    # node-port form (`http://<node PN address>:<NodePort>` on the
-    # scw-fr-par-runners region), so flip it on ONLY when the
-    # Private Network path exists end-to-end — clients treat
-    # TUIST_CACHE_ENDPOINT as a hard override, and an unreachable URL
-    # breaks macOS caching outright. Checklist (in order):
-    #   1. The PN + kura-scw-fr-par node pool exist and the minis are
-    #      attached (macosFleet.vmCachePrivateNetwork values below;
-    #      the CAPI operator attaches minis and resolves VLANs).
-    #   2. Mac mini hosts bootstrapped/drift-rolled so the VLAN
-    #      interface + pf pass + VM NAT are live, then from a runner
-    #      VM: `curl http://<node PN address>:<account NodePort>/up`.
-    # Verified end-to-end on 2026-06-12 (smoke run 27416065883):
-    # dispatch-sourced endpoint http://172.16.0.2:32675 from a Tart
-    # runner VM, cold 5.34x / warm 2.46x vs the public baseline.
+    # `*.svc.cluster.local`). For `macos` the endpoint is a rack
+    # site's private gateway; this env serves no site cache since the
+    # scw-fr-par-runners region retired, so macOS jobs fall back to
+    # the public cache. Clients treat TUIST_CACHE_ENDPOINT as a hard
+    # override, so only list a platform whose fleet reaches its
+    # region's private endpoint.
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
     # Operator project-access grants — server half only. The public key
@@ -250,9 +283,10 @@ server:
     prices:
       # macOS is billable here so runner billing can be exercised end to
       # end before production sees it. The Price is graduated: the first
-      # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
+      # 120000 compute-unit milliseconds (2 minutes on the 8 vCPU / 24 GB
       # baseline) are free, and beyond that each millisecond costs
-      # 0.0001 cents, which is $0.06 per baseline machine-minute.
+      # 0.000083333333 cents, which is $0.05 per baseline machine-minute
+      # (cut at the 12 decimals Stripe accepts, see production).
       #
       # Two minutes rather than production's hundred so the free tier and
       # the dispatch cap can both be reached in one short job instead of
@@ -266,10 +300,14 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is graduated the same way: the first 3000000
+      # compute-unit milliseconds (50 minutes on the 2 vCPU / 8 GB baseline,
+      # worth the same as the two macOS minutes) are free, and beyond that
+      # each millisecond costs 0.000004 cents, which is $0.0024 per baseline
+      # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
+      # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES
+      # below, and the rate with `@on_demand_rates` in
+      # `Tuist.Runners.Prepaid`.
       #
       # Never blank an id that has already gone live: a plan change would
       # then stop recognising that subscription item as a runner item and
@@ -279,8 +317,17 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1UXNkKLlKoN51eczld0hbV1t"
+        runner_linux_compute_unit_milliseconds: "price_1UXkvHLlKoN51eczI4KykboL"
+        runner_macos_compute_unit_milliseconds: "price_1UY5MBLlKoN51eczRkfPBFEa"
+        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
+        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
+        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
+        # Meter has to exist before this key does; the empty id reports without
+        # charging.
+        runner_cache_volume_megabyte_months: "price_1UZpgYLlKoN51ecz4XXUYIn7"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXNkKLlKoN51eczld0hbV1t"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
@@ -510,6 +557,25 @@ postgresql:
     backup:
       destinationPath: s3://tuist-stag-pg-backups/
 
+agents:
+  enabled: true
+  # One pod, and a second under load, to exercise the autoscaler without
+  # crowding the small staging cluster. A deploy still surges the new pod
+  # before draining the old one.
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+  # TUIST_DEPLOY_ENV and the OTLP endpoint come from server.extraEnv, which
+  # agents pods share with the server.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "1536Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1536Mi"
+
 processor:
   # Single replica on staging — 2-replica redundancy isn't needed for a
   # pre-prod env, and a second pod doesn't fit on the 2-worker cluster
@@ -598,21 +664,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Declarative Scaleway Elastic Metal kura runner-cache node. The provider
-# orders the bare-metal server, attaches it to the runner-cache PN, mints a
-# kubelet identity, and renders a self-join cloud-init that registers the Node
-# with the runner-cache taint. This cluster's control plane is externally
-# managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
-# itself.
-kuraFleet:
-  enabled: true
-  replicas: 1
-  machine:
-    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
-    # that still mirrors the production NVMe + 10G PN path, so staging
-    # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
-    offerType: EM-B220E-NVME
-
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
@@ -694,6 +745,11 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     replicas: 1
+    # A fresh join installs this kubelet minor; from v1.36 the Kata host also
+    # runs the pod-level resource managers. Keep it at or below the control
+    # plane's version. OnDelete: the box only moves when its Machine is deleted
+    # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    kubernetesVersion: "v1.36.6"
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -701,11 +757,15 @@ ovhFleets:
     endpoint: ovh-us
     # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
       offer: rise-m
-      # Existing hosts are enrolled during drained network maintenance.
+      # Backfill existing OnDelete hosts during drained network enrollment.
       # All jobs share the direct regional cache path and runner pool.
+      vRackID: pn-2023588
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04
@@ -893,7 +953,7 @@ buildersFleet:
 sandboxes:
   enabled: true
   image:
-    tag: "sha-1949e6dfc6f9"
+    tag: "sha-bea84a441ea2"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
@@ -903,7 +963,7 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 40
+  maxMemoryGiB: 48
   prebuildShapes: "2x4096,4x8192"
   diskGiB: 100
   archiveAfterHours: 24
@@ -965,11 +1025,24 @@ runnersFleetLinux:
       sizeGB: 200
     dockerCache:
       enabled: true
+    actionsCache:
+      enabled: true
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
   nestedVirtualization:
     enabled: true
+    # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet
+    # instead of the device plugin, which panics kubelet next to a Pod-level
+    # budget (kubernetes/kubernetes#143490).
+    nri:
+      enabled: true
+  # Whole cores per runner Pod on the v1.36 runner host, which carries
+  # tuist.dev/pod-level-resource-managers=true. Odd shapes keep shared cores.
+  # A kubelet restart with exclusive Pods running leaks their old cores; see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
+  exclusiveCPUs:
+    defaultEnabled: true
   # Nested-virtualization pool for Android emulator workloads (Gradle
   # Managed Devices, Macrobenchmark). An operator pool rather than a shape
   # because profiles cannot ask for /dev/kvm yet; workflows target it by
@@ -1054,10 +1127,8 @@ rackFleet:
     enabled: true
     # ber1-runner-b01 runs macOS 27 and Tart 2.41.1.
     stackedImages: true
-    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
-    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two 8 vCPU /
+    # 24 GB guests.
     # One host, two guest slots.
     autoscaling:
       enabled: true
@@ -1083,3 +1154,11 @@ rackFleet:
 ampOrbProvider:
   enabled: true
   url: https://staging.tuist.dev
+
+# A copy of every error from the server's web instances to Pulse, beside
+# Atlas, to compare the two (sentryPulse in values.yaml). Needs
+# PULSE_SENTRY_WRITER/password in this vault and staging in the Pulse chart's
+# sentryWriter.environments.
+sentryPulse:
+  services:
+    server: true

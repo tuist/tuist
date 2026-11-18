@@ -123,7 +123,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -141,10 +142,10 @@ struct UploadResultBundleServiceTests {
             .willReturn(nil)
 
         given(gitHistoryService)
-            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
             .willReturn(nil)
         given(gitHistoryService)
-            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
             .willReturn()
     }
 
@@ -167,10 +168,10 @@ struct UploadResultBundleServiceTests {
         }
         #expect(result.id == "test-id")
         verify(gitHistoryService)
-            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
             .called(0)
         verify(gitHistoryService)
-            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any)
+            .upload(.any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
             .called(0)
         verify(xcResultService).parse(path: .value(bundle), rootDirectory: .any).called(1)
         verify(analyticsArtifactUploadService).uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
@@ -186,7 +187,7 @@ struct UploadResultBundleServiceTests {
             ciRunId: .any, ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
             shardPlanId: .value(nil), shardIndex: .value(nil), onlyTestIdentifiers: .any,
             skipTestIdentifiers: .any, stressNewTests: .value(nil),
-            gitHistory: .value(nil), coverage: .value(nil), coverageEnabled: .value(nil)
+            gitHistory: .value(nil), coverage: .value(nil), coverageEnabled: .value(nil), testImpactRunId: .any
         ).called(1)
     }
 
@@ -257,7 +258,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -396,7 +398,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -474,7 +477,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -555,7 +559,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -622,7 +627,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -713,7 +719,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -858,7 +865,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -959,7 +967,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -968,7 +977,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadTestSummary_readsTheBundlesCoverageAgainstTheCheckout() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         let coverage = TestRunCoverage(tool: "llvm-cov", partial: true, files: [])
@@ -1023,14 +1032,14 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .value(coverage),
-                coverageEnabled: .value(true)
+                coverageEnabled: .value(true),
+                testImpactRunId: .any
             )
             .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_leavesCoverageOutWhenTheConfigTurnsItsUploadOff() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -1059,12 +1068,11 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadsCoverage_letsTheEnvironmentVariableOverrideTheConfig() throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
-        let enabled = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
-        let disabled = TuistConfig.Tuist.test(
+        let enabled = TuistConfig.Tuist.test(
             fullHandle: "tuist/tuist",
-            testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false))
+            testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: true))
         )
+        let disabled = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
 
         #expect(UploadResultBundleService.uploadsCoverage(config: enabled))
         #expect(!UploadResultBundleService.uploadsCoverage(config: disabled))
@@ -1077,7 +1085,7 @@ struct UploadResultBundleServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func uploadResultBundle_doesNoCoverageWorkWithoutTheFeatureFlag() async throws {
+    func uploadResultBundle_doesNoCoverageWorkByDefault() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -1105,7 +1113,8 @@ struct UploadResultBundleServiceTests {
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                 stressNewTests: .any, gitHistory: .any, coverage: .any,
-                coverageEnabled: .value(false)
+                coverageEnabled: .value(false),
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1139,7 +1148,8 @@ struct UploadResultBundleServiceTests {
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
                 stressNewTests: .any, gitHistory: .any, coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1170,7 +1180,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadTestSummary_resolvesCoverageAgainstTheCheckoutTheProductsWereBuiltIn() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         let manifest = XcodeCoverageManifest(
@@ -1212,7 +1222,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadTestSummary_resolvesCoverageAgainstTheSpellingTheBuildCompiledThrough() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         // The build ran in `/tmp/<checkout>`, which Git reports as `/private/tmp/<checkout>`. The
@@ -1252,7 +1262,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
     func uploadTestSummary_warnsWhenNoCoveredFileIsInTheCheckout() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         given(xcResultService)
@@ -1287,7 +1297,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_writesTheCoverageManifestIntoTheBundle() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -1331,7 +1341,7 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_sendsTheExportedCoverageWithTheRunAndSaysSoInTheManifest() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -1422,7 +1432,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .value(coverage),
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -1491,7 +1502,8 @@ struct UploadResultBundleServiceTests {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }

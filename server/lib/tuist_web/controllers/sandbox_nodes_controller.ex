@@ -5,7 +5,9 @@ defmodule TuistWeb.SandboxNodesController do
   TokenReview scoped to the `tuist-sandboxes` audience and requires the
   sandboxes namespace. The node name comes from `X-Tuist-Node-Name` and
   must be the node the token's pod is bound to, so a pod on one node
-  cannot speak for another.
+  cannot speak for another. A remote execution worker sharing a host with
+  the agent sandbox daemon connects as `<node>.remote-execution`, so the
+  two daemons on one node have separate connections and carve-outs.
   """
   use TuistWeb, :controller
 
@@ -13,6 +15,7 @@ defmodule TuistWeb.SandboxNodesController do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Sandboxes.Nodes
   alias TuistWeb.SandboxNodeWebSock
 
   require Logger
@@ -30,16 +33,40 @@ defmodule TuistWeb.SandboxNodesController do
            K8sClient.create_sandbox_node_token_review(token),
          :ok <- verify_namespace(namespace),
          {:ok, node_name} <- node_name(conn),
-         :ok <- verify_bound_node(principal, node_name) do
+         :ok <- verify_bound_node(principal, node_name),
+         {:ok, identity} <- identity(principal, node_name) do
       Logger.info("sandboxes: node connecting", node: node_name, service_account: service_account)
 
       conn
-      |> WebSockAdapter.upgrade(SandboxNodeWebSock, %{node_name: node_name}, timeout: @connection_timeout)
+      |> WebSockAdapter.upgrade(SandboxNodeWebSock, %{node_name: node_name, identity: identity},
+        timeout: @connection_timeout
+      )
       |> halt()
     else
       {:error, reason} -> error_response(conn, reason)
     end
   end
+
+  defp identity(
+         %{name: "tuist-macos-sandboxd", node_uid: uid, pod_uid: pod_uid, pod_name: pod_name, namespace: namespace},
+         name
+       )
+       when is_binary(uid) and is_binary(pod_uid) and is_binary(pod_name) do
+    with {:ok, node} <- K8sClient.get_node(name),
+         {:ok, pod} <- K8sClient.get_pod(namespace, pod_name),
+         true <- get_in(node, ["metadata", "uid"]) == uid,
+         true <- get_in(node, ["metadata", "labels", "kubernetes.io/os"]) == "darwin",
+         true <- get_in(pod, ["metadata", "uid"]) == pod_uid,
+         true <- get_in(pod, ["metadata", "labels", "tuist.dev/macos-sandbox-role"]) == "control",
+         true <- is_nil(get_in(pod, ["metadata", "deletionTimestamp"])) do
+      {:ok, %{platform: "darwin", generation: uid, control_uid: pod_uid}}
+    else
+      _ -> {:error, :node_mismatch}
+    end
+  end
+
+  defp identity(%{name: "tuist-macos-sandboxd"}, _node), do: {:error, :node_mismatch}
+  defp identity(_principal, _node), do: {:ok, %{platform: "linux"}}
 
   defp bearer_token(conn) do
     case get_req_header(conn, "authorization") do
@@ -53,7 +80,10 @@ defmodule TuistWeb.SandboxNodesController do
     if namespace == Environment.sandboxes_namespace(), do: :ok, else: {:error, :wrong_namespace}
   end
 
-  defp verify_bound_node(%{node_name: node_name}, node_name) when is_binary(node_name), do: :ok
+  defp verify_bound_node(%{node_name: bound}, node_name) when is_binary(bound) do
+    if node_name in [bound, bound <> Nodes.execution_daemon_suffix()], do: :ok, else: {:error, :node_mismatch}
+  end
+
   defp verify_bound_node(_principal, _node_name), do: {:error, :node_mismatch}
 
   defp node_name(conn) do

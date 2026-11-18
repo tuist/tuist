@@ -91,7 +91,8 @@ defmodule TuistWeb.PublicAccountLiveTest do
             ~p"/#{account.name}/settings/tokens",
             ~p"/#{account.name}/runners/profiles"
           ] do
-        assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, path)
+        assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+        assert destination == ~p"/users/log_in?#{%{return_to: path}}"
       end
     end
   end
@@ -140,7 +141,8 @@ defmodule TuistWeb.PublicAccountLiveTest do
             ~p"/#{account.name}/runners/jobs",
             ~p"/#{account.name}/projects"
           ] do
-        assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, path)
+        assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+        assert destination == ~p"/users/log_in?#{%{return_to: path}}"
       end
     end
   end

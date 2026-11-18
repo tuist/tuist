@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "abb46fb7fa91e9691e3e9b1431250d598f50a29e1843b109e4ce31c4880ed9d6",
+  "hash": "6cd9f87cca33bfbc6607f7bf47a312c151616aa6d043f45b207a601a805ec894",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,13 +17,13 @@
                   "content_hash": "334bc960552e2a961dd01306159989096d47e3850ea9434d04a034340156a04d"
                 },
                 "# file in the project's root directory.": {
-                  "content_hash": "7234350b4443a64ec57fdc7e21ca7b06f12f1c15cd1418b411903525abb3ad6e"
+                  "content_hash": "e567973345eae18e8c0a0de451478730a843b3b055f0cb1b163108e72e845080"
                 },
                 "## Continuous integration {#continuous-integration}": {
-                  "content_hash": "b3ad0a94bc294bfe2c9fa5af22193ef5ddc1c83d091d1d23741739622d246ae8"
+                  "content_hash": "b4c213345b940fd1028e8aabc8c83d664e3efa54b288c05b7bdecd5852488ac6"
                 },
                 "## Generated projects {#generated-projects}": {
-                  "content_hash": "989d647e406d100cfe4522dabb14479263b371c41ca804dca10968849f3f71fa"
+                  "content_hash": "780a174dc1fb540981f9afc6d109b87c8580314075f26a5a7c0d3df8598a95aa"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "c2f53cfcd001007fe0eb460c1a4053ab33d0aedfde3bba9b37565fb6edde189a"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ca72094fa548e74389b352dbbd82f69d4ee4e8d1f4e196669fcf0b8cb59b9ea1",
+          "hash": "caa4776f59b211a8e38cd6b550fe570b191288cf33fbface004d55fb2f3c0bdc",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/xcode.md",
           "metadata": {
-            "content_hash": "8c3f6d8af15f6d4b039c76f1a60425b76376d4d852a50026c0df5d52461da980"
+            "content_hash": "6d6fd3b9a1448d80bb9e9f3febf4d949e2f2cfd86f4bd344491a9ab6b3731273"
           }
         },
         {
@@ -103,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,7 +122,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +151,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -253,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "bcca634f0da7a145517ec507ceca010d80d31ba6d298cb8bf2fe081b219448ac",
+          "hash": "f905ee85f1c11c41dd3ddc0b3e58658bb7dedb549ccc1e79bee85fcca43d3e87",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "abb46fb7fa91e9691e3e9b1431250d598f50a29e1843b109e4ce31c4880ed9d6",
+      "hash": "6cd9f87cca33bfbc6607f7bf47a312c151616aa6d043f45b207a601a805ec894",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/xcode.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "40a6d0b4c6ed5b92c95944038306637610fa36f85d9747d6ec5807c0d5a19fb2",
+  "output_hash": "0d0ddf5f42b7a53fa29e66beba07a8dd97250fd3b7e109e3be572fcf210fb670",
   "output_path": "server/priv/docs/es/guides/features/test-insights/xcode.md",
   "protection_state": "recorded",
   "provider": "",
@@ -290,8 +290,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "d898a2e179dc435fad5461a5ce39f42cdac74dee",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/xcode.md",
-  "translated_at": "2026-11-02T15:10:11.234297Z",
-  "translation_session_id": "01a19ccd-c167-7b0e-8031-09b3a8a20582"
+  "translated_at": "2026-11-06T21:25:56.401367Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

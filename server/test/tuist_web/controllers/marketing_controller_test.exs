@@ -16,6 +16,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.MarketingMarkdown
 
+  @home_description "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
   defp stub_latest_app_release do
@@ -110,6 +112,17 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
       assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+
+      # Only stories with a confirmed onboarding date show one; the rest show none.
+      since =
+        Map.new(slides, fn slide ->
+          {hd(LazyHTML.attribute(slide, "data-company")), slide |> LazyHTML.query("[data-part=since]") |> LazyHTML.text()}
+        end)
+
+      assert since["monday"] =~ "Using Tuist since June 2022"
+      assert since["trendyol"] =~ "Using Tuist since September 2023"
+      refute since["monzo"] =~ "Using Tuist since"
+      refute since["openai"] =~ "Using Tuist since"
     end
 
     test "omits the cache download count while the globe has no data", %{conn: conn} do
@@ -123,20 +136,35 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "describes the site and the product with structured data", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      types =
+      entries =
         ~r|<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>|s
         |> Regex.scan(html, capture: :all_but_first)
-        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() |> Map.get("@type") end)
+        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() end)
 
+      types = Enum.map(entries, &Map.get(&1, "@type"))
       assert "Organization" in types
       assert "WebSite" in types
       assert "SoftwareApplication" in types
+
+      for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
+        assert entry["description"] == @home_description
+      end
+
+      document = Floki.parse_document!(html)
+
+      for selector <- [
+            ~s(meta[name="description"]),
+            ~s(meta[property="og:description"]),
+            ~s(meta[name="twitter:description"])
+          ] do
+        assert Floki.attribute(document, selector, "content") == [@home_description]
+      end
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist · Build infrastructure for productive teams"
+      assert html =~ "Tuist — Faster builds and reliable tests for every build system"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
@@ -161,7 +189,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     @describetag :locale
 
     test "deep links select their language regardless of browser or session preferences", %{conn: conn} do
-      for {path, language} <- [{"/about", "en"}, {"/zh_Hans", "zh-Hans"}, {"/ja", "ja"}] do
+      for {path, language, direction} <- [
+            {"/about", "en", "ltr"},
+            {"/zh_Hans", "zh-Hans", "ltr"},
+            {"/ja", "ja", "ltr"},
+            {"/ar", "ar", "rtl"}
+          ] do
         document =
           conn
           |> init_test_session(%{locale: "ko"})
@@ -172,6 +205,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
           |> Floki.parse_document!()
 
         assert Floki.attribute(document, "html", "lang") == [language]
+        assert Floki.attribute(document, "html", "dir") == [direction]
 
         assert Floki.attribute(document, "link[rel='canonical']", "href") ==
                  [Tuist.Environment.app_url(path: path)]
@@ -260,12 +294,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "translated pages share query-free alternates and an English fallback", %{conn: conn} do
       languages = [
+        {"ar", "/ar"},
         {"en", ""},
         {"es", "/es"},
         {"ja", "/ja"},
         {"ka", "/ka"},
         {"ko", "/ko"},
         {"ru", "/ru"},
+        {"tr", "/tr"},
         {"yue-Hant", "/yue_Hant"},
         {"zh-Hans", "/zh_Hans"},
         {"zh-Hant", "/zh_Hant"}
@@ -311,26 +347,161 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
-  describe "Markdown-only problem and comparison guides" do
-    test "does not register standalone marketing browser routes" do
+  describe "problem, comparison, and build-system guides" do
+    test "render each guide as an English browser page", %{conn: conn} do
       for page <- MarketingMarkdown.decision_guides() do
-        case Phoenix.Router.route_info(TuistWeb.Router, "GET", page.path, "") do
-          :error -> :ok
-          route -> refute Map.get(route, :type) == :marketing, page.path
+        conn = get(conn, page.path)
+        document = conn |> html_response(200) |> Floki.parse_document!()
+
+        # Compared as rendered: the runners pages break the title over two lines.
+        assert document |> Floki.find("h1") |> Floki.text() |> String.split() |> Enum.join(" ") == page.title
+        content_links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
+        refute Enum.any?(content_links, &String.contains?(&1, ["/marketing-markdown", "/docs-markdown/"])), page.path
+
+        assert Floki.attribute(document, ~s(link[type="text/markdown"]), "href") == [
+                 Tuist.Environment.app_url(path: "/marketing-markdown" <> page.path)
+               ]
+
+        assert Floki.find(document, "link[hreflang]") == []
+        refute match?(%{type: :marketing}, Phoenix.Router.route_info(TuistWeb.Router, "GET", "/ko" <> page.path, ""))
+      end
+    end
+
+    test "publish FAQPage structured data that matches the visible FAQ", %{conn: conn} do
+      normalize = fn text -> text |> String.split() |> Enum.join(" ") end
+
+      pages_with_faqs =
+        for page <- MarketingMarkdown.decision_guides(), reduce: [] do
+          acc ->
+            document = conn |> get(page.path) |> html_response(200) |> Floki.parse_document!()
+
+            # The runners pages show their FAQ as an accordion; the others as
+            # `###` headings under the prose's FAQ heading.
+            accordion =
+              for question <- Floki.find(document, "main > [data-part=faq] details[data-part=question]") do
+                {question |> Floki.find("[data-part=label]") |> Floki.text(),
+                 question |> Floki.find("[data-part=answer]") |> Floki.text() |> normalize.()}
+              end
+
+            visible =
+              document
+              |> Floki.find("article > [data-part=content]")
+              |> Enum.flat_map(&Floki.children/1)
+              |> Enum.filter(&is_tuple/1)
+              |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
+              |> Enum.drop(1)
+              |> Enum.take_while(&(elem(&1, 0) != "h2"))
+              |> Enum.drop_while(&(elem(&1, 0) != "h3"))
+              |> Enum.reduce([], fn
+                {"h3", _, _} = question, faqs -> [{Floki.text(question), []} | faqs]
+                block, [{question, answer} | faqs] -> [{question, [Floki.text(block) | answer]} | faqs]
+              end)
+              |> Enum.reverse()
+              |> Enum.map(fn {question, answer} ->
+                {question, answer |> Enum.reverse() |> Enum.join(" ") |> normalize.()}
+              end)
+              |> Kernel.++(accordion)
+
+            faq_page =
+              document
+              |> Floki.find("script[type='application/ld+json']")
+              |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+              |> Enum.find(&(&1["@type"] == "FAQPage"))
+
+            if visible == [] do
+              assert is_nil(faq_page), page.path
+              acc
+            else
+              structured =
+                Enum.map(faq_page["mainEntity"], fn question ->
+                  assert question["@type"] == "Question"
+                  assert question["acceptedAnswer"]["@type"] == "Answer"
+                  {question["name"], normalize.(question["acceptedAnswer"]["text"])}
+                end)
+
+              assert structured == visible, page.path
+              assert Enum.all?(structured, fn {name, text} -> name != "" and text != "" end), page.path
+              [page.path | acc]
+            end
+        end
+
+      for path <- [
+            "/compare/xcodegen",
+            "/compare/nx",
+            "/compare/swift-package-manager",
+            "/compare/buildbuddy",
+            "/compare/cachely",
+            "/compare/engflow",
+            "/build-systems/bazel-vs-gradle",
+            "/solutions/bazel-github-actions",
+            "/solutions/bazel-remote-cache",
+            "/solutions/slow-builds",
+            "/solutions/slow-tests",
+            "/solutions/flaky-tests",
+            "/solutions/ci-costs",
+            "/runners/github-actions",
+            "/runners/buildkite"
+          ] do
+        assert path in pages_with_faqs
+      end
+    end
+
+    test "point guide links at browser pages and show the review date", %{conn: conn} do
+      document = conn |> get("/compare/develocity") |> html_response(200) |> Floki.parse_document!()
+      links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
+
+      assert "/compare" in links
+      assert "/tests" in links
+      assert "/en/docs/guides/features/agentic-coding/mcp" in links
+      assert document |> Floki.find("[data-part=last-updated]") |> Floki.text() =~ "November 8, 2026"
+    end
+
+    test "send other languages to their homepage from an English-only guide", %{conn: conn} do
+      links =
+        conn
+        |> get("/solutions/slow-builds")
+        |> html_response(200)
+        |> Floki.parse_document!()
+        |> Floki.attribute("a", "href")
+
+      # Tests compile only English unless TUIST_DEV_ALL_LOCALES is set, as in CI.
+      for locale <- Localization.additional_locales() do
+        assert "/#{locale}?set_locale=#{locale}" in links
+        refute "/#{locale}/solutions/slow-builds?set_locale=#{locale}" in links
+      end
+
+      assert "/solutions/slow-builds?set_locale=en" in links
+    end
+
+    test "are linked from the footer and the related product pages", %{conn: conn} do
+      expected_links = %{
+        "/" => [
+          "/solutions/slow-builds",
+          "/solutions/slow-tests",
+          "/solutions/flaky-tests",
+          "/solutions/ci-costs",
+          "/build-systems",
+          "/compare"
+        ],
+        "/tests" => ["/solutions/slow-tests", "/solutions/flaky-tests"],
+        "/cache" => ["/solutions/slow-builds", "/build-systems"],
+        "/pricing" => ["/compare", "/solutions/ci-costs"]
+      }
+
+      for {path, guide_links} <- expected_links do
+        links = conn |> get(path) |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("a", "href")
+
+        for guide_link <- guide_links do
+          assert guide_link in links, "#{path} does not link #{guide_link}"
         end
       end
     end
 
-    test "does not link the Markdown-only guides from browser navigation", %{conn: conn} do
-      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
-      links = Floki.attribute(document, "a", "href")
+    test "negotiate the authored Markdown on the browser URL", %{conn: conn} do
+      conn = conn |> put_req_header("accept", "text/markdown") |> get("/compare/develocity")
 
-      for page <- MarketingMarkdown.decision_guides() do
-        refute page.path in links
-        refute MarketingMarkdown.alternate_path(page.path) in links
-      end
-
-      assert Floki.find(document, "#footer-locale-dropdown") != []
+      assert response(conn, 200) =~ "# Tuist vs Develocity:"
+      assert response(conn, 200) =~ "](#{Tuist.Environment.app_url(path: "/marketing-markdown/compare")})"
     end
 
     test "legacy feature redirects remain intact", %{conn: conn} do
@@ -374,7 +545,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "includes the product pages", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
-      for path <- ["/cache", "/tests", "/compute", "/previews", "/download"] do
+      for path <- ["/cache", "/tests", "/runners", "/previews", "/download"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
 
@@ -388,23 +559,30 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
     end
 
-    test "does not advertise Markdown-only problem and comparison guides", %{conn: conn} do
+    test "advertises the English guide pages with their review dates", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
       for page <- MarketingMarkdown.decision_guides() do
-        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
       end
+
+      assert xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/compare/develocity"))}</loc>\s*<lastmod>2026-11-08</lastmod>|
     end
 
-    test "includes individual changelog entries", %{conn: conn} do
+    test "includes available articles without advertising untranslated locale URLs", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
       entry = List.first(Changelog.get_entries())
 
-      for locale <- Localization.all_locales() do
+      assert xml =~ "<loc>#{Tuist.Environment.app_url(path: "/changelog/#{entry.id}")}</loc>"
+      assert xml =~ "<loc>#{Tuist.Environment.app_url(path: "/blog/2025/11/26/opening-registry")}</loc>"
+
+      for locale <- Localization.additional_locales() do
         path = Localization.localized_href("/changelog/#{entry.id}", locale)
-        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/#{locale}/blog/2025/11/26/opening-registry")}</loc>"
       end
     end
 
@@ -454,26 +632,147 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
-  describe "GET /compute" do
+  describe "GET /about" do
+    test "aligns company copy, sharing metadata, and Markdown around build infrastructure", %{conn: conn} do
+      document = conn |> get("/about") |> html_response(200) |> Floki.parse_document!()
+      title = "About Tuist: build infrastructure"
+
+      description =
+        "Tuist is build infrastructure for engineering teams and coding agents."
+
+      assert document |> Floki.find("title") |> Floki.text() |> String.trim() == title
+      assert Floki.attribute(document, ~s(meta[property="og:title"]), "content") == [title]
+      assert Floki.attribute(document, ~s(meta[name="twitter:title"]), "content") == [title]
+
+      for selector <- [
+            ~s(meta[name="description"]),
+            ~s(meta[property="og:description"]),
+            ~s(meta[name="twitter:description"])
+          ] do
+        assert Floki.attribute(document, selector, "content") == [description]
+      end
+
+      copy = document |> Floki.find("#marketing-about") |> Floki.text()
+      markdown = conn |> recycle() |> get("/marketing-markdown/about") |> response(200)
+
+      for content <- [copy, markdown] do
+        assert content =~ description
+        assert content =~ "shared caching, build and test insights, and app previews"
+        assert content =~ "open-source developer toolkit"
+        refute content =~ "seconds instead of minutes"
+      end
+    end
+  end
+
+  describe "GET /runners" do
     test "renders the page", %{conn: conn} do
-      conn = get(conn, "/compute")
+      conn = get(conn, "/runners")
 
       html = html_response(conn, 200)
       assert html =~ "marketing-compute"
-      # The hero's CI switch and both migration diffs it toggles between.
+      # The hero's CI switch and the migration diffs it toggles between.
       assert html =~ ~s(data-part="ci-switch")
-      assert html =~ "runs-on: tuist-macos"
-      assert html =~ ~s(queue: "tuist-macos")
+      diff = html |> Floki.parse_document!() |> Floki.find("[data-part=diff]") |> Floki.text()
+      assert diff =~ "runs-on: tuist-macos"
+      assert diff =~ ~s(queue: "tuist-macos")
+      assert diff =~ "stack: agent-pool-"
 
-      # The redesign ships a designed social card instead of a rendered one.
-      assert html =~
-               ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
+      # Until a designed runners card ships, the page renders a title card
+      # rather than reusing the retired "Compute" one.
+      assert [og_image] =
+               html |> Floki.parse_document!() |> Floki.attribute("meta[property='og:image']", "content")
+
+      assert og_image =~ "/open-graph-images/"
 
       assert html =~ "/marketing/assets/bundle.css"
+
+      # Runners are billed per minute, so the feature must not claim a free offer.
+      assert %{"name" => "Tuist Runners"} = feature = software_application(html)
+      refute Map.has_key?(feature, "offers")
+    end
+
+    test "links each CI provider page, which links back to the hub", %{conn: conn} do
+      hub = conn |> get("/runners") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(hub, "a", "href")
+
+      for provider <- ["github-actions", "gitlab-ci", "buildkite"] do
+        path = "/runners/" <> provider
+        assert path in links
+
+        page = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
+        assert page |> Floki.find("h1") |> length() == 1
+        # The runners page design, with only this provider's migration diff.
+        assert [_] = Floki.find(page, "#marketing-compute [data-part=diff] [data-part=variant]")
+        assert Floki.find(page, "[data-part=ci-switch]") == []
+        assert "/runners" in Floki.attribute(page, "a", "href")
+        # Sources and further reading stay in the Markdown guide only.
+        assert Floki.find(page, "[data-part=content] #sources-and-review") == []
+        assert Floki.find(page, "[data-part=content] #further-reading") == []
+        # The FAQ is the pricing page's accordion, not prose headings.
+        assert [_ | _] = Floki.find(page, "main > [data-part=faq] details[data-part=question]")
+        assert Floki.find(page, "[data-part=content] #frequently-asked-questions") == []
+
+        assert %{"itemListElement" => [_, %{"name" => "Tuist Runners"}, _]} =
+                 page
+                 |> Floki.find("script[type='application/ld+json']")
+                 |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+                 |> Enum.find(&(&1["@type"] == "BreadcrumbList"))
+
+        refute Floki.text(page) =~ "Last updated"
+        assert [description] = Floki.attribute(page, "meta[name=description]", "content")
+        assert String.length(description) <= 160
+
+        assert [og_image] = Floki.attribute(page, "meta[property='og:image']", "content")
+        assert String.starts_with?(og_image, Tuist.Environment.app_url(path: "/open-graph-images/"))
+      end
+    end
+
+    test "permanently redirects the former compute URLs", %{conn: conn} do
+      localized =
+        for locale <- Localization.additional_locales(),
+            do: {"/#{locale}/compute", "/#{locale}/runners"}
+
+      for {from, to} <-
+            [
+              {"/compute", "/runners"},
+              {"/compute?ref=nav", "/runners?ref=nav"},
+              {"/marketing-markdown/compute", "/marketing-markdown/runners"}
+            ] ++ localized do
+        conn = get(conn, from)
+
+        assert conn.status == 301, from
+        assert redirected_to(conn, 301) == to
+      end
     end
   end
 
   describe "GET /pricing" do
+    test "shares compute rates without rollout messaging or separate billing sections", %{conn: conn} do
+      html = conn |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+      compute = Floki.find(html, "#compute")
+
+      rates = compute |> Floki.find(".sr-only li") |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+      assert "2 vCPU · 4 GB: $0.002/min" in rates
+      assert "4 vCPU · 8 GB: $0.004/min" in rates
+      assert "8 vCPU · 16 GB: $0.008/min" in rates
+      assert Floki.find(html, "[data-part=re-rate]") == []
+      assert Floki.text(Floki.find(compute, "#pricing-compute-title")) =~ "Compute"
+
+      assert compute |> Floki.find("[data-platform=macos] [data-part=machine]") |> Floki.text() =~
+               "Runners only"
+
+      assert compute |> Floki.find("[data-platform=linux] [data-part=machine]") |> Floki.text() =~
+               "Runners and remote execution"
+
+      assert Floki.find(compute, "#pricing-runners-title, #pricing-re-title") == []
+      assert [_, _] = Floki.find(html, "a[href='#compute']")
+      assert Floki.text(compute) =~ "macOS rates apply to runners only"
+      refute Floki.text(html) =~ "early access"
+      refute Floki.text(html) =~ "Early access"
+      refute Floki.text(html) =~ "not billed yet"
+      refute Floki.text(compute) =~ "require access"
+    end
+
     test "shows usage-based pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
@@ -487,14 +786,20 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       refute html =~ "+ $0.5 per additional unit"
     end
 
-    test "shows Tuist Runners pricing", %{conn: conn} do
+    test "shows shared Compute pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
-      assert html =~ "Tuist Runners pricing"
+      assert html =~ ~r/id="pricing-compute-title">\s*Compute\s*</
+      assert html =~ "2 GB / vCPU"
+      assert html =~ "4 GB / vCPU"
+      # Every rate, as written, in the screen-reader list.
+      assert html =~ "All compute machines and rates"
+      assert html =~ "1 vCPU · 2 GB: $0.001/min"
+      assert html =~ "16 vCPU · 48 GB: $0.10/min"
       assert html =~ "8 vCPU · 24 GB"
       assert html =~ "16 vCPU · 48 GB"
       assert html =~ "See every machine and rate"
-      assert html =~ "+ from $0.06/min on macOS and $0.001/min on Linux"
+      assert html =~ "+ from $0.05/min on macOS and $0.001/min on Linux"
       refute html =~ "$0.075"
       assert html =~ "16 vCPU · 64 GB"
       assert html =~ "$0.0192"
@@ -504,8 +809,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "How are Tuist Runners billed?"
       refute html =~ "How Tuist Runners compare"
 
+      compute = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #compute")
+      assert [_] = compute
+      pricing = Floki.raw_html(compute)
+
       for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
-        refute html =~ provider
+        refute pricing =~ provider
       end
     end
   end
@@ -517,6 +826,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = html_response(conn, 200)
       assert html =~ "marketing-tests"
       assert html =~ "/marketing/assets/bundle.css"
+
+      assert %{"name" => "Tuist Tests", "offers" => %{"price" => "0"}} = software_application(html)
     end
   end
 
@@ -693,6 +1004,19 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              }
     end
 
+    test "returns error without sending when the email is missing or not a string", %{conn: conn} do
+      reject(&Email.send_newsletter_confirmation/2)
+
+      for params <- [%{}, %{"email" => ["test@example.com"]}, %{"email" => %{"a" => "b"}}] do
+        conn = post(conn, ~p"/newsletter", params)
+
+        assert json_response(conn, 400) == %{
+                 "success" => false,
+                 "message" => "Something went wrong. Please try again."
+               }
+      end
+    end
+
     test "accepts a same-origin submission whose cached page carried a stale CSRF token", %{conn: conn} do
       email = "test@example.com"
       expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
@@ -759,6 +1083,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /customers/:slug" do
+    @tag :locale
     test "renders the localized Hyperconnect case study", %{conn: conn} do
       conn = get(conn, ~p"/ko/customers/hyperconnect")
 
@@ -773,6 +1098,29 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert redirected_to(conn) ==
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
+    end
+
+    test "renders the customer's before and after figures and onboarding date", %{conn: conn} do
+      html = conn |> get(~p"/customers/trendyol") |> html_response(200) |> LazyHTML.from_document()
+
+      rows =
+        html
+        |> LazyHTML.query("[data-part=results] tbody tr")
+        |> Enum.map(fn row -> row |> LazyHTML.query("th, td") |> Enum.map(&LazyHTML.text/1) end)
+
+      assert rows == [
+               ["CI build time", "30 min", "10 min"],
+               ["Clean Xcode environment ready for UI tests", "15+ min", "~30 s"]
+             ]
+
+      assert html |> LazyHTML.query("[data-part=facts]") |> LazyHTML.text() =~
+               ~r/Using Tuist since\s+September 2023/
+    end
+
+    test "omits the before and after table when a story reports no figures", %{conn: conn} do
+      html = conn |> get(~p"/customers/hyperconnect") |> html_response(200)
+
+      refute html =~ ~s(data-part="results")
     end
 
     test "renders a case study with its generated cover artwork on the social card", %{conn: conn} do
@@ -1010,5 +1358,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
+  end
+
+  defp software_application(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("script[type='application/ld+json']")
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+    |> Enum.find(&(&1["@type"] == "SoftwareApplication"))
   end
 end

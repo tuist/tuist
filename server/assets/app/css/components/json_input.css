@@ -10,6 +10,8 @@
     font-family: var(--noora-font-code);
     font-variant-ligatures: none;
     letter-spacing: normal;
+    direction: ltr;
+    unicode-bidi: isolate;
     white-space: pre-wrap;
     overflow-wrap: break-word;
     tab-size: 2;
@@ -34,6 +36,8 @@
     overflow: hidden;
     pointer-events: none;
     color: var(--noora-surface-label-primary);
+    direction: ltr;
+    unicode-bidi: isolate;
   }
 
   & [data-highlighted] textarea {

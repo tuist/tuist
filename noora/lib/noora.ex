@@ -12,6 +12,7 @@ defmodule Noora do
       import Noora.Avatar
       import Noora.Badge
       import Noora.Banner
+      import Noora.Brand
       import Noora.Breadcrumbs
       import Noora.Button
       import Noora.ButtonDropdown
@@ -24,16 +25,22 @@ defmodule Noora do
       import Noora.Dropdown
       import Noora.Filter
       import Noora.HintText
-      import Noora.Icon
+      # Noora.Icon also has a `menu` icon; Noora.Menu.menu/1 takes the name.
+      # The icon stays available as <.icon name="menu" />.
+      import Noora.Icon, except: [menu: 1]
       import Noora.Label
       import Noora.LineDivider
+      import Noora.Menu
+      import Noora.MiddleTruncate
       import Noora.Modal
       import Noora.PaginationGroup
       import Noora.Popover
       import Noora.ProgressBar
+      import Noora.Radio
       import Noora.Select
       import Noora.ShortcutKey
       import Noora.Sidebar
+      import Noora.Spinner
       import Noora.Table
       import Noora.TabMenu
       import Noora.Tag

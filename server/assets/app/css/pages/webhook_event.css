@@ -26,6 +26,8 @@
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       font-family: "Geist Mono", monospace;
+      direction: ltr;
+      unicode-bidi: isolate;
     }
   }
 
@@ -69,6 +71,8 @@
           & > code[data-part="label"] {
             font-size: 0.95em;
             font-family: "Geist Mono", monospace;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }
@@ -123,6 +127,8 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       font-family: "Geist Mono", monospace;
+      direction: ltr;
+      unicode-bidi: isolate;
       white-space: pre-wrap;
       word-break: break-word;
     }

@@ -1,0 +1,297 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::fmt::Display;
+use std::sync::Arc;
+
+use datafusion::arrow::array::{Float64Array, Float64Builder, TimestampMillisecondArray};
+use datafusion::arrow::datatypes::TimeUnit;
+use datafusion::common::DataFusionError;
+use datafusion::logical_expr::{ScalarUDF, Volatility};
+use datafusion::physical_plan::ColumnarValue;
+use datafusion_expr::create_udf;
+use datatypes::arrow::array::Array;
+use datatypes::arrow::datatypes::DataType;
+
+use crate::error;
+use crate::functions::extract_array;
+use crate::range_array::RangeArray;
+
+/// The `funcIdelta` in Promql,
+/// from <https://github.com/prometheus/prometheus/blob/6bdecf377cea8e856509914f35234e948c4fcb80/promql/functions.go#L235>
+#[derive(Debug)]
+pub struct IDelta<const IS_RATE: bool> {}
+
+impl<const IS_RATE: bool> IDelta<IS_RATE> {
+    pub const fn name() -> &'static str {
+        if IS_RATE { "prom_irate" } else { "prom_idelta" }
+    }
+
+    pub fn scalar_udf() -> ScalarUDF {
+        create_udf(
+            Self::name(),
+            Self::input_type(),
+            Self::return_type(),
+            Volatility::Volatile,
+            Arc::new(Self::calc) as _,
+        )
+    }
+
+    // time index column and value column
+    fn input_type() -> Vec<DataType> {
+        vec![
+            RangeArray::convert_data_type(DataType::Timestamp(TimeUnit::Millisecond, None)),
+            RangeArray::convert_data_type(DataType::Float64),
+        ]
+    }
+
+    fn return_type() -> DataType {
+        DataType::Float64
+    }
+
+    fn calc(input: &[ColumnarValue]) -> Result<ColumnarValue, DataFusionError> {
+        // construct matrix from input
+        assert_eq!(input.len(), 2);
+        let ts_array = extract_array(&input[0])?;
+        let value_array = extract_array(&input[1])?;
+
+        let ts_range: RangeArray = RangeArray::try_new(ts_array.to_data().into())?;
+        let value_range: RangeArray = RangeArray::try_new(value_array.to_data().into())?;
+        error::ensure(
+            ts_range.len() == value_range.len(),
+            DataFusionError::Execution(format!(
+                "{}: input arrays should have the same length, found {} and {}",
+                Self::name(),
+                ts_range.len(),
+                value_range.len()
+            )),
+        )?;
+        error::ensure(
+            ts_range.value_type() == DataType::Timestamp(TimeUnit::Millisecond, None),
+            DataFusionError::Execution(format!(
+                "{}: expect TimestampMillisecond as time index array's type, found {}",
+                Self::name(),
+                ts_range.value_type()
+            )),
+        )?;
+        error::ensure(
+            value_range.value_type() == DataType::Float64,
+            DataFusionError::Execution(format!(
+                "{}: expect Float64 as value array's type, found {}",
+                Self::name(),
+                value_range.value_type()
+            )),
+        )?;
+
+        let ts_values = ts_range.values();
+        let ts_values = ts_values
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap()
+            .values();
+
+        let value_array = value_range.values();
+        let value_array = value_array.as_any().downcast_ref::<Float64Array>().unwrap();
+        // A NULL field value means the series has no sample at that timestamp, so the last two
+        // samples are not necessarily the last two slots.
+        let has_nulls = value_array.null_count() > 0;
+        let value_values = value_array.values();
+
+        let mut result_builder = Float64Builder::with_capacity(ts_range.len());
+
+        for index in 0..ts_range.len() {
+            let (ts_offset, len) = ts_range.get_offset_length(index).unwrap();
+            let (value_offset, value_len) = value_range.get_offset_length(index).unwrap();
+            error::ensure(
+                len == value_len,
+                DataFusionError::Execution(format!(
+                    "{}: input arrays should have the same length, found {} and {}",
+                    Self::name(),
+                    len,
+                    value_len
+                )),
+            )?;
+            let (last_position, prev_position) = if has_nulls {
+                match last_two_samples(value_array, value_offset, len) {
+                    Some(positions) => positions,
+                    None => {
+                        result_builder.append_null();
+                        continue;
+                    }
+                }
+            } else {
+                if len < 2 {
+                    result_builder.append_null();
+                    continue;
+                }
+                (len - 1, len - 2)
+            };
+
+            let last_offset = ts_offset + last_position;
+            let prev_offset = ts_offset + prev_position;
+            let sampled_interval_ms = ts_values[last_offset] - ts_values[prev_offset];
+            // Sub-millisecond samples round to the same ms; skip instead of dividing by zero.
+            if sampled_interval_ms == 0 {
+                result_builder.append_null();
+                continue;
+            }
+            let sampled_interval = sampled_interval_ms as f64 / 1000.0;
+
+            let last_value = value_values[value_offset + last_position];
+            let prev_value = value_values[value_offset + prev_position];
+
+            if !IS_RATE {
+                result_builder.append_value(last_value - prev_value);
+                continue;
+            }
+
+            let result_value = if last_value < prev_value {
+                // counter reset
+                last_value
+            } else {
+                last_value - prev_value
+            };
+
+            result_builder.append_value(result_value / sampled_interval);
+        }
+
+        let result = ColumnarValue::Array(Arc::new(result_builder.finish()));
+        Ok(result)
+    }
+}
+
+/// Locates the last two samples inside `[offset, offset + len)`, returning their positions
+/// relative to `offset`. Returns `None` when the window holds fewer than two samples.
+fn last_two_samples(values: &Float64Array, offset: usize, len: usize) -> Option<(usize, usize)> {
+    let mut last = None;
+    for position in (0..len).rev() {
+        if values.is_null(offset + position) {
+            continue;
+        }
+        match last {
+            None => last = Some(position),
+            Some(last) => return Some((last, position)),
+        }
+    }
+    None
+}
+
+impl<const IS_RATE: bool> Display for IDelta<IS_RATE> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PromQL Idelta Function (is_rate: {IS_RATE})",)
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use datafusion::arrow::buffer::NullBuffer;
+
+    use super::*;
+    use crate::functions::test_util::simple_range_udf_runner;
+
+    #[test]
+    fn basic_idelta_and_irate() {
+        let ts_array = Arc::new(TimestampMillisecondArray::from_iter(
+            [1000i64, 3000, 5000, 7000, 9000, 11000, 13000, 15000, 17000]
+                .into_iter()
+                .map(Some),
+        ));
+        let ts_ranges = [(0, 2), (0, 5), (1, 1), (3, 3), (8, 1), (9, 0)];
+
+        let values_array = Arc::new(Float64Array::from_iter([
+            1.0, 2.0, 3.0, 5.0, 0.0, 6.0, 7.0, 8.0, 9.0,
+        ]));
+        let values_ranges = [(0, 2), (0, 5), (1, 1), (3, 3), (8, 1), (9, 0)];
+
+        // test idelta
+        let ts_range_array = RangeArray::from_ranges(ts_array.clone(), ts_ranges).unwrap();
+        let value_range_array =
+            RangeArray::from_ranges(values_array.clone(), values_ranges).unwrap();
+        simple_range_udf_runner(
+            IDelta::<false>::scalar_udf(),
+            ts_range_array,
+            value_range_array,
+            vec![],
+            vec![Some(1.0), Some(-5.0), None, Some(6.0), None, None],
+        );
+
+        // test irate
+        let ts_range_array = RangeArray::from_ranges(ts_array, ts_ranges).unwrap();
+        let value_range_array = RangeArray::from_ranges(values_array, values_ranges).unwrap();
+        simple_range_udf_runner(
+            IDelta::<true>::scalar_udf(),
+            ts_range_array,
+            value_range_array,
+            vec![],
+            // the second point represent counter reset
+            vec![Some(0.5), Some(0.0), None, Some(3.0), None, None],
+        );
+    }
+
+    #[test]
+    fn idelta_uses_last_two_samples_not_last_two_slots() {
+        let ts_array = Arc::new(TimestampMillisecondArray::from_iter_values([
+            0i64, 1000, 2000, 3000,
+        ]));
+        // Samples are 1.0@0 and 4.0@1000; the trailing slots only carry padding.
+        let values_array = Arc::new(Float64Array::new(
+            vec![1.0, 4.0, 100.0, 200.0].into(),
+            Some(NullBuffer::from_iter([true, true, false, false])),
+        ));
+        let ranges = [(0, 4), (2, 2), (3, 1)];
+
+        simple_range_udf_runner(
+            IDelta::<false>::scalar_udf(),
+            RangeArray::from_ranges(ts_array.clone(), ranges).unwrap(),
+            RangeArray::from_ranges(values_array.clone(), ranges).unwrap(),
+            vec![],
+            vec![Some(3.0), None, None],
+        );
+
+        simple_range_udf_runner(
+            IDelta::<true>::scalar_udf(),
+            RangeArray::from_ranges(ts_array, ranges).unwrap(),
+            RangeArray::from_ranges(values_array, ranges).unwrap(),
+            vec![],
+            vec![Some(3.0), None, None],
+        );
+    }
+
+    #[test]
+    fn idelta_skips_samples_in_same_millisecond() {
+        // The last two samples of the first range share 999ms; the second range is 1ms apart.
+        let ts_array = Arc::new(TimestampMillisecondArray::from_iter_values([
+            999i64, 999, 999, 1000,
+        ]));
+        let values_array = Arc::new(Float64Array::from_iter([10.0, 13.0, 999.0, 1000.0]));
+        let ranges = [(0, 3), (2, 2)];
+
+        simple_range_udf_runner(
+            IDelta::<false>::scalar_udf(),
+            RangeArray::from_ranges(ts_array.clone(), ranges).unwrap(),
+            RangeArray::from_ranges(values_array.clone(), ranges).unwrap(),
+            vec![],
+            vec![None, Some(1.0)],
+        );
+
+        simple_range_udf_runner(
+            IDelta::<true>::scalar_udf(),
+            RangeArray::from_ranges(ts_array, ranges).unwrap(),
+            RangeArray::from_ranges(values_array, ranges).unwrap(),
+            vec![],
+            vec![None, Some(1000.0)],
+        );
+    }
+}

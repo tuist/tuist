@@ -14,20 +14,21 @@ AMP
 chmod +x /usr/local/bin/amp
 export ORB_TOKEN=test-token AMP_URL=https://amp.example.com
 export AMP_ORB_PROVIDER_TOKEN=must-not-cross UNRELATED_SECRET=must-not-cross
-export TUIST_TOKEN=cache-read-token TUIST_URL=https://tuist.example.com
+# A token in the dispatch environment must not reach Amp's processes.
+export TUIST_TOKEN=must-not-cross TUIST_URL=https://tuist.example.com
 export TUIST_CACHE_ENDPOINT=http://kura.example.svc.cluster.local:4000
 /usr/local/bin/sbx-orb-bootstrap
 read -r first _ < /run/tuist-amp/process
 [[ "$(cat /home/user/bootstrap-test)" == 'user /home/user https://amp.example.com' ]]
-[[ "$(cat /home/user/bootstrap-tuist)" == 'cache-read-token|https://tuist.example.com|http://kura.example.svc.cluster.local:4000' ]]
+[[ "$(cat /home/user/bootstrap-tuist)" == 'unset|https://tuist.example.com|http://kura.example.svc.cluster.local:4000' ]]
 [[ "$(readlink /home/user/workspace)" == /workspace/amp ]]
 runuser -u user -- touch /home/user/workspace/preserved
-# A retried spawn mints a new cache credential without restarting bootstrap.
-export TUIST_TOKEN=retried-cache-read-token
+# A retried spawn with a different cache endpoint does not restart bootstrap.
+export TUIST_CACHE_ENDPOINT=http://kura-retried.example.svc.cluster.local:4000
 /usr/local/bin/sbx-orb-bootstrap
 read -r duplicate _ < /run/tuist-amp/process
 [[ "$first" == "$duplicate" ]]
-[[ "$(cut -d '|' -f 1 /home/user/bootstrap-tuist)" == cache-read-token ]]
+[[ "$(cut -d '|' -f 3 /home/user/bootstrap-tuist)" == http://kura.example.svc.cluster.local:4000 ]]
 [[ "$(wc -l < /home/user/bootstrap-starts)" == 1 ]]
 sleep 300 &
 background=$!
@@ -49,4 +50,4 @@ read -r recovered _ < /run/tuist-amp/process
 [[ "$(wc -l < /home/user/bootstrap-starts)" == 3 ]]
 kill "$background"
 kill -KILL "$recovered"
-echo 'bootstrap user, environment, cache credential, duplicate spawn, token rotation and cold-start checks passed'
+echo 'bootstrap user, environment, no Tuist credential, duplicate spawn, token rotation and cold-start checks passed'

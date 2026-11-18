@@ -163,11 +163,11 @@
         display: flex;
         position: absolute;
         top: 48px;
-        left: 0;
         flex-direction: column;
         transform: scale(var(--page-scale));
         transform-origin: 50% 0;
         box-sizing: border-box;
+        inset-inline-start: 0;
         border: 1.2px solid var(--marketing-illustration-neutral-4);
         background: var(--noora-surface-background-primary);
         padding: 19px 10px;
@@ -260,9 +260,9 @@
       /* The pages dissolve into the card's bottom edge. */
       & > [data-part="fade"] {
         position: absolute;
-        right: 0;
         bottom: 0;
-        left: 0;
+        inset-inline-end: 0;
+        inset-inline-start: 0;
         background: linear-gradient(to top, var(--noora-surface-background-primary) 6%, transparent 91%);
         height: 55px;
         pointer-events: none;
@@ -333,7 +333,8 @@
         align-items: center;
         transition: background 0.2s ease;
         outline-offset: -2px;
-        padding: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7) var(--issues-inset);
+        padding-inline: var(--issues-inset) var(--noora-spacing-6);
+        padding-block: var(--noora-spacing-7);
         color: var(--noora-surface-label-primary);
         text-decoration: none;
 
@@ -355,7 +356,7 @@
 
       & [data-part="date"] {
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        text-align: right;
+        text-align: end;
         white-space: nowrap;
       }
 
@@ -367,7 +368,8 @@
           /* The number hugs its width here, so it needs a wider gutter than
              the fixed desktop column to keep clear of the title. */
           gap: var(--noora-spacing-2) var(--noora-spacing-6);
-          padding: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7) var(--issues-inset);
+          padding-inline: var(--issues-inset) var(--noora-spacing-6);
+          padding-block: var(--noora-spacing-7);
         }
 
         & [data-part="number"] {
@@ -380,7 +382,7 @@
           justify-self: start;
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-          text-align: left;
+          text-align: start;
         }
       }
     }

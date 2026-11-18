@@ -31,6 +31,9 @@ defmodule Tuist.Docs.Loader do
   # Regexes
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
+  # Markdown authors call these components without a locale; inject the page's
+  # locale so their links don't fall back to English.
+  @locale_aware_component_regex ~r/<\.(localized_link|home_card)\b(?![^>]*\blocale=)/
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)[ \t]*\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:[ \t]*\{#([\w-]+)\})?\s*$/m
@@ -56,9 +59,7 @@ defmodule Tuist.Docs.Loader do
                              else
                                [
                                  syntax_highlight: [
-                                   formatter:
-                                     {:html_multi_themes,
-                                      themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+                                   formatter: :html_linked
                                  ]
                                ]
                              end)
@@ -75,14 +76,6 @@ defmodule Tuist.Docs.Loader do
                   ],
                   render: [unsafe: true]
                 ] ++ @syntax_highlight_options
-
-  def load_pages! do
-    source_paths = source_paths()
-    example_readmes = example_readmes()
-    pages = Enum.map(source_paths, &build_page!/1) ++ Enum.map(example_readmes, &build_example_page!/1)
-    all_source_paths = source_paths ++ example_readmes
-    {pages, all_source_paths}
-  end
 
   def load_slugs! do
     load_page_sources!()
@@ -555,9 +548,12 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp localize_link_components(markdown, _locale) do
-    Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
-      ~s(<.localized_link href="#{href}" locale={@locale}>#{text}</.localized_link>)
-    end)
+    markdown =
+      Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
+        ~s(<.localized_link href="#{href}" locale={@locale}>#{text}</.localized_link>)
+      end)
+
+    Regex.replace(@locale_aware_component_regex, markdown, "<.\\1 locale={@locale}")
   end
 
   defp convert_code_groups(markdown) do
@@ -634,7 +630,7 @@ defmodule Tuist.Docs.Loader do
 
       copy_button =
         EEx.eval_string(
-          ~s(<button data-part="copy" class="noora-neutral-button" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
+          ~s(<button data-part="copy" class="noora-ghost-button" data-variant="secondary" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
           copy_icon: @copy_icon,
           copy_check_icon: @copy_check_icon
         )

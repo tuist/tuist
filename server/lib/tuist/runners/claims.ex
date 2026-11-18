@@ -1092,18 +1092,27 @@ defmodule Tuist.Runners.Claims do
   #
   # When a stale claim holds the row, the row moves off its handle, so
   # that claim's later detach cannot re-queue a job that is running.
-  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name, site: site}, executed_workflow_job_id, nil) do
-    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
+  #
+  # Only the claim's own account's row moves: the executed job's id comes
+  # from the webhook body.
+  defp adopt_executed_job(
+         %Claim{pod_name: pod_name, runner_name: runner_name, site: site, account_id: account_id},
+         executed_workflow_job_id,
+         nil
+       ) do
+    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site, account_id: account_id)
   end
 
   defp adopt_executed_job(
-         %Claim{pod_name: pod_name, runner_name: runner_name, site: site},
+         %Claim{pod_name: pod_name, runner_name: runner_name, site: site, account_id: account_id},
          executed_workflow_job_id,
          %Claim{claimed_at: stale_claimed_at}
        ) do
-    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at, site) do
+    guards = [account_id: account_id]
+
+    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at, site, guards) do
       :ok -> :ok
-      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
+      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site, guards)
     end
   end
 

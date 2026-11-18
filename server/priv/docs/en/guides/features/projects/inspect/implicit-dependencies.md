@@ -18,13 +18,13 @@ tuist inspect dependencies --only implicit
 If the command detects any implicit imports, it exits with an exit code other than zero.
 
 > [!TIP]
-> **Validate In Ci**
+> **Validate in CI**
 >
 > We strongly recommend to run this command as part of your <.localized_link href="/guides/integrations/continuous-integration">continuous integration</.localized_link> command every time new code is pushed upstream.
 
 
 > [!WARNING]
-> **Not All Implicit Cases Are Detected**
+> **Not all implicit cases are detected**
 >
 > Since Tuist relies on static code analysis to detect implicit dependencies, it might not catch all cases. For example, Tuist is unable to understand conditional imports through compiler directives in code.
 

@@ -3,11 +3,13 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
@@ -42,6 +44,8 @@ type Spec struct {
 	Env     map[string]string
 	Cwd     string
 	Timeout time.Duration
+	// Stdin is written to the command's standard input; nil leaves it empty.
+	Stdin []byte
 }
 
 type Stream string
@@ -111,6 +115,7 @@ func (r *Registry) Run(ctx context.Context, spec Spec, started func(id string), 
 		Env:    env,
 		Stdout: stdoutW,
 		Stderr: stderrW,
+		Stdin:  stdinReader(spec.Stdin),
 		// A process group of its own so timeouts and kills reach the whole tree.
 		SysProcAttr: &syscall.SysProcAttr{Setpgid: true},
 	}
@@ -343,4 +348,11 @@ func executable(path string) error {
 		return fmt.Errorf("%s: not an executable file", path)
 	}
 	return nil
+}
+
+func stdinReader(data []byte) io.Reader {
+	if data == nil {
+		return nil
+	}
+	return bytes.NewReader(data)
 }

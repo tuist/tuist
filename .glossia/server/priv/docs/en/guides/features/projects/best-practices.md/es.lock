@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ad47ac7707d95a21b35db390407d66d5be5aa363b5b4bab6b52589b1efca250c",
+  "hash": "c0166876942e5126538d705976ac6646de16e94496d36b858fa5dbc1546bb139",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "5183415183007de7eda1f732c358111f87e95acb9dcd0f00640c6a840b2aee5b"
                 },
                 "### Buildable folders": {
-                  "content_hash": "aa67b174d2f499a48a540d857410caacfadfc659dbff04766127e3bcfb63f4fd"
+                  "content_hash": "31bef1010f837bcdcb68275552ee796710222dc3468fbd68fa30991d0f9eb4ed"
                 },
                 "### Dependencies": {
                   "content_hash": "b6bf7193dbb78f8945850514a9cbab31d495ae4eaff0ea8ffc83c0d153ab446f"
@@ -35,7 +35,7 @@
                   "content_hash": "d817b41ae1412765b97a69ddcd630009028cde73a05ee82727cb72466526fe37"
                 },
                 "#### Configurations to model remote environments {#configurations-to-model-remote-environments}": {
-                  "content_hash": "4af1f3515c432ab30f7c969c01fc8422d41fa838eb8b29ba636d10f7e9c5f6bc"
+                  "content_hash": "6583202191ba154e240f24351705917184d9667306fa3ee25472ac9bda3b1556"
                 },
                 "#### Don't isolate the cache per worktree {#worktrees-shared-cache}": {
                   "content_hash": "24fd63a477a3481d12f2eb46a24d36f8b9531bd333650a2f8f33b57c91e7b07d"
@@ -65,11 +65,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "cbe88ab4283e456076b3e71ce89c5fd0b3e750f752482140d939b479f44dd673",
+          "hash": "9446149b3e3f301b8a9ecd375f4288cb10da46207f645b55bfe9e49c6d8d1a61",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/best-practices.md",
           "metadata": {
-            "content_hash": "ad6214052beee233d2dc9f9b8d244df5d074f0bdfa3ffcc87670fbb7b0928465"
+            "content_hash": "97136b371e88e88cdf94b2263402c591719d91499e374bbedd394e38221806ad"
           }
         },
         {
@@ -130,7 +130,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -149,7 +149,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -178,11 +178,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -274,21 +274,21 @@
             }
           ],
           "details": {},
-          "hash": "ef7a1f56d9948a66661d7699feb202996436dac70d4591949eb9d2a1a8aff697",
+          "hash": "bc630637a01e5abcd3f619c5f25e739b7a2504900ad7c99d1153b7b52a90872b",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ad47ac7707d95a21b35db390407d66d5be5aa363b5b4bab6b52589b1efca250c",
+      "hash": "c0166876942e5126538d705976ac6646de16e94496d36b858fa5dbc1546bb139",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/best-practices.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2b8ff9eac5f17c33f0c9c8d433abe06467a3024fc8c142bd816df970fe263468",
+  "output_hash": "d39db6059f99e0dbaa7d6f356f93215fc0ccc9f8e2006799600e6d14f5463e48",
   "output_path": "server/priv/docs/es/guides/features/projects/best-practices.md",
   "protection_state": "recorded",
   "provider": "",
@@ -310,8 +310,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "aaeed04192348d04a09c45c3b067c57b92c475c6",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/best-practices.md",
-  "translated_at": "2026-10-30T15:01:58.511624Z",
-  "translation_session_id": "01a18d53-6f8f-7683-bfce-9c9617a51ea0"
+  "translated_at": "2026-11-06T18:38:52.037857Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

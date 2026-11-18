@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -13,6 +14,7 @@ import XCResultParser
 @testable import TuistKit
 @testable import TuistTestCommand
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestiOSAppWithFrameworks {
     @Test(
         .disabled(),
@@ -31,6 +33,7 @@ struct TestAcceptanceTestiOSAppWithFrameworks {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestAppWithFrameworkAndTests {
     @Test(
         .disabled(),
@@ -73,6 +76,7 @@ struct TestAcceptanceTestAppWithFrameworkAndTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestFrameworkWithSPMBundle {
     @Test(.disabled(), .withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
     func with_framework_with_spm_bundle() async throws {
@@ -86,6 +90,7 @@ struct TestAcceptanceTestFrameworkWithSPMBundle {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestAppWithTestPlan {
     @Test(.disabled(), .withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
     func with_app_with_test_plan() async throws {
@@ -110,6 +115,7 @@ struct TestAcceptanceTestAppWithTestPlan {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestAppWorkspaceWithTestPlan {
     @Test(.disabled(), .withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
     func with_app_workspace_with_test_plan() async throws {
@@ -130,6 +136,7 @@ struct TestAcceptanceTestAppWorkspaceWithTestPlan {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestInvalidArguments {
     @Test(.withFixture("generated_app_with_framework_and_tests"), .inTemporaryDirectory)
     func with_invalid_arguments() async throws {
@@ -322,6 +329,7 @@ struct TestAcceptanceTestInvalidArguments {
     }
 }
 
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestMultiplatformApp {
     @Test(.withFixture("generated_multiplatform_app"), .inTemporaryDirectory)
     func with_multiplatform_app() async throws {
@@ -342,6 +350,7 @@ struct TestAcceptanceTestMultiplatformApp {
 /// actually executed. Earlier the per-suite selection was written into the bundle's `.xctestrun` as
 /// `OnlyTestIdentifiers`, which can only ever *exclude* Swift Testing — so the suite ran zero tests
 /// yet reported success. With `-only-testing` selection they run.
+@Suite(.coverageAttribution)
 struct TestAcceptanceTestShardWithLocalTestProducts {
     @Test(
         .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),

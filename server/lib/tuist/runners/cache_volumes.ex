@@ -13,6 +13,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -35,6 +36,7 @@ defmodule Tuist.Runners.CacheVolumes do
   @checkout_key "checkout"
   @docker_key "docker"
   @reserved_keys [@checkout_key, @docker_key]
+  @history_retention_days 90
   # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
   # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
   @publication_operations ["upload", "upload_parts", "complete", "publish"]
@@ -139,6 +141,9 @@ defmodule Tuist.Runners.CacheVolumes do
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
+         # A checkout builds from the default branch; an identity GitHub could
+         # not complete has none.
+         true <- is_binary(Map.get(identity, :default_branch)),
          {:ok, allocation} <-
            allocate_for_job(job, identity, %{
              pod_name: pod,
@@ -171,12 +176,103 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def allocate_checkout(_), do: {:error, :unavailable}
 
+  @doc """
+  Allocates, for one worker start of a sandbox session (a Claude Code session),
+  the checkout volume of the GitHub repository `repository` (`owner/name`) it
+  works on: the volume the repository's CI jobs on that platform use, so the
+  session starts from the same host-built master. The account's github.com
+  installation must read the repository. A session has no CI job, so the commit
+  is the default branch's head as GitHub reports it now, never anything the
+  guest says, and the use is a default-branch job's: the host moves or starts
+  the master only when an export names that commit, and any other export, such
+  as the session's own branch, only adds objects. `use_key` (the worker's work
+  id) makes a retried start reuse its use.
+  """
+  def allocate_sandbox_checkout(
+        %{account_id: account_id, node_name: node, platform: sandbox_platform},
+        repository,
+        use_key
+      )
+      when sandbox_platform in [:darwin, :linux] and is_binary(node) and is_binary(use_key) do
+    {platform, arch} = if sandbox_platform == :darwin, do: {:macos, "arm64"}, else: {:linux, "amd64"}
+
+    with true <- is_binary(repository) and Regex.match?(~r/\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/, repository),
+         true <- Environment.runner_cache_volumes_enabled?(platform),
+         {:ok, installation} <- VCS.get_github_app_installation_for_account(account_id),
+         true <- VCS.installation_api_url(installation) == "https://api.github.com",
+         {:ok, %{"id" => repository_id, "full_name" => full_name, "default_branch" => default}}
+         when is_integer(repository_id) and is_binary(default) <- GitHubClient.get_repository(installation, repository),
+         {:ok, %{"commit" => %{"sha" => commit}}} when is_binary(commit) <-
+           GitHubClient.get_branch(installation, full_name, default),
+         session = %{account_id: account_id, workflow_job_id: nil, workflow_run_id: nil, repository: full_name},
+         identity = %{
+           repository_id: repository_id,
+           trusted: true,
+           same_repository: true,
+           default_branch: default,
+           writer_branch: default
+         },
+         {:ok, allocation} <-
+           allocate_for_job(session, identity, %{
+             pod_name: "sandbox-" <> use_key,
+             pod_uid: use_key,
+             node_name: node,
+             key: @checkout_key,
+             architecture: arch,
+             platform: to_string(platform),
+             uid: sandbox_checkout_uid(account_id, repository_id, platform, arch)
+           }) do
+      usage = Repo.get!(Usage, allocation.id)
+
+      {:ok,
+       Map.merge(allocation, %{
+         generation: usage.generation,
+         repository: full_name,
+         clone_url: "https://github.com/" <> full_name,
+         default_branch: default,
+         commit: commit,
+         default_branch_job: true,
+         may_start_master: false,
+         volume_key: checkout_volume_key(usage.volume_id)
+       })}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  # The volume's identity includes the user that owns the tree, so a session
+  # takes the user of the repository's CI checkout volume on its platform, and
+  # the runner image's user without one (`runner` on macOS, `user` in the Linux
+  # sandbox template).
+  defp sandbox_checkout_uid(account_id, repository_id, platform, arch) do
+    Repo.one(
+      from(v in Volume,
+        where:
+          v.account_id == ^account_id and v.provider == "github" and v.provider_instance == "github.com" and
+            v.scope_id == ^to_string(repository_id) and v.key == @checkout_key and v.platform == ^to_string(platform) and
+            v.architecture == ^arch and is_nil(v.deleted_at),
+        order_by: [desc_nulls_last: v.last_used_at, desc: v.updated_at],
+        limit: 1,
+        select: v.uid
+      )
+    ) || runner_image_uid(platform)
+  end
+
+  defp runner_image_uid(:macos), do: 502
+  defp runner_image_uid(:linux), do: 1000
+
   # A job follows its profile's setting; one on a legacy label has checkouts on.
   defp cached_checkouts?(%Profile{cached_checkouts: enabled}), do: enabled
   defp cached_checkouts?(nil), do: true
 
   @doc "The reserved name of a repository's Docker data root, which no job can request."
   def docker_key, do: @docker_key
+
+  @doc "The keys whose storage is not billed: every reserved key."
+  def unbilled_keys, do: @reserved_keys
+
+  @doc "The days of saved-size history `prune_history/0` keeps, beyond one baseline per volume."
+  def saved_size_retention_days, do: @history_retention_days
 
   @doc """
   Allocates the Docker data root of the GitHub repository a Linux pod is running a
@@ -304,6 +400,17 @@ defmodule Tuist.Runners.CacheVolumes do
         {:error, :unavailable}
     end
   end
+
+  # The GitHub job a live runner Pod on node executes, for its Actions cache.
+  def running_github_job(pod, node) when is_binary(pod) and is_binary(node) do
+    case executing_job(pod, node) do
+      {:ok, %WorkflowJob{provider: "github"} = job, _platform} -> {:ok, job}
+      {:error, :pending} -> {:error, :pending}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  def running_github_job(_pod, _node), do: {:error, :unavailable}
 
   # Without a binding, ask GitHub directly rather than wait for an
   # `in_progress` delivery that can lag the job's start by minutes.
@@ -458,7 +565,7 @@ defmodule Tuist.Runners.CacheVolumes do
     volume_bytes = allocation_volume_bytes(volume, saved_head, requested)
 
     reset? =
-      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head.id)
+      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head)
 
     {saved_head, volume_bytes} =
       if reset?,
@@ -719,11 +826,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def out_of_space?(_size, _capacity), do: false
 
-  defp clone_ran_out_of_space?(head_id) do
+  # Clones of the head's own parent count too: when concurrent jobs start from
+  # one snapshot, a sibling that saved replaces the head the others filled, and
+  # checking only the new head would let every save restart the wait while jobs
+  # keep running out of space.
+  defp clone_ran_out_of_space?(head) do
+    parents = Enum.reject([head.id, head.parent_id], &is_nil/1)
+
     Repo.exists?(
       from(u in Usage,
         where:
-          u.parent_id == ^head_id and u.capacity_bytes > 0 and
+          u.parent_id in ^parents and u.capacity_bytes > 0 and
             u.size_bytes * 100 >= u.capacity_bytes * @out_of_space_percent
       )
     )
@@ -735,6 +848,24 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
     do: is_integer(mounted) and is_integer(base) and mounted < base
+
+  @doc """
+  Why a use's runner host had no copy of its volume, so the job started empty,
+  as a sentence, or nil when the host did not say.
+  """
+  def cold_reason_description(%Usage{cold_reason: "downloading"}),
+    do: "The job started empty because its runner host was still downloading the saved copy."
+
+  def cold_reason_description(%Usage{cold_reason: "not_on_host"}),
+    do: "The job started empty because its runner host had no copy of the volume."
+
+  def cold_reason_description(%Usage{cold_reason: "evicted_expired"}),
+    do: "The job started empty because its runner host removed its copy after seven days without use."
+
+  def cold_reason_description(%Usage{cold_reason: "evicted_" <> _}),
+    do: "The job started empty because its runner host removed its copy to free disk space or replace it."
+
+  def cold_reason_description(_usage), do: nil
 
   @doc """
   Whether a Docker use's guest could not mount the saved data root and started
@@ -808,6 +939,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp mounted_generation(_usage, _params), do: nil
 
+  # Why a host had no copy of a warm use's volume, from runner-cache's Cold*
+  # reasons. Only a known reason on a cold report is kept; anything else is
+  # ignored rather than failing an otherwise valid report.
+  @cold_reasons ~w(downloading not_on_host) ++
+                  Enum.map(~w(idle in_use speculative superseded expired no_metadata head_conflict), &("evicted_" <> &1))
+
+  defp cold_reason(%Usage{base_generation: base}, %{"warm" => false, "cold_reason" => reason})
+       when is_integer(base) and base > 0 and reason in @cold_reasons, do: reason
+
+  defp cold_reason(_usage, _params), do: nil
+
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
@@ -863,6 +1005,7 @@ defmodule Tuist.Runners.CacheVolumes do
           last_reported_at: now,
           warm: params["warm"],
           mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
+          cold_reason: usage.cold_reason || cold_reason(usage, params),
           attached_at: usage.attached_at || now,
           status: if(usage.status == "allocated", do: "attached", else: usage.status),
           docker_images: docker_images || usage.docker_images
@@ -1017,6 +1160,36 @@ defmodule Tuist.Runners.CacheVolumes do
   def recent_job_volumes(_account_id, _repository, _since), do: %{}
 
   @doc """
+  The nodes on which a sandbox used `repository`'s `platform` checkout volume
+  since `since`, most recently first. Such a node keeps the master it seeded
+  the sandbox from and, on Linux, the workspace sandboxd prepared from that
+  seed, so a new session of the repository starts fastest there. The
+  repository is matched without case: it comes from the session's URL, not
+  from GitHub.
+  """
+  def recent_sandbox_checkout_nodes(account_id, repository, platform, %DateTime{} = since)
+      when is_integer(account_id) and is_binary(repository) and platform in ["macos", "linux"] do
+    Repo.all(
+      from(v in checkout_volumes(account_id, repository, platform),
+        join: u in Usage,
+        on: u.volume_id == v.id,
+        where: u.inserted_at >= ^since and like(u.pod_name, "sandbox-%") and not is_nil(u.node_name),
+        group_by: u.node_name,
+        order_by: [desc: max(u.inserted_at)],
+        select: u.node_name
+      )
+    )
+  end
+
+  defp checkout_volumes(account_id, repository, platform) do
+    from(v in Volume,
+      where:
+        v.account_id == ^account_id and fragment("lower(?)", v.repository) == ^String.downcase(repository) and
+          v.key == ^@checkout_key and v.platform == ^platform and is_nil(v.deleted_at)
+    )
+  end
+
+  @doc """
   The cache disk room the custom volumes that `workflow_job_ids` allocated on
   `node_names` hold, as `%{{node_name, workflow_job_id} => %{volume_id =>
   bytes}}`. A use the host deleted holds nothing.
@@ -1082,7 +1255,7 @@ defmodule Tuist.Runners.CacheVolumes do
   With `node:`, the lists are those of that one of `node_names`: only the
   repositories `VolumePlacement` places on it, every volume of a repository on
   the same Nodes, and the caps apply to that Node's lists. A repository is held
-  by one more Node than its jobs ran on at once over the week
+  by half again as many Nodes as its jobs ran on at once over the week
   (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
   equal when absent).
   """
@@ -1773,7 +1946,7 @@ defmodule Tuist.Runners.CacheVolumes do
   defp inventory_query(account_id, search, opts) do
     query =
       from(v in Volume,
-        where: v.account_id == ^account_id
+        where: v.account_id == ^account_id and is_nil(v.deleted_at)
       )
 
     query =
@@ -2067,7 +2240,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Cross-tenant maintenance: prune deleted copies.
   def prune_history do
-    threshold = DateTime.add(DateTime.utc_now(), -90 * 24 * 60 * 60)
+    threshold = DateTime.add(DateTime.utc_now(), -@history_retention_days, :day)
     Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold))
     # Keep one baseline per volume so an unchanged cache survives the retention boundary.
     Repo.query!(

@@ -128,9 +128,7 @@ spec:
                                 description: Required. The taint key to be applied to a node.
                                 type: string
                               timeAdded:
-                                description: |-
-                                  TimeAdded represents the time at which the taint was added.
-                                  It is only written for NoExecute taints.
+                                description: TimeAdded represents the time at which the taint was added.
                                 format: date-time
                                 type: string
                               value:

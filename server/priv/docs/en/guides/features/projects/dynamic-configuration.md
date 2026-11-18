@@ -2,7 +2,7 @@
 {
   "title": "Dynamic configuration",
   "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how how to use environment variables to dynamically configure your project."
+  "description": "Learn how to use environment variables to dynamically configure your project."
 }
 ---
 # Dynamic configuration {#dynamic-configuration}
@@ -25,7 +25,7 @@ TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 
 ## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
 
-Variables can be accessed using the [`Environment`](https://projectdescription.tuist.dev/documentation/projectdescription/environment) type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type. The following example shows how we access the `TUIST_APP_NAME` variable:
+Variables can be accessed using the [`Environment`](https://projectdescription.tuist.dev/documentation/projectdescription/environment) type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type. Accessors use the camel-cased variable name without the `TUIST_` prefix, so `TUIST_APP_NAME` is read as `Environment.appName` and `TUIST_ENABLE_ANALYTICS` as `Environment.enableAnalytics`. To check whether the manifest is evaluated on CI, use the `Environment.isCI` Boolean. The following example reads `TUIST_APP_NAME`:
 
 ```swift
 func appName() -> String {
@@ -48,11 +48,11 @@ You can also retrieve the string or boolean `Environment` variable using either 
 ::: code-group
 
 ```swift [String]
-Environment.appName.getString(default: "TuistServer")
+Environment.appName.getString(default: "MyApp")
 ```
 
 ```swift [Boolean]
-Environment.isCI.getBoolean(default: false)
+Environment.enableAnalytics.getBoolean(default: false)
 ```
 <!-- -->
 :::

@@ -103,6 +103,7 @@ public struct GenerateService {
         let timer = clock.startTimer()
         let path = try await self.path(path)
 
+        let localCachePrune: Task<Void, Never>?
         #if canImport(TuistCacheEE)
             /// Byte budget for the LRU self-prune. On a runner the
             /// dispatch-poll sets this to ~80% of the mounted cache volume so an
@@ -111,10 +112,12 @@ public struct GenerateService {
             /// Read here (not inside the detached task) because Environment's
             /// TaskLocal value does not propagate into a detached task.
             let cacheMaxBytes = Environment.current.variables["TUIST_CACHE_MAX_BYTES"].flatMap { Int($0) }
-            Task.detached(priority: .background) {
+            localCachePrune = Task.detached(priority: .background) {
                 let cacheLocalStorage = CacheLocalStorage(cacheDirectoriesProvider: CacheDirectoriesProvider())
                 try? await cacheLocalStorage.clean(maxBytes: cacheMaxBytes)
             }
+        #else
+            localCachePrune = nil
         #endif
 
         let config = try await configLoader.loadConfig(path: path)
@@ -135,7 +138,7 @@ public struct GenerateService {
                     takeaway: "Run \(.command("tuist install")) to update them."
                 ))
             case .install:
-                Logger.current.notice("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
+                Logger.current.info("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
                 try await installService.run(
                     path: path.pathString,
                     update: false,
@@ -163,6 +166,10 @@ public struct GenerateService {
             coverage: .resolved(config: config),
             sdkSelection: destination.sdkSelection
         )
+        // The prune deletes binaries cache entries without knowing which ones generation resolves,
+        // and the binary cache fails when an entry vanishes while it lists the cache, so the two
+        // must not overlap.
+        await localCachePrune?.value
         let (workspacePath, _, _) = try await generator.generateWithGraph(
             path: path,
             options: config.project.generatedProject?.generationOptions
@@ -172,7 +179,7 @@ public struct GenerateService {
             try await opener.open(path: workspacePath)
         }
         AlertController.current.success(.alert("Project generated."))
-        Logger.current.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
+        Logger.current.info(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers

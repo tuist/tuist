@@ -8,6 +8,8 @@ on:
     paths:
       - infra/sandbox-image/**
       - infra/sandboxd/**
+      - infra/runner-cache/sparse/**
+      - infra/runner-cache/go.mod
       - infra/amp-orbs/**
       - .github/workflows/sandbox-orbs-validation.yml
   workflow_dispatch:

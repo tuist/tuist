@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -286,5 +287,58 @@ func TestReadFrameRejectsOversizedFrames(t *testing.T) {
 	endless := strings.Repeat("b", 10000)
 	if _, err := readFrame(bufio.NewReaderSize(strings.NewReader(endless), 64), 4096); !errors.Is(err, ErrFrameTooLarge) {
 		t.Fatalf("unterminated frame past the limit: %v", err)
+	}
+}
+
+func countingClient(t *testing.T, f *fakeAgent, dials *atomic.Int32) *Client {
+	inner := newClient(t, f)
+	return NewClient(func(ctx context.Context) (net.Conn, error) {
+		dials.Add(1)
+		return inner.dial(ctx)
+	})
+}
+
+func execOnce(t *testing.T, c *Client) {
+	t.Helper()
+	code, err := c.Exec(context.Background(), ExecRequest{Cmd: []string{"/bin/true"}}, nil)
+	if err != nil || code != 0 {
+		t.Fatalf("exec: code %d err %v", code, err)
+	}
+}
+
+func startedExits(req request, write func(response)) {
+	write(response{Type: "started", ExecID: "e1"})
+	write(response{Type: "exit", Code: 0})
+}
+
+func TestPrewarmedConnectionServesTheNextExec(t *testing.T) {
+	var dials atomic.Int32
+	c := countingClient(t, &fakeAgent{exec: startedExits}, &dials)
+	c.Prewarm(context.Background())
+	execOnce(t, c)
+	if got := dials.Load(); got != 1 {
+		t.Fatalf("dials = %d, want the prewarmed one only", got)
+	}
+}
+
+func TestStaleSpareIsDiscarded(t *testing.T) {
+	var dials atomic.Int32
+	c := countingClient(t, &fakeAgent{exec: startedExits}, &dials)
+	c.Prewarm(context.Background())
+	c.spare.Load().opened = time.Now().Add(-2 * spareMaxAge)
+	execOnce(t, c)
+	if got := dials.Load(); got != 2 {
+		t.Fatalf("dials = %d, want a fresh dial after the stale spare", got)
+	}
+}
+
+func TestBrokenSpareFallsBackToAFreshDial(t *testing.T) {
+	var dials atomic.Int32
+	c := countingClient(t, &fakeAgent{exec: startedExits}, &dials)
+	c.Prewarm(context.Background())
+	c.spare.Load().cn.Close()
+	execOnce(t, c)
+	if got := dials.Load(); got != 2 {
+		t.Fatalf("dials = %d, want a fresh dial after the broken spare", got)
 	}
 }

@@ -49,7 +49,7 @@ defmodule TuistWeb.Marketing.Components.Posts.Atlas.BuildifySupportNotification 
       }
 
       [data-part="buildify-support-notification"] [data-part="app-badge"] {
-        margin-left: 6px;
+        margin-inline-start: 6px;
         padding: 2px 5px;
         border-radius: 4px;
         background: light-dark(#ececef, #34363b);
@@ -59,7 +59,7 @@ defmodule TuistWeb.Marketing.Components.Posts.Atlas.BuildifySupportNotification 
       }
 
       [data-part="buildify-support-notification"] [data-part="timestamp"] {
-        margin-left: auto;
+        margin-inline-start: auto;
         color: light-dark(#71717a, #a1a1aa);
         font-size: 14px;
       }

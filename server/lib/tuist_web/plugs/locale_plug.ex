@@ -15,7 +15,7 @@ defmodule TuistWeb.Plugs.LocalePlug do
 
     if locale do
       Gettext.put_locale(GettextBackend, locale)
-      put_session(conn, :locale, locale)
+      if get_session(conn, :locale) == locale, do: conn, else: put_session(conn, :locale, locale)
     else
       conn
     end

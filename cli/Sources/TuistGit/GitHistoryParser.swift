@@ -34,6 +34,39 @@ enum GitHistoryParser {
         return parents
     }
 
+    /// A `git diff --raw` entry. A blob is nil where git prints zeros: the side that doesn't exist, or
+    /// a working-tree file git didn't hash.
+    struct RawChange: Equatable {
+        let path: String
+        let status: String
+        let srcBlob: String?
+        let dstBlob: String?
+    }
+
+    /// The entries of `git diff --raw -z --no-renames --no-abbrev`:
+    /// `:<src mode> <dst mode> <src> <dst> <status>`, then the path, NUL-separated.
+    static func parseRawDiff(_ output: String) -> [RawChange] {
+        let fields = output.split(separator: "\0", omittingEmptySubsequences: false)
+        var changes: [RawChange] = []
+        var index = 0
+        while index + 1 < fields.count {
+            let header = fields[index].split(separator: " ")
+            guard fields[index].hasPrefix(":"), header.count == 5 else {
+                index += 1
+                continue
+            }
+            let blob: (Substring) -> String? = { $0.allSatisfy { $0 == "0" } ? nil : String($0) }
+            changes.append(RawChange(
+                path: String(fields[index + 1]),
+                status: String(header[4].prefix(1)),
+                srcBlob: blob(header[2]),
+                dstBlob: blob(header[3])
+            ))
+            index += 2
+        }
+        return changes
+    }
+
     /// The entries of `git ls-tree -r -z`: `<mode> <type> <object>\t<path>`, NUL-separated. Only
     /// blobs count: a submodule's entry is a commit.
     static func parseCommitFiles(_ output: String) -> [GitCommitFile] {

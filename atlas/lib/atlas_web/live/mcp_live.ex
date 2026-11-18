@@ -428,7 +428,7 @@ defmodule AtlasWeb.MCPLive do
                   label={status_label(entry.status)}
                   color={status_color(entry.status)}
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
                 <span :if={entry.session && entry.session.expires_at} data-part="session-expiry">
                   {expires_label(entry.session)}
@@ -497,6 +497,7 @@ defmodule AtlasWeb.MCPLive do
 
   defp auth_label(:oauth2), do: gettext("OAuth")
   defp auth_label(:bearer_token), do: gettext("Shared token")
+  defp auth_label(:service_account_token), do: gettext("Service account")
   defp auth_label(:none), do: gettext("None")
 
   defp status_label(:connected), do: gettext("Connected")

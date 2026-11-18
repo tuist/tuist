@@ -1,0 +1,56 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+pub mod sort;
+pub mod sort_create;
+
+use async_trait::async_trait;
+
+use crate::BytesRef;
+use crate::bitmap::BitmapType;
+use crate::inverted_index::error::Result;
+use crate::inverted_index::format::writer::InvertedIndexWriter;
+
+/// `InvertedIndexCreator` provides functionality to construct an inverted index
+#[async_trait]
+pub trait InvertedIndexCreator: Send {
+    /// Adds a value to the named index. A `None` value represents an absence of data (null)
+    ///
+    /// It should be equivalent to calling `push_with_name_n` with `n = 1`
+    #[must_use = "a true result requires calling `spill` before pushing more"]
+    fn push_with_name(&mut self, index_name: &str, value: Option<BytesRef<'_>>) -> bool {
+        self.push_with_name_n(index_name, value, 1)
+    }
+
+    /// Buffers `n` identical values for the named index. `None` values represent absence of
+    /// data (null).
+    ///
+    /// Returns true when buffered data exceeds the memory limit; the caller must then call
+    /// [`InvertedIndexCreator::spill`] before pushing more. Pushing is synchronous so the
+    /// per-row path does not allocate a future.
+    #[must_use = "a true result requires calling `spill` before pushing more"]
+    fn push_with_name_n(&mut self, index_name: &str, value: Option<BytesRef<'_>>, n: usize)
+    -> bool;
+
+    /// Moves the buffers that asked for it to external storage.
+    async fn spill(&mut self) -> Result<()>;
+
+    /// Finalizes the index creation process, ensuring all data is properly indexed and stored
+    /// in the provided writer
+    async fn finish(
+        &mut self,
+        writer: &mut dyn InvertedIndexWriter,
+        bitmap_type: BitmapType,
+    ) -> Result<()>;
+}

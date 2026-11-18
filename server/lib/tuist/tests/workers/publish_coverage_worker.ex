@@ -34,7 +34,8 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
     coverage = %{
       partial: Map.get(args, "partial", false),
       tool: Map.get(args, "tool") || "xccov",
-      tool_version: Map.get(args, "tool_version") || ""
+      tool_version: Map.get(args, "tool_version") || "",
+      platform: Map.get(args, "platform") || ""
     }
 
     case Tests.get_test(test_run_id) do

@@ -2,12 +2,12 @@
 {
   "title": "Аналитика сборок",
   "titleTemplate": ":title · Возможности · Руководства · Tuist",
-  "description": "Отслеживайте производительность сборок проектов на Xcode, Gradle, Bazel, Elixir и Rust с помощью аналитики сборок Tuist."
+  "description": "Отслеживайте производительность сборок для проектов Xcode, Gradle, Bazel, Elixir, Rust и Once с помощью аналитики сборок Tuist."
 }
 ---
 # Аналитика сборок {#build-insights}
 
-Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. В настоящее время поддерживаются Xcode, Gradle, Bazel, Elixir и Rust.
+Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Once.
 
 <.home_cards>
   <.home_card
@@ -22,22 +22,27 @@
 />
   <.home_card
     title="Gradle"
-    details="Отслеживайте время выполнения задач Gradle и эффективность кэширования с помощью плагина Tuist Gradle."
+    details="Отслеживайте время выполнения задач Gradle и эффективность кэширования с помощью плагина Tuist для Gradle."
     link="/guides/features/build-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="Отслеживайте длительность выполнения команд Bazel, общие показатели кэша и диагностику критического пути через протокол Build Event Protocol."
+    details="Отслеживайте длительность команд Bazel, общие показатели кэша и диагностику критического пути через протокол событий сборки (Build Event Protocol)."
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="Отслеживайте время компиляции вашего проекта на Elixir, предупреждения и файлы, замедляющие сборку."
+    details="Отслеживайте время компиляции вашего проекта на Elixir, предупреждения и файлы, которые замедляют сборку."
     link="/guides/features/build-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="Отслеживайте длительность выполнения команд Cargo, наблюдаемые вызовы rustc и диагностику компилятора с помощью CLI Tuist."
+    details="Отслеживайте длительность команд Cargo, зафиксированные вызовы rustc и диагностику компилятора с помощью CLI Tuist."
     link="/guides/features/build-insights/rust"
+/>
+  <.home_card
+    title="Once"
+    details="Следите за запусками в реальном времени и анализируйте действия графа, их длительность, сбои и решения кэширования."
+    link="/guides/features/build-insights/once"
 />
 </.home_cards>

@@ -67,11 +67,39 @@ struct OutdatedDependenciesChecker: OutdatedDependenciesChecking {
         }
 
         if currentData != savedData { return true }
+        if try await hasPrunedCacheLinks(scratchDirectory: scratchDirectory) { return true }
 
         // A toolchain update leaves the lockfile as is, but its compiler cannot import the recorded prebuilts.
         return try await swiftPackageManagerController.recordsOutdatedPrebuilts(
             at: packageDirectory,
             scratchDirectory: scratchDirectory
         )
+    }
+
+    /// SwifterPM links checkouts, binary artifacts and registry downloads into the shared cache,
+    /// which drops entries nothing has used for a while. A project nobody installed in since then
+    /// still matches its `Package.resolved` but links to nothing, so it needs `tuist install`.
+    private func hasPrunedCacheLinks(scratchDirectory: AbsolutePath) async throws -> Bool {
+        let links = try await entries(in: scratchDirectory.appending(component: "checkouts"), depth: 1)
+            + entries(in: scratchDirectory.appending(component: "artifacts"), depth: 2)
+            + entries(in: scratchDirectory.appending(components: "registry", "downloads"), depth: 3)
+            .map { $0.appending(component: Constants.SwiftPackageManager.packageSwiftName) }
+        for link in links where !link.basename.hasPrefix(".") {
+            // `exists` follows symbolic links, so a link whose cache entry is gone reads as absent.
+            if try await !fileSystem.exists(link) { return true }
+        }
+        return false
+    }
+
+    private func entries(in directory: AbsolutePath, depth: Int) async throws -> [AbsolutePath] {
+        guard try await fileSystem.exists(directory, isDirectory: true) else { return [] }
+        let children = try await fileSystem.contentsOfDirectory(directory)
+            .filter { !$0.basename.hasPrefix(".") }
+        guard depth > 1 else { return children }
+        var entries: [AbsolutePath] = []
+        for child in children {
+            entries += try await self.entries(in: child, depth: depth - 1)
+        }
+        return entries
     }
 }

@@ -297,6 +297,9 @@ ProxyGroup by default) sets the egress flags and a Role for Services there.
 
 ## Running it once from a laptop
 
+The CA comes from a Secret, which no elevation reads, so the `kubectl` below
+runs with the env's admin kubeconfig.
+
 ```
 cd infra/rack-switch-controller
 go build -o rack-switch-controller ./cmd/manager

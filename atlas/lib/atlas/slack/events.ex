@@ -8,6 +8,9 @@ defmodule Atlas.Slack.Events do
   ignored — Atlas only stores Slack messages it can attribute to a known
   account.
 
+  Atlas does not reply to mentions or thread replies in Slack; the
+  conversational bot is disabled while its shape is reconsidered.
+
   `link_shared` events are answered with `chat.unfurl` previews for Atlas
   account URLs, but only for the company Slack app — the community app
   has no business unfurling internal Atlas links.
@@ -25,9 +28,7 @@ defmodule Atlas.Slack.Events do
   alias Atlas.Search
   alias Atlas.Slack
   alias Atlas.Slack.API
-  alias Atlas.Slack.Bot
   alias Atlas.Slack.User
-  alias Atlas.Slack.Workers.RespondToConversation
   alias Atlas.UUIDv7
 
   require Logger
@@ -58,26 +59,14 @@ defmodule Atlas.Slack.Events do
       channel = Slack.find_channel(app_key, channel_id)
 
       maybe_capture_blog_post_idea_reply(event, app_key)
-
-      case conversation_reply_event(event, app_key) do
-        {:ok, conversation_event} ->
-          handle_conversation_event(conversation_event, app_key, channel)
-
-        :ignored ->
-          if channel && account_linked?(channel) do
-            capture_for_account(event, channel)
-          else
-            :ignored
-          end
-      end
+      maybe_capture_for_account(event, channel)
     else
       :ignored
     end
   end
 
   def handle_event(%{"type" => "app_mention", "channel" => channel_id} = event, app_key) do
-    channel = Slack.find_channel(app_key, channel_id)
-    handle_conversation_event(event, app_key, channel)
+    maybe_capture_for_account(event, Slack.find_channel(app_key, channel_id))
   end
 
   def handle_event(%{"type" => "link_shared"}, app_key) when app_key != :company, do: :ignored
@@ -155,16 +144,10 @@ defmodule Atlas.Slack.Events do
     end
   end
 
-  defp handle_conversation_event(event, app_key, channel) do
-    if channel && account_linked?(channel) do
-      capture_for_account(event, channel)
-    end
+  defp maybe_capture_for_account(event, %{account_id: account_id} = channel) when not is_nil(account_id),
+    do: capture_for_account(event, channel)
 
-    RespondToConversation.start_or_replace(event, app_key, channel)
-    :ok
-  end
-
-  defp account_linked?(%{account_id: account_id}), do: not is_nil(account_id)
+  defp maybe_capture_for_account(_event, _channel), do: :ignored
 
   defp human_message_event?(%{"user" => user_id} = event) when is_binary(user_id) and user_id != "" do
     not bot_event?(event) and not bot_user_id?(user_id, event)
@@ -186,109 +169,6 @@ defmodule Atlas.Slack.Events do
   end
 
   defp bot_user_id?(_user_id, _event), do: false
-
-  defp conversation_reply_event(event, app_key) do
-    if bot_mentioned?(event) do
-      {:ok, event}
-    else
-      engaged_thread_reply_event(event, app_key)
-    end
-  end
-
-  defp bot_mentioned?(%{"text" => text, @authorized_user_ids_key => authorized_user_ids})
-       when is_binary(text) and is_list(authorized_user_ids) do
-    bot_mentioned_in_text?(text, authorized_user_ids)
-  end
-
-  defp bot_mentioned?(_event), do: false
-
-  defp engaged_thread_reply_event(
-         %{
-           "channel" => channel_id,
-           "thread_ts" => thread_ts,
-           "ts" => current_ts,
-           @authorized_user_ids_key => authorized_user_ids
-         } = event,
-         app_key
-       )
-       when is_binary(channel_id) and is_binary(thread_ts) and is_binary(current_ts) and is_list(authorized_user_ids) do
-    if thread_reply_candidate?(thread_ts, current_ts, authorized_user_ids) do
-      load_engaged_thread_reply_event(event, app_key, channel_id, thread_ts, current_ts, authorized_user_ids)
-    else
-      :ignored
-    end
-  end
-
-  defp engaged_thread_reply_event(_event, _app_key), do: :ignored
-
-  defp thread_reply_candidate?(thread_ts, current_ts, authorized_user_ids) do
-    thread_ts != current_ts and authorized_user_ids != []
-  end
-
-  defp load_engaged_thread_reply_event(event, app_key, channel_id, thread_ts, current_ts, authorized_user_ids) do
-    case API.list_thread_messages(app_key, channel_id, thread_ts) do
-      {:ok, thread_messages} ->
-        maybe_engaged_thread_reply_event(event, current_ts, thread_messages, authorized_user_ids)
-
-      {:error, reason} ->
-        Logger.warning("Failed to load Slack thread #{channel_id}/#{thread_ts}: #{inspect(reason)}")
-        :ignored
-    end
-  end
-
-  defp maybe_engaged_thread_reply_event(event, current_ts, thread_messages, authorized_user_ids) do
-    if engaged_thread_messages?(thread_messages, current_ts, authorized_user_ids) do
-      {:ok, Map.put(event, "atlas_thread_messages", thread_messages)}
-    else
-      :ignored
-    end
-  end
-
-  defp engaged_thread_messages?(thread_messages, current_ts, authorized_user_ids) do
-    Enum.any?(thread_messages, fn thread_message ->
-      thread_message.ts != current_ts and atlas_thread_anchor?(thread_message, authorized_user_ids)
-    end)
-  end
-
-  defp bot_mentioned_in_text?(text, authorized_user_ids) when is_binary(text) and is_list(authorized_user_ids) do
-    Enum.any?(authorized_user_ids, fn
-      user_id when is_binary(user_id) -> String.contains?(text, "<@#{user_id}>")
-      _user_id -> false
-    end)
-  end
-
-  defp bot_mentioned_in_text?(_text, _authorized_user_ids), do: false
-
-  defp atlas_thread_anchor?(thread_message, authorized_user_ids) do
-    bot_mentioned_in_text?(thread_message.text, authorized_user_ids) or
-      atlas_bot_message?(thread_message, authorized_user_ids)
-  end
-
-  defp atlas_bot_message?(%{user_id: user_id} = thread_message, authorized_user_ids)
-       when is_binary(user_id) and is_list(authorized_user_ids) do
-    user_id in authorized_user_ids and bot_thread_message?(thread_message)
-  end
-
-  defp atlas_bot_message?(%{username: username} = thread_message, _authorized_user_ids) when is_binary(username) do
-    username in atlas_bot_names() and bot_thread_message?(thread_message)
-  end
-
-  defp atlas_bot_message?(_thread_message, _authorized_user_ids), do: false
-
-  defp bot_thread_message?(%{bot_id: bot_id}) when is_binary(bot_id), do: true
-  defp bot_thread_message?(%{subtype: "bot_message"}), do: true
-
-  defp bot_thread_message?(%{raw: raw}) when is_map(raw) do
-    is_map(raw["bot_profile"])
-  end
-
-  defp bot_thread_message?(_thread_message), do: false
-
-  defp atlas_bot_names do
-    Bot.apps()
-    |> Enum.map(& &1.name)
-    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
-  end
 
   # Capture a human reply in a blog post idea's #marketing thread as a follow-up
   # comment on that idea. Runs independently of account capture and of whether

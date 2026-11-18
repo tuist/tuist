@@ -80,11 +80,18 @@ defmodule Tuist.Runners.Prepaid do
 
   @bp_basis 10_000
 
-  # US cents per machine-minute on the macOS 6 vCPU / 14 GB baseline:
-  # $0.06 on demand. This duplicates what the Stripe Price says, the same
-  # way `Tuist.Billing.UsagePricing` duplicates the usage meter Prices, and
-  # has to be kept in step with it by hand.
-  @macos_on_demand_rate 6
+  # Hundredths of a US cent per compute-unit minute, one minute on the
+  # platform's baseline machine, on demand: $0.05 on the macOS 8 vCPU /
+  # 24 GB baseline and $0.0024 on the Linux 2 vCPU / 8 GB one, which puts
+  # the 1 vCPU / 2 GB Linux machine at $0.001. This duplicates what each
+  # platform's Stripe Price says, the same way `Tuist.Billing.UsagePricing`
+  # duplicates the usage meter Prices, and has to be kept in step with it
+  # by hand.
+  @on_demand_rates %{macos: 500, linux: 24}
+
+  # US cents per minute on the macOS baseline, the machine credit is
+  # quoted in.
+  @macos_on_demand_rate div(@on_demand_rates.macos, 100)
 
   # Par. Granting less than was paid would be a premium for prepaying,
   # which is only ever a typo.
@@ -114,8 +121,8 @@ defmodule Tuist.Runners.Prepaid do
   @expiry_grace_days 4
 
   @doc """
-  What `total_ms` of compute-unit milliseconds costs at the gross
-  on-demand rate.
+  What `total_ms` of `platform`'s compute-unit milliseconds costs at the
+  gross on-demand rate.
 
   Proportional to the millisecond, because that is how the runner Price
   charges: its tiers are in raw meter units and Stripe applies no
@@ -125,8 +132,19 @@ defmodule Tuist.Runners.Prepaid do
   worth half a minute's money, not nothing, and a figure that truncated
   to minutes would understate every bill that is not a round number.
   """
-  def on_demand_cost_for_milliseconds(total_ms) when is_integer(total_ms) and total_ms >= 0 do
-    Money.new(div(total_ms * @macos_on_demand_rate, 60_000), :USD)
+  def on_demand_cost_for_milliseconds(platform, total_ms)
+      when is_map_key(@on_demand_rates, platform) and is_integer(total_ms) and total_ms >= 0 do
+    Money.new(div(total_ms * Map.fetch!(@on_demand_rates, platform), 6_000_000), :USD)
+  end
+
+  @doc """
+  `on_demand_cost_for_milliseconds/2` in dollars, unrounded, for a chart
+  that sums many small amounts. Resolving each to whole cents first would
+  drop most of a day of small Linux machines.
+  """
+  def on_demand_dollars(platform, total_ms)
+      when is_map_key(@on_demand_rates, platform) and is_integer(total_ms) and total_ms >= 0 do
+    total_ms * Map.fetch!(@on_demand_rates, platform) / 600_000_000
   end
 
   @doc """
@@ -158,6 +176,9 @@ defmodule Tuist.Runners.Prepaid do
       the first.
     * `:invoice_id` - optional, the Stripe invoice that charged for the pool,
       recorded on the grant so the credit can be traced to its charge.
+    * `:activation_id` - internal audited activation UUID. These pools have
+      a strict usage cutoff and require the activation to arrange a Stripe
+      billing-cycle boundary at midnight after `expires_on`.
 
   Nothing is billed here: the charge is an ordinary invoice raised on its
   own. Returns `{:ok, grant}`, `{:error, {:invalid_pool, field}}` for a term
@@ -172,7 +193,29 @@ defmodule Tuist.Runners.Prepaid do
          {:ok, invoice_metadata} <- pool_invoice_metadata(attrs[:invoice_id]),
          {:ok, price_ids} <- price_ids(platforms) do
       coverage = pool_coverage(Billing.current_billing_period(account), attrs.starts_on, attrs.expires_on)
-      terms = [paid_cents, ratio_bp, platforms, attrs.starts_on, attrs.expires_on, attrs[:invoice_id]]
+      contract_end = start_of_day(Date.add(attrs.expires_on, 1))
+
+      # A strict activation closes the last usage period at the contract
+      # boundary. The grace is for that invoice to finalize, not extra usage.
+      coverage =
+        if attrs[:activation_id],
+          do: %{coverage | expires_at: past_period_end(contract_end), last_invoice_at: contract_end},
+          else: coverage
+
+      activation_metadata =
+        if attrs[:activation_id] do
+          %{
+            "tuist_prepaid_activation_id" => attrs.activation_id,
+            "tuist_prepaid_expires_on" => Date.to_iso8601(attrs.expires_on),
+            "tuist_prepaid_starts_on" => Date.to_iso8601(attrs.starts_on)
+          }
+        else
+          %{}
+        end
+
+      terms =
+        [paid_cents, ratio_bp, platforms, attrs.starts_on, attrs.expires_on, attrs[:invoice_id]] ++
+          List.wrap(attrs[:activation_id])
 
       result =
         CreditGrants.create(%{
@@ -186,7 +229,7 @@ defmodule Tuist.Runners.Prepaid do
           expires_at: coverage.expires_at,
           priority: @prepaid_priority,
           metadata:
-            Map.merge(invoice_metadata, %{
+            Map.merge(Map.merge(invoice_metadata, activation_metadata), %{
               @kind_key => @pool_kind,
               @paid_cents_key => to_string(paid_cents),
               @granted_ratio_key => to_string(ratio_bp)
@@ -202,7 +245,7 @@ defmodule Tuist.Runners.Prepaid do
 
   @doc """
   What a pool paying `paid_cents` at `credit_multiplier` grants, as the
-  credit and the minutes it buys on the macOS 6 vCPU / 14 GB baseline.
+  credit and the minutes it buys on the macOS 8 vCPU / 24 GB baseline.
   `:error` for terms `grant_pool/2` would refuse.
   """
   def quote_pool(paid_cents, credit_multiplier) do
@@ -401,7 +444,9 @@ defmodule Tuist.Runners.Prepaid do
         balance
 
       cached ->
-        cached
+        # A cache entry must not extend the contractual usage cutoff by its
+        # remaining TTL, even while Stripe allows final-invoice settlement.
+        if expired?(cached.expires_at), do: refresh_balance(customer_id), else: cached
     end
   end
 
@@ -410,7 +455,7 @@ defmodule Tuist.Runners.Prepaid do
   # Versioned: the cached value is a map this module shapes, so a deploy
   # that changes that shape would otherwise serve stale entries to new
   # code until the TTL lapsed. Bump on any shape change.
-  defp balance_cache_key(customer_id), do: [:runner_prepaid_balance, :v3, customer_id]
+  defp balance_cache_key(customer_id), do: [:runner_prepaid_balance, :v4, customer_id]
 
   defp fetch_balance(customer_id) do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
@@ -482,6 +527,15 @@ defmodule Tuist.Runners.Prepaid do
 
   defp pool?(grant), do: grant_kind(grant) == @pool_kind
 
+  @doc """
+  Converts Stripe's standard-rate credit to the amount the customer paid.
+  Use the actual granted amount rather than the multiplier to preserve the
+  purchase exactly, including any rounding when the grant was created.
+  """
+  def purchased_value(cents, paid_cents, granted_cents) do
+    div(cents * paid_cents + div(granted_cents, 2), granted_cents)
+  end
+
   # Credit is spent at the gross on-demand rate, so that rate is what
   # turns an amount of money into the minutes it buys on the baseline
   # machine.
@@ -516,7 +570,7 @@ defmodule Tuist.Runners.Prepaid do
   defp expiry_sort_key(%DateTime{} = expires_at), do: {0, DateTime.to_unix(expires_at)}
 
   defp expired?(nil), do: false
-  defp expired?(%DateTime{} = expires_at), do: DateTime.before?(expires_at, DateTime.utc_now())
+  defp expired?(%DateTime{} = expires_at), do: not DateTime.after?(expires_at, DateTime.utc_now())
 
   # A grant also covers the platform's retired Prices, so it pays for a
   # subscription that has not been moved off one yet.
@@ -565,9 +619,17 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   defp grant_expires_at(grant) do
-    case Map.get(grant, :expires_at) do
-      expires_at when is_integer(expires_at) -> DateTime.from_unix!(expires_at)
-      _ -> nil
+    # The Stripe balance remains available while the final invoice settles;
+    # customers must nevertheless see the contractual usage cutoff.
+    case grant_metadata(grant, "tuist_prepaid_expires_on") do
+      expires_on when is_binary(expires_on) ->
+        expires_on |> Date.from_iso8601!() |> Date.add(1) |> start_of_day()
+
+      _ ->
+        case Map.get(grant, :expires_at) do
+          expires_at when is_integer(expires_at) -> DateTime.from_unix!(expires_at)
+          _ -> nil
+        end
     end
   end
 

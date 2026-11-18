@@ -60,14 +60,16 @@ extension AbsolutePath {
 
     /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
-    /// This property returns the first such parent directory if it exists. It returns `nil` otherwise.
+    /// This property returns the outermost such parent directory if it exists, since opaque directories nested in it,
+    /// such as the versions of a `.xcdatamodeld`, are part of its content. It returns `nil` otherwise.
     public func opaqueParentDirectory() -> AbsolutePath? {
+        var opaqueDirectory: AbsolutePath?
         var currentDirectory = parentDirectory
         while currentDirectory != .root {
-            if currentDirectory.isOpaqueDirectory { return currentDirectory }
+            if currentDirectory.isOpaqueDirectory { opaqueDirectory = currentDirectory }
             currentDirectory = currentDirectory.parentDirectory
         }
-        return nil
+        return opaqueDirectory
     }
 
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.

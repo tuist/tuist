@@ -8,7 +8,9 @@ defmodule TuistWeb.OverviewLiveMixTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
-  @render_async_timeout 1_000
+  # The overview loads several ClickHouse analytics asynchronously; give them
+  # CI headroom rather than a one-second performance budget.
+  @render_async_timeout 5_000
 
   describe "mix project" do
     setup %{conn: conn} do

@@ -9,6 +9,7 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Environment
   alias Tuist.Projects.VCSConnection
   alias Tuist.Vault.Binary
 
@@ -18,7 +19,11 @@ defmodule Tuist.Projects.Project do
   }
 
   schema "projects" do
-    field :token, :string
+    # Legacy project token: only its SHA-256 digest is stored, see
+    # `Tuist.Tokens.legacy_token_hash/1`. New tokens are `ProjectToken`s.
+    field :token, :string, virtual: true
+    field :token_hash, :binary
+    field :legacy_token_last_used_at, :utc_datetime
     field :name, :string
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :default_branch, :string, default: "main"
@@ -32,6 +37,7 @@ defmodule Tuist.Projects.Project do
     field :report_days_of_week, {:array, :integer}, default: []
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
+    field :report_bundle_tag, :string
     # Stamped by ReportWorker on each successful send; bounds the next report
     # window independently of oban_jobs retention. Set internally, not via the
     # public changeset.
@@ -86,7 +92,14 @@ defmodule Tuist.Projects.Project do
       :build_system
     ])
     |> validate_inclusion(:visibility, [:private, :public])
-    |> validate_required([:token, :account_id, :name])
+    |> validate_required([:account_id, :name])
+    |> then(fn changeset ->
+      case get_change(changeset, :token) do
+        nil -> changeset
+        token -> put_change(changeset, :token_hash, Tuist.Tokens.legacy_token_hash(token))
+      end
+    end)
+    |> unique_constraint(:token_hash, name: "projects_token_hash_index")
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix, :cargo])
@@ -107,6 +120,7 @@ defmodule Tuist.Projects.Project do
       :report_days_of_week,
       :report_schedule_time,
       :report_timezone,
+      :report_bundle_tag,
       :auto_quarantine_flaky_tests,
       :flaky_test_alerts_enabled,
       :flaky_test_alerts_slack_channel_id,
@@ -121,6 +135,12 @@ defmodule Tuist.Projects.Project do
       :git_history_window_commits
     ])
     |> validate_required([:vcs_comments_enabled])
+    |> update_change(:report_bundle_tag, fn
+      nil -> nil
+      tag -> String.trim(tag)
+    end)
+    |> validate_length(:report_bundle_tag, max: 50)
+    |> validate_format(:report_bundle_tag, ~r/^[a-zA-Z0-9_-]+$/)
     |> validate_number(:git_history_window_days, greater_than: 0)
     |> validate_number(:git_history_window_commits, greater_than: 0)
     |> validate_name()
@@ -180,7 +200,7 @@ defmodule Tuist.Projects.Project do
       end
     end)
     |> update_change(:name, &String.downcase/1)
-    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+    |> validate_exclusion(:name, Environment.blocked_project_handles())
     |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
   end
 end

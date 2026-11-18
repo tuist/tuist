@@ -38,7 +38,7 @@ defmodule Tuist.MCP.Components.Tools.BuildStep do
         do: ~w(success failure),
         else: ~w(success failure unknown local_hit remote_hit cache_hit up_to_date skipped no_source)
 
-    %{
+    filters = %{
       "page" => %{"type" => "integer", "minimum" => 1, "maximum" => 100_000},
       "page_size" => %{"type" => "integer", "minimum" => 1, "maximum" => 100},
       "search" => %{
@@ -65,20 +65,40 @@ defmodule Tuist.MCP.Components.Tools.BuildStep do
         "description" => "Duration descending (default) or start ascending, with step-ID tie breaking."
       }
     }
+
+    if source == :bazel do
+      Map.put(filters, "remote_execution", %{
+        "type" => "boolean",
+        "description" =>
+          "Only actions with correlated server RE phases. Empty results do not establish that no remote work occurred."
+      })
+    else
+      filters
+    end
   end
 
-  def step do
+  def step(source \\ nil) do
+    properties = Map.new(@fields, &{&1, %{"type" => if(&1 in ~w(start_ms duration_ms), do: "number", else: "string")}})
+
+    properties =
+      if source == :bazel do
+        Enum.reduce(Tuist.Bazel.RemoteExecutionProfile.fields(), properties, fn field, acc ->
+          Map.put(acc, Atom.to_string(field), %{"type" => ["number", "null"]})
+        end)
+      else
+        properties
+      end
+
     %{
       "type" => "object",
-      "properties" =>
-        Map.new(@fields, &{&1, %{"type" => if(&1 in ~w(start_ms duration_ms), do: "number", else: "string")}}),
+      "properties" => properties,
       "required" => @fields,
       "additionalProperties" => false
     }
   end
 
   def detail(source) do
-    step = step()
+    step = step(source)
 
     %{
       step
@@ -93,7 +113,7 @@ defmodule Tuist.MCP.Components.Tools.BuildStep do
 
   def list(source) do
     properties = %{
-      "steps" => %{"type" => "array", "items" => step()},
+      "steps" => %{"type" => "array", "items" => step(source)},
       "availability" => %{"type" => "string", "enum" => ~w(available processing unavailable)},
       "pagination_metadata" => Tool.pagination_metadata_schema()
     }

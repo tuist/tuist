@@ -1,0 +1,26 @@
+storage:
+  bucket: tuist-pulso-canary
+  endpoint: https://t3.storage.dev
+metadata:
+  instances: 2
+  size: 5Gi
+openobserve:
+  replicaCount:
+    ingester: 1
+    querier: 1
+    router: 1
+  ingester:
+    persistence:
+      size: 10Gi
+  querier:
+    persistence:
+      size: 10Gi
+  scheduler:
+    persistence:
+      size: 5Gi
+  nats:
+    config:
+      jetstream:
+        fileStore:
+          pvc:
+            size: 2Gi

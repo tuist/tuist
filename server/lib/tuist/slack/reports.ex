@@ -80,11 +80,20 @@ defmodule Tuist.Slack.Reports do
   end
 
   defp get_bundle_size_metrics(project, period_start) do
-    latest_bundle = Bundles.last_project_bundle(project, [])
+    opts = if project.report_bundle_tag, do: [tag: project.report_bundle_tag], else: []
+    latest_bundle = Bundles.last_project_bundle(project, opts)
 
     if latest_bundle do
-      deviation = Bundles.install_size_deviation(latest_bundle)
-      previous_bundle = Bundles.last_project_bundle(project, inserted_before: period_start)
+      previous_opts = Keyword.put(opts, :inserted_before, period_start)
+
+      previous_opts =
+        if project.report_bundle_tag do
+          Keyword.merge(previous_opts, bundle: latest_bundle, type: latest_bundle.type)
+        else
+          previous_opts
+        end
+
+      previous_bundle = Bundles.last_project_bundle(project, previous_opts)
       previous_size = if previous_bundle, do: previous_bundle.install_size, else: latest_bundle.install_size
 
       %{
@@ -92,7 +101,6 @@ defmodule Tuist.Slack.Reports do
         previous_bundle: previous_bundle,
         current_size: latest_bundle.install_size,
         difference: latest_bundle.install_size - previous_size,
-        deviation_pct: deviation * 100,
         account_name: project.account.name,
         project_name: project.name
       }

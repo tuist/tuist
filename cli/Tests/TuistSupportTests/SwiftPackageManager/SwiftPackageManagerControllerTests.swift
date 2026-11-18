@@ -93,7 +93,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { [:] }
+            environmentVariables: { ["TUIST_DEPENDENCIES_CACHE_MAX_BYTES": "16000000000"] }
         )
 
         // When
@@ -127,6 +127,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             URL(fileURLWithPath: packageInfoCachePath.pathString).standardizedFileURL
         )
         XCTAssertTrue(request.disableSandbox)
+        XCTAssertEqual(request.cacheMaxBytes, 16_000_000_000)
         XCTAssertTrue(request.forceResolvedVersions)
         XCTAssertTrue(request.skipUpdate)
         XCTAssertTrue(request.quiet)

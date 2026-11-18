@@ -1,0 +1,278 @@
+# Sentry error events -> the `errors` table (errors.sql). Each input row is
+# {"service": "<producer>", "event": <Sentry event payload>}, which Pulse's
+# Sentry endpoint (pulse/src/servers/src/http/sentry.rs) builds from the `event`
+# items of the envelopes SDKs post to /v1/sentry/<service>/api/<project>/envelope/.
+#
+# Grouping ports Atlas.Engineering.Errors.Fingerprint, so a Pulse issue
+# (service, fingerprint) carries the fingerprint Atlas computes for the same
+# event. sentry-errors-cases.json pins that contract from both sides: Atlas's
+# fingerprint tests and test-sentry-errors.mjs read it. The fingerprint is
+# computed from the raw event; only the scrubbed projection below is stored: no
+# user, request headers, cookies, bodies, query strings, frame variables, source
+# context beyond the frame's line or SDK module lists. Credential, contact and
+# IP-address keys are filtered, and credentials in URLs, query strings, emails,
+# bearer and Basic credentials, Tuist tokens, JWTs and IPv4 and IPv6 addresses
+# are redacted in stored text.
+processors:
+  - vrl:
+      source: |
+        service = string(.service) ?? ""
+        if service == "" { service = "unknown" }
+        ev = object(.event) ?? {}
+
+        # Atlas.Engineering.Errors.SentryEvent: the first exception value.
+        exc = ev.exception
+        values = if is_object(exc) { array(exc.values) ?? [] } else { array(exc) ?? [] }
+        first = {}
+        if length(values) > 0 { first = object(values[0]) ?? {} }
+        st = object(first.stacktrace) ?? {}
+        frames = array(st.frames) ?? []
+        in_app = filter(frames) -> |_index, frame| { fo = object(frame) ?? {}; fo.in_app == true }
+        top = null
+        if length(in_app) > 0 { top = in_app[-1] } else if length(frames) > 0 { top = frames[-1] }
+        tf = object(top) ?? {}
+
+        etype = string(first.type) ?? ""
+        evalue = string(first.value) ?? ""
+        function = if tf.function != null && tf.function != false { to_string(tf.function) ?? "" } else { "" }
+        location = ""
+        if tf.module != null && tf.module != false {
+          location = to_string(tf.module) ?? ""
+        } else if tf.filename != null && tf.filename != false {
+          location = to_string(tf.filename) ?? ""
+        }
+
+        m = ev.message
+        message = null
+        if is_string(m) && m != "" {
+          message = m
+        } else if is_object(m) {
+          mo = object(m) ?? {}
+          message = if mo.formatted != null && mo.formatted != false { mo.formatted } else { mo.message }
+        } else if is_object(ev.logentry) {
+          lo = object(ev.logentry) ?? {}
+          message = if lo.formatted != null && lo.formatted != false { lo.formatted } else { lo.message }
+        }
+
+        lv = downcase(string(ev.level) ?? "")
+        level = if includes(["fatal", "error", "warning", "info", "debug"], lv) { lv } else { "error" }
+        logger = string(ev.logger) ?? ""
+        transaction = string(ev.transaction) ?? ""
+        contexts = object(ev.contexts) ?? {}
+        tracing = object(get(contexts, ["Rust Tracing Fields"]) ?? null) ?? {}
+        tracing_name = string(tracing.name) ?? ""
+
+        # Atlas Fingerprint.normalize_text/1. Erlang's \d and \s are ASCII, and
+        # String.slice/3 counts graphemes; `.` counts code points, which agree
+        # except for multi-code-point graphemes.
+        raw = if message != null { message } else if evalue != "" { evalue } else { "" }
+        normalized_message = string(raw) ?? ""
+        normalized_message = replace(normalized_message, r'0x[0-9a-fA-F]+', "0x*")
+        normalized_message = replace(normalized_message, r'[0-9]+', "N")
+        normalized_message = replace(normalized_message, r'[ \t\n\x0B\x0C\r]+', " ")
+        normalized_message = string(parse_regex(normalized_message, r'(?s)^(?P<prefix>.{0,200})').prefix ?? "")
+        normalized_message = strip_whitespace(normalized_message)
+        normalized_transaction = replace(transaction, r'0x[0-9a-fA-F]+', "0x*")
+        normalized_transaction = replace(normalized_transaction, r'[0-9]+', "N")
+        normalized_transaction = replace(normalized_transaction, r'[ \t\n\x0B\x0C\r]+', " ")
+        normalized_transaction = string(parse_regex(normalized_transaction, r'(?s)^(?P<prefix>.{0,200})').prefix ?? "")
+        normalized_transaction = strip_whitespace(normalized_transaction)
+
+        components = [etype, function, location, normalized_message]
+        if components == ["", "", "", ""] { components = [logger, normalized_transaction, level, tracing_name] }
+        key = join(components, "|") ?? ""
+        override = array(ev.fingerprint) ?? []
+        if length(override) > 0 {
+          default_key = key
+          parts = map_values(override) -> |component| {
+            text = to_string(component) ?? ""
+            if match(text, r'^\{\{\s*default\s*\}\}$') { default_key } else { text }
+          }
+          key = join(parts, "|") ?? key
+        }
+        fingerprint = sha2(key, variant: "SHA-256")
+
+        event_id = downcase(replace(string(ev.event_id) ?? "", "-", ""))
+        if event_id == "" {
+          event_id = replace(uuid_v4(), "-", "")
+        } else if strlen(event_id) < 32 {
+          event_id = (slice("00000000000000000000000000000000", 0, 32 - strlen(event_id)) ?? "") + event_id
+        } else if strlen(event_id) > 32 {
+          event_id = slice(event_id, 0, 32) ?? event_id
+        }
+
+        ts = ev.timestamp
+        occurred = now()
+        if is_float(ts) || is_integer(ts) {
+          micros = to_int(round((to_float(ts) ?? 0.0) * 1000000.0))
+          occurred = from_unix_timestamp(micros, unit: "microseconds") ?? now()
+        } else if is_string(ts) {
+          text = string(ts) ?? ""
+          occurred = parse_timestamp(text, "%+") ?? parse_timestamp(text, "%Y-%m-%dT%H:%M:%S%.f") ?? now()
+        }
+
+        # Display fields: Atlas SentryEvent.title/1 and culprit/1.
+        title = "Event " + event_id
+        if etype != "" {
+          title = if evalue != "" { etype + ": " + evalue } else { etype }
+        } else if is_string(message) && message != "" {
+          title = string(message) ?? title
+        } else if tracing_name != "" {
+          title = tracing_name
+        } else if logger != "" {
+          title = logger
+        }
+        culprit = transaction
+        if is_object(top) {
+          what = if tf.function != null && tf.function != false { tf.function } else { tf.module }
+          file = if tf.filename != null && tf.filename != false { tf.filename } else { tf.abs_path }
+          where = null
+          if is_string(file) && tf.lineno != null {
+            where = (string(file) ?? "") + ":" + (to_string(tf.lineno) ?? "")
+          } else if is_string(file) {
+            where = file
+          }
+          located = filter([what, where]) -> |_index, part| { is_string(part) && part != "" }
+          if length(located) > 0 { culprit = join(located, " at ") ?? culprit }
+        }
+
+        tags = object(ev.tags) ?? {}
+        if is_array(ev.tags) {
+          pairs = array(ev.tags) ?? []
+          for_each(pairs) -> |_index, pair| {
+            entry = array(pair) ?? []
+            if length(entry) == 2 { tags = set(tags, [to_string(entry[0]) ?? ""], entry[1]) ?? tags }
+          }
+        }
+        extra = object(ev.extra) ?? {}
+        account_handle = ""
+        for_each([extra.selected_account_handle, extra.auth_account_handle, tags.selected_account_handle, tags.auth_account_handle]) -> |_index, handle| {
+          if account_handle == "" && is_string(handle) { account_handle = string(handle) ?? "" }
+        }
+        trace = object(contexts.trace) ?? {}
+        sdk = object(ev.sdk) ?? {}
+
+        # Scrubbed projection. Credential-like keys anywhere in a flattened
+        # tags/extra/contexts path are filtered, and so are arrays holding an
+        # object with such a key (flatten keeps arrays whole); string values are
+        # redacted below. The two patterns name the same keys.
+        sensitive = r'(?i)(pass|pwd|secret|token|auth|cookie|session|api[_-]?key|private[_-]?key|credential|email|phone|ip[_-]?addr|remote[_-]?addr|credit|card|ssn|dsn|jwt|bearer|signature|user|forwarded|real[_-]?ip|(^|[._-])ip([._-]|$))'
+        sensitive_json_key = r'(?i)"([^"]*(pass|pwd|secret|token|auth|cookie|session|api[_-]?key|private[_-]?key|credential|email|phone|ip[_-]?addr|remote[_-]?addr|credit|card|ssn|dsn|jwt|bearer|signature|user|forwarded|real[_-]?ip)[^"]*|([^"]*[._-])?ip([._-][^"]*)?)"\s*:'
+        scrubbed = {}
+        for_each({"tags": tags, "extra": extra, "contexts": contexts}) -> |section, entries| {
+          flat = flatten(object!(entries))
+          kept = {}
+          count = 0
+          for_each(flat) -> |path, value| {
+            if count < 100 {
+              safe = value
+              if match(path, sensitive) && !includes(["contexts.trace.trace_id", "contexts.trace.span_id"], section + "." + path) {
+                safe = "[Filtered]"
+              } else if is_array(value) && match(encode_json(value), sensitive_json_key) {
+                safe = "[Filtered]"
+              } else if is_string(value) {
+                safe = truncate(string(value) ?? "", 1024)
+              }
+              kept = set(kept, [path], safe) ?? kept
+            }
+            count = count + 1
+          }
+          scrubbed = set(scrubbed, [section], kept) ?? scrubbed
+        }
+        if length(values) > 5 { values = slice(values, length(values) - 5) ?? values }
+        scrubbed.exception = map_values(values) -> |value| {
+          xo = object(value) ?? {}
+          xst = object(xo.stacktrace) ?? {}
+          xframes = array(xst.frames) ?? []
+          if length(xframes) > 50 { xframes = slice(xframes, length(xframes) - 50) ?? xframes }
+          {
+            "type": string(xo.type) ?? null,
+            "value": truncate(string(xo.value) ?? "", 4096),
+            "module": string(xo.module) ?? null,
+            "frames": map_values(xframes) -> |frame| {
+              fo = object(frame) ?? {}
+              {
+                "filename": truncate(string(fo.filename) ?? "", 256),
+                "module": truncate(string(fo.module) ?? "", 256),
+                "function": truncate(string(fo.function) ?? "", 256),
+                "lineno": int(fo.lineno) ?? null,
+                "in_app": fo.in_app == true,
+                "context_line": truncate(string(fo.context_line) ?? "", 256)
+              }
+            }
+          }
+        }
+        crumbs = ev.breadcrumbs
+        crumbs = if is_object(crumbs) { array(crumbs.values) ?? [] } else { array(crumbs) ?? [] }
+        if length(crumbs) > 20 { crumbs = slice(crumbs, length(crumbs) - 20) ?? crumbs }
+        scrubbed.breadcrumbs = map_values(crumbs) -> |crumb| {
+          co = object(crumb) ?? {}
+          {
+            "timestamp": co.timestamp,
+            "category": string(co.category) ?? null,
+            "level": string(co.level) ?? null,
+            "type": string(co.type) ?? null,
+            "message": truncate(string(co.message) ?? "", 512)
+          }
+        }
+        request = object(ev.request) ?? {}
+        url = string(request.url) ?? ""
+        url = string(parse_regex(url, r'^(?P<base>[^?#]*)').base ?? "")
+        scrubbed.request = {"method": string(request.method) ?? null, "url": url}
+        scrubbed.message = if is_string(message) { truncate(string(message) ?? "", 4096) } else { null }
+        if strlen(encode_json(scrubbed)) > 262144 {
+          scrubbed = remove(scrubbed, ["breadcrumbs"]) ?? scrubbed
+          scrubbed = remove(scrubbed, ["extra"]) ?? scrubbed
+          scrubbed = remove(scrubbed, ["contexts"]) ?? scrubbed
+        }
+
+        . = {
+          "timestamp": to_unix_timestamp(occurred, unit: "nanoseconds"),
+          "service": service,
+          "fingerprint": fingerprint,
+          "event_id": event_id,
+          "level": level,
+          "environment": string(ev.environment) ?? "production",
+          "release": string(ev.release) ?? "",
+          "platform": string(ev.platform) ?? "other",
+          "server_name": string(ev.server_name) ?? "",
+          "logger": logger,
+          "exception_type": truncate(etype, 1024),
+          "trace_id": string(trace.trace_id) ?? "",
+          "account_handle": account_handle,
+          "sdk": (string(sdk.name) ?? "") + "/" + (string(sdk.version) ?? ""),
+        }
+        # Credentials, query strings, emails and IP addresses in stored text.
+        # The IPv6 patterns need eight groups, or a `::` with at least three
+        # groups, so clock times and Rust paths (`a::b`) survive.
+        . = merge(., redact({
+          "transaction": truncate(transaction, 1024),
+          "exception_value": truncate(evalue, 1024),
+          "title": truncate(title, 512),
+          "culprit": truncate(culprit, 512),
+          "event": scrubbed
+        }, filters: [
+          r'(?i)\b[a-z][a-z0-9+.-]*://[^\s/?#@]+@',
+          r'\?[A-Za-z0-9_.~%\[\]-]+=[^\s#"]*',
+          r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',
+          r'(?i)bearer\s+[A-Za-z0-9._~+/=-]+',
+          r'(?i)\bbasic\s+[A-Za-z0-9+/=]{8,}',
+          r'\btuist_[0-9A-Fa-f-]{36}_[A-Za-z0-9_-]+',
+          r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',
+          r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
+          r'(?i)\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b',
+          r'(?i)\b(?:[0-9a-f]{1,4}:){2,6}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,4})?',
+          r'(?i)\b[0-9a-f]{1,4}::(?:[0-9a-f]{1,4}:){1,5}[0-9a-f]{1,4}\b'
+        ]))
+        .
+transform:
+  - field: timestamp
+    type: epoch, nanosecond
+    index: timestamp
+  - fields: [service, fingerprint]
+    type: string
+    index: tag
+  - fields: [event_id, level, environment, release, platform, server_name, transaction, logger, exception_type, exception_value, title, culprit, trace_id, account_handle, sdk]
+    type: string
+  - field: event
+    type: json

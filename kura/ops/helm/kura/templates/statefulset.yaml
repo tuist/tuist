@@ -127,6 +127,10 @@ spec:
             - name: KURA_SEGMENT_HANDLE_CACHE_SIZE
               value: {{ printf "%d" (int .) | quote }}
             {{- end }}
+            {{- with (dig "reapi" "spliceVerificationConcurrency" nil .Values.config) }}
+            - name: KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY
+              value: {{ printf "%d" (int .) | quote }}
+            {{- end }}
             - name: KURA_ACCELERATED_FILE_SERVING_ENABLED
               value: {{ ternary "true" "false" .Values.config.acceleratedFileServing.enabled | quote }}
             - name: KURA_ACCELERATED_FILE_SERVING_MODE

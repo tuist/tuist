@@ -7,9 +7,14 @@
 ---
 # Gradle test insights {#gradle-test-insights}
 
+> [!IMPORTANT]
+> **Requirements**
+>
+> - The `dev.tuist` Gradle plugin applied, as described in <.localized_link href="/guides/get-started/gradle-project">Get started with a Gradle project</.localized_link>.
+
 Tuist's Gradle plugin automatically uploads test results after each test task execution, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.
 
-Test insights are collected automatically when the Tuist Gradle plugin is applied — no additional configuration is needed beyond the initial plugin setup.
+Test insights are collected automatically once the plugin is applied. No additional configuration is needed.
 
 You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
@@ -21,6 +26,8 @@ The plugin collects results from all Gradle `Test` tasks, including:
 - Individual test case pass/fail status and duration
 - Test suite and class structure
 - Flaky test detection across runs
+
+Turn on <.localized_link href="/guides/features/test-code-coverage/gradle">code coverage</.localized_link> to also upload which code your tests executed.
 
 ## Configure upload behavior {#configure-upload-behavior}
 

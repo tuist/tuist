@@ -29,6 +29,42 @@ public protocol CoverageServicing: Sendable {
         path: String,
         includeLines: Bool
     ) async throws -> Operations.getCommitCoverageFile.Output.Ok.Body.jsonPayload
+
+    func listCoverageBranches(fullHandle: String, serverURL: URL) async throws
+        -> Operations.listCoverageBranches.Output.Ok.Body.jsonPayload
+
+    func listCoverageCommits(
+        fullHandle: String,
+        serverURL: URL,
+        branch: String?,
+        status: String?,
+        search: String?,
+        after: String?,
+        before: String?,
+        pageSize: Int?
+    ) async throws -> Operations.listCoverageCommits.Output.Ok.Body.jsonPayload
+
+    func listCoverageRuns(
+        fullHandle: String,
+        serverURL: URL,
+        commitSHA: String?,
+        branch: String?,
+        scheme: String?,
+        after: String?,
+        before: String?,
+        pageSize: Int?
+    ) async throws -> Operations.listCoverageRuns.Output.Ok.Body.jsonPayload
+
+    func listCoverageTargets(
+        fullHandle: String,
+        serverURL: URL,
+        commitSHA: String,
+        search: String?,
+        sortBy: String?,
+        sortOrder: String?,
+        page: Int?,
+        pageSize: Int?
+    ) async throws -> Operations.listCommitCoverageTargets.Output.Ok.Body.jsonPayload
 }
 
 enum CoverageServiceError: LocalizedError, Equatable {
@@ -152,6 +188,125 @@ public struct CoverageService: CoverageServicing {
                     git_commit_sha: commitSHA
                 ),
                 query: .init(path: path, include_lines: includeLines)
+            )
+        )
+        switch response {
+        case let .ok(value): return try value.body.json
+        case let .unauthorized(value): throw CoverageServiceError.unauthorized(try value.body.json.message)
+        case let .forbidden(value): throw CoverageServiceError.forbidden(try value.body.json.message)
+        case let .notFound(value): throw CoverageServiceError.notFound(try value.body.json.message)
+        case let .undocumented(statusCode, _): throw CoverageServiceError.unknownError(statusCode)
+        }
+    }
+
+    public func listCoverageBranches(fullHandle: String, serverURL: URL) async throws
+        -> Operations.listCoverageBranches.Output.Ok.Body.jsonPayload
+    {
+        let handles = try FullHandleService().parse(fullHandle)
+        let response = try await makeClient(serverURL).listCoverageBranches(
+            .init(path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle))
+        )
+        switch response {
+        case let .ok(value): return try value.body.json
+        case let .unauthorized(value): throw CoverageServiceError.unauthorized(try value.body.json.message)
+        case let .forbidden(value): throw CoverageServiceError.forbidden(try value.body.json.message)
+        case let .notFound(value): throw CoverageServiceError.notFound(try value.body.json.message)
+        case let .undocumented(statusCode, _): throw CoverageServiceError.unknownError(statusCode)
+        }
+    }
+
+    public func listCoverageCommits(
+        fullHandle: String,
+        serverURL: URL,
+        branch: String?,
+        status: String?,
+        search: String?,
+        after: String?,
+        before: String?,
+        pageSize: Int?
+    ) async throws -> Operations.listCoverageCommits.Output.Ok.Body.jsonPayload {
+        let handles = try FullHandleService().parse(fullHandle)
+        let response = try await makeClient(serverURL).listCoverageCommits(
+            .init(
+                path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
+                query: .init(
+                    branch: branch,
+                    status: status.flatMap { Operations.listCoverageCommits.Input.Query.statusPayload(rawValue: $0) },
+                    search: search,
+                    after: after,
+                    before: before,
+                    page_size: pageSize
+                )
+            )
+        )
+        switch response {
+        case let .ok(value): return try value.body.json
+        case let .unauthorized(value): throw CoverageServiceError.unauthorized(try value.body.json.message)
+        case let .forbidden(value): throw CoverageServiceError.forbidden(try value.body.json.message)
+        case let .notFound(value): throw CoverageServiceError.notFound(try value.body.json.message)
+        case let .undocumented(statusCode, _): throw CoverageServiceError.unknownError(statusCode)
+        }
+    }
+
+    public func listCoverageRuns(
+        fullHandle: String,
+        serverURL: URL,
+        commitSHA: String?,
+        branch: String?,
+        scheme: String?,
+        after: String?,
+        before: String?,
+        pageSize: Int?
+    ) async throws -> Operations.listCoverageRuns.Output.Ok.Body.jsonPayload {
+        let handles = try FullHandleService().parse(fullHandle)
+        let response = try await makeClient(serverURL).listCoverageRuns(
+            .init(
+                path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
+                query: .init(
+                    git_commit_sha: commitSHA,
+                    branch: branch,
+                    scheme: scheme,
+                    after: after,
+                    before: before,
+                    page_size: pageSize
+                )
+            )
+        )
+        switch response {
+        case let .ok(value): return try value.body.json
+        case let .unauthorized(value): throw CoverageServiceError.unauthorized(try value.body.json.message)
+        case let .forbidden(value): throw CoverageServiceError.forbidden(try value.body.json.message)
+        case let .notFound(value): throw CoverageServiceError.notFound(try value.body.json.message)
+        case let .undocumented(statusCode, _): throw CoverageServiceError.unknownError(statusCode)
+        }
+    }
+
+    public func listCoverageTargets(
+        fullHandle: String,
+        serverURL: URL,
+        commitSHA: String,
+        search: String?,
+        sortBy: String?,
+        sortOrder: String?,
+        page: Int?,
+        pageSize: Int?
+    ) async throws -> Operations.listCommitCoverageTargets.Output.Ok.Body.jsonPayload {
+        let handles = try FullHandleService().parse(fullHandle)
+        let response = try await makeClient(serverURL).listCommitCoverageTargets(
+            .init(
+                path: .init(
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle,
+                    git_commit_sha: commitSHA
+                ),
+                query: .init(
+                    page: page,
+                    page_size: pageSize,
+                    search: search,
+                    sort_by: sortBy.flatMap { Operations.listCommitCoverageTargets.Input.Query.sort_byPayload(rawValue: $0) },
+                    sort_order: sortOrder
+                        .flatMap { Operations.listCommitCoverageTargets.Input.Query.sort_orderPayload(rawValue: $0) }
+                )
             )
         )
         switch response {

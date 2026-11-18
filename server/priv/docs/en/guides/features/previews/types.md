@@ -42,6 +42,12 @@ tuist share path/to/distribution --executable bin/my-tool
 
 The entire distribution directory is uploaded. Include the libraries, resources, and helpers your tool needs, and make sure it can run outside your build directory. Scripts need a shebang and an interpreter installed on the recipient's system.
 
+Executables carry no icon of their own. Pass a PNG with `--icon` to show one on the preview, for example for a Linux desktop app:
+
+```bash
+tuist share path/to/distribution --executable bin/my-app --icon path/to/icon.png
+```
+
 ## Multiple CLI targets {#multiple-cli-targets}
 
 A preview groups builds of the same CLI for one commit; each build contains a distribution for one operating system and one or more CPU architectures. For example, one preview can contain macOS arm64, macOS x86_64, and Linux x86_64 distributions. A universal macOS executable covers both Mac architectures in one build.

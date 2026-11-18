@@ -2,8 +2,8 @@ import SwiftUI
 import TuistNoora
 
 struct PreviewsEmptyStateView: View {
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
 
     var body: some View {
         VStack(spacing: Noora.Spacing.spacing6) {

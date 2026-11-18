@@ -111,7 +111,8 @@
                 @create_form_deviation,
                 @create_form_unit,
                 @create_form_baseline_branch,
-                @create_form_bundle_name
+                @create_form_bundle_name,
+                @create_form_tag
               )}
             </p>
             <.alert
@@ -219,6 +220,18 @@
                   phx-debounce="300"
                 />
               </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Tag")}
+                </label>
+                <.threshold_tag_dropdown
+                  id="create-threshold-tag-dropdown"
+                  selected={@create_form_tag}
+                  tags={@threshold_tags}
+                  search={@threshold_tag_search}
+                  on_select="update_create_form_tag"
+                />
+              </div>
             </div>
             <.line_divider />
             <:footer>
@@ -274,6 +287,10 @@
               label={dgettext("dashboard_projects", "All")}
             />
           </:col>
+          <:col :let={threshold} label={dgettext("dashboard_projects", "Tag")}>
+            <.text_cell :if={threshold.tag} label={threshold.tag} />
+            <.text_cell :if={is_nil(threshold.tag)} label={dgettext("dashboard_projects", "All")} />
+          </:col>
           <:col :let={threshold} label="">
             <.button_cell>
               <:button>
@@ -286,7 +303,13 @@
                   on_dismiss={JS.push("close_edit_threshold_modal", value: %{id: threshold.id})}
                 >
                   <:trigger :let={attrs}>
-                    <.button icon_only size="small" variant="secondary" {attrs}>
+                    <.button
+                      icon_only
+                      size="small"
+                      variant="secondary"
+                      phx-click="open_edit_threshold_modal"
+                      {attrs}
+                    >
                       <.icon name="pencil" />
                     </.button>
                   </:trigger>
@@ -297,7 +320,8 @@
                       form[:deviation] || threshold_value(threshold),
                       form[:unit] || threshold_unit(threshold),
                       form[:baseline_branch] || threshold.baseline_branch,
-                      form[:bundle_name] || threshold.bundle_name
+                      form[:bundle_name] || threshold.bundle_name,
+                      form[:tag] || threshold.tag
                     )}
                   </p>
                   <.alert
@@ -406,6 +430,19 @@
                         phx-keyup="update_edit_form_bundle_name"
                         phx-value-id={threshold.id}
                         phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Tag")}
+                      </label>
+                      <.threshold_tag_dropdown
+                        id={"edit-threshold-tag-dropdown-#{threshold.id}"}
+                        selected={form[:tag] || threshold.tag || ""}
+                        tags={@threshold_tags}
+                        search={@threshold_tag_search}
+                        on_select="update_edit_form_tag"
+                        threshold_id={threshold.id}
                       />
                     </div>
                   </div>

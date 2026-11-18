@@ -14,6 +14,14 @@ defmodule AtlasWeb.PresenceChannelTest do
   alias AtlasWeb.PresenceChannel
   alias AtlasWeb.PresenceSocket
 
+  setup do
+    # Presence invalidations are node-wide, so every concurrent test's presence sync would
+    # queue snapshot reads in these channels ahead of the replies they assert on. Tests send
+    # `:presence_changed` themselves when they need one.
+    Mimic.stub(Presence, :subscribe, fn -> :ok end)
+    :ok
+  end
+
   test "endpoint authenticates the actual WebSocket bearer subprotocol", %{conn: conn} do
     {_, user} = log_in_user(conn)
     token = oauth_access_token_fixture(user)
