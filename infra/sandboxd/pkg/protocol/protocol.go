@@ -109,6 +109,9 @@ type DiskReport struct {
 	TemplatesBytes uint64 `json:"templates_bytes"`
 	SnapshotsBytes uint64 `json:"snapshots_bytes"`
 	BudgetBytes    uint64 `json:"budget_bytes"`
+	// Jails is SandboxesBytes per sandbox ID; it travels as each
+	// sandbox's SandboxInfo.DiskBytes.
+	Jails map[string]uint64 `json:"-"`
 }
 
 // TemplateInfo advertises a template. Ready means the kernel and rootfs are
@@ -148,7 +151,12 @@ type SandboxInfo struct {
 	ColdBoot bool `json:"cold_boot,omitempty"`
 	// CPUMs is a running VM's CPU time since its process started, for the
 	// server to tell an active guest from an idle one.
-	CPUMs      int64     `json:"cpu_ms,omitempty"`
+	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// DiskBytes is what the sandbox's jail holds on the node that no
+	// template or other sandbox shares, measured with the disk report, so
+	// the server can reserve a paused sandbox's use instead of its ceiling.
+	// Omitted until the first measurement after the sandbox appears.
+	DiskBytes  uint64    `json:"disk_bytes,omitempty"`
 	Generation int       `json:"generation"`
 	CreatedAt  time.Time `json:"created_at"`
 	Error      string    `json:"error,omitempty"`

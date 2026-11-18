@@ -382,6 +382,15 @@ func main() {
 		}
 		return report
 	}
+	// Each sandbox carries its jail's share of the disk report. The list is
+	// taken before the measurement, so a sandbox listed as paused was
+	// measured after its pause wrote its memory image.
+	withDisk := func(infos []protocol.SandboxInfo, report protocol.DiskReport) []protocol.SandboxInfo {
+		for i := range infos {
+			infos[i].DiskBytes = report.Jails[infos[i].ID]
+		}
+		return infos
+	}
 	capacity := hostinfo.Capacity()
 	metrics.MemoryBudgetBytes.Set(float64(capacity.MemoryBytes))
 	metrics.DiskBudgetBytes.Set(float64(disk.BudgetBytes))
@@ -392,6 +401,8 @@ func main() {
 		serverClient = server.New(server.Config{
 			URL: serverURL, NodeName: nodeName, TokenPath: tokenPath, Log: logger,
 			Hello: func() protocol.Hello {
+				sandboxes := manager.List()
+				disk := diskReport()
 				return protocol.Hello{
 					ExecutionDeadlines: true,
 					ExecutionSlots:     executionSlots,
@@ -400,17 +411,18 @@ func main() {
 					LazyDisks:          true,
 					DefaultTemplate:    templateName,
 					DefaultTemplateTag: defaultTemplate.Tag,
-					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
-					Templates: manager.Templates(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(),
+					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,
+					Templates: manager.Templates(), Sandboxes: withDisk(sandboxes, disk), DiskSnapshots: manager.DiskSnapshots(),
 				}
 			},
 			Report: func() protocol.Report {
 				used := hostinfo.MemoryUsed()
+				sandboxes := manager.List()
 				report := diskReport()
 				metrics.MemoryUsedBytes.Set(float64(used))
 				metrics.DiskSandboxesBytes.Set(float64(report.SandboxesBytes))
 				metrics.DiskAvailableBytes.Set(float64(report.AvailableBytes))
-				return protocol.Report{Capacity: hostinfo.Capacity(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
+				return protocol.Report{Capacity: hostinfo.Capacity(), Sandboxes: withDisk(sandboxes, report), DiskSnapshots: manager.DiskSnapshots(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
 			},
 			Handler: func(ctx context.Context, cmd protocol.Command, stream func(protocol.Stream)) protocol.Result {
 				return sandbox.Dispatch(ctx, manager, cmd, stream)
