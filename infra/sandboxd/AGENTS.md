@@ -212,7 +212,9 @@ memory image until they cold boot.
   VM state with a `Uffd` memory backend: `internal/uffd` takes
   Firecracker's userfaultfd on the jail's `mem.sock`, fetches the chunk of
   each first-touched page by ranged GET (checked against the index's
-  SHA-256) ahead of a two-stream fill of the rest, answers
+  SHA-256) ahead of an eight-stream fill of the rest, whose streams also
+  take the chunks a vCPU waits on first (a restored guest touches most of
+  its memory before its agent answers), answers
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
   fetched kills the VM. Elsewhere it cold boots the disks, and so does a
@@ -222,8 +224,10 @@ memory image until they cold boot.
   `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
   disk is a FUSE mount over its path in the jail, which the jailer's
   recursive bind carries into the chroot: a chunk the guest reads or
-  writes first is fetched then into `<disk>.fill`, a four-stream fill per
-  disk fetches the rest, and once both are complete the files replace the
+  writes first is fetched then into `<disk>.fill`, an eight-stream fill per
+  disk fetches the rest once the memory is loaded (or a pause needs the
+  disks), so the memory every vCPU waits on gets the bandwidth first, and
+  once both are complete the files replace the
   mounts (detached lazily) and Firecracker reopens its drives on them
   (`PATCH /drives`); `memory_loaded` waits for the disks too. A pause
   waits up to 30 s for the fill with the guest still running, so it stays
@@ -443,7 +447,7 @@ Node to server:
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
-               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234}]}
+               "vcpus":2,"memory_mb":4096,"worker_running":false,"cpu_ms":1234,"disk_bytes":N}]}
 {"type":"result","id":"c1","ok":true,"data":{...}}
 {"type":"result","id":"c1","ok":false,"error":"..."}
 {"type":"stream","id":"c1","stream":"stdout","data_b64":"..."}
@@ -534,7 +538,9 @@ a guest without the pinned binary downloads and checksums it first.
   without room for another memory image on disk (`disk.available_bytes`,
   plus 1 GiB headroom) is skipped too, as is one whose `disk.budget_bytes`
   cannot take the new sandbox's ceiling on top of the ceilings of every
-  sandbox placed there, including errored ones whose jail it still reports. A sandbox's ceiling is its rootfs
+  sandbox placed there, including errored ones whose jail it still reports;
+  a paused sandbox counts at the `disk_bytes` its report carries, plus one
+  resume's growth per node (server `Capacity.reserved_disk_bytes/1`). A sandbox's ceiling is its rootfs
   image (`templates[].rootfs_bytes`), its workspace image (`workspace_gb`)
   and its memory image, all fixed-size files it can never write past, so
   the reservation holds however the sandboxes later fill them. The
@@ -600,6 +606,33 @@ From 2026-11-11 to 2026-11-13, 31 of 67 snapshot spawns that booted missed
 the snapshot's node (29 from the archive, 2 from the template, whose setup
 then takes 411 s at p50), almost all for `:no_capacity` on that node. That
 is what node copies of popular snapshots (`copy_disks`) remove.
+
+Warm restores of Orb archives, production, 2026-11-13 to 2026-11-18, from
+the daemon's `sandbox resumed from its archived memory` and `sandbox memory
+loaded from its archive` lines: the guest faults about 70% of the stored
+memory chunks before its agent answers, so `restore` follows the stored
+memory, about 11 s at 800 stored 2 MiB chunks and 45 to 58 s at 4,050 (an
+8 GiB guest its page cache filled). Chunks took about 63 ms per stream
+with only two memory streams running and about 144 ms with 8 fault, 2 fill
+and 8 disk-fill streams together, so the restore shared the node's
+bandwidth to the store with the disks; it now fetches the memory first.
+ClickHouse `sandbox_events` over the 7 days to 2026-11-18 count 832 Amp
+spawns restored from an archive (p50 44 s, p90 80 s) against 3,133 resumes
+on the node; 731 of those Orbs had been archived less than 4 h after their
+pause (median 13 min), so not by `archiveAfterHours` but by CI reclaims,
+refused resumes or disk pressure (the archive jobs Oban still held, about
+two hours' worth, were 20 CI reclaims, 5 single sandboxes and 2 pressure
+sweeps). From 2026-11-15 to 2026-11-18, 129 of 631 Linux archives started
+during a CI host reservation on their node, and those reservations lasted
+38 s at the median and 114 s at p90, so the server now waits two minutes of
+reclaim before it moves a node's paused sandboxes. Most of the rest come from
+disk: nodes reserved each paused Orb's ceiling (its rootfs, workspace and
+memory image, about 38 GiB for 4 vCPU / 8 GiB) against a 240 GiB budget, so
+a node kept about five before the pressure sweep (85%) or a new sandbox's
+placement archived the oldest. Each sandbox in a report now carries
+`disk_bytes`, its jail's share of `sandboxes_bytes` (the list is taken
+before the walk, so a paused one was measured after its pause), and the
+server reserves a paused Orb at that use plus one resume's growth per node.
 
 The VM is not the bottleneck: half of all resumes spend longer in
 `Capacity.admit/1` (grant check, node lock, carve-out growth) than the

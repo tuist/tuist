@@ -9,43 +9,68 @@ defmodule TuistWeb.RemoteExecutionLive do
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Projects.Project
+  alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Analytics
+  alias Tuist.RemoteExecution.Usage
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  @widgets ~w(invocations actions queue execution)
+  # Usage widgets read the execution ledger; profile widgets read Bazel profiles.
+  @usage_widgets ~w(executions execution-time)
+  @profile_widgets ~w(execution queue)
   @stats ~w(avg p50 p90 p99)
   @sort_fields ~w(ran-at duration actions execution execution-p50 execution-p90 status)
+  @running_refresh_ms 5_000
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !(Project.bazel_project?(project) or Project.once_project?(project)), do: raise(NotFoundError)
+    once? = Project.once_project?(project)
+    if connected?(socket) and !once?, do: Process.send_after(self(), :refresh_running, @running_refresh_ms)
 
     {:ok,
      socket
      |> assign(:head_title, "#{dgettext("dashboard", "Remote execution")} · #{account.name}/#{project.name} · Tuist")
-     |> assign(:once?, Project.once_project?(project))
+     |> assign(:once?, once?)
      |> assign(:available_filters, available_filters())
      |> assign(:sort_fields, @sort_fields)
+     |> assign_async(:running, fn ->
+       {:ok, %{running: if(once?, do: [], else: RemoteExecution.running_invocations(project))}}
+     end)
      |> assign(OpenGraph.og_image_assigns("overview"))}
+  end
+
+  def handle_info(:refresh_running, socket) do
+    project = socket.assigns.selected_project
+    {:noreply, start_async(socket, :refresh_running, fn -> RemoteExecution.running_invocations(project) end)}
+  end
+
+  # A failed refresh keeps the last snapshot; the next one replaces it.
+  def handle_async(:refresh_running, result, socket) do
+    Process.send_after(self(), :refresh_running, @running_refresh_ms)
+
+    case result do
+      {:ok, running} -> {:noreply, assign(socket, :running, AsyncResult.ok(running))}
+      {:exit, _reason} -> {:noreply, socket}
+    end
   end
 
   def handle_params(params, _uri, socket) do
     %{preset: preset, period: period} = period_selection(params)
-    environment = param(params, "analytics-environment", ~w(any ci local))
+    once? = socket.assigns.once?
     search = String.slice(params["search"] || "", 0, 512)
     sort_by = param(params, "invocations-sort-by", @sort_fields)
     sort_order = param(params, "invocations-sort-order", ~w(desc asc))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     filters = Filter.Operations.convert_filters_to_flop(active_filters)
     page = min(Query.positive_integer(params["page"]), 500)
-    cohort = {period, environment}
+    cohort = period
     project = socket.assigns.selected_project
-    once? = socket.assigns.once?
-    opts = period |> DatePicker.period_opts() |> Keyword.put(:environment, environment)
+    opts = DatePicker.period_opts(period)
 
     socket =
       socket
@@ -53,12 +78,11 @@ defmodule TuistWeb.RemoteExecutionLive do
       |> assign(:preset, preset)
       |> assign(:period, period)
       |> assign(:trend_label, analytics_trend_label(preset))
-      |> assign(:environment, environment)
       |> assign(:search, search)
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
       |> assign(:active_filters, active_filters)
-      |> assign(:selected_widget, param(params, "analytics-selected-widget", @widgets, "execution"))
+      |> assign(:selected_widget, param(params, "analytics-selected-widget", widgets(once?)))
       |> assign(:queue_type, param(params, "queue-type", @stats))
       |> assign(:execution_type, param(params, "execution-type", @stats))
       |> assign_async(:activity, fn ->
@@ -81,6 +105,16 @@ defmodule TuistWeb.RemoteExecutionLive do
          }}
       end)
 
+    # Search, pagination and widget selection do not change the usage.
+    socket =
+      if socket.assigns[:usage_period] == period and is_nil(socket.assigns.usage.failed) do
+        socket
+      else
+        socket
+        |> assign(:usage_period, period)
+        |> assign_async(:usage, fn -> {:ok, %{usage: usage_with_trends(project, period)}} end)
+      end
+
     # Search, pagination and widget selection do not change the analytics cohort.
     socket =
       if socket.assigns[:cohort] == cohort and is_nil(socket.assigns.summary.failed) do
@@ -92,7 +126,7 @@ defmodule TuistWeb.RemoteExecutionLive do
           else
             {:ok,
              %{
-               summary: summary_with_trends(project.id, period, environment),
+               summary: summary_with_trends(project.id, period),
                series: Analytics.time_series(project.id, opts)
              }}
           end
@@ -102,7 +136,8 @@ defmodule TuistWeb.RemoteExecutionLive do
     {:noreply, assign(socket, :cohort, cohort)}
   end
 
-  def handle_event("select_widget", %{"widget" => widget}, socket) when widget in @widgets do
+  def handle_event("select_widget", %{"widget" => widget}, socket)
+      when widget in @usage_widgets or widget in @profile_widgets do
     {:noreply, replace_query(socket, %{"analytics-selected-widget" => widget}, selected_widget: widget)}
   end
 
@@ -164,57 +199,7 @@ defmodule TuistWeb.RemoteExecutionLive do
   def render(assigns) do
     ~H"""
     <div id="remote-execution" class="bazel-invocations">
-      <.card
-        :if={@once?}
-        title={dgettext("dashboard_builds", "Execution diagnostics")}
-        icon="chart_arcs"
-        data-part="bazel-invocations-card"
-      >
-        <.empty_card_section
-          title={
-            dgettext("dashboard_builds", "Remote execution telemetry is not available for Once yet")
-          }
-          data-part="empty-bazel-invocations-card-section"
-          data-once-telemetry-gap
-        >
-          <:image>
-            <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
-            <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
-          </:image>
-        </.empty_card_section>
-        <.card_section data-part="once-telemetry-note">
-          <p>
-            {dgettext(
-              "dashboard_builds",
-              "Once run telemetry does not yet distinguish remote actions from local ones, so none are counted here."
-            )}
-          </p>
-          <.link_button
-            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs"}
-            label={dgettext("dashboard_builds", "Open build runs")}
-            variant="secondary"
-            size="medium"
-            underline
-          />
-        </.card_section>
-      </.card>
-
-      <div :if={!@once?} data-part="filters">
-        <.dropdown
-          id="remote-execution-environment-dropdown"
-          label={environment_label(@environment)}
-          secondary_text={dgettext("dashboard_projects", "Environment:")}
-        >
-          <.dropdown_item
-            :for={value <- ~w(any ci local)}
-            value={value}
-            label={environment_label(value)}
-            patch={patch_path(assigns, %{"analytics-environment" => value, "page" => nil})}
-            data-selected={@environment == value}
-          >
-            <:right_icon :if={@environment == value}><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
+      <div data-part="filters">
         <.date_picker
           id="remote-execution-period"
           name="analytics-date-range"
@@ -244,52 +229,57 @@ defmodule TuistWeb.RemoteExecutionLive do
 
       <.async_card
         :let={ready?}
-        :if={!@once?}
-        results={[@summary, @series]}
+        results={[@usage, @summary, @series]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="bazel-invocation-analytics-card"
       >
         <div data-part="widgets">
           <.widget
-            id="remote-execution-invocations"
+            id="remote-execution-executions"
             loading={!ready?}
-            title={dgettext("dashboard_builds", "Invocations with remote actions")}
+            title={dgettext("dashboard_builds", "Executions")}
             legend_color="primary"
             description={
               dgettext(
                 "dashboard_builds",
-                "Invocations whose uploaded Bazel profile records at least one remote execution phase. Invocations without a profile are not counted."
+                "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
               )
             }
-            value={if ready?, do: @summary.result.invocations}
-            trend_value={if ready?, do: @summary.result.invocations_trend}
+            value={if ready?, do: @usage.result.executions}
+            trend_value={if ready?, do: @usage.result.executions_trend}
             trend_label={@trend_label}
-            empty={ready? && @summary.result.invocations == 0}
+            trend_type={:neutral}
+            empty={ready? && @usage.result.executions == 0}
             phx_click="select_widget"
-            phx_value_widget="invocations"
-            selected={@selected_widget == "invocations"}
+            phx_value_widget="executions"
+            selected={@selected_widget == "executions"}
           />
           <.widget
-            id="remote-execution-actions"
+            id="remote-execution-execution-time"
             loading={!ready?}
-            title={dgettext("dashboard_builds", "Remote actions")}
+            title={dgettext("dashboard_builds", "Total execution time")}
             legend_color="primary"
             description={
               dgettext(
                 "dashboard_builds",
-                "Actions with recorded remote execution phases. A cached result can carry these phases, so this is not billable usage."
+                "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
               )
             }
-            value={if ready?, do: @summary.result.actions}
-            trend_value={if ready?, do: @summary.result.actions_trend}
+            value={
+              if ready?,
+                do: DateFormatter.format_duration_from_milliseconds(@usage.result.execution_ms)
+            }
+            trend_value={if ready?, do: @usage.result.execution_ms_trend}
             trend_label={@trend_label}
-            empty={ready? && @summary.result.actions == 0}
+            trend_type={:neutral}
+            empty={ready? && @usage.result.executions == 0}
             phx_click="select_widget"
-            phx_value_widget="actions"
-            selected={@selected_widget == "actions"}
+            phx_value_widget="execution-time"
+            selected={@selected_widget == "execution-time"}
           />
           <.percentile_dropdown_widget
+            :if={!@once?}
             id="remote-execution-queue"
             loading={!ready?}
             title={phase_title(:queue, @queue_type)}
@@ -313,6 +303,7 @@ defmodule TuistWeb.RemoteExecutionLive do
             empty={ready? && is_nil(@summary.result.queue.avg)}
           />
           <.percentile_dropdown_widget
+            :if={!@once?}
             id="remote-execution-duration"
             loading={!ready?}
             title={phase_title(:execution, @execution_type)}
@@ -344,20 +335,56 @@ defmodule TuistWeb.RemoteExecutionLive do
           <.skeleton_chart />
         </.card_section>
         <.card_section
-          :if={ready? && has_data?(@series.result, @selected_widget)}
+          :if={
+            ready? && @selected_widget in ~w(executions execution-time) &&
+              @usage.result.executions > 0
+          }
+          data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
+        >
+          <.chart
+            id="remote-execution-usage-chart"
+            type="line"
+            extra_options={usage_chart_options(@usage.result, @selected_widget)}
+            series={usage_chart_series(@usage.result, @selected_widget)}
+            y_axis_min={0}
+          />
+        </.card_section>
+        <.empty_card_section
+          :if={
+            ready? && @selected_widget in ~w(executions execution-time) &&
+              @usage.result.executions == 0
+          }
+          title={dgettext("dashboard_builds", "No remote executions in this period")}
+          data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
+        >
+          <:image>
+            <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+            <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
+          </:image>
+        </.empty_card_section>
+        <.card_section
+          :if={
+            ready? && @selected_widget in ~w(execution queue) &&
+              has_data?(@series.result, @selected_widget)
+          }
           data-part="analytics-card-chart-section"
           data-chart-frame="standard"
         >
           <.chart
             id="remote-execution-chart"
             type="line"
-            extra_options={chart_options(@series.result, @selected_widget)}
+            extra_options={chart_options(@series.result)}
             series={chart_series(@series.result, @selected_widget)}
             y_axis_min={0}
           />
         </.card_section>
         <.empty_card_section
-          :if={ready? && !has_data?(@series.result, @selected_widget)}
+          :if={
+            ready? && @selected_widget in ~w(execution queue) &&
+              !has_data?(@series.result, @selected_widget)
+          }
           title={dgettext("dashboard_builds", "No remote execution timings in this period")}
           data-part="analytics-card-chart-section"
           data-chart-frame="standard"
@@ -368,6 +395,41 @@ defmodule TuistWeb.RemoteExecutionLive do
           </:image>
         </.empty_card_section>
       </.async_card>
+
+      <.card
+        :if={@once?}
+        title={dgettext("dashboard_builds", "Execution diagnostics")}
+        icon="chart_arcs"
+        data-part="bazel-invocations-card"
+      >
+        <.empty_card_section
+          title={
+            dgettext("dashboard_builds", "Per-action remote timings are not available for Once yet")
+          }
+          data-part="empty-bazel-invocations-card-section"
+          data-once-telemetry-gap
+        >
+          <:image>
+            <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+            <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
+          </:image>
+        </.empty_card_section>
+        <.card_section data-part="once-telemetry-note">
+          <p>
+            {dgettext(
+              "dashboard_builds",
+              "Once run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
+            )}
+          </p>
+          <.link_button
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs"}
+            label={dgettext("dashboard_builds", "Open build runs")}
+            variant="secondary"
+            size="medium"
+            underline
+          />
+        </.card_section>
+      </.card>
 
       <.card
         :if={!@once?}
@@ -418,11 +480,22 @@ defmodule TuistWeb.RemoteExecutionLive do
             <:failed>
               <span>{dgettext("dashboard_builds", "Invocations could not be loaded.")}</span>
             </:failed>
-            <div :if={activity.rows != []} data-part="bazel-invocations-table">
+            <div
+              :if={running_rows(@running, activity.page, assigns) != [] or activity.rows != []}
+              data-part="bazel-invocations-table"
+            >
               <.table
                 id="remote-execution-activity"
-                rows={activity.rows}
-                row_key={& &1.invocation_id}
+                rows={
+                  Enum.map(
+                    running_rows(@running, activity.page, assigns),
+                    &Map.put(&1, :running?, true)
+                  ) ++
+                    activity.rows
+                }
+                row_key={
+                  &if(&1[:running?], do: "running-" <> &1.invocation_id, else: &1.invocation_id)
+                }
                 row_navigate={
                   fn row ->
                     ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/invocations/#{row.invocation_id}?tab=remote-execution"
@@ -430,7 +503,9 @@ defmodule TuistWeb.RemoteExecutionLive do
                 }
               >
                 <:col :let={row} label={dgettext("dashboard_projects", "Invocation")}>
-                  <.text_cell label={requested_command(row)} />
+                  <.text_cell label={
+                    if row[:running?], do: running_command(row), else: requested_command(row)
+                  } />
                 </:col>
                 <:col
                   :let={row}
@@ -439,6 +514,12 @@ defmodule TuistWeb.RemoteExecutionLive do
                   sort_order={sort_order(assigns, "status")}
                 >
                   <.status_badge_cell
+                    :if={row[:running?]}
+                    label={dgettext("dashboard_builds", "Running")}
+                    status="in_progress"
+                  />
+                  <.status_badge_cell
+                    :if={!row[:running?]}
                     label={
                       if row.status == "success",
                         do: dgettext("dashboard_projects", "Succeeded"),
@@ -454,7 +535,15 @@ defmodule TuistWeb.RemoteExecutionLive do
                   sort_order={sort_order(assigns, "duration")}
                 >
                   <.text_cell
-                    label={DateFormatter.format_duration_from_milliseconds(row.duration_ms)}
+                    label={
+                      DateFormatter.format_duration_from_milliseconds(
+                        if(row[:running?],
+                          do: max(DateTime.diff(DateTime.utc_now(), row.started_at, :millisecond), 0),
+                          else: row.duration_ms
+                        ),
+                        fractional_seconds: !row[:running?]
+                      )
+                    }
                     icon="history"
                   />
                 </:col>
@@ -464,7 +553,9 @@ defmodule TuistWeb.RemoteExecutionLive do
                   patch={sort_path(assigns, "actions")}
                   sort_order={sort_order(assigns, "actions")}
                 >
-                  <.text_cell label={format_number(row.actions)} />
+                  <.text_cell label={
+                    if row[:running?], do: running_actions(row), else: format_number(row.actions)
+                  } />
                 </:col>
                 <:col
                   :let={row}
@@ -472,7 +563,7 @@ defmodule TuistWeb.RemoteExecutionLive do
                   patch={sort_path(assigns, "execution")}
                   sort_order={sort_order(assigns, "execution")}
                 >
-                  <.text_cell label={duration(row.execution_ms)} />
+                  <.text_cell label={if row[:running?], do: "–", else: duration(row.execution_ms)} />
                 </:col>
                 <:col
                   :let={row}
@@ -481,7 +572,9 @@ defmodule TuistWeb.RemoteExecutionLive do
                   patch={sort_path(assigns, "execution-" <> stat)}
                   sort_order={sort_order(assigns, "execution-" <> stat)}
                 >
-                  <.text_cell label={duration(row[:"execution_#{stat}_ms"])} />
+                  <.text_cell label={
+                    if row[:running?], do: "–", else: duration(row[:"execution_#{stat}_ms"])
+                  } />
                 </:col>
                 <:col
                   :let={row}
@@ -489,7 +582,11 @@ defmodule TuistWeb.RemoteExecutionLive do
                   patch={sort_path(assigns, "ran-at")}
                   sort_order={sort_order(assigns, "ran-at")}
                 >
-                  <.text_cell sublabel={DateFormatter.from_now(row.finished_at)} />
+                  <.text_cell sublabel={
+                    DateFormatter.from_now(
+                      if(row[:running?], do: row.started_at, else: row.finished_at)
+                    )
+                  } />
                 </:col>
               </.table>
               <.pagination_group
@@ -501,7 +598,7 @@ defmodule TuistWeb.RemoteExecutionLive do
               />
             </div>
             <.empty_card_section
-              :if={activity.rows == []}
+              :if={running_rows(@running, activity.page, assigns) == [] and activity.rows == []}
               title={
                 if @search == "",
                   do:
@@ -528,15 +625,13 @@ defmodule TuistWeb.RemoteExecutionLive do
     """
   end
 
-  defp summary_with_trends(project_id, {start_datetime, end_datetime} = period, environment) do
-    opts = period |> DatePicker.period_opts() |> Keyword.put(:environment, environment)
-    summary = Analytics.summary(project_id, opts)
+  defp summary_with_trends(project_id, {start_datetime, end_datetime} = period) do
+    summary = Analytics.summary(project_id, DatePicker.period_opts(period))
 
     previous =
       start_datetime
       |> previous_period(end_datetime)
       |> DatePicker.period_opts()
-      |> Keyword.put(:environment, environment)
       |> then(&Analytics.summary(project_id, &1))
 
     trends =
@@ -548,10 +643,17 @@ defmodule TuistWeb.RemoteExecutionLive do
          end)}
       end
 
-    Map.merge(summary, %{
-      invocations_trend: trend(previous.invocations, summary.invocations),
-      actions_trend: trend(previous.actions, summary.actions),
-      trends: trends
+    Map.put(summary, :trends, trends)
+  end
+
+  defp usage_with_trends(project, {start_datetime, end_datetime}) do
+    usage = Usage.project_usage(project, start_datetime, DateTime.add(end_datetime, 1))
+    {previous_start, previous_end} = previous_period(start_datetime, end_datetime)
+    previous = Usage.project_usage(project, previous_start, previous_end)
+
+    Map.merge(usage, %{
+      executions_trend: trend(previous.executions, usage.executions),
+      execution_ms_trend: trend(previous.execution_ms, usage.execution_ms)
     })
   end
 
@@ -582,10 +684,6 @@ defmodule TuistWeb.RemoteExecutionLive do
 
   defp duration(nil), do: dgettext("dashboard_builds", "Not recorded")
   defp duration(value), do: DateFormatter.format_duration_from_milliseconds(value)
-
-  defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
-  defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
-  defp environment_label(_), do: dgettext("dashboard_projects", "Any")
 
   defp period_selection(params) do
     %{preset: preset, period: {first, last}} = DatePicker.date_picker_params(params, "analytics")
@@ -680,22 +778,65 @@ defmodule TuistWeb.RemoteExecutionLive do
     |> push_event("replace-url", %{url: url})
   end
 
-  defp has_data?(series, widget) when widget in ~w(invocations actions),
-    do: Enum.any?(Map.fetch!(series, String.to_existing_atom(widget)), &(&1 > 0))
+  # Once has no profile timings.
+  defp widgets(true = _once?), do: @usage_widgets
+  defp widgets(false), do: @usage_widgets ++ @profile_widgets
 
-  defp has_data?(series, widget), do: Enum.any?(series[String.to_existing_atom(widget)].avg, &is_number/1)
+  # Running invocations lead the first page of the unfiltered table. The
+  # table's search and filters match finished invocations' fields, so they
+  # hide running ones.
+  defp running_rows(%AsyncResult{ok?: true, result: running}, 1 = _page, %{search: "", active_filters: []}), do: running
 
-  defp chart_options(series, widget) when widget in ~w(invocations actions) do
+  defp running_rows(_running, _page, _assigns), do: []
+
+  defp running_command(%{command: nil, invocation_id: invocation_id}),
+    do: dgettext("dashboard_builds", "Invocation %{id}", id: String.slice(invocation_id, 0, 8))
+
+  defp running_command(invocation), do: requested_command(invocation)
+
+  defp running_actions(%{running: nil}), do: "–"
+
+  defp running_actions(%{running: running, queued: queued}),
+    do: dgettext("dashboard_builds", "%{running} running · %{queued} queued", running: running, queued: queued)
+
+  defp shape_label(%{vcpus: vcpus, memory_gb: memory_gb}),
+    do: dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB", vcpus: vcpus, memory: memory_gb)
+
+  defp usage_chart_options(usage, widget) do
+    format = if widget == "executions", do: "{value}", else: "fn:formatMilliseconds"
+
     %{
-      grid: %{left: "0.4%", right: "2%", top: 12, bottom: 28},
-      xAxis: chart_x_axis(series.dates, series.granularity),
-      yAxis: chart_y_axis("{value}"),
-      legend: %{show: false},
-      tooltip: chart_tooltip("{value}", series.granularity)
+      legend: chart_legend(),
+      grid: %{left: "0.4%", right: "2%", top: 12, bottom: 56},
+      xAxis: chart_x_axis(usage.dates, usage.granularity),
+      yAxis: chart_y_axis(format),
+      tooltip: chart_tooltip(format, usage.granularity)
     }
   end
 
-  defp chart_options(series, _widget) do
+  # One line per machine shape the period ran, smallest first.
+  defp usage_chart_series(usage, widget) do
+    key = if widget == "executions", do: :executions, else: :execution_ms
+
+    usage.shapes
+    |> Enum.with_index()
+    |> Enum.map(fn {shape, index} ->
+      line(
+        usage.dates,
+        Enum.map(shape.series, &Map.fetch!(&1, key)),
+        Enum.at(
+          ~w(var:noora-chart-primary var:noora-chart-secondary var:noora-chart-tertiary),
+          index,
+          "var:noora-chart-quaternary"
+        ),
+        shape_label(shape)
+      )
+    end)
+  end
+
+  defp has_data?(series, widget), do: Enum.any?(series[String.to_existing_atom(widget)].avg, &is_number/1)
+
+  defp chart_options(series) do
     %{
       legend: chart_legend(),
       grid: %{left: "0.4%", right: "2%", top: 12, bottom: 56},
@@ -704,12 +845,6 @@ defmodule TuistWeb.RemoteExecutionLive do
       tooltip: chart_tooltip("fn:formatMilliseconds", series.granularity)
     }
   end
-
-  defp chart_series(series, "invocations"),
-    do: [line(series.dates, series.invocations, "var:noora-chart-primary", dgettext("dashboard_builds", "Invocations"))]
-
-  defp chart_series(series, "actions"),
-    do: [line(series.dates, series.actions, "var:noora-chart-primary", dgettext("dashboard_builds", "Remote actions"))]
 
   defp chart_series(series, widget) do
     values = series[String.to_existing_atom(widget)]

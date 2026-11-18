@@ -152,6 +152,7 @@ defmodule Tuist.MCP.WebMCP do
     do: "builds"
 
   defp project_page([module_cache | _]) when module_cache in ["module-cache", "runs"], do: "module-cache"
+  defp project_page(["remote-execution"]), do: "remote-execution"
   defp project_page(["bundles" | _]), do: "bundles"
   defp project_page(["previews" | _]), do: "previews"
   defp project_page(["settings" | _]), do: "project-settings"
@@ -191,6 +192,9 @@ defmodule Tuist.MCP.WebMCP do
   defp page_tools("builds", build_system), do: Map.get(@build_tools, build_system, []) ++ @build_entity_tools
 
   defp page_tools("tests", build_system), do: @test_tools ++ Map.get(@build_system_test_tools, build_system, [])
+
+  defp page_tools("remote-execution", _build_system),
+    do: [Tools.GetRemoteExecutionActivity, Tools.GetRemoteExecutionUsage]
 
   defp page_tools("module-cache", _build_system), do: @module_cache_tools
   defp page_tools("bundles", _build_system), do: [Tools.ListBundles, Tools.GetBundle, Tools.GetBundleArtifactTree]

@@ -29,6 +29,11 @@ does not expose a second Build Event Service listener.
 ## Data handling
 
 - `bazel_invocations` stores completed commands received from Kura.
+- `bazel_invocation_starts` stores a signed invocation's start (command,
+  target patterns, git and CI context) once Kura has its target patterns. An
+  invocation is running while it has a start and no `bazel_invocations` row;
+  starts expire after two days because Kura drops unfinished invocations after
+  24 hours.
 - `bazel_invocations` also stores bounded build metrics, retained action spans,
   critical-path summaries, and up to 20 custom build-metadata pairs. Kura keeps
   no more than 32 action spans or 32 critical-path actions for one in-flight

@@ -25,6 +25,7 @@ import TuistRunCommand
 import TuistRunnerCommand
 import TuistSandboxCommand
 import TuistShareCommand
+import TuistSnapshotsCommand
 import TuistSupport
 import TuistTestCommand
 import TuistVersionCommand
@@ -79,6 +80,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         SandboxCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
+                        SnapshotsCommand.self,
                         TeardownCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
@@ -114,6 +116,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     RunCommand.self,
                     RunnerCommand.self,
                     SandboxCommand.self,
+                    SnapshotsCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
                 ]
@@ -200,17 +203,24 @@ public struct TuistCommand: AsyncParsableCommand {
                         && processedArguments.prefix(2) != ["bazel", "credential-helper"]
                         && processedArguments.first != "analytics-upload"
                     let optionalAuthentication = config.project.optionalAuthentication
+                    let compilationCacheVariables = XcodeBuildEnvironment.compilationCacheVariables(
+                        fullHandle: config.fullHandle,
+                        upload: config.xcodeCache.upload,
+                        environment: Environment.current.variables
+                    )
                     let runTrackableCommand = {
                         try await withHARRecorder(
                             networkFilePath: networkFilePath,
                             shouldRecordHAR: shouldRecordHAR
                         ) {
-                            try await trackableCommand.run(
-                                fullHandle: config.fullHandle,
-                                serverURL: serverURL,
-                                shouldTrackAnalytics: shouldTrackAnalytics,
-                                optionalAuthentication: optionalAuthentication
-                            )
+                            try await XcodeBuildEnvironment.$additionalVariables.withValue(compilationCacheVariables) {
+                                try await trackableCommand.run(
+                                    fullHandle: config.fullHandle,
+                                    serverURL: serverURL,
+                                    shouldTrackAnalytics: shouldTrackAnalytics,
+                                    optionalAuthentication: optionalAuthentication
+                                )
+                            }
                         }
                     }
                     if let nooraReadyCommand = command as? NooraReadyCommand {

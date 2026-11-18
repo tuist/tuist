@@ -203,6 +203,38 @@ func TestDisabledCapabilityAndBoundedResponse(t *testing.T) {
 	}
 }
 
+func TestExecuteForwardsBazelRequestMetadata(t *testing.T) {
+	bodies := make(chan map[string]any, 2)
+	client, _ := gateway(t, func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies <- body
+		return response(202, `{"id":"`+id+`","state":"completed","done":true}`), nil
+	})
+	execute := func(m *re.RequestMetadata) map[string]any {
+		b, _ := proto.Marshal(m)
+		ctx := metadata.AppendToOutgoingContext(authenticated(), "build.bazel.remote.execution.v2.requestmetadata-bin", string(b))
+		stream, err := client.Execute(ctx, &re.ExecuteRequest{InstanceName: "app", ActionDigest: &re.Digest{Hash: strings.Repeat("a", 64), SizeBytes: 5}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result, err := stream.Recv(); err != nil || !result.Done {
+			t.Fatalf("result: %v %v", result, err)
+		}
+		return <-bodies
+	}
+
+	body := execute(&re.RequestMetadata{ToolInvocationId: "inv-1", ActionMnemonic: "CppCompile", TargetId: "//app:lib", ActionId: "ignored"})
+	if body["invocation_id"] != "inv-1" || body["mnemonic"] != "CppCompile" || body["target"] != "//app:lib" || body["action_id"] != nil {
+		t.Fatalf("body %v", body)
+	}
+	// An oversized value is dropped on its own; the action still runs.
+	body = execute(&re.RequestMetadata{ToolInvocationId: "inv-2", TargetId: strings.Repeat("t", maxMetadataBytes+1)})
+	if body["invocation_id"] != "inv-2" || body["target"] != nil || body["mnemonic"] != nil {
+		t.Fatalf("body %v", body)
+	}
+}
+
 func TestExecuteUsesBoundedStateChangeWait(t *testing.T) {
 	polling := make(chan struct{})
 	release := make(chan struct{})

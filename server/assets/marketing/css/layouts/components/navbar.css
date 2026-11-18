@@ -84,10 +84,10 @@
       }
 
       /* Right-click brand menu. The panel and its rows are stock Noora
-         dropdown pieces (noora-dropdown-content + noora-dropdown-item, as in
-         the dashboard's projects dropdown); this wrapper only positions the
-         panel under the logo and drives open/close with the same motion as
-         the navbar's other dropdowns. */
+         menu pieces (noora-menu-panel + Noora.Menu items, as in the
+         breadcrumb menu); this wrapper only positions the panel under the
+         logo and drives open/close with the same motion as the navbar's
+         other dropdowns. */
       & > [data-part="logo-menu"] {
         position: absolute;
         /* Same placement as the shared dropdown viewport: flush under the
@@ -104,8 +104,6 @@
           transform 0.18s var(--ease-out-cubic),
           visibility 0.18s;
         inset-inline-start: 0;
-        width: max-content;
-        min-width: 250px;
 
         &[data-open="true"] {
           transform: translateY(0);
@@ -113,26 +111,47 @@
           opacity: 1;
         }
 
-        & .noora-dropdown-item {
-          white-space: nowrap;
+        /* The items aren't driven by Zag here, so nothing sets
+           data-highlighted; highlight on hover like the breadcrumb menu. */
+        & .noora-menu-item:hover {
+          background: var(--noora-surface-background-secondary);
+        }
 
-          /* The check icon fades in while the hook's data-copied flag is
-             set; the label itself never changes. */
-          & [data-part="right-icon"] {
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            color: var(--noora-surface-label-primary);
+        /* The check draws itself while the hook's data-copied flag is set,
+           with the Noora checkbox's stroke animation (checkbox_control.css):
+           the path has pathLength 1, and the offset hides it a little past
+           its length so no cap shows. On reset it fades out and only then
+           rewinds, so it never draws backwards. Sized like the leading
+           icon. */
+        & .noora-menu-item > [data-part="extra"] {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+
+          & svg {
+            width: 100%;
+            height: 100%;
           }
 
-          &[data-copied="true"] [data-part="right-icon"] {
-            opacity: 1;
+          & path {
+            opacity: 0;
+            transition:
+              opacity 100ms var(--ease-out-cubic),
+              stroke-dashoffset 0s linear 100ms;
+            stroke-dasharray: 1 2;
+            stroke-dashoffset: 1.05;
           }
         }
 
-        /* Give the separator the same breathing room the dashboard's
-           dropdown rows create around it. */
-        & [data-part="separator"] {
-          margin-block: var(--noora-spacing-2);
+        & .noora-menu-item[data-copied="true"] > [data-part="extra"] path {
+          opacity: 1;
+          transition: stroke-dashoffset 180ms var(--ease-out-quad) 60ms;
+          stroke-dashoffset: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          & .noora-menu-item > [data-part="extra"] path {
+            transition: none;
+          }
         }
       }
     }

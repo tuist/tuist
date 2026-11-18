@@ -15,7 +15,9 @@ defmodule TuistWeb.BazelInvocationLive do
   alias Noora.Filter
   alias Tuist.Bazel
   alias Tuist.Builds.RecordedSteps
+  alias Tuist.Projects.Project
   alias Tuist.ReapiCache
+  alias Tuist.RemoteExecution
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
@@ -25,6 +27,7 @@ defmodule TuistWeb.BazelInvocationLive do
   alias TuistWeb.Utilities.Query
 
   @cache_page_size 20
+  @running_refresh_ms 5_000
 
   def mount(
         %{"invocation_id" => invocation_id},
@@ -67,9 +70,38 @@ defmodule TuistWeb.BazelInvocationLive do
          |> assign(OpenGraph.og_image_assigns("overview"))}
 
       {:error, :not_found} ->
-        raise NotFoundError, dgettext("dashboard_projects", "Bazel invocation not found.")
+        mount_running(socket, project, account, invocation_id)
     end
   end
+
+  # An invocation that has not finished has no row yet. Kura reports it when
+  # it starts, and the account's scheduler holds its remote actions, so the
+  # page shows those until the finished row arrives and replaces it.
+  defp mount_running(socket, project, account, invocation_id) do
+    with true <- Project.bazel_project?(project),
+         %{invocation: %{}} = running <- running_snapshot(project, invocation_id) do
+      if connected?(socket), do: Process.send_after(self(), :refresh_running, @running_refresh_ms)
+
+      {:ok,
+       socket
+       |> assign(:selected_project, project)
+       |> assign(:invocation_id, invocation_id)
+       |> assign(:running, running)
+       |> assign(:bazel_back_label, socket.assigns[:bazel_back_label] || dgettext("dashboard_projects", "Invocations"))
+       |> assign(:bazel_back_path, socket.assigns[:bazel_back_path] || "invocations")
+       |> assign(:bazel_detail_path, socket.assigns[:bazel_detail_path] || "invocations")
+       |> assign(
+         :bazel_details_title,
+         socket.assigns[:bazel_details_title] || dgettext("dashboard_builds", "Build Details")
+       )
+       |> assign(:head_title, "#{invocation_title(running.invocation)} · #{account.name}/#{project.name} · Tuist")
+       |> assign(OpenGraph.og_image_assigns("overview"))}
+    else
+      _ -> raise NotFoundError, dgettext("dashboard_projects", "Bazel invocation not found.")
+    end
+  end
+
+  def handle_params(_params, uri, %{assigns: %{running: _}} = socket), do: {:noreply, assign(socket, :uri, URI.new!(uri))}
 
   def handle_params(params, uri, socket) do
     selected_tab = selected_tab(params)
@@ -105,6 +137,31 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:remote_sort_order, if(params["remote-sort-order"] in ~w(asc desc), do: params["remote-sort-order"]))
      |> load_remote_actions(selected_tab, invocation, params)
      |> BuildTimelineLoader.assign_timeline(selected_tab, invocation)}
+  end
+
+  def handle_info(:refresh_running, socket) do
+    project = socket.assigns.selected_project
+    invocation_id = socket.assigns.invocation_id
+
+    {:noreply, start_async(socket, :refresh_running, fn -> running_snapshot(project, invocation_id) end)}
+  end
+
+  defp running_snapshot(project, invocation_id), do: RemoteExecution.invocation_activity(project, invocation_id)
+
+  # Once the invocation stops running, its finished row has usually arrived,
+  # so the page loads again to show it.
+  def handle_async(:refresh_running, {:ok, %{invocation: nil}}, socket),
+    do:
+      {:noreply,
+       push_navigate(socket, to: URI.to_string(%URI{path: socket.assigns.uri.path, query: socket.assigns.uri.query}))}
+
+  def handle_async(:refresh_running, result, socket) do
+    Process.send_after(self(), :refresh_running, @running_refresh_ms)
+
+    case result do
+      {:ok, running} -> {:noreply, assign(socket, :running, running)}
+      {:exit, _reason} -> {:noreply, socket}
+    end
   end
 
   def handle_event("load-timeline", params, socket), do: BuildTimelineLoader.handle_event("load-timeline", params, socket)
@@ -156,6 +213,179 @@ defmodule TuistWeb.BazelInvocationLive do
       |> Query.put("page", "1")
 
     {:noreply, push_patch(socket, to: "#{detail_path(socket.assigns)}?#{query}")}
+  end
+
+  def render(%{running: _} = assigns) do
+    ~H"""
+    <div
+      id="bazel-invocation"
+      class="bazel-invocation"
+      phx-hook="PageFavicon"
+      data-favicon-status="in_progress"
+    >
+      <.button
+        label={@bazel_back_label}
+        data-part="back-button"
+        variant="secondary"
+        size="medium"
+        navigate={"/#{@selected_account.name}/#{@selected_project.name}/#{@bazel_back_path}"}
+      >
+        <:icon_left><.icon name="arrow_left" /></:icon_left>
+      </.button>
+      <div data-part="header">
+        <div data-part="title-group">
+          <div data-part="title">
+            <div data-part="badge-processing">
+              <div data-part="icon"><.circle_dashed /></div>
+            </div>
+            <h1 data-part="label">{invocation_title(@running.invocation)}</h1>
+          </div>
+        </div>
+      </div>
+      <div data-part="tab-panel">
+        <.card title={@bazel_details_title} icon="chart_arcs" data-part="build-details">
+          <.card_section data-part="build-details-section">
+            <div data-part="metadata-grid">
+              <div :if={@running.invocation.command} data-part="metadata-row">
+                <div data-part="metadata" data-field="command">
+                  <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+                  <code id="bazel-invocation-command" data-part="command">
+                    {requested_command(@running.invocation)}
+                  </code>
+                </div>
+              </div>
+              <div data-part="metadata-row">
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+                  <.badge
+                    label={dgettext("dashboard_builds", "Running")}
+                    color="primary"
+                    style="fill"
+                    size="medium"
+                  />
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Started")}</div>
+                  <span data-part="label">
+                    {DateFormatter.format_with_timezone(
+                      @running.invocation.started_at,
+                      @user_timezone
+                    )}
+                  </span>
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_builds", "Running for")}</div>
+                  <span data-part="label">
+                    <.history />
+                    {DateFormatter.format_duration_from_milliseconds(
+                      max(
+                        DateTime.diff(
+                          @running.observed_at,
+                          @running.invocation.started_at,
+                          :millisecond
+                        ),
+                        0
+                      ),
+                      fractional_seconds: false
+                    )}
+                  </span>
+                </div>
+              </div>
+              <div :if={@running.invocation.target_patterns != []} data-part="metadata-row">
+                <div data-part="metadata" data-field="targets">
+                  <div data-part="title">{dgettext("dashboard_projects", "Targets")}</div>
+                  <code data-part="command">
+                    {target_patterns_label(@running.invocation.target_patterns)}
+                  </code>
+                </div>
+              </div>
+              <div data-part="metadata-row">
+                <div :if={@running.invocation.git_branch != ""} data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Branch")}</div>
+                  <.branch_link
+                    project={@selected_project}
+                    branch={@running.invocation.git_branch}
+                    data-part="git-reference"
+                  />
+                </div>
+                <div :if={@running.invocation.git_commit_sha != ""} data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Commit")}</div>
+                  <.commit_link
+                    project={@selected_project}
+                    commit_sha={@running.invocation.git_commit_sha}
+                    data-part="git-reference"
+                  />
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Invocation ID")}</div>
+                  <code data-part="identifier">{@invocation_id}</code>
+                </div>
+              </div>
+            </div>
+          </.card_section>
+        </.card>
+        <.card title={dgettext("dashboard_builds", "Executions")} icon="history">
+          <%= cond do %>
+            <% @running.actions == :unavailable or @running.actions == [] -> %>
+              <.empty_card_section
+                id="running-remote-actions"
+                title={
+                  if @running.actions == :unavailable,
+                    do: dgettext("dashboard_builds", "Running executions are unavailable"),
+                    else: dgettext("dashboard_builds", "No executions are running or queued")
+                }
+                data-part="remote-execution-section"
+              >
+                <:image>
+                  <img src={~p"/images/empty_table_light.png"} data-theme="light" loading="lazy" />
+                  <img src={~p"/images/empty_table_dark.png"} data-theme="dark" loading="lazy" />
+                </:image>
+              </.empty_card_section>
+            <% true -> %>
+              <.card_section data-part="remote-execution-section">
+                <.table id="running-remote-actions" rows={@running.actions} row_key={& &1.id}>
+                  <:col :let={row} label={dgettext("dashboard_builds", "Status")}>
+                    <.status_badge_cell
+                      label={
+                        if row.state == "running",
+                          do: dgettext("dashboard_builds", "Running"),
+                          else: dgettext("dashboard_builds", "Queued")
+                      }
+                      status={if row.state == "running", do: "in_progress", else: "warning"}
+                    />
+                  </:col>
+                  <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
+                    <.text_and_description_cell
+                      label={row.mnemonic || String.slice(row.action_digest, 0, 12)}
+                      description={row.target}
+                    />
+                  </:col>
+                  <:col :let={row} label={dgettext("dashboard_builds", "Machine")}>
+                    <.text_cell label={
+                      dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB",
+                        vcpus: row.vcpus,
+                        memory: row.memory_gb
+                      )
+                    } />
+                  </:col>
+                  <:col :let={row} label={dgettext("dashboard_builds", "Time in status")}>
+                    <.text_cell
+                      label={
+                        DateFormatter.format_duration_from_milliseconds(
+                          max(DateTime.diff(@running.observed_at, row.since, :millisecond), 0),
+                          fractional_seconds: false
+                        )
+                      }
+                      icon="history"
+                    />
+                  </:col>
+                </.table>
+              </.card_section>
+          <% end %>
+        </.card>
+      </div>
+    </div>
+    """
   end
 
   def render(assigns) do
@@ -213,7 +443,7 @@ defmodule TuistWeb.BazelInvocationLive do
       </.tab_menu_horizontal>
       <.card
         :if={@selected_tab == "remote-execution"}
-        title={dgettext("dashboard_builds", "Remote actions")}
+        title={dgettext("dashboard_builds", "Executions")}
         icon="history"
       >
         <:actions>

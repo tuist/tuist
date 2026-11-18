@@ -81,6 +81,12 @@ CREATE TABLE thread_aliases (
 );
 ",
     ),
+    (
+        // Where paging continues after the last thread loaded, so a refreshed
+        // first page keeps the pages loaded after it.
+        "add_inbox_next_cursor",
+        "ALTER TABLE inboxes ADD COLUMN next_cursor TEXT;",
+    ),
 ];
 
 const READ: &str = "Could not read local data";
@@ -130,15 +136,16 @@ impl Store {
 
     /// The account's inbox as last seen, with threads started offline first.
     pub fn inbox(&mut self, account: &str) -> Result<Value> {
-        let synced_at: Option<i64> = self
+        let (synced_at, next_cursor): (Option<i64>, Option<String>) = self
             .db
             .query_row(
-                "SELECT synced_at FROM inboxes WHERE account = ?1",
+                "SELECT synced_at, next_cursor FROM inboxes WHERE account = ?1",
                 [account],
-                |r| r.get(0),
+                |r| Ok((Some(r.get(0)?), r.get(1)?)),
             )
             .optional()
-            .map_err(|_| READ)?;
+            .map_err(|_| READ)?
+            .unwrap_or_default();
         let mut threads: Vec<Value> = self
             .outbox()?
             .iter()
@@ -153,27 +160,75 @@ impl Store {
         Ok(json!({
             "available": true,
             "threads": threads,
-            "next_cursor": null,
+            "next_cursor": next_cursor,
             "freshness": freshness(synced_at),
         }))
     }
 
-    /// Records a page of the inbox. The first page replaces what was known,
-    /// so threads the server no longer lists disappear; later pages append.
-    pub fn save_inbox(&mut self, account: &str, page: &Value, first: bool, now: i64) -> Result<()> {
+    /// Records a page of the inbox and the cursor after it; later pages
+    /// append. The first page goes on top, and the threads loaded after it
+    /// stay, with the cursor that continues after them: the server pages by
+    /// latest change, so a thread that changed since moves into the first
+    /// page, and the rest keep their order. When the first page is all there
+    /// is, it replaces what was known, so threads the server no longer lists
+    /// disappear.
+    pub fn save_inbox(
+        &mut self,
+        account: &str,
+        page: &Value,
+        next_cursor: Option<&str>,
+        first: bool,
+        now: i64,
+    ) -> Result<()> {
+        let threads = page.as_array().map(Vec::as_slice).unwrap_or_default();
         let tx = self.db.transaction().map_err(|_| SAVE)?;
-        if first {
-            tx.execute("DELETE FROM threads WHERE account = ?1", [account])
+        let mut cursor = next_cursor.map(str::to_string);
+        let start: i64 = if first {
+            let stored: Option<Option<String>> = tx
+                .query_row(
+                    "SELECT next_cursor FROM inboxes WHERE account = ?1",
+                    [account],
+                    |r| r.get(0),
+                )
+                .optional()
                 .map_err(|_| SAVE)?;
-        }
-        let start: i64 = tx
-            .query_row(
+            match stored {
+                Some(stored) if next_cursor.is_some() => {
+                    for thread in threads {
+                        let id = thread["id"].as_str().ok_or("Invalid thread")?;
+                        tx.execute(
+                            "DELETE FROM threads WHERE account = ?1 AND id = ?2",
+                            params![account, id],
+                        )
+                        .map_err(|_| SAVE)?;
+                    }
+                    let (kept, top): (i64, i64) = tx
+                        .query_row(
+                            "SELECT COUNT(*), COALESCE(MIN(position), 0) FROM threads WHERE account = ?1",
+                            [account],
+                            |r| Ok((r.get(0)?, r.get(1)?)),
+                        )
+                        .map_err(|_| SAVE)?;
+                    if kept > 0 {
+                        cursor = stored;
+                    }
+                    top - threads.len() as i64
+                }
+                _ => {
+                    tx.execute("DELETE FROM threads WHERE account = ?1", [account])
+                        .map_err(|_| SAVE)?;
+                    0
+                }
+            }
+        } else {
+            tx.query_row(
                 "SELECT COALESCE(MAX(position) + 1, 0) FROM threads WHERE account = ?1",
                 [account],
                 |r| r.get(0),
             )
-            .map_err(|_| SAVE)?;
-        for (position, thread) in (start..).zip(page.as_array().into_iter().flatten()) {
+            .map_err(|_| SAVE)?
+        };
+        for (position, thread) in (start..).zip(threads) {
             let id = thread["id"].as_str().ok_or("Invalid thread")?;
             tx.execute(
                 "INSERT OR REPLACE INTO threads (account, id, position, data) VALUES (?1, ?2, ?3, ?4)",
@@ -182,8 +237,8 @@ impl Store {
             .map_err(|_| SAVE)?;
         }
         tx.execute(
-            "INSERT OR REPLACE INTO inboxes (account, synced_at) VALUES (?1, ?2)",
-            params![account, now],
+            "INSERT OR REPLACE INTO inboxes (account, synced_at, next_cursor) VALUES (?1, ?2, ?3)",
+            params![account, now, cursor],
         )
         .map_err(|_| SAVE)?;
         tx.commit().map_err(|_| SAVE)
@@ -450,10 +505,10 @@ pub fn record(
         }
         ("threads", Ok(data)) => {
             let first = args.get("cursor").is_none();
-            store.save_inbox(account, &data["threads"], first, now)?;
+            let cursor = data["next_cursor"].as_str();
+            store.save_inbox(account, &data["threads"], cursor, first, now)?;
             let mut view = store.inbox(account)?;
             view["available"] = data["available"].clone();
-            view["next_cursor"] = data["next_cursor"].clone();
             view["freshness"] = json!({"state": "live"});
             Ok(view)
         }
@@ -485,8 +540,8 @@ pub fn record(
             thread["freshness"] = json!({"state": "live"});
             Ok(thread)
         }
-        // A snooze needs the server; the stored thread and inbox follow it.
-        ("snooze_thread", Ok(thread)) => {
+        // A snooze or archive needs the server; the stored thread and inbox follow it.
+        ("snooze_thread" | "archive_thread", Ok(thread)) => {
             store.save_conversation(&thread, now)?;
             store.update_in_inbox(account, &thread)?;
             let mut thread = thread;

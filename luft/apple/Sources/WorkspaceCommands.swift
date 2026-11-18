@@ -5,6 +5,7 @@ import SwiftUI
 struct WorkspaceCommands: Commands {
     @FocusedValue(\.selectTab) private var selectTab
     @FocusedValue(\.compose) private var compose
+    @FocusedValue(\.commandPalette) private var commandPalette
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -20,6 +21,11 @@ struct WorkspaceCommands: Commands {
             }
         }
         CommandGroup(before: .sidebar) {
+            // ⌘K, as in Slack and the Tuist dashboard.
+            Button("Jump To…") { commandPalette?.perform() }
+                .keyboardShortcut("k")
+                .disabled(commandPalette == nil)
+            Divider()
             ForEach(Array([AppNavigation.Tab.threads, .halls, .dms, .profile].enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { selectTab?.perform(tab) }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)

@@ -30,6 +30,32 @@ public enum XcodeBuildTestAction: Equatable {
 /// caller scopes it to one invocation without every `XcodeBuildControlling` method carrying it.
 public enum XcodeBuildEnvironment {
     @TaskLocal public static var additionalVariables: [String: String] = [:]
+
+    /// The project's compilation cache settings for an xcodebuild the CLI launches:
+    /// `TUIST_CAS_ACCOUNT` and `TUIST_CAS_PROJECT` from `fullHandle`, and `TUIST_CAS_UPLOAD=false`
+    /// when the project does not upload.
+    ///
+    /// The CAS plugin reads them in every process it loads into, including Xcode's build service,
+    /// whose own cache handles get none of the `tuist-*` plugin options in the build settings. Without
+    /// them, its first cache key queries name no project, and on a machine whose cache proxy has not
+    /// seen the build's store (a CI host reset between jobs) they miss without asking the remote.
+    /// Variables already in `environment` win.
+    public static func compilationCacheVariables(
+        fullHandle: String?,
+        upload: Bool,
+        environment: [String: String]
+    ) -> [String: String] {
+        var variables: [String: String] = [:]
+        let handle = fullHandle?.split(separator: "/", maxSplits: 1).map(String.init) ?? []
+        if handle.count == 2, environment["TUIST_CAS_ACCOUNT"] == nil, environment["TUIST_CAS_PROJECT"] == nil {
+            variables["TUIST_CAS_ACCOUNT"] = handle[0]
+            variables["TUIST_CAS_PROJECT"] = handle[1]
+        }
+        if !upload, environment["TUIST_CAS_UPLOAD"] == nil {
+            variables["TUIST_CAS_UPLOAD"] = "false"
+        }
+        return variables
+    }
 }
 
 @Mockable

@@ -1,0 +1,46 @@
+# Single-node public S3 store on the production Gravelines shard-storage
+# host, next to the Garage store. Shards are its first bucket; the generic
+# hostname lets other artifacts follow. A later store in another region gets
+# its own hostname, since URLs are signed for the store that holds the object. One drive on the host's RAID10 /data: RustFS
+# keeps one copy and the RAID handles disk failures. A host outage fails plans
+# already stored here; the server sends new plans to Tigris while it is down.
+enabled: true
+namespace: rustfs-production
+generateCredentials: true
+target:
+  id: rustfs-gra-production-v1
+  site: gra
+members: 1
+drivesPerMember: 1
+parity: ""
+# One PVC, so one XFS project quota of exactly this size. Garage's quota on the
+# same filesystem is lowered to 2Ti, leaving about 0.55 TB for the host.
+storageClass: scw-local-nvme
+volumeSize: 1000G
+nodeSelector:
+  node.cluster.x-k8s.io/pool: shard-storage
+tolerations:
+  - key: tuist.dev/kura-cache
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+    # Scheduler reservation matching the XFS quota, as Garage does.
+    ephemeral-storage: 1000G
+  limits:
+    memory: 8Gi
+gateway:
+  replicas: 1
+  buckets: [shards]
+ingress:
+  enabled: true
+  # The EU-West Kura dataplane is host-network on the kura-dedibox nodes, not on
+  # the shard host, so requests cross the vRack to the gateway.
+  className: kura-eu-west
+  hostNetworkController: true
+  host: s3.tuist.dev
+  tlsSecret: s3-public-tls
+  clusterIssuer: letsencrypt-cloudflare

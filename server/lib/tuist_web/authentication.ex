@@ -224,24 +224,33 @@ defmodule TuistWeb.Authentication do
   if you are not using LiveView.
   """
   def log_in_user(conn, user, params \\ %{}) do
-    # An enrolled factor always means a challenge: a verified session is only
-    # issued by UserMFA.complete_challenge/2 and bound by log_in_user_session/3.
-    if UserMFA.enabled?(user) do
-      challenge = UserMFA.create_challenge(user, params)
+    # An enrolled factor means a challenge unless this browser already passed
+    # one for the same user, such as a passkey session that an organization's
+    # SSO sends through its provider. Verified sessions are only issued by
+    # UserMFA under the user lock and bound by log_in_user_session/3.
+    {current_token, conn} = ensure_user_token(conn)
 
-      conn
-      |> configure_session(renew: true)
-      |> BrowserSession.clear_authentication()
-      |> delete_remember_me_cookie()
-      |> put_session(:pending_mfa, challenge)
-      |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
-      |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
-      |> redirect(to: ~p"/users/mfa")
-      |> halt()
+    with true <- UserMFA.enabled?(user),
+         %UserToken{} = session <- UserMFA.continue_verified_session(user, current_token, params) do
+      log_in_user_session(conn, session, params)
     else
-      token = Accounts.generate_user_session_token(user, params)
-      complete_user_login(conn, user, token, params)
+      false -> complete_user_login(conn, user, Accounts.generate_user_session_token(user, params), params)
+      nil -> challenge_mfa(conn, user, params)
     end
+  end
+
+  defp challenge_mfa(conn, user, params) do
+    challenge = UserMFA.create_challenge(user, params)
+
+    conn
+    |> configure_session(renew: true)
+    |> BrowserSession.clear_authentication()
+    |> delete_remember_me_cookie()
+    |> put_session(:pending_mfa, challenge)
+    |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
+    |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
+    |> redirect(to: ~p"/users/mfa")
+    |> halt()
   end
 
   # MFA issues the credential atomically with proof consumption. Binding its

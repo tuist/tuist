@@ -29,7 +29,7 @@ concurrency:
 jobs:
   swift-test:
     name: Swift Tests (XCActivityLogParser)
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
@@ -48,7 +48,7 @@ jobs:
   # binary, so this job guards both.
   swift-test-xcresult:
     name: Swift Tests (XCResultParser)
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:

@@ -77,6 +77,8 @@ pub struct MobileClient {
     store: Option<(String, Store)>,
     /// The newer preview `preview_update` last suggested installing, so edges prompt once per build.
     suggested_preview: Option<String>,
+    /// The last `halls` answer and the generation it belongs to, which `palette` searches.
+    palette_halls: Option<(u64, Value)>,
 }
 
 impl MobileClient {
@@ -230,7 +232,8 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
-            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread") => {
+            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread"
+            | "archive_thread") => {
                 let mut view = self.threads_operation(op, args, host)?;
                 crate::threads::present_snoozes(&mut view, now()?);
                 Ok(view)
@@ -267,7 +270,9 @@ impl MobileClient {
             "live_connect" => {
                 let index = self.active()?;
                 let id = text(args, "id")?;
-                if !is_uuid(id) {
+                // `inbox` follows the whole inbox: the server pushes when any
+                // of the person's threads in the account changes.
+                if id != crate::live::INBOX && !is_uuid(id) {
                     return Err("Invalid thread ID");
                 }
                 self.refresh(index, host)?;
@@ -319,7 +324,27 @@ impl MobileClient {
                 {
                     crate::presence::mark_online(data, &online);
                 }
+                if let ("halls", Ok(data)) = (op, &result) {
+                    self.palette_halls = Some((self.vault.generation, data.clone()));
+                }
                 result
+            }
+            // Local only, so edges can call it on every keystroke: the stored
+            // inbox and the halls `halls` last loaded for this generation.
+            "palette" => {
+                let index = self.active()?;
+                let account = self.account(index).to_string();
+                let threads = self.store(index, host)?.inbox(&account)?;
+                let halls = match &self.palette_halls {
+                    Some((generation, halls)) if *generation == self.vault.generation => halls,
+                    _ => &Value::Null,
+                };
+                Ok(crate::palette::palette(
+                    args.get("query").and_then(Value::as_str).unwrap_or(""),
+                    &args["labels"],
+                    &threads,
+                    halls,
+                ))
             }
             "presence" => {
                 let index = self.active()?;

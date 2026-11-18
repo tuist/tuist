@@ -6,6 +6,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
   alias Tuist.Accounts.ClaudeLinkedBilling
   alias Tuist.Accounts.OrganizationAI
   alias Tuist.Accounts.OrganizationAIConnection
+  alias Tuist.Accounts.OrganizationAITaskRoute
   alias Tuist.FeatureFlags
   alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.OAuth2.SSRFGuard
@@ -155,6 +156,96 @@ defmodule Tuist.Accounts.OrganizationAITest do
     assert {:error, :not_configured} = OrganizationAI.complete(account, [])
   end
 
+  test "task routes override the default, fall back to it, and work without one", %{user: user, account: account} do
+    connection = connection(user, account, "https://api.together.ai/v1")
+    explainer = model(user, account, connection.id, "openai/gpt-oss-120b")
+    classifier = model(user, account, connection.id, "together/Tev1-4B-experimental")
+    stub(SSRFGuard, :pin, fn url -> {:ok, url, "api.together.ai"} end)
+
+    stub(PinnedHTTP, :request, fn "POST", _, opts ->
+      send(self(), {:model, JSON.decode!(opts[:body])["model"]})
+      {:ok, %{status: 200, body: ~s({"choices":[]})}}
+    end)
+
+    routed_model = fn opts ->
+      case OrganizationAI.complete(account, [], opts) do
+        {:ok, _} ->
+          assert_received {:model, model}
+          model
+
+        error ->
+          error
+      end
+    end
+
+    # Without a default, only a routed task sends requests.
+    assert {:ok, route} =
+             OrganizationAI.save_route(user, account, %{"task" => "pulse_grouping", "model_id" => classifier.id})
+
+    assert route.task == :pulse_grouping
+    assert routed_model.(task: :pulse_grouping) == "together/Tev1-4B-experimental"
+    assert routed_model.(task: :pulse_explanation) == {:error, :not_configured}
+    assert routed_model.([]) == {:error, :not_configured}
+
+    assert {:ok, _} = OrganizationAI.set_default(user, account, explainer.id)
+    assert routed_model.(task: :pulse_grouping) == "together/Tev1-4B-experimental"
+    assert routed_model.(task: :pulse_explanation) == "openai/gpt-oss-120b"
+    assert routed_model.([]) == "openai/gpt-oss-120b"
+    assert OrganizationAI.complete(account, []) == OrganizationAI.complete(account, [], [])
+    assert_received {:model, "openai/gpt-oss-120b"}
+    assert_received {:model, "openai/gpt-oss-120b"}
+
+    # Each task has one route; editing one cannot take another task's.
+    assert {:error, :invalid_configuration} =
+             OrganizationAI.save_route(user, account, %{"task" => "pulse_grouping", "model_id" => explainer.id})
+
+    assert {:ok, explanation} =
+             OrganizationAI.save_route(user, account, %{"task" => "pulse_explanation", "model_id" => classifier.id})
+
+    assert {:error, :invalid_configuration} =
+             OrganizationAI.save_route(user, account, %{"_id" => explanation.id, "task" => "pulse_grouping"})
+
+    assert {:ok, _} = OrganizationAI.save_route(user, account, %{"_id" => explanation.id, "model_id" => explainer.id})
+    assert routed_model.(task: :pulse_explanation) == "openai/gpt-oss-120b"
+
+    for attrs <- [
+          %{"task" => "unknown", "model_id" => explainer.id},
+          %{"task" => "none", "model_id" => explainer.id},
+          %{"task" => "pulse_explanation", "model_id" => "none"},
+          %{"task" => "pulse_explanation", "model_id" => 999_999_999}
+        ] do
+      assert {:error, :invalid_configuration} = OrganizationAI.save_route(user, account, attrs)
+    end
+
+    assert {:ok, %{routes: routes}} = OrganizationAI.settings(user, account)
+
+    assert Enum.map(routes, &{&1.task, &1.model_id}) == [
+             {:pulse_grouping, classifier.id},
+             {:pulse_explanation, explainer.id}
+           ]
+
+    # Removing a routed model removes its route, so the task uses the default again.
+    assert {:ok, :ok} = OrganizationAI.remove_model(user, account, classifier.id)
+    assert {:ok, %{routes: [%{task: :pulse_explanation}]}} = OrganizationAI.settings(user, account)
+    assert routed_model.(task: :pulse_grouping) == "openai/gpt-oss-120b"
+
+    # Removing the default leaves routed tasks working.
+    assert {:ok, nil} = OrganizationAI.set_default(user, account, nil)
+    assert routed_model.(task: :pulse_explanation) == "openai/gpt-oss-120b"
+    assert routed_model.(task: :pulse_grouping) == {:error, :not_configured}
+
+    assert {:ok, :ok} = OrganizationAI.remove_route(user, account, explanation.id)
+    assert routed_model.(task: :pulse_explanation) == {:error, :not_configured}
+    assert {:ok, %{routes: []}} = OrganizationAI.settings(user, account)
+
+    # Removing a connection cascades through its models to their routes.
+    assert {:ok, _} = OrganizationAI.save_route(user, account, %{"task" => "pulse_grouping", "model_id" => explainer.id})
+    assert {:ok, :ok} = OrganizationAI.remove_connection(user, account, connection.id)
+    assert {:ok, %{routes: []}} = OrganizationAI.settings(user, account)
+
+    assert_raise ArgumentError, fn -> OrganizationAI.complete(account, [], task: :unknown) end
+  end
+
   test "rejects cross-organization connections, models and defaults", %{user: user, account: account} do
     foreign_user = AccountsFixtures.user_fixture()
     foreign_account = AccountsFixtures.organization_fixture(creator: foreign_user).account
@@ -175,6 +266,24 @@ defmodule Tuist.Accounts.OrganizationAITest do
              OrganizationAI.save_model(user, account, %{"_id" => foreign_model.id, "name" => "Hijacked"})
 
     assert {:error, :not_found} = OrganizationAI.set_default(user, account, foreign_model.id)
+
+    assert {:error, :invalid_configuration} =
+             OrganizationAI.save_route(user, account, %{"task" => "pulse_grouping", "model_id" => foreign_model.id})
+
+    assert {:ok, foreign_route} =
+             OrganizationAI.save_route(foreign_user, foreign_account, %{
+               "task" => "pulse_grouping",
+               "model_id" => foreign_model.id
+             })
+
+    own_model = model(user, account, connection(user, account).id)
+
+    assert {:error, :not_found} =
+             OrganizationAI.save_route(user, account, %{"_id" => foreign_route.id, "model_id" => own_model.id})
+
+    assert {:error, :not_found} = OrganizationAI.remove_route(user, account, foreign_route.id)
+    assert {:ok, %{routes: [%{model_id: foreign_model_id}]}} = OrganizationAI.settings(foreign_user, foreign_account)
+    assert foreign_model_id == foreign_model.id
     assert {:error, :not_found} = OrganizationAI.remove_connection(user, account, foreign_connection.id)
     assert {:error, :not_found} = OrganizationAI.remove_model(user, account, foreign_model.id)
     assert {:ok, %{connections: [connection], models: [model]}} = OrganizationAI.settings(foreign_user, foreign_account)
@@ -189,12 +298,15 @@ defmodule Tuist.Accounts.OrganizationAITest do
   } do
     connection = connection(user, account)
     model = model(user, account, connection.id)
+    assert {:ok, route} = OrganizationAI.save_route(user, account, %{"task" => "pulse_grouping", "model_id" => model.id})
     member = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(member, org)
 
     operations = fn actor ->
       [
         fn -> OrganizationAI.settings(actor, account) end,
+        fn -> OrganizationAI.save_route(actor, account, %{"task" => "pulse_explanation", "model_id" => model.id}) end,
+        fn -> OrganizationAI.remove_route(actor, account, route.id) end,
         fn -> OrganizationAI.save_connection(actor, account, %{}) end,
         fn -> OrganizationAI.save_model(actor, account, %{}) end,
         fn -> OrganizationAI.set_default(actor, account, model.id) end,
@@ -218,7 +330,9 @@ defmodule Tuist.Accounts.OrganizationAITest do
     for operation <- operations.(user), do: assert(operation.() == {:error, :disabled})
     reject(PinnedHTTP, :request, 3)
     assert {:error, :disabled} = OrganizationAI.complete(account, [])
+    assert {:error, :disabled} = OrganizationAI.complete(account, [], task: :pulse_grouping)
     assert Repo.get!(OrganizationAIConnection, connection.id)
+    assert Repo.get!(OrganizationAITaskRoute, route.id).task == :pulse_grouping
   end
 
   test "rejects malformed settings and personal accounts", %{user: user, account: account} do

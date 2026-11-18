@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthenticationTest do
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserToken
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -212,6 +213,49 @@ defmodule TuistWeb.AuthenticationTest do
         conn |> fetch_cookies() |> Authentication.log_in_user(user, %{"remember_me" => "true"})
 
       assert %{secure: true} = conn.resp_cookies[@remember_me_cookie]
+    end
+
+    test "keeps this browser's recent MFA verification when the same user signs in again", %{conn: conn, user: user} do
+      now = DateTime.utc_now(:second)
+
+      Repo.insert!(%UserMFA{
+        user_id: user.id,
+        secret: NimbleTOTP.secret(),
+        enrollment_session_hash: :crypto.hash(:sha256, "enrollment"),
+        enrollment_expires_at: now,
+        confirmed_at: DateTime.add(now, -600)
+      })
+
+      verified_session = fn user, seconds_ago ->
+        Accounts.generate_user_session_token(user, %{
+          auth_method: :passkey,
+          mfa_verified_at: DateTime.add(now, -seconds_ago)
+        })
+      end
+
+      sso_params = %{"remember_me" => "true", auth_method: :google}
+
+      # Such as an organization's SSO sending a passkey session through its provider.
+      passkey_token = verified_session.(user, 295)
+      stepped_up = conn |> put_session(:user_token, passkey_token) |> Authentication.log_in_user(user, sso_params)
+
+      assert redirected_to(stepped_up) == ~p"/#{user.account.name}/projects"
+      new_session = Accounts.get_user_session(get_session(stepped_up, :user_token))
+      assert new_session.token != passkey_token
+      assert new_session.user_id == user.id
+      assert new_session.auth_provider == "google"
+      assert new_session.mfa_verified_at == DateTime.add(now, -295)
+
+      for token <- [
+            nil,
+            Accounts.generate_user_session_token(user),
+            verified_session.(user, 305),
+            verified_session.(user_fixture(), 0)
+          ] do
+        challenged = conn |> put_session(:user_token, token) |> Authentication.log_in_user(user, sso_params)
+        assert redirected_to(challenged) == ~p"/users/mfa"
+        refute get_session(challenged, :user_token)
+      end
     end
   end
 

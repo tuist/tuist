@@ -186,6 +186,47 @@ defmodule Tuist.RemoteExecutionTest do
     assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing")
   end
 
+  test "activity lists the project's running and queued actions, not leased VMs or other projects", %{
+    project: project
+  } do
+    assert {:ok, %{running: 0, queued: 0, actions: []}} = RemoteExecution.activity(project)
+
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+
+    # Bazel's request metadata only labels the action, so an invalid value is
+    # dropped instead of refusing it.
+    metadata = %{"invocation_id" => "build-1", "mnemonic" => "CppCompile", "target" => <<0xFF>>}
+    assert {:ok, %{done: false}} = submit(project, metadata, wait: 0)
+    assert_receive {:holding, running}, 2_000
+
+    # The account's second VM goes to the gateway, which may never use it.
+    stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{direct_exec_endpoint: "http://10.0.0.1:7071"}} end)
+    assert {:ok, %{sandbox_id: _}} = RemoteExecution.lease(project, wait: 5_000)
+    assert_receive {:claim_pending, claim}
+
+    assert {:ok, %{state: "queued"}} = submit(project, %{"size" => 11}, wait: 0)
+    other_project = project_fixture(account: project.account)
+    assert {:ok, %{state: "queued"}} = submit(other_project, %{"size" => 12}, wait: 0)
+
+    assert {:ok, %{running: 1, queued: 1, actions: [first, second], invocations: invocations}} =
+             RemoteExecution.activity(project)
+
+    assert %{state: "running", action_digest: "#{@hash}/10", vcpus: 2, memory_gb: 4} = first
+    assert %{invocation_id: "build-1", mnemonic: "CppCompile", target: nil} = first
+    assert %{state: "queued", action_digest: "#{@hash}/11", invocation_id: nil} = second
+    # Kura has not reported the build, so only its actions describe it.
+    assert [%{invocation_id: "build-1", command: nil, running: 1, queued: 0}] = invocations
+    assert DateTime.compare(first.since, DateTime.utc_now()) != :gt
+
+    send(claim, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+    send(running, :release)
+
+    for _ <- 1..2 do
+      assert_receive {:holding, task}, 2_000
+      send(task, :release)
+    end
+  end
+
   test "operations of a scheduler that is gone are not found", %{project: project} do
     assert {:error, :not_found} = RemoteExecution.await(project, Ecto.UUID.generate(), "queued")
     assert {:error, :not_found} = RemoteExecution.await(project, "not-a-uuid", "queued")

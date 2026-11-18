@@ -20,9 +20,10 @@ Most tools read Tuist data that the authenticated user can already see in the da
 - **Continuous-integration runners**: `create_runner_profile`, `update_runner_profile` (narrowing which jobs save cache volumes discards pending saves), `delete_runner_profile`, and `delete_runner_volume` (deletes the volume's saved contents).
 - **Sandboxes**: `create_sandbox`, `pause_sandbox`, `resume_sandbox`, `archive_sandbox`, and `delete_sandbox` (deletes its disks).
 - **Feedback**: `report_feedback` (sends a report about a tool or prompt to the Tuist team; only on tuist.dev).
+- **Organization AI**: `save_organization_ai_model`, `remove_organization_ai_model`, `set_organization_ai_default_model`, `save_organization_ai_task_route`, `remove_organization_ai_task_route`, and `remove_organization_ai_provider` (deletes the provider's key and models, and unlinks a linked Claude organization at Anthropic).
 - **Agent integrations**: `connect_amp_workspace` (gives the workspace's orbs CI access to the account), `disconnect_amp_workspace`, and `connect_claude_environment` (lets a Claude Managed Agents environment run sessions in Tuist sandboxes).
 
-`add_organization_member`, `cancel_organization_invitation`, `complete_project_logo_upload`, `disconnect_project_repository`, `update_test_case`, `update_notification_rule`, `delete_notification_rule`, `update_runner_profile`, `delete_runner_profile`, `delete_runner_volume`, `delete_sandbox`, and `disconnect_amp_workspace` advertise `destructiveHint: true` because they replace or remove existing state. `invite_organization_member`, `update_test_case`, `connect_claude_environment`, and `report_feedback` advertise `openWorldHint: true` because they send email, notify external webhook endpoints, call Anthropic, or send a report to the Tuist team.
+`add_organization_member`, `cancel_organization_invitation`, `complete_project_logo_upload`, `disconnect_project_repository`, `update_test_case`, `update_notification_rule`, `delete_notification_rule`, `update_runner_profile`, `delete_runner_profile`, `delete_runner_volume`, `delete_sandbox`, `disconnect_amp_workspace`, `remove_organization_ai_provider`, `remove_organization_ai_model`, and `remove_organization_ai_task_route` advertise `destructiveHint: true` because they replace or remove existing state. `invite_organization_member`, `update_test_case`, `connect_claude_environment`, `remove_organization_ai_provider`, and `report_feedback` advertise `openWorldHint: true` because they send email, notify external webhook endpoints, call Anthropic, or send a report to the Tuist team.
 
 Personal Claude and ChatGPT subscriptions are connected only in the dashboard's AI settings, so subscription tokens and sign-ins never pass through a Model Context Protocol client.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. When a user authorizes a client in the browser or claims an `auth.md` registration, Tuist associates that credential with the user only on the Model Context Protocol endpoint, so the setup tools can complete the requested workflow.
@@ -442,6 +443,20 @@ These tools connect Claude Managed Agents self-hosted environments, so their ses
 | `list_claude_environments` | List connected environments and the credential each uses, plus the issuer URL and subject prefix a federation rule should trust. | `account_handle` |
 | `connect_claude_environment` | Connect an environment with `api_key`, or with `organization_id`, `workspace_id`, `service_account_id` and `federation_rule_id`. Optional `platform`, `vcpus` and `memory_mb` set the sandbox shape. | `account_handle`, `environment_id`, `environment_key` |
 
+#### Organization AI
+
+These tools manage the models an organization's server-side AI tasks use, as Settings → AI does, and share its rules: organization administrators only, and only for organizations with AI settings. Each task, such as `pulse_grouping` or `pulse_explanation`, uses its task route when it has one and otherwise the default model; without either it sends no requests. Every tool returns the whole configuration, including each task's current model and whether it comes from its route, the default, or nothing. Adding or editing a provider takes an API key, so it happens in the dashboard or the REST API (`/api/accounts/{handle}/ai`), not through these tools.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_organization_ai_configuration` | Read providers (without keys), models, the default model, task routes and each task's current model. | `account_handle` |
+| `save_organization_ai_model` | Add a model (`name`, `provider_id`, `upstream_model_id`), or update one by `id`. | `account_handle` |
+| `remove_organization_ai_model` | Remove a model and its task routes. | `account_handle`, `model_id` |
+| `set_organization_ai_default_model` | Select the default model, or clear it with null. | `account_handle`, `model_id` |
+| `save_organization_ai_task_route` | Route a `task` to a configured `model_id`, or update a route by `id`. A task has at most one route. | `account_handle` |
+| `remove_organization_ai_task_route` | Remove a route, so the task uses the default model again. | `account_handle`, `route_id` |
+| `remove_organization_ai_provider` | Remove a provider with its key, models and their routes; unlinks a linked Claude organization. | `account_handle`, `provider_id` |
+
 #### Webhooks
 
 Webhook tools use the same administrator-only permission as the dashboard. Delivery attempts contain the request and response data recorded for the endpoint, but never the endpoint signing secret.
@@ -507,6 +522,13 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_bazel_invocation_log` | Get one sanitized log chunk captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
+
+#### Remote execution
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_remote_execution_activity` | List the project's running Bazel invocations and its remote actions running and queued right now, with each action's invocation, mnemonic, target, action digest, machine size and when it entered that state. Actions the execution gateway runs on a VM it prepared in advance are not listed until they finish. | `account_handle`, `project_handle` |
+| `get_remote_execution_usage` | Get the project's remote executions and measured execution time over `[from, to)`, in total, per machine size, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366. | `account_handle`, `project_handle` |
 
 `list_bazel_invocations` filters are exact matches, and invocations that finish in the same second are ordered by invocation ID. To find the latest failing invocation on a branch, call it with `status: "failure"`, `git_branch` and `page_size: 1`. The REST endpoint `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations` accepts the same filters.
 

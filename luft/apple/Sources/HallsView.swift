@@ -53,7 +53,7 @@ struct AppHall: Decodable, Identifiable {
     var member_ids: [Int]?
 }
 
-private struct HallsPage: Decodable {
+struct HallsPage: Decodable {
     let available: Bool
     /// `personal`, `disabled` or `sign_in_required`.
     let reason: String?
@@ -74,9 +74,15 @@ struct HallsView: View {
     let client: AppClient
     /// `halls` or `dms`, the tab this list is.
     let tab: String
-    @State private var page: HallsPage?
-    @State private var error: String?
+    /// Halls and DMs from one `halls` answer, owned by `AppWorkspace` so switching
+    /// tabs shows them as they were instead of a spinner.
+    let inbox: HallInbox
+    /// The Mac's open conversation: the list is the middle column of a split view, as in Mail.
+    var selection: Binding<String?> = .constant(nil)
     @State private var creating = false
+
+    private var page: HallsPage? { inbox.page }
+    private var error: String? { inbox.error }
 
     private var directs: Bool { tab == "dms" }
     private var title: LocalizedStringKey { directs ? "DMs" : "Halls" }
@@ -84,18 +90,7 @@ struct HallsView: View {
     private var rows: [AppHall] { directs ? page?.directs ?? [] : page?.halls ?? [] }
 
     var body: some View {
-        List {
-            if let error {
-                Section {
-                    Text(verbatim: error).foregroundStyle(.secondary)
-                    Button("Try Again") { Task { await load() } }
-                }
-            }
-            ForEach(rows) { hall in
-                NavigationLink(value: WorkspaceRoute.hall(hall.id)) { HallRow(hall: hall) }
-                    .listRowBackground(Noora.backgroundTertiary)
-            }
-        }
+        list
         #if os(macOS)
         .listStyle(.inset)
         #endif
@@ -127,8 +122,7 @@ struct HallsView: View {
         // ⌘N in the menu bar; both lists stay mounted, so only the open tab offers it.
         .focusedSceneValue(\.compose, page?.available == true && client.view.navigation.tab.rawValue == tab
             ? ComposeAction(title: createLabel) { creating = true } : nil)
-        // Tab switches restart this task, so keep the loaded page to avoid a spinner flash. Another
-        // account or organization advances the generation, which rebuilds the workspace with no page.
+        // Another account or organization advances the generation, which gives the workspace a new inbox.
         .task(id: client.view.generation) {
             // Halls change while nobody here is looking; keep unread counts current.
             while !Task.isCancelled {
@@ -181,6 +175,35 @@ struct HallsView: View {
         }
     }
 
+    private var list: some View {
+        #if os(macOS)
+            // Conversations, as in Messages: no row fills or rules, only the system's selection.
+            List(selection: selection) {
+                errorSection
+                ForEach(rows) { hall in
+                    HallRow(hall: hall).tag(hall.id).listRowSeparator(.hidden)
+                }
+            }
+        #else
+            List {
+                errorSection
+                ForEach(rows) { hall in
+                    NavigationLink(value: WorkspaceRoute.hall(hall.id)) { HallRow(hall: hall) }
+                        .listRowBackground(Noora.backgroundTertiary)
+                }
+            }
+        #endif
+    }
+
+    @ViewBuilder private var errorSection: some View {
+        if let error {
+            Section {
+                Text(verbatim: error).foregroundStyle(.secondary)
+                Button("Try Again") { Task { await load() } }
+            }
+        }
+    }
+
     private func open(_ hall: AppHall) {
         Task {
             await load()
@@ -188,7 +211,16 @@ struct HallsView: View {
         }
     }
 
-    private func load() async {
+    private func load() async { await inbox.load(client) }
+}
+
+/// The selected organization's halls and DMs, for both `HallsView`s. One per signed-in generation.
+@MainActor @Observable
+final class HallInbox {
+    private(set) var page: HallsPage?
+    private(set) var error: String?
+
+    func load(_ client: AppClient) async {
         let generation = client.view.generation
         do {
             let data = try await client.call("halls")
@@ -234,7 +266,12 @@ private struct HallRow: View {
                     .background(Noora.primary, in: Capsule())
             }
         }
+        // The Mac's rows breathe like Messages'; the iPhone's stay compact.
+        #if os(macOS)
+        .padding(.vertical, 6)
+        #else
         .padding(.vertical, 2)
+        #endif
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: spoken))
     }
@@ -267,6 +304,8 @@ private struct HallRow: View {
 struct HallConversationView: View {
     let client: AppClient
     let id: String
+    /// The title from the list, shown until the conversation loads so the bar isn't blank.
+    var listedTitle: String?
     @State private var hall: AppHall?
     @State private var older: [HallMessage] = []
     @State private var olderBefore: Int?
@@ -340,7 +379,7 @@ struct HallConversationView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
-        .navigationTitle(Text(verbatim: hall?.title ?? ""))
+        .navigationTitle(Text(verbatim: hall?.title ?? listedTitle ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif

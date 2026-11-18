@@ -41,14 +41,16 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     gate(:runner_site_cache, :actor, "account:#{included.id}", true)
     gate(:kura_thin_volumes, :actor, "account:#{included.id}", true)
     gate(:runner_actions_cache, :actor, "account:#{included.id}", true)
+    gate(:public_shard_storage, :actor, "account:#{included.id}", true)
     reject(FunWithFlags, :enabled?, 1)
     reject(FunWithFlags, :enabled?, 2)
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => excluded.id})
     assert result.resource == %{account_id: excluded.id, project_id: nil}
     assert result.environment == "prod"
-    assert length(result.evaluations) == 24
+    assert length(result.evaluations) == 26
     refute enabled?(result, "runner_shard_storage")
+    refute enabled?(result, "public_shard_storage")
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
     refute enabled?(result, "runners")
     refute enabled?(result, "runner_site_cache")
@@ -60,6 +62,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert enabled?(result, "runner_site_cache")
     assert enabled?(result, "kura_thin_volumes")
     assert enabled?(result, "runner_actions_cache")
+    assert enabled?(result, "public_shard_storage")
   end
 
   test "runner concurrency growth can be held globally or per account without disabling runners" do
@@ -105,7 +108,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"project_id" => project.id})
     assert result.resource == %{account_id: project.account_id, project_id: project.id}
-    assert length(result.evaluations) == 25
+    assert length(result.evaluations) == 27
     assert enabled?(result, "build_entities")
     assert enabled?(result, "runner_site_cache")
     assert Enum.find(result.evaluations, &(&1.name == "runner_site_cache")).actor_id == project.account_id

@@ -339,6 +339,7 @@ processor:
   replicaCount: 2
   queueConcurrency: 5
   bazelTestQueueConcurrency: 1
+  snapshotQueueConcurrency: 2
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"
@@ -607,6 +608,8 @@ runnersFleet:
     - xcodeVersion: "27.3-beta"
     # New accounts' protected `macos` profile takes the default; existing
     # profiles keep the Xcode they were created with (mostly 26.6).
+    # Moving `default: true` also moves our own macOS CI: update the `tuist`
+    # account's `macos` profile ("Runner profiles" in .github/AGENTS.md).
     - xcodeVersion: "27.2"
       default: true
     - xcodeVersion: "27.1"

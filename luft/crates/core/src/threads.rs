@@ -39,8 +39,8 @@ impl Threads {
         Self::default()
     }
 
-    /// Runs `threads`, `start_thread`, `thread`, `send_message` or
-    /// `snooze_thread` (see the crate README) in the account `handle` on `server`: the person's own
+    /// Runs `threads`, `start_thread`, `thread`, `send_message`,
+    /// `snooze_thread` or `archive_thread` (see the crate README) in the account `handle` on `server`: the person's own
     /// account or a selected organization. The server lists only the threads
     /// the user owns there, and requires admin rights and the organization's
     /// `luft` flag on an organization.
@@ -178,6 +178,19 @@ impl Threads {
                         (409, _) if snooze["until_needed"] == true => return Err(NOT_WORKING),
                         response => successful(response)?,
                     };
+                present(&mut thread);
+                Ok(thread)
+            }
+            "archive_thread" => {
+                let id = thread_id(args)?;
+                // `archived: false` restores it.
+                let status = match args.get("archived") {
+                    None | Some(Value::Bool(true)) => "archived",
+                    Some(Value::Bool(false)) => "active",
+                    Some(_) => return Err("Invalid archived"),
+                };
+                let mut thread =
+                    request(transport, "PATCH", url(id), Some(json!({"status": status})))?;
                 present(&mut thread);
                 Ok(thread)
             }

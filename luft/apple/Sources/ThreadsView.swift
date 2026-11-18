@@ -75,57 +75,35 @@ struct ThreadsView: View {
     let client: AppClient
     /// Start conversation, presented by `AppWorkspace`.
     @Binding var starting: Bool
+    /// The inbox, owned by `AppWorkspace` so it outlives this view: switching
+    /// tabs shows it as it was instead of an empty list and a spinner.
+    let inbox: ThreadInbox
+    /// The Mac's open thread: the list is the middle column of a split view, as in Mail.
+    var selection: Binding<String?> = .constant(nil)
     /// Opens a destination from the iPhone's sidebar, which then closes.
     var open: (WorkspaceRoute) -> Void = { _ in }
-    @State private var threads: [AppThread] = []
-    @State private var nextCursor: String?
-    @State private var loaded = false
-    @State private var available = true
-    @State private var signInRequired = false
-    @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
-    @State private var error: String?
+
+    private var threads: [AppThread] { inbox.threads }
+    private var nextCursor: String? { inbox.nextCursor }
+    private var loaded: Bool { inbox.loaded }
+    private var available: Bool { inbox.available }
+    private var signInRequired: Bool { inbox.signInRequired }
+    private var loading: Task<Void, Never>? { inbox.loading }
+    private var error: String? { inbox.error }
     @State private var snoozeChoices = SnoozeChoices()
     /// The thread whose snooze choices show, after a swipe.
     @State private var snoozing: AppThread?
     /// The thread a custom time is being picked for.
     @State private var customSnooze: AppThread?
+    /// The thread waiting for the person to confirm archiving it.
+    @State private var archiving: AppThread?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo: .body) private var iconWidth = 20.0
 
     var body: some View {
-        List {
-            #if os(iOS)
-                // The iPhone's sidebar: the other destinations above the threads, like Claude's.
-                Section {
-                    sidebarLink("Halls", systemImage: "number", to: .list(.halls))
-                    sidebarLink("DMs", systemImage: "bubble.left.and.text.bubble.right", to: .list(.dms))
-                }
-                if available {
-                    archivePicker
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                }
-            #endif
-            if let error {
-                Section {
-                    Text(verbatim: error).foregroundStyle(.secondary)
-                    Button("Try again") { Task { await reload() } }
-                }
-            }
-            if !showingArchived {
-                section("In progress", visible.filter { $0.section == "in_progress" })
-                section("Recent", visible.filter { $0.section == "recent" })
-                // Out of the way, still a scroll away.
-                section("Snoozed", visible.filter { $0.section == "snoozed" })
-            } else {
-                section("Archived", visible)
-            }
-            if nextCursor != nil {
-                Button("Load more threads") { Task { await loadMore() } }.disabled(loading != nil)
-            }
-        }
+        list
         #if os(macOS)
         .listStyle(.inset)
         #else
@@ -236,10 +214,33 @@ struct ThreadsView: View {
         .sheet(item: $customSnooze) { thread in
             CustomSnoozeView { snooze(thread, until: $0) }
         }
-        .task(id: client.view.active_profile_id) {
-            // Render what's on the device first, then bring it up to date.
-            await fetch(operation: "cached_threads", cursor: nil)
+        .alert(
+            "Archive Thread?", isPresented: Binding(get: { archiving != nil }, set: { if !$0 { archiving = nil } }),
+            presenting: archiving
+        ) { thread in
+            Button("Cancel", role: .cancel) {}
+            Button("Archive", role: .destructive) { archive(thread) }
+        } message: { thread in
+            Text(thread.working
+                ? "Its run stops. You can find it under Archived."
+                : "You can find it under Archived.")
+        }
+        .task(id: InboxFollowKey(
+            profile: client.view.active_profile_id,
+            active: scenePhase == .active,
+            followable: available && !signInRequired
+        )) {
+            // Render what's on the device first, then bring it up to date. Coming back
+            // to the tab or the app keeps what it showed and only refreshes it.
+            if !inbox.loaded { await inbox.fetch(client, operation: "cached_threads", cursor: nil) }
             await reload()
+            // Then follow the inbox while the app is in front: a thread that starts working,
+            // answers or finishes changes its row and section without a pull to refresh.
+            // Where threads are off or need a new sign-in, there is nothing to follow.
+            guard scenePhase == .active, available, !signInRequired else { return }
+            // The server starts the Live Activity for work that begins meanwhile, so these
+            // refreshes leave it alone: one the person dismissed stays dismissed.
+            await client.live("inbox") { await inbox.reload(client, announce: false) }
         }
         // The core opens Start conversation (`navigation.compose`) and closes it on any other navigation.
         .onChange(of: client.view.navigation.compose, initial: true) { previous, compose in
@@ -251,6 +252,47 @@ struct ThreadsView: View {
         // Signing in again keeps the profile's ID, so reload once the browser closes.
         .onChange(of: client.signingIn) { _, signingIn in
             if !signingIn, signInRequired { Task { await reload() } }
+        }
+    }
+
+    private var list: some View {
+        #if os(macOS)
+            List(selection: selection) { rows }
+        #else
+            List { rows }
+        #endif
+    }
+
+    @ViewBuilder private var rows: some View {
+        #if os(iOS)
+            // The iPhone's sidebar: the other destinations above the threads, like Claude's.
+            Section {
+                sidebarLink("Halls", systemImage: "number", to: .list(.halls))
+                sidebarLink("DMs", systemImage: "bubble.left.and.text.bubble.right", to: .list(.dms))
+            }
+            if available {
+                archivePicker
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            }
+        #endif
+        if let error {
+            Section {
+                Text(verbatim: error).foregroundStyle(.secondary)
+                Button("Try again") { Task { await reload() } }
+            }
+        }
+        if !showingArchived {
+            section("In progress", visible.filter { $0.section == "in_progress" })
+            section("Recent", visible.filter { $0.section == "recent" })
+            // Out of the way, still a scroll away.
+            section("Snoozed", visible.filter { $0.section == "snoozed" })
+        } else {
+            section("Archived", visible)
+        }
+        if nextCursor != nil {
+            Button("Load more threads") { Task { await loadMore() } }.disabled(loading != nil)
         }
     }
 
@@ -350,16 +392,21 @@ struct ThreadsView: View {
                 Section(title) {
                     ForEach(values) { thread in
                         snoozable(thread) {
-                            NavigationLink(value: WorkspaceRoute.thread(thread.id)) { row(thread) }
-                                .listRowBackground(Noora.backgroundTertiary)
+                            // A list of conversations, as in Mail, not a data table: no row fills
+                            // or rules, only the system's selection.
+                            row(thread)
+                                .tag(thread.id)
+                                .listRowSeparator(.hidden)
                         }
                     }
                 }
+                .listSectionSeparator(.hidden)
             #endif
         }
     }
 
-    /// A thread's row, snoozed or woken with a swipe or from its context menu.
+    /// A thread's row, snoozed or woken with a swipe or from its context menu,
+    /// where it can also be archived once the person confirms, or restored.
     private func snoozable(_ thread: AppThread, @ViewBuilder _ row: () -> some View) -> some View {
         row()
             .swipeActions(edge: .leading) { snoozeAction(thread) }
@@ -374,6 +421,10 @@ struct ThreadsView: View {
                             custom: { customSnooze = thread }
                         )
                     }
+                    Divider()
+                    Button("Archive", systemImage: "archivebox", role: .destructive) { archiving = thread }
+                } else {
+                    Button("Restore", systemImage: "tray.and.arrow.up") { archive(thread, archived: false) }
                 }
             }
     }
@@ -398,8 +449,22 @@ struct ThreadsView: View {
         }
     }
 
+    /// Archives or restores a thread, then shows the inbox as the core sorts it now.
+    private func archive(_ thread: AppThread, archived: Bool = true) {
+        Task {
+            do {
+                _ = try await client.conversation("archive_thread", ["id": thread.id, "archived": archived])
+                await reload()
+            } catch {
+                client.error = error.localizedDescription
+            }
+        }
+    }
+
     private func row(_ thread: AppThread) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        let detail = [thread.repository, thread.snooze?.label ?? statusLabel(thread.state)]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · ")
+        return HStack(alignment: .top, spacing: 12) {
             Image(systemName: thread.section == "archived" ? "archivebox"
                 : thread.section == "snoozed" ? "moon.zzz"
                 : thread.section == "in_progress" ? "circle.dotted" : "bubble.left")
@@ -415,12 +480,17 @@ struct ThreadsView: View {
                     .lineLimit(2)
                     #endif
                     .foregroundStyle(Noora.labelPrimary)
-                Text(verbatim: [thread.repository, thread.snooze?.label ?? statusLabel(thread.state)]
-                    .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+                if !detail.isEmpty {
+                    Text(verbatim: detail).font(.caption).foregroundStyle(Noora.labelSecondary)
+                }
             }
         }
+        // The Mac's rows breathe like Mail's; the iPhone's sidebar stays dense like Claude's.
+        #if os(macOS)
+        .padding(.vertical, 6)
+        #else
         .padding(.vertical, 2)
+        #endif
     }
 
     private func statusLabel(_ state: String?) -> String? {
@@ -434,31 +504,57 @@ struct ThreadsView: View {
         }
     }
 
-    /// Replaces the list. A refresh supersedes a load in flight rather than being dropped.
-    private func reload() async {
+    private func reload() async { await inbox.reload(client) }
+
+    private func loadMore() async { await inbox.loadMore(client) }
+}
+
+/// What restarts the inbox's loading and following: another profile, the app coming to the
+/// front or leaving it, and threads becoming available.
+private struct InboxFollowKey: Equatable {
+    let profile: String?
+    let active: Bool
+    let followable: Bool
+}
+
+/// The selected account's threads, for `ThreadsView`. One per signed-in generation.
+@MainActor @Observable
+final class ThreadInbox {
+    private(set) var threads: [AppThread] = []
+    private(set) var nextCursor: String?
+    private(set) var loaded = false
+    private(set) var available = true
+    private(set) var signInRequired = false
+    private(set) var loading: Task<Void, Never>?
+    var error: String?
+
+    /// Refreshes the list; the core keeps the pages loaded after the first. A refresh
+    /// supersedes a load in flight rather than being dropped. `announce` starts the
+    /// Live Activity when a thread is working.
+    func reload(_ client: AppClient, announce: Bool = true) async {
         loading?.cancel()
-        await run(cursor: nil)
+        await run(client, cursor: nil, announce: announce)
     }
 
-    private func loadMore() async {
+    func loadMore(_ client: AppClient) async {
         guard loading == nil, let cursor = nextCursor else { return }
-        await run(cursor: cursor)
+        await run(client, cursor: cursor, announce: true)
     }
 
-    private func run(cursor: String?) async {
-        let task = Task { await fetch(operation: "threads", cursor: cursor) }
+    private func run(_ client: AppClient, cursor: String?, announce: Bool) async {
+        let task = Task { await fetch(client, operation: "threads", cursor: cursor, announce: announce) }
         loading = task
         await task.value
         if loading == task { loading = nil }
     }
 
-    private func fetch(operation: String, cursor: String?) async {
-        let profile = client.view.active_profile_id
+    func fetch(_ client: AppClient, operation: String, cursor: String?, announce: Bool = true) async {
+        let generation = client.view.generation
         do {
             let data = try await client.call(operation, cursor.map { ["cursor": $0] } ?? [:])
             let page = try JSONDecoder().decode(ThreadPage.self, from: JSONSerialization.data(withJSONObject: data))
-            // A newer load, or another profile, owns the list now.
-            guard !Task.isCancelled, profile == client.view.active_profile_id else { return }
+            // A newer load, or another account, owns the list now.
+            guard !Task.isCancelled, generation == client.view.generation else { return }
             // The core returns the whole stored inbox, with queued threads, for every page.
             threads = page.threads
             nextCursor = page.next_cursor
@@ -468,7 +564,7 @@ struct ThreadsView: View {
             // An inbox never loaded on this device isn't empty, only unknown yet.
             if page.freshness?.state != "never_loaded" { loaded = true }
             // Only what the server just said: a cached inbox can show threads that finished since.
-            if operation == "threads", page.freshness?.state == "live",
+            if announce, operation == "threads", page.freshness?.state == "live",
                page.threads.contains(where: { $0.section == "in_progress" })
             {
                 ThreadLiveActivity.shared.threadsWorking()

@@ -576,6 +576,8 @@ public protocol APIProtocol: Sendable {
     func findMissingCommits(_ input: Operations.findMissingCommits.Input) async throws -> Operations.findMissingCommits.Output
     /// Lists the signed-in user's push devices
     ///
+    /// Lists the devices of the app making the request: the Tuist app's, or Luft's.
+    ///
     /// - Remark: HTTP `GET /api/me/push-devices`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
     func listPushDevices(_ input: Operations.listPushDevices.Input) async throws -> Operations.listPushDevices.Output
@@ -923,6 +925,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/files`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/files/get(listBuildFiles)`.
     func listBuildFiles(_ input: Operations.listBuildFiles.Input) async throws -> Operations.listBuildFiles.Output
+    /// Create a snapshot build.
+    ///
+    /// Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)`.
+    func createSnapshotBuild(_ input: Operations.createSnapshotBuild.Input) async throws -> Operations.createSnapshotBuild.Output
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -954,9 +963,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
     func getShard(_ input: Operations.getShard.Input) async throws -> Operations.getShard.Output
-    /// Signal that a commit's coverage pipeline finished.
+    /// Signal that a commit's CI pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -1078,6 +1087,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/start`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
     func startCacheArtifactMultipartUpload(_ input: Operations.startCacheArtifactMultipartUpload.Input) async throws -> Operations.startCacheArtifactMultipartUpload.Output
+    /// Complete a snapshot build.
+    ///
+    /// Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)`.
+    func completeSnapshotBuild(_ input: Operations.completeSnapshotBuild.Input) async throws -> Operations.completeSnapshotBuild.Output
     /// Get one recorded Bazel build step.
     ///
     /// Returns recorded metadata and separately fetched sanitized action output when published by Bazel. Older summaries do not include per-action logs.
@@ -1217,6 +1233,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/listings/missing`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/listings/missing/post(findMissingCommitListings)`.
     func findMissingCommitListings(_ input: Operations.findMissingCommitListings.Input) async throws -> Operations.findMissingCommitListings.Output
+    /// Get a snapshot build.
+    ///
+    /// The build's state and verdict, which clients poll after completing it.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)`.
+    func getSnapshotBuild(_ input: Operations.getSnapshotBuild.Input) async throws -> Operations.getSnapshotBuild.Output
     /// Revoke an account token.
     ///
     /// This endpoint revokes (deletes) an account token by name.
@@ -1451,6 +1474,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
     /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
     func pollChatGPTSubscriptionLogin(_ input: Operations.pollChatGPTSubscriptionLogin.Input) async throws -> Operations.pollChatGPTSubscriptionLogin.Output
+    /// Get the baseline of a snapshot set for a checkout.
+    ///
+    /// The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)`.
+    func getSnapshotBaseline(_ input: Operations.getSnapshotBaseline.Input) async throws -> Operations.getSnapshotBaseline.Output
     /// Lists the feature flags enabled for the signed-in user
     ///
     /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
@@ -1542,7 +1572,7 @@ public protocol APIProtocol: Sendable {
     func getBazelCacheEvent(_ input: Operations.getBazelCacheEvent.Input) async throws -> Operations.getBazelCacheEvent.Output
     /// Registers this app installation for push notifications
     ///
-    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
     ///
     /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
@@ -3064,6 +3094,8 @@ extension APIProtocol {
     }
     /// Lists the signed-in user's push devices
     ///
+    /// Lists the devices of the app making the request: the Tuist app's, or Luft's.
+    ///
     /// - Remark: HTTP `GET /api/me/push-devices`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
     public func listPushDevices(headers: Operations.listPushDevices.Input.Headers = .init()) async throws -> Operations.listPushDevices.Output {
@@ -3905,6 +3937,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Create a snapshot build.
+    ///
+    /// Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)`.
+    public func createSnapshotBuild(
+        path: Operations.createSnapshotBuild.Input.Path,
+        headers: Operations.createSnapshotBuild.Input.Headers = .init(),
+        body: Operations.createSnapshotBuild.Input.Body? = nil
+    ) async throws -> Operations.createSnapshotBuild.Output {
+        try await createSnapshotBuild(Operations.createSnapshotBuild.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -3984,9 +4033,9 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Signal that a commit's coverage pipeline finished.
+    /// Signal that a commit's CI pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -4279,6 +4328,21 @@ extension APIProtocol {
     ) async throws -> Operations.startCacheArtifactMultipartUpload.Output {
         try await startCacheArtifactMultipartUpload(Operations.startCacheArtifactMultipartUpload.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// Complete a snapshot build.
+    ///
+    /// Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)`.
+    public func completeSnapshotBuild(
+        path: Operations.completeSnapshotBuild.Input.Path,
+        headers: Operations.completeSnapshotBuild.Input.Headers = .init()
+    ) async throws -> Operations.completeSnapshotBuild.Output {
+        try await completeSnapshotBuild(Operations.completeSnapshotBuild.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -4621,6 +4685,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Get a snapshot build.
+    ///
+    /// The build's state and verdict, which clients poll after completing it.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)`.
+    public func getSnapshotBuild(
+        path: Operations.getSnapshotBuild.Input.Path,
+        headers: Operations.getSnapshotBuild.Input.Headers = .init()
+    ) async throws -> Operations.getSnapshotBuild.Output {
+        try await getSnapshotBuild(Operations.getSnapshotBuild.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Revoke an account token.
@@ -5187,6 +5266,23 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get the baseline of a snapshot set for a checkout.
+    ///
+    /// The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)`.
+    public func getSnapshotBaseline(
+        path: Operations.getSnapshotBaseline.Input.Path,
+        query: Operations.getSnapshotBaseline.Input.Query,
+        headers: Operations.getSnapshotBaseline.Input.Headers = .init()
+    ) async throws -> Operations.getSnapshotBaseline.Output {
+        try await getSnapshotBaseline(Operations.getSnapshotBaseline.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Lists the feature flags enabled for the signed-in user
     ///
     /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
@@ -5400,7 +5496,7 @@ extension APIProtocol {
     }
     /// Registers this app installation for push notifications
     ///
-    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
     ///
     /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
@@ -14284,6 +14380,166 @@ public enum Components {
                 ])
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse`.
+        public struct CreateSnapshotBuildResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build`.
+            public struct buildPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/added_count`.
+                public var added_count: Swift.Int?
+                /// The build this one was compared with.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/baseline_build_id`.
+                public var baseline_build_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/changed_count`.
+                public var changed_count: Swift.Int?
+                /// The id of the build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/removed_count`.
+                public var removed_count: Swift.Int?
+                /// Removed images whose content reappeared under another name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/renamed_count`.
+                public var renamed_count: Swift.Int?
+                /// Images a selective run didn't render, carried over from the baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/skipped_count`.
+                public var skipped_count: Swift.Int?
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case uploading = "uploading"
+                    case processing = "processing"
+                    case processed = "processed"
+                    case failed = "failed"
+                }
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/state`.
+                public var state: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statePayload
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case processing = "processing"
+                    case failed = "failed"
+                    case passed = "passed"
+                    case baseline = "baseline"
+                    case approved = "approved"
+                    case rejected = "rejected"
+                    case needs_review = "needs_review"
+                }
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/status`.
+                public var status: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statusPayload
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/unchanged_count`.
+                public var unchanged_count: Swift.Int?
+                /// The build's review page on the dashboard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/url`.
+                public var url: Swift.String
+                /// Creates a new `buildPayload`.
+                ///
+                /// - Parameters:
+                ///   - added_count:
+                ///   - baseline_build_id: The build this one was compared with.
+                ///   - changed_count:
+                ///   - id: The id of the build.
+                ///   - removed_count:
+                ///   - renamed_count: Removed images whose content reappeared under another name.
+                ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                ///   - state: Where the build is in its lifecycle.
+                ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///   - unchanged_count:
+                ///   - url: The build's review page on the dashboard.
+                public init(
+                    added_count: Swift.Int? = nil,
+                    baseline_build_id: Swift.String? = nil,
+                    changed_count: Swift.Int? = nil,
+                    id: Swift.String,
+                    removed_count: Swift.Int? = nil,
+                    renamed_count: Swift.Int? = nil,
+                    skipped_count: Swift.Int? = nil,
+                    state: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statePayload,
+                    status: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statusPayload,
+                    unchanged_count: Swift.Int? = nil,
+                    url: Swift.String
+                ) {
+                    self.added_count = added_count
+                    self.baseline_build_id = baseline_build_id
+                    self.changed_count = changed_count
+                    self.id = id
+                    self.removed_count = removed_count
+                    self.renamed_count = renamed_count
+                    self.skipped_count = skipped_count
+                    self.state = state
+                    self.status = status
+                    self.unchanged_count = unchanged_count
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case added_count
+                    case baseline_build_id
+                    case changed_count
+                    case id
+                    case removed_count
+                    case renamed_count
+                    case skipped_count
+                    case state
+                    case status
+                    case unchanged_count
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build`.
+            public var build: Components.Schemas.CreateSnapshotBuildResponse.buildPayload
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploadsPayload`.
+            public struct uploadsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploadsPayload/content_hash`.
+                public var content_hash: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploadsPayload/url`.
+                public var url: Swift.String
+                /// Creates a new `uploadsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - content_hash:
+                ///   - url:
+                public init(
+                    content_hash: Swift.String,
+                    url: Swift.String
+                ) {
+                    self.content_hash = content_hash
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case content_hash
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploads`.
+            public typealias uploadsPayload = [Components.Schemas.CreateSnapshotBuildResponse.uploadsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploads`.
+            public var uploads: Components.Schemas.CreateSnapshotBuildResponse.uploadsPayload
+            /// Creates a new `CreateSnapshotBuildResponse`.
+            ///
+            /// - Parameters:
+            ///   - build:
+            ///   - uploads:
+            public init(
+                build: Components.Schemas.CreateSnapshotBuildResponse.buildPayload,
+                uploads: Components.Schemas.CreateSnapshotBuildResponse.uploadsPayload
+            ) {
+                self.build = build
+                self.uploads = uploads
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build
+                case uploads
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/WebhookEndpoint`.
         public struct WebhookEndpoint: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/WebhookEndpoint/event_types`.
@@ -15671,6 +15927,41 @@ public enum Components {
                 case bundle
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage`.
+        public struct SnapshotBaselineImage: Codable, Hashable, Sendable {
+            /// The SHA-256 of the PNG.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage/content_hash`.
+            public var content_hash: Swift.String
+            /// The image's path relative to the uploaded directory.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage/name`.
+            public var name: Swift.String
+            /// A presigned URL to download the PNG from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage/url`.
+            public var url: Swift.String
+            /// Creates a new `SnapshotBaselineImage`.
+            ///
+            /// - Parameters:
+            ///   - content_hash: The SHA-256 of the PNG.
+            ///   - name: The image's path relative to the uploaded directory.
+            ///   - url: A presigned URL to download the PNG from.
+            public init(
+                content_hash: Swift.String,
+                name: Swift.String,
+                url: Swift.String
+            ) {
+                self.content_hash = content_hash
+                self.name = name
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case content_hash
+                case name
+                case url
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/PulseWidget`.
         public struct PulseWidget: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PulseWidget/id`.
@@ -15924,6 +16215,118 @@ public enum Components {
                 case memory_gb
                 case platform
                 case vcpus
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBuild`.
+        public struct SnapshotBuild: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/added_count`.
+            public var added_count: Swift.Int?
+            /// The build this one was compared with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/baseline_build_id`.
+            public var baseline_build_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/changed_count`.
+            public var changed_count: Swift.Int?
+            /// The id of the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/removed_count`.
+            public var removed_count: Swift.Int?
+            /// Removed images whose content reappeared under another name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/renamed_count`.
+            public var renamed_count: Swift.Int?
+            /// Images a selective run didn't render, carried over from the baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/skipped_count`.
+            public var skipped_count: Swift.Int?
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/state`.
+            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case uploading = "uploading"
+                case processing = "processing"
+                case processed = "processed"
+                case failed = "failed"
+            }
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/state`.
+            public var state: Components.Schemas.SnapshotBuild.statePayload
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case processing = "processing"
+                case failed = "failed"
+                case passed = "passed"
+                case baseline = "baseline"
+                case approved = "approved"
+                case rejected = "rejected"
+                case needs_review = "needs_review"
+            }
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/status`.
+            public var status: Components.Schemas.SnapshotBuild.statusPayload
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/unchanged_count`.
+            public var unchanged_count: Swift.Int?
+            /// The build's review page on the dashboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/url`.
+            public var url: Swift.String
+            /// Creates a new `SnapshotBuild`.
+            ///
+            /// - Parameters:
+            ///   - added_count:
+            ///   - baseline_build_id: The build this one was compared with.
+            ///   - changed_count:
+            ///   - id: The id of the build.
+            ///   - removed_count:
+            ///   - renamed_count: Removed images whose content reappeared under another name.
+            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+            ///   - state: Where the build is in its lifecycle.
+            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///   - unchanged_count:
+            ///   - url: The build's review page on the dashboard.
+            public init(
+                added_count: Swift.Int? = nil,
+                baseline_build_id: Swift.String? = nil,
+                changed_count: Swift.Int? = nil,
+                id: Swift.String,
+                removed_count: Swift.Int? = nil,
+                renamed_count: Swift.Int? = nil,
+                skipped_count: Swift.Int? = nil,
+                state: Components.Schemas.SnapshotBuild.statePayload,
+                status: Components.Schemas.SnapshotBuild.statusPayload,
+                unchanged_count: Swift.Int? = nil,
+                url: Swift.String
+            ) {
+                self.added_count = added_count
+                self.baseline_build_id = baseline_build_id
+                self.changed_count = changed_count
+                self.id = id
+                self.removed_count = removed_count
+                self.renamed_count = renamed_count
+                self.skipped_count = skipped_count
+                self.state = state
+                self.status = status
+                self.unchanged_count = unchanged_count
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case added_count
+                case baseline_build_id
+                case changed_count
+                case id
+                case removed_count
+                case renamed_count
+                case skipped_count
+                case state
+                case status
+                case unchanged_count
+                case url
             }
         }
         /// Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
@@ -17314,6 +17717,211 @@ public enum Components {
                 case id
                 case object
                 case _type = "type"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest`.
+        public struct CreateSnapshotBuildRequest: Codable, Hashable, Sendable {
+            /// The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/all_image_names`.
+            public var all_image_names: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/build_system`.
+            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case gradle = "gradle"
+                case xcode = "xcode"
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/build_system`.
+            public var build_system: Components.Schemas.CreateSnapshotBuildRequest.build_systemPayload?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_branch`.
+            public var git_branch: Swift.String?
+            /// A commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_commit_sha`.
+            public var git_commit_sha: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_ref`.
+            public var git_ref: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_remote_url_origin`.
+            public var git_remote_url_origin: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload`.
+            public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                /// The SHA-256 of the PNG.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/content_hash`.
+                public var content_hash: Swift.String
+                /// The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/diff_threshold`.
+                public var diff_threshold: Swift.Double?
+                /// How the review page names the image. Defaults to `name`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/display_name`.
+                public var display_name: Swift.String?
+                /// Images of a group are reviewed together.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/group`.
+                public var group: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/height`.
+                public var height: Swift.Int?
+                /// The image's path relative to the uploaded directory.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/name`.
+                public var name: Swift.String
+                /// Labels such as `theme: dark` or `device: pixel_7`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/tags`.
+                public struct tagsPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `tagsPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// Labels such as `theme: dark` or `device: pixel_7`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/tags`.
+                public var tags: Components.Schemas.CreateSnapshotBuildRequest.imagesPayloadPayload.tagsPayload?
+                /// The test that recorded the image, when known.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/test_identifier`.
+                public var test_identifier: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/width`.
+                public var width: Swift.Int?
+                /// Creates a new `imagesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - content_hash: The SHA-256 of the PNG.
+                ///   - diff_threshold: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                ///   - display_name: How the review page names the image. Defaults to `name`.
+                ///   - group: Images of a group are reviewed together.
+                ///   - height:
+                ///   - name: The image's path relative to the uploaded directory.
+                ///   - tags: Labels such as `theme: dark` or `device: pixel_7`.
+                ///   - test_identifier: The test that recorded the image, when known.
+                ///   - width:
+                public init(
+                    content_hash: Swift.String,
+                    diff_threshold: Swift.Double? = nil,
+                    display_name: Swift.String? = nil,
+                    group: Swift.String? = nil,
+                    height: Swift.Int? = nil,
+                    name: Swift.String,
+                    tags: Components.Schemas.CreateSnapshotBuildRequest.imagesPayloadPayload.tagsPayload? = nil,
+                    test_identifier: Swift.String? = nil,
+                    width: Swift.Int? = nil
+                ) {
+                    self.content_hash = content_hash
+                    self.diff_threshold = diff_threshold
+                    self.display_name = display_name
+                    self.group = group
+                    self.height = height
+                    self.name = name
+                    self.tags = tags
+                    self.test_identifier = test_identifier
+                    self.width = width
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case content_hash
+                    case diff_threshold
+                    case display_name
+                    case group
+                    case height
+                    case name
+                    case tags
+                    case test_identifier
+                    case width
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/images`.
+            public typealias imagesPayload = [Components.Schemas.CreateSnapshotBuildRequest.imagesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/images`.
+            public var images: Components.Schemas.CreateSnapshotBuildRequest.imagesPayload
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/is_ci`.
+            public var is_ci: Swift.Bool?
+            /// A commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/merge_base_sha`.
+            public var merge_base_sha: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/pull_request_number`.
+            public var pull_request_number: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/pull_request_title`.
+            public var pull_request_title: Swift.String?
+            /// The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/selective`.
+            public var selective: Swift.Bool?
+            /// The snapshot set, such as `android-phone`: builds are compared within a set.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/set`.
+            public var set: Swift.String
+            /// Creates a new `CreateSnapshotBuildRequest`.
+            ///
+            /// - Parameters:
+            ///   - all_image_names: The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+            ///   - build_system:
+            ///   - git_branch:
+            ///   - git_commit_sha: A commit SHA.
+            ///   - git_ref:
+            ///   - git_remote_url_origin:
+            ///   - images:
+            ///   - is_ci:
+            ///   - merge_base_sha: A commit SHA.
+            ///   - pull_request_number:
+            ///   - pull_request_title:
+            ///   - selective: The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+            ///   - set: The snapshot set, such as `android-phone`: builds are compared within a set.
+            public init(
+                all_image_names: [Swift.String]? = nil,
+                build_system: Components.Schemas.CreateSnapshotBuildRequest.build_systemPayload? = nil,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String,
+                git_ref: Swift.String? = nil,
+                git_remote_url_origin: Swift.String? = nil,
+                images: Components.Schemas.CreateSnapshotBuildRequest.imagesPayload,
+                is_ci: Swift.Bool? = nil,
+                merge_base_sha: Swift.String? = nil,
+                pull_request_number: Swift.Int? = nil,
+                pull_request_title: Swift.String? = nil,
+                selective: Swift.Bool? = nil,
+                set: Swift.String
+            ) {
+                self.all_image_names = all_image_names
+                self.build_system = build_system
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
+                self.git_remote_url_origin = git_remote_url_origin
+                self.images = images
+                self.is_ci = is_ci
+                self.merge_base_sha = merge_base_sha
+                self.pull_request_number = pull_request_number
+                self.pull_request_title = pull_request_title
+                self.selective = selective
+                self.set = set
+            }
+            public enum CodingKeys: String, CodingKey {
+                case all_image_names
+                case build_system
+                case git_branch
+                case git_commit_sha
+                case git_ref
+                case git_remote_url_origin
+                case images
+                case is_ci
+                case merge_base_sha
+                case pull_request_number
+                case pull_request_title
+                case selective
+                case set
             }
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
@@ -24540,6 +25148,118 @@ public enum Components {
                 case runs
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild`.
+        public struct SnapshotBaselineBuild: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/added_count`.
+            public var added_count: Swift.Int?
+            /// The build this one was compared with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/baseline_build_id`.
+            public var baseline_build_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/changed_count`.
+            public var changed_count: Swift.Int?
+            /// The id of the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/removed_count`.
+            public var removed_count: Swift.Int?
+            /// Removed images whose content reappeared under another name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/renamed_count`.
+            public var renamed_count: Swift.Int?
+            /// Images a selective run didn't render, carried over from the baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/skipped_count`.
+            public var skipped_count: Swift.Int?
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/state`.
+            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case uploading = "uploading"
+                case processing = "processing"
+                case processed = "processed"
+                case failed = "failed"
+            }
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/state`.
+            public var state: Components.Schemas.SnapshotBaselineBuild.statePayload
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case processing = "processing"
+                case failed = "failed"
+                case passed = "passed"
+                case baseline = "baseline"
+                case approved = "approved"
+                case rejected = "rejected"
+                case needs_review = "needs_review"
+            }
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/status`.
+            public var status: Components.Schemas.SnapshotBaselineBuild.statusPayload
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/unchanged_count`.
+            public var unchanged_count: Swift.Int?
+            /// The build's review page on the dashboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/url`.
+            public var url: Swift.String
+            /// Creates a new `SnapshotBaselineBuild`.
+            ///
+            /// - Parameters:
+            ///   - added_count:
+            ///   - baseline_build_id: The build this one was compared with.
+            ///   - changed_count:
+            ///   - id: The id of the build.
+            ///   - removed_count:
+            ///   - renamed_count: Removed images whose content reappeared under another name.
+            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+            ///   - state: Where the build is in its lifecycle.
+            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///   - unchanged_count:
+            ///   - url: The build's review page on the dashboard.
+            public init(
+                added_count: Swift.Int? = nil,
+                baseline_build_id: Swift.String? = nil,
+                changed_count: Swift.Int? = nil,
+                id: Swift.String,
+                removed_count: Swift.Int? = nil,
+                renamed_count: Swift.Int? = nil,
+                skipped_count: Swift.Int? = nil,
+                state: Components.Schemas.SnapshotBaselineBuild.statePayload,
+                status: Components.Schemas.SnapshotBaselineBuild.statusPayload,
+                unchanged_count: Swift.Int? = nil,
+                url: Swift.String
+            ) {
+                self.added_count = added_count
+                self.baseline_build_id = baseline_build_id
+                self.changed_count = changed_count
+                self.id = id
+                self.removed_count = removed_count
+                self.renamed_count = renamed_count
+                self.skipped_count = skipped_count
+                self.state = state
+                self.status = status
+                self.unchanged_count = unchanged_count
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case added_count
+                case baseline_build_id
+                case changed_count
+                case id
+                case removed_count
+                case renamed_count
+                case skipped_count
+                case state
+                case status
+                case unchanged_count
+                case url
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/SandboxCommand`.
         public struct SandboxCommand: Codable, Hashable, Sendable {
             /// The shell script the command runs; argv commands appear quoted.
@@ -31469,6 +32189,178 @@ public enum Components {
                 case os_version
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBaseline`.
+        public struct SnapshotBaseline: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build`.
+            public struct buildPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/added_count`.
+                public var added_count: Swift.Int?
+                /// The build this one was compared with.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/baseline_build_id`.
+                public var baseline_build_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/changed_count`.
+                public var changed_count: Swift.Int?
+                /// The id of the build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/removed_count`.
+                public var removed_count: Swift.Int?
+                /// Removed images whose content reappeared under another name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/renamed_count`.
+                public var renamed_count: Swift.Int?
+                /// Images a selective run didn't render, carried over from the baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/skipped_count`.
+                public var skipped_count: Swift.Int?
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case uploading = "uploading"
+                    case processing = "processing"
+                    case processed = "processed"
+                    case failed = "failed"
+                }
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/state`.
+                public var state: Components.Schemas.SnapshotBaseline.buildPayload.statePayload
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case processing = "processing"
+                    case failed = "failed"
+                    case passed = "passed"
+                    case baseline = "baseline"
+                    case approved = "approved"
+                    case rejected = "rejected"
+                    case needs_review = "needs_review"
+                }
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/status`.
+                public var status: Components.Schemas.SnapshotBaseline.buildPayload.statusPayload
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/unchanged_count`.
+                public var unchanged_count: Swift.Int?
+                /// The build's review page on the dashboard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/url`.
+                public var url: Swift.String
+                /// Creates a new `buildPayload`.
+                ///
+                /// - Parameters:
+                ///   - added_count:
+                ///   - baseline_build_id: The build this one was compared with.
+                ///   - changed_count:
+                ///   - id: The id of the build.
+                ///   - removed_count:
+                ///   - renamed_count: Removed images whose content reappeared under another name.
+                ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                ///   - state: Where the build is in its lifecycle.
+                ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///   - unchanged_count:
+                ///   - url: The build's review page on the dashboard.
+                public init(
+                    added_count: Swift.Int? = nil,
+                    baseline_build_id: Swift.String? = nil,
+                    changed_count: Swift.Int? = nil,
+                    id: Swift.String,
+                    removed_count: Swift.Int? = nil,
+                    renamed_count: Swift.Int? = nil,
+                    skipped_count: Swift.Int? = nil,
+                    state: Components.Schemas.SnapshotBaseline.buildPayload.statePayload,
+                    status: Components.Schemas.SnapshotBaseline.buildPayload.statusPayload,
+                    unchanged_count: Swift.Int? = nil,
+                    url: Swift.String
+                ) {
+                    self.added_count = added_count
+                    self.baseline_build_id = baseline_build_id
+                    self.changed_count = changed_count
+                    self.id = id
+                    self.removed_count = removed_count
+                    self.renamed_count = renamed_count
+                    self.skipped_count = skipped_count
+                    self.state = state
+                    self.status = status
+                    self.unchanged_count = unchanged_count
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case added_count
+                    case baseline_build_id
+                    case changed_count
+                    case id
+                    case removed_count
+                    case renamed_count
+                    case skipped_count
+                    case state
+                    case status
+                    case unchanged_count
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build`.
+            public var build: Components.Schemas.SnapshotBaseline.buildPayload?
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload`.
+            public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                /// The SHA-256 of the PNG.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload/content_hash`.
+                public var content_hash: Swift.String
+                /// The image's path relative to the uploaded directory.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload/name`.
+                public var name: Swift.String
+                /// A presigned URL to download the PNG from.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload/url`.
+                public var url: Swift.String
+                /// Creates a new `imagesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - content_hash: The SHA-256 of the PNG.
+                ///   - name: The image's path relative to the uploaded directory.
+                ///   - url: A presigned URL to download the PNG from.
+                public init(
+                    content_hash: Swift.String,
+                    name: Swift.String,
+                    url: Swift.String
+                ) {
+                    self.content_hash = content_hash
+                    self.name = name
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case content_hash
+                    case name
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/images`.
+            public typealias imagesPayload = [Components.Schemas.SnapshotBaseline.imagesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/images`.
+            public var images: Components.Schemas.SnapshotBaseline.imagesPayload
+            /// Creates a new `SnapshotBaseline`.
+            ///
+            /// - Parameters:
+            ///   - build:
+            ///   - images:
+            public init(
+                build: Components.Schemas.SnapshotBaseline.buildPayload? = nil,
+                images: Components.Schemas.SnapshotBaseline.imagesPayload
+            ) {
+                self.build = build
+                self.images = images
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build
+                case images
+            }
+        }
         /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexAfter`.
@@ -32109,6 +33001,105 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case build_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry`.
+        public struct SnapshotImageManifestEntry: Codable, Hashable, Sendable {
+            /// The SHA-256 of the PNG.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/content_hash`.
+            public var content_hash: Swift.String
+            /// The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/diff_threshold`.
+            public var diff_threshold: Swift.Double?
+            /// How the review page names the image. Defaults to `name`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/display_name`.
+            public var display_name: Swift.String?
+            /// Images of a group are reviewed together.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/group`.
+            public var group: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/height`.
+            public var height: Swift.Int?
+            /// The image's path relative to the uploaded directory.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/name`.
+            public var name: Swift.String
+            /// Labels such as `theme: dark` or `device: pixel_7`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/tags`.
+            public struct tagsPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                public var additionalProperties: [String: Swift.String]
+                /// Creates a new `tagsPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(additionalProperties: [String: Swift.String] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                public init(from decoder: any Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// Labels such as `theme: dark` or `device: pixel_7`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/tags`.
+            public var tags: Components.Schemas.SnapshotImageManifestEntry.tagsPayload?
+            /// The test that recorded the image, when known.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/test_identifier`.
+            public var test_identifier: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/width`.
+            public var width: Swift.Int?
+            /// Creates a new `SnapshotImageManifestEntry`.
+            ///
+            /// - Parameters:
+            ///   - content_hash: The SHA-256 of the PNG.
+            ///   - diff_threshold: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+            ///   - display_name: How the review page names the image. Defaults to `name`.
+            ///   - group: Images of a group are reviewed together.
+            ///   - height:
+            ///   - name: The image's path relative to the uploaded directory.
+            ///   - tags: Labels such as `theme: dark` or `device: pixel_7`.
+            ///   - test_identifier: The test that recorded the image, when known.
+            ///   - width:
+            public init(
+                content_hash: Swift.String,
+                diff_threshold: Swift.Double? = nil,
+                display_name: Swift.String? = nil,
+                group: Swift.String? = nil,
+                height: Swift.Int? = nil,
+                name: Swift.String,
+                tags: Components.Schemas.SnapshotImageManifestEntry.tagsPayload? = nil,
+                test_identifier: Swift.String? = nil,
+                width: Swift.Int? = nil
+            ) {
+                self.content_hash = content_hash
+                self.diff_threshold = diff_threshold
+                self.display_name = display_name
+                self.group = group
+                self.height = height
+                self.name = name
+                self.tags = tags
+                self.test_identifier = test_identifier
+                self.width = width
+            }
+            public enum CodingKeys: String, CodingKey {
+                case content_hash
+                case diff_threshold
+                case display_name
+                case group
+                case height
+                case name
+                case tags
+                case test_identifier
+                case width
             }
         }
         /// - Remark: Generated from `#/components/schemas/Sandboxes`.
@@ -85192,6 +86183,8 @@ public enum Operations {
     }
     /// Lists the signed-in user's push devices
     ///
+    /// Lists the devices of the app making the request: the Tuist app's, or Luft's.
+    ///
     /// - Remark: HTTP `GET /api/me/push-devices`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
     public enum listPushDevices {
@@ -85231,7 +86224,7 @@ public enum Operations {
                             public var last_seen_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/name`.
                             public var name: Swift.String?
-                            /// ios or android
+                            /// ios, macos or android
                             ///
                             /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/platform`.
                             public var platform: Swift.String
@@ -85245,7 +86238,7 @@ public enum Operations {
                             ///   - installation_id:
                             ///   - last_seen_at:
                             ///   - name:
-                            ///   - platform: ios or android
+                            ///   - platform: ios, macos or android
                             ///   - registered_at:
                             ///   - registration_id:
                             public init(
@@ -114639,6 +115632,725 @@ public enum Operations {
             }
         }
     }
+    /// Create a snapshot build.
+    ///
+    /// Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)`.
+    public enum createSnapshotBuild {
+        public static let id: Swift.String = "createSnapshotBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createSnapshotBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSnapshotBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSnapshotBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createSnapshotBuild.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/all_image_names`.
+                    public var all_image_names: [Swift.String]?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/build_system`.
+                    @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case gradle = "gradle"
+                        case xcode = "xcode"
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/build_system`.
+                    public var build_system: Operations.createSnapshotBuild.Input.Body.jsonPayload.build_systemPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// A commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload`.
+                    public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The SHA-256 of the PNG.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/content_hash`.
+                        public var content_hash: Swift.String
+                        /// The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/diff_threshold`.
+                        public var diff_threshold: Swift.Double?
+                        /// How the review page names the image. Defaults to `name`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/display_name`.
+                        public var display_name: Swift.String?
+                        /// Images of a group are reviewed together.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/group`.
+                        public var group: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/height`.
+                        public var height: Swift.Int?
+                        /// The image's path relative to the uploaded directory.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/name`.
+                        public var name: Swift.String
+                        /// Labels such as `theme: dark` or `device: pixel_7`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/tags`.
+                        public struct tagsPayload: Codable, Hashable, Sendable {
+                            /// A container of undocumented properties.
+                            public var additionalProperties: [String: Swift.String]
+                            /// Creates a new `tagsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - additionalProperties: A container of undocumented properties.
+                            public init(additionalProperties: [String: Swift.String] = .init()) {
+                                self.additionalProperties = additionalProperties
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeAdditionalProperties(additionalProperties)
+                            }
+                        }
+                        /// Labels such as `theme: dark` or `device: pixel_7`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/tags`.
+                        public var tags: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayloadPayload.tagsPayload?
+                        /// The test that recorded the image, when known.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/test_identifier`.
+                        public var test_identifier: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/width`.
+                        public var width: Swift.Int?
+                        /// Creates a new `imagesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - content_hash: The SHA-256 of the PNG.
+                        ///   - diff_threshold: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                        ///   - display_name: How the review page names the image. Defaults to `name`.
+                        ///   - group: Images of a group are reviewed together.
+                        ///   - height:
+                        ///   - name: The image's path relative to the uploaded directory.
+                        ///   - tags: Labels such as `theme: dark` or `device: pixel_7`.
+                        ///   - test_identifier: The test that recorded the image, when known.
+                        ///   - width:
+                        public init(
+                            content_hash: Swift.String,
+                            diff_threshold: Swift.Double? = nil,
+                            display_name: Swift.String? = nil,
+                            group: Swift.String? = nil,
+                            height: Swift.Int? = nil,
+                            name: Swift.String,
+                            tags: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayloadPayload.tagsPayload? = nil,
+                            test_identifier: Swift.String? = nil,
+                            width: Swift.Int? = nil
+                        ) {
+                            self.content_hash = content_hash
+                            self.diff_threshold = diff_threshold
+                            self.display_name = display_name
+                            self.group = group
+                            self.height = height
+                            self.name = name
+                            self.tags = tags
+                            self.test_identifier = test_identifier
+                            self.width = width
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case content_hash
+                            case diff_threshold
+                            case display_name
+                            case group
+                            case height
+                            case name
+                            case tags
+                            case test_identifier
+                            case width
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/images`.
+                    public typealias imagesPayload = [Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/images`.
+                    public var images: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/is_ci`.
+                    public var is_ci: Swift.Bool?
+                    /// A commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/merge_base_sha`.
+                    public var merge_base_sha: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/pull_request_number`.
+                    public var pull_request_number: Swift.Int?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/pull_request_title`.
+                    public var pull_request_title: Swift.String?
+                    /// The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/selective`.
+                    public var selective: Swift.Bool?
+                    /// The snapshot set, such as `android-phone`: builds are compared within a set.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/set`.
+                    public var set: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - all_image_names: The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+                    ///   - build_system:
+                    ///   - git_branch:
+                    ///   - git_commit_sha: A commit SHA.
+                    ///   - git_ref:
+                    ///   - git_remote_url_origin:
+                    ///   - images:
+                    ///   - is_ci:
+                    ///   - merge_base_sha: A commit SHA.
+                    ///   - pull_request_number:
+                    ///   - pull_request_title:
+                    ///   - selective: The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+                    ///   - set: The snapshot set, such as `android-phone`: builds are compared within a set.
+                    public init(
+                        all_image_names: [Swift.String]? = nil,
+                        build_system: Operations.createSnapshotBuild.Input.Body.jsonPayload.build_systemPayload? = nil,
+                        git_branch: Swift.String? = nil,
+                        git_commit_sha: Swift.String,
+                        git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
+                        images: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayload,
+                        is_ci: Swift.Bool? = nil,
+                        merge_base_sha: Swift.String? = nil,
+                        pull_request_number: Swift.Int? = nil,
+                        pull_request_title: Swift.String? = nil,
+                        selective: Swift.Bool? = nil,
+                        set: Swift.String
+                    ) {
+                        self.all_image_names = all_image_names
+                        self.build_system = build_system
+                        self.git_branch = git_branch
+                        self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
+                        self.images = images
+                        self.is_ci = is_ci
+                        self.merge_base_sha = merge_base_sha
+                        self.pull_request_number = pull_request_number
+                        self.pull_request_title = pull_request_title
+                        self.selective = selective
+                        self.set = set
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case all_image_names
+                        case build_system
+                        case git_branch
+                        case git_commit_sha
+                        case git_ref
+                        case git_remote_url_origin
+                        case images
+                        case is_ci
+                        case merge_base_sha
+                        case pull_request_number
+                        case pull_request_title
+                        case selective
+                        case set
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/content/application\/json`.
+                case json(Operations.createSnapshotBuild.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createSnapshotBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createSnapshotBuild.Input.Path,
+                headers: Operations.createSnapshotBuild.Input.Headers = .init(),
+                body: Operations.createSnapshotBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build`.
+                        public struct buildPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/added_count`.
+                            public var added_count: Swift.Int?
+                            /// The build this one was compared with.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/baseline_build_id`.
+                            public var baseline_build_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/changed_count`.
+                            public var changed_count: Swift.Int?
+                            /// The id of the build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/removed_count`.
+                            public var removed_count: Swift.Int?
+                            /// Removed images whose content reappeared under another name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/renamed_count`.
+                            public var renamed_count: Swift.Int?
+                            /// Images a selective run didn't render, carried over from the baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/skipped_count`.
+                            public var skipped_count: Swift.Int?
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/state`.
+                            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case uploading = "uploading"
+                                case processing = "processing"
+                                case processed = "processed"
+                                case failed = "failed"
+                            }
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/state`.
+                            public var state: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statePayload
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case processing = "processing"
+                                case failed = "failed"
+                                case passed = "passed"
+                                case baseline = "baseline"
+                                case approved = "approved"
+                                case rejected = "rejected"
+                                case needs_review = "needs_review"
+                            }
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/status`.
+                            public var status: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/unchanged_count`.
+                            public var unchanged_count: Swift.Int?
+                            /// The build's review page on the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/url`.
+                            public var url: Swift.String
+                            /// Creates a new `buildPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - added_count:
+                            ///   - baseline_build_id: The build this one was compared with.
+                            ///   - changed_count:
+                            ///   - id: The id of the build.
+                            ///   - removed_count:
+                            ///   - renamed_count: Removed images whose content reappeared under another name.
+                            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                            ///   - state: Where the build is in its lifecycle.
+                            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///   - unchanged_count:
+                            ///   - url: The build's review page on the dashboard.
+                            public init(
+                                added_count: Swift.Int? = nil,
+                                baseline_build_id: Swift.String? = nil,
+                                changed_count: Swift.Int? = nil,
+                                id: Swift.String,
+                                removed_count: Swift.Int? = nil,
+                                renamed_count: Swift.Int? = nil,
+                                skipped_count: Swift.Int? = nil,
+                                state: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statePayload,
+                                status: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statusPayload,
+                                unchanged_count: Swift.Int? = nil,
+                                url: Swift.String
+                            ) {
+                                self.added_count = added_count
+                                self.baseline_build_id = baseline_build_id
+                                self.changed_count = changed_count
+                                self.id = id
+                                self.removed_count = removed_count
+                                self.renamed_count = renamed_count
+                                self.skipped_count = skipped_count
+                                self.state = state
+                                self.status = status
+                                self.unchanged_count = unchanged_count
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case added_count
+                                case baseline_build_id
+                                case changed_count
+                                case id
+                                case removed_count
+                                case renamed_count
+                                case skipped_count
+                                case state
+                                case status
+                                case unchanged_count
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build`.
+                        public var build: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploadsPayload`.
+                        public struct uploadsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploadsPayload/content_hash`.
+                            public var content_hash: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploadsPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `uploadsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - content_hash:
+                            ///   - url:
+                            public init(
+                                content_hash: Swift.String,
+                                url: Swift.String
+                            ) {
+                                self.content_hash = content_hash
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case content_hash
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploads`.
+                        public typealias uploadsPayload = [Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.uploadsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploads`.
+                        public var uploads: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.uploadsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - build:
+                        ///   - uploads:
+                        public init(
+                            build: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload,
+                            uploads: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.uploadsPayload
+                        ) {
+                            self.build = build
+                            self.uploads = uploads
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case build
+                            case uploads
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/application\/json`.
+                    case json(Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The build and the images to upload
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createSnapshotBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createSnapshotBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The manifest is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createSnapshotBuild.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createSnapshotBuild.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createSnapshotBuild.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createSnapshotBuild.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createSnapshotBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createSnapshotBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createSnapshotBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createSnapshotBuild.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -116816,9 +118528,9 @@ public enum Operations {
             }
         }
     }
-    /// Signal that a commit's coverage pipeline finished.
+    /// Signal that a commit's CI pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -127134,6 +128846,470 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Complete a snapshot build.
+    ///
+    /// Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)`.
+    public enum completeSnapshotBuild {
+        public static let id: Swift.String = "completeSnapshotBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The id of the snapshot build.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - build_id: The id of the snapshot build.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.completeSnapshotBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeSnapshotBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeSnapshotBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.completeSnapshotBuild.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.completeSnapshotBuild.Input.Path,
+                headers: Operations.completeSnapshotBuild.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/added_count`.
+                        public var added_count: Swift.Int?
+                        /// The build this one was compared with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/baseline_build_id`.
+                        public var baseline_build_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/changed_count`.
+                        public var changed_count: Swift.Int?
+                        /// The id of the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/removed_count`.
+                        public var removed_count: Swift.Int?
+                        /// Removed images whose content reappeared under another name.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/renamed_count`.
+                        public var renamed_count: Swift.Int?
+                        /// Images a selective run didn't render, carried over from the baseline.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/skipped_count`.
+                        public var skipped_count: Swift.Int?
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case uploading = "uploading"
+                            case processing = "processing"
+                            case processed = "processed"
+                            case failed = "failed"
+                        }
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/state`.
+                        public var state: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case processing = "processing"
+                            case failed = "failed"
+                            case passed = "passed"
+                            case baseline = "baseline"
+                            case approved = "approved"
+                            case rejected = "rejected"
+                            case needs_review = "needs_review"
+                        }
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/status`.
+                        public var status: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/unchanged_count`.
+                        public var unchanged_count: Swift.Int?
+                        /// The build's review page on the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - added_count:
+                        ///   - baseline_build_id: The build this one was compared with.
+                        ///   - changed_count:
+                        ///   - id: The id of the build.
+                        ///   - removed_count:
+                        ///   - renamed_count: Removed images whose content reappeared under another name.
+                        ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                        ///   - state: Where the build is in its lifecycle.
+                        ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///   - unchanged_count:
+                        ///   - url: The build's review page on the dashboard.
+                        public init(
+                            added_count: Swift.Int? = nil,
+                            baseline_build_id: Swift.String? = nil,
+                            changed_count: Swift.Int? = nil,
+                            id: Swift.String,
+                            removed_count: Swift.Int? = nil,
+                            renamed_count: Swift.Int? = nil,
+                            skipped_count: Swift.Int? = nil,
+                            state: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            unchanged_count: Swift.Int? = nil,
+                            url: Swift.String
+                        ) {
+                            self.added_count = added_count
+                            self.baseline_build_id = baseline_build_id
+                            self.changed_count = changed_count
+                            self.id = id
+                            self.removed_count = removed_count
+                            self.renamed_count = renamed_count
+                            self.skipped_count = skipped_count
+                            self.state = state
+                            self.status = status
+                            self.unchanged_count = unchanged_count
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case added_count
+                            case baseline_build_id
+                            case changed_count
+                            case id
+                            case removed_count
+                            case renamed_count
+                            case skipped_count
+                            case state
+                            case status
+                            case unchanged_count
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/application\/json`.
+                    case json(Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The build
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completeSnapshotBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.completeSnapshotBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Images are missing
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.completeSnapshotBuild.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.completeSnapshotBuild.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeSnapshotBuild.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.completeSnapshotBuild.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeSnapshotBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.completeSnapshotBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeSnapshotBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.completeSnapshotBuild.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -139038,6 +141214,419 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.findMissingCommitListings.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a snapshot build.
+    ///
+    /// The build's state and verdict, which clients poll after completing it.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)`.
+    public enum getSnapshotBuild {
+        public static let id: Swift.String = "getSnapshotBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The id of the snapshot build.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - build_id: The id of the snapshot build.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.getSnapshotBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSnapshotBuild.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getSnapshotBuild.Input.Path,
+                headers: Operations.getSnapshotBuild.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/added_count`.
+                        public var added_count: Swift.Int?
+                        /// The build this one was compared with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/baseline_build_id`.
+                        public var baseline_build_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/changed_count`.
+                        public var changed_count: Swift.Int?
+                        /// The id of the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/removed_count`.
+                        public var removed_count: Swift.Int?
+                        /// Removed images whose content reappeared under another name.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/renamed_count`.
+                        public var renamed_count: Swift.Int?
+                        /// Images a selective run didn't render, carried over from the baseline.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/skipped_count`.
+                        public var skipped_count: Swift.Int?
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case uploading = "uploading"
+                            case processing = "processing"
+                            case processed = "processed"
+                            case failed = "failed"
+                        }
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/state`.
+                        public var state: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case processing = "processing"
+                            case failed = "failed"
+                            case passed = "passed"
+                            case baseline = "baseline"
+                            case approved = "approved"
+                            case rejected = "rejected"
+                            case needs_review = "needs_review"
+                        }
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/unchanged_count`.
+                        public var unchanged_count: Swift.Int?
+                        /// The build's review page on the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - added_count:
+                        ///   - baseline_build_id: The build this one was compared with.
+                        ///   - changed_count:
+                        ///   - id: The id of the build.
+                        ///   - removed_count:
+                        ///   - renamed_count: Removed images whose content reappeared under another name.
+                        ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                        ///   - state: Where the build is in its lifecycle.
+                        ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///   - unchanged_count:
+                        ///   - url: The build's review page on the dashboard.
+                        public init(
+                            added_count: Swift.Int? = nil,
+                            baseline_build_id: Swift.String? = nil,
+                            changed_count: Swift.Int? = nil,
+                            id: Swift.String,
+                            removed_count: Swift.Int? = nil,
+                            renamed_count: Swift.Int? = nil,
+                            skipped_count: Swift.Int? = nil,
+                            state: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            unchanged_count: Swift.Int? = nil,
+                            url: Swift.String
+                        ) {
+                            self.added_count = added_count
+                            self.baseline_build_id = baseline_build_id
+                            self.changed_count = changed_count
+                            self.id = id
+                            self.removed_count = removed_count
+                            self.renamed_count = renamed_count
+                            self.skipped_count = skipped_count
+                            self.state = state
+                            self.status = status
+                            self.unchanged_count = unchanged_count
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case added_count
+                            case baseline_build_id
+                            case changed_count
+                            case id
+                            case removed_count
+                            case renamed_count
+                            case skipped_count
+                            case state
+                            case status
+                            case unchanged_count
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The build
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSnapshotBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSnapshotBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getSnapshotBuild.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getSnapshotBuild.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSnapshotBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSnapshotBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getSnapshotBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getSnapshotBuild.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -157110,6 +159699,513 @@ public enum Operations {
             }
         }
     }
+    /// Get the baseline of a snapshot set for a checkout.
+    ///
+    /// The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)`.
+    public enum getSnapshotBaseline {
+        public static let id: Swift.String = "getSnapshotBaseline"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getSnapshotBaseline.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The snapshot set.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/set`.
+                public var set: Swift.String
+                /// The checkout's commit.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/git_commit_sha`.
+                public var git_commit_sha: Swift.String
+                /// The commit's merge base with the base branch, when the checkout knows it.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/merge_base_sha`.
+                public var merge_base_sha: Swift.String?
+                /// The checkout's origin URL, to look the merge base up in the commit graph clients upload.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/git_remote_url_origin`.
+                public var git_remote_url_origin: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - set: The snapshot set.
+                ///   - git_commit_sha: The checkout's commit.
+                ///   - merge_base_sha: The commit's merge base with the base branch, when the checkout knows it.
+                ///   - git_remote_url_origin: The checkout's origin URL, to look the merge base up in the commit graph clients upload.
+                public init(
+                    set: Swift.String,
+                    git_commit_sha: Swift.String,
+                    merge_base_sha: Swift.String? = nil,
+                    git_remote_url_origin: Swift.String? = nil
+                ) {
+                    self.set = set
+                    self.git_commit_sha = git_commit_sha
+                    self.merge_base_sha = merge_base_sha
+                    self.git_remote_url_origin = git_remote_url_origin
+                }
+            }
+            public var query: Operations.getSnapshotBaseline.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBaseline.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBaseline.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSnapshotBaseline.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getSnapshotBaseline.Input.Path,
+                query: Operations.getSnapshotBaseline.Input.Query,
+                headers: Operations.getSnapshotBaseline.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build`.
+                        public struct buildPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/added_count`.
+                            public var added_count: Swift.Int?
+                            /// The build this one was compared with.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/baseline_build_id`.
+                            public var baseline_build_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/changed_count`.
+                            public var changed_count: Swift.Int?
+                            /// The id of the build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/removed_count`.
+                            public var removed_count: Swift.Int?
+                            /// Removed images whose content reappeared under another name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/renamed_count`.
+                            public var renamed_count: Swift.Int?
+                            /// Images a selective run didn't render, carried over from the baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/skipped_count`.
+                            public var skipped_count: Swift.Int?
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/state`.
+                            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case uploading = "uploading"
+                                case processing = "processing"
+                                case processed = "processed"
+                                case failed = "failed"
+                            }
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/state`.
+                            public var state: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statePayload
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case processing = "processing"
+                                case failed = "failed"
+                                case passed = "passed"
+                                case baseline = "baseline"
+                                case approved = "approved"
+                                case rejected = "rejected"
+                                case needs_review = "needs_review"
+                            }
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/status`.
+                            public var status: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/unchanged_count`.
+                            public var unchanged_count: Swift.Int?
+                            /// The build's review page on the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/url`.
+                            public var url: Swift.String
+                            /// Creates a new `buildPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - added_count:
+                            ///   - baseline_build_id: The build this one was compared with.
+                            ///   - changed_count:
+                            ///   - id: The id of the build.
+                            ///   - removed_count:
+                            ///   - renamed_count: Removed images whose content reappeared under another name.
+                            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                            ///   - state: Where the build is in its lifecycle.
+                            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///   - unchanged_count:
+                            ///   - url: The build's review page on the dashboard.
+                            public init(
+                                added_count: Swift.Int? = nil,
+                                baseline_build_id: Swift.String? = nil,
+                                changed_count: Swift.Int? = nil,
+                                id: Swift.String,
+                                removed_count: Swift.Int? = nil,
+                                renamed_count: Swift.Int? = nil,
+                                skipped_count: Swift.Int? = nil,
+                                state: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statePayload,
+                                status: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statusPayload,
+                                unchanged_count: Swift.Int? = nil,
+                                url: Swift.String
+                            ) {
+                                self.added_count = added_count
+                                self.baseline_build_id = baseline_build_id
+                                self.changed_count = changed_count
+                                self.id = id
+                                self.removed_count = removed_count
+                                self.renamed_count = renamed_count
+                                self.skipped_count = skipped_count
+                                self.state = state
+                                self.status = status
+                                self.unchanged_count = unchanged_count
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case added_count
+                                case baseline_build_id
+                                case changed_count
+                                case id
+                                case removed_count
+                                case renamed_count
+                                case skipped_count
+                                case state
+                                case status
+                                case unchanged_count
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build`.
+                        public var build: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload`.
+                        public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The SHA-256 of the PNG.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload/content_hash`.
+                            public var content_hash: Swift.String
+                            /// The image's path relative to the uploaded directory.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload/name`.
+                            public var name: Swift.String
+                            /// A presigned URL to download the PNG from.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `imagesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - content_hash: The SHA-256 of the PNG.
+                            ///   - name: The image's path relative to the uploaded directory.
+                            ///   - url: A presigned URL to download the PNG from.
+                            public init(
+                                content_hash: Swift.String,
+                                name: Swift.String,
+                                url: Swift.String
+                            ) {
+                                self.content_hash = content_hash
+                                self.name = name
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case content_hash
+                                case name
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/images`.
+                        public typealias imagesPayload = [Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.imagesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/images`.
+                        public var images: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.imagesPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - build:
+                        ///   - images:
+                        public init(
+                            build: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload? = nil,
+                            images: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.imagesPayload
+                        ) {
+                            self.build = build
+                            self.images = images
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case build
+                            case images
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The baseline and its images
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSnapshotBaseline.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSnapshotBaseline.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getSnapshotBaseline.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getSnapshotBaseline.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSnapshotBaseline.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSnapshotBaseline.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getSnapshotBaseline.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getSnapshotBaseline.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Lists the feature flags enabled for the signed-in user
     ///
     /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
@@ -164064,7 +167160,7 @@ public enum Operations {
     }
     /// Registers this app installation for push notifications
     ///
-    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
     ///
     /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
@@ -164117,18 +167213,19 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/name`.
                     public var name: Swift.String?
-                    /// The device platform.
+                    /// The device platform. Only Luft registers macOS devices.
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case ios = "ios"
+                        case macos = "macos"
                         case android = "android"
                     }
-                    /// The device platform.
+                    /// The device platform. Only Luft registers macOS devices.
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/platform`.
                     public var platform: Operations.registerPushDevice.Input.Body.jsonPayload.platformPayload
-                    /// The APNs device token (hex) on iOS or the FCM registration token on Android.
+                    /// The APNs device token (hex) on iOS and macOS or the FCM registration token on Android.
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/token`.
                     public var token: Swift.String
@@ -164137,8 +167234,8 @@ public enum Operations {
                     /// - Parameters:
                     ///   - environment: The APNs environment. Android is always production.
                     ///   - name: The device model shown in the user's device list, for example iPhone 17 Pro.
-                    ///   - platform: The device platform.
-                    ///   - token: The APNs device token (hex) on iOS or the FCM registration token on Android.
+                    ///   - platform: The device platform. Only Luft registers macOS devices.
+                    ///   - token: The APNs device token (hex) on iOS and macOS or the FCM registration token on Android.
                     public init(
                         environment: Operations.registerPushDevice.Input.Body.jsonPayload.environmentPayload,
                         name: Swift.String? = nil,

@@ -3,7 +3,8 @@ import Foundation
 private struct Reconnect: Error {}
 
 extension AppClient {
-    /// Keeps the live socket of thread `id` open while the calling task runs.
+    /// Keeps the live socket of thread `id`, or of the whole inbox with `inbox`,
+    /// open while the calling task runs.
     /// The core decides everything about it (`live_wait`, `live_connect`,
     /// `live_tick`, `live_receive`, `live_close`): how long to wait before opening it, when
     /// to heartbeat, when a silent socket must be reopened, and what each
@@ -34,6 +35,17 @@ extension AppClient {
               let join = plan["join"] as? String
         else { throw Reconnect() }
         let interval = plan["tick_ms"] as? Int ?? 30000
+        // Refreshes run beside the socket, at most one per `refresh_ms` as the core says:
+        // requests made meanwhile fold into one that follows, and frames and heartbeats
+        // keep flowing while a refresh loads.
+        let spacing = plan["refresh_ms"] as? Int ?? 0
+        let (requests, request) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+        let refresher = Task {
+            for await _ in requests {
+                await refresh()
+                if spacing > 0 { try? await Task.sleep(for: .milliseconds(spacing)) }
+            }
+        }
         let task = URLSession.shared.webSocketTask(with: url, protocols: protocols)
         task.resume()
         // Closing the task ends `receive()` with an error, which reconnects.
@@ -57,6 +69,8 @@ extension AppClient {
         }
         defer {
             ticks.cancel()
+            request.finish()
+            refresher.cancel()
             task.cancel(with: .goingAway, reason: nil)
         }
         try await withTaskCancellationHandler {
@@ -69,7 +83,7 @@ extension AppClient {
                 for reply in frame["replies"] as? [String] ?? [] {
                     try await task.send(.string(reply))
                 }
-                if frame["refresh"] as? Bool == true { await refresh() }
+                if frame["refresh"] as? Bool == true { request.yield() }
                 if frame["reconnect"] as? Bool == true { throw Reconnect() }
             }
         } onCancel: {

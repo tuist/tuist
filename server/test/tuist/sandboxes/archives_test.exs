@@ -185,7 +185,12 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       sandbox_fixture(account: account, state: :running, node_name: "node-a")
 
       assert :ok = Archives.move_off_node("node-a")
-      assert [%{args: %{"node_names" => ["node-a"], "ci" => true}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      # Most reservations end within two minutes; the job rechecks the reclaim then.
+      assert [%{args: %{"node_names" => ["node-a"], "ci" => true}, scheduled_at: scheduled_at}] =
+               all_enqueued(worker: ArchiveSandboxesWorker)
+
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) in 100..120
 
       expect_failed_upload(orb.id)
       assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true)

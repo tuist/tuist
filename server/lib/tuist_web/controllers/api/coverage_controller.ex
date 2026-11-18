@@ -12,6 +12,8 @@ defmodule TuistWeb.API.CoverageController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.Snapshots
   alias Tuist.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -473,9 +475,9 @@ defmodule TuistWeb.API.CoverageController do
   end
 
   operation(:complete_commit,
-    summary: "Signal that a commit's coverage pipeline finished.",
+    summary: "Signal that a commit's CI pipeline finished.",
     description:
-      "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).",
+      "Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).",
     operation_id: "completeCommitCoverage",
     parameters: @path_parameters ++ @sha_parameter,
     responses:
@@ -488,6 +490,9 @@ defmodule TuistWeb.API.CoverageController do
   )
 
   def complete_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
+    # One signal completes the commit for every feature that pools its runs.
+    if FeatureFlags.snapshots_enabled?(project.account), do: Snapshots.signal_complete(project, sha)
+
     case Commits.signal_complete(project, sha) do
       nil ->
         conn

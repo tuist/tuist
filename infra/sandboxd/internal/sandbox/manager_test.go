@@ -563,7 +563,7 @@ func TestPauseWhileDisksLoadKeepsRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A warm restore whose disks still arrive from its archive.
-	ld := &lazyDisks{loaded: make(chan struct{}), filled: make(chan struct{})}
+	ld := &lazyDisks{start: make(chan struct{}), loaded: make(chan struct{}), filled: make(chan struct{})}
 	sb.mu.Lock()
 	sb.lazy, sb.disksPending = ld, true
 	sb.mu.Unlock()

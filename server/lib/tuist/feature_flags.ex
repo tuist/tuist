@@ -40,6 +40,15 @@ defmodule Tuist.FeatureFlags do
     )
   end
 
+  @doc "Default-off account enrollment in public shard artifact storage."
+  def public_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :public_shard_storage,
+      account,
+      flag_enabled?(:public_shard_storage, account, flags)
+    )
+  end
+
   @doc """
   Immutable shard plans (version 1) are disabled for every account, whatever
   the `:immutable_shard_reports` toggle says, so every new plan is a legacy one.
@@ -292,6 +301,23 @@ defmodule Tuist.FeatureFlags do
   """
   def test_impact_analysis_enabled?(account, project, flags \\ nil) do
     Coverage.supported?(project) and test_impact_analysis_account_enabled?(account, flags)
+  end
+
+  @doc """
+  Hosted snapshot testing (`Tuist.Snapshots`): on outside canary and
+  production, and behind the `:snapshots` account flag there while it is in
+  early access.
+  """
+  def snapshots_enabled?(account, flags \\ nil)
+
+  def snapshots_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:snapshots, :unknown, false)
+
+  def snapshots_enabled?(account, flags) do
+    Observability.feature_flag_evaluated(
+      :snapshots,
+      account,
+      Environment.env() not in [:can, :prod] or flag_enabled?(:snapshots, account, flags)
+    )
   end
 
   @doc """

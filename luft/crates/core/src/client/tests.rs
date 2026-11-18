@@ -2536,3 +2536,167 @@ fn snoozed_threads_leave_their_section_until_the_snooze_ends() {
     let cached = call(&mut c, &mut h, "thread", json!({"id":id}));
     assert_eq!(cached["data"]["section"], "snoozed", "{cached}");
 }
+
+#[test]
+fn archiving_and_restoring_a_thread_moves_it_in_the_stored_inbox() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[{"id":SERVER_ID,"status":"running","archive_status":"active"}],"next_cursor":null}),
+        ),
+        (
+            200,
+            json!({"id":SERVER_ID,"status":"idle","archive_status":"archived","messages":[]}),
+        ),
+    ]);
+    call(&mut c, &mut h, "threads", json!({}));
+
+    let archived = call(&mut c, &mut h, "archive_thread", json!({"id":SERVER_ID}));
+    assert_eq!(archived["data"]["section"], "archived", "{archived}");
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "PATCH");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/accounts/ana/threads/{SERVER_ID}")
+    );
+    assert_eq!(sent_body(&h), json!({"status":"archived"}));
+
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert_eq!(
+        inbox["data"]["threads"][0]["section"], "archived",
+        "{inbox}"
+    );
+
+    h.responses.push_back((
+        200,
+        json!({"id":SERVER_ID,"status":"idle","archive_status":"active","messages":[]}),
+    ));
+    let restored = call(
+        &mut c,
+        &mut h,
+        "archive_thread",
+        json!({"id":SERVER_ID,"archived":false}),
+    );
+    assert_eq!(restored["data"]["section"], "recent", "{restored}");
+    assert_eq!(sent_body(&h), json!({"status":"active"}));
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert_eq!(inbox["data"]["threads"][0]["section"], "recent", "{inbox}");
+
+    let count = h.actions.len();
+    let invalid = call(
+        &mut c,
+        &mut h,
+        "archive_thread",
+        json!({"id":SERVER_ID,"archived":"no"}),
+    );
+    assert!(invalid["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+}
+
+#[test]
+fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses
+        .push_back((200, json!({"organizations":[{"name":"team"}]})));
+    call(&mut c, &mut h, "organizations", json!({}));
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":"team"}),
+    );
+    h.responses.push_back((
+        200,
+        json!({"threads":[{"id":SERVER_ID,"title":"Release plan","status":"idle","archive_status":"active"}],"next_cursor":null}),
+    ));
+    call(&mut c, &mut h, "threads", json!({}));
+    let hall = "11111111-1111-1111-1111-111111111111";
+    h.responses.push_back((
+        200,
+        json!({"halls":[{"id":hall,"kind":"hall","name":"releases","members":[],"unread":0}],"directs":[]}),
+    ));
+    call(&mut c, &mut h, "halls", json!({}));
+
+    // Offline and without requests: the palette reads only what is stored.
+    h.offline = true;
+    let before = h.actions.len();
+    let found = call(&mut c, &mut h, "palette", json!({"query":"release"}));
+    assert_eq!(h.actions.len(), before);
+    let urls: Vec<&str> = found["data"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        urls,
+        [format!("/threads/{SERVER_ID}"), format!("/halls/{hall}")]
+    );
+    // Navigating to a result opens it like any link.
+    call(&mut c, &mut h, "navigate", json!({"url":urls[1]}));
+    let view = call(&mut c, &mut h, "snapshot", json!({}));
+    assert_eq!(view["view"]["navigation"]["hall_id"], hall);
+
+    // Another account's halls are not offered.
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":null}),
+    );
+    let personal = call(&mut c, &mut h, "palette", json!({"query":"#rel"}));
+    assert_eq!(personal["data"]["items"], json!([]));
+}
+#[test]
+fn a_refreshed_first_page_keeps_the_pages_loaded_after_it() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let thread =
+        |id: &str, status: &str| json!({"id":id,"status":status,"archive_status":"active"});
+    let ids = |page: &Value| -> Vec<String> {
+        page["data"]["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[thread("a","idle"), thread("b","idle")],"next_cursor":"after-b"}),
+        ),
+        (
+            200,
+            json!({"threads":[thread("c","idle"), thread("d","idle")],"next_cursor":"after-d"}),
+        ),
+        // `d` started working, so it moved to the top and pushed `b` off the first page.
+        (
+            200,
+            json!({"threads":[thread("d","running"), thread("a","idle")],"next_cursor":"after-a"}),
+        ),
+    ]);
+    call(&mut c, &mut h, "threads", json!({}));
+    call(&mut c, &mut h, "threads", json!({"cursor":"after-b"}));
+    let refreshed = call(&mut c, &mut h, "threads", json!({}));
+    assert_eq!(ids(&refreshed), ["d", "a", "b", "c"]);
+    assert_eq!(refreshed["data"]["threads"][0]["section"], "in_progress");
+    // Paging continues after the last thread loaded, not after the new first page.
+    assert_eq!(refreshed["data"]["next_cursor"], "after-d");
+    assert_eq!(
+        call(&mut c, &mut h, "cached_threads", json!({}))["data"]["next_cursor"],
+        "after-d"
+    );
+
+    // A first page that is the whole inbox replaces it: `b` and `c` are gone.
+    h.responses.push_back((
+        200,
+        json!({"threads":[thread("d","idle"), thread("a","idle")],"next_cursor":null}),
+    ));
+    let whole = call(&mut c, &mut h, "threads", json!({}));
+    assert_eq!(ids(&whole), ["d", "a"]);
+    assert_eq!(whole["data"]["next_cursor"], Value::Null);
+}

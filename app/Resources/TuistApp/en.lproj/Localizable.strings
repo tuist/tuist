@@ -349,3 +349,6 @@
 "Open screens will be closed." = "Open screens will be closed.";
 "View profile" = "View profile";
 "Your saved profiles could not be updated. Please try again." = "Your saved profiles could not be updated. Please try again.";
+
+"This Mac" = "This Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "None of this preview's macOS builds can run on this Mac's processor.";

@@ -83,6 +83,31 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "shard_storage_targets/0" do
+    test "merges the public store's targets without letting them replace a runner-local ID" do
+      stub(System, :get_env, fn
+        "TUIST_SHARD_STORAGE_TARGETS" -> ~s({"gra-v1":{"site":"gra"}})
+        "TUIST_PUBLIC_SHARD_STORAGE_TARGETS" -> ~s({"gra-v1":{"site":"us"},"rustfs-v1":{"access":"public"}})
+        name -> Mimic.call_original(System, :get_env, [name])
+      end)
+
+      assert Environment.shard_storage_targets() == %{
+               "gra-v1" => %{"site" => "gra"},
+               "rustfs-v1" => %{"access" => "public"}
+             }
+    end
+
+    test "keeps the other store's targets when one map is malformed" do
+      stub(System, :get_env, fn
+        "TUIST_SHARD_STORAGE_TARGETS" -> ~s({"gra-v1":{"site":"gra"}})
+        "TUIST_PUBLIC_SHARD_STORAGE_TARGETS" -> "[1]"
+        name -> Mimic.call_original(System, :get_env, [name])
+      end)
+
+      assert Environment.shard_storage_targets() == %{"gra-v1" => %{"site" => "gra"}}
+    end
+  end
+
   describe "kura_thin_region_ids/0" do
     test "reads the trimmed region IDs enrolled in thin Kura volumes" do
       stub(System, :get_env, fn

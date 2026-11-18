@@ -1,0 +1,26 @@
+# Single-member performance test on the staging Gravelines Kura box (OVH NVMe).
+# Public TLS ends on that box's own ingress, so no traffic crosses to Hetzner.
+# Shared-disk mode: never put data here that must survive a drive failure.
+enabled: true
+members: 1
+drivesPerMember: 8
+unsafeSharedDisks: true
+# Local-path on the box's NVMe RAID1 root. Kura's CSI only provisions for Kura.
+# Sizes are not enforced; the test harness stops at 20 GiB of use.
+storageClass: scw-local-nvme
+volumeSize: 4Gi
+nodeSelector:
+  node.cluster.x-k8s.io/pool: kura-dedibox
+tolerations:
+  - key: tuist.dev/kura-cache
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+gateway:
+  replicas: 1
+ingress:
+  enabled: true
+  className: kura-eu-west
+  host: shards-ovh-staging.tuist.dev
+  tlsSecret: rustfs-ovh-public-tls
+  clusterIssuer: letsencrypt-cloudflare

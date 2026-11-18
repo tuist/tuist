@@ -119,7 +119,7 @@ jobs:
 
   test-macos-sandbox-guest:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

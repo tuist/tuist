@@ -24,7 +24,7 @@ concurrency:
 jobs:
   macos:
     name: macOS development build and core tests
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     defaults:
       run:
@@ -172,7 +172,7 @@ jobs:
     name: Swift client (${{ matrix.target }})
     needs: [macos, core]
     # Xcode 26 or later: the SwiftUI sources use Liquid Glass APIs behind availability checks.
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -254,7 +254,7 @@ jobs:
         run: mise run --skip-tools "preview:$SIGNED"
   core:
     name: Independent Rust core tests
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     defaults:
       run:

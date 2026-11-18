@@ -1058,6 +1058,21 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
+      # Provider bodies hold API keys, so their params are never logged.
+      scope "/ai" do
+        get "/", OrganizationAIController, :show
+        post "/providers", OrganizationAIController, :create_provider, log: false
+        patch "/providers/:id", OrganizationAIController, :update_provider, log: false
+        delete "/providers/:id", OrganizationAIController, :delete_provider
+        post "/models", OrganizationAIController, :create_model
+        patch "/models/:id", OrganizationAIController, :update_model
+        delete "/models/:id", OrganizationAIController, :delete_model
+        put "/default-model", OrganizationAIController, :set_default_model
+        post "/task-routes", OrganizationAIController, :create_task_route
+        patch "/task-routes/:id", OrganizationAIController, :update_task_route
+        delete "/task-routes/:id", OrganizationAIController, :delete_task_route
+      end
+
       scope "/webhooks" do
         get "/", WebhooksController, :index
         get "/:webhook_endpoint_id", WebhooksController, :show
@@ -1133,6 +1148,14 @@ defmodule TuistWeb.Router do
           get "/:bundle_id/artifacts", BundleArtifactsController, :show
           get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
+        end
+
+        get "/snapshots/baseline", SnapshotsController, :baseline
+
+        scope "/snapshots/builds" do
+          post "/", SnapshotsController, :create
+          get "/:build_id", SnapshotsController, :show
+          post "/:build_id/complete", SnapshotsController, :complete
         end
 
         scope "/runs" do
@@ -1318,6 +1341,11 @@ defmodule TuistWeb.Router do
           get "/actions", OnceActionsController, :index
           get "/actions/:action_id", OnceActionsController, :show
           get "/actions/:action_id/executions", OnceActionsController, :history
+        end
+
+        scope "/remote-execution" do
+          get "/activity", RemoteExecutionInsightsController, :activity
+          get "/usage", RemoteExecutionInsightsController, :usage
         end
 
         scope "/bazel" do
@@ -2058,6 +2086,7 @@ defmodule TuistWeb.Router do
       live "/tests/coverage", CoverageLive
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
+      live "/tests/coverage/pulls/:number", CoverageDetailLive, :pull_request
       live "/tests/coverage/files/*path", CoverageFileLive, :show
       live "/tests/test-selection", TestSelectionsLive
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
@@ -2067,6 +2096,12 @@ defmodule TuistWeb.Router do
       live "/tests/flaky-tests", FlakyTestsLive, metadata: @public_project_route_metadata
       live "/tests/quarantined-tests", QuarantinedTestsLive, metadata: @public_project_route_metadata
       live "/tests/shards", ShardsLive, metadata: @public_project_route_metadata
+      live "/snapshots", SnapshotsLive
+      live "/snapshots/commits/:git_commit_sha", SnapshotCommitLive
+      live "/snapshots/images/:set_name/*name", SnapshotHistoryLive
+      live "/snapshots/:build_id", SnapshotBuildLive
+
+      get "/snapshots/:build_id/images/:image_id/:variant", SnapshotImagesController, :show
       live "/module-cache", ModuleCacheLive, metadata: @public_project_route_metadata
       live "/module-cache/cache-runs", CacheRunsLive, metadata: @public_project_route_metadata
       live "/module-cache/generate-runs", GenerateRunsLive, metadata: @public_project_route_metadata

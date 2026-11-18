@@ -985,11 +985,16 @@ defmodule Tuist.Environment do
     end
   end
 
-  @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
+  @doc """
+  Configured immutable shard target IDs. Each store release publishes its own
+  map, so the runner-local and public stores arrive in separate variables. A
+  malformed map contributes no targets.
+  """
   def shard_storage_targets do
-    case JSON.decode(System.get_env("TUIST_SHARD_STORAGE_TARGETS") || "{}") do
-      {:ok, targets} when is_map(targets) -> targets
-      _ -> %{}
+    for name <- ["TUIST_SHARD_STORAGE_TARGETS", "TUIST_PUBLIC_SHARD_STORAGE_TARGETS"],
+        {:ok, targets} when is_map(targets) <- [JSON.decode(System.get_env(name) || "{}")],
+        reduce: %{} do
+      acc -> Map.merge(targets, acc)
     end
   end
 
@@ -1739,6 +1744,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def delegate_process_snapshots? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_SNAPSHOTS", "0"))
+  end
+
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
@@ -1754,6 +1763,13 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)
       _ -> if processor_mode?(), do: 5, else: 2
+    end
+  end
+
+  def process_snapshots_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_SNAPSHOTS_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 2
     end
   end
 

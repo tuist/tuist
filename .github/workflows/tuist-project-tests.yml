@@ -167,7 +167,7 @@ jobs:
 
   cache:
     name: Cache
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -217,7 +217,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     needs: cache
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 120
     permissions:
       contents: read
@@ -283,7 +283,7 @@ jobs:
   app-tests:
     name: App Tests
     needs: cache
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -330,7 +330,7 @@ jobs:
   acceptance-tests-build:
     name: Build Acceptance Tests
     needs: acceptance-scope
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 90
     permissions:
       contents: read
@@ -380,7 +380,7 @@ jobs:
 
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     needs: acceptance-tests-build
     permissions:
@@ -478,7 +478,7 @@ jobs:
   acceptance-tests-fork:
     name: Acceptance Tests (Fork)
     needs: acceptance-scope
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     if: >-
       !cancelled() && needs.acceptance-scope.outputs.required != 'false' &&
@@ -519,7 +519,7 @@ jobs:
   coverage-selection-acceptance-tests-build:
     name: Build Coverage Selection Acceptance Tests
     needs: acceptance-scope
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -571,7 +571,7 @@ jobs:
   coverage-complete:
     name: Complete Coverage
     needs: [unit-tests, app-tests, acceptance-tests]
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     permissions:
       contents: read

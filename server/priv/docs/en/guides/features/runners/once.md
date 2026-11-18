@@ -59,6 +59,6 @@ Once respects the account's advertised action concurrency and backs off when the
 
 ## Inspect remote execution {#inspect-remote-execution}
 
-The project sidebar has a **Remote execution** page, but Once run telemetry does not yet distinguish remote execution from local actions. The page explains this gap and links to **Build Runs** for recorded action details; it does not infer remote activity from worker lanes or show those actions as remote usage.
+The project sidebar has a **Remote execution** page. Its **Analytics** card shows the executions and total execution time of the selected period, as described in <.localized_link href="/guides/features/cache/bazel-cache#running-actions-and-usage">Running actions and usage</.localized_link>. Once run telemetry does not yet distinguish remote execution from local actions, so the page has no per-run remote timings or running runs. It explains this gap and links to **Build Runs** for recorded action details. The remote actions running and queued right now are available from the `get_remote_execution_activity` MCP tool and its REST endpoint. Both come from the execution service, not from worker lanes.
 
 See [Once's remote execution guide](https://buildonce.dev/docs/guide/infrastructure/tuist#run-actions-on-tuist-workers) for queueing, authentication refresh, and cache-endpoint overrides. Follow <.localized_link href="/guides/features/build-insights/once">Once build insights</.localized_link> to inspect the resulting runs.

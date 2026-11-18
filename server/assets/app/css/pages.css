@@ -64,6 +64,7 @@
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";
 @import "./pages/shards.css";
+@import "./pages/snapshots.css";
 @import "./pages/authentication_settings.css";
 @import "./pages/webhooks.css";
 @import "./pages/webhook.css";
