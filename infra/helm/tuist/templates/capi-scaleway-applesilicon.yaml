@@ -412,7 +412,7 @@ spec:
     metadata:
       annotations:
         # Scrape the operator's controller-runtime + custom metrics
-        # (capt_scaleway_applesilicon_machine_phase) into Grafana Cloud via
+        # (capt_scaleway_applesilicon_machine_phase) into Pulse via
         # the k8s-monitoring chart's annotation autodiscovery. Without this
         # the :8080 endpoint is served but never scraped, so the
         # machine-stuck-Failed alert has no metric to fire on.

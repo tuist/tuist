@@ -15,19 +15,19 @@ import (
 	"time"
 )
 
-// ErrRejected marks a push Loki refused for a reason retrying cannot fix: a
-// malformed body, a label the tenant disallows, or — the case that actually
-// happens here — entries older than the tenant's accepted window, which is
-// what a shipper catching up after a long outage produces. The caller drops
-// the batch and advances rather than retrying forever behind lines that will
-// never be accepted.
+// ErrRejected marks a push the receiver refused for a reason retrying cannot
+// fix: a malformed body or a label it disallows. The receiver stamps lines
+// with their arrival time, so a shipper catching up after a long outage does
+// not produce entries too old to land. The caller drops the batch and
+// advances rather than retrying forever behind lines that will never be
+// accepted.
 var ErrRejected = errors.New("loki rejected the batch")
 
 // Client pushes batches to a Loki-compatible /loki/api/v1/push endpoint.
 //
 // No credentials: the endpoint is the in-cluster Alloy receiver reached over
 // the tailnet, and the tailnet ACL is the access control. Alloy holds the
-// Grafana Cloud token and forwards, so a Mac mini never carries one.
+// Pulse ingest credential and forwards, so a Mac mini never carries one.
 type Client struct {
 	URL     string
 	once    sync.Once

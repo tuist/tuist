@@ -11,7 +11,7 @@ global:
 # Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
 # Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
 # Retain default). Ships to every cluster the chart is applied to. Safe to leave
-# on: dryRun only logs. After reviewing a run's logs in Grafana Cloud, set
+# on: dryRun only logs. After reviewing a run's logs in Pulse, set
 # dryRun=false (per env) to arm actual reaping. See templates/released-pv-reaper.yaml.
 pvReaper:
   enabled: true
@@ -2557,8 +2557,8 @@ macosFleet:
   # alloy-metrics through the egress ProxyGroup, logs are pushed by the host.
   # They are pushed to the in-cluster Alloy receiver over the tailnet —
   # already reachable, already granted in acls.json, already serving this
-  # exact endpoint for the xcresult processor's Tart guests — rather than to
-  # Grafana Cloud, so no ingest credential is ever distributed to the fleet.
+  # exact endpoint for the xcresult processor's Tart guests — rather than
+  # straight to Pulse, so no ingest credential is ever distributed to the fleet.
   #
   # Requires `tailscale.enabled`; the endpoint only exists on the tailnet.
   #

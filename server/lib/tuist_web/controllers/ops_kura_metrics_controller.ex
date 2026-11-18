@@ -2,8 +2,8 @@ defmodule TuistWeb.OpsKuraMetricsController do
   @moduledoc """
   Serves one Kura cache pod's live Prometheus exposition to an operator.
 
-  Grafana Cloud stores the cache histograms aggregated by region, so the
-  per-pod distribution exists only on the pod. Responds with the exposition
+  The collector drops or thins the cache histograms' buckets before they reach
+  Pulse, so the full per-pod distribution exists only on the pod. Responds with the exposition
   verbatim as `text/plain`.
   """
   use TuistWeb, :controller

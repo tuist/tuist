@@ -6,10 +6,11 @@ self-hosted CAPI + caph **management cluster** (three-node Talos). This is
 GitOps reconciliation, so drift is corrected on an interval instead of only
 on merge, and no routine change needs the break-glass kubeconfig.
 
-Health alerting is a separate, independent path — **Pillar 2**, Grafana
-Cloud (`infra/helm/k8s-monitoring/values-management.yaml` +
-`infra/helm/k8s-monitoring/alerts.md`). A GitOps dashboard is not the health
-mechanism; a degraded control plane pages via Grafana Cloud.
+Health alerting is a separate, independent path — **Pillar 2**
+(`infra/helm/k8s-monitoring/values-management.yaml` +
+`infra/helm/k8s-monitoring/alerts.md`): metrics are stored in management's own
+Pulse, and Grafana Cloud evaluates the rules over them. A GitOps dashboard is
+not the health mechanism; a degraded control plane pages via Grafana Cloud.
 
 ## What Flux owns (and deliberately does not)
 

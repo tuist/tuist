@@ -87,8 +87,12 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
   rules are created by hand in Grafana; that document is not provisioning.
 - ClickHouse reads are measured by `Tuist.ClickHouseRepo.PromExPlugin` (count
   and duration by outcome) and LiveView async loads by
-  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
-  a metric nothing queries has its labels aggregated away by Grafana Cloud.
+  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric.
+  Outside production the collector drops every `tuist_*` metric before it
+  reaches Pulse unless its name matches the hand-maintained non-production
+  keep regex in `infra/helm/k8s-monitoring/values.yaml`, which lists the
+  metrics alerts without a production pin read. An alert alone does not keep
+  a new metric there: extend that regex too. Production keeps them all.
 - `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
   and connection-wait, execution, decoding, and total-duration histograms for
   PostgreSQL and ClickHouse in all runtimes. The `workload` label separates

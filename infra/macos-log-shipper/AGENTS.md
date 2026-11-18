@@ -42,8 +42,8 @@ Tailscale operator's egress ProxyGroup. Logs are **pushed**, because a file has
 no scrapeable surface.
 
 They are pushed to the in-cluster Alloy receiver's `loki.source.api` (port
-3100) at its tailnet hostname — not to Grafana Cloud. Alloy already holds the
-Grafana Cloud token and forwards, so no ingest credential is ever distributed
+3100) at its tailnet hostname — not straight to Pulse. Alloy already holds the
+Pulse ingest credential and forwards, so no ingest credential is ever distributed
 to nine internet-facing Mac minis; the tailnet ACL
 ([`infra/tailscale/acls.json`](../tailscale/acls.json), `tag:tuist-macmini-<env>`
 → `tag:tuist-k8s-<env>` on `tcp:3100`) is the access control. This is the same
@@ -55,16 +55,17 @@ path the xcresult processor's Tart guests already use for their own logs.
   outage cannot grow the agent's memory. It stops advancing its offset and
   catches up later in ≤1MiB chunks.
 - **Offsets advance only after a successful push**, so a crash re-ships at most
-  one batch instead of losing it. Loki deduplicates identical
-  `(stream, timestamp, line)` entries, so the overlap is invisible.
+  one batch instead of losing it. That batch is stored twice: the receiver's
+  `loki.source.api` stamps each line with its arrival time, and Pulse writes
+  pushed logs to an append-mode table, which keeps every row. Expect up to one
+  batch of duplicate lines after a crash.
 - **A retryable failure retries forever** (capped backoff). A permanent
-  rejection (4xx that is not 429 — a malformed body, or entries older than the
-  tenant's accepted window, which is what a long catch-up produces) drops the
-  batch and advances, because blocking on it would stall every later line
-  behind lines that can never land.
+  rejection (4xx that is not 429, such as a malformed body) drops the batch and
+  advances, because blocking on it would stall every later line behind lines
+  that can never land.
 - **A file seen for the first time starts at its END.**
   `/var/log/tart-kubelet.log` is never rotated, so byte 0 on a long-lived host
-  is months of history Grafana Cloud would mostly reject as too old.
+  is months of history nobody asked for.
 - **The file is re-opened per poll, not held open.** Holding the descriptor is
   how a tailer follows a rotated file to its end, and also how it pins a
   deleted multi-gigabyte file against a disk that already needs a golden-image
@@ -87,22 +88,37 @@ read time, so one bad line cannot make its whole batch a permanent rejection.
 
 ## Querying
 
-```
-{job="tuist-macos-tart-kubelet", env="production"}
-{job="tuist-macos-tart-kubelet"} |= "converge"
-{job="tuist-macos-tart-kubelet", instance="tuist-tuist-runners-fleet-abc12", level="error"}
+The lines are rows of the environment's Pulse `opentelemetry_logs`, with the
+stream labels in the `resource_attributes` JSON and the line in `body`. Pulse
+serves no Loki query API; read them through the **Tuist Pulse SQL** data source
+(`pulse-sql`), which only production has (see
+[`infra/log-review.md`](../log-review.md)):
+
+```sql
+SELECT timestamp,
+  json_get_string(resource_attributes, 'instance') AS instance,
+  json_get_string(resource_attributes, 'level') AS level,
+  body
+FROM opentelemetry_logs
+WHERE timestamp >= '<start>' AND timestamp < '<end>'
+  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'
+  AND json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet'
+  -- AND body LIKE '%converge%'
+  -- AND json_get_string(resource_attributes, 'instance') = 'tuist-tuist-runners-fleet-abc12'
+  -- AND json_get_string(resource_attributes, 'level') = 'error'
+ORDER BY timestamp
 ```
 
 `instance` is the CAPI Machine / Node name, so it joins directly against the
 `node_*` and `tart_kubelet_*` metrics scraped from the same host.
 
-## What lands in Loki is documented as stored data
+## What lands in Pulse is documented as stored data
 
 `tart-kubelet`'s cache-volume lines carry the Tuist **account id** (from the
 `tuist.dev/runner-account` label the server stamps at dispatch), so this stream
 is account-correlated operational telemetry, not just infrastructure noise. It
 is written up in [`server/data-export.md`](../../server/data-export.md) under
-Non-Exportable Data, alongside the Kura traces in Tempo.
+Non-Exportable Data, alongside the managed Kura traces.
 
 Adding a new tailed file, or a new field to an existing line, is a change to
 what Tuist stores about an account. Update that document in the same change.
@@ -161,7 +177,7 @@ the agent is off, so a re-enable that resumed from the stale offset would
 replay the whole disabled window in one burst. A re-enable starts at the end of
 the file, the same as a first install.
 
-## Guest stdout reaches Loki through tart-kubelet, not through this agent
+## Guest stdout reaches Pulse through tart-kubelet, not through this agent
 
 The runner VMs' `dispatch-poll.sh` output does **not** ride this agent directly,
 and cannot: the guest redirects to a file inside itself
@@ -175,7 +191,7 @@ writable status share it already owns (`/Volumes/My Shared Files/status` → the
 host's `VolumeStatusDir`) as `runner.log`, and **tart-kubelet re-emits a bounded
 tail to its own stdout at teardown**, just before `deleteByKey` removes the
 share. That stdout is `/var/log/tart-kubelet.log` — the file this agent already
-tails. So the trail lands in Loki with no change here.
+tails. So the trail lands in Pulse with no change here.
 
 That indirection is deliberate. Tailing the shares directly was the obvious
 design and is the worse one: the share is per-VM and ephemeral, so the agent

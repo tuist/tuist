@@ -2,13 +2,10 @@ apiVersion: v2
 name: tuist-k8s-monitoring
 description: >
   Grafana Kubernetes Monitoring for Tuist-managed clusters. Wraps the
-  upstream grafana/k8s-monitoring chart and adds an ExternalSecret that
-  syncs the Grafana Cloud Prometheus / Loki / Tempo tokens from 1Password
-  via external-secrets-operator. Ships cluster-level metrics
+  upstream grafana/k8s-monitoring chart. Ships cluster-level metrics
   (kube-state-metrics, node-exporter, kubelet, cAdvisor), events, pod
-  logs, and OTLP receivers for managed workload traces so the Grafana Cloud
-  Kubernetes app lights up. Workload clusters also write the same telemetry
-  directly to the independently deployed in-cluster Pulse.
+  logs, and OTLP receivers for managed workload traces only to the
+  independently deployed in-cluster Pulse, which Grafana Cloud reads.
 type: application
 version: 0.1.0
 appVersion: "4.0.3"

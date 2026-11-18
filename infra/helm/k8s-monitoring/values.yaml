@@ -2637,7 +2637,7 @@ k8s-monitoring:
         //
         // Web vitals arrive as `kind=measurement` entries whose logfmt line
         // carries one field per vital (lcp, cls, inp, fcp, ttfb). The LCP alert
-        // rules unwrap `lcp` off this stream; see alerts.md.
+        // rules parse `lcp` out of Pulse's tuist_web_logs; see alerts.md.
         faro.receiver "tuist_web" {
           server {
             listen_address = "0.0.0.0"

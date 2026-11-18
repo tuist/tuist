@@ -66,7 +66,7 @@ In accordance with our [shared responsibility model](/security/shared-responsibi
 **Infrastructure Provider Responsibility (covered by provider testing):**
 - Physical data center security (Hetzner, Scaleway, OVHcloud)
 - Hardware, host network, and volumetric denial-of-service filtering (Hetzner, Scaleway, OVHcloud, Cloudflare)
-- The managed services providers operate themselves: object storage (Tigris), the analytics database (ClickHouse Cloud), the edge network (Cloudflare), telemetry storage (Grafana Cloud), and the secret vault (1Password)
+- The managed services providers operate themselves: object storage (Tigris), the analytics database (ClickHouse Cloud), the edge network (Cloudflare), dashboards, alerting and the remaining telemetry storage (Grafana Cloud), and the secret vault (1Password)
 - Infrastructure-level access controls within those services
 
 Note that platform-level patching and cluster network security are not on this list. Under our model they belong to Tuist GmbH, not to a provider.

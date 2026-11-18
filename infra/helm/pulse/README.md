@@ -44,7 +44,7 @@ These are desired configuration, **not a record of provisioned resources**:
 - The management cluster runs its own standalone Pulse, installed by Flux
   (`infra/flux/pulse`) with `values-management.yaml`, so its metrics never
   depend on a workload cluster. Management's collectors write their metrics
-  to it alongside Grafana Cloud. It writes `tuist-pulso-production/management/`
+  only to it. It writes `tuist-pulso-production/management/`
   with the **`tuist-k8s-mgmt`** vault's `PULSE_TOKEN` and
   `PULSE_S3_CREDENTIALS`, a Tigris key whose IAM policy allows only that prefix,
   so management can never read or delete production's `pulse/`
@@ -180,7 +180,7 @@ Pulse, so the fork carries no code for it.
 observability concurrency lane and isolated `tuist-pulso-<env>/pulse/`
 bucket/prefix. Namespace is always `observability`. Never read credentials into
 agent context. Canary/production reject `inspect_readers` before loading
-credentials. Grafana Cloud destinations are never changed by any of these steps.
+credentials. None of these steps changes Grafana Cloud.
 
 Each environment moves in this order:
 
@@ -200,8 +200,8 @@ Each environment moves in this order:
    stateful component.
 2. **Write to Pulse.** Deploy `k8s-monitoring` with its Pulse destinations.
    Server deploys refuse this until `pulse-dashboard-auth` is Ready with its
-   ingest keys, because Alloy drops its whole config, Grafana Cloud included,
-   when a referenced Secret is missing. Then dispatch with
+   ingest keys, because Alloy drops its whole config, every other writer
+   included, when a referenced Secret is missing. Then dispatch with
    `dashboard=true,verify_telemetry=true`, which requires recent real Kubernetes
    metrics, non-CI logs and non-CI traces. Idle workloads fail closed: generate
    traffic rather than accepting the synthetic smoke.
@@ -222,8 +222,10 @@ literal text search rather than LogQL/TraceQL.
 ## Routine deployments remain independent
 
 The server's collector readiness gate (`pulse-readiness.sh`) follows the live
-workloads. With no `pulse` release installed it passes, and collectors still
-deploy to Grafana Cloud. Otherwise every workload of the installed topology must
+workloads. With no `pulse` release installed it fails: every environment's
+collectors write only to Pulse, so their values reference the
+`pulse-dashboard-auth` ingest login, which only the `pulse` chart creates.
+Otherwise every workload of the installed topology must
 be Helm-owned by `pulse`, fully rolled out and Ready, and run a published
 `ghcr.io/tuist/pulse:<version>-<n>` image. The observability concurrency lane serializes these dispatches and
 routine collector upgrades.
@@ -318,7 +320,9 @@ PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/puls
 ## Rollback boundaries
 
 Rolling back a collector change means pointing `k8s-monitoring` back at
-whatever backend should receive writes. Grafana Cloud is unaffected either way.
+whatever backend should receive writes. To send them back to Grafana Cloud,
+follow the rollback in
+[`pulse-grafana.md`](../k8s-monitoring/pulse-grafana.md#cloud-storage-stopped-on-november-17-2026).
 Rolling back a backend change is a `helm rollback pulse` to an earlier revision.
 Do not uninstall the backend or shrink its PVC as a rollback shortcut. Pulse
 data is not copied between releases, and historical objects are neither
