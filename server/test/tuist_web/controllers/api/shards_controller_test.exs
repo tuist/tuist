@@ -760,7 +760,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "returns signed upload URL for a shard plan id", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part, _artifact, _opts ->
+      stub(Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part, _artifact, _ ->
         {:ok, "https://upload.example.com/part"}
       end)
 

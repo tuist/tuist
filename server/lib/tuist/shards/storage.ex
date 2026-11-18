@@ -80,27 +80,30 @@ defmodule Tuist.Shards.Storage do
       if id in [nil, ""] do
         {:ok, actor}
       else
-        config = Environment.shard_storage_targets()[id]
-        site = config["site"]
-
-        case {config["access"], CacheGrant.linux_site(grant, account.id)} do
-          {"public", {:ok, ^site}} ->
-            if config["private_network_ready"] == true and is_binary(config["private_endpoint"]) do
-              s3_target(id, config |> Map.put("endpoint", config["private_endpoint"]) |> Map.put("access", "private"))
-            else
-              {:ok, actor}
-            end
-
-          {"public", _} ->
-            {:ok, actor}
-
-          {_, {:ok, ^site}} ->
-            {:ok, actor}
-
-          _ ->
-            {:error, :shard_storage_unavailable}
-        end
+        resolve_target_for_request(id, Environment.shard_storage_targets()[id], actor, account, grant)
       end
+    end
+  end
+
+  defp resolve_target_for_request(id, config, actor, account, grant) do
+    site = config["site"]
+
+    case {config["access"], CacheGrant.linux_site(grant, account.id)} do
+      {"public", {:ok, ^site}} ->
+        if config["private_network_ready"] == true and is_binary(config["private_endpoint"]) do
+          s3_target(id, config |> Map.put("endpoint", config["private_endpoint"]) |> Map.put("access", "private"))
+        else
+          {:ok, actor}
+        end
+
+      {"public", _} ->
+        {:ok, actor}
+
+      {_, {:ok, ^site}} ->
+        {:ok, actor}
+
+      _ ->
+        {:error, :shard_storage_unavailable}
     end
   end
 
