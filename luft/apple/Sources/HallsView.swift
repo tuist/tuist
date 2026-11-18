@@ -61,10 +61,6 @@ private struct HallsPage: Decodable {
     let directs: [AppHall]
 }
 
-struct HallRoute: Hashable, Identifiable {
-    let id: String
-}
-
 extension AppClient {
     func hall(_ operation: String, _ args: [String: Any]) async throws -> AppHall {
         let data = try await call(operation, args)
@@ -96,7 +92,7 @@ struct HallsView: View {
                 }
             }
             ForEach(rows) { hall in
-                NavigationLink(value: HallRoute(id: hall.id)) { HallRow(hall: hall) }
+                NavigationLink(value: WorkspaceRoute.hall(hall.id)) { HallRow(hall: hall) }
                     .listRowBackground(Noora.backgroundTertiary)
             }
         }
@@ -347,7 +343,6 @@ struct HallConversationView: View {
         .navigationTitle(Text(verbatim: hall?.title ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
         #endif
             // Only while someone can see it: a conversation left open behind
             // other apps must not mark new messages read.

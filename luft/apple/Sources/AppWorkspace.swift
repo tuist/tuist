@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// A screen the core's navigation opens: pushed onto a stack, or picked in the iPhone's sidebar.
+enum WorkspaceRoute: Hashable {
+    case thread(String)
+    /// A hall, or a DM in the DMs stack.
+    case hall(String)
+    /// Halls, DMs or Profile, picked in the iPhone's sidebar.
+    case list(AppNavigation.Tab)
+}
+
 struct AppWorkspace: View {
     @State private var client: AppClient
     @State private var updater: PreviewUpdater
@@ -12,6 +21,12 @@ struct AppWorkspace: View {
     /// Whether Start conversation shows. `ThreadsView` decides from the core's `navigation.compose`;
     /// the sheet lives here so rebuilding the signed-in views for a new generation keeps it and its draft.
     @State private var startingConversation = false
+    #if os(iOS)
+        /// Whether the iPhone's sidebar is over the open destination, and how far it is dragged.
+        @State private var sidebarOpen = false
+        @GestureState private var sidebarDrag: CGFloat = 0
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     init(client: AppClient) {
@@ -48,25 +63,7 @@ struct AppWorkspace: View {
                     .toolbar { ToolbarItem(placement: .primaryAction) { profilesMenu } }
                     .id(client.view.generation)
                 #else
-                    TabView(selection: $tab) {
-                        threadsStack
-                            .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right") }
-                            .tag(AppNavigation.Tab.threads)
-                        hallsStack(.halls)
-                            .tabItem { Label("Halls", systemImage: "number") }
-                            .tag(AppNavigation.Tab.halls)
-                        hallsStack(.dms)
-                            .tabItem { Label("DMs", systemImage: "bubble.left.and.text.bubble.right") }
-                            .tag(AppNavigation.Tab.dms)
-                        NavigationStack {
-                            ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
-                                .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
-                        }
-                        .tabItem { Label("Profile", systemImage: "person.crop.circle") }
-                        .tag(AppNavigation.Tab.profile)
-                    }
-                    .minimizingTabBarOnScroll()
-                    .id(client.view.generation)
+                    sidebarStack.id(client.view.generation)
                 #endif
             }
         }
@@ -169,51 +166,176 @@ struct AppWorkspace: View {
         }
     }
 
-    /// The Halls or DMs tab: its list, and the conversation the core says is open in it.
-    private func hallsStack(_ tab: AppNavigation.Tab) -> some View {
-        let open = tab == .halls ? client.view.navigation.hall_id : client.view.navigation.dm_id
-        return NavigationStack(path: Binding(
-            get: { open.map { [HallRoute(id: $0)] } ?? [] },
-            set: { routes in
-                if let route = routes.last, route.id != open {
-                    Task { await client.perform("navigate", ["url": "/\(tab.rawValue)/\(route.id)"]) }
+    #if os(macOS)
+        /// The Halls or DMs tab: its list, and the conversation the core says is open in it.
+        private func hallsStack(_ tab: AppNavigation.Tab) -> some View {
+            let open = tab == .halls ? client.view.navigation.hall_id : client.view.navigation.dm_id
+            return NavigationStack(path: Binding(
+                get: { open.map { [WorkspaceRoute.hall($0)] } ?? [] },
+                set: { routes in
+                    if case let .hall(id) = routes.last, id != open {
+                        Task { await client.perform("navigate", ["url": "/\(tab.rawValue)/\(id)"]) }
+                    }
+                    if routes.isEmpty, client.view.navigation.tab == tab, open != nil {
+                        Task { await client.perform("navigation_back") }
+                    }
                 }
-                if routes.isEmpty, client.view.navigation.tab == tab, open != nil {
-                    Task { await client.perform("navigation_back") }
-                }
+            )) {
+                HallsView(client: client, tab: tab.rawValue)
+                    .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
             }
-        )) {
-            HallsView(client: client, tab: tab.rawValue)
-                .navigationDestination(for: HallRoute.self) { route in
-                    HallConversationView(client: client, id: route.id).id(route.id)
-                }
         }
-    }
 
-    private var threadsStack: some View {
-        NavigationStack(path: Binding(
-            get: { client.view.navigation.thread_id.map { [ThreadRoute(id: $0)] } ?? [] },
-            set: { routes in
-                if let route = routes.last, route.id != client.view.navigation.thread_id {
-                    Task { await client.perform("navigate", ["url": "/threads/\(route.id)"]) }
+        private var threadsStack: some View {
+            NavigationStack(path: Binding(
+                get: { client.view.navigation.thread_id.map { [WorkspaceRoute.thread($0)] } ?? [] },
+                set: { routes in
+                    if case let .thread(id) = routes.last, id != client.view.navigation.thread_id {
+                        Task { await client.perform("navigate", ["url": "/threads/\(id)"]) }
+                    }
+                    // Native Back/swipe changes the same core state as a URL does.
+                    if routes.isEmpty, client.view.navigation.tab == .threads, client.view.navigation.thread_id != nil {
+                        Task { await client.perform("navigation_back") }
+                    }
                 }
-                // Native Back/swipe changes the same core state as a URL does.
-                if routes.isEmpty, client.view.navigation.tab == .threads, client.view.navigation.thread_id != nil {
-                    Task { await client.perform("navigation_back") }
-                }
+            )) {
+                ThreadsView(client: client, starting: $startingConversation)
+                    .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
             }
-        )) {
-            ThreadsView(client: client, starting: $startingConversation)
-                .navigationDestination(for: ThreadRoute.self) { route in
-                    ConversationView(client: client, id: route.id)
-                        .id(route.id)
+        }
+    #else
+        /// The iPhone shows one destination, the one the core's tab and stacks say is open, so links
+        /// and notifications land in the same place. The sidebar slides over it, as in Claude.
+        private var sidebarStack: some View {
+            GeometryReader { geometry in
+                let width = min(geometry.size.width * 0.85, 360)
+                ZStack(alignment: .leading) {
+                    NavigationStack(path: Binding(get: { mainPath }, set: { setMainPath($0) })) {
+                        mainRoot
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button("Open sidebar", systemImage: "line.3.horizontal") { sidebarOpen = true }
+                                }
+                            }
+                            .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
+                    }
+                    // Swiping in from the edge opens the sidebar; once a hall is open, it goes Back instead.
+                    .overlay(alignment: .leading) {
+                        if mainPath.isEmpty {
+                            Color.clear.frame(width: 16).contentShape(Rectangle())
+                                .gesture(DragGesture(minimumDistance: 10).onEnded {
+                                    if $0.translation.width > 60 { sidebarOpen = true }
+                                })
+                        }
+                    }
+                    .accessibilityHidden(sidebarOpen)
+
+                    if sidebarOpen {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+                            .onTapGesture { sidebarOpen = false }
+                            .transition(.opacity)
+                            .accessibilityHidden(true)
+
+                        // Only there while open, so VoiceOver never reaches it offscreen. Start
+                        // conversation is the chat screen behind it, never a sheet.
+                        NavigationStack {
+                            ThreadsView(client: client, starting: .constant(false)) { open($0) }
+                        }
+                        .frame(width: width)
+                        .background(Noora.backgroundPrimary.ignoresSafeArea())
+                        .shadow(color: .black.opacity(0.2), radius: 16)
+                        .offset(x: min(0, sidebarDrag))
+                        .transition(.move(edge: .leading))
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 20)
+                                .updating($sidebarDrag) { value, drag, _ in
+                                    if abs(value.translation.width) > abs(value.translation.height) {
+                                        drag = value.translation.width
+                                    }
+                                }
+                                .onEnded { if $0.translation.width < -width / 3 { sidebarOpen = false } }
+                        )
+                        // VoiceOver stays in the sidebar instead of reaching the screen it covers.
+                        .accessibilityAddTraits(.isModal)
+                        .accessibilityAction(.escape) { sidebarOpen = false }
+                    }
                 }
+                .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: sidebarOpen)
+                .animation(reduceMotion ? nil : .interactiveSpring(), value: sidebarDrag)
+            }
+            // Starting a conversation, from the sidebar or a shortcut, shows the chat screen.
+            .onChange(of: client.view.navigation.compose) { _, compose in
+                if compose != nil { sidebarOpen = false }
+            }
+        }
+
+        /// What the selected destination shows before anything is pushed onto it.
+        @ViewBuilder private var mainRoot: some View {
+            let navigation = client.view.navigation
+            switch navigation.tab {
+            case .threads:
+                if let id = navigation.thread_id {
+                    ConversationView(client: client, id: id).id(id)
+                } else {
+                    // A new chat; the core's Start conversation route (`compose`) raises its keyboard or dictation.
+                    StartConversationView(client: client, input: navigation.compose.map { $0 == "dictation" ? .voice : .text })
+                }
+            case .halls, .dms: HallsView(client: client, tab: navigation.tab.rawValue).id(navigation.tab)
+            case .profile: destination(.list(.profile))
+            }
+        }
+
+        /// A hall or DM pushed over its list.
+        private var mainPath: [WorkspaceRoute] {
+            let navigation = client.view.navigation
+            let open = switch navigation.tab {
+            case .halls: navigation.hall_id
+            case .dms: navigation.dm_id
+            case .threads, .profile: String?.none
+            }
+            return open.map { [.hall($0)] } ?? []
+        }
+
+        /// Native pushes, Back and swipes change the same core state as a URL does.
+        private func setMainPath(_ routes: [WorkspaceRoute]) {
+            guard routes != mainPath else { return }
+            if case let .hall(id) = routes.last {
+                Task { await client.perform("navigate", ["url": "/\(client.view.navigation.tab.rawValue)/\(id)"]) }
+            } else if routes.isEmpty {
+                Task { await client.perform("navigation_back") }
+            }
+        }
+
+        /// Opens what the person picked in the sidebar and closes it.
+        private func open(_ route: WorkspaceRoute) {
+            sidebarOpen = false
+            let url = switch route {
+            case let .thread(id): "/threads/\(id)"
+            case let .hall(id): "/\(client.view.navigation.tab.rawValue)/\(id)"
+            // Halls and DMs open at their list, not a conversation left open there.
+            case let .list(tab): "/\(tab.rawValue)"
+            }
+            Task { await client.perform("navigate", ["url": url]) }
+        }
+    #endif
+
+    @ViewBuilder private func destination(_ route: WorkspaceRoute) -> some View {
+        switch route {
+        case let .thread(id): ConversationView(client: client, id: id).id(id)
+        case let .hall(id): HallConversationView(client: client, id: id).id(id)
+        case .list(.profile):
+            ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
+            #if os(iOS)
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
+            #endif
+        case let .list(tab): HallsView(client: client, tab: tab.rawValue)
         }
     }
 
     /// Switches between the personal accounts and organizations of every saved
     /// profile, adds profiles and signs out: in the window toolbar on the Mac,
-    /// and in the Profile tab's navigation bar on iOS.
+    /// and in Profile's navigation bar on iOS.
     private var profilesMenu: some View {
         Menu {
             ForEach(client.view.accounts) { account in
@@ -253,7 +375,7 @@ private struct PresenceKey: Equatable {
 }
 
 /// The shipping app's Profile page (`app/Sources/TuistProfile/ProfileView.swift`).
-/// Switching accounts and adding profiles live in the account menu: the Profile tab's
+/// Switching accounts and adding profiles live in the account menu: Profile's
 /// navigation bar on iOS and the window toolbar on macOS.
 private struct ProfileView: View {
     let client: AppClient

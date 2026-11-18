@@ -18,6 +18,9 @@ struct ReplyComposer: View {
     var mentions: Mentions?
     /// The hall's title, for the invite note.
     var place: String?
+    var placeholder: LocalizedStringKey = "Reply"
+    /// Lets the caller raise or hide the keyboard.
+    var focus: FocusState<Bool>.Binding?
     let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -55,7 +58,8 @@ struct ReplyComposer: View {
                         .accessibilityLabel("Recording on this device")
                         .accessibilityHint("Release the microphone or tap stop to add editable text. Nothing is sent automatically.")
                     } else {
-                        TextField("Reply", text: $reply, axis: .vertical)
+                        TextField(placeholder, text: $reply, axis: .vertical)
+                            .focused(given: focus)
                             // Keep the conversation above the keyboard at accessibility sizes.
                             .lineLimit(1 ... (dynamicTypeSize.isAccessibilitySize ? 2 : 6))
                             .textFieldStyle(.plain)
@@ -111,6 +115,12 @@ struct ReplyComposer: View {
         }
         .accessibilityElement(children: .contain)
         .onChange(of: reply) { _, text in mentions?.update(text) }
+    }
+}
+
+private extension View {
+    @ViewBuilder func focused(given focus: FocusState<Bool>.Binding?) -> some View {
+        if let focus { focused(focus) } else { self }
     }
 }
 

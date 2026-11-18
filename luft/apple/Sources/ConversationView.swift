@@ -74,10 +74,6 @@ struct AppConversation: Decodable {
     var next_before: Int?
 }
 
-struct ThreadRoute: Hashable, Identifiable {
-    let id: String
-}
-
 extension AppClient {
     func conversation(_ operation: String, _ args: [String: Any]) async throws -> AppConversation {
         let data = try await call(operation, args)
@@ -100,13 +96,15 @@ struct AppRunner: Decodable, Identifiable, Hashable {
 }
 
 /// Asks what to talk about and where it runs: on Tuist, or on one of the
-/// person's runners. The core picks the model.
+/// person's runners. The core picks the model. A sheet on the Mac; the
+/// iPhone's default chat screen.
 struct StartConversationView: View {
-    /// What the sheet starts with: the keyboard, or dictation from a shortcut.
+    /// What it starts with: the keyboard, or dictation from a shortcut. Nil
+    /// leaves the iPhone's chat screen as it is, without raising the keyboard.
     enum Input { case text, voice }
 
     let client: AppClient
-    var input = Input.text
+    var input: Input? = .text
     @State private var runners: [AppRunner] = []
     /// Nil runs the conversation on Tuist.
     @State private var runner: String?
@@ -123,55 +121,110 @@ struct StartConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        Form {
-            Section {
-                TextField("What do you want to talk about?", text: $content, axis: .vertical)
-                    .lineLimit(4 ... 12)
-                    .focused($focused)
-                    .disabled(starting || voice.busy)
-                    .onChange(of: content) { _, text in mentions.update(text) }
-                MentionBar(mentions: mentions, text: $content)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
-            } footer: {
-                if mentions.people.isEmpty == false, mentions.state.loop_in.isEmpty, mentions.state.query == nil {
-                    Text("Type @ to loop someone in.")
+        layout
+            .task { await mentions.load(client) }
+            // People without runners see no choice; a failure to list them changes nothing.
+            .task {
+                if let data = try? await client.call("runners"),
+                   let list = data["runners"],
+                   let decoded = try? JSONDecoder().decode([AppRunner].self, from: JSONSerialization.data(withJSONObject: list))
+                { runners = decoded }
+            }
+            .onAppear { if input == .text { focused = true } }
+            .onChange(of: voice.busy) { _, busy in if !busy { focused = true } }
+            // Dictate from a shortcut while it is already open switches it to dictation.
+            .onChange(of: input) { _, input in
+                if input == .voice {
+                    dictationStarted = false
+                    beginRequestedDictation()
+                } else if input == .text, !voice.busy {
+                    focused = true
                 }
             }
-            if let message = voice.errorMessage {
-                Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                beginRequestedDictation()
+                // Permission alerts briefly deactivate the scene before their callbacks return.
+                if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
             }
-            if !runners.isEmpty {
-                Picker("Run on", selection: $runner) {
-                    Text("Tuist").tag(String?.none)
-                    ForEach(runners) { runner in
-                        Text(verbatim: runner.online
-                            ? runner.name
-                            : String(format: String(localized: "%@ (offline)"), runner.name))
-                            .tag(Optional(runner.id))
+            .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
+            .onDisappear { request?.cancel(); voice.cancel() }
+    }
+
+    #if os(iOS)
+        /// The iPhone's default chat screen: nothing is open yet, and sending starts a conversation.
+        private var layout: some View {
+            VStack(spacing: 12) {
+                Image("TuistRoundedIcon").resizable().frame(width: 56, height: 56).accessibilityHidden(true)
+                Text("Big things start here").font(.title2.weight(.semibold)).foregroundStyle(Noora.labelPrimary)
+                Text("Ask a question, explore an idea, or solve a problem with Tuist.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Noora.labelSecondary)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Noora.backgroundPrimary)
+            .contentShape(Rectangle())
+            .onTapGesture { focused = false }
+            .safeAreaInset(edge: .bottom) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let error {
+                        Text(verbatim: error).font(.caption).foregroundStyle(Noora.labelDestructive)
+                            .padding(.horizontal, 12)
+                    } else if mentionHint {
+                        Text("Type @ to loop someone in.").font(.caption).foregroundStyle(Noora.labelSecondary)
+                            .padding(.horizontal, 12)
+                    }
+                    ReplyComposer(
+                        reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
+                        placeholder: "What do you want to talk about?", focus: $focused
+                    ) { request = Task { await start() } }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+            .navigationTitle(Text(verbatim: "Luft"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if !runners.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Picker("Run on", selection: $runner) { runnerOptions }
+                        } label: {
+                            Label("Run on", systemImage: "desktopcomputer")
+                        }
+                        .disabled(starting || voice.busy)
                     }
                 }
-                .disabled(starting || voice.busy)
-            }
-            if let error {
-                Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
             }
         }
-        .task { await mentions.load(client) }
-        // People without runners see no choice; a failure to list them changes nothing.
-        .task {
-            if let data = try? await client.call("runners"),
-               let list = data["runners"],
-               let decoded = try? JSONDecoder().decode([AppRunner].self, from: JSONSerialization.data(withJSONObject: list))
-            { runners = decoded }
-        }
-        #if os(macOS)
-        .formStyle(.grouped)
-        .frame(width: 480, height: 320)
-        #endif
-        .navigationTitle("New conversation")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
+    #else
+        private var layout: some View {
+            Form {
+                Section {
+                    TextField("What do you want to talk about?", text: $content, axis: .vertical)
+                        .lineLimit(4 ... 12)
+                        .focused($focused)
+                        .disabled(starting || voice.busy)
+                        .onChange(of: content) { _, text in mentions.update(text) }
+                    MentionBar(mentions: mentions, text: $content)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
+                } footer: {
+                    if mentionHint { Text("Type @ to loop someone in.") }
+                }
+                if let message = voice.errorMessage {
+                    Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
+                }
+                if !runners.isEmpty {
+                    Picker("Run on", selection: $runner) { runnerOptions }
+                        .disabled(starting || voice.busy)
+                }
+                if let error {
+                    Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
+                }
+            }
+            .formStyle(.grouped)
+            .frame(width: 480, height: 320)
+            .navigationTitle("New conversation")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(starting)
@@ -189,24 +242,22 @@ struct StartConversationView: View {
                 }
             }
             .interactiveDismissDisabled(starting)
-            .onAppear { if input == .text { focused = true } }
-            .onChange(of: voice.busy) { _, busy in if !busy { focused = true } }
-            // Dictate from a shortcut while the sheet is already open switches it to dictation.
-            .onChange(of: input) { _, input in
-                if input == .voice {
-                    dictationStarted = false
-                    beginRequestedDictation()
-                } else if !voice.busy {
-                    focused = true
-                }
-            }
-            .onChange(of: scenePhase, initial: true) { _, phase in
-                beginRequestedDictation()
-                // Permission alerts briefly deactivate the scene before their callbacks return.
-                if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
-            .onDisappear { request?.cancel(); voice.cancel() }
+        }
+    #endif
+
+    /// Someone from the organization could be looped in, and nobody is yet.
+    private var mentionHint: Bool {
+        !mentions.people.isEmpty && mentions.state.loop_in.isEmpty && mentions.state.query == nil
+    }
+
+    @ViewBuilder private var runnerOptions: some View {
+        Text("Tuist").tag(String?.none)
+        ForEach(runners) { runner in
+            Text(verbatim: runner.online
+                ? runner.name
+                : String(format: String(localized: "%@ (offline)"), runner.name))
+                .tag(Optional(runner.id))
+        }
     }
 
     /// A shortcut can open the sheet before the app is active; the microphone waits for it.
@@ -352,8 +403,19 @@ struct ConversationView: View {
         }
         .overlay { if thread == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
-            ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions) {
-                Task { await send() }
+            VStack(alignment: .trailing, spacing: 8) {
+                #if os(iOS)
+                    // Floats over the messages, right above Send, so it is in reach of the thumb.
+                    promptsButton
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 44, height: 44)
+                        .interactiveGlass(in: Circle())
+                        .padding(.trailing, 4)
+                #endif
+                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions) {
+                    Task { await send() }
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -361,7 +423,6 @@ struct ConversationView: View {
         .navigationTitle(Text(verbatim: thread?.title ?? thread?.goal ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
         #endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -379,14 +440,9 @@ struct ConversationView: View {
                     .help("Snooze")
                     .disabled(thread == nil)
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showingPrompts = true } label: {
-                        Label("Prompts", systemImage: "list.bullet")
-                    }
-                    .help("Prompts")
-                    .accessibilityHint("Choose a prompt to jump back to it")
-                    .disabled(thread == nil)
-                }
+                #if os(macOS)
+                    ToolbarItem(placement: .primaryAction) { promptsButton }
+                #endif
             }
             // Jump only once the sheet is gone, so the scroll is not lost under it.
             .sheet(isPresented: $showingPrompts, onDismiss: {
@@ -456,6 +512,16 @@ struct ConversationView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
             .onDisappear { voice.cancel() }
+    }
+
+    /// Lists the person's earlier messages to jump back to.
+    private var promptsButton: some View {
+        Button { showingPrompts = true } label: {
+            Label("Prompts", systemImage: "list.bullet")
+        }
+        .help("Prompts")
+        .accessibilityHint("Choose a prompt to jump back to it")
+        .disabled(thread == nil)
     }
 
     /// Shows a newer latest page. Once earlier pages are loaded, messages that
