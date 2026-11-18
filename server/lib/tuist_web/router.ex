@@ -1058,6 +1058,21 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
+      # Provider bodies hold API keys, so their params are never logged.
+      scope "/ai" do
+        get "/", OrganizationAIController, :show
+        post "/providers", OrganizationAIController, :create_provider, log: false
+        patch "/providers/:id", OrganizationAIController, :update_provider, log: false
+        delete "/providers/:id", OrganizationAIController, :delete_provider
+        post "/models", OrganizationAIController, :create_model
+        patch "/models/:id", OrganizationAIController, :update_model
+        delete "/models/:id", OrganizationAIController, :delete_model
+        put "/default-model", OrganizationAIController, :set_default_model
+        post "/task-routes", OrganizationAIController, :create_task_route
+        patch "/task-routes/:id", OrganizationAIController, :update_task_route
+        delete "/task-routes/:id", OrganizationAIController, :delete_task_route
+      end
+
       scope "/webhooks" do
         get "/", WebhooksController, :index
         get "/:webhook_endpoint_id", WebhooksController, :show

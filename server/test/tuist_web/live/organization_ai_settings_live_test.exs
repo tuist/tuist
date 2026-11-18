@@ -118,6 +118,125 @@ defmodule TuistWeb.OrganizationAISettingsLiveTest do
     assert {:ok, %{connections: [], models: [], default_model_id: nil}} = OrganizationAI.settings(user, account)
   end
 
+  test "admin adds, edits and removes task routes, with the default as fallback", %{
+    conn: conn,
+    user: user,
+    account: account
+  } do
+    {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/ai/routing")
+    assert has_element?(lv, "#add-ai-route[disabled]")
+    assert has_element?(lv, "#ai-routes-table", "Add a model before adding a route.")
+
+    {:ok, connection} =
+      OrganizationAI.save_connection(user, account, %{
+        "name" => "Atlas tuist-pulse",
+        "base_url" => "https://api.together.ai/v1",
+        "api_key" => "key"
+      })
+
+    {:ok, explainer} =
+      OrganizationAI.save_model(user, account, %{
+        "connection_id" => connection.id,
+        "name" => "tuist-pulse",
+        "model_id" => "tuist-pulse"
+      })
+
+    {:ok, classifier} =
+      OrganizationAI.save_model(user, account, %{
+        "connection_id" => connection.id,
+        "name" => "Tev1 4B",
+        "model_id" => "together/Tev1-4B-experimental"
+      })
+
+    {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/ai/routing")
+    assert has_element?(lv, "#ai-routes-no-default", "tasks without a route don't send requests")
+    refute has_element?(lv, "#add-ai-route[disabled]")
+
+    lv |> element("#add-ai-route") |> render_click()
+    assert_push_event(lv, "open-modal", %{id: "organization-ai-route-modal"})
+    html = render_change(lv, "change-route", %{"_target" => ["route", "category"], "route" => %{"category" => "pulse"}})
+    options = html |> Floki.parse_document!() |> Floki.find(~s([id^="ai-route-task-"] [data-part="item"]))
+    assert Floki.text(options) =~ "Group related observations"
+    assert Floki.text(options) =~ "Name and explain symptoms"
+
+    lv
+    |> form("#organization-ai-route-form", route: %{task: "pulse_grouping", model_id: classifier.id})
+    |> render_submit()
+
+    assert_push_event(lv, "close-modal", %{id: "organization-ai-route-modal"})
+    assert {:ok, %{routes: [route]}} = OrganizationAI.settings(user, account)
+    assert {route.task, route.model_id} == {:pulse_grouping, classifier.id}
+    assert has_element?(lv, "#ai-route-#{route.id}", "Pulse")
+    assert has_element?(lv, "#ai-route-#{route.id}", "Group related observations")
+    assert has_element?(lv, "#ai-route-#{route.id}", "Tev1 4B")
+    assert has_element?(lv, "#ai-route-#{route.id}", "Atlas tuist-pulse")
+
+    # A routed task is no longer offered for a new route, and a stale duplicate is refused.
+    lv |> element("#add-ai-route") |> render_click()
+
+    task_values = fn ->
+      lv |> render() |> Floki.parse_document!() |> Floki.attribute(~s([id^="ai-route-task-"] option), "value")
+    end
+
+    assert task_values.() == ["", "none", "pulse_explanation"]
+
+    # A stale page can still submit a routed task; the modal stays open with an error.
+    html =
+      render_submit(lv, "save-route", %{
+        "route" => %{"category" => "pulse", "task" => "pulse_grouping", "model_id" => to_string(explainer.id)}
+      })
+
+    assert html =~ "Each task can have only one route."
+    assert task_values.() == ["", "none", "pulse_explanation"]
+    assert {:ok, %{routes: [%{model_id: model_id}]}} = OrganizationAI.settings(user, account)
+    assert model_id == classifier.id
+
+    html =
+      lv
+      |> form("#organization-ai-route-form", route: %{task: "pulse_explanation", model_id: explainer.id})
+      |> render_submit()
+
+    refute html =~ "Each task can have only one route"
+    refute has_element?(lv, "#ai-routes-no-default")
+    assert has_element?(lv, "#add-ai-route[disabled]")
+
+    render_click(lv, "edit-route", %{"id" => to_string(route.id)})
+    assert_push_event(lv, "open-modal", %{id: "organization-ai-route-modal"})
+
+    lv
+    |> form("#organization-ai-route-form", route: %{model_id: explainer.id})
+    |> render_submit()
+
+    assert {:ok, %{routes: [%{task: :pulse_grouping, model_id: model_id}, _]}} = OrganizationAI.settings(user, account)
+    assert model_id == explainer.id
+
+    # Removing a model while no default is selected says its routed tasks stop sending requests.
+    render_click(lv, "remove-model", %{"id" => to_string(explainer.id)})
+    assert render(lv) =~ "if no default remains, they and other tasks without a route stop sending requests"
+    render_click(lv, "cancel-removal")
+
+    render_click(lv, "remove-route", %{"id" => to_string(route.id)})
+    assert render(lv) =~ "Remove the route for Group related observations?"
+    assert render(lv) =~ "this task stops sending requests until you add a route or select a default"
+    render_click(lv, "confirm-removal")
+    assert {:ok, %{routes: [%{task: :pulse_explanation}]}} = OrganizationAI.settings(user, account)
+    assert has_element?(lv, "#ai-routes-no-default")
+
+    lv |> form("#organization-ai-default-form", default: %{model_id: explainer.id}) |> render_submit()
+    refute has_element?(lv, "#ai-routes-no-default")
+
+    # Editing a route another session removed leaves the page, as editing a removed model does.
+    [%{id: stale_id}] = elem(OrganizationAI.settings(user, account), 1).routes
+    render_click(lv, "edit-route", %{"id" => to_string(stale_id)})
+    assert {:ok, :ok} = OrganizationAI.remove_route(user, account, stale_id)
+
+    render_submit(lv, "save-route", %{
+      "route" => %{"_id" => to_string(stale_id), "task" => "pulse_explanation", "model_id" => to_string(classifier.id)}
+    })
+
+    assert_redirect(lv, ~p"/#{account.name}/settings")
+  end
+
   test "members cannot access settings and flag-off accounts have no AI navigation or direct access", %{
     conn: conn,
     account: account,

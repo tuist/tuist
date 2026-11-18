@@ -198,7 +198,7 @@
       <span data-part="title">{dgettext("dashboard_account", "Default model")}</span>
       <span data-part="subtitle">{dgettext(
         "dashboard_account",
-        "Choose the model for organization AI workflows. No requests are sent until a default is selected. Personal AI subscriptions are not affected."
+        "Choose the model for organization AI tasks without a task route. Without a default, only routed tasks send requests. Personal AI subscriptions are not affected."
       )}</span>
     </div>
     <div data-part="content">
@@ -234,6 +234,105 @@
           label={dgettext("dashboard_account", "Save")}
         />
       </.form>
+    </div>
+  </.card_section>
+
+  <.card_section id="organization-ai-routes" data-part="ai-configuration-card-section">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Task routing")}</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_account",
+        "Send a specific task to a different model. Tasks without a route use the default model."
+      )}</span>
+    </div>
+    <div data-part="button-container">
+      <.button
+        id="add-ai-route"
+        label={dgettext("dashboard_account", "Add route")}
+        variant="secondary"
+        phx-click="add-route"
+        disabled={@configuration.models == [] or not unrouted_tasks?(@configuration)}
+      />
+    </div>
+    <div data-part="content">
+      <.alert
+        :if={is_nil(@configuration.default_model_id) and unrouted_tasks?(@configuration)}
+        id="ai-routes-no-default"
+        status="information"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_account",
+            "No default model is selected, so tasks without a route don't send requests."
+          )
+        }
+      />
+      <.table
+        id="ai-routes-table"
+        rows={@configuration.routes}
+        row_key={fn route -> "ai-route-#{route.id}" end}
+      >
+        <:col :let={route} label={dgettext("dashboard_account", "Category")}>
+          <.text_cell label={category_label(category_of(route.task))} />
+        </:col>
+        <:col :let={route} label={dgettext("dashboard_account", "Task")}>
+          <.text_cell label={task_label(route.task)} />
+        </:col>
+        <:col :let={route} label={dgettext("dashboard_account", "Model")}>
+          <.text_cell
+            label={model(@configuration, route.model_id).name}
+            sublabel={
+              connection_name(@configuration, model(@configuration, route.model_id).connection_id)
+            }
+          />
+        </:col>
+        <:col :let={route} label="">
+          <.button_cell>
+            <:button>
+              <.dropdown id={"ai-route-actions-#{route.id}"} icon_only>
+                <:icon><.dots_vertical /></:icon>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Edit route")}
+                  value="edit"
+                  phx-click="edit-route"
+                  phx-value-id={route.id}
+                >
+                  <:left_icon><.pencil /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Remove route")}
+                  value="remove"
+                  phx-click="remove-route"
+                  phx-value-id={route.id}
+                >
+                  <:left_icon><.trash /></:left_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No task routes yet")}
+            subtitle={
+              cond do
+                @configuration.models == [] ->
+                  dgettext("dashboard_account", "Add a model before adding a route.")
+
+                is_nil(@configuration.default_model_id) ->
+                  dgettext(
+                    "dashboard_account",
+                    "Add a route or select a default model to send requests."
+                  )
+
+                true ->
+                  dgettext("dashboard_account", "Every task uses the default model.")
+              end
+            }
+          />
+        </:empty_state>
+      </.table>
     </div>
   </.card_section>
 
@@ -463,12 +562,131 @@
     </.modal>
   </.form>
 
+  <.form
+    :if={@configuration.models != []}
+    for={@route_form}
+    id="organization-ai-route-form"
+    phx-submit="save-route"
+    phx-change="change-route"
+  >
+    <.modal
+      id="organization-ai-route-modal"
+      title={
+        if @route_form[:_id].value == "",
+          do: dgettext("dashboard_account", "Add route"),
+          else: dgettext("dashboard_account", "Edit route")
+      }
+      header_size="large"
+      on_dismiss="cancel-route"
+    >
+      <:trigger :let={attrs}>
+        <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+      </:trigger>
+      <.line_divider />
+      <div id={"ai-route-fields-#{@route_form_version}"} data-part="ai-modal-content">
+        <input type="hidden" name={@route_form[:_id].name} value={@route_form[:_id].value} />
+        <.alert
+          :if={@route_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@route_error}
+        />
+        <div data-part="ai-field">
+          <.label
+            label={dgettext("dashboard_account", "Category")}
+            for={"select:ai-route-category-#{@route_form_version}:trigger"}
+            required
+          />
+          <.select
+            id={"ai-route-category-#{@route_form_version}"}
+            field={@route_form[:category]}
+            label={dgettext("dashboard_account", "Category")}
+          >
+            <:item
+              :for={category <- categories()}
+              value={to_string(category)}
+              label={category_label(category)}
+            />
+          </.select>
+        </div>
+        <div data-part="ai-field">
+          <.label
+            label={dgettext("dashboard_account", "Task")}
+            for={"select:ai-route-task-#{@route_form_version}:trigger"}
+            required
+          />
+          <.select
+            id={"ai-route-task-#{@route_form_version}"}
+            field={@route_form[:task]}
+            label={dgettext("dashboard_account", "Task")}
+          >
+            <:item value="none" label={dgettext("dashboard_account", "Choose a task")} />
+            <:item
+              :for={task <- route_task_options(@configuration, @route_form)}
+              value={to_string(task)}
+              label={task_label(task)}
+            />
+          </.select>
+        </div>
+        <div data-part="ai-field">
+          <.label
+            label={dgettext("dashboard_account", "Model")}
+            for={"select:ai-route-model-#{@route_form_version}:trigger"}
+            required
+          />
+          <.select
+            id={"ai-route-model-#{@route_form_version}"}
+            field={@route_form[:model_id]}
+            label={dgettext("dashboard_account", "Model")}
+          >
+            <:item value="none" label={dgettext("dashboard_account", "Choose a model")} />
+            <:item
+              :for={model <- @configuration.models}
+              value={to_string(model.id)}
+              label={model_label(@configuration, model)}
+            />
+          </.select>
+        </div>
+      </div>
+      <.line_divider />
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              type="button"
+              variant="secondary"
+              label={dgettext("dashboard_account", "Cancel")}
+              phx-click="cancel-route"
+            />
+          </:action>
+          <:action>
+            <.button
+              type="submit"
+              variant="primary"
+              label={
+                if @route_form[:_id].value == "",
+                  do: dgettext("dashboard_account", "Add route"),
+                  else: dgettext("dashboard_account", "Save")
+              }
+            />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </.form>
+
   <.modal
     id="organization-ai-removal"
     title={
       cond do
         @pending_removal && @pending_removal.linked? ->
           dgettext("dashboard_account", "Unlink your Claude organization?")
+
+        @pending_removal && @pending_removal.kind == :routes ->
+          dgettext("dashboard_account", "Remove the route for %{name}?",
+            name: @pending_removal.name
+          )
 
         @pending_removal ->
           dgettext("dashboard_account", "Remove %{name}?", name: @pending_removal.name)
@@ -496,7 +714,7 @@
       <p :if={@pending_removal.linked?}>
         {dgettext(
           "dashboard_account",
-          "Anthropic stops billing your Claude organization for Tuist, and models using it are removed. If one is the default, routing stops until you select another."
+          "Anthropic stops billing your Claude organization for Tuist, and models using it are removed, along with their task routes. If one is the default, tasks without a route stop sending requests until you select another."
         )}
       </p>
       <.alert
@@ -509,13 +727,25 @@
             @pending_removal.kind == :connections ->
               dgettext(
                 "dashboard_account",
-                "This deletes the stored key and all models using this provider. If one is the default, routing stops until you select another. Revoke the key at the provider to revoke access there."
+                "This deletes the stored key, all models using this provider and their task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one. Revoke the key at the provider to revoke access there."
+              )
+
+            @pending_removal.kind == :routes and is_nil(@configuration.default_model_id) ->
+              dgettext(
+                "dashboard_account",
+                "No default model is selected, so this task stops sending requests until you add a route or select a default."
+              )
+
+            @pending_removal.kind == :routes ->
+              dgettext(
+                "dashboard_account",
+                "This task uses the default model instead."
               )
 
             true ->
               dgettext(
                 "dashboard_account",
-                "This removes the configured model, not its provider. If it is the default, routing stops until you select another."
+                "This removes the configured model, not its provider, and its task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one."
               )
           end
         }

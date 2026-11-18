@@ -226,6 +226,7 @@ defmodule Tuist do
       Accounts.AccountToken,
       Accounts.AISubscriptions,
       Accounts.OrganizationAI,
+      Accounts.OrganizationAI.Schemas,
       Accounts.ClaudeLinkedBilling,
       Accounts.MCPServers,
       Accounts.User,
