@@ -612,7 +612,9 @@ abstract class TuistTestInsightsService :
     private val gitHistoryPublisher: GitHistoryPublisher by lazy {
         val gitHistoryService = GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
         GitHistoryPublisher(
-            collect = { gitHistoryService.collect(reportGitInfoProvider(), parameters.projectDir.asFile.get(), ciDetector.isCi()) },
+            collect = {
+                gitHistoryService.collect(reportGitInfoProvider(), parameters.projectDir.asFile.get(), ciDetector.isCi(), coverageEnabled())
+            },
             upload = gitHistoryService::upload
         )
     }

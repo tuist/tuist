@@ -54,6 +54,70 @@ internal class GitRepositoryFixture {
         return git(directory, "rev-parse", "HEAD")
     }
 
+    /**
+     * Merges [branch] into the current branch with a merge commit and returns the commit's SHA. The
+     * merge keeps the current branch's tree, so the lines each commit appends never conflict.
+     */
+    fun merge(directory: File, branch: String, message: String): String {
+        commits += 1
+        val date = "${start + commits * 60} +0000"
+        git(
+            directory, "merge", "-q", "--no-ff", "-s", "ours", "-m", message, branch,
+            extraEnvironment = mapOf("GIT_AUTHOR_DATE" to date, "GIT_COMMITTER_DATE" to date)
+        )
+        return git(directory, "rev-parse", "HEAD")
+    }
+
+    /**
+     * Checks out [ref] of [url] the way `actions/checkout` checks out a pull request: that ref
+     * alone, at depth 1, detached.
+     */
+    fun shallowCheckout(url: String, ref: String, directory: File): File {
+        init(directory)
+        git(directory, "remote", "add", "origin", url)
+        git(directory, "fetch", "-q", "--no-tags", "--depth=1", "origin", "+$ref:refs/remotes/${ref.removePrefix("refs/")}")
+        git(directory, "checkout", "-q", "--detach", "refs/remotes/${ref.removePrefix("refs/")}")
+        return directory
+    }
+
+    /**
+     * A bare origin with a pull request: `feature` forked from `main` at [forkPoint] and has
+     * [pullRequestHead], `main` moved on to [mainHead], and `refs/pull/7/merge` is [merge], whose
+     * parents are [mainHead] and [pullRequestHead]. The origin serves partial fetches, as GitHub does.
+     */
+    data class PullRequestOrigin(
+        val url: String,
+        val forkPoint: String,
+        val pullRequestHead: String,
+        val mainHead: String,
+        val merge: String
+    )
+
+    fun pullRequestOrigin(directory: File): PullRequestOrigin {
+        val seed = init(File(directory, "seed"))
+        commit(seed, "A1")
+        commit(seed, "A2")
+        val forkPoint = commit(seed, "A3")
+        git(seed, "checkout", "-q", "-b", "feature")
+        commit(seed, "F1")
+        val pullRequestHead = commit(seed, "F2")
+        git(seed, "checkout", "-q", "main")
+        commit(seed, "M1")
+        val mainHead = commit(seed, "M2")
+        git(seed, "checkout", "-q", "--detach", "main")
+        val merge = merge(seed, "feature", "Merge feature into main")
+        git(seed, "update-ref", "refs/pull/7/merge", merge)
+        git(seed, "checkout", "-q", "main")
+        val bare = File(directory, "origin.git")
+        git(directory, "clone", "-q", "--bare", seed.absolutePath, bare.absolutePath)
+        git(bare, "fetch", "-q", seed.absolutePath, "+refs/pull/7/merge:refs/pull/7/merge")
+        git(bare, "config", "uploadpack.allowFilter", "true")
+        return PullRequestOrigin("file://${bare.absolutePath}", forkPoint, pullRequestHead, mainHead, merge)
+    }
+
+    fun hasObject(directory: File, sha: String): Boolean =
+        runCatching { git(directory, "cat-file", "-e", "$sha^{commit}") }.isSuccess
+
     fun committedAt(directory: File, sha: String): Long = git(directory, "show", "-s", "--format=%ct", sha).toLong()
 
     fun isShallow(directory: File): Boolean = git(directory, "rev-parse", "--is-shallow-repository") == "true"
