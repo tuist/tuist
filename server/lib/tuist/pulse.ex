@@ -108,6 +108,69 @@ defmodule Tuist.Pulse do
     end
   end
 
+  @doc """
+  Whether Pulse takes Luft's telemetry: Luft is Tuist's own app, so its
+  telemetry belongs to the configured Pulse account and follows that account's
+  enrollment (`available?/1`), read at most once a minute per node.
+  """
+  def luft_telemetry? do
+    # Every running Luft asks once a minute; enrollment changes rarely, so
+    # each node may answer from a minute-old reading.
+    case Keyword.get(Environment.pulse_config(), :account_id) do
+      id when is_integer(id) and id > 0 ->
+        KeyValueStore.get_or_update([__MODULE__, :luft_telemetry, id], [ttl: to_timeout(minute: 1)], fn ->
+          case Accounts.get_account_by_id(id) do
+            {:ok, account} -> available?(account)
+            {:error, :not_found} -> false
+          end
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  @doc """
+  Forwards `body`, a protobuf OTLP export request for `signal` (`traces`,
+  `logs` or `metrics`) that its producer's policy already confined (such as
+  `Tuist.Pulse.LuftTelemetry`), to Pulse's OTLP endpoint, into the tables the
+  environment's collectors write, as the server's write-only writer (see
+  `forward_sentry_envelope/4`). Returns Pulse's status and protobuf body.
+  """
+  def forward_otlp(signal, body) when signal in ~w(traces logs metrics) and is_binary(body) do
+    with {:ok, writer} <- sentry_writer() do
+      tables =
+        case signal do
+          "traces" -> [{"x-pulse-pipeline-name", "pulse_trace_v1"}, {"x-pulse-trace-table-name", "opentelemetry_traces"}]
+          "logs" -> [{"x-pulse-log-table-name", "opentelemetry_logs"}]
+          "metrics" -> []
+        end
+
+      request =
+        Req.new(
+          method: :post,
+          url: "#{writer.base_url}/v1/otlp/v1/#{signal}",
+          headers: [
+            {"authorization", "Basic " <> Base.encode64("#{writer.key}:#{writer.secret}")},
+            {"content-type", "application/x-protobuf"},
+            {"x-pulse-db-name", "public"} | tables
+          ],
+          body: body,
+          compressed: false,
+          decode_body: false,
+          redirect: false,
+          retry: false,
+          receive_timeout: 10_000,
+          connect_options: [timeout: 5_000]
+        )
+
+      case Req.request(request) do
+        {:ok, %Req.Response{status: status, body: body}} -> {:ok, status, body}
+        {:error, _reason} -> {:error, :unavailable}
+      end
+    end
+  end
+
   defp sentry_writer do
     with dsn when is_binary(dsn) <- Environment.sentry_pulse_dsn(),
          %URI{scheme: scheme, host: host, port: port, userinfo: userinfo}

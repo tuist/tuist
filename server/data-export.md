@@ -1297,6 +1297,31 @@ requires separate authorized operator handling. The SQL projections, nanosecond
 timestamps and aggregate queries have been exercised against Pulse;
 this does not establish complete attribution for every collector or source.
 
+Luft's core sends its own telemetry through the server
+(`POST /api/luft/telemetry/v1/{traces,logs,metrics}` as OTLP/HTTP and
+`POST /api/luft/telemetry/api/1/envelope/` as Sentry envelopes, accepted only
+from a signed-in Luft session and only while the configured Pulse account is
+enrolled). The server stores it in the same tables under the service `luft`:
+operation and HTTP request spans (operation name, outcome, the core's fixed
+error message, method, status and the request path with every identifying
+segment replaced by `*`), the core's fixed log messages, the
+`luft.core.operations` counter by operation and outcome (deltas), and error
+events for unexpected failures and for crashes (Rust panics: a literal panic
+message or `panic`, and the source location without machine paths). The
+desktop client sends the same for its thread operations. Whatever a client
+sends to the OTLP endpoints, the server keeps only an allowlist
+(`Tuist.Pulse.LuftTelemetry`): the `service.version` and `os.type` resource
+attributes on spans and logs, the span and log attributes above with fixed
+types, span names that are Luft operations or masked request paths (others
+become `other`), the `luft.core.operations` delta counter with its two labels
+from closed value sets, times within a week before and a day after receipt
+(a counter's start is moved up to that window),
+and strings cut to 256 characters; span events, links and other attributes are
+dropped. Error envelopes are forwarded as sent and scrubbed by Pulse's
+`sentry_errors` pipeline like every other producer's. Crash events wait on the device until sent, at most 16. None of it
+carries the user, account, handles, IDs or tokens, so it is not exportable per
+subject and retention follows the tables above.
+
 ### Pulse errors
 
 Services whose Sentry DSN points at Pulse, or that send it a copy beside Atlas

@@ -79,6 +79,23 @@ defmodule Tuist.PulseTest do
     end
   end
 
+  test "Luft telemetry follows the configured account's enrollment", %{config: config} do
+    assert Pulse.luft_telemetry?()
+
+    stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> false end)
+    refute Pulse.luft_telemetry?()
+
+    # An account that no longer exists, or none configured, takes nothing.
+    stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> true end)
+    stub(Environment, :pulse_config, fn -> Keyword.put(config, :account_id, config[:account_id] + 1_000_000) end)
+    refute Pulse.luft_telemetry?()
+
+    for id <- [nil, 0, "1"] do
+      stub(Environment, :pulse_config, fn -> [account_id: id] end)
+      refute Pulse.luft_telemetry?()
+    end
+  end
+
   test "disabling the flag denies every read even for the configured organization's member", ctx do
     stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> false end)
     reject(Req, :request, 1)
