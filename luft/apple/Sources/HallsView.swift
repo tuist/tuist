@@ -129,9 +129,9 @@ struct HallsView: View {
         // ⌘N in the menu bar; both lists stay mounted, so only the open tab offers it.
         .focusedSceneValue(\.compose, page?.available == true && client.view.navigation.tab.rawValue == tab
             ? ComposeAction(title: createLabel) { creating = true } : nil)
+        // Tab switches restart this task, so keep the loaded page to avoid a spinner flash. Another
+        // account or organization advances the generation, which rebuilds the workspace with no page.
         .task(id: client.view.generation) {
-            // Another account or organization: never show the previous one's halls.
-            page = nil
             // Halls change while nobody here is looking; keep unread counts current.
             while !Task.isCancelled {
                 await load()
