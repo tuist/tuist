@@ -30,6 +30,9 @@ defmodule Mix.Tasks.Tuist.Test.Build do
       set it, or `TUIST_SHARD_REFERENCE`, anywhere else
     * `--no-upload` - plan the shards without uploading the build; each shard
       then compiles for itself
+    * `--no-selective-testing` - plan every test module, even when the
+      project selects tests by coverage; see "Coverage-based test selection"
+      in `mix tuist.test`
     * `--cover` - instrument the build for native coverage once, so shards
       running `mix tuist.test --cover` don't each do it; see "Coverage" below
     * `--url`, `--project` - as in `mix tuist.test`
@@ -60,7 +63,9 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Coverage
+  alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Shards
+  alias TuistEx.Analytics.TestSelection
 
   @preferred_cli_env :test
 
@@ -91,6 +96,7 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
     {options, compile_args} = Args.split(args, @switches)
     {upload?, compile_args} = pop_flag(compile_args, "--no-upload")
+    {select?, compile_args} = pop_flag(compile_args, "--no-selective-testing")
     cover? = "--cover" in compile_args
     compile_args = List.delete(compile_args, "--cover")
     options = Keyword.put_new(options, :shard_max, 2)
@@ -117,7 +123,8 @@ defmodule Mix.Tasks.Tuist.Test.Build do
       )
     end
 
-    plan = unwrap(Shards.create_plan(reference, Map.keys(units), concurrent, options))
+    {modules, options} = select(Map.keys(units), options, select? and TestSelection.configured?())
+    plan = unwrap(Shards.create_plan(reference, modules, concurrent, options))
     shards = plan["shards"] || []
 
     Mix.shell().info(
@@ -137,6 +144,44 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
     write_matrix(reference, shards)
     :ok
+  end
+
+  # Coverage-based test selection decides once, here, for every shard. A
+  # selection plans only the modules with something selected, and each shard
+  # leaves the rest of the run's skip list out of its files. One that left
+  # nothing still plans every module, so each shard reports the run. A run
+  # with a reason plans as without selection, and the shards run everything.
+  defp select(modules, options, false), do: {modules, options}
+
+  defp select(modules, options, true) do
+    index = TestSelection.index(TestSelection.test_files())
+
+    outcome =
+      case Isolated.run(
+             fn -> TestSelection.decide(index, Keyword.take(options, [:url, :project])) end,
+             600_000
+           ) do
+        {:error, reason} -> {:failed, reason}
+        outcome -> outcome
+      end
+
+    TestSelection.report(outcome)
+
+    case outcome do
+      {:selected, %{run_id: run_id, skipped_tests: skipped}} ->
+        unselected = TestSelection.unselected_modules(skipped)
+
+        modules =
+          case Enum.reject(modules, &MapSet.member?(unselected, &1)) do
+            [] -> modules
+            selected -> selected
+          end
+
+        {modules, Keyword.put(options, :test_impact_run_id, run_id)}
+
+      _outcome ->
+        {modules, options}
+    end
   end
 
   defp pop_flag(args, flag), do: {flag not in args, List.delete(args, flag)}

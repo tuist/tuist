@@ -24,6 +24,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.Env
+  alias TuistEx.Analytics.Evidence
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Metadata
@@ -39,11 +40,15 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     # ExUnit starts its formatters once the test helper has run and before
     # any test does, which is when a run of an instrumented build gets ready.
     if Keyword.get(merged, :coverage_native, false), do: prepare_native(merged)
+    # After Mimic's swap, so its copies are among what counts.
+    evidence? = Keyword.get(merged, :coverage_evidence, false) and start_evidence(merged)
     quarantine = Keyword.get(merged, :quarantine)
 
     {:ok,
      %{
        tests: [],
+       evidence?: evidence?,
+       identities: %{},
        quarantine: quarantine,
        excluded_names: Quarantine.excluded_names(quarantine),
        also_excluded: [],
@@ -121,10 +126,16 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
         do: [identity | state.skipped_but_ran],
         else: state.skipped_but_ran
 
+    identities =
+      if state.evidence?,
+        do: Map.put(state.identities, {test.module, test.name}, identity),
+        else: state.identities
+
     {:noreply,
      %{
        state
        | tests: [record | state.tests],
+         identities: identities,
          skipped_but_ran: skipped_but_ran,
          failures: merge_failures(state.failures, failure_kind(test.state))
      }}
@@ -164,6 +175,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             tests
             |> build_payload(duration_ms, state.ran_at, state.opts)
             |> put_coverage_snapshot(state.opts)
+            |> put_evidence(state)
             |> put_left_out(tests, state)
             |> put_coverage_lines(state.opts)
             |> put_timed_out(state.failures)
@@ -216,6 +228,49 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     |> Enum.sort()
     |> Enum.map_join("\n", &("  " <> Quarantine.describe(&1)))
   end
+
+  defp start_evidence(opts) do
+    Evidence.start(Coverage.native_modules())
+  rescue
+    exception ->
+      Keyword.get(opts, :shell, &Report.debug/1).(
+        "tuist analytics: could not collect coverage evidence: #{Exception.message(exception)}"
+      )
+
+      false
+  end
+
+  # Which lines each test ran, with the identity each test is reported by
+  # and each counting module's source, for the owner to turn into the run's
+  # `coverage_evidence` once it knows the repository's root.
+  defp put_evidence(payload, %{evidence?: true} = state) do
+    case Evidence.collect() do
+      nil ->
+        payload
+
+      collected ->
+        modules =
+          Enum.flat_map(
+            [collected.boot | Map.values(collected.tests) ++ Map.values(collected.targets)],
+            &Map.keys/1
+          )
+
+        Map.put(payload, :evidence_snapshot, %{
+          collected: collected,
+          identities: state.identities,
+          sources: Coverage.sources(modules)
+        })
+    end
+  rescue
+    exception ->
+      state.shell.(
+        "tuist analytics: could not read coverage evidence: #{Exception.message(exception)}"
+      )
+
+      payload
+  end
+
+  defp put_evidence(payload, _state), do: payload
 
   defp prepare_native(opts) do
     Coverage.prepare_native()
@@ -605,6 +660,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       ci_host: Env.ci_host(environment),
       shard_plan_id: Keyword.get(opts, :shard_plan_id),
       shard_index: Keyword.get(opts, :shard_index),
+      test_impact_run_id: Keyword.get(opts, :test_impact_run_id),
       scheme: Keyword.get(opts, :scheme),
       custom_metadata: Metadata.collect(opts),
       test_modules: modules

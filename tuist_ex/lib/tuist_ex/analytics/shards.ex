@@ -221,6 +221,7 @@ defmodule TuistEx.Analytics.Shards do
         shard_max: Keyword.get(options, :shard_max),
         shard_total: Keyword.get(options, :shard_total),
         shard_max_duration: Keyword.get(options, :shard_max_duration),
+        test_impact_run_id: Keyword.get(options, :test_impact_run_id),
         git_branch: TuistEx.Analytics.Env.git_branch()
       }
       |> Map.reject(fn {_key, value} -> is_nil(value) end)
