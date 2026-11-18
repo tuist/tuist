@@ -3990,7 +3990,7 @@ postgresql:
       # credential held by a third party. Column-level GRANTs in
       # infra/cnpg/tuist-grafana-ro-grants.sql restrict it to exactly the
       # columns the dashboard reads — table-level SELECT would still expose
-      # users.encrypted_password, projects.token, and accounts.s3_secret_access_key.
+      # users.encrypted_password, projects.token_hash, and accounts.s3_secret_access_key.
       grafanaRo:
         name: tuist_grafana_ro
       # Least-privilege Swift Package Registry sync role. Narrower
