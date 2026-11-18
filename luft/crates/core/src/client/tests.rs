@@ -2538,6 +2538,64 @@ fn snoozed_threads_leave_their_section_until_the_snooze_ends() {
 }
 
 #[test]
+fn archiving_and_restoring_a_thread_moves_it_in_the_stored_inbox() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[{"id":SERVER_ID,"status":"running","archive_status":"active"}],"next_cursor":null}),
+        ),
+        (
+            200,
+            json!({"id":SERVER_ID,"status":"idle","archive_status":"archived","messages":[]}),
+        ),
+    ]);
+    call(&mut c, &mut h, "threads", json!({}));
+
+    let archived = call(&mut c, &mut h, "archive_thread", json!({"id":SERVER_ID}));
+    assert_eq!(archived["data"]["section"], "archived", "{archived}");
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "PATCH");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/accounts/ana/threads/{SERVER_ID}")
+    );
+    assert_eq!(sent_body(&h), json!({"status":"archived"}));
+
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert_eq!(
+        inbox["data"]["threads"][0]["section"], "archived",
+        "{inbox}"
+    );
+
+    h.responses.push_back((
+        200,
+        json!({"id":SERVER_ID,"status":"idle","archive_status":"active","messages":[]}),
+    ));
+    let restored = call(
+        &mut c,
+        &mut h,
+        "archive_thread",
+        json!({"id":SERVER_ID,"archived":false}),
+    );
+    assert_eq!(restored["data"]["section"], "recent", "{restored}");
+    assert_eq!(sent_body(&h), json!({"status":"active"}));
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert_eq!(inbox["data"]["threads"][0]["section"], "recent", "{inbox}");
+
+    let count = h.actions.len();
+    let invalid = call(
+        &mut c,
+        &mut h,
+        "archive_thread",
+        json!({"id":SERVER_ID,"archived":"no"}),
+    );
+    assert!(invalid["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+}
+
+#[test]
 fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

@@ -244,6 +244,11 @@
 "Snooze" = "Snooze";
 "Wake" = "Wake";
 "Wake now" = "Wake now";
+"Archive" = "Archive";
+"Archive Thread?" = "Archive Thread?";
+"Restore" = "Restore";
+"Its run stops. You can find it under Archived." = "Its run stops. You can find it under Archived.";
+"You can find it under Archived." = "You can find it under Archived.";
 "Pick a time…" = "Pick a time…";
 "Remind me" = "Remind me";
 "Snooze until" = "Snooze until";
