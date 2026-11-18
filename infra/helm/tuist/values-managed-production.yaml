@@ -1194,14 +1194,22 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these six OVH nodes in Gravelines: five Advance-1
-  # 2024 (EPYC 4244P) and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
+  # Public EU West runs on these OVH nodes in Gravelines: Advance-1 2024 (EPYC
+  # 4244P) boxes and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
   # The offer matches both ranges. Keep the historical pool name: live
   # KuraInstances, local PVs and gateways still select it. All Dedibox hosts
   # have been retired.
+  #
+  # The eighth box (Advance-1 2026, 4x960 NVMe, ordered 2026-11-18) is for cache
+  # growth: a 256Gi instance needs about 542 GiB on one node, and after
+  # qvv7x-8lb8j (2026-11-18) took wise and delivery-hero-se no eu-west node had
+  # more than 161 GiB free, so tuist's and monzo's claim growths were refused.
+  # Four disks give about 1,587 GiB of thin capacity (eu-east's nh9pb-7bnjr)
+  # against 689 GiB on two, enough for both. Its Machine is annotated
+  # tuist.dev/kura-storage-layout=lvm-v1 before the box is renamed for prep.
   eu-west:
     enabled: true
-    replicas: 7
+    replicas: 8
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
