@@ -1124,9 +1124,15 @@ vultrFleets:
   # on 2026-11-09. The fleet deletes a random Machine on scale-down, so annotate
   # the Machine to drop with cluster.x-k8s.io/delete-machine=yes before lowering
   # replicas.
+  #
+  # The third box is permanent capacity: on 2026-11-18 the region had 121 GiB of
+  # admission headroom, short of the 268 to 403 GiB that growing tuist's and
+  # monzo's caches to 256Gi adds here. It joins as lvm-v1 like the others (its
+  # VultrMachine is annotated tuist.dev/kura-storage-layout=lvm-v1 before the box
+  # is tagged), then gets its thin pool and the kura-thin-ready label.
   us-central-8c:
     enabled: true
-    replicas: 2
+    replicas: 3
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
