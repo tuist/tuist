@@ -73,6 +73,8 @@
 "Build %@" = "Build %@";
 "Update" = "Update";
 "Updating…" = "Updating…";
+"Later" = "Later";
+"Update Luft to stay on the latest preview." = "Update Luft to stay on the latest preview.";
 "The update could not be installed." = "The update could not be installed.";
 "Confirm the install. iOS closes Luft to finish it." = "Confirm the install. iOS closes Luft to finish it.";
 "Theme" = "Theme";

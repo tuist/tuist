@@ -75,6 +75,8 @@ pub struct MobileClient {
     live: crate::live::Live,
     /// The open local store and the profile it belongs to.
     store: Option<(String, Store)>,
+    /// The newer preview `preview_update` last suggested installing, so edges prompt once per build.
+    suggested_preview: Option<String>,
 }
 
 impl MobileClient {
@@ -954,11 +956,17 @@ impl MobileClient {
             .append_pair("supported_platforms", platform)
             .append_pair("page", "1")
             .append_pair("page_size", "20");
-        match self.api(index, "GET", url, host) {
-            Ok(data) => updates::select(&data, platform, binary_id),
-            Err("Access denied" | NOT_FOUND) => Ok(json!({"update":null})),
-            Err(error) => Err(error),
+        let mut result = match self.api(index, "GET", url, host) {
+            Ok(data) => updates::select(&data, platform, binary_id)?,
+            Err("Access denied" | NOT_FOUND) => json!({"update":null}),
+            Err(error) => return Err(error),
+        };
+        let id = result["update"]["id"].as_str().map(str::to_owned);
+        result["suggest"] = json!(id.is_some() && id != self.suggested_preview);
+        if id.is_some() {
+            self.suggested_preview = id;
         }
+        Ok(result)
     }
 
     /// The signed-in person's runners: their own machines, which threads can

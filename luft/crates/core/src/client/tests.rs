@@ -758,6 +758,7 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
     assert_eq!(update["id"], "newer");
     assert_eq!(update["commit"], "newer01");
     assert_eq!(update["install_url"], "https://storage.test/newer");
+    assert_eq!(result["data"]["suggest"], true, "a newer build is suggested");
     let request = h.actions.last().unwrap();
     assert_eq!(
         request["url"],
@@ -768,6 +769,18 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         format!("Bearer {}", token(i64::MAX, 1))
     );
 
+    // Later checks, such as returning to the foreground, still report the build
+    // without suggesting it again.
+    h.responses.push_back((200, page.clone()));
+    let again = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"android","binary_id":"def456"}),
+    );
+    assert_eq!(again["data"]["update"]["id"], "newer");
+    assert_eq!(again["data"]["suggest"], false);
+
     // Running the newest identified build, even with different hex case, is current.
     h.responses.push_back((200, page.clone()));
     let current = call(
@@ -776,9 +789,10 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         "preview_update",
         json!({"platform":"android","binary_id":"ABC123"}),
     );
-    assert_eq!(current["data"], json!({"update":null}));
+    assert_eq!(current["data"], json!({"update":null,"suggest":false}));
 
-    // iOS installs through the preview's over-the-air manifest.
+    // iOS installs through the preview's over-the-air manifest. Another build
+    // than the one last suggested is suggested again.
     h.responses.push_back((200, page));
     let ios = call(
         &mut c,
@@ -790,6 +804,7 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         ios["data"]["update"]["install_url"],
         "itms-services://?action=download-manifest&url=https%3A%2F%2Ftuist.dev%2Fios"
     );
+    assert_eq!(ios["data"]["suggest"], true);
 
     // Without access to the project there is nothing to install, and nothing to report.
     h.responses.push_back((403, json!({})));
@@ -800,7 +815,7 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         json!({"platform":"android","binary_id":"def456"}),
     );
     assert!(denied.get("error").is_none(), "{denied}");
-    assert_eq!(denied["data"], json!({"update":null}));
+    assert_eq!(denied["data"], json!({"update":null,"suggest":false}));
 }
 
 #[test]

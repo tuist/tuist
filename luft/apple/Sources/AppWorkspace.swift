@@ -160,6 +160,13 @@ struct AppWorkspace: View {
         )) {
             Button("OK") { client.error = nil }
         } message: { Text(verbatim: client.error ?? "") }
+        // A newer preview found at launch or on returning: suggest it once; Profile keeps the Update row.
+        .alert("New version available", isPresented: $updater.suggesting) {
+            Button("Update") { Task { await updater.install() } }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text("Update Luft to stay on the latest preview.")
+        }
     }
 
     /// The Halls or DMs tab: its list, and the conversation the core says is open in it.
