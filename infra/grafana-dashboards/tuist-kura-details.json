@@ -22899,7 +22899,7 @@
               "transformations": []
             }
           },
-          "description": "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor.\n\nBuckets are not shipped to Grafana Cloud, so this shows the mean size per producer on the left axis and stored artifacts per second on the right. Read the upper quantiles for a live pod from `/api/ops/kura/pods/:pod/metrics`.\n\nPrometheus name: `kura_artifact_write_size_bytes`_count/_sum · labels: producer",
+          "description": "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor.\n\nBuckets are not shipped to Pulse, so this shows the mean size per producer on the left axis and stored artifacts per second on the right. Read the upper quantiles for a live pod from `/api/ops/kura/pods/:pod/metrics`.\n\nPrometheus name: `kura_artifact_write_size_bytes`_count/_sum · labels: producer",
           "id": 238,
           "links": [],
           "title": "artifact_write_size_bytes (mean · rate)",

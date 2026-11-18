@@ -26,11 +26,11 @@ defmodule Tuist.Halls do
   @direct_members 2..8
   @name ~r/\A[a-z0-9][a-z0-9_-]{0,63}\z/
 
-  # Halls need the same `guild` flags as threads, but any member of the
+  # Halls need the same `luft` flags as threads, but any member of the
   # organization may use them, not only its admins.
   def authorize(%User{active: true, disabled_at: nil} = user, %Account{organization_id: id} = account)
       when not is_nil(id) do
-    with true <- FeatureFlags.guild_enabled?(user) and FeatureFlags.organization_guild_enabled?(account),
+    with true <- FeatureFlags.luft_enabled?(user) and FeatureFlags.organization_luft_enabled?(account),
          {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(id),
          true <- Accounts.belongs_to_organization?(user, organization) do
       :ok
@@ -347,7 +347,7 @@ defmodule Tuist.Halls do
     |> Map.new(&{&1.id, person(&1, online)})
   end
 
-  # `online`: the person has Tuist Guild open in this organization right now.
+  # `online`: the person has Luft open in this organization right now.
   defp person(user, online), do: %{id: user.id, handle: user.account.name, online: MapSet.member?(online, user.id)}
 
   defp direct_members(user, ids) when is_list(ids) do

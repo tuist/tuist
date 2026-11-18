@@ -196,7 +196,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert claims["scopes"] == ["mcp"]
     end
 
-    test "a grant from before Tuist Guild was first-party keeps the default user scopes", %{user: user} do
+    test "a grant from before Luft was first-party keeps the default user scopes", %{user: user} do
       token = %Token{sub: Integer.to_string(user.id), client_id: "test-client-id", scope: "threads"}
 
       {:ok, claims} = :access_token |> TokenGenerator.generate(token) |> Tuist.Guardian.decode_and_verify()

@@ -237,8 +237,10 @@ They travel in opposite directions, and the asymmetry is not a preference:
   DaemonSet-shaped collector sees a guest filesystem, not the host's. It tails
   `/var/log/tart-kubelet.log` — the launchd sink for everything the reconciler,
   node agent and volume manager log — and POSTs to the in-cluster Alloy
-  receiver's `loki.source.api` over the tailnet, so no Grafana Cloud credential
-  is distributed to the fleet. Query `{job="tuist-macos-tart-kubelet"}`.
+  receiver's `loki.source.api` over the tailnet, so no Pulse ingest credential
+  is distributed to the fleet. Its lines land in Pulse's `opentelemetry_logs`
+  with `job=tuist-macos-tart-kubelet` in `resource_attributes`; see
+  [`infra/macos-log-shipper/AGENTS.md`](../macos-log-shipper/AGENTS.md#querying).
 
 Both are gated on Tailscale being wired, for mirrored reasons: without a
 tailnet, the pull agent would have to listen somewhere public, and the push

@@ -1,7 +1,7 @@
 defmodule Tuist.Threads.Clients do
   @moduledoc """
   Tools the person's app exposes to a thread's agent while it shows that
-  thread, such as Tuist Guild's `set_theme`.
+  thread, such as Luft's `set_theme`.
 
   An app offers its tools when it joins the thread's channel
   (`TuistWeb.ThreadsChannel`), which tracks itself here with them and its

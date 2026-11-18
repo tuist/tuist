@@ -605,7 +605,7 @@ defmodule Tuist.Threads.Host do
     end
   end
 
-  # Tuist Guild shows the plan as a live checklist, and its current step while
+  # Luft shows the plan as a live checklist, and its current step while
   # the run works; other clients show it as a Markdown checklist.
   defp progress(run) do
     Condukt.tool(
@@ -724,19 +724,19 @@ defmodule Tuist.Threads.Host do
     )
   end
 
-  # Tuist Guild runs the card natively; other clients show its summary.
+  # Luft runs the card natively; other clients show its summary.
   defp card(run) do
     Condukt.tool(
       name: "show_ui",
       description: """
-      Show the person a small native card in the conversation, a TSX module composed from Guild's card kit.
+      Show the person a small native card in the conversation, a TSX module composed from Luft's card kit.
       Use it sparingly: only when something visual explains your answer better than text, such as a comparison,
       a chart, a timeline or a few numbers side by side. Most answers need no card; never use one for prose, code or
       plain lists, and show at most one per answer.
 
       The card fills a fixed frame: `compact` is 120, `medium` 240 and `tall` 400 points high, and it is 320 to 600
       points wide; make the content fit the narrowest width. The app draws the card's surface, pads it and styles
-      every component in its own theme, so a card only composes the kit: import everything from "./guild", which
+      every component in its own theme, so a card only composes the kit: import everything from "./luft", which
       is the only module a card may import, and end with `mount(App)`. The kit has no `class` or `style` props.
 
       - `VStack` and `HStack` (props `gap`: "tight" | "normal" | "loose"; `grow` takes the space left; HStack also
@@ -753,7 +753,7 @@ defmodule Tuist.Threads.Host do
       For example:
 
       ```tsx
-      import { Action, HStack, Meter, mount, Spacer, Stat, Title, VStack } from "./guild";
+      import { Action, HStack, Meter, mount, Spacer, Stat, Title, VStack } from "./luft";
 
       function App() {
         return (

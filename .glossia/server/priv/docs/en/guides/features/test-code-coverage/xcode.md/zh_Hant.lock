@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "dcb6a8aceefaadff968c661a79d6b54317bfae0b0e09a6a045f77e52b3282789",
+  "hash": "476faee8878161abe0006e94017927145629dfcf928923a92b1ee17c77fa3ff5",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "d11d558f5865716f51bbd1c83dbc5a13cbdbd02ceb8685e40352174ffb94feee"
                 },
                 "## Querying coverage {#querying}": {
-                  "content_hash": "fc17acd1da69af82cbd356bb9e25aff1a4109cc4c5ea7daaecad245d79c75e09"
+                  "content_hash": "d0fb1b153166548d4981b6ea7b0ed50ae7fc2258932b582cbb60860c027f1d3e"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "06eef71c229bc0a5e527b6e4c89db2a8c40b9368eb37c1652f1e9f629e3ec257"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1973acb96d69a2876ce165b178f40c8309bac5be6934a8e7f5d837f9ff612252",
+          "hash": "8200f0316fec004b0b58ced69d6aab87ab419cd22a6365c0d11d42651101f3fb",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/xcode.md",
           "metadata": {
-            "content_hash": "c6fbd0136f072ee1cf3c5c11d11fd43d7957bb7fa9f104fa96b57ed5d02d5d98"
+            "content_hash": "cb6b4b9f6fc289f2846607d25b09d6ef410c4ef6003f85ac0e391b56551bad00"
           }
         },
         {
@@ -257,14 +257,14 @@
         }
       ],
       "details": {},
-      "hash": "dcb6a8aceefaadff968c661a79d6b54317bfae0b0e09a6a045f77e52b3282789",
+      "hash": "476faee8878161abe0006e94017927145629dfcf928923a92b1ee17c77fa3ff5",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/xcode.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ca26a769aeb98872b2af171a734cbcac6bb04c63cdf37351b099b7f3512312ad",
+  "output_hash": "171aaca18ffcb45238e4d3cf387b3a48f11cde45c0febe14e55bb6c83e96be05",
   "output_path": "server/priv/docs/zh_Hant/guides/features/test-code-coverage/xcode.md",
   "protection_state": "recorded",
   "provider": "",
@@ -287,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "832ec45104891fb7bfb3de1e11da4380ec5bd8a6",
+  "source_commit_sha": "6fdb3d112531c5fa9b793c3e9738ad0609439034",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/xcode.md",
-  "translated_at": "2026-11-14T20:44:56.629145Z",
-  "translation_session_id": "01a1dbc8-0f71-780e-9886-2dec6f6c0f67"
+  "translated_at": "2026-11-18T07:19:33.174243Z",
+  "translation_session_id": "01a1ed84-cd37-7c7d-bb49-ec7ed436b12c"
 }

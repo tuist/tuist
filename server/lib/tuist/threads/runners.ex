@@ -2,8 +2,8 @@ defmodule Tuist.Threads.Runners do
   @moduledoc """
   Runners: people's own machines that their threads run on.
 
-  Tuist Guild registers a runner for the signed-in person (`register/2`) and
-  hands its secret to the daemon on that machine (`tuist-guild-runner`). The
+  Luft registers a runner for the signed-in person (`register/2`) and
+  hands its secret to the daemon on that machine (`luft-runner`). The
   daemon long-polls over HTTPS (`poll/3`) and answers what it claimed
   (`respond/3`). A thread's session calls the runner through `call/4`.
 

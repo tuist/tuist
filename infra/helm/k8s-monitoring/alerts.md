@@ -219,10 +219,11 @@ Two limits to keep in mind:
   instances have all been archived, has no row until the first placement lands.
   An empty node in a pool that runs a cache pod on another node does count, so
   a node added to a live region contributes its capacity immediately.
-- Grafana Cloud Adaptive Metrics can aggregate a label away without the series
-  disappearing, and its recommendations are applied automatically, so a label
-  that no query reads can disappear and come back later. `region` has come and
-  gone this way on the `tuist_kura_*` series: on 2026-09-17 the
+- Pulse stores the labels the collector sends. While these series were stored
+  in Grafana Cloud, its Adaptive Metrics could aggregate a label away without
+  the series disappearing, and its recommendations were applied automatically,
+  so a label that no query read could disappear and come back later. `region`
+  came and went this way on the `tuist_kura_*` series: on 2026-09-17 the
   `tuist_kura_capacity_*` gauges carry `cluster` and `region` (only `pod` and
   `instance` are aggregated, by the `tuist_` prefix rule, which stores `sum`,
   `count` and `max`), while `tuist_kura_lifecycle_claim_apply_refused_count`
@@ -3275,12 +3276,13 @@ queries in `pulse-log-alert-queries.json`; they read Loki `grafanacloud-logs`
 before the move to Pulse), because the metric that carries the same fields
 undercounts.
 `tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
-`agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
-removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
+`agent` alike) was aggregated by Adaptive Metrics with `instance` and `pod`
+removed while Grafana Cloud stored it; Pulse stores it as the collector sends
+it. Until 2026-10-22 16:50 UTC Cloud stored only a plain `sum`, so `rate()`
 and `increase()` over it returned an empty result, as with the Oban counters
 in **Ingestion jobs being discarded**. Auto-apply removed the exact rule added
-for it; since 2026-10-30 18:16 UTC the `tuist_` prefix rule stores
-`sum:counter` and it rates, but both agents create each `(operation, source, result)` series
+for it; from 2026-10-30 18:16 UTC the `tuist_` prefix rule stored
+`sum:counter` and it rated, but both agents create each `(operation, source, result)` series
 on its first increment, and that first increment is never counted (see
 `README.md`, *Metrics aggregated downstream of this chart*). Compared with the
 host logs over 17:20 to 18:20 UTC that day, the metric read 12 to 31% low on
@@ -3928,8 +3930,9 @@ than that the queue is clean. The 10 minute pending period is what keeps a
 deploy roll from paging.
 
 **Keep both rules on the polled gauge.** The Oban job counters
-(`tuist_oban_job_exception_attempts_count` and its siblings) are subject to
-Grafana Cloud Adaptive Metrics, which aggregates away `instance` and `pod`.
+(`tuist_oban_job_exception_attempts_count` and its siblings) were subject to
+Grafana Cloud Adaptive Metrics, which aggregated away `instance` and `pod`,
+while Cloud stored them; Pulse stores them as the collector sends them.
 Until the `tuist_` prefix rule gained `sum:counter` on 2026-10-30 at 18:16
 UTC, `rate()` and `increase()` over those aggregated counters returned an
 **empty result rather than an error**, while an instant `sum by` over the
@@ -5007,8 +5010,8 @@ sum by (pod, outcome) (
 ```
 
 Note the doubled suffix: the counter is registered as
-`kura_response_stream_admissions_total` and reaches Grafana Cloud as
-`..._total_total`, the same as `kura_http_requests_total_total`. Do not build
+`kura_response_stream_admissions_total`, and Kura's exposition (so Pulse too)
+names it `..._total_total`, the same as `kura_http_requests_total_total`. Do not build
 the alert itself on that counter. One request can record more than one outcome —
 a read that records `queue_full` on its full-size attempt and then succeeds on
 the degraded pool records `degraded` too — so it counts admission attempts, not
@@ -5842,8 +5845,9 @@ gauge never matches, and the `labeldrop` list is
 `container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid`, which does not
 include `pod`. The deployed `k8s-monitoring-alloy-metrics` configmap does not
 mention the metric either, so editing that file would ship a no-op. The
-aggregation is Adaptive Metrics, on the Grafana Cloud side, and the fix is the
-reducer in the query rather than any change to the aggregation. See the
+aggregation was Adaptive Metrics, on the Grafana Cloud side, while Cloud stored
+this metric, and the fix was the reducer in the query rather than any change
+to the aggregation. See the
 measured comparison under the rule at the top of this section.
 
 ### Kura instance stalled in provisioning
@@ -8481,16 +8485,25 @@ two-phase gateway rollout and baseline validation are complete. Their pooled
 September 5 baseline is historical; a six-hour Faro window must not be described
 as an official Core Web Vitals assessment.
 
-Real user monitoring for tuist.dev. These are the only rules in this document
-that read Loki rather than Prometheus, because browser telemetry arrives as log
-entries and never becomes a metric.
+Real user monitoring for tuist.dev. These rules read SQL rather than PromQL,
+because browser telemetry arrives as log entries and never becomes a metric.
+They query production's Pulse through the **Tuist Pulse SQL** data source
+(`pulse-sql`); [`pulse-log-alert-queries.json`](pulse-log-alert-queries.json)
+holds each rule's exact queries by rule UID and ref ID, and
+[Log alert rules use SQL](pulse-grafana.md#log-alert-rules-use-sql) describes
+the source.
 
 **How the data gets here.** The Grafana Faro Web SDK is an npm dependency
 bundled into the server's own JavaScript, so there is no third-party script and
 no extra request origin. It posts to `https://tuist.dev/-/faro/collect`, which a
 dedicated Ingress routes at the `faro.receiver` on the `alloy-receiver`
 collector through an ExternalName Service (`server.faro` in `infra/helm/tuist`).
-Alloy forwards to Pulse's `tuist_web_logs` table.
+Alloy forwards to production Pulse's `tuist_web_logs` table
+(`loki.write "pulse_web_logs"` in `values.yaml`), which Pulse creates on first
+write with a 30-day TTL. Faro lines get their own table rather than
+`opentelemetry_logs` because these rules scan it every minute: filtering every
+cluster log line for Faro's overran Pulse's datanode scan memory and failed
+other reads.
 
 Keeping the collector on a path of the site rather than its own hostname is
 deliberate: it makes the request same-origin, so there is no CORS preflight and
@@ -8521,35 +8534,54 @@ Volume is about **32 LCP samples an hour**. Every window and sample floor below
 is derived from that rate rather than guessed, which is what the first version
 of these rules got wrong.
 
-#### The stream selector — read this before writing a query
+#### Reading the lines — read this before writing a query
 
-**`kind` is NOT a Loki label.** Alloy's Faro exporter sets it as a stream label,
-but Grafana Cloud does not index it. The only stream labels are `cluster`,
-`env`, `k8s_cluster_name`, `service_name` and `detected_level`; everything else,
-`kind` included, lives inside the logfmt line and must be parsed out:
+Each Faro entry is one row of `tuist_web_logs`, with its logfmt line in `body`.
+Nothing in the line is a column: **every field, `kind` included, is parsed out
+of `body` with `regexp_match`**. Every rule uses the same subquery, which
+narrows the scan with `LIKE` before parsing and then filters on the parsed
+fields. The p75 rule's query, trimmed to the columns these rules read (the
+live queries also extract the `context_rum_*` fields for the
+[Browser RUM quality](browser-rum.md) rules):
 
-```logql
-quantile_over_time(0.75,
-  {service_name="tuist-web"}
-    | logfmt
-    | kind="measurement"
-    | type="web-vitals"
-    | app_environment="prod"
-    | lcp!=""
-    | unwrap lcp [6h]
-) by (app_environment) / 1000
+```sql
+SELECT app_environment, percentile_cont(0.75) WITHIN GROUP (ORDER BY lcp) / 1000 AS value
+FROM (SELECT
+    CAST(regexp_match(body, '(?:^| )lcp="?([0-9.]+)')[1] AS DOUBLE) AS lcp,
+    regexp_match(body, '(?:^| )kind="?([^" ]*)')[1] AS kind,
+    regexp_match(body, '(?:^| )type="?([^" ]*)')[1] AS type,
+    regexp_match(body, '(?:^| )app_environment="?([^" ]*)')[1] AS app_environment,
+    regexp_match(body, '(?:^| )session_id="?([^" ]*)')[1] AS session_id,
+    regexp_match(body, '(?:^| )page_url="?([^" ]*)')[1] AS page_url
+  FROM tuist_web_logs
+  WHERE timestamp > now() - INTERVAL '6 hours'
+    AND body LIKE '%kind=measurement%' AND body LIKE '%type=web-vitals%') m
+WHERE kind = 'measurement'
+  AND type = 'web-vitals'
+  AND app_environment = 'prod'
+  AND lcp IS NOT NULL
+GROUP BY app_environment
 ```
 
-Selecting `{service_name="tuist-web", kind="measurement"}` matches nothing.
+The window is written into the SQL, and each query returns `app_environment`
+as a string column and one numeric `value` column, so the rules' expressions,
+thresholds and pending periods are the ones they had on Loki. The sample-count
+query (B) is the same with `count(*) AS value`. `percentile_cont` matches
+Loki's `quantile_over_time` exactly.
 
 **`app_environment` is `prod`, not `production`.** The value comes from
 `Tuist.Environment.env()` and is the same spelling Sentry uses; `production` is
-the k8s and Grafana Cloud label layer, a different thing.
+the k8s and Grafana label layer, a different thing.
 
-Because `| logfmt` promotes every field to a label, each query also needs an
-explicit `by (app_environment)` or `sum by (...)`. Without it a range
-aggregation returns one series per unique field combination, which is
-per-session.
+**The field regex reads one word.** `"?([^" ]*)` stops at a space or a quote,
+so a quoted logfmt value containing a space yields only its first word. No
+rule reads such a field; to filter on one, such as `browser_os="Linux unknown"`,
+match the quoted value in `body` with `LIKE` instead, as the cohort query below
+does.
+
+Always group by `app_environment` (or the columns you mean). The `WHERE` on the
+parsed fields is what replaces Loki's `| logfmt | kind="measurement"` stages;
+dropping one of them silently widens the query rather than failing it.
 
 Web vitals arrive as `kind=measurement` entries with `type=web-vitals`. The line
 carries one field per vital (`lcp`, `cls`, `inp`, `fcp`, `ttfb`) **in
@@ -8583,54 +8615,42 @@ one LCP above 10,000 milliseconds in the same 24 hours. Multiple slow page loads
 or reloads within one session count once; a session is not a unique person.
 Its C math expression is `$A > 10.0 && $B > 300 && $D >= 10`.
 
-Use this instant Loki query for D:
+All three p99 queries also leave out `/users/log_in` pages
+(`COALESCE(page_url, '') NOT LIKE '%/users/log_in%'`), where most of the
+automated client described below landed. D is the same subquery, over 24 hours
+and with that filter, aggregated as:
 
-```logql
-count by (app_environment) (
-  sum by (app_environment, session_id) (
-    count_over_time(
-      {service_name="tuist-web"}
-        | logfmt
-        | kind="measurement"
-        | type="web-vitals"
-        | app_environment="prod"
-        | lcp!=""
-        | session_id!=""
-        | lcp > 10000
-        | __error__="" [24h]
-    )
-  )
-) or on (app_environment) (
-  0 * sum by (app_environment) (
-    count_over_time(
-      {service_name="tuist-web"}
-        | logfmt
-        | kind="measurement"
-        | type="web-vitals"
-        | app_environment="prod"
-        | lcp!="" [24h]
-    )
-  )
-)
+```sql
+SELECT app_environment,
+  count(DISTINCT CASE WHEN lcp > 10000 AND COALESCE(session_id, '') <> ''
+                      THEN session_id END) AS value
+FROM (...) m
+WHERE kind = 'measurement'
+  AND type = 'web-vitals'
+  AND app_environment = 'prod'
+  AND lcp IS NOT NULL
+  AND COALESCE(page_url, '') NOT LIKE '%/users/log_in%'
+GROUP BY app_environment
 ```
 
-The fallback preserves the `app_environment` label and returns zero when LCP
-telemetry exists but no sessions qualify. It leaves missing telemetry absent;
-the separate browser-vitals telemetry rule covers that case. Missing session
-IDs do not establish distinct affected sessions and are excluded from D.
+It returns zero with the `app_environment` row when LCP telemetry exists but
+no session qualifies, which the Loki version needed an `or on` fallback for,
+and no row when there is no LCP telemetry at all; the separate browser-vitals
+telemetry rule covers that case. Missing session IDs do not establish distinct
+affected sessions and are excluded from D.
 
 **Why ten, and validation on 2026-09-06.** The investigated window ending
-2026-09-05 21:46 UTC had p99 13.58s, 477 samples, and only six affected sessions
-on different pages. A 14-day lookback returned LCP data only from September 4.
-At 55 hourly evaluation points from September 4 09:00 UTC through September 6
-15:00 UTC, the old A/B condition crossed its thresholds 19 times; adding D
-suppressed all 19. D ranged from zero to eight. These are sampled condition
-results, not a replay of the 30-minute pending state. The zero-session fallback
-was also verified against live Loki. This short history does not establish a
-statistical cutoff or show sensitivity to a known widespread regression: ten
-is an interruption policy that should be reassessed with more history. It
-delays detection of low-volume regressions; the lower-percentile rules remain
-independent.
+2026-09-05 21:46 UTC had p99 13.58s, 477 samples, and only six affected
+sessions on different pages. A 14-day lookback returned LCP data only from
+September 4. At 55 hourly evaluation points from September 4 09:00 UTC through
+September 6 15:00 UTC, the old A/B condition crossed its thresholds 19 times;
+adding D suppressed all 19. D ranged from zero to eight. These are sampled
+condition results, not a replay of the 30-minute pending state. The
+zero-session fallback was also verified against live Loki, before the move to
+Pulse. This short history does not establish a statistical cutoff or show
+sensitivity to a known widespread regression: ten is an interruption policy
+that should be reassessed with more history. It delays detection of low-volume
+regressions; the lower-percentile rules remain independent.
 
 **First firing above the floor, 2026-09-07: p99 14.56s, 1043 samples, D=13 — and
 not a regression.** p75 was 1.67s and flat over the preceding three days
@@ -8730,30 +8750,35 @@ this change does not introduce a Worker.
 
 Watch fresh samples from both crawler cohorts after rollout. Existing samples
 remain in the six- and 24-hour alert windows until they age out; do not treat
-an immediately firing alert as proof the new rule failed. The Linux query is:
+an immediately firing alert as proof the new rule failed. The Linux query
+counts its sessions over the rules' 24-hour measurement subquery, matching the
+quoted `browser_os` value in `body` because the field regex reads one word:
 
-```logql
-count(sum by (session_id) (
-  count_over_time(
-    {service_name="tuist-web"}
-      | logfmt
-      | kind="measurement"
-      | type="web-vitals"
-      | app_environment="prod"
-      | lcp!=""
-      | browser_os="Linux unknown"
-      | browser_viewportWidth="1919"
-      | browser_viewportHeight="992"
-      | session_id!=""
-      | __error__="" [24h]
-  )
-))
+```sql
+SELECT count(DISTINCT session_id) AS sessions
+FROM (SELECT body,
+    CAST(regexp_match(body, '(?:^| )lcp="?([0-9.]+)')[1] AS DOUBLE) AS lcp,
+    regexp_match(body, '(?:^| )kind="?([^" ]*)')[1] AS kind,
+    regexp_match(body, '(?:^| )type="?([^" ]*)')[1] AS type,
+    regexp_match(body, '(?:^| )app_environment="?([^" ]*)')[1] AS app_environment,
+    regexp_match(body, '(?:^| )session_id="?([^" ]*)')[1] AS session_id
+  FROM tuist_web_logs
+  WHERE timestamp > now() - INTERVAL '24 hours'
+    AND body LIKE '%kind=measurement%' AND body LIKE '%type=web-vitals%') m
+WHERE kind = 'measurement'
+  AND type = 'web-vitals'
+  AND app_environment = 'prod'
+  AND lcp IS NOT NULL
+  AND COALESCE(session_id, '') <> ''
+  AND body LIKE '%browser_os="Linux unknown"%'
+  AND regexp_like(body, '(?:^| )browser_viewportWidth="?1919("| |$)')
+  AND regexp_like(body, '(?:^| )browser_viewportHeight="?992("| |$)')
 ```
 
-For the explicitly identified Meta cohort, use the same measurement selector
-with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
-OS and viewport filters. Also check the new declarations with
-`| browser_userAgent=~"(?i)(.*headlesschrome/.*|yisouspider|sogou web spider/.*)"`.
+For the explicitly identified Meta cohort, use the same query with
+`regexp_like(body, '(?i)browser_userAgent="[^"]*meta-externalagent/')` instead
+of the Linux OS and viewport filters. Also check the new declarations with
+`regexp_like(body, '(?i)browser_userAgent="?[^"]*(headlesschrome/|yisouspider|sogou web spider/)')`.
 To roll back just the self-declared automation extension, restore the
 expression's final condition to `cf.client.bot`. To roll back the entire edge
 filter, set `enabled: false` in its Kubernetes manifest and let Flux and the
@@ -8781,9 +8806,8 @@ DOM inflates `element_render_delay` directly — one real-user sample paired a
 route misconfiguration, appearing on 9-13% of navigations across every
 `view_name`.
 
-For per-page investigation, group the inner sum by
-`(app_environment, page_url, session_id)` and the outer count by
-`(app_environment, page_url)`. Three affected sessions on the same page is a
+For per-page investigation, group D by `(app_environment, page_url)` instead
+of `app_environment` alone. Three affected sessions on the same page is a
 candidate complementary signal, not an enabled rule. The six-hour backtest
 snapshots found at most one affected session per page. Before enabling it,
 validate it with more history and normalize URLs so query strings do not split
@@ -8808,17 +8832,26 @@ population, different window, and CrUX covers Chrome users only.
 **Finding which phase blew the budget.** Google's LCP sub-part budget is TTFB at
 most 40% of LCP, resource load delay at most 10%, resource load duration at most
 40%, and element render delay at most 10%. Faro records all four next to the
-value, so no extra instrumentation is needed:
+value, so no extra instrumentation is needed. Parse the sub-part next to `lcp`
+in the rules' 6-hour subquery and take its percentile:
 
-```logql
-quantile_over_time(0.75,
-  {service_name="tuist-web"}
-    | logfmt
-    | kind="measurement"
-    | type="web-vitals"
-    | lcp!=""
-    | unwrap resource_load_duration [6h]
-) by (app_environment)
+```sql
+SELECT app_environment,
+  percentile_cont(0.75) WITHIN GROUP (ORDER BY resource_load_duration) AS value
+FROM (SELECT
+    CAST(regexp_match(body, '(?:^| )lcp="?([0-9.]+)')[1] AS DOUBLE) AS lcp,
+    CAST(regexp_match(body, '(?:^| )resource_load_duration="?([0-9.]+)')[1] AS DOUBLE) AS resource_load_duration,
+    regexp_match(body, '(?:^| )kind="?([^" ]*)')[1] AS kind,
+    regexp_match(body, '(?:^| )type="?([^" ]*)')[1] AS type,
+    regexp_match(body, '(?:^| )app_environment="?([^" ]*)')[1] AS app_environment
+  FROM tuist_web_logs
+  WHERE timestamp > now() - INTERVAL '6 hours'
+    AND body LIKE '%kind=measurement%' AND body LIKE '%type=web-vitals%') m
+WHERE kind = 'measurement'
+  AND type = 'web-vitals'
+  AND lcp IS NOT NULL
+  AND resource_load_duration IS NOT NULL
+GROUP BY app_environment
 ```
 
 Swap `resource_load_duration` for `time_to_first_byte`, `resource_load_delay` or
@@ -8848,8 +8881,10 @@ and 768 of those carry an LCP. The rest is `kind=event`, dominated by
 seconds, a single idle open tab emits a resource-timing entry on that cadence
 forever.
 
-The consequence is query amplification rather than a large bill: an LCP query
-scans around 63,000 lines to find 768. If it becomes a problem, pass
+The consequence is query amplification rather than a large bill: when these
+counts were taken on Loki, an LCP query scanned around 63,000 lines to find
+768. `tuist_web_logs` holds the same mix, and the rules' `LIKE` prefilter still
+reads every row in the window. If it becomes a problem, pass
 `enablePerformanceInstrumentation: false` to `getWebInstrumentations` in
 `server/assets/shared/js/analytics.js`. Web vitals come from a separate
 instrumentation and are unaffected.
@@ -8861,27 +8896,30 @@ rules with No Data: OK and therefore cannot tell a fast site from a collector
 that stopped receiving. Without this rule, breaking the Faro pipeline would
 silence all five permanently and read as health.
 
-```logql
-sum(count_over_time(
-  {service_name="tuist-web"}
-    | logfmt
-    | kind="measurement"
-    | type="web-vitals"
-    | app_environment="prod"
-    | lcp!="" [2h]
-)) < 1
+Query A counts the LCP measurements in the last two hours with the rules'
+subquery and no `GROUP BY`, and the rule fires below 1:
+
+```sql
+SELECT count(*) AS value
+FROM (...) m  -- the measurement subquery, INTERVAL '2 hours'
+WHERE kind = 'measurement'
+  AND type = 'web-vitals'
+  AND app_environment = 'prod'
+  AND lcp IS NOT NULL
 ```
 
 - Pending period: 2 hours
-- No Data: **Alerting**, and Error: **Alerting**
+- No Data: **Alerting**
 - Summary: `No browser LCP measurements have reached Loki for 2h - every LCP percentile rule is blind`
 
-The polarity is inverted relative to the rules it guards. If the stream vanishes
-entirely, `sum(count_over_time(...))` returns nothing rather than zero, so the
-threshold alone would never fire and No Data has to be the alerting state. The
-same inversion applies to the `absent_over_time` rules elsewhere in this
-document. A healthy 2h window holds roughly 60 samples, and the threshold is
-total silence rather than a volume dip.
+The polarity is inverted relative to the rules it guards. On Loki, a vanished
+stream made `sum(count_over_time(...))` return nothing rather than zero, so No
+Data had to be the alerting state. Without a `GROUP BY` the SQL count returns a
+row with 0 when nothing arrived, so the threshold itself fires; No Data stays
+Alerting for a query that returns no row. A query that fails follows the Pulse
+rules' error states ([Error states](pulse-grafana.md#error-states)), and
+`pulse-sql-unavailable` watches the SQL path. A healthy 2h window holds roughly
+60 samples, and the threshold is total silence rather than a volume dip.
 
 **This pipeline has now shipped three silent faults**, and all three presented
 identically — every rule green, nothing firing, no data behind any of it:
@@ -8891,14 +8929,15 @@ identically — every rule green, nothing firing, no data behind any of it:
    URL moved to `/-/faro/collect`.
 2. **Environment spelling.** The rules filtered `app_environment="production"`
    while the app emits `prod`.
-3. **`kind` as a label.** The rules selected `{service_name="tuist-web",
-   kind="measurement"}`, which Grafana Cloud never indexes. This one hid two
-   days of perfectly good data.
+3. **`kind` as a label.** The Loki rules selected `{service_name="tuist-web",
+   kind="measurement"}`, which Grafana Cloud Loki never indexed. This one hid
+   two days of perfectly good data. In SQL `kind` is parsed out of `body`, like
+   every other field.
 
 The shape is always the same: a filter that matches nothing is indistinguishable
 from a fast site when No Data is OK. **When a rule in this group goes quiet,
-strip the query back to `{service_name="tuist-web"}` and re-add one stage at a
-time** before believing the silence.
+strip the query back to `SELECT count(*) FROM tuist_web_logs` over the window
+and re-add one condition at a time** before believing the silence.
 
 Triage follows the payload:
 
@@ -8910,12 +8949,16 @@ Triage follows the payload:
    `404 page not found` is Go's, so the request reached Alloy and the path is
    wrong, whereas the server's HTML error page means it never left Phoenix and
    neither the ExternalName Service nor the Faro Ingress was rendered.
-3. **Loki** — strip the query to the bare stream selector, then re-add
-   `| logfmt | kind="measurement"` and each filter in turn.
+3. **Pulse** — count the rows of `tuist_web_logs` in the window, then re-add
+   the `LIKE` prefilter, the `kind = 'measurement'` condition and each filter
+   in turn.
 4. **Alloy** — `faro_receiver_measurements_total` on the `alloy-receiver`
-   collector counts what it ingested. Rising there but absent in Loki is a
-   forwarding problem. Absent entirely proves nothing on its own: those
-   component metrics are not always exported to Grafana Cloud.
+   collector counts what it ingested. Rising there but absent in
+   `tuist_web_logs` is a forwarding problem. It is not in Pulse: the
+   `alloy-receiver` self-metrics allow list in `values.yaml` leaves out
+   `faro_receiver_*`, and reading the pod's own `/metrics` on :12345 needs a
+   port-forward the read-only access tier denies. Without it, use the ingress
+   check above and the `tuist_web_logs` row count.
 
 Content blockers cannot explain a total outage; the collector is same-origin
 precisely so no blocklist matches it.
@@ -9421,7 +9464,8 @@ target down, just 20 had two or more.
 
 1. Open **Alerts & incident response → Alerting → Alert rules**.
 2. Select **New alert rule**.
-3. Choose the Grafana Cloud metrics data source.
+3. Choose the Tuist Pulse Metrics data source of the environment the rule
+   covers (Tuist Pulse SQL for log rules).
 4. Paste one query from this document and set it as the alert condition.
    Skip **Retired rules**: those were deleted deliberately.
 5. Set the evaluation interval to one minute and use the pending period shown
@@ -9456,9 +9500,12 @@ target down, just 20 had two or more.
     recent data before saving it. **A query that returns no data is not
     evidence of health**, and paired with No Data: Normal it produces a rule
     that is indistinguishable from a working one until the incident it was
-    written for. Grafana Cloud **adaptive metrics** is the usual cause: it
-    aggregates high-cardinality labels away and then serves only the
-    aggregations it stores for that metric. Two consequences to check for:
+    written for. On Pulse, check first that the collector ships the metric
+    and label at all (the cost controls in `values.yaml` drop many outside
+    production). For a rule still on Grafana Cloud, **adaptive metrics** is
+    the usual cause: it aggregates high-cardinality labels away and then
+    serves only the aggregations it stores for that metric. Two consequences
+    to check for there:
     selecting an aggregated label matches nothing (`workload_cluster`,
     `kubeadmcontrolplane` on the CAPI custom-resource metrics; `cluster`,
     `env`, `instance`, `k8s_cluster_name` on `etcd_*`), and an aggregation
@@ -9479,8 +9526,8 @@ The same rules can be created with Grafana Assistant. Give it this prompt:
 ```text
 Create Grafana-managed alert rules from
 infra/helm/k8s-monitoring/alerts.md. Ignore the Retired rules section: those
-were deleted deliberately and must not be recreated. Use the Grafana Cloud
-metrics data source,
+were deleted deliberately and must not be recreated. Use the Tuist Pulse
+Metrics data source of the environment each rule covers,
 preserve every query and pending period exactly, put the rules in a folder
 named Tuist infrastructure, add the suggested summary as the annotation, and
 route critical and warning severities through our existing infrastructure

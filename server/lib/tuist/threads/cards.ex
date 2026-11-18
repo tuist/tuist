@@ -1,8 +1,8 @@
 defmodule Tuist.Threads.Cards do
   @moduledoc """
   Builds and checks the cards a Thread's model writes with the `show_ui` tool:
-  one TSX module for NSH (https://nsh.dev), which Tuist Guild's clients run
-  natively in a frame of the card's size class (`guild/crates/core`).
+  one TSX module for NSH (https://nsh.dev), which Luft's clients run
+  natively in a frame of the card's size class (`luft/crates/core`).
 
   The NSH command line bundles the module and opens it headless, at the
   frame's height and at a narrow and a wide width, before anyone sees it. A
@@ -22,12 +22,12 @@ defmodule Tuist.Threads.Cards do
 
   alias Tuist.Environment
 
-  # Frame heights in points, as the Guild core gives them (`present_card`).
+  # Frame heights in points, as the Luft core gives them (`present_card`).
   @heights %{"compact" => 120, "medium" => 240, "tall" => 400}
   # A phone's narrowest conversation and a tablet's or desktop's.
   @widths [320, 600]
   @source_limit 64 * 1024
-  # The Guild core drops larger cards.
+  # The Luft core drops larger cards.
   @bundle_limit 256 * 1024
   @timeout 30_000
   @feedback_limit 4_000
@@ -41,7 +41,7 @@ defmodule Tuist.Threads.Cards do
   @slots 2
   @registry Tuist.Threads.Cards.Slots
 
-  @foreign "The card imports a file outside it. A card is one module and may import only Guild's card kit, `./guild`."
+  @foreign "The card imports a file outside it. A card is one module and may import only Luft's card kit, `./luft`."
 
   # The card kit: the components a card composes, bundled into every card so
   # cards look like the app. It is the server's own code, not the model's.
@@ -106,7 +106,7 @@ defmodule Tuist.Threads.Cards do
 
       try do
         File.write!(Path.join(dir, "App.tsx"), tsx)
-        File.write!(Path.join(dir, "guild.tsx"), @kit)
+        File.write!(Path.join(dir, "luft.tsx"), @kit)
         File.write!(Path.join(dir, "nsh.json"), @nsh_json)
         File.write!(Path.join(dir, "check.test.tsx"), test_file(height))
 
@@ -180,9 +180,9 @@ defmodule Tuist.Threads.Cards do
          "Import modules statically at the top of the card; `import()`, `import.meta` and `require` aren't available. " <>
            "If it's text, not code, word it differently."}
 
-      bad = Enum.find(specifiers, &(&1 != ["./guild"])) ->
+      bad = Enum.find(specifiers, &(&1 != ["./luft"])) ->
         {:error,
-         "The card imports #{inspect(hd(bad))}. A card is one module and may import only Guild's card kit, `./guild`. " <>
+         "The card imports #{inspect(hd(bad))}. A card is one module and may import only Luft's card kit, `./luft`. " <>
            "If it's text, not an import, word it differently."}
 
       true ->
@@ -252,7 +252,7 @@ defmodule Tuist.Threads.Cards do
   # place it points to is the card's own.
   defp quoting_only_card({:error, feedback} = error) do
     places = Regex.scan(~r/([^\s\[\]()"'`]+):\d+:\d+/, feedback, capture: :all_but_first)
-    own = [["App.tsx"], ["./App.tsx"], ["guild.tsx"], ["./guild.tsx"]]
+    own = [["App.tsx"], ["./App.tsx"], ["luft.tsx"], ["./luft.tsx"]]
     if Enum.all?(places, &(&1 in own)), do: error, else: {:error, @foreign}
   end
 
@@ -263,7 +263,7 @@ defmodule Tuist.Threads.Cards do
   defp only_card_bundled(dir) do
     with {:ok, map} <- File.read(Path.join(dir, "out/bundle.js.map")),
          {:ok, %{"sources" => sources}} <- JSON.decode(map),
-         ["App.tsx", "guild.tsx"] <- Enum.sort(sources) do
+         ["App.tsx", "luft.tsx"] <- Enum.sort(sources) do
       :ok
     else
       _ -> {:error, @foreign}

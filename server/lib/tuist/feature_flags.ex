@@ -128,17 +128,17 @@ defmodule Tuist.FeatureFlags do
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether a user may use Tuist Guild's features: threads, AI subscriptions and
-  MCP servers. Canary and production require an explicit `:guild` FunWithFlags
+  Whether a user may use Luft's features: threads, AI subscriptions and
+  MCP servers. Canary and production require an explicit `:luft` FunWithFlags
   toggle. Development, test and staging default to enabled. Organization
-  routing uses `organization_guild_enabled?/1` instead.
+  routing uses `organization_luft_enabled?/1` instead.
   """
-  def guild_enabled?(actor) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:guild, for: actor)
+  def luft_enabled?(actor) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:luft, for: actor)
   end
 
-  @doc "Organization AI requires the account's `:guild` flag in every environment."
-  def organization_guild_enabled?(account), do: FunWithFlags.enabled?(:guild, for: account)
+  @doc "Organization AI requires the account's `:luft` flag in every environment."
+  def organization_luft_enabled?(account), do: FunWithFlags.enabled?(:luft, for: account)
 
   @doc """
   The names of the flags enabled for `user` that the Tuist apps read
@@ -147,7 +147,7 @@ defmodule Tuist.FeatureFlags do
   only when an app feature depends on it.
   """
   def app_flags(user) do
-    for {name, true} <- [{"guild", guild_enabled?(user)}], do: name
+    for {name, true} <- [{"luft", luft_enabled?(user)}], do: name
   end
 
   @doc """

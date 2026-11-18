@@ -1,4 +1,4 @@
-// Guild's card kit: the only module a thread card may import, as "./guild".
+// Luft's card kit: the only module a thread card may import, as "./luft".
 // `Tuist.Threads.Cards` writes it beside the card and bundles it in. Cards
 // compose these components and style nothing themselves, so every card
 // looks like the app around it: the theme's tokens, the system's type

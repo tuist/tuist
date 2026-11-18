@@ -58,13 +58,13 @@ defmodule Tuist.Threads.CardsTest do
 
   describe "check_source/1" do
     test "a card may import the card kit" do
-      assert Cards.check_source(~s(import { mount, Title } from "./guild";\nimport { Row } from './guild';)) == :ok
+      assert Cards.check_source(~s(import { mount, Title } from "./luft";\nimport { Row } from './luft';)) == :ok
     end
 
     test "a card may not import anything else, so it composes the kit instead of styling its own views" do
-      for specifier <- ["nsh", "nsh/base", "./guild.tsx", "./data.json", "/etc/passwd", "lodash", "node:fs"] do
+      for specifier <- ["nsh", "nsh/base", "./luft.tsx", "./data.json", "/etc/passwd", "lodash", "node:fs"] do
         assert {:error, message} = Cards.check_source(~s(import x from "#{specifier}";)), specifier
-        assert message =~ "may import only Guild's card kit"
+        assert message =~ "may import only Luft's card kit"
       end
 
       assert {:error, _} = Cards.check_source(~s(export * from "./other";))
@@ -95,7 +95,7 @@ defmodule Tuist.Threads.CardsTest do
   # pass without checking anything where it isn't.
   describe "build/2 with NSH" do
     @card """
-    import { mount, Row, Title, VStack } from "./guild";
+    import { mount, Row, Title, VStack } from "./luft";
     function App() {
       return (<VStack><Title>Slowest targets</Title><Row title="TuistKit" trailing="412 s" /></VStack>);
     }

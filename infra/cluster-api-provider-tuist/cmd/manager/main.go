@@ -204,7 +204,7 @@ func main() {
 			"host logs to. Points at the tailnet hostname of the Tailscale-operator "+
 			"proxy in front of the k8s-monitoring chart's alloy-receiver, which "+
 			"already serves this endpoint for the xcresult processor's Tart guests. "+
-			"Pushing there rather than to Grafana Cloud keeps every ingest "+
+			"Pushing there rather than straight to Pulse keeps every ingest "+
 			"credential off the fleet: the tailnet ACL is the access control and "+
 			"Alloy forwards with the token it already holds. Empty disables the "+
 			"host-log step. Flows from the chart's macosFleet.hostLogs.url.")

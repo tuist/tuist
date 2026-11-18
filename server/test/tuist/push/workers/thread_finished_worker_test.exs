@@ -25,7 +25,7 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorkerTest do
   defp register(user, app, platform) do
     {:ok, client} =
       case app do
-        "guild" -> {:ok, %{id: Clients.guild_client_id()}}
+        "luft" -> {:ok, %{id: Clients.luft_client_id()}}
         "tuist" -> {:ok, Clients.public!()}
       end
 
@@ -53,15 +53,15 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorkerTest do
     installation
   end
 
-  test "tells the owner's Guild devices, not the Tuist app, where to open the thread" do
+  test "tells the owner's Luft devices, not the Tuist app, where to open the thread" do
     owner = AccountsFixtures.user_fixture()
     other = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: owner)
     account = Accounts.get_account_from_organization(organization)
-    iphone = register(owner, "guild", "ios")
-    mac = register(owner, "guild", "macos")
+    iphone = register(owner, "luft", "ios")
+    mac = register(owner, "luft", "macos")
     register(owner, "tuist", "ios")
-    register(other, "guild", "ios")
+    register(other, "luft", "ios")
 
     thread =
       Repo.insert!(%Thread{
@@ -82,7 +82,7 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorkerTest do
     assert payloads |> Map.keys() |> Enum.sort() == Enum.sort([iphone.id, mac.id])
 
     target = %{
-      "url" => "https://tuist.dev/guild/threads/#{thread.id}",
+      "url" => "https://tuist.dev/luft/threads/#{thread.id}",
       "account" => account.name,
       "user" => Accounts.get_user_by_id(owner.id).account.name,
       "thread_id" => thread.id
@@ -101,7 +101,7 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorkerTest do
   test "shows the first message as the title only once the agent renamed the thread" do
     owner = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(owner)
-    iphone = register(owner, "guild", "ios")
+    iphone = register(owner, "luft", "ios")
     goal = "The login flow loops; my staging token is abc123 " <> String.duplicate("x", 100)
 
     thread =

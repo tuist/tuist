@@ -1,6 +1,6 @@
 defmodule Tuist.Push.Workers.ThreadFinishedWorker do
   @moduledoc """
-  Tells a thread's owner on their Tuist Guild devices that the thread stopped
+  Tells a thread's owner on their Luft devices that the thread stopped
   working (it replied, failed or was stopped), one `DeliveryWorker` job per
   device. Enqueued by `Tuist.Push.notify_thread_finished/2` in the transaction
   that sets the status.
@@ -8,10 +8,10 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorker do
   The alert shows a fixed line for the status and, once the agent named the
   thread, its title; never message content. A thread starts titled with the
   start of its first message, so until it's renamed the alert says "Your
-  thread". `url` is the thread's Guild web URL on this server, which Guild
+  thread". `url` is the thread's Luft web URL on this server, which Luft
   opens; `account` is the handle of the account that owns the thread, which
-  Guild selects first; and `user` is the owner's handle, so Guild opens it in
-  the owner's profile. Guild registers only Apple devices (see
+  Luft selects first; and `user` is the owner's handle, so Luft opens it in
+  the owner's profile. Luft registers only Apple devices (see
   `Tuist.Push.register/4`), so it sends nothing when APNs isn't configured.
   """
 
@@ -34,7 +34,7 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorker do
         payload = payload(thread, account.name, owner_handle, status)
 
         thread.owner_id
-        |> Push.live_installations("guild")
+        |> Push.live_installations("luft")
         |> Enum.map(&DeliveryWorker.new(%{"registration_id" => &1.id, "payload" => payload}))
         |> Oban.insert_all()
       end
@@ -45,7 +45,7 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorker do
 
   defp payload(%Thread{id: id} = thread, account_handle, owner_handle, status) do
     %{
-      "url" => Environment.app_url(path: "/guild/threads/#{id}"),
+      "url" => Environment.app_url(path: "/luft/threads/#{id}"),
       "account" => account_handle,
       "user" => owner_handle,
       "thread_id" => id,

@@ -36,13 +36,13 @@ defmodule TuistWeb.Oauth.AuthorizeController do
           extra_claims: UserToken.sso_claims(conn.assigns[:current_user_session])
         }
 
-        # Tuist Guild is a public native client: its ID is public and its
+        # Luft is a public native client: its ID is public and its
         # redirects can be claimed by other apps on the device, so the ID
         # proves nothing about who is asking (RFC 8252, section 8.6). Its
         # sign-ins act as the signed-in user, so each one needs the person to
         # approve it on the page `preauthorize_success/2` renders, which posts
         # back here with the same query.
-        if query["client_id"] == Clients.guild_client_id() do
+        if query["client_id"] == Clients.luft_client_id() do
           conn
           |> put_private(:oauth_consent, {consent(conn), resource_owner})
           |> Oauth.preauthorize(resource_owner, __MODULE__)
@@ -121,10 +121,10 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   end
 
   @impl AuthorizeApplication
-  # Only Tuist Guild's requests are preauthorized, so Boruta has validated the
+  # Only Luft's requests are preauthorized, so Boruta has validated the
   # client, redirect URI and PKCE challenge before any of these redirect.
   def preauthorize_success(conn, %AuthorizationSuccess{scope: scope} = authorization) when scope not in [nil, ""] do
-    redirect_error(conn, authorization, :invalid_scope, "Tuist Guild requests no scopes.")
+    redirect_error(conn, authorization, :invalid_scope, "Luft requests no scopes.")
   end
 
   def preauthorize_success(%Plug.Conn{private: %{oauth_consent: {:deny, _}}} = conn, authorization) do

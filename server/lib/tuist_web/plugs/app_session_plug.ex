@@ -5,7 +5,7 @@ defmodule TuistWeb.Plugs.AppSessionPlug do
   `TuistWeb.AuthenticationPlug`, assigns `:app_user` and `:app_session`, and marks
   responses `no-store`. Other OAuth clients, account tokens and agent credentials
   get a 403, whatever their scopes. `apps:` lists the apps an endpoint admits
-  (default `["tuist"]`); push devices also admit Tuist Guild.
+  (default `["tuist"]`); push devices also admit Luft.
 
   Writes are limited per user, because unregistering unknown IDs and removing
   devices leave tombstones that outlive the user's devices.

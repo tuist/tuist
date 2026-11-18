@@ -7,8 +7,8 @@ defmodule TuistWeb.API.HallsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
-    stub(FeatureFlags, :guild_enabled?, fn _ -> true end)
-    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :luft_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
     user = AccountsFixtures.user_fixture(preload: [:account])
     member = AccountsFixtures.user_fixture(preload: [:account])
     organization = AccountsFixtures.organization_fixture(creator: user)

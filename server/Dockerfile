@@ -32,7 +32,7 @@ RUN git init . && git remote add origin https://github.com/endevco/aube.git \
 # writes (Tuist.Threads.Cards): the official release, checksum-pinned. NSH
 # publishes no signatures or attestations yet, so the pinned SHA-256 is what
 # stops a replaced asset. Keep the version and checksums with server/mise.lock
-# and the version with Tuist Guild's NSH SDK (guild/modules/nsh.star). It needs
+# and the version with Luft's NSH SDK (luft/modules/nsh.star). It needs
 # glibc 2.39 and the runner is Bookworm (2.36), so it ships with Trixie's loader
 # and the three libraries it links, and `nsh` runs it through them; the rest of
 # the image keeps Bookworm's glibc. It starts no other programs, which would

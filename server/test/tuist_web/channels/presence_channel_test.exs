@@ -10,8 +10,8 @@ defmodule TuistWeb.PresenceChannelTest do
   alias TuistWeb.ThreadsSocket
 
   setup do
-    stub(FeatureFlags, :guild_enabled?, fn _ -> true end)
-    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :luft_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
     ana = AccountsFixtures.user_fixture(preload: [:account])
     ben = AccountsFixtures.user_fixture(preload: [:account])
     organization = AccountsFixtures.organization_fixture(creator: ana)
@@ -73,7 +73,7 @@ defmodule TuistWeb.PresenceChannelTest do
     Process.unlink(ben_socket.channel_pid)
     ref = Process.monitor(ben_socket.channel_pid)
 
-    stub(FeatureFlags, :guild_enabled?, fn user -> user.id != ben.id end)
+    stub(FeatureFlags, :luft_enabled?, fn user -> user.id != ben.id end)
     send(ben_socket.channel_pid, :recheck)
 
     assert_receive {:DOWN, ^ref, :process, _, _}

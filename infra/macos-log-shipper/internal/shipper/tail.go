@@ -60,8 +60,8 @@ func ReadNew(path string, from Position, exists bool) (ReadResult, error) {
 	case !exists:
 		// First sight of this file. Start at the end: /var/log/tart-kubelet.log
 		// is never rotated, so on a host that has been up for months byte 0 is
-		// months of history nobody asked for and Grafana Cloud would reject
-		// most of it as too old anyway.
+		// months of history nobody asked for, replayed in one burst on first
+		// start.
 		res.Next = Position{Inode: inode, Offset: size}
 		return res, nil
 	case inode != from.Inode, size < from.Offset:

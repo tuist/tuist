@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "954f765d4b07ccfe1b4ad112ca521e8ab04564bd28e3d4f04193e307195374a4",
+  "hash": "24373c26de652999d653ac8c3e9b1c6eeb5ac8f28f980670a513ec63d059e909",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,7 +20,7 @@
                   "content_hash": "77b3f5951a22cddd8a9e936196911906697956f6c253214931293b2ec9273b37"
                 },
                 "## Setup {#setup}": {
-                  "content_hash": "f1f99881bb53d135aeda2dcc2ca19f5518651357a34bec90082a8eabc7930dd8"
+                  "content_hash": "64f29ba103a87ba83127c23001f9d5759704aae8ce93764cbdea80753bdddb10"
                 },
                 "### GitHub Enterprise Server {#github-enterprise-server}": {
                   "content_hash": "3be761f999b3f6140607059efe126216c53457212f3d7f861e16796be8438175"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "7ee3c29b77b7b19f70e3a96e99dda0f30274255522898968d3e4c4d74cdfadae",
+          "hash": "458d494771b886187e7b1af6127c9043704adac40ac5fe895031e4076253f7c6",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/gitforge/github.md",
           "metadata": {
-            "content_hash": "45256e9d1d6ad9292a554808b3a94093a162484c0a4135287e22e12e91b52b02"
+            "content_hash": "c2df05869daca467b64f7339b8ec000225f81f4c5d282ea99879af9c4c462f63"
           }
         },
         {
@@ -251,14 +251,14 @@
         }
       ],
       "details": {},
-      "hash": "954f765d4b07ccfe1b4ad112ca521e8ab04564bd28e3d4f04193e307195374a4",
+      "hash": "24373c26de652999d653ac8c3e9b1c6eeb5ac8f28f980670a513ec63d059e909",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/gitforge/github.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "48e1379d02161a65fb1ec75ef613578fa6f2211d7c9040f501e583f85b20e072",
+  "output_hash": "93e8e34032c58fab4b58ed31e74cafe547fe10da125ea43144b009a2efc04b97",
   "output_path": "server/priv/docs/ka/guides/integrations/gitforge/github.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +280,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "6fdb3d112531c5fa9b793c3e9738ad0609439034",
   "source_path": "server/priv/docs/en/guides/integrations/gitforge/github.md",
-  "translated_at": "2026-11-06T22:19:03.283521Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-18T07:19:33.419910Z",
+  "translation_session_id": "01a1ed84-cd37-7c7d-bb49-ec7ed436b12c"
 }

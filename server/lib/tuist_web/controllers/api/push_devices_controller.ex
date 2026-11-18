@@ -8,7 +8,7 @@ defmodule TuistWeb.API.PushDevicesController do
   alias TuistWeb.API.Schemas.Error
 
   # Reject other credentials before validating their requests.
-  plug TuistWeb.Plugs.AppSessionPlug, apps: ["tuist", "guild"]
+  plug TuistWeb.Plugs.AppSessionPlug, apps: ["tuist", "luft"]
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -27,7 +27,7 @@ defmodule TuistWeb.API.PushDevicesController do
   operation(:update,
     summary: "Registers this app installation for push notifications",
     description:
-      "Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Tuist Guild can register. The registration lasts while that sign-in remains active.",
+      "Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.",
     operation_id: "registerPushDevice",
     parameters: [installation_id: @installation_id],
     request_body:
@@ -38,7 +38,7 @@ defmodule TuistWeb.API.PushDevicesController do
            platform: %Schema{
              type: :string,
              enum: ["ios", "macos", "android"],
-             description: "The device platform. Only Tuist Guild registers macOS devices."
+             description: "The device platform. Only Luft registers macOS devices."
            },
            token: %Schema{
              type: :string,
@@ -89,7 +89,7 @@ defmodule TuistWeb.API.PushDevicesController do
 
   operation(:index,
     summary: "Lists the signed-in user's push devices",
-    description: "Lists the devices of the app making the request: the Tuist app's, or Tuist Guild's.",
+    description: "Lists the devices of the app making the request: the Tuist app's, or Luft's.",
     operation_id: "listPushDevices",
     responses: %{
       ok:

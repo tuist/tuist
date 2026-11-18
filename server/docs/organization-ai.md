@@ -39,9 +39,9 @@ clears the default without selecting a replacement.
   `complete/2`. Settings reads and configuration writes reload the account and
   require organization account-update authorization.
 - Every settings read, configuration write and inference call requires
-  `FeatureFlags.organization_guild_enabled?(account)`, checking `:guild` on the
+  `FeatureFlags.organization_luft_enabled?(account)`, checking `:luft` on the
   organization account, not the administrator, in **every environment**.
-  Unlike personal `FeatureFlags.guild_enabled?/1`, this strict gate does not inherit
+  Unlike personal `FeatureFlags.luft_enabled?/1`, this strict gate does not inherit
   enabled defaults in development, test or staging.
 - Keys are encrypted at rest by `Tuist.Vault` (AES-GCM), redacted from inspection,
   and never returned by settings or retained in LiveView assigns. A blank key
@@ -71,7 +71,7 @@ clears the default without selecting a replacement.
 - All configuration writes serialize by locking the organization row, including
   first creation, edits, removals and default selection. Removing a connection
   prevents subsequent inference through it; already-dispatched inference can
-  finish. Key rotation/removal does not revoke the upstream key. Disabling `guild`
+  finish. Key rotation/removal does not revoke the upstream key. Disabling `luft`
   retains configuration but blocks new inference and all configuration access.
 - This layer does not store prompts, completions or conversation sessions, and
   has no refresh-token lifecycle: provider API keys are rotated by admins.

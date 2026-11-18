@@ -1,6 +1,6 @@
 defmodule TuistWeb.API.ThreadRunnerConnectionController do
   @moduledoc """
-  What a runner daemon (`tuist-guild-runner`) calls with its own secret, never
+  What a runner daemon (`luft-runner`) calls with its own secret, never
   a person's session: `poll` reports it online with what it allows and waits
   for operations; `respond` answers one it claimed. Request and response
   bodies hold files and command output, so the routes don't log params.
@@ -40,10 +40,10 @@ defmodule TuistWeb.API.ThreadRunnerConnectionController do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {:ok, runner} <- Runners.authenticate(token),
          %{} = user <- Accounts.get_user_by_id(runner.user_id),
-         true <- user.active and is_nil(user.disabled_at) and FeatureFlags.guild_enabled?(user) do
+         true <- user.active and is_nil(user.disabled_at) and FeatureFlags.luft_enabled?(user) do
       assign(conn, :runner, runner)
     else
-      _ -> conn |> put_status(:unauthorized) |> json(%{message: "Register this runner again from Tuist Guild."}) |> halt()
+      _ -> conn |> put_status(:unauthorized) |> json(%{message: "Register this runner again from Luft."}) |> halt()
     end
   end
 end

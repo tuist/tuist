@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "4d498e8108569cc18ea16d51576a1068e134aa474feab83b92317c060c1573b2",
+  "hash": "aad975df7bc06217b02a7004f6e47514e2a417fc2780ebf53baa77563b31efc4",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,7 +29,7 @@
                   "content_hash": "5d6d0da97f0a3e5bd0f8d9b22518406590ee52e8bab1834bed29d14cd8732221"
                 },
                 "### Available scopes {#available-scopes}": {
-                  "content_hash": "146ba2d33a5d2fe32ce188e8cf57dde5c2d0dd6397d9b19c5b2defa0690d4bb7"
+                  "content_hash": "7e9fd7a1660b797223603dd27b5fd527acb3184c714da7d94686e31c1fb154db"
                 },
                 "### Claude Code sessions {#claude-code-sessions}": {
                   "content_hash": "8016681fc2afaf3556eff7109a989c1300bc6853e95f2977890748a3fdd9c5e8"
@@ -77,11 +77,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "a9ddad376d7f771a709e8973d47181dae5abce2cb0971eeebe2bcd5181913ebf",
+          "hash": "dfd908ec91baa94cf55aecad0f0ace5e8bdbfdd7491decaeead0fdca0c004239",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/authentication.md",
           "metadata": {
-            "content_hash": "58aa6c542cb3be62b20b85df9058abe9b4fb21f7d00bd04342af49d08ac3f2b0"
+            "content_hash": "5c99cdc4a6a19abed2f49eddd0036b6049e57015b10c3b62f2395690b8cfc35f"
           }
         },
         {
@@ -284,14 +284,14 @@
         }
       ],
       "details": {},
-      "hash": "4d498e8108569cc18ea16d51576a1068e134aa474feab83b92317c060c1573b2",
+      "hash": "aad975df7bc06217b02a7004f6e47514e2a417fc2780ebf53baa77563b31efc4",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/authentication.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7ed302b9f3feb4166506010653b187fe27dc4f21f5a7fba9685a3c9afbe70774",
+  "output_hash": "cb74db1101abaacfe53b99371ff42f946390cf3f6b381450c28a1c8db4ad5f89",
   "output_path": "server/priv/docs/tr/guides/server/authentication.md",
   "protection_state": "recorded",
   "provider": "",
@@ -312,8 +312,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b901922abaa7d248eb4524d4c077845dd3661c22",
+  "source_commit_sha": "6fdb3d112531c5fa9b793c3e9738ad0609439034",
   "source_path": "server/priv/docs/en/guides/server/authentication.md",
-  "translated_at": "2026-11-13T18:25:32.524033Z",
-  "translation_session_id": "01a1d620-8341-720f-b454-7f43812948e3"
+  "translated_at": "2026-11-18T07:20:24.561094Z",
+  "translation_session_id": "01a1ed84-cd37-7c7d-bb49-ec7ed436b12c"
 }

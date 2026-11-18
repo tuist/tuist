@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "332b209d338a5d8404c0c442e4e9f15505085e9c2892772c22be11d8bf4540db",
+  "hash": "f34864b7ded3ca319e51f2542debd8fac56e792bf3e46ac2a84dd69509279ced",
   "hash_tree": {
     "root": {
       "children": [
@@ -41,7 +41,7 @@
                   "content_hash": "e25cc471e1700d798fc27982b912146c536e5339f247de66dc58fd61ccc73f34"
                 },
                 "### Turn coverage on {#turn-coverage-on}": {
-                  "content_hash": "255dcaab18cb46cc661cf316e4d8fe83cce99af7d213018b58cbe57aad78210a"
+                  "content_hash": "fb344ab8efe9207351f2e402e2e8c74e9ac2fb818ccbf69637c9b7ab37b8e6e5"
                 },
                 "### What Tuist measures {#what-tuist-measures}": {
                   "content_hash": "047e2e6a85ee332f4fd74c3f36f3c9c6faafa2bdd194e385edbb80f6f62df213"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0a689ee9baaad163ac72bf0d31c2d3e4599a51034ff373a82c8d0d8f2116e58a",
+          "hash": "3915457de94f67aee484467746f88ddec79953502edb5400bc91adda922ddedd",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
           "metadata": {
-            "content_hash": "24f5b2050da0b122c40bf3ed894e71b8d5fb16062db0b0461893ed4499e99825"
+            "content_hash": "acfff8094fd363776cda1ddaaff048fc6ca1225eaf523978155d32c2e59de3a8"
           }
         },
         {
@@ -266,14 +266,14 @@
         }
       ],
       "details": {},
-      "hash": "332b209d338a5d8404c0c442e4e9f15505085e9c2892772c22be11d8bf4540db",
+      "hash": "f34864b7ded3ca319e51f2542debd8fac56e792bf3e46ac2a84dd69509279ced",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f9faaf3e090c60c41203420ba9faf9246f54deec582c5812b2aebaf074847b4d",
+  "output_hash": "2d7d3afcd47ca6cc7bea8bbdd085122c090a26743edef76611ae97ead77a1606",
   "output_path": "server/priv/docs/ko/guides/features/test-code-coverage/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -294,8 +294,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
+  "source_commit_sha": "6fdb3d112531c5fa9b793c3e9738ad0609439034",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/rust.md",
-  "translated_at": "2026-11-13T16:38:13.429964Z",
-  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
+  "translated_at": "2026-11-18T07:19:32.919391Z",
+  "translation_session_id": "01a1ed84-cd37-7c7d-bb49-ec7ed436b12c"
 }

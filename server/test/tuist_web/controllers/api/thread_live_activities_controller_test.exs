@@ -16,23 +16,23 @@ defmodule TuistWeb.API.ThreadLiveActivitiesControllerTest do
     %{user: AccountsFixtures.user_fixture(preload: [:account])}
   end
 
-  test "only Tuist Guild registers, and a retired ID answers 410", %{conn: conn, user: user} do
+  test "only Luft registers, and a retired ID answers 410", %{conn: conn, user: user} do
     id = Ecto.UUID.generate()
     body = %{token: Base.encode16(:crypto.strong_rand_bytes(32), case: :lower), environment: "production"}
 
     tuist_app = sign_in(user, Clients.public!().id)
     assert conn |> authorized(tuist_app) |> put("/api/me/thread-live-activities/#{id}", body) |> json_response(403)
 
-    guild = sign_in(user, Clients.guild_client_id())
-    assert build_conn() |> authorized(guild) |> put("/api/me/thread-live-activities/#{id}", body) |> response(204)
+    luft = sign_in(user, Clients.luft_client_id())
+    assert build_conn() |> authorized(luft) |> put("/api/me/thread-live-activities/#{id}", body) |> response(204)
     assert %LiveActivity{user_id: user_id, retired_at: nil} = Repo.get!(LiveActivity, id)
     assert user_id == user.id
 
-    assert build_conn() |> authorized(guild) |> delete("/api/me/thread-live-activities/#{id}") |> response(204)
-    assert build_conn() |> authorized(guild) |> put("/api/me/thread-live-activities/#{id}", body) |> json_response(410)
+    assert build_conn() |> authorized(luft) |> delete("/api/me/thread-live-activities/#{id}") |> response(204)
+    assert build_conn() |> authorized(luft) |> put("/api/me/thread-live-activities/#{id}", body) |> json_response(410)
 
     assert build_conn()
-           |> authorized(guild)
+           |> authorized(luft)
            |> put("/api/me/thread-live-activities/#{Ecto.UUID.generate()}", %{body | token: "nope"})
            |> json_response(400)
   end

@@ -102,13 +102,13 @@ defmodule Tuist.ThreadsTest do
 
   test "revoked feature access denies existing history", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    stub(FeatureFlags, :guild_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :luft_enabled?, fn _ -> false end)
     assert {:error, :forbidden} = Threads.get(user, account, thread.id)
     assert {:error, :forbidden} = Threads.list(user, account)
     assert {:error, :forbidden} = Threads.snapshot(user, account, :inbox)
   end
 
-  test "organization threads need both the user's and the organization's guild flags", %{
+  test "organization threads need both the user's and the organization's luft flags", %{
     user: user,
     account: personal
   } do
@@ -121,8 +121,8 @@ defmodule Tuist.ThreadsTest do
           {true, false, {:error, :forbidden}, :ok},
           {false, true, {:error, :forbidden}, {:error, :forbidden}}
         ] do
-      stub(FeatureFlags, :guild_enabled?, fn _ -> user_flag end)
-      stub(FeatureFlags, :organization_guild_enabled?, fn flagged -> organization_flag and flagged.id == account.id end)
+      stub(FeatureFlags, :luft_enabled?, fn _ -> user_flag end)
+      stub(FeatureFlags, :organization_luft_enabled?, fn flagged -> organization_flag and flagged.id == account.id end)
 
       assert Threads.authorize(user, account) == organization_access
       assert Threads.authorize(user, personal) == personal_access
@@ -151,7 +151,7 @@ defmodule Tuist.ThreadsTest do
     assert next.model == "selected-model"
   end
 
-  test "a finished run notifies the owner's Guild devices", %{user: user, account: account} do
+  test "a finished run notifies the owner's Luft devices", %{user: user, account: account} do
     stub(Tuist.Environment, :apns_configured?, fn -> true end)
     {:ok, thread} = Threads.create(user, account, request())
     {:ok, {run, _}} = claim(Repo.one!(Run).id)
@@ -449,7 +449,7 @@ defmodule Tuist.ThreadsTest do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       :ok = Accounts.add_user_to_organization(user, organization, role: :admin)
-      stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+      stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
       {:ok, thread} = Threads.create(user, account, request())
       queued = Repo.get_by!(Run, thread_id: thread.id)
 
@@ -457,7 +457,7 @@ defmodule Tuist.ThreadsTest do
         :permission -> Accounts.update_user_role_in_organization(user, organization, :user)
         :inactive -> Repo.update!(change(user, active: false))
         :disabled -> Repo.update!(change(user, disabled_at: DateTime.utc_now(:second)))
-        :feature -> stub(FeatureFlags, :organization_guild_enabled?, fn _ -> false end)
+        :feature -> stub(FeatureFlags, :organization_luft_enabled?, fn _ -> false end)
       end
 
       stub(Tuist.Environment, :apns_configured?, fn -> true end)
@@ -473,7 +473,7 @@ defmodule Tuist.ThreadsTest do
         :permission -> Accounts.update_user_role_in_organization(user, organization, :admin)
         :inactive -> Repo.update!(change(Repo.reload!(user), active: true))
         :disabled -> Repo.update!(change(Repo.reload!(user), disabled_at: nil))
-        :feature -> stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+        :feature -> stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
       end
 
       lapse(thread.id)

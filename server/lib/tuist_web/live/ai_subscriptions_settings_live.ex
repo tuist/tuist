@@ -3,7 +3,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
   Personal settings page where a user connects their Claude and ChatGPT
   subscriptions for threads, laid out like the Integrations cards. Only the
   user's own personal account renders it, and only while
-  `Tuist.FeatureFlags.guild_enabled?/1` holds for them. Credentials never
+  `Tuist.FeatureFlags.luft_enabled?/1` holds for them. Credentials never
   enter socket assigns: the Claude token is passed straight to
   `Tuist.Accounts.AISubscriptions`, and ChatGPT only exposes its user code.
   """
@@ -19,7 +19,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    if selected_account.user_id != current_user.id or not FeatureFlags.guild_enabled?(current_user) do
+    if selected_account.user_id != current_user.id or not FeatureFlags.luft_enabled?(current_user) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_account", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -46,7 +46,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
 
   # The flag can be turned off while the page is open; stop acting on events then.
   defp require_ai_flag(_event, _params, socket) do
-    if FeatureFlags.guild_enabled?(socket.assigns.current_user),
+    if FeatureFlags.luft_enabled?(socket.assigns.current_user),
       do: {:cont, socket},
       else: {:halt, push_navigate(socket, to: ~p"/#{socket.assigns.selected_account.name}/settings")}
   end

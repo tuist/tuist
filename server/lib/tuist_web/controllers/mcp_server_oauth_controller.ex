@@ -13,7 +13,7 @@ defmodule TuistWeb.MCPServerOAuthController do
   def callback(%{assigns: %{current_user: user}} = conn, params) do
     settings_path = ~p"/#{user.account.name}/settings/ai"
 
-    if FeatureFlags.guild_enabled?(user) do
+    if FeatureFlags.luft_enabled?(user) do
       case MCPServers.complete_authorization(user, params) do
         {:ok, server} ->
           conn

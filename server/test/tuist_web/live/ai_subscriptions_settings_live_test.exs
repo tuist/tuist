@@ -123,7 +123,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
     end
   end
 
-  test "requires the guild flag in production", %{conn: conn, user: user} do
+  test "requires the luft flag in production", %{conn: conn, user: user} do
     stub(Environment, :env, fn -> :prod end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings")
@@ -133,7 +133,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
       live(conn, ~p"/#{user.account.name}/settings/ai")
     end
 
-    FunWithFlags.enable(:guild, for_actor: user)
+    FunWithFlags.enable(:luft, for_actor: user)
 
     assert {:ok, _lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai")
   end

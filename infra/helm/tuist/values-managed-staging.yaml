@@ -164,7 +164,7 @@ server:
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
-  # them to Grafana Cloud Tempo. Logs follow a different path — the server
+  # them to the environment's Pulse. Logs follow a different path — the server
   # writes to stdout and a per-node Alloy DaemonSet tails /var/log/pods —
   # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
   # attaches when TUIST_LOKI_INPROC=1).

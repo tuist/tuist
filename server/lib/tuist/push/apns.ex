@@ -1,6 +1,6 @@
 defmodule Tuist.Push.APNs do
   @moduledoc """
-  Sends notifications to the Tuist iOS app and Tuist Guild through the Apple
+  Sends notifications to the Tuist iOS app and Luft through the Apple
   Push Notification service, authenticated with the team's token-auth key
   (`Tuist.Environment.apns_*`), which must not be restricted to one topic.
 

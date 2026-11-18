@@ -25,7 +25,7 @@ That is the substantive change. The old fleet had its own operating system, its 
 | Storage | Local disk: a metadata store for manifests and replication state, append-only segment files for artifact bodies |
 | Ingress and certificates | Regional ingress controllers with certificates issued through cert-manager |
 | Secrets | 1Password, synchronized into the cluster by the External Secrets Operator |
-| Observability | Grafana Cloud, through the in-cluster telemetry agent that covers every workload |
+| Observability | The environment's Pulse, fed by the in-cluster telemetry agent that covers every workload, and read by Grafana Cloud |
 
 ## Regions
 
@@ -90,7 +90,7 @@ Kura is a mesh, and it is deployed with rolling updates, so nodes running differ
 
 **Secrets.** Held in 1Password and synchronized by the External Secrets Operator. Rotating one means updating the item and letting the operator resynchronize.
 
-**Observability.** Metrics, logs, and traces reach Grafana Cloud through the in-cluster agent. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
+**Observability.** Metrics, logs, and traces reach the environment's Pulse through the in-cluster agent, and Grafana Cloud reads them for dashboards and alerts. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
 
 **Release.** Releasing an OVHcloud or Scaleway Elastic Metal box wipes and reinstalls it before it can be re-adopted. This does not cancel its provider subscription. The Dedibox fleet has been retired and its provisioning support removed.
 

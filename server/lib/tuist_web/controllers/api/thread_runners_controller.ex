@@ -1,16 +1,16 @@
 defmodule TuistWeb.API.ThreadRunnersController do
   @moduledoc """
-  The signed-in person's runners, managed from Tuist Guild: list, register
-  (which returns the runner's secret once) and revoke. Only Tuist Guild's
-  first-party session can use these, and only while the person has Guild.
+  The signed-in person's runners, managed from Luft: list, register
+  (which returns the runner's secret once) and revoke. Only Luft's
+  first-party session can use these, and only while the person has Luft.
   """
   use TuistWeb, :controller
 
   alias Tuist.FeatureFlags
   alias Tuist.Threads.Runners
 
-  plug TuistWeb.Plugs.AppSessionPlug, apps: ["guild"]
-  plug :require_guild
+  plug TuistWeb.Plugs.AppSessionPlug, apps: ["luft"]
+  plug :require_luft
 
   def index(conn, _params) do
     json(conn, %{runners: conn.assigns.app_user |> Runners.list() |> Enum.map(&Runners.serialize/1)})
@@ -36,8 +36,8 @@ defmodule TuistWeb.API.ThreadRunnersController do
     end
   end
 
-  defp require_guild(conn, _opts) do
-    if FeatureFlags.guild_enabled?(conn.assigns.app_user),
+  defp require_luft(conn, _opts) do
+    if FeatureFlags.luft_enabled?(conn.assigns.app_user),
       do: conn,
       else: conn |> put_status(:not_found) |> json(%{message: "Not found."}) |> halt()
   end

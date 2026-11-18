@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2dad2cc4d28cee6db3d123c3ae3385abb3ead04e0247118a3dc358a8b24597b6",
+  "hash": "3c440940af0afbc13e2f928bf733af0c173398500c78d6e441e96da08811c24c",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,7 +20,7 @@
                   "content_hash": "c4bccfeba24eaea7e31de838e566ff113a261f4739574d7b1b0ff16857d15e54"
                 },
                 "## Setup {#setup}": {
-                  "content_hash": "30f205c78f9f979bb1fd788e22d07f82f3366866cec8ea5128619b517d181beb"
+                  "content_hash": "aa5b5fc25440284db41467e72f129d5efb3cb75c7508ea958626d7a20a5037ed"
                 },
                 "Preamble": {
                   "content_hash": "5b9aa0c381f778e3917b319e316ea152207678ef439aa8eba83366ae3d4b656f"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "08423e2a0a1a41d3b702588081df89aefacb2837ecd3777133ed7196e3ec5c61",
+          "hash": "52a9cd042dc29d86ac9062d5a02d0bde6a21707853ede3a3882dc19e6b83c143",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/gitforge/origin.md",
           "metadata": {
-            "content_hash": "0d8450553727a112887534bdf76d2b535ad341328361ee8383b57472a23dfe34"
+            "content_hash": "6fecf7f15d607687a7932156a866490645a6532df66c998cbdb7fda1f8c3dcb6"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "2dad2cc4d28cee6db3d123c3ae3385abb3ead04e0247118a3dc358a8b24597b6",
+      "hash": "3c440940af0afbc13e2f928bf733af0c173398500c78d6e441e96da08811c24c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/gitforge/origin.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "87d453671d5afcb10436511a7ba47f10a1f7c6fe6f737c708c0f262f82c1a596",
+  "output_hash": "6cf2e95edea606a6dfcd9ad60f0bea4b09bad32db60dc523bee561d7bcbca31f",
   "output_path": "server/priv/docs/ko/guides/integrations/gitforge/origin.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "6fdb3d112531c5fa9b793c3e9738ad0609439034",
   "source_path": "server/priv/docs/en/guides/integrations/gitforge/origin.md",
-  "translated_at": "2026-11-06T22:20:01.536973Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-18T07:19:33.615708Z",
+  "translation_session_id": "01a1ed84-cd37-7c7d-bb49-ec7ed436b12c"
 }

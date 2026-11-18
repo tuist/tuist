@@ -556,8 +556,8 @@ objectStorage:
         field: secret_access_key
 
 observability:
-  # We forward to Grafana Cloud via an in-cluster Alloy DaemonSet installed by
-  # the platform chart. The chart's embedded observability stack stays off.
+  # We forward to the environment's Pulse via an in-cluster Alloy DaemonSet
+  # installed by the platform chart. The chart's embedded observability stack stays off.
   enabled: false
 
 # macOS Profile catalog: the baseline shared across every managed

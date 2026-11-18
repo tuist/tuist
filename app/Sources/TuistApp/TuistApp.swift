@@ -61,7 +61,7 @@ import TuistServer
                 ServerCredentialsStore.$current.withValue(
                     ServerCredentialsStore(backend: .keychain)
                 ) {
-                    // File locks serialize Keychain session refreshes with Tuist Guild, which takes
+                    // File locks serialize Keychain session refreshes with Luft, which takes
                     // the same `credential-refresh-<hash>` lock under ~/.local/state/tuist.
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
                         MenuBarView(

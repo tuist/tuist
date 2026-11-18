@@ -1,6 +1,6 @@
 defmodule Tuist.Halls.Presence do
   @moduledoc """
-  Which members of an organization have Tuist Guild open. Each connected
+  Which members of an organization have Luft open. Each connected
   client's `TuistWeb.PresenceChannel` tracks its user on the organization's
   topic, so every web replica sees every connection through the cluster's
   PubSub. It is ephemeral: a replica that stops takes its connections with it,

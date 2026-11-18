@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "346b90bb1790fb7a98920d376856dd47f0216d276b78fa60467fb22cd8b487f6",
+  "hash": "20f39a1956330a7be066a0f398b9ce7f706a049ec2d1184cc2a5064db863847d",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "9592edc22312abbaaf5f0e78b30cb8773e03dd373507f89fac248c3e96fb50f9"
                 },
                 "## Querying coverage {#querying}": {
-                  "content_hash": "a039851cd36c0c5a921d1771dac59f2881e2ffa70992fea1e783981897163db2"
+                  "content_hash": "6f7ceb088b3f6ae89c4bfcf07303f1973d3176ab6da681f3f7c6c944dacdac1d"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "06eef71c229bc0a5e527b6e4c89db2a8c40b9368eb37c1652f1e9f629e3ec257"
@@ -53,13 +53,13 @@
                   "content_hash": "a8f5ec185bcbe13f3898d4d537b270b9a041d05dc56fe3615a807885b3572940"
                 },
                 "### Run the whole suite on your default branch {#full-runs}": {
-                  "content_hash": "fafaa9da38cee76ba1686d667f40e336cc591d4e04e2cb80c11ace18a8cd369d"
+                  "content_hash": "6df8a0322c5bff6395c3416cf50ec55593201bb8b025faa0603d47d9f90151a1"
                 },
                 "### Run your tests {#run-your-tests}": {
                   "content_hash": "00da85dabebf2d4e74f9b4e7fc2eb108492c14e26c22b754733dab0c5b6aeb02"
                 },
                 "### Skipped tests {#skipped-tests}": {
-                  "content_hash": "5b3638a670f2df2d796947c27e4d1112c75b9e94a3bea4e3bd7c7ec92cb07698"
+                  "content_hash": "6dfb83731f62167becc9bbfdf1e7677c280736d6ddb678959036717043eda700"
                 },
                 "### Turn coverage on {#turn-coverage-on}": {
                   "content_hash": "fb98dd0cbffc99d63388c289491b48846570cadae5a54e619096f6a09452d601"
@@ -71,11 +71,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "42c0352604a325a968adb0d79e0e6a82d490567f8b5941fe9f2d74e1bf0873c5",
+          "hash": "e2455d56263faccddd1374cca38476b12bc55dfba1b491c3817e4bd12f15ff69",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/generated-xcode-project.md",
           "metadata": {
-            "content_hash": "ba2eb89ecd4f622e96ae63ecf2726731cc7b6c247244d34b1c80710139930b19"
+            "content_hash": "5a4afd5dbc4e62db15bd5018a320fce23e02b453d464bf8602cb68e682bec293"
           }
         },
         {
@@ -296,14 +296,14 @@
         }
       ],
       "details": {},
-      "hash": "346b90bb1790fb7a98920d376856dd47f0216d276b78fa60467fb22cd8b487f6",
+      "hash": "20f39a1956330a7be066a0f398b9ce7f706a049ec2d1184cc2a5064db863847d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/generated-xcode-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b2c1446d3b91b7bd822085e914974423138ffc1fcecd9b6a79da89ab57796f71",
+  "output_hash": "39d6387c49680a3c92392c222362b26096e0dd91a5799fb6b41172ccfbea57fe",
   "output_path": "server/priv/docs/ko/guides/features/test-code-coverage/generated-xcode-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -326,8 +326,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "832ec45104891fb7bfb3de1e11da4380ec5bd8a6",
+  "source_commit_sha": "6fdb3d112531c5fa9b793c3e9738ad0609439034",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/generated-xcode-project.md",
-  "translated_at": "2026-11-14T20:41:37.916154Z",
-  "translation_session_id": "01a1dbc8-0f71-780e-9886-2dec6f6c0f67"
+  "translated_at": "2026-11-18T07:19:32.680450Z",
+  "translation_session_id": "01a1ed84-cd37-7c7d-bb49-ec7ed436b12c"
 }

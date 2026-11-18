@@ -1,6 +1,6 @@
 defmodule Tuist.Push.LiveActivity do
   @moduledoc """
-  One Tuist Guild Live Activity registration: the aggregate activity the app
+  One Luft Live Activity registration: the aggregate activity the app
   started locally for its user's working threads, and the ActivityKit push token
   that updates it. See `Tuist.Push.LiveActivities`.
   """

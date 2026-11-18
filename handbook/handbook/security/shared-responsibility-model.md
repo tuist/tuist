@@ -50,7 +50,7 @@ The split matches Scaleway. Hardware and host network are OVHcloud's. The operat
 
 ## Tigris: object storage
 
-Customer artifacts, build outputs, previews, and database backups.
+Customer artifacts, build outputs, previews, database backups, and the cluster telemetry that Pulse stores.
 
 **Tigris is responsible for** durability and availability of the store, encryption in transit and at rest, isolation between tenants, and the security of the storage infrastructure.
 
@@ -74,13 +74,13 @@ Authoritative name service, certificate validation, and the workers that route t
 
 **Tuist is responsible for** name records, edge rules and rate limits, worker code, certificate issuance policy, and keeping origins from being reachable around the edge.
 
-## Grafana Cloud: logs, metrics, and traces
+## Grafana Cloud: dashboards and alerting
 
-Telemetry leaves the cluster through an agent we run inside it.
+Cluster logs, metrics, and traces are stored in Pulse, the observability database we run in each environment, which keeps its data in Tigris. Grafana Cloud reads Pulse through a private tunnel to show dashboards and evaluate alerts. It still stores telemetry from the legacy cache machines and its own synthetic checks.
 
-**Grafana is responsible for** the durability, availability, and access control of the telemetry store, and the security of its platform.
+**Grafana is responsible for** the availability and access control of dashboards, alerting, and the telemetry it still stores, and the security of its platform.
 
-**Tuist is responsible for** what is logged and what is deliberately kept out of logs, redaction before anything is shipped, retention settings, dashboards and alert rules, and who is allowed to read logs. The requirements are in the [Logging and monitoring policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
+**Tuist is responsible for** operating Pulse, what is logged and what is deliberately kept out of logs, redaction before anything is shipped, retention settings, dashboards and alert rules, and who is allowed to read logs. The requirements are in the [Logging and monitoring policy](/security/secure-development-and-operations/logging-and-monitoring-policy).
 
 ## 1Password: secret storage
 

@@ -1,6 +1,6 @@
 defmodule TuistWeb.PresenceChannel do
   @moduledoc """
-  An organization's presence for Tuist Guild: joining `presence:<handle>`
+  An organization's presence for Luft: joining `presence:<handle>`
   tracks the user as connected, and pushes `presence_state` then
   `presence_diff` with every member connected anywhere in the cluster.
   Keys are user IDs; each connection's meta carries the user's handle.

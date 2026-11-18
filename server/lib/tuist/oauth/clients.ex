@@ -3,7 +3,7 @@ defmodule Tuist.OAuth.Clients do
   Custom OAuth clients adapter for Boruta that supports both:
 
   - a static environment-configured client used by Tuist,
-  - Tuist Guild's static client, whose ID is the same on every server, and
+  - Luft's static client, whose ID is the same on every server, and
   - dynamically registered clients persisted by Boruta Ecto.
   """
 
@@ -16,7 +16,7 @@ defmodule Tuist.OAuth.Clients do
   alias Tuist.Environment
 
   @authorization_code_ttl 300
-  @guild_client_id "6653b77b-b787-4eb2-b955-8380ea5f1478"
+  @luft_client_id "6653b77b-b787-4eb2-b955-8380ea5f1478"
   @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
 
   @impl Clients
@@ -34,13 +34,13 @@ defmodule Tuist.OAuth.Clients do
   end
 
   @doc """
-  Tuist Guild's client ID. Guild is a first-party app, like the Tuist app: its
+  Luft's client ID. Luft is a first-party app, like the Tuist app: its
   sessions act as the signed-in user (`TuistWeb.Authentication.app_user/1`), so
   new app features need no new scopes and no new sign-in. It is a public native
   client (PKCE, RFC 8252), so the ID is not a secret and is fixed in code, which
-  lets Guild sign in to any server running this version without configuration.
+  lets Luft sign in to any server running this version without configuration.
   """
-  def guild_client_id, do: @guild_client_id
+  def luft_client_id, do: @luft_client_id
 
   @impl Clients
   def public! do
@@ -93,7 +93,7 @@ defmodule Tuist.OAuth.Clients do
 
   defp static_client(client_id) when is_binary(client_id) do
     Enum.find(
-      [kura_introspection_client(), tuist_oauth_client(), guild_client()],
+      [kura_introspection_client(), tuist_oauth_client(), luft_client()],
       &match?(%Client{id: ^client_id}, &1)
     )
   end
@@ -154,16 +154,16 @@ defmodule Tuist.OAuth.Clients do
     }
   end
 
-  defp guild_client do
+  defp luft_client do
     %Client{
-      id: @guild_client_id,
-      name: "Tuist Guild",
+      id: @luft_client_id,
+      name: "Luft",
       access_token_ttl: 86_400,
       authorization_code_ttl: @authorization_code_ttl,
       refresh_token_ttl: 2_592_000,
       # The mobile apps' scheme, and the desktop app's loopback callback on any port (RFC 8252 7.3).
-      redirect_uris: ["tuist-guild://oauth-callback", "http://127.0.0.1:*/callback"],
-      # Guild requests no scope; `TuistWeb.Oauth.AuthorizeController` refuses
+      redirect_uris: ["luft://oauth-callback", "http://127.0.0.1:*/callback"],
+      # Luft requests no scope; `TuistWeb.Oauth.AuthorizeController` refuses
       # any, since Boruta would otherwise allow public scopes and `openid`,
       # and this client has no keys to sign ID tokens with.
       authorize_scope: false,

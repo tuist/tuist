@@ -24,7 +24,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
 | [gradle/](gradle/AGENTS.md) | Gradle plugin |
 | [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
-| [guild/](guild/AGENTS.md) | Tuist Guild, the Rust-core client built alongside the companion apps |
+| [luft/](luft/AGENTS.md) | Luft, the Rust-core client built alongside the companion apps |
 | [noora/](noora/AGENTS.md) | Phoenix component library and Storybook, documented at `tuist.dev/noora` |
 | [slack/](slack/AGENTS.md) | Public Slack invitation app |
 | [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
