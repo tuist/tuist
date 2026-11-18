@@ -515,6 +515,15 @@ impl MobileClient {
         } else {
             self.thread_call(index, &account, op, &args, host)
         };
+        // The text-only outbox cannot preserve file bytes. Retain the draft
+        // and its replay key in the caller rather than acknowledge a partial send.
+        if args["attachments"]
+            .as_array()
+            .is_some_and(|files| !files.is_empty())
+            && result == Err(OFFLINE)
+        {
+            return Err("Connect to the internet to send attachments");
+        }
         // The outbox replays a thread's text only, so a thread on a runner is
         // started online or not at all.
         if op == "start_thread"

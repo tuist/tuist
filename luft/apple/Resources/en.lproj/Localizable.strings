@@ -273,3 +273,14 @@
 "DM" = "DM";
 "Action" = "Action";
 "Go to" = "Go to";
+"Add attachments" = "Add attachments";
+"Photos" = "Photos";
+"Files" = "Files";
+"Adding attachments…" = "Adding attachments…";
+"Remove attachment: %@" = "Remove attachment: %@";
+"Attach up to four files." = "Attach up to four files.";
+"Files must be between 1 byte and 1 MiB." = "Files must be between 1 byte and 1 MiB.";
+"Could not read this image." = "Could not read this image.";
+"This image is too large. Choose a smaller image." = "This image is too large. Choose a smaller image.";
+"Preview attachment" = "Preview attachment";
+"Up to 4 files, 1 MiB each" = "Up to 4 files, 1 MiB each";

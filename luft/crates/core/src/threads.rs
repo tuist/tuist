@@ -1,6 +1,7 @@
 //! Threads: conversations that run on the server. Each frontend lists them,
 //! starts them and replies through these operations; the person never picks a
 //! repository, machine or model.
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use tuist_oauth::{Pkce, endpoint};
 use url::Url;
@@ -112,6 +113,7 @@ impl Threads {
                 let mut body = json!({
                     "request_id": self.request_id(args, server, handle, runner.unwrap_or(""), content)?,
                     "content": content,
+                    "attachments": attachments(args)?,
                     "provider": model["provider"],
                     "model": model["id"],
                 });
@@ -147,6 +149,7 @@ impl Threads {
                 let body = json!({
                     "request_id": self.request_id(args, server, handle, id, content)?,
                     "content": content,
+                    "attachments": attachments(args)?,
                 });
                 let mut thread = request(
                     transport,
@@ -240,7 +243,13 @@ impl Threads {
             }
             return Ok(id.to_string());
         }
-        Ok(self.memory_request_id(server, handle, thread, content))
+        let files = attachments(args)?;
+        let identity = if files.is_empty() {
+            content.to_string()
+        } else {
+            serde_json::to_string(&json!([content, files])).map_err(|_| "Invalid attachments")?
+        };
+        Ok(self.memory_request_id(server, handle, thread, &identity))
     }
 
     fn memory_request_id(
@@ -576,11 +585,52 @@ fn thread_id(args: &Value) -> Result<&str> {
 }
 
 fn message_content(args: &Value) -> Result<&str> {
-    let content = text(args, "content")?;
+    let files = attachments(args)?;
+    let content = args
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if content.trim().is_empty() && files.is_empty() {
+        return Err("Message is empty");
+    }
     if content.len() > 16_000 {
         return Err("Message is too long");
     }
     Ok(content)
+}
+
+/// Bounded inline files travel with the idempotent message, never as a separate
+/// upload that could be orphaned or silently dropped by an offline retry.
+fn attachments(args: &Value) -> Result<Vec<Value>> {
+    let Some(files) = args.get("attachments") else {
+        return Ok(vec![]);
+    };
+    let files = files.as_array().ok_or("Invalid attachments")?;
+    if files.len() > 4 {
+        return Err("Attach up to four files");
+    }
+    for file in files {
+        let name = text(file, "name")?;
+        let mime = text(file, "mime_type")?;
+        let encoded = text(file, "data_base64")?;
+        if name.len() > 255
+            || name.contains(['/', '\\'])
+            || name.chars().any(char::is_control)
+            || mime.len() > 127
+            || !mime.contains('/')
+            || mime.chars().any(char::is_whitespace)
+            || encoded.len() > 1_398_104
+        {
+            return Err("Invalid attachment");
+        }
+        let data = STANDARD
+            .decode(encoded)
+            .map_err(|_| "Invalid attachment data")?;
+        if data.is_empty() || data.len() > 1024 * 1024 {
+            return Err("Files must be between 1 byte and 1 MiB");
+        }
+    }
+    Ok(files.clone())
 }
 
 /// A random version 4 UUID, which the server requires for idempotency keys.

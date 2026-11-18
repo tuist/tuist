@@ -12,6 +12,7 @@ defmodule Tuist.Threads.Message do
     # messages from before authors were recorded, which are the owner's.
     field :author_id, :integer
     field :body, :string
+    field :attachments, {:array, :map}, default: []
     field :tool_name, :string
     field :tool_state, :string
     field :suggestions, {:array, :string}, default: []

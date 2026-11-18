@@ -14,6 +14,7 @@ struct AppMessage: Decodable, Identifiable {
     var createdAt: String?
     /// Who wrote a prompt, in a thread someone was looped into.
     var author: HallPerson?
+    var attachments: [PromptAttachment]?
 
     var createdDate: Date? {
         guard let createdAt else { return nil }
@@ -136,6 +137,7 @@ struct StartConversationView: View {
     /// Nil runs the conversation on Tuist.
     @State private var runner: String?
     @State private var content = ""
+    @State private var attachments: [PromptAttachment] = []
     @State private var starting = false
     @State private var error: String?
     @State private var request: Task<Void, Never>?
@@ -203,7 +205,7 @@ struct StartConversationView: View {
                     }
                     ReplyComposer(
                         reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
-                        placeholder: "What do you want to talk about?", focus: $focused
+                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments
                     ) { request = Task { await start() } }
                 }
                 .padding(.horizontal)
@@ -228,18 +230,12 @@ struct StartConversationView: View {
         private var layout: some View {
             Form {
                 Section {
-                    TextField("What do you want to talk about?", text: $content, axis: .vertical)
-                        .lineLimit(4 ... 12)
-                        .focused($focused)
-                        .disabled(starting || voice.busy)
-                        .onChange(of: content) { _, text in mentions.update(text) }
-                    MentionBar(mentions: mentions, text: $content)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
+                    ReplyComposer(
+                        reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
+                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments
+                    ) { request = Task { await start() } }
                 } footer: {
                     if mentionHint { Text("Type @ to loop someone in.") }
-                }
-                if let message = voice.errorMessage {
-                    Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
                 }
                 if !runners.isEmpty {
                     Picker("Run on", selection: $runner) { runnerOptions }
@@ -255,17 +251,6 @@ struct StartConversationView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(starting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") { request = Task { await start() } }
-                        .disabled(starting || voice.busy || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            // Dictation adds editable text to the topic; only Start sends it.
-            .safeAreaInset(edge: .bottom) {
-                if voice.busy {
-                    ReplyComposer(reply: $content, disabled: true, sending: starting, voice: voice) {}
-                        .padding()
                 }
             }
             .interactiveDismissDisabled(starting)
@@ -295,12 +280,14 @@ struct StartConversationView: View {
     }
 
     private func start() async {
+        guard !starting, !voice.busy,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return }
         starting = true
         defer { starting = false }
         let generation = client.view.generation
         let revision = client.view.navigation.revision
         do {
-            var args: [String: Any] = ["content": content]
+            var args: [String: Any] = ["content": content, "attachments": attachments.map(\.payload)]
             if let runner { args["runner_id"] = runner }
             let thread = try await client.conversation("start_thread", args)
             guard !Task.isCancelled, generation == client.view.generation,
@@ -328,6 +315,7 @@ struct ConversationView: View {
     @State private var olderBefore: Int?
     @State private var loadingOlder = false
     @State private var reply = ""
+    @State private var attachments: [PromptAttachment] = []
     @State private var sending = false
     @State private var error: String?
     @State private var showingPrompts = false
@@ -440,7 +428,7 @@ struct ConversationView: View {
                         .interactiveGlass(in: Circle())
                         .padding(.trailing, 4)
                 #endif
-                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions) {
+                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions, attachments: $attachments) {
                     Task { await send() }
                 }
             }
@@ -621,12 +609,14 @@ struct ConversationView: View {
     /// Sends the composer's text.
     private func send() async {
         let text = reply
-        guard !sending, !voice.busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !sending, !voice.busy, thread?.working == false,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return }
         sending = true
         defer { sending = false }
         do {
-            show(try await client.conversation("send_message", ["id": id, "content": text]))
+            show(try await client.conversation("send_message", ["id": id, "content": text, "attachments": attachments.map(\.payload)]))
             reply = ""
+            attachments = []
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -915,15 +905,20 @@ struct MessageRow: View {
                     if showAuthor, let handle = message.author?.handle {
                         Text(verbatim: "@\(handle)").font(.caption.weight(.semibold)).foregroundStyle(Noora.labelSecondary)
                     }
-                    Text(verbatim: message.content)
-                        .textSelection(.enabled)
-                        .foregroundStyle(Noora.labelPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                    if let files = message.attachments, !files.isEmpty {
+                        MessageAttachments(files: files)
+                    }
+                    if !message.content.isEmpty {
+                        Text(verbatim: message.content)
+                            .textSelection(.enabled)
+                            .foregroundStyle(Noora.labelPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                    }
                 }
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: message.attachments?.isEmpty == false ? .contain : .combine)
             }
         case "assistant":
             Text(markdown(message.content)).textSelection(.enabled).foregroundStyle(Noora.labelPrimary)
