@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	lro "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -97,6 +98,28 @@ func scope(ctx context.Context, instance string) (string, string, error) {
 	}
 	return accounts[0], auth[0], nil
 }
+
+// requestMetadata returns the invocation, mnemonic and target Bazel names an
+// action by, which the control plane shows while the action is queued or
+// running. They are descriptive only: absent, malformed or oversized values
+// are left out, never a reason to refuse the action.
+func requestMetadata(ctx context.Context) map[string]string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	values := md.Get("build.bazel.remote.execution.v2.requestmetadata-bin")
+	var m re.RequestMetadata
+	if len(values) != 1 || proto.Unmarshal([]byte(values[0]), &m) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range map[string]string{"invocation_id": m.ToolInvocationId, "mnemonic": m.ActionMnemonic, "target": m.TargetId} {
+		if value != "" && len(value) <= maxMetadataBytes && utf8.ValidString(value) {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+const maxMetadataBytes = 1024
 
 type operation struct {
 	QueuedAtUnixUS int64  `json:"queued_at_unix_us"`
@@ -233,6 +256,9 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	}
 	if memory != worker.DefaultMemoryGB {
 		body["memory_gb"] = memory
+	}
+	for key, value := range requestMetadata(s.Context()) {
+		body[key] = value
 	}
 	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, body)
 	if err != nil {

@@ -107,6 +107,8 @@ struct InvocationStart {
     log_bytes: usize,
     completion: Option<InvocationCompletion>,
     started_at_ms: u64,
+    // Whether the server was told this invocation is running.
+    running_reported: bool,
     inserted_at: Instant,
 }
 
@@ -997,6 +999,7 @@ impl BuildEventService {
                 log_bytes: 0,
                 completion: None,
                 started_at_ms: timestamp_millis(started.start_time, started.start_time_millis),
+                running_reported: false,
                 inserted_at: Instant::now(),
             };
             let key = invocation_key(account_handle, project_handle, &invocation_id);
@@ -1189,14 +1192,14 @@ impl BuildEventService {
         }
 
         if let Some(pattern) = event.id.as_ref().and_then(|id| id.pattern.as_ref()) {
-            if let Some(start) = self.invocations.lock().await.get_mut(&key) {
-                start.target_patterns = pattern
-                    .pattern
-                    .iter()
-                    .take(MAX_TARGET_PATTERNS)
-                    .map(|pattern| truncate_wire_string(pattern, MAX_TARGET_LABEL_BYTES))
-                    .filter(|pattern| !pattern.is_empty())
-                    .collect();
+            let running = self
+                .invocations
+                .lock()
+                .await
+                .get_mut(&key)
+                .and_then(|start| record_target_patterns(start, &pattern.pattern));
+            if let (Some(running), Some(analytics)) = (running, self.state.analytics.as_ref()) {
+                analytics.enqueue_bazel_invocation_event(running);
             }
             return;
         }
@@ -1376,6 +1379,7 @@ impl BuildEventService {
                         log_bytes: 0,
                         completion: Some(completion),
                         started_at_ms: finished_at_ms,
+                        running_reported: false,
                         inserted_at: Instant::now(),
                     },
                 );
@@ -1979,6 +1983,60 @@ fn invocation_key(account_handle: &str, project_handle: &str, invocation_id: &st
     format!("{account_handle}:{project_handle}:{invocation_id}")
 }
 
+/// Records the invocation's target patterns and, the first time for a signed
+/// invocation, returns the event that reports it running, so the server can
+/// list it before it finishes. Remote actions start after the patterns are
+/// expanded. The server ignores the status on releases that predate it.
+fn record_target_patterns(
+    start: &mut InvocationStart,
+    patterns: &[String],
+) -> Option<BazelInvocationAnalyticsEvent> {
+    start.target_patterns = patterns
+        .iter()
+        .take(MAX_TARGET_PATTERNS)
+        .map(|pattern| truncate_wire_string(pattern, MAX_TARGET_LABEL_BYTES))
+        .filter(|pattern| !pattern.is_empty())
+        .collect();
+    if start.network_trusted || start.running_reported {
+        return None;
+    }
+    start.running_reported = true;
+    Some(BazelInvocationAnalyticsEvent {
+        submission_auth: None,
+        test_summaries: Vec::new(),
+        account_handle: start.account_handle.clone(),
+        project_handle: start.project_handle.clone(),
+        invocation_id: start.invocation_id.clone(),
+        command: start.command.clone(),
+        target_patterns: start.target_patterns.clone(),
+        git_branch: start.git_branch.clone(),
+        git_commit_sha: start.git_commit_sha.clone(),
+        is_ci: start.is_ci,
+        custom_values: BTreeMap::new(),
+        bazel_version: start.bazel_version.clone(),
+        cpu_time_ms: 0,
+        actions_created: 0,
+        actions_executed: 0,
+        targets_configured: 0,
+        packages_loaded: 0,
+        build_timeline_duration_ms: 0,
+        build_timeline_lanes: Vec::new(),
+        build_timeline_span_lanes: Vec::new(),
+        build_timeline_span_start_ms: Vec::new(),
+        build_timeline_span_durations_ms: Vec::new(),
+        build_timeline_span_categories: Vec::new(),
+        build_timeline_span_descriptions: Vec::new(),
+        critical_path_duration_ms: 0,
+        critical_path_action_descriptions: Vec::new(),
+        critical_path_action_durations_ms: Vec::new(),
+        logs: Vec::new(),
+        status: "running".into(),
+        exit_code: 0,
+        started_at_ms: start.started_at_ms,
+        finished_at_ms: 0,
+    })
+}
+
 fn completed_invocation_event(
     mut start: InvocationStart,
     status: &str,
@@ -2578,6 +2636,7 @@ mod tests {
                 log_bytes: 0,
                 completion: None,
                 started_at_ms: 1_700_000_000_000,
+                running_reported: false,
                 inserted_at: Instant::now(),
             },
             "failure",
@@ -3226,6 +3285,34 @@ mod tests {
         assert!(responder.send(response()).await.is_err());
     }
 
+    #[test]
+    fn reports_a_signed_invocation_running_once_its_patterns_arrive() {
+        let mut start = test_invocation_start();
+        start.git_branch = "main".into();
+        start.is_ci = true;
+
+        let event = record_target_patterns(&mut start, &["//app:all".into(), String::new()])
+            .expect("a signed invocation should be reported running");
+        assert_eq!(event.status, "running");
+        assert_eq!(event.invocation_id, "invocation-1");
+        assert_eq!(event.command, "build");
+        assert_eq!(event.target_patterns, ["//app:all"]);
+        assert_eq!(event.git_branch, "main");
+        assert!(event.is_ci);
+        assert_eq!(event.started_at_ms, 1_700_000_000_000);
+        assert_eq!(event.finished_at_ms, 0);
+        assert_eq!(event.submission_auth, None);
+
+        // Later pattern events update the patterns without reporting again.
+        assert!(record_target_patterns(&mut start, &["//lib:all".into()]).is_none());
+        assert_eq!(start.target_patterns, ["//lib:all"]);
+
+        let mut unsigned = test_invocation_start();
+        unsigned.network_trusted = true;
+        assert!(record_target_patterns(&mut unsigned, &["//app:all".into()]).is_none());
+        assert_eq!(unsigned.target_patterns, ["//app:all"]);
+    }
+
     fn test_invocation_start() -> InvocationStart {
         InvocationStart {
             network_trusted: false,
@@ -3256,6 +3343,7 @@ mod tests {
             log_bytes: 0,
             completion: None,
             started_at_ms: 1_700_000_000_000,
+            running_reported: false,
             inserted_at: Instant::now(),
         }
     }

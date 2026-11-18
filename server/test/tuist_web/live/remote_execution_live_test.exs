@@ -2,12 +2,16 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
+  use Mimic
 
   import Phoenix.LiveViewTest
 
   alias Tuist.Bazel
   alias Tuist.Bazel.Profile
+  alias Tuist.IngestRepo
   alias Tuist.OnceEvents
+  alias Tuist.RemoteExecution.Scheduler
+  alias Tuist.RemoteExecution.UsageEvent
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -17,7 +21,7 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     %{project: project, path: "/#{organization.account.name}/#{project.name}/remote-execution"}
   end
 
-  test "Bazel analytics, environment filter, widget selection and invocation drill-down", %{
+  test "Bazel analytics, widget selection and invocation drill-down", %{
     conn: conn,
     project: project,
     path: path
@@ -55,16 +59,16 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     {:ok, view, _} = live(conn, path)
     render_async(view, 5000)
     assert has_element?(view, ".noora-tab-menu-vertical[data-selected]", "Remote execution")
-    assert has_element?(view, "#remote-execution-actions", "2")
+    assert has_element?(view, "#remote-execution", "No remote executions in this period")
     assert has_element?(view, "#remote-execution-duration [data-part=trend]", "since last month")
     assert has_element?(view, "#remote-execution-duration", "250ms")
     assert has_element?(view, "#remote-execution-queue[data-empty]")
-    assert has_element?(view, "#remote-execution-chart")
+    refute has_element?(view, "#remote-execution-chart")
     assert has_element?(view, "#remote-execution-activity", "bazel build //app:local")
 
     render_click(view, "select_execution_type", %{"type" => "p90"})
     assert has_element?(view, "#remote-execution-duration", "p90 execution time")
-    view |> element("[phx-value-widget=actions]") |> render_click()
+    view |> element("[phx-value-widget=execution]") |> render_click()
     assert has_element?(view, "#remote-execution-chart")
     assert has_element?(view, "#remote-execution-sort-by-label-portal", "Ran at")
 
@@ -73,16 +77,14 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     assert has_element?(view, "#remote-execution-sort-by-label-portal", "Avg. execution")
     assert has_element?(view, "#remote-execution-activity th", "Avg. execution")
 
-    {:ok, view, _} = live(conn, path <> "?analytics-environment=ci")
-    render_async(view, 5000)
-    assert has_element?(view, "#remote-execution-actions", "1")
-    refute has_element?(view, "#remote-execution-activity", "//app:local")
+    refute has_element?(view, "#remote-execution-environment-dropdown")
+    assert has_element?(view, "#remote-execution-activity", "//app:ci")
     assert has_element?(view, "#remote-execution-activity a[href*='tab=remote-execution']")
 
     view |> form("#remote-execution-search-form", search: "missing") |> render_change()
     render_async(view, 5000)
     assert has_element?(view, "#remote-execution", "No invocations match your search")
-    assert has_element?(view, "#remote-execution-actions", "1")
+    assert has_element?(view, "#remote-execution-duration", "250ms")
 
     view |> form("#remote-execution-search-form", search: "") |> render_change()
     render_async(view, 5000)
@@ -93,7 +95,90 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     assert has_element?(view, "#remote-execution-activity", "//app:local")
     refute has_element?(view, "#remote-execution-activity", "//app:ci")
     assert has_element?(view, "#remote-execution [data-part=active-filters]", "Targets")
-    assert has_element?(view, "#remote-execution-actions", "2")
+    assert has_element?(view, "#remote-execution-duration", "250ms")
+  end
+
+  test "running invocations lead the table with their remote actions and usage charts the ledger per machine shape", %{
+    conn: conn,
+    project: project,
+    path: path
+  } do
+    observed_at = DateTime.utc_now()
+
+    :ok =
+      Bazel.create_invocation_starts([
+        %{
+          project_id: project.id,
+          invocation_id: "running-build",
+          command: "build",
+          target_patterns: ["//app:running"],
+          is_ci: false,
+          started_at: observed_at |> DateTime.add(-90, :second) |> DateTime.to_naive()
+        }
+      ])
+
+    action = fn state, invocation_id, memory_gb, ago_ms ->
+      %{
+        id: Ecto.UUID.generate(),
+        state: state,
+        action_digest: "abcdef0123456789/10",
+        invocation_id: invocation_id,
+        mnemonic: "CppCompile",
+        target: "//app:running",
+        memory_gb: memory_gb,
+        since: DateTime.add(observed_at, -ago_ms, :millisecond)
+      }
+    end
+
+    # A build Kura has not reported yet still shows up through its actions;
+    # an action without an invocation belongs to none.
+    stub(Scheduler, :activity, fn _account_id, _project_id ->
+      {:ok,
+       [
+         action.("running", "running-build", 8, 3_000),
+         action.("queued", "running-build", 16, 1_500),
+         action.("queued", "running-build", 8, 1_000),
+         action.("running", "unreported-build", 8, 1_000),
+         action.("running", nil, 8, 1_000)
+       ]}
+    end)
+
+    now = NaiveDateTime.utc_now()
+
+    IngestRepo.insert_all(UsageEvent, [
+      usage_event(project, NaiveDateTime.add(now, -2, :day), 2, 4_000),
+      usage_event(project, NaiveDateTime.add(now, -1, :day), 8, 60_000),
+      usage_event(project, NaiveDateTime.add(now, -40, :day), 8, 1_000)
+    ])
+
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 5000)
+    assert has_element?(view, "#remote-execution-activity tbody tr:first-child", "Invocation unreport")
+    assert has_element?(view, "#remote-execution-activity tbody tr:first-child", "1 running · 0 queued")
+    assert has_element?(view, "#remote-execution-activity tbody tr:nth-child(2)", "bazel build //app:running")
+    assert has_element?(view, "#remote-execution-activity tbody tr:nth-child(2)", "1 running · 2 queued")
+    assert has_element?(view, "#remote-execution-activity tbody tr:nth-child(2)", ~r/1m 3\ds/)
+    assert has_element?(view, "#remote-execution-activity tbody tr", "Running")
+
+    assert has_element?(
+             view,
+             "#remote-execution-activity a[href$='/builds/invocations/running-build?tab=remote-execution']"
+           )
+
+    assert has_element?(view, "#remote-execution-executions", "2")
+    assert has_element?(view, "#remote-execution-execution-time", "1m 4s")
+    assert has_element?(view, "#remote-execution-usage-chart")
+    view |> element("[phx-value-widget=execution-time]") |> render_click()
+    assert has_element?(view, "[data-selected][phx-value-widget=execution-time]")
+    refute has_element?(view, "[data-selected][phx-value-widget=executions]")
+
+    # Without the scheduler, Kura's report alone keeps the build listed.
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:error, :unavailable} end)
+    send(view.pid, :refresh_running)
+    render_async(view, 5000)
+    assert has_element?(view, "#remote-execution-activity tbody tr:first-child", "bazel build //app:running")
+    refute has_element?(view, "#remote-execution-activity", "Invocation unreport")
+    refute has_element?(view, "#remote-execution-activity", "running · ")
   end
 
   test "Once local actions never become remote execution statistics", %{conn: conn, project: project, path: path} do
@@ -121,10 +206,11 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
 
     {:ok, view, _} = live(conn, path)
     render_async(view, 5000)
-    assert has_element?(view, "[data-once-telemetry-gap]", "Remote execution telemetry is not available for Once yet")
+    assert has_element?(view, "[data-once-telemetry-gap]", "Per-action remote timings are not available for Once yet")
     assert has_element?(view, "a[href$='/once/build-runs']", "Open build runs")
-    refute has_element?(view, "#remote-execution-actions")
+    refute has_element?(view, "#remote-execution-queue")
     refute has_element?(view, "#remote-execution-chart")
+    assert has_element?(view, "#remote-execution", "No remote executions in this period")
   end
 
   test "empty projects stay discoverable while unsupported and private projects stay protected", %{
@@ -143,5 +229,19 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     foreign = [build_system: :bazel, visibility: :private] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)
     foreign_path = "/#{foreign.account.name}/#{foreign.name}/remote-execution"
     assert_raise NotFoundError, fn -> live(conn, foreign_path) end
+  end
+
+  defp usage_event(project, inserted_at, vcpus, duration_ms) do
+    %{
+      id: UUIDv7.generate(),
+      account_id: project.account_id,
+      project_id: project.id,
+      sandbox_id: UUIDv7.generate(),
+      mode: "scheduled",
+      vcpus: vcpus,
+      memory_mb: vcpus * 2048,
+      duration_ms: duration_ms,
+      inserted_at: NaiveDateTime.truncate(inserted_at, :microsecond)
+    }
   end
 end

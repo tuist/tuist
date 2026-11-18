@@ -28,6 +28,7 @@ defmodule Tuist.RemoteExecution.Usage do
   alias Tuist.Billing.UsageMeters
   alias Tuist.Billing.UsagePricing
   alias Tuist.ClickHouseRepo
+  alias Tuist.ClickHouseTimeSeries
   alias Tuist.RemoteExecution.UsageEvent
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -120,6 +121,72 @@ defmodule Tuist.RemoteExecution.Usage do
           period_end,
           usage_end
         )
+    }
+  end
+
+  @doc """
+  What `project` ran in `[from, to)`: executions and their measured time in
+  total, per VM shape, per dispatch mode, and per hour, day or month bucket
+  as the dashboard analytics use. Every bucket of the period is present;
+  buckets without executions are zero, since the ledger records every
+  execution a node measured.
+  """
+  def project_usage(%{id: project_id, account_id: account_id}, %DateTime{} = from, %DateTime{} = to) do
+    granularity = ClickHouseTimeSeries.granularity(from, DateTime.add(to, -1))
+    date_format = ClickHouseTimeSeries.date_format(granularity)
+
+    rows =
+      from(e in UsageEvent,
+        where: e.account_id == ^account_id and e.project_id == ^project_id,
+        where: e.inserted_at >= ^DateTime.to_naive(from) and e.inserted_at < ^DateTime.to_naive(to),
+        group_by: [fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format), e.vcpus, e.memory_mb, e.mode],
+        select: %{
+          date: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
+          vcpus: e.vcpus,
+          memory_gb: fragment("intDiv(?, 1024)", e.memory_mb),
+          mode: e.mode,
+          execution_ms: fragment("sum(?)", e.duration_ms),
+          executions: fragment("count()")
+        }
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.map(&%{&1 | execution_ms: to_integer(&1.execution_ms), executions: to_integer(&1.executions)})
+
+    dates = ClickHouseTimeSeries.buckets(from, DateTime.add(to, -1), granularity)
+
+    shapes =
+      rows
+      |> Enum.group_by(&{&1.vcpus, &1.memory_gb})
+      |> Enum.sort()
+      |> Enum.map(fn {{vcpus, memory_gb}, shape_rows} ->
+        by_date = Enum.group_by(shape_rows, & &1.date)
+
+        Map.merge(totals(shape_rows), %{
+          vcpus: vcpus,
+          memory_gb: memory_gb,
+          series: Enum.map(dates, &totals(Map.get(by_date, &1, [])))
+        })
+      end)
+
+    by_date = Enum.group_by(rows, & &1.date)
+
+    Map.merge(totals(rows), %{
+      shapes: shapes,
+      modes:
+        rows
+        |> Enum.group_by(& &1.mode)
+        |> Enum.sort()
+        |> Enum.map(fn {mode, mode_rows} -> Map.put(totals(mode_rows), :mode, mode) end),
+      granularity: granularity,
+      dates: dates,
+      series: Enum.map(dates, &totals(Map.get(by_date, &1, [])))
+    })
+  end
+
+  defp totals(rows) do
+    %{
+      executions: rows |> Enum.map(& &1.executions) |> Enum.sum(),
+      execution_ms: rows |> Enum.map(& &1.execution_ms) |> Enum.sum()
     }
   end
 

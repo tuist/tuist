@@ -108,6 +108,8 @@ defmodule Tuist.MCP.Server do
     Tools.GetBazelInvocationLog,
     Tools.ListBazelCacheEvents,
     Tools.GetBazelCacheEvent,
+    Tools.GetRemoteExecutionActivity,
+    Tools.GetRemoteExecutionUsage,
     Tools.ListCargoBuilds,
     Tools.GetCargoBuild,
     Tools.ListMixBuilds,
