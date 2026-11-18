@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "89d6efd09e57f2ff5b9ca9ec31368e0a51ad9adcf36782ee96f06da79d1d3b04",
+  "hash": "dec7943593e6945c53d9dab902d078ac0a22a879ad40bb0948b9ed7f19f3052d",
   "hash_tree": {
     "root": {
       "children": [
@@ -103,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,7 +122,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +151,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -244,21 +244,21 @@
             }
           ],
           "details": {},
-          "hash": "7e04c33869aa3dd16479d89b37aab17852552868879e4c4ae620262a17eeaa2d",
+          "hash": "36cd026236393f5938bf2a8fad5b2dd0575207a237a652fb9556ea5d7310a1b0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "89d6efd09e57f2ff5b9ca9ec31368e0a51ad9adcf36782ee96f06da79d1d3b04",
+      "hash": "dec7943593e6945c53d9dab902d078ac0a22a879ad40bb0948b9ed7f19f3052d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ff41904e9bdb9ccba773b3a7544d2028b85796153c67c1f40c1cd7add80c663e",
+  "output_hash": "1da3c22496533001ab5b5ce81d00eba78900163497292ef2cfcbcc4be7da047c",
   "output_path": "server/priv/docs/ka/guides/features/cache/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +280,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ec8ca0e200cdd7c457c210a4ab6c9e0704697c3f",
+  "source_commit_sha": "e7be145809017e8db1b2f35cad2b8ad00643cb51",
   "source_path": "server/priv/docs/en/guides/features/cache/rust.md",
-  "translated_at": "2026-11-18T06:44:59.296120Z",
-  "translation_session_id": "01a1ed5b-554f-72ad-a736-e167332b209d"
+  "translated_at": "2026-11-18T20:57:40.512838Z",
+  "translation_session_id": "01a1f05c-ecab-7d6e-b00a-9684887d505d"
 }
