@@ -20,6 +20,15 @@ cluster and integration settings in every mode. Mode-specific variables
                   key: targets.json
                   optional: true
             {{- end }}
+            {{- with .Values.server.externalSecrets.shardStorage.publicSecret }}
+            # Published by the separate public (RustFS) store release.
+            - name: TUIST_PUBLIC_SHARD_STORAGE_TARGETS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: targets.json
+                  optional: true
+            {{- end }}
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0, so the
             # server leaves it unset; the agents Deployment sets it after this
             # shared list.

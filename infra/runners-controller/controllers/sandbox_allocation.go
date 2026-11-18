@@ -113,6 +113,9 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 	}
 	allocation.FreeBytes = max(capacity-used, 0)
 	allocation.MemoryBytes = max(capacity-used+daemon.memory+reclaimable, 0)
+	if slots, ok := fleet.executionWarm[daemon.grantNode()]; ok && daemon.execution && slots > 0 {
+		allocation.WarmBytes = int64(slots)*fleet.slotBytes + executionDaemonReserveBytes
+	}
 	return allocation
 }
 

@@ -1,6 +1,7 @@
 defmodule TuistWeb.RobotsTxtControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
+  alias Tuist.Docs
   alias TuistWeb.Utilities.MarketingMarkdown
   alias TuistWeb.Utilities.RobotsTxt
 
@@ -58,6 +59,19 @@ defmodule TuistWeb.RobotsTxtControllerTest do
 
       refute crawlable?(body, "/tuist/runners")
       refute crawlable?(body, "/tuist/runners/jobs")
+    end
+
+    test "keeps docs pages crawlable when they share a name with a dashboard route", %{conn: conn} do
+      body = conn |> get("/robots.txt") |> response(200)
+
+      blocked =
+        for slug <- Docs.compiled_slugs(),
+            path <- [Docs.Paths.public_path_from_slug(slug), Docs.Paths.markdown_path_from_slug(slug)],
+            not crawlable?(body, path),
+            do: path
+
+      assert blocked == []
+      refute crawlable?(body, "/tuist/projects")
     end
 
     test "advertises the marketing sitemap but not the challenged project sitemap", %{conn: conn} do

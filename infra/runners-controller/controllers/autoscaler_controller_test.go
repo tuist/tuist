@@ -557,7 +557,7 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 		t.Errorf("busy Replicas = %d, want 7 (real load plus the last free slot)", gotBusy.Spec.Replicas)
 	}
 	// idle is held at floor 1. Per-pool it would scale to 6 (p95 5 +
-	// floor 1); the fleet allocator denies the speculative warm buffer.
+	// floor 1); the compute allocator denies the speculative warm buffer.
 	if gotIdle.Spec.Replicas != 1 {
 		t.Errorf("idle Replicas = %d, want 1 (speculative headroom reclaimed)", gotIdle.Spec.Replicas)
 	}

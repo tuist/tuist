@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "53082bb7c14b960b2fb20a011b796feb91b420a615560cd4529a8e3117650c71",
+  "hash": "01faa5c799342ee8e74877c67a8d36db0f38a3824d29338c00576c328ed2eb86",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,7 +35,7 @@
                   "content_hash": "c73cba4b794bf58ce1f5ec537a3582c0373c14d06d4c174ecefc0b58a5a34a9a"
                 },
                 "### Configure Xcode Build Settings {#configure-xcode-build-settings}": {
-                  "content_hash": "500f9d58e36045a5fc826e99bad4dc189af53b4b932065e7203c31989364850d"
+                  "content_hash": "5f3b71330cc54d25d38a7fb811d8739bcda8c7904dd2f9a8188208dd54d54837"
                 },
                 "### Continuous integration {#continuous-integration}": {
                   "content_hash": "406e327a5494d066cc580e8f0fd683dcf87058d9fc7fd7897a2911710e3c0359"
@@ -71,11 +71,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "81274fa781feee34217d5c3b7382bcf17143449ac6182598bd0b67e779bf2fb3",
+          "hash": "8de0890104cd1a25fb0924de69d2cdb742598f4e67caa4d143989654a3e41e60",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
           "metadata": {
-            "content_hash": "a65e0c9395430aa91da0b496ab101648fae83d8c8d390b27b634a60c8c444d72"
+            "content_hash": "1070adcd74206e58e836d1f7f2e418792d027f2dd9fd5b347856609a796d7c37"
           }
         },
         {
@@ -278,14 +278,14 @@
         }
       ],
       "details": {},
-      "hash": "53082bb7c14b960b2fb20a011b796feb91b420a615560cd4529a8e3117650c71",
+      "hash": "01faa5c799342ee8e74877c67a8d36db0f38a3824d29338c00576c328ed2eb86",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e343325c9138bc47357a3d1b979c94f704c26a1fc0a4136f4efa70a1bc06e1d2",
+  "output_hash": "ad15c3aa2447a223f9a92b93d41fedce90ffd277eb9acbd0ec57604c8923c7be",
   "output_path": "server/priv/docs/zh_Hans/guides/features/cache/xcode-cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -306,8 +306,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "e34c2b2e666a4bef3d175496607e23bf42df9303",
+  "source_commit_sha": "e2abfcf60261156e17c59e05aedf2321e2ebf539",
   "source_path": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
-  "translated_at": "2026-11-16T17:45:05.358530Z",
-  "translation_session_id": "01a1e574-d38e-783c-a1b1-0830804a21e3"
+  "translated_at": "2026-11-18T18:00:11.817235Z",
+  "translation_session_id": "01a1efc9-ccb5-74ba-936f-29492d418160"
 }

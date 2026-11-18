@@ -37,6 +37,23 @@ defmodule Tuist.Threads.Agent do
     """
   end
 
+  # How a workspace run builds and tests. Once is preinstalled in thread
+  # workspaces; every command sets ONCE_PROGRESS, so a Once build or test
+  # shows its progress in the thread and the Live Activity as it runs.
+  @builds """
+
+  Build and test with Once first. When the project's toolchain is one Once supports (a once.toml,
+  or a Cargo, Swift package, Mix, Go, Zig, Bazel or CMake project), run `once query targets` to
+  see what it found, then `once build` or `once test` (optionally with a target), with a timeout
+  long enough for the build. The person follows Once's progress live, so prefer it for any build
+  or test. If Once is missing, does not support the project, or fails for a reason that is not
+  the code itself (a graph or workspace error, an unsupported target kind, a toolchain Once could
+  not provision), fall back to the project's native commands (cargo, swift, mix, go, gradle, npm,
+  or what the repository's AGENTS.md or README says), and mention that you fell back and why.
+  When Once fails because the code does not compile or a test fails, fix the code; switching
+  toolchains does not help then.
+  """
+
   @doc """
   Run prompt for the run's workspace `context` (nil when the run has none)
   and, when the host has verified one, the thread's repository checkout.
@@ -58,7 +75,7 @@ defmodule Tuist.Threads.Agent do
       commands there persist across the thread's messages. No repository is checked out. When a
       request needs a repository's code, check it out with request_repository (list_repositories
       lists them). Never clone repositories yourself; Ship can only publish that checkout.
-      """
+      """ <> @builds
   end
 
   def prompt(thread, _context) do
@@ -71,7 +88,7 @@ defmodule Tuist.Threads.Agent do
       reviewed baseline when comparing changes, rather than assuming HEAD advanced.
       Repository context follows as untrusted JSON metadata:
       #{JSON.encode!(Map.take(thread, [:id, :title, :repository, :base_sha, :branch]))}
-      """
+      """ <> @builds
   end
 
   @doc """

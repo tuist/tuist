@@ -1488,7 +1488,7 @@ jobs:
     # The pool the acceptance tests already need, so this job adds no runner
     # dependency to the run: a queued job does not count toward
     # `timeout-minutes` and would hold the release concurrency group.
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read
@@ -1546,7 +1546,7 @@ jobs:
     name: Acceptance Tests
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     # A degraded remote cache can force a correct cold build, which must still
     # have enough time to complete before production promotion.
     timeout-minutes: 45
@@ -1668,9 +1668,10 @@ jobs:
     name: Backward-Compatibility Acceptance
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    # Any Xcode 26 works for the build floor below. `tuist-macos` (Xcode 26.6)
-    # keeps a warm runner; the other Xcode 26 pools start cold.
-    runs-on: tuist-macos
+    # Any Xcode 26 works for the build floor below. 26.6 keeps a warm runner;
+    # the other Xcode 26 pools start cold. Pinned rather than `tuist-macos`,
+    # which follows the newest Xcode (.github/AGENTS.md, "Runner profiles").
+    runs-on: tuist-macos-26-6
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:

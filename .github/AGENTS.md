@@ -266,10 +266,32 @@ Git configuration, so checkout's local authentication does not reach their nativ
 SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
 never persist it or extend its host scope beyond github.com.
 
+## Runner profiles
+
+macOS jobs in every `tuist` repository run on `runs-on: tuist-macos`, the
+`tuist` account's protected `macos` profile. That profile, not the
+workflows, chooses the Xcode, and it follows the catalog default
+(`default: true` in `runnersFleet.xcodeVersions`,
+`infra/helm/tuist/values-managed-common.yaml`), so our CI shares the
+pool new accounts warm. When you move the default:
+
+- Set the profile's Xcode with the Tuist MCP
+  `update_runner_profile` (`account_handle: tuist`,
+  `profile_name: macos`). This moves every repository's jobs at once,
+  with no workflow change.
+- Set `.xcode-version` to the same Xcode in the same change. Cache keys
+  hash it, so a stale value reuses caches built with the old Xcode.
+
+Only a job that needs a specific Xcode names a versioned profile:
+CLI releases on `tuist-macos-26-0-1`, matching
+`.xcode-version-releases`, and the backward-compatibility acceptance job
+on `tuist-macos-26-6`, which needs an Xcode 26. Do not add others for
+jobs that only need a recent Xcode.
+
 ## CLI dependency volumes
 
 macOS jobs in `cli.yml`, `app.yml`, `tuist-project-tests.yml` and `tuist-project-coverage-backfill.yml` use the standard
-`tuist-macos-27-0` profile and install dependencies through `tuist/install`.
+`tuist-macos` profile and install dependencies through `tuist/install`.
 Custom volumes do not require the larger M4 shape. If host cache capacity is
 unavailable, each attachment falls back independently to an empty job-local directory; always
 run dependency installation and do not require a hit in ordinary jobs. Forks use

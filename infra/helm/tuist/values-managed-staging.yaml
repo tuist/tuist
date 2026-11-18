@@ -952,6 +952,9 @@ buildersFleet:
 # validation Jobs can drive the daemon without going through the server.
 sandboxes:
   enabled: true
+  # Keep 4 remote execution slots ready on staging's one worker (chart
+  # floor 1, ceiling 10) through the compute allocator.
+  remoteExecutionFloorSlots: 4
   image:
     tag: "sha-bea84a441ea2"
   templateImage:

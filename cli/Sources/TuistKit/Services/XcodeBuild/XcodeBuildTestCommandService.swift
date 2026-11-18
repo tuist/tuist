@@ -672,7 +672,9 @@ extension XcodeBuildTestCommandService {
         let runStartedAt = Date()
         var runError: Error?
         do {
-            try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                XcodeBuildEnvironment.additionalVariables.merging(session?.environment ?? [:]) { _, new in new }
+            ) {
                 try await xcodeBuildController.run(arguments: arguments)
             }
         } catch {

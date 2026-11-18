@@ -69,6 +69,12 @@ defmodule TuistWeb.AmpOrbsController do
     |> send_resp(:service_unavailable, "The Orb paused, but its project snapshot could not be saved")
   end
 
+  defp respond(conn, {:error, :restoring}) do
+    conn
+    |> put_resp_header("x-tuist-orb-refusal", "restoring")
+    |> send_resp(:service_unavailable, "The Orb is still restoring from its archive")
+  end
+
   defp respond(conn, {:error, :orb_type_mismatch}) do
     conn
     |> put_resp_header("x-tuist-orb-refusal", "orb-type-mismatch")

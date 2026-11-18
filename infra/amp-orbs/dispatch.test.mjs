@@ -122,6 +122,17 @@ test('fails a pause whose project snapshot was not saved, without retrying', asy
   assert.match(output, /could not save its project snapshot/);
 });
 
+test('explains a pause refused while the Orb restores, without retrying', async () => {
+  const { code, output, requests } = await dispatch(
+    { ORB_OPERATION: 'pause', ORB_TOKEN: '' },
+    () => ({ status: 503, headers: { 'X-Tuist-Orb-Refusal': 'restoring' } }),
+  );
+  assert.notEqual(code, 0);
+  assert.equal(requests.length, 1);
+  assert.match(output, /still restoring its disks from its archive/);
+  assert.doesNotMatch(output, /HTTP 503|sandbox capacity/);
+});
+
 test('supports an explicitly installed template and allowed shape', async () => {
   const { code, requests } = await dispatch({ ORB_IMAGE: 'amp', TUIST_ORB_TEMPLATE: 'amp', TUIST_ORB_VCPUS: '4', TUIST_ORB_MEMORY_MB: '8192', TUIST_ORB_WORKSPACE_GB: '30' });
   assert.equal(code, 0);

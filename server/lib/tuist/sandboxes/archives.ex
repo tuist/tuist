@@ -128,6 +128,12 @@ defmodule Tuist.Sandboxes.Archives do
   @abandoned_after_minutes 45
   # A restore not settled by then belongs to a caller that died.
   @stuck_restore_minutes 15
+  # How long a CI reclaim must last before its node's paused sandboxes move.
+  # Linux host reservations last 38 s at the median and 114 s at p90
+  # (production, 2026-11-15 to 2026-11-18), while a session restored from an
+  # archive waits 44 s at the median; the job rechecks the reclaim when it
+  # runs, so a reservation that ended by then leaves them where they are.
+  @ci_archive_delay_seconds 120
   # A macOS restore downloads its whole disk delta for up to 31 minutes.
   @stuck_macos_restore_minutes 35
   @archive_timeout to_timeout(minute: 31)
@@ -247,7 +253,10 @@ defmodule Tuist.Sandboxes.Archives do
   allocation asks for a reclaim, or a macOS host's grant is revoked for a
   CI host reservation), any source's, so a session that comes
   back resumes on any node with room instead of waiting for that one:
-  queues the archive of the least recently paused one. Each allocation
+  queues the archive of the least recently paused one, two minutes later,
+  when it only runs if CI still reclaims the node: most host reservations
+  end sooner, and a sandbox they moved off would wait for a restore from
+  the archive instead of a resume. Each allocation
   observation calls this again while the reclaim lasts, and one upload
   runs from the node at a time, so they move one after another. Off while
   the archive tier is.
@@ -255,7 +264,10 @@ defmodule Tuist.Sandboxes.Archives do
   def move_off_node(node_name) when is_binary(node_name) do
     if Environment.sandbox_archive_after_hours() && not uploading_on?([node_name]) &&
          Repo.exists?(on_nodes(archivable(idle_paused()), [node_name])) do
-      {:ok, _job} = %{node_names: [node_name], ci: true} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+      {:ok, _job} =
+        %{node_names: [node_name], ci: true}
+        |> ArchiveSandboxesWorker.new(schedule_in: @ci_archive_delay_seconds)
+        |> Oban.insert()
     end
 
     :ok

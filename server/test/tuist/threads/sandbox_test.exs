@@ -145,6 +145,55 @@ defmodule Tuist.Threads.SandboxTest do
     assert :ok = Sandbox.stop_process(sandbox, id)
   end
 
+  test "a Once run's progress reaches the run's Bash call once per change", %{record: record} do
+    run = %{id: "run-1", thread_id: "thread-1", attempt: 1}
+
+    {:ok, sandbox} =
+      Sandbox.new(ThreadSandbox,
+        sandbox_id: record.id,
+        account_id: record.account_id,
+        residency: "threads:run:1",
+        run: run,
+        # Long enough that the reads below never outlast it.
+        progress_interval: 60_000
+      )
+
+    test_pid = self()
+
+    expect(Tuist.Threads, :record_build_progress, 2, fn ^run, invocation_id, snapshot ->
+      send(test_pid, {:progress, invocation_id, snapshot["done"]})
+      :ok
+    end)
+
+    snapshot = fn done, ms ->
+      ~s({"v":1,"command":"build","state":"running","planned":4,"done":#{done},"elapsed_ms":#{ms}})
+    end
+
+    # Each line on stdin makes the command append the next snapshot, as
+    # Once does while it runs.
+    script = """
+    for line in '#{snapshot.(1, 10)}' '#{snapshot.(1, 20)}' '#{snapshot.(2, 30)}'; do
+      printf '%s\\n' "$line" >> "$ONCE_PROGRESS"; echo step; read -r _
+    done
+    """
+
+    id = "condukt-bash:thread-1:run-1:call_1"
+    assert :ok = Sandbox.start_process(sandbox, id, script, stdin: true)
+    assert {:ok, %{output: "step\n"}} = Sandbox.read_process(sandbox, id, 0, wait: 5_000)
+    assert_received {:progress, "call_1", 1}
+
+    # Only the clock moved on: not reported again.
+    assert :ok = Sandbox.write_process(sandbox, id, "\n", offset: 0)
+    assert {:ok, %{output: "step\n"}} = Sandbox.read_process(sandbox, id, 5, wait: 5_000)
+    refute_received {:progress, _, _}
+
+    assert :ok = Sandbox.write_process(sandbox, id, "\n", offset: 1)
+    assert {:ok, %{output: "step\n"}} = Sandbox.read_process(sandbox, id, 10, wait: 5_000)
+    assert_received {:progress, "call_1", 2}
+
+    assert :ok = Sandbox.stop_process(sandbox, id)
+  end
+
   test "Condukt's Bash runs a command through it and returns its result", %{sandbox: sandbox} do
     context = %{sandbox: sandbox, session_id: "s", tool_call_id: "call_1", agent: self(), turn_ref: make_ref()}
 

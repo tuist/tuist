@@ -55,6 +55,9 @@ type sandboxDaemon struct {
 	// execution marks a remote execution worker rather than the node's
 	// agent sandbox daemon.
 	execution bool
+	// floorBytes and ceilingBytes are an execution worker's carve-out
+	// bounds (MEMORY_FLOOR_GIB, MEMORY_CEILING_GIB).
+	floorBytes, ceilingBytes int64
 }
 
 // grantNode is the name the daemon connects to the server as, which its
@@ -106,6 +109,9 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		}
 		daemon := sandboxDaemon{native: native, name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
 		daemon.execution = pod.Labels[executionDaemonLabel] == "true"
+		if daemon.execution {
+			daemon.floorBytes, daemon.ceilingBytes = envGiB(pod, "MEMORY_FLOOR_GIB"), envGiB(pod, "MEMORY_CEILING_GIB")
+		}
 		daemon.terminating = !pod.DeletionTimestamp.IsZero()
 		footprint := podFootprint(pod)
 		daemon.cpuMilli = footprint.Cpu().MilliValue()

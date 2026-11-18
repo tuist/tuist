@@ -6,7 +6,7 @@ on:
       runner_label:
         description: Cache-enabled macOS runner profile
         type: string
-        default: tuist-macos-27-0
+        default: tuist-macos
       cache_key:
         description: Key prefix; reuse for verify with the same runner and dependency files
         type: string

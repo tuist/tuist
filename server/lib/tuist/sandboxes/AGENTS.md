@@ -56,12 +56,22 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `workspace_gb` and the memory
   image, all fixed-size files, plus 64 MiB): a new sandbox only goes to a
   node whose disk budget holds its ceiling on top of the ceilings of the
-  rows placed there (creating, running, resuming, paused) and of errored
-  rows whose jail the node still reports, checked under the node's lock.
-  Rows decide rather than the report, which lags: a delete frees its
-  reservation at once. A paused sandbox's disk is already
-  reserved, so a resume only needs room for its next pause on the
-  filesystem. `admission/2` is the check the poller runs on a work
+  rows placed there (creating, running, resuming) and of errored rows
+  whose jail the node still reports, checked under the node's lock. A
+  paused row the node reports paused with `disk_bytes` (its jail's
+  exclusive bytes, measured after the pause) reserves that use instead,
+  and the node keeps the largest growth one of its paused rows could make
+  back to its ceiling, so one resume always fits; an unmeasured one
+  reserves its ceiling. A resume takes the ceiling back under the lock and
+  fails with `:no_capacity` (and moves off like a memory refusal) when the
+  budget cannot take it; the disk-pressure sweep restores the reserve by
+  archiving the oldest paused Orb. Production archives (2026-11-18) stored
+  17 GiB at p50 and 21.5 GiB at p90 of rootfs, workspace and memory against a
+  38 GiB ceiling for 4 vCPU / 8 GiB, template blocks a jail shares by reflink
+  included, so the exclusive use a node reserves is lower still.
+  Rows decide the state rather than the report, which lags: a delete frees
+  its reservation at once. A resume also needs room for its next pause on
+  the filesystem. `admission/2` is the check the poller runs on a work
   item: it dispatches an admissible item at once and otherwise
   acknowledges it and enqueues
   `Tuist.Sandboxes.Workers.DispatchWorkItemWorker` (secret Vault-encrypted
@@ -442,7 +452,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   node, so while the runners-controller's allocation for a node asks for a
   reclaim (`Capacity.ci_reclaim?/1`, a host reservation or unhealthy node,
   not an expired grant), `ReclaimCapacityWorker` calls
-  `Archives.move_off_node/1` after pausing the idle ones: it archives the
+  `Archives.move_off_node/1` after pausing the idle ones: two minutes later,
+  if CI still reclaims the node (most Linux host reservations end within
+  that, and a moved session waits for a restore instead of a resume), it
+  archives the
   least recently paused sandbox there of any source (not remote execution),
   whatever its pause age, one upload from the node at a time, each
   allocation observation queuing the next, and rechecks the reclaim before
@@ -628,6 +641,10 @@ socket, the poller and the caller share a replica:
   start (`:no_capacity`, `{:host_busy, _}`) is retried inside the request
   every second for 25 s, so a command starts within a second of its host
   freeing.
+  Every command gets `ONCE_PROGRESS` (unless its env sets one) naming
+  `once-progress.jsonl` in that directory, and `read/3` returns the file's last
+  line as `progress`, so a thread run shows a Once build's progress without an
+  extra exec; the guest writes it, so validate it before use.
   A caller that already holds a residency, such as a thread run
   (`Tuist.Threads.Sandbox`), passes it as `:residency`: the command joins it
   instead of `commands`, and `release_if_idle/2` leaves it to its holder.

@@ -75,7 +75,7 @@ from pathlib import Path
 root=Path(sys.argv[1])
 started=float(root.joinpath('started-at').read_text())-2
 url=os.environ['TUIST_URL'].rstrip('/')+'/api/projects/'+os.environ['TUIST_PROJECT']+'/tests'
-request=urllib.request.Request(url, headers={'Authorization':'Bearer '+os.environ['TUIST_TOKEN']})
+request=urllib.request.Request(url, headers={'Authorization':'Bearer '+os.environ['TUIST_TOKEN'],'User-Agent':'tuist/cargo-sharding-e2e'})
 for attempt in range(20):
     try:
         with urllib.request.urlopen(request,timeout=30) as response:
@@ -114,7 +114,7 @@ url=os.environ['TUIST_URL'].rstrip('/')+'/api/projects/'+os.environ['TUIST_PROJE
 for name,granularity in [('missing-archive','module'),('incompatible-plan','suite')]:
     body={'reference':os.environ['TUIST_SHARD_REFERENCE']+'-'+name,'modules':['tuist-cargo-sharding-fixture'],'granularity':granularity,'shard_total':2}
     if granularity=='suite': body['test_suites']=['tuist-cargo-sharding-fixture/tests']
-    request=urllib.request.Request(url,data=json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['TUIST_TOKEN'],'Content-Type':'application/json'})
+    request=urllib.request.Request(url,data=json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['TUIST_TOKEN'],'Content-Type':'application/json','User-Agent':'tuist/cargo-sharding-e2e'})
     with urllib.request.urlopen(request,timeout=30) as response:
         plan=json.load(response)
     root.joinpath(name+'-id').write_text(plan['id'])

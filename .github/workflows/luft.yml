@@ -24,7 +24,7 @@ concurrency:
 jobs:
   macos:
     name: macOS development build and core tests
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     defaults:
       run:
@@ -172,7 +172,7 @@ jobs:
     name: Swift client (${{ matrix.target }})
     needs: [macos, core]
     # Xcode 26 or later: the SwiftUI sources use Liquid Glass APIs behind availability checks.
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -254,7 +254,7 @@ jobs:
         run: mise run --skip-tools "preview:$SIGNED"
   core:
     name: Independent Rust core tests
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     defaults:
       run:
@@ -311,13 +311,17 @@ jobs:
           working_directory: luft
           install_args: rust kotlin github:tuist/once
           cache: "false"
-      - name: Authenticate hosted cache and insights
-        if: github.event.pull_request.head.repo.fork != true
-        run: once auth login --provider tuist --no-browser
+      # Once's Linux binary links ALSA, so even signing in fails without it.
       - name: Install Once runtime libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2t64
+          # Ubuntu 24.04 renamed libasound2 to libasound2t64; the runner image comes in 22.04 and 24.04.
+          asound=libasound2
+          if apt-cache show libasound2t64 >/dev/null 2>&1; then asound=libasound2t64; fi
+          sudo apt-get install -y "$asound"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: once auth login --provider tuist --no-browser
       # The runner image ships the SDK with cmdline-tools/latest and accepted
       # licenses but leaves sdkmanager off PATH. setup-android would download
       # another cmdline-tools release into the image's read-only cmdline-tools/.

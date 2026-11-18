@@ -117,6 +117,18 @@ func (s *Server) Serve(ctx context.Context, src Source, opts Options) error {
 	for range opts.FillWorkers {
 		wg.Go(func() {
 			for ctx.Err() == nil {
+				// A chunk the guest waits on goes ahead of the fill: a
+				// restored guest touches most of its memory while it boots,
+				// so the fill workers serve its faults too.
+				select {
+				case i := <-s.faultQ:
+					if err := s.fetch(ctx, i, &s.faulted); err != nil {
+						cancel(err)
+						return
+					}
+					continue
+				default:
+				}
 				i := int(s.next.Add(1) - 1)
 				if i >= chunks {
 					return

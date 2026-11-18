@@ -731,6 +731,14 @@ cacheDNS:
     writerItem: ""
     solverItem: ""
 
+# external-dns for the luft.work zone (templates/luft-dns.yaml), kept apart from
+# the tuist.dev instance. Enable only on the cluster that runs infra/helm/luft-web.
+luftDNS:
+  enabled: false
+  ownerId: ""
+  namespace: luft
+  image: registry.k8s.io/external-dns/external-dns:v0.15.1
+
 # Drops incoming IPv4 TCP packets that carry IP options on every Linux node, in
 # a nftables table of its own (CVE-2026-98432). Managed clusters only. See
 # templates/ipv4-options-tcp-drop.yaml.

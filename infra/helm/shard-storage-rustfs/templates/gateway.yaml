@@ -1,0 +1,162 @@
+{{- if .Values.enabled }}
+{{- range .Values.gateway.buckets }}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$" .) }}
+{{- fail (printf "gateway.buckets entry %q must be a lowercase bucket name without dots" .) }}
+{{- end }}
+{{- end }}
+{{- if not .Values.gateway.buckets }}
+{{- fail "gateway.buckets must name at least one bucket" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-gateway
+data:
+  default.conf: |
+    upstream storage {
+      server {{ .Release.Name }}-s3:9000;
+      keepalive 32;
+    }
+    server {
+      listen 8080;
+      # Neither access nor error logs may leak presigned query credentials.
+      access_log off;
+      error_log /dev/null;
+      client_max_body_size 0;
+      client_body_timeout 120s;
+      location = /ready { return 200; }
+      # Only the listed buckets. No console, admin, metrics or peer APIs.
+      location ~ ^/({{ join "|" .Values.gateway.buckets }})(?:/|$) {
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header Connection "";
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_next_upstream off;
+        # No URI rewrite: preserve the signed path, query and Host.
+        proxy_pass http://storage;
+      }
+      location / { return 404; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: gateway
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: gateway
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: {{ .Release.Name }}
+                  component: gateway
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: nginx
+          image: {{ .Values.gateway.image | quote }}
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  selector:
+    app: {{ .Release.Name }}
+    component: gateway
+  ports:
+    - name: http
+      port: 8080
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  minAvailable: {{ max 0 (sub (int .Values.gateway.replicas) 1) }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: gateway
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  annotations:
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    {{- with .Values.ingress.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ . | quote }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    # Unbuffered HTTP/2 stream receive windows otherwise stay near 64 KiB.
+    # Keep streaming; bound the larger receive buffer to this bucket's locations.
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "1m"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-next-upstream: "off"
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ required "ingress.host is required" .Values.ingress.host | quote }}]
+      secretName: {{ required "ingress.tlsSecret is required" .Values.ingress.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- range .Values.gateway.buckets }}
+          - path: /{{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-gateway
+                port: {number: 8080}
+          {{- end }}
+{{- end }}
+{{- end }}

@@ -286,6 +286,7 @@ fn present(thread: &mut Value) {
             .filter(|&i| working && !archived && messages[i]["role"] != "user");
         for (index, message) in messages.iter_mut().enumerate() {
             present_card(message);
+            present_build(message, working && !archived);
             let plan = present_progress(message, current == Some(index));
             if current == Some(index) {
                 activity = plan;
@@ -478,6 +479,54 @@ fn present_progress(message: &mut Value, active: bool) -> Value {
         }
         _ => Value::Null,
     }
+}
+
+/// A tool message's `build` is the progress a Once build or test in its
+/// command reported: `command` (`build` or `test`), `state` (`running`,
+/// `succeeded` or `failed`), `target`, target counts (`planned`, `done`,
+/// `cached`, `failed`), `running` target ids and `tests` case counts. The core
+/// clamps `done` to `planned` once a plan is known, nulls `tests` until a case
+/// ran, and adds `fraction`, the share of planned targets done (null until a
+/// plan is known), `failing`, whether a target or test case failed, and
+/// `active`, whether the build still runs in a working thread, so edges
+/// animate only live builds. A build this core can't show is dropped, and the
+/// edge shows the message's `content`, the same progress in words.
+fn present_build(message: &mut Value, working: bool) {
+    let Some(build) = message.get_mut("build") else {
+        return;
+    };
+    let count = |key: &str| build[key].as_u64();
+    let known = matches!(build["command"].as_str(), Some("build" | "test"))
+        && matches!(
+            build["state"].as_str(),
+            Some("running" | "succeeded" | "failed")
+        )
+        && ["planned", "done", "cached", "failed"]
+            .iter()
+            .all(|key| count(key).is_some());
+    if !known {
+        message.as_object_mut().map(|m| m.remove("build"));
+        return;
+    }
+    let (planned, done) = (count("planned").unwrap_or(0), count("done").unwrap_or(0));
+    let failed_targets = count("failed").unwrap_or(0);
+    let case = |key: &str| build["tests"][key].as_u64().unwrap_or(0);
+    let (passed, failed_cases, skipped) = (case("passed"), case("failed"), case("skipped"));
+    let running = build["state"] == "running" && message["toolStatus"] == "running";
+    let build = &mut message["build"];
+    if planned > 0 {
+        build["done"] = json!(done.min(planned));
+        build["fraction"] = json!((done.min(planned) as f64) / (planned as f64));
+    } else {
+        build["fraction"] = Value::Null;
+    }
+    build["tests"] = if passed + failed_cases + skipped > 0 {
+        json!({"passed": passed, "failed": failed_cases, "skipped": skipped})
+    } else {
+        Value::Null
+    };
+    build["failing"] = json!(failed_targets > 0 || failed_cases > 0);
+    build["active"] = json!(working && running);
 }
 
 /// A message's `ui` is a card the model wrote: NSH JavaScript `source` shown

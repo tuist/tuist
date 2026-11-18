@@ -26,14 +26,4 @@ extension View {
             background(.bar, in: shape)
         }
     }
-
-    #if os(iOS)
-        @ViewBuilder func minimizingTabBarOnScroll() -> some View {
-            if #available(iOS 26, *) {
-                tabBarMinimizeBehavior(.onScrollDown)
-            } else {
-                self
-            }
-        }
-    #endif
 }

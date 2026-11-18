@@ -140,6 +140,10 @@ test('federation issuer discovery and keys are readable by Anthropic', () => {
   checkPaths(['/oidc/accounts/3/.well-known/openid-configuration', '/oidc/accounts/3/jwks.json'],
     (p, m) => exempt(apiRule, p, m), true, methods);
   checkPaths(['/oidc/accounts/3/jwks.json'], (p, m) => exempt(apiRule, p, m), false, writes);
+  checkPaths(['/oidc/claude-linked-billing/.well-known/openid-configuration', '/oidc/claude-linked-billing/jwks.json'],
+    (p, m) => exempt(apiRule, p, m), true, methods);
+  checkPaths(['/oidc/claude-linked-billing/jwks.json'], (p, m) => exempt(apiRule, p, m), false, writes);
+  checkPaths(['/oidc/other/jwks.json'], (p, m) => exempt(apiRule, p, m), false, methods);
 });
 
 test('marketing route shapes across locales and guide roots', () => {

@@ -24,7 +24,7 @@ jobs:
     # Called only after the native build/test/lint/packaging jobs succeed.
     # Repeat the trust gate here so no PR caller can receive signing secrets.
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 35
     environment: atlas-macos-releases
     outputs:

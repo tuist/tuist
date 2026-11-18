@@ -183,9 +183,20 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp pause_orb(sandbox, params) do
     record_setup(sandbox)
 
-    with {:ok, paused} <- Sandboxes.pause(sandbox) do
-      save_snapshot(paused, params)
+    case Sandboxes.pause(sandbox) do
+      {:ok, paused} -> save_snapshot(paused, params)
+      {:error, reason} when is_binary(reason) -> {:error, pause_refusal(reason)}
+      error -> error
     end
+  end
+
+  # A warm restore keeps streaming its disks from the archive after the
+  # guest runs, and the node refuses a pause until they are complete. The
+  # guest stays running for a later pause or the idle-Orb pause.
+  defp pause_refusal(reason) do
+    if String.contains?(reason, "sandbox disks are still loading from its archive"),
+      do: :restoring,
+      else: reason
   end
 
   # A macOS host cannot see Amp's detached bootstrap, so the turn also holds
