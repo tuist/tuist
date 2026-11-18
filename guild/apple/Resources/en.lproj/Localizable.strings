@@ -144,3 +144,7 @@
 "New Window" = "New Window";
 "%@, online" = "%@, online";
 "You can message up to %lld people at once." = "You can message up to %lld people at once.";
+"Start Conversation" = "Start Conversation";
+"Opens a new conversation, ready to type." = "Opens a new conversation, ready to type.";
+"Dictate Conversation" = "Dictate Conversation";
+"Opens a new conversation and starts dictation on this device. Nothing is sent until you tap Start." = "Opens a new conversation and starts dictation on this device. Nothing is sent until you tap Start.";

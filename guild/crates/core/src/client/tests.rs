@@ -1073,12 +1073,58 @@ fn conditional_navigation_does_not_override_newer_navigation_or_sessions() {
 }
 
 #[test]
+fn new_thread_route_opens_start_conversation_until_any_other_navigation() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    // Signed out, a shortcut's request waits for sign-in like any link.
+    let queued = call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":"/threads/new/dictation"}),
+    );
+    assert!(queued["view"]["navigation"]["compose"].is_null());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let nav = &call(&mut c, &mut h, "snapshot", json!({}))["view"]["navigation"];
+    assert_eq!(nav["compose"], "dictation");
+    assert_eq!(nav["path"], "/threads/new/dictation");
+    assert_eq!(nav["tab"], "threads");
+    assert!(nav["thread_id"].is_null());
+
+    let thread = "12345678-1234-5678-9abc-123456789abc";
+    call(
+        &mut c,
+        &mut h,
+        "navigate",
+        json!({"url":format!("/threads/{thread}")}),
+    );
+    let opened = call(&mut c, &mut h, "navigate", json!({"url":"/threads/new"}));
+    let nav = &opened["view"]["navigation"];
+    assert_eq!(nav["compose"], "text");
+    assert!(
+        nav["thread_id"].is_null(),
+        "starting pops the open conversation"
+    );
+
+    for (operation, args) in [
+        ("select_tab", json!({"tab":"profile"})),
+        ("navigation_back", json!({})),
+        ("navigate", json!({"url":format!("/threads/{thread}")})),
+    ] {
+        call(&mut c, &mut h, "navigate", json!({"url":"/threads/new"}));
+        let nav = &call(&mut c, &mut h, operation, args)["view"]["navigation"];
+        assert!(nav["compose"].is_null(), "{operation}");
+        assert_ne!(nav["path"], "/threads/new", "{operation}");
+    }
+}
+
+#[test]
 fn guild_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
     use crate::navigation::{Destination, Link};
     let server = Url::parse("https://one.test/base/").unwrap();
     for (path, destination) in [
         ("/profile", Destination::Profile),
         ("/threads", Destination::THREADS),
+        ("/threads/new", Destination::NewThread { dictate: false }),
         (
             "/threads/12345678-1234-5678-9abc-123456789abc",
             Destination::Conversation("threads", "12345678-1234-5678-9abc-123456789abc".into()),
@@ -1099,8 +1145,21 @@ fn guild_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
             assert_eq!(route.path(), path);
         }
     }
+    assert_eq!(
+        Link::parse("/threads/new/dictation")
+            .unwrap()
+            .resolve(&server)
+            .unwrap(),
+        Destination::NewThread { dictate: true }
+    );
     for value in [
+        "tuist-guild://app/threads/new/dictation",
+        "tuist-guild://app/threads/new/dictation?server=https%3A%2F%2Fone.test%2Fbase",
+        "https://one.test/base/guild/threads/new/dictation",
         "/threads/invalid",
+        "/threads/new/",
+        "/threads/new?dictate",
+        "/threads/new/voice",
         "/threads/------------------------------------",
         "/threads/",
         "/halls/not-an-id",

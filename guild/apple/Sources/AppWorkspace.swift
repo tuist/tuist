@@ -8,6 +8,10 @@ struct AppWorkspace: View {
     /// `navigation.tab` stays the source of truth; waiting for its answer
     /// would make the tab view render the old tab for a frame.
     @State private var tab = AppNavigation.Tab.threads
+    @ObservedObject private var shortcuts = ShortcutInbox.shared
+    /// Whether Start conversation shows. `ThreadsView` decides from the core's `navigation.compose`;
+    /// the sheet lives here so rebuilding the signed-in views for a new generation keeps it and its draft.
+    @State private var startingConversation = false
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -83,6 +87,12 @@ struct AppWorkspace: View {
         .preferredColorScheme(Themes.shared.selected.appearance)
         .task { await client.start() }
         .onOpenURL { url in Task { await client.openURL(url) } }
+        // App Shortcuts route like links; the core holds them until sign-in.
+        .onChange(of: shortcuts.path, initial: true) { _, path in
+            guard let path else { return }
+            shortcuts.path = nil
+            Task { await client.perform("navigate", ["url": path]) }
+        }
         // Memberships fill the account menu; a failed refresh keeps the saved ones quietly.
         .task(id: client.view.profiles.map(\.id)) {
             if !client.view.profiles.isEmpty { _ = try? await client.call("organizations") }
@@ -115,6 +125,19 @@ struct AppWorkspace: View {
                 // Send what was written offline, such as threads started on a plane.
                 Task { _ = try? await client.call("flush_outbox") }
             }
+        }
+        .sheet(isPresented: $startingConversation, onDismiss: {
+            // Cancel and swipe-down leave the core's Start conversation route.
+            if client.view.navigation.compose != nil { Task { await client.perform("navigation_back") } }
+        }) {
+            NavigationStack {
+                StartConversationView(
+                    client: client, input: client.view.navigation.compose == "dictation" ? .voice : .text
+                )
+            }
+            #if os(iOS)
+            .presentationDetents([.medium, .large])
+            #endif
         }
         .sheet(isPresented: $addingProfile) {
             NavigationStack {
@@ -173,7 +196,7 @@ struct AppWorkspace: View {
                 }
             }
         )) {
-            ThreadsView(client: client)
+            ThreadsView(client: client, starting: $startingConversation)
                 .navigationDestination(for: ThreadRoute.self) { route in
                     ConversationView(client: client, id: route.id)
                         .id(route.id)

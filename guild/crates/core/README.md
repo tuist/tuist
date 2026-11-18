@@ -113,7 +113,7 @@ when an operation reports an error.
 | Operation | Args | Data |
 | --- | --- | --- |
 | `snapshot` | none | null |
-| `routes` | none | `{routes:["/threads","/threads/{id}","/halls","/halls/{id}","/dms","/dms/{id}","/profile"]}`; the shared addressable screen catalog |
+| `routes` | none | `{routes:["/threads","/threads/new","/threads/new/dictation","/threads/{id}","/halls","/halls/{id}","/dms","/dms/{id}","/profile"]}`; the shared addressable screen catalog |
 | `navigate` | `url`: internal path, `tuist-guild://app/…`, or HTTPS `{server}/guild/…`; optional `if_generation` and `if_revision` | null; updates navigation, or queues a signed-out link until sign-in; a mismatched version makes an async completion a no-op |
 | `select_tab` | `tab`: `threads`, `halls`, `dms` or `profile` | null; each conversation tab keeps its own open conversation across tab changes |
 | `navigation_back` | none | null; returns to the selected tab's list (Threads from Profile) |
@@ -168,7 +168,7 @@ are rejected when returned rows do not match, never repaired into partial totals
 Track discovery does not derive choices/counts from downloaded previews. An older
 server's missing discovery is an error for that operation; browsing still works.
 
-Every view also contains `navigation: {tab,thread_id,hall_id,dm_id,path,revision}`. `thread_id`, `hall_id` (the Halls tab's open hall) and `dm_id` (the DMs tab's) are nullable and survive tab selection; `path` describes the visible destination. Revision is process-local and increases on navigation changes; ignore older view revisions within the same session generation. Edges bind native tab/stack controls to this state, send user actions back through the operations above, and fetch conversation data through `thread`, or `hall` for `hall_id` and `dm_id` (DMs use the same hall operations; navigation itself performs no network requests). See the workspace README's Deep links section for URL scoping, launch examples and reserved web URLs. Navigation is in memory only, never in the credential vault.
+Every view also contains `navigation: {tab,thread_id,hall_id,dm_id,compose,path,revision}`. `thread_id`, `hall_id` (the Halls tab's open hall) and `dm_id` (the DMs tab's) are nullable and survive tab selection; `compose` is `text` or `dictation` while Start conversation is open on the Threads root (`/threads/new` and `/threads/new/dictation`; the dictation route is accepted only as an internal path, never from a scheme or web link), and null otherwise: any other navigation or tab selection clears it. iOS and macOS present the sheet while it is set and send `navigation_back` when the person dismisses it or threads are unavailable; Android and GPUI don't present it yet and show the Threads root; `path` describes the visible destination. Revision is process-local and increases on navigation changes; ignore older view revisions within the same session generation. Edges bind native tab/stack controls to this state, send user actions back through the operations above, and fetch conversation data through `thread`, or `hall` for `hall_id` and `dm_id` (DMs use the same hall operations; navigation itself performs no network requests). See the workspace README's Deep links section for URL scoping, launch examples and reserved web URLs. Navigation is in memory only, never in the credential vault.
 
 Sign-in uses the server's static Tuist Guild client, a public PKCE client, with
 the distinct `tuist-guild://oauth-callback` redirect.

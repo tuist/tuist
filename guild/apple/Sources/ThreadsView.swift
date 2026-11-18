@@ -28,6 +28,8 @@ private struct ThreadPage: Decodable {
 /// The threads inbox: Active and Archived, with running threads first.
 struct ThreadsView: View {
     let client: AppClient
+    /// Start conversation, presented by `AppWorkspace`.
+    @Binding var starting: Bool
     @State private var threads: [AppThread] = []
     @State private var nextCursor: String?
     @State private var loaded = false
@@ -36,7 +38,6 @@ struct ThreadsView: View {
     @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
     @State private var error: String?
-    @State private var starting = false
 
     var body: some View {
         List {
@@ -105,7 +106,7 @@ struct ThreadsView: View {
                         } description: {
                             Text("Ask a question, explore an idea, or solve a problem with Tuist.")
                         } actions: {
-                            Button("Start conversation") { starting = true }.prominentGlassButtonStyle()
+                            Button("Start conversation") { startConversation() }.prominentGlassButtonStyle()
                         }
                     }
                 }
@@ -118,21 +119,11 @@ struct ThreadsView: View {
                     ToolbarItem(placement: .principal) { archivePicker }
                 #endif
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Start conversation", systemImage: "square.and.pencil") { starting = true }
+                    Button("Start conversation", systemImage: "square.and.pencil") { startConversation() }
                         .keyboardShortcut("n", modifiers: .command)
                         .help("Start conversation")
                 }
             }
-        }
-        .sheet(isPresented: $starting) {
-            NavigationStack {
-                StartConversationView(client: client) {
-                    Task { await reload() }
-                }
-            }
-            #if os(iOS)
-            .presentationDetents([.medium, .large])
-            #endif
         }
         #if os(macOS)
             .toolbar {
@@ -150,10 +141,40 @@ struct ThreadsView: View {
             await fetch(operation: "cached_threads", cursor: nil)
             await reload()
         }
-        .onChange(of: client.view.navigation.revision) { _, _ in starting = false }
+        // The core opens Start conversation (`navigation.compose`) and closes it on any other navigation.
+        .onChange(of: client.view.navigation.compose, initial: true) { previous, compose in
+            showStartConversation()
+            // Closing it, after starting a thread or not, can change the inbox.
+            if previous != nil, compose == nil { Task { await reload() } }
+        }
+        .onChange(of: available) { _, _ in showStartConversation() }
         // Signing in again keeps the profile's ID, so reload once the browser closes.
         .onChange(of: client.signingIn) { _, signingIn in
             if !signingIn, signInRequired { Task { await reload() } }
+        }
+    }
+
+    private func startConversation() {
+        Task {
+            // A request the sheet never showed leaves `compose` set; navigating to it again
+            // would not change it, so leave it first.
+            if client.view.navigation.compose != nil { await client.perform("navigation_back") }
+            await client.perform("navigate", ["url": "/threads/new"])
+        }
+    }
+
+    /// Shows Start conversation while the core asks for it. When threads are unavailable,
+    /// a request (say, from a shortcut) can't be shown, so it leaves the route instead of keeping it.
+    private func showStartConversation() {
+        guard client.view.navigation.compose != nil else {
+            starting = false
+            return
+        }
+        if available {
+            starting = true
+        } else {
+            starting = false
+            Task { await client.perform("navigation_back") }
         }
     }
 

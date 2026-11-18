@@ -55,21 +55,31 @@ extension AppClient {
 /// Asks what to talk about and starts a conversation on the server. There is
 /// no repository, machine or model to choose: the core picks what runs it.
 struct StartConversationView: View {
+    /// What the sheet starts with: the keyboard, or dictation from a shortcut.
+    enum Input { case text, voice }
+
     let client: AppClient
-    let started: () -> Void
+    var input = Input.text
     @State private var content = ""
     @State private var starting = false
     @State private var error: String?
     @State private var request: Task<Void, Never>?
     @FocusState private var focused: Bool
+    // Observed: the field, Start and the dictation bar follow its phase.
+    @StateObject private var voice = VoiceInput()
+    @State private var dictationStarted = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
             TextField("What do you want to talk about?", text: $content, axis: .vertical)
                 .lineLimit(4 ... 12)
                 .focused($focused)
-                .disabled(starting)
+                .disabled(starting || voice.busy)
+            if let message = voice.errorMessage {
+                Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
+            }
             if let error {
                 Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
             }
@@ -88,12 +98,42 @@ struct StartConversationView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Start") { request = Task { await start() } }
-                        .disabled(starting || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(starting || voice.busy || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            // Dictation adds editable text to the topic; only Start sends it.
+            .safeAreaInset(edge: .bottom) {
+                if voice.busy {
+                    ReplyComposer(reply: $content, disabled: true, sending: starting, voice: voice) {}
+                        .padding()
                 }
             }
             .interactiveDismissDisabled(starting)
-            .onAppear { focused = true }
-            .onDisappear { request?.cancel() }
+            .onAppear { if input == .text { focused = true } }
+            .onChange(of: voice.busy) { _, busy in if !busy { focused = true } }
+            // Dictate from a shortcut while the sheet is already open switches it to dictation.
+            .onChange(of: input) { _, input in
+                if input == .voice {
+                    dictationStarted = false
+                    beginRequestedDictation()
+                } else if !voice.busy {
+                    focused = true
+                }
+            }
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                beginRequestedDictation()
+                // Permission alerts briefly deactivate the scene before their callbacks return.
+                if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
+            .onDisappear { request?.cancel(); voice.cancel() }
+    }
+
+    /// A shortcut can open the sheet before the app is active; the microphone waits for it.
+    private func beginRequestedDictation() {
+        guard input == .voice, scenePhase == .active, !dictationStarted else { return }
+        dictationStarted = true
+        voice.begin()
     }
 
     private func start() async {
@@ -110,7 +150,6 @@ struct StartConversationView: View {
                 "url": "/threads/\(thread.id)", "if_generation": generation, "if_revision": revision,
             ])
             guard !Task.isCancelled else { return }
-            started()
             dismiss()
         } catch {
             guard !Task.isCancelled else { return }
@@ -250,14 +289,6 @@ struct ConversationView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
             .onDisappear { voice.cancel() }
-    }
-
-    private var audioInterruption: Notification.Name {
-        #if os(macOS)
-            .AVAudioEngineConfigurationChange
-        #else
-            AVAudioSession.interruptionNotification
-        #endif
     }
 
     /// Shows a newer latest page. Once earlier pages are loaded, messages that
@@ -516,4 +547,13 @@ struct MessageRow: View {
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(text)
     }
+}
+
+/// Calls and other audio sessions end dictation, in replies and in Start conversation.
+private var audioInterruption: Notification.Name {
+    #if os(macOS)
+        .AVAudioEngineConfigurationChange
+    #else
+        AVAudioSession.interruptionNotification
+    #endif
 }

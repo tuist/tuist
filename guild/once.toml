@@ -125,6 +125,7 @@ info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NA
 entitlements = "ios/Simulator.entitlements"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js"]
+postbuild_actions = ['{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".once/out/TuistGuildIOS/TuistGuild.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/TuistGuildIOS/TuistGuild.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]
 name = "TuistGuildIOSDevice"
@@ -142,6 +143,7 @@ info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos", GUILD_PUSH_ENVIRONMENT = "" }
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
+postbuild_actions = ['{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphoneos","apple/Sources/AppShortcuts.swift",".once/out/TuistGuildIOSDevice/TuistGuild.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/TuistGuildIOSDevice/TuistGuild.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]
 name = "TuistGuildMacOS"

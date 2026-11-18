@@ -27,6 +27,8 @@ struct AppNavigation: Decodable {
     /// The Halls and DMs tabs' open conversations, kept while another tab is selected.
     var hall_id: String?
     var dm_id: String?
+    /// `text` or `dictation` while Start conversation is open, decided by the Rust core.
+    var compose: String?
     var path: String = "/threads"
     var revision: UInt64 = 0
 }

@@ -8,6 +8,8 @@ const WRONG_SERVER: &str = "This link belongs to a different Guild server";
 /// The complete addressable screen catalog. Adding a screen starts here.
 pub const ROUTES: &[&str] = &[
     "/threads",
+    "/threads/new",
+    "/threads/new/dictation",
     "/threads/{id}",
     "/halls",
     "/halls/{id}",
@@ -24,6 +26,10 @@ pub enum Destination {
     /// A tab's root (`threads`, `halls` or `dms`), or one conversation in it.
     List(&'static str),
     Conversation(&'static str, String),
+    /// Start conversation on the Threads root; `dictate` starts with dictation.
+    NewThread {
+        dictate: bool,
+    },
     Profile,
 }
 
@@ -34,13 +40,18 @@ impl Destination {
         match self {
             Self::List(tab) => format!("/{tab}"),
             Self::Conversation(tab, id) => format!("/{tab}/{id}"),
+            Self::NewThread { dictate: false } => "/threads/new".into(),
+            Self::NewThread { dictate: true } => "/threads/new/dictation".into(),
             Self::Profile => "/profile".into(),
         }
     }
 
     fn parse(path: &str) -> Result<Self, &'static str> {
-        if path == "/profile" {
-            return Ok(Self::Profile);
+        match path {
+            "/profile" => return Ok(Self::Profile),
+            "/threads/new" => return Ok(Self::NewThread { dictate: false }),
+            "/threads/new/dictation" => return Ok(Self::NewThread { dictate: true }),
+            _ => {}
         }
         let rest = path.strip_prefix('/').ok_or(INVALID)?;
         let (tab, id) = rest.split_once('/').unwrap_or((rest, ""));
@@ -123,6 +134,11 @@ impl Link {
             server.set_path(prefix);
             (destination, base(server.as_str())?)
         };
+        // Dictation opens the microphone, so it needs the person's own action, such as an
+        // App Shortcut, never a link another app or web page can open.
+        if destination == (Destination::NewThread { dictate: true }) {
+            return Err(INVALID);
+        }
         Ok(Self {
             destination,
             server: Some(server),
@@ -172,6 +188,8 @@ pub struct Navigation {
     pub thread_id: Option<String>,
     pub hall_id: Option<String>,
     pub dm_id: Option<String>,
+    /// `text` or `dictation` while Start conversation is open on the Threads root.
+    pub compose: Option<&'static str>,
     pub path: String,
     pub revision: u64,
     #[serde(skip)]
@@ -185,6 +203,7 @@ impl Default for Navigation {
             thread_id: None,
             hall_id: None,
             dm_id: None,
+            compose: None,
             path: "/threads".into(),
             revision: 0,
             pending: None,
@@ -211,6 +230,7 @@ impl Navigation {
     }
 
     pub fn navigate(&mut self, destination: Destination) {
+        self.compose = None;
         match destination {
             Destination::Profile => self.tab = "profile",
             Destination::List(tab) => {
@@ -220,6 +240,11 @@ impl Navigation {
             Destination::Conversation(tab, id) => {
                 self.tab = tab;
                 *self.stack(tab) = Some(id);
+            }
+            Destination::NewThread { dictate } => {
+                self.tab = "threads";
+                self.thread_id = None;
+                self.compose = Some(if dictate { "dictation" } else { "text" });
             }
         }
         self.changed();
@@ -240,6 +265,7 @@ impl Navigation {
             "profile" => "profile",
             _ => STACKS.into_iter().find(|t| *t == tab).ok_or(INVALID)?,
         };
+        self.compose = None;
         self.changed();
         Ok(())
     }
@@ -264,6 +290,10 @@ impl Navigation {
         let tab = self.tab;
         self.path = match tab {
             "profile" => "/profile".into(),
+            _ if self.compose.is_some() => Destination::NewThread {
+                dictate: self.compose == Some("dictation"),
+            }
+            .path(),
             _ => match self.stack(tab) {
                 Some(id) => format!("/{tab}/{id}"),
                 None => format!("/{tab}"),
