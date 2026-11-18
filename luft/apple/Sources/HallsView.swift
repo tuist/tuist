@@ -337,6 +337,7 @@ struct HallConversationView: View {
         .navigationTitle(Text(verbatim: hall?.title ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .tabBar)
         #endif
             // Only while someone can see it: a conversation left open behind
             // other apps must not mark new messages read.
