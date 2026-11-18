@@ -758,6 +758,10 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
     assert_eq!(update["id"], "newer");
     assert_eq!(update["commit"], "newer01");
     assert_eq!(update["install_url"], "https://storage.test/newer");
+    assert_eq!(
+        result["data"]["suggest"], true,
+        "a newer build is suggested"
+    );
     let request = h.actions.last().unwrap();
     assert_eq!(
         request["url"],
@@ -768,6 +772,18 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         format!("Bearer {}", token(i64::MAX, 1))
     );
 
+    // Later checks, such as returning to the foreground, still report the build
+    // without suggesting it again.
+    h.responses.push_back((200, page.clone()));
+    let again = call(
+        &mut c,
+        &mut h,
+        "preview_update",
+        json!({"platform":"android","binary_id":"def456"}),
+    );
+    assert_eq!(again["data"]["update"]["id"], "newer");
+    assert_eq!(again["data"]["suggest"], false);
+
     // Running the newest identified build, even with different hex case, is current.
     h.responses.push_back((200, page.clone()));
     let current = call(
@@ -776,9 +792,10 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         "preview_update",
         json!({"platform":"android","binary_id":"ABC123"}),
     );
-    assert_eq!(current["data"], json!({"update":null}));
+    assert_eq!(current["data"], json!({"update":null,"suggest":false}));
 
-    // iOS installs through the preview's over-the-air manifest.
+    // iOS installs through the preview's over-the-air manifest. Another build
+    // than the one last suggested is suggested again.
     h.responses.push_back((200, page));
     let ios = call(
         &mut c,
@@ -790,6 +807,7 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         ios["data"]["update"]["install_url"],
         "itms-services://?action=download-manifest&url=https%3A%2F%2Ftuist.dev%2Fios"
     );
+    assert_eq!(ios["data"]["suggest"], true);
 
     // Without access to the project there is nothing to install, and nothing to report.
     h.responses.push_back((403, json!({})));
@@ -800,7 +818,7 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
         json!({"platform":"android","binary_id":"def456"}),
     );
     assert!(denied.get("error").is_none(), "{denied}");
-    assert_eq!(denied["data"], json!({"update":null}));
+    assert_eq!(denied["data"], json!({"update":null,"suggest":false}));
 }
 
 #[test]
@@ -1875,6 +1893,75 @@ fn live_activities_register_for_the_active_profile_and_report_retired_ids() {
     let gone = call(&mut c, &mut h, "live_activity_unregister", json!({"id":id}));
     assert_eq!(gone["data"], json!({"unregistered":true}));
     assert_eq!(last(&h)["method"], "DELETE");
+
+    // The push-to-start token goes with the active profile's ID, which the
+    // server echoes in the attributes of the activities it starts.
+    let profile = c.vault.active_profile_id.clone().unwrap();
+    h.responses.push_back((204, Value::Null));
+    let starter = call(
+        &mut c,
+        &mut h,
+        "live_activity_starter_register",
+        json!({"token":token,"environment":"production"}),
+    );
+    assert_eq!(starter["data"], json!({"registered":true}));
+    let request = last(&h);
+    assert_eq!(request["method"], "PUT");
+    assert_eq!(
+        request["url"],
+        "https://one.test/api/me/thread-live-activity-starter"
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(request["body"].as_str().unwrap()).unwrap(),
+        json!({"token":token,"environment":"production","profile_id":profile})
+    );
+
+    h.responses.push_back((404, Value::Null));
+    let old = call(
+        &mut c,
+        &mut h,
+        "live_activity_starter_register",
+        json!({"token":token,"environment":"production"}),
+    );
+    assert_eq!(
+        old["data"],
+        json!({"registered":false,"reason":"unavailable"})
+    );
+
+    h.responses.push_back((204, Value::Null));
+    let forgotten = call(
+        &mut c,
+        &mut h,
+        "live_activity_starter_unregister",
+        json!({}),
+    );
+    assert_eq!(forgotten["data"], json!({"unregistered":true}));
+    assert_eq!(last(&h)["method"], "DELETE");
+
+    // Moving to a profile on another server forgets the token on the old one.
+    login(&mut c, &mut h, "https://two.test", 2, i64::MAX);
+    h.responses.push_back((204, Value::Null));
+    let moved = call(
+        &mut c,
+        &mut h,
+        "live_activity_starter_unregister",
+        json!({"profile_id":profile}),
+    );
+    assert_eq!(moved["data"], json!({"unregistered":true}));
+    assert_eq!(
+        last(&h)["url"],
+        "https://one.test/api/me/thread-live-activity-starter"
+    );
+
+    let before = h.actions.len();
+    let unknown = call(
+        &mut c,
+        &mut h,
+        "live_activity_starter_unregister",
+        json!({"profile_id":"gone"}),
+    );
+    assert!(unknown["error"].is_string());
+    assert_eq!(h.actions.len(), before);
 }
 
 #[test]

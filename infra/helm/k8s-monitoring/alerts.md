@@ -9409,6 +9409,35 @@ before diagnosing a dead host. Inspect the live runtime through the approved
 host-access procedure before authorizing a repair; these alerts do not authorize
 checkpoint resets, sandbox interruption, restarts or automated remediation.
 
+## Linux runner VM host-OOM kills
+
+`runner-vm-oom-alert-rules.json` holds one Pulse SQL rule, `Linux runner VM
+killed by host memory limit` (group `Runner VM memory`, 60-second interval). It
+fires on any production runner host journal line `Memory cgroup out of memory:
+Killed process … (qemu-system-…)` in the last ten minutes, one alert per host.
+Pulse SQL holds production logs only, so staging and canary are not covered;
+the chart guard on `kataContainers.podFixed.memory` is their check. Helm does
+not install the payload; create it in Grafana as described below.
+
+The host kills a Kata VM this way only when the Pod has a memory limit smaller
+than the VM: the guest sees no OOM, its runner vanishes, and GitHub reports
+"runner lost communication". From 2026-11-17 11:50 to 2026-11-18 08:11 UTC,
+exclusive runner CPUs gave every even shape a Pod-level limit of its budget
+plus the 2560Mi Kata overhead, below the guest's budget plus 2 GiB, and the
+host killed full guests on every runner host (Carousell's 16vcpu-32gb checks
+failed 38 of 44 runs on 2026-11-18). No such kill was logged before or after.
+Replayed on Pulse with `now()` pinned, the query returned three hosts at
+2026-11-17 15:40 and two at 2026-11-18 03:55, and nothing at 2026-11-16 12:00
+or 2026-11-18 08:30. `python3 test-runner-vm-oom-alert.py` checks the rule's
+patterns against those kernel lines and against memcg kills of other processes.
+
+When it fires, find the Pod from the kill's `oom_memcg=/kubepods.slice/kubepods-pod<uid>.slice`
+line, compare its `spec.resources` and `spec.overhead` with the guest's
+`vm.mem.total.kb` in `RUNNER_VITALS`, and check whether its pool sets
+`exclusiveCPUs`. Setting `spec.exclusiveCPUs: false` on the affected
+RunnerPools rolls idle Pods back to Burstable, which has no Pod memory limit;
+land the same change in the chart before the next deploy re-applies it.
+
 ## Retired rules
 
 Rules deleted on purpose. **Do not recreate them, and skip this section when

@@ -1194,14 +1194,22 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these six OVH nodes in Gravelines: five Advance-1
-  # 2024 (EPYC 4244P) and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
+  # Public EU West runs on these OVH nodes in Gravelines: Advance-1 2024 (EPYC
+  # 4244P) boxes and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
   # The offer matches both ranges. Keep the historical pool name: live
   # KuraInstances, local PVs and gateways still select it. All Dedibox hosts
   # have been retired.
+  #
+  # The eighth box (Advance-1 2026, 4x960 NVMe, ordered 2026-11-18) is for cache
+  # growth: a 256Gi instance needs about 542 GiB on one node, and after
+  # qvv7x-8lb8j (2026-11-18) took wise and delivery-hero-se no eu-west node had
+  # more than 161 GiB free, so tuist's and monzo's claim growths were refused.
+  # Four disks give about 1,587 GiB of thin capacity (eu-east's nh9pb-7bnjr)
+  # against 689 GiB on two, enough for both. Its Machine is annotated
+  # tuist.dev/kura-storage-layout=lvm-v1 before the box is renamed for prep.
   eu-west:
     enabled: true
-    replicas: 7
+    replicas: 8
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -2440,6 +2448,11 @@ sandboxes:
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
+  # Exclusive-CPU Pods' host cgroup is their budget plus this, so it must
+  # cover Kata's 2 GiB guest base plus QEMU's page tables and slab. Raised
+  # ahead of turning exclusive CPUs back on, one shape at a time.
+  podFixed:
+    memory: "3584Mi"
 
 runnersController:
   # Off the processor pool, which has no memory to spare beside the processor.
@@ -2497,15 +2510,14 @@ runnersFleetLinux:
   nestedVirtualization:
     nri:
       enabled: true
-  # Whole cores per runner Pod for every even shape; the 1 vCPU shape keeps
-  # shared cores. All runners-linux hosts run kubelet v1.36.6 with
-  # tuist.dev/pod-level-resource-managers=true, and these Pods get /dev/kvm
-  # from the kvm-nri-plugin above, not the device plugin
-  # (kubernetes/kubernetes#143490). Never restart the kubelet on a host
-  # running them: it leaks their cores (kubernetes/kubernetes#140989, see
-  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+  # Off since 2026-11-17, when the Pod-level limit plus the then 2560Mi
+  # podFixed capped each VM's host cgroup at its guest RAM plus 512 MiB, and the host OOM killer
+  # stopped full guests mid-job (GitHub's "runner lost communication").
+  # Turning it back on rolls idle Pods; never restart the kubelet on a host
+  # running exclusive Pods: it leaks their cores (kubernetes/kubernetes#140989,
+  # see infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
   exclusiveCPUs:
-    defaultEnabled: true
+    defaultEnabled: false
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
@@ -2537,8 +2549,8 @@ runnersFleetLinux:
     # Default shape: all `tuist-default` + `linux` default-profile
     # (`tuist-linux`) traffic lands here, so it carries the fleet's warm
     # floor. Sized against RAM, not slots: request == limit == the
-    # advertised shape, so the floor reserves `floor * 10.5 GiB` (8 GiB
-    # + the kata RuntimeClass's 2.5 GiB podFixed) on the fleet whether or
+    # advertised shape, so the floor reserves `floor * 11.5 GiB` (8 GiB
+    # + the kata RuntimeClass's 3.5 GiB podFixed) on the fleet whether or
     # not those Pods ever touch it. At 30 it reserved 315 GiB and left no
     # 16 GiB hole, so `4vcpu-16gb` could not place a single Pod while
     # running well under a third of the fleet's real memory.
@@ -2565,7 +2577,7 @@ runnersFleetLinux:
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
-    # Each idle 32 GiB runner reserves 34.5 GiB with the kata overhead.
+    # Each idle 32 GiB runner reserves 35.5 GiB with the kata overhead.
     - vcpus: 8
       memoryGb: 32
       autoscaling:
@@ -2575,7 +2587,7 @@ runnersFleetLinux:
       autoscaling:
         maxLearnedWarmPoolFloor: 2
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
-    # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
+    # 3.5 GiB podFixed overhead is 67.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
     # (16c/32t, 128 GB — see ovhFleets.runners-linux above), so the shape
     # survives the migration but stops being a small slice of a host.
@@ -2601,15 +2613,15 @@ runnersFleetLinux:
     # CPU does not. This rung is bought for memory and priced for it.
     #
     # Warm floor 1, unlike every other long-tail shape. This Pod needs a
-    # contiguous 16,250m / 66.5 GiB, which is 52% of a RISE-L's CPU and
-    # 57% of its memory, so at floor 0 each arrival waits for that hole
+    # contiguous 16,250m / 67.5 GiB, which is 52% of a RISE-L's CPU and
+    # 58% of its memory, so at floor 0 each arrival waits for that hole
     # to be manufactured by draining a host. The drain cannot converge
     # here: `reservationTimeout` is 15m and the `16vcpu-32gb` jobs it
     # queues behind run a p50 of 28m, so the reservation expires and the
     # node then rests for `reservationCooldown`. Production 2026-09-11
     # spent 36 minutes queued that way with the fleet at 88% committed
     # and the account 96 GB under its own limit. Holding one Pod costs
-    # the same 66.5 GiB continuously and removes both the cold start and
+    # the same 67.5 GiB continuously and removes both the cold start and
     # the drain, against ~4 jobs/day at a 46-minute median.
     - vcpus: 16
       memoryGb: 64

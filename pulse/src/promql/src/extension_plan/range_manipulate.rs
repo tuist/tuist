@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Modified by Tuist; see pulse/FORK.md.
 
 use std::collections::HashSet;
 use std::ops::{Add, Mul, Sub};
@@ -696,7 +697,7 @@ impl RangeManipulateStream {
             let _ = other_columns.remove(index);
             let column = input.column(*index);
             let new_column = Arc::new(
-                RangeArray::from_ranges(column.clone(), ranges.clone())
+                RangeArray::from_ranges(column.clone(), ranges.iter().copied())
                     .map_err(|e| ArrowError::InvalidArgumentError(e.to_string()))?
                     .into_dict(),
             );
@@ -764,12 +765,14 @@ impl RangeManipulateStream {
                 timestamp_values.nulls().cloned(),
             ))
         };
-        let ts_range_column = RangeArray::from_ranges(timestamp_values, ranges.clone())
+        let ts_range_column = RangeArray::from_ranges(timestamp_values, ranges.iter().copied())
             .map_err(|e| ArrowError::InvalidArgumentError(e.to_string()))?
             .into_dict();
         new_columns.push(Arc::new(ts_range_column));
 
         // truncate other columns
+        // The time index is replaced by aligned timestamps below, not gathered.
+        let _ = other_columns.remove(&self.time_index);
         let take_indices = Int64Array::from(vec![0; ranges.len()]);
         for index in other_columns.into_iter() {
             new_columns[index] = compute::take(&input.column(index), &take_indices, None)?;

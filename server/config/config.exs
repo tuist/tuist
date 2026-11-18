@@ -551,6 +551,8 @@ config :tuist, :blocked_account_handles, blocked_account_handles
 config :tuist, :blocked_handles, blocked_account_handles
 config :tuist, :blocked_project_handles, blocked_account_handles -- ["app"]
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
+# Share of each platform's runner fleet Air accounts may hold together (Tuist.Runners.AirShare).
+config :tuist, :runner_air_fleet_share_percent, 15
 
 # Baseline machine-minutes of each platform every account gets free per
 # billing period. Each must match the first tier of the environment's runner

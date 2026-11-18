@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "db16e34acd82a0eae26b8778ccdab4685a8d10e052d77f5ea9971fab13d03b04",
+  "hash": "be0bcf1409117959f2b1d9c80dcfcb9560347295b30d9a88f60d8d94db415a1b",
   "hash_tree": {
     "root": {
       "children": [
@@ -41,7 +41,7 @@
                   "content_hash": "da67417d74201a7702f6c8d8d3c2ad75766bc5666cdd5596cd4f9e80cc7ea447"
                 },
                 "### Tuist inside the sandbox {#tuist-in-sandbox}": {
-                  "content_hash": "97b798cbcdb50ef155301e0b2bcaaa92927ec74c86ed02f6b5a0d81b28930df0"
+                  "content_hash": "5a1a8453113ac9343e5998c459ea39c64fac4946c5529cc017345daa4516ad10"
                 },
                 "Preamble": {
                   "content_hash": "5e751ab42706e47370a09323de4f94ff05361bb8d492e6c34e175192936d587c"
@@ -50,11 +50,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "bc7aefcef620b23b22da3e5bdf5b803929c9c2ff4df32be02975fbf81b8679ec",
+          "hash": "6f1f70898036aa0c51d7c039e53035c8d0b804ec7854eb4af07633198c9b60fd",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes.md",
           "metadata": {
-            "content_hash": "dae275ae4ecc0a09fd1a1cfda3c4437dfebb77ef9f70edd54d7fb01ea49beea4"
+            "content_hash": "e33ceddf262ee94021ddead128ad3aa6889680ef3428481c86b2e1bc4e6f4272"
           }
         },
         {
@@ -257,14 +257,14 @@
         }
       ],
       "details": {},
-      "hash": "db16e34acd82a0eae26b8778ccdab4685a8d10e052d77f5ea9971fab13d03b04",
+      "hash": "be0bcf1409117959f2b1d9c80dcfcb9560347295b30d9a88f60d8d94db415a1b",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "515d722163770104dd6775b0643aa61689ac7b3b6c3188fd131e2a4b8556653b",
+  "output_hash": "984527f4422771901bb1fe4292255a360b83fe068769f084c6e8194538019ec0",
   "output_path": "server/priv/docs/ko/guides/features/sandboxes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -284,8 +284,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b1980781033908322e1bcf9d50abb18fdacb059f",
+  "source_commit_sha": "12a023dc5566ac9d0b59a3ea2aa1b0449ccd623b",
   "source_path": "server/priv/docs/en/guides/features/sandboxes.md",
-  "translated_at": "2026-11-18T07:03:28.261132Z",
-  "translation_session_id": "01a1ed75-f051-784a-a4e0-97349e553daf"
+  "translated_at": "2026-11-18T11:42:04.234778Z",
+  "translation_session_id": "01a1ee75-581a-7a52-a675-2b6ff8b9ca97"
 }

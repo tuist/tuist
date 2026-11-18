@@ -11,7 +11,7 @@ struct LuftApp: App {
     #endif
 
     /// One client for the window and, on the Mac, Settings, which registers runners.
-    @State private var client = AppClient()
+    @State private var client = AppClient.shared
 
     var body: some Scene {
         WindowGroup(id: WorkspaceCommands.window) {

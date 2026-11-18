@@ -1,6 +1,7 @@
 defmodule Tuist.Threads.Thread do
   @moduledoc """
-  An owner-private conversation. Its runs work in the thread's sandbox; a
+  A conversation its owner runs on their own subscription, private to them
+  and to the people they, or other participants, loop in by mentioning them. Its runs work in the thread's sandbox; a
   repository is checked out there once the owner names one or the agent
   asks for one the owner can read (`Tuist.Threads.request_repository/2`).
   """
@@ -30,6 +31,8 @@ defmodule Tuist.Threads.Thread do
     field :messages, {:array, :map}, virtual: true, default: []
     field :has_more, :boolean, virtual: true, default: false
     field :next_before, :integer, virtual: true
+    field :participant_ids, {:array, :integer}, virtual: true, default: []
+    field :people, :map, virtual: true, default: %{}
     timestamps(type: :utc_datetime)
   end
 end

@@ -15,6 +15,13 @@ defmodule Tuist.FeatureFlags do
     )
   end
 
+  @doc """
+  Whether `user` is blocked from sending telemetry from Tuist's clients
+  (`TuistWeb.API.TelemetryController`), set with the `:telemetry_blocked`
+  FunWithFlags toggle for that user when their clients abuse the endpoint.
+  """
+  def telemetry_blocked?(user), do: FunWithFlags.enabled?(:telemetry_blocked, for: user)
+
   @doc "Default-off account opt-in to Linux Bazel remote execution in every environment."
   def bazel_remote_execution_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

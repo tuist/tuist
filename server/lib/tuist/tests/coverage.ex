@@ -56,6 +56,7 @@ defmodule Tuist.Tests.Coverage do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.ArrayInParams
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHistory
@@ -879,6 +880,19 @@ defmodule Tuist.Tests.Coverage do
       subquery(reported)
     end
   end
+
+  @doc """
+  An Ecto query as SQL with its parameters inlined, for a raw query to read
+  it as a subquery, as the carried fold (`Coverage.Reported`) and the delta
+  writes (`Coverage.Deltas`) read the runs' rows. Lists are inlined as one
+  array each (`Tuist.ClickHouse.ArrayInParams`), so the SQL's size grows
+  with them: keep to queries over a few runs.
+  """
+  def inline_sql(%Ecto.Query{} = query), do: inline_sql(subquery(query))
+
+  # A subquery names its columns, which a query's own map select doesn't.
+  def inline_sql(%Ecto.SubQuery{} = query),
+    do: Ecto.Adapters.ClickHouse.to_inline_sql(:all, ArrayInParams.rewrite(from(f in query, select: f)))
 
   # One row per path, its shards' reports merged: the lines are the union
   # across shards. A file whose archive entry was missing keeps the counts the

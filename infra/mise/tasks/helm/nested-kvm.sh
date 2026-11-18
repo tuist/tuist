@@ -33,15 +33,25 @@ for env in staging canary production; do
     grep -q 'exclusiveCPUs cannot be combined with nestedVirtualization' "$work/error"
   done
   render --set runnersFleetLinux.nestedVirtualization.defaultEnabled=false \
-    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true > "$work/exclusive.json"
+    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true \
+    --set kataContainers.podFixed.memory=3584Mi > "$work/exclusive.json"
   jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
     length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization != true)' "$work/exclusive.json" >/dev/null
   # With the NRI plugin, exclusive-CPU pools keep KVM without the device plugin.
   render --set runnersFleetLinux.nestedVirtualization.nri.enabled=true \
-    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true > "$work/nri.json"
+    --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true \
+    --set kataContainers.podFixed.memory=3584Mi > "$work/nri.json"
   jq -e '[.[]|select(.kind == "RunnerPool" and .spec.os == "linux" and (.spec.podCPUMilli % 2000 == 0))] |
     length > 0 and all(.[]; .spec.exclusiveCPUs == true and .spec.nestedVirtualization == true)' "$work/nri.json" >/dev/null
   jq -e '[.[]|select(.kind == "DaemonSet" and .metadata.labels["app.kubernetes.io/component"] == "kvm-nri-plugin")] | length == 1' "$work/nri.json" >/dev/null
+  # An exclusive-CPU Pod's cgroup is its budget plus podFixed, and Kata's guest
+  # alone is its 2 GiB base plus the budget, so 2560Mi left QEMU 512 MiB and
+  # the host OOM killer stopped full 16vcpu-32gb VMs mid-job.
+  if render --set runnersFleetLinux.exclusiveCPUs.defaultEnabled=true \
+    --set kataContainers.podFixed.memory=2560Mi > /dev/null 2> "$work/error"; then
+    echo "Exclusive CPUs accepted with a podFixed overhead the Kata guest outgrows: $env" >&2; exit 1
+  fi
+  grep -q 'exclusiveCPUs needs kataContainers.podFixed.memory' "$work/error"
   # An env's own render has the NRI DaemonSet exactly when it enables NRI, and
   # exclusive CPUs only alongside it.
   if yq -e '.runnersFleetLinux.nestedVirtualization.nri.enabled == true' "$chart/values-managed-$env.yaml" >/dev/null 2>&1; then

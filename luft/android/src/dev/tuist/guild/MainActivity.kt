@@ -774,14 +774,25 @@ class MainActivity : Activity() {
                 digest.digest().joinToString("") { "%02x".format(it) }
             } catch (_: Exception) { return@Thread }
             AppCore.submit("preview_update", JSONObject().put("platform", "android").put("binary_id", binaryId), host) { result ->
-                val next = result.optJSONObject("data")?.optJSONObject("update")
+                val data = result.optJSONObject("data")
+                val next = data?.optJSONObject("update")
                 runOnUiThread {
                     if (isDestroyed || result.has("error")) return@runOnUiThread
                     update = next
                     if (!busy && screen == "profile") render()
+                    // The core suggests each newer build once per launch; Profile keeps the Update row.
+                    if (next != null && data?.optBoolean("suggest") == true) suggestUpdate(next.string("install_url"))
                 }
             }
         }.start()
+    }
+
+    /** Asks to update now, which keeps the person on the latest preview. */
+    private fun suggestUpdate(url: String) {
+        AlertDialog.Builder(this).setTitle(R.string.update_available).setMessage(R.string.update_suggestion)
+            .setPositiveButton(R.string.update) { _, _ -> open(url) }
+            .setNegativeButton(R.string.later, null)
+            .show()
     }
 
     /** Profile's row under App version: Android downloads the APK and asks to install it. */

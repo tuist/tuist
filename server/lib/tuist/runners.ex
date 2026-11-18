@@ -107,6 +107,7 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.AirShare
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
@@ -777,11 +778,21 @@ defmodule Tuist.Runners do
       case Catalog.resources_for_fleet(fleet_name) do
         {:ok, resources} ->
           headrooms = Concurrency.headroom_jobs_by_account(Map.keys(queued_by_account), resources)
+          air_ids = AirShare.air_account_ids(Map.keys(queued_by_account))
 
-          dispatchable =
-            Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-              acc + min(count, Map.get(headrooms, account_id, 0))
+          {paid, air} =
+            Enum.reduce(queued_by_account, {0, 0}, fn {account_id, count}, {paid, air} ->
+              jobs = min(count, Map.get(headrooms, account_id, 0))
+              if MapSet.member?(air_ids, account_id), do: {paid, air + jobs}, else: {paid + jobs, air}
             end)
+
+          # Air jobs past the Air fleet share are no more claimable than
+          # jobs past their account's own limit.
+          dispatchable =
+            case air do
+              0 -> paid
+              _ -> paid + capped(air, AirShare.remaining_jobs(resources))
+            end
 
           {dispatchable, raw - dispatchable}
 
@@ -797,6 +808,9 @@ defmodule Tuist.Runners do
 
     {dispatchable, withheld}
   end
+
+  defp capped(count, :unlimited), do: count
+  defp capped(count, remaining), do: min(count, remaining)
 
   @doc """
   Claims the next eligible queued job for the SA's fleet and mints the
@@ -1002,6 +1016,19 @@ defmodule Tuist.Runners do
       sa: sa_name,
       account_id: candidate.account_id,
       reason: inspect({:concurrency_limit_reached, details})
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, {:air_fleet_share_reached, details}}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: Air accounts hold their fleet share; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id,
+      reason: inspect({:air_fleet_share_reached, details})
     )
 
     retry_claim_and_serve(context, :account)

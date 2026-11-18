@@ -12,6 +12,8 @@ struct AppMessage: Decodable, Identifiable {
     /// `running` or `complete`.
     var toolStatus: String?
     var createdAt: String?
+    /// Who wrote a prompt, in a thread someone was looped into.
+    var author: HallPerson?
 
     var createdDate: Date? {
         guard let createdAt else { return nil }
@@ -62,6 +64,9 @@ struct AppConversation: Decodable {
     let messages: [AppMessage]
     /// The current step of the answering run's plan, when it shared one.
     var activity: AppActivity?
+    /// The thread's owner and the people looped into it by a mention.
+    var owner: HallPerson?
+    var participants: [HallPerson]?
     /// Earlier messages stay on the server; `next_before` loads the page before these.
     var has_more: Bool?
     var next_before: Int?
@@ -111,15 +116,25 @@ struct StartConversationView: View {
     // Observed: the field, Start and the dictation bar follow its phase.
     @StateObject private var voice = VoiceInput()
     @State private var dictationStarted = false
+    @State private var mentions = Mentions(context: "new_thread")
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
-            TextField("What do you want to talk about?", text: $content, axis: .vertical)
-                .lineLimit(4 ... 12)
-                .focused($focused)
-                .disabled(starting || voice.busy)
+            Section {
+                TextField("What do you want to talk about?", text: $content, axis: .vertical)
+                    .lineLimit(4 ... 12)
+                    .focused($focused)
+                    .disabled(starting || voice.busy)
+                    .onChange(of: content) { _, text in mentions.update(text) }
+                MentionBar(mentions: mentions, text: $content)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
+            } footer: {
+                if mentions.people.isEmpty == false, mentions.state.loop_in.isEmpty, mentions.state.query == nil {
+                    Text("Type @ to loop someone in.")
+                }
+            }
             if let message = voice.errorMessage {
                 Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
             }
@@ -139,6 +154,7 @@ struct StartConversationView: View {
                 Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
             }
         }
+        .task { await mentions.load(client) }
         // People without runners see no choice; a failure to list them changes nothing.
         .task {
             if let data = try? await client.call("runners"),
@@ -241,8 +257,12 @@ struct ConversationView: View {
     @State private var atLatest = true
     // Not observed here: only the composer redraws as dictation levels change.
     @State private var voice = VoiceInput()
+    @State private var mentions = Mentions(context: "thread")
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Shared threads name who wrote each prompt.
+    private var shared: Bool { thread?.participants?.isEmpty == false }
 
     /// Earlier pages, then the latest messages, without repeats where they overlap.
     private var messages: [AppMessage] {
@@ -270,7 +290,7 @@ struct ConversationView: View {
                         switch group {
                         // A card can call `reply` without a tap (on mount, from a timer),
                         // so its text goes to the composer and the person sends it.
-                        case let .message(message): MessageRow(message: message) { text in reply = text }.id(message.id)
+                        case let .message(message): MessageRow(message: message, showAuthor: shared) { text in reply = text }.id(message.id)
                         case let .tools(tools): ToolActivity(tools: tools).id(tools[0].id)
                         }
                     }
@@ -312,7 +332,7 @@ struct ConversationView: View {
         .background(Noora.backgroundPrimary)
         .overlay { if thread == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
-            ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice) {
+            ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions) {
                 Task { await send() }
             }
             .padding(.horizontal)
@@ -352,6 +372,20 @@ struct ConversationView: View {
                 )
             }
             .task(id: id) { await follow() }
+            .task { await mentions.load(client) }
+            .toolbar {
+                // Shared threads list who is in them under the title, like a group chat.
+                if shared, let thread {
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 1) {
+                            Text(verbatim: thread.title ?? thread.goal ?? "")
+                                .font(.headline).lineLimit(1)
+                            ParticipantsLabel(owner: thread.owner, participants: thread.participants ?? [])
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
             // The live socket: server changes and the agent's calls to this app's tools.
             .task(id: id) { await client.live(id) { await reload() } }
             // Unaccepted dictation never survives leaving the conversation or the app.
@@ -371,6 +405,8 @@ struct ConversationView: View {
             older += previous.filter { $0.position != nil && !kept.contains($0.id) }
         }
         thread = latest
+        // Mentioning someone already in the thread loops in nobody new.
+        mentions.members = ([latest.owner] + (latest.participants ?? [])).compactMap { $0?.id }
     }
 
     /// Loads the conversation, then polls while the server is answering.
@@ -638,6 +674,8 @@ private struct PlanView: View {
 
 struct MessageRow: View {
     let message: AppMessage
+    /// Names who wrote a prompt, in a thread shared with others.
+    var showAuthor = false
     /// Puts a card's reply in the composer.
     let reply: (String) -> Void
 
@@ -657,13 +695,19 @@ struct MessageRow: View {
         case "user":
             HStack {
                 Spacer(minLength: 48)
-                Text(verbatim: message.content)
-                    .textSelection(.enabled)
-                    .foregroundStyle(Noora.labelPrimary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                VStack(alignment: .trailing, spacing: 2) {
+                    if showAuthor, let handle = message.author?.handle {
+                        Text(verbatim: "@\(handle)").font(.caption.weight(.semibold)).foregroundStyle(Noora.labelSecondary)
+                    }
+                    Text(verbatim: message.content)
+                        .textSelection(.enabled)
+                        .foregroundStyle(Noora.labelPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                }
+                .accessibilityElement(children: .combine)
             }
         case "assistant":
             Text(markdown(message.content)).textSelection(.enabled).foregroundStyle(Noora.labelPrimary)
@@ -687,4 +731,21 @@ private var audioInterruption: Notification.Name {
     #else
         AVAudioSession.interruptionNotification
     #endif
+}
+
+/// Who is in a shared thread: its owner, whose subscription runs it, and the people looped in.
+private struct ParticipantsLabel: View {
+    let owner: HallPerson?
+    let participants: [HallPerson]
+
+    var body: some View {
+        let names = ([owner] + participants).compactMap { $0?.handle }
+        Label {
+            Text(verbatim: names.map { "@\($0)" }.formatted(.list(type: .and)))
+                .lineLimit(1)
+        } icon: { Image(systemName: "person.2.fill") }
+            .labelStyle(.titleAndIcon)
+            .font(.caption).foregroundStyle(Noora.labelSecondary)
+            .accessibilityLabel(Text("Shared with \(names.formatted(.list(type: .and)))"))
+    }
 }

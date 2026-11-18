@@ -152,7 +152,13 @@ A Kata host whose kubelet is v1.36 or newer (`podLevelResourceManagers`) adds:
 
 The CPU manager reads the budget from `.spec.resources` and ignores the
 RuntimeClass overhead (250m, 2560Mi), so the overhead does not stop the Pod
-from getting integer CPUs. A v1.34 kubelet panics on the unknown gate, so the
+from getting integer CPUs. The Pod's host memory cgroup, though, is the budget
+plus that overhead, and the guest alone is the budget plus Kata's 2 GiB. With
+2560Mi a full 16vcpu-32gb guest (33.4 GiB of guest RAM plus about 1 GiB of host
+page tables and slab) hit the cgroup limit, and the host OOM killer stopped
+QEMU mid-job, which GitHub reports as "runner lost communication". The chart
+therefore requires `kataContainers.podFixed.memory` of at least 3584Mi
+whenever a pool is exclusive. A v1.34 kubelet panics on the unknown gate, so the
 config is always rendered for the kubelet a node runs: the drift loop uses the
 Node's reported kubelet version, and nodes below v1.36 render and hash exactly
 as before.

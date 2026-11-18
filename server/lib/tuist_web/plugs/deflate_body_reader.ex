@@ -18,7 +18,7 @@ defmodule TuistWeb.Plugs.DeflateBodyReader do
       cond do
         network_report?(conn) -> Keyword.put(opts, :length, 8_000_000)
         # Luft's batches encode to at most 1 MiB; never parse more JSON than that needs.
-        match?(["api", "luft", "telemetry" | _], conn.path_info) -> Keyword.put(opts, :length, 4_000_000)
+        match?(["api", "telemetry" | _], conn.path_info) -> Keyword.put(opts, :length, 4_000_000)
         true -> opts
       end
 

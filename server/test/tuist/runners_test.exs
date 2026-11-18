@@ -1947,6 +1947,25 @@ defmodule Tuist.RunnersTest do
       assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
     end
 
+    # A burst of Air sign-ups past the Air fleet share must not size pools
+    # for jobs admission will refuse, which would preempt paid warm capacity.
+    test "withholds Air accounts' jobs past the Air fleet share" do
+      fleet = "macos-signal-air-share"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      stub(Tuist.Runners.AirShare, :remaining_jobs, fn ^resources -> 1 end)
+
+      for {account, id} <- [{account_fixture(), 91_701}, {account_fixture(), 91_702}] do
+        queue_job(account, id, fleet, resources)
+      end
+
+      paid = account_fixture()
+      TuistTestSupport.Fixtures.BillingFixtures.subscription_fixture(account_id: paid.id, plan: :pro)
+      Concurrency.raise_to_plan_defaults(paid, :pro)
+      queue_job(paid, 91_703, fleet, resources)
+
+      assert %{queued: 2, withheld: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
     test "reports nothing withheld when every queued job is dispatchable" do
       account = account_fixture()
       fleet = "macos-signal-unblocked"

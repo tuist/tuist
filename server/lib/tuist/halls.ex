@@ -103,11 +103,16 @@ defmodule Tuist.Halls do
     end
   end
 
+  @doc """
+  Creates a hall named `name`, with an optional `topic`, and invites the
+  optional `user_ids`, people the creator looped in.
+  """
   def create(user, account, attrs) do
     with :ok <- authorize(user, account),
          {:ok, request_id} <- uuid(attrs["request_id"]),
          {:ok, name} <- name(attrs["name"]),
-         {:ok, topic} <- topic(attrs["topic"]) do
+         {:ok, topic} <- topic(attrs["topic"]),
+         {:ok, invited} <- invitees(user, account, Map.get(attrs, "user_ids", [])) do
       fn ->
         now = now()
 
@@ -128,8 +133,12 @@ defmodule Tuist.Halls do
         insert_once!(row, [:account_id, :request_id])
 
         case Repo.get_by!(Hall, account_id: account.id, request_id: request_id) do
-          %Hall{kind: :hall, name: ^name} = hall -> hall
-          %Hall{} -> Repo.rollback(:request_conflict)
+          %Hall{kind: :hall, name: ^name} = hall ->
+            join!(hall.id, invited)
+            hall
+
+          %Hall{} ->
+            Repo.rollback(:request_conflict)
         end
       end
       |> transact()
@@ -191,6 +200,53 @@ defmodule Tuist.Halls do
     end
   end
 
+  @doc """
+  Invites `user_ids` to a hall: they join it, as if they had opened it, so
+  the hall's `member_ids` include them. Direct conversations keep the people
+  they started with.
+  """
+  def invite(user, account, id, attrs) do
+    with :ok <- authorize(user, account),
+         {:ok, %Hall{kind: :hall} = hall, _read} <- visible(user, account, id),
+         {:ok, [_ | _] = ids} <- invitees(user, account, attrs["user_ids"]) do
+      join!(hall.id, ids)
+      get(user, account, hall.id)
+    else
+      {:ok, _hall, _read} -> {:error, :invalid_arguments}
+      {:ok, []} -> {:error, :invalid_arguments}
+      error -> error
+    end
+  end
+
+  defp invitees(user, account, ids) when is_list(ids) and length(ids) <= 50 do
+    ids = ids |> Enum.uniq() |> Enum.reject(&(&1 == user.id))
+
+    cond do
+      not Enum.all?(ids, &is_integer/1) -> {:error, :invalid_arguments}
+      ids == [] -> {:ok, []}
+      members_of(account, ids) == :ok -> {:ok, ids}
+      true -> {:error, :invalid_arguments}
+    end
+  end
+
+  defp invitees(_, _, _), do: {:error, :invalid_arguments}
+
+  # Joining starts with nothing read; it never moves a member's position.
+  defp join!(_hall_id, []), do: :ok
+
+  defp join!(hall_id, ids) do
+    now = now()
+
+    Repo.insert_all(
+      Member,
+      Enum.map(ids, &%{hall_id: hall_id, user_id: &1, inserted_at: now, updated_at: now}),
+      on_conflict: :nothing,
+      conflict_target: [:hall_id, :user_id]
+    )
+
+    :ok
+  end
+
   def get(user, account, id, opts \\ []) do
     with :ok <- authorize(user, account),
          {:ok, hall, read} <- visible(user, account, id),
@@ -206,6 +262,9 @@ defmodule Tuist.Halls do
        hall
        |> summary(user, read, people)
        |> Map.merge(%{
+         # Who is in the conversation: everyone who opened, wrote in or was
+         # invited to a hall, so mentioning anyone else can suggest inviting them.
+         member_ids: Repo.all(from m in Member, where: m.hall_id == ^hall.id, order_by: m.user_id, select: m.user_id),
          messages: Enum.map(messages, &serialize_message(&1, user, people)),
          has_more: has_more,
          next_before: if(has_more, do: List.first(messages).position)

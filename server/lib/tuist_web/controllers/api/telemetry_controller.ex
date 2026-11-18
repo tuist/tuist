@@ -1,44 +1,51 @@
-defmodule TuistWeb.API.LuftTelemetryController do
+defmodule TuistWeb.API.TelemetryController do
   @moduledoc """
-  Luft's telemetry, forwarded to the Pulse of the account the server is
-  configured with (`Tuist.Pulse.luft_telemetry?/0`) under the service `luft`.
+  Telemetry from Tuist's own clients, forwarded to the Pulse of the account the
+  server is configured with (`Tuist.Pulse.own_telemetry?/0`).
 
-  Luft runs on people's devices and Pulse is internal to the cluster, so the
-  core sends its batches here with its own signed-in session; only Luft's
-  first-party session is admitted (`TuistWeb.Plugs.AppSessionPlug`). The
-  endpoints follow the conventions client SDKs implement, so a stock exporter
-  given the base URL and an `Authorization` header works:
+  The clients run on people's devices and Pulse is internal to the cluster, so
+  they send their batches here with their own signed-in session. The session
+  decides who is sending (`@producers`): its app names the producer, whose
+  policy confines what it may write and under which service. Today that is
+  only Luft (`Tuist.Pulse.LuftTelemetry`, the service `luft-client`); other
+  credentials get a 403 (`TuistWeb.Plugs.AppSessionPlug`). The endpoints
+  follow the conventions client SDKs implement, so a stock exporter given the
+  base URL and an `Authorization` header works:
 
-    * `POST .../telemetry/v1/{traces,logs,metrics}` is an OTLP/HTTP receiver
+    * `POST /api/telemetry/v1/{traces,logs,metrics}` is an OTLP/HTTP receiver
       (https://opentelemetry.io/docs/specs/otlp/#otlphttp): binary protobuf or
       JSON, optionally gzipped; a success is the signal's
       `Export…ServiceResponse` in the request's encoding (a partial success
-      counts what `Tuist.Pulse.LuftTelemetry` rejected), a failure a
+      counts what the producer's policy rejected), a failure a
       `google.rpc.Status`. Only 429, 502, 503 and 504 are worth retrying, and a
       429 says when in `Retry-After`.
-    * `POST .../telemetry/api/:project_id/envelope/` takes a Sentry envelope, the
-      path Sentry SDKs derive from the DSN `<server>/api/luft/telemetry/1`; its
+    * `POST /api/telemetry/api/:project_id/envelope/` takes a Sentry envelope,
+      the path Sentry SDKs derive from the DSN `<server>/api/telemetry/1`; its
       events become Pulse errors. Failures answer `{"detail": ...}`, and a 429
       carries `Retry-After` and `X-Sentry-Rate-Limits`.
 
-  Both answer 404 when this server has no Pulse for Luft, which tells the
-  core to stop sending.
+  Both answer 404 when this server takes no telemetry, which tells a client
+  to stop sending, and 403 to a user blocked from sending
+  (`Tuist.FeatureFlags.telemetry_blocked?/1`), which it should not retry.
 
-  Anyone with a Tuist account can hold a Luft session, so what a session may
-  write is an allowlist (`Tuist.Pulse.LuftTelemetry`) and how much is
-  limited per user and across all users, in requests and in bytes forwarded
-  (`@requests`, `@user_kib`, `@all_kib`), instead of the app session's shared
-  write limit. Not part of the public API spec: only Luft calls it.
+  Anyone with a Tuist account can hold a client session, so what a session
+  may write is an allowlist and how much is limited per user and across all
+  users, in requests and in bytes forwarded (`@requests`, `@user_kib`,
+  `@all_kib`), instead of the app session's shared write limit. Not part of
+  the public API spec: only Tuist's clients call it.
   """
   use TuistWeb, :controller
 
+  alias Tuist.FeatureFlags
   alias Tuist.Pulse
-  alias Tuist.Pulse.LuftTelemetry
   alias Tuist.Pulse.OTLP
   alias TuistWeb.Plugs.DeflateBodyReader
   alias TuistWeb.RateLimit
 
-  plug TuistWeb.Plugs.AppSessionPlug, apps: ["luft"], limit_writes: false
+  # The policy of each app whose session may send telemetry.
+  @producers %{"luft" => Tuist.Pulse.LuftTelemetry}
+
+  plug TuistWeb.Plugs.AppSessionPlug, apps: Map.keys(@producers), limit_writes: false
 
   # Each of a user's devices flushes at most four batches a minute and resends
   # what failed the next minute: 60 requests a minute and a burst of 100 leave
@@ -56,17 +63,19 @@ defmodule TuistWeb.API.LuftTelemetryController do
   # gRPC status codes for `google.rpc.Status`.
   @invalid_argument 3
   @not_found 5
+  @permission_denied 7
   @resource_exhausted 8
   @unavailable 14
 
   def otlp(conn, %{"signal" => signal}) do
     format = format(conn)
 
-    with true <- (signal in OTLP.signals() and Pulse.luft_telemetry?()) || :not_found,
+    with true <- (signal in OTLP.signals() and Pulse.own_telemetry?()) || :not_found,
+         :ok <- admit_user(conn),
          true <- format != :unsupported || :unsupported,
          :ok <- admit_request(conn),
          {:ok, payload, conn} <- otlp_payload(conn, format),
-         {:ok, body, dropped} <- LuftTelemetry.prepare(signal, payload),
+         {:ok, body, dropped} <- producer(conn).prepare(signal, payload),
          :ok <- admit_bytes(conn, byte_size(body)),
          {:ok, status, response} <- Pulse.forward_otlp(signal, body) do
       if status in 200..299 do
@@ -85,13 +94,16 @@ defmodule TuistWeb.API.LuftTelemetryController do
   end
 
   def errors(conn, _params) do
-    with true <- Pulse.luft_telemetry?() || :not_found,
+    producer = producer(conn)
+
+    with true <- Pulse.own_telemetry?() || :not_found,
+         :ok <- admit_user(conn),
          :ok <- admit_request(conn),
          {:ok, body, conn} <- read(conn),
-         true <- byte_size(body) <= LuftTelemetry.max_bytes() || {:error, :too_large, conn},
+         true <- byte_size(body) <= producer.max_bytes() || {:error, :too_large, conn},
          :ok <- admit_bytes(conn, byte_size(body)),
          {:ok, status, response} <-
-           Pulse.forward_sentry_envelope(LuftTelemetry.service(), "1", body, [
+           Pulse.forward_sentry_envelope(producer.service(), "1", body, [
              {"content-type", "application/x-sentry-envelope"}
            ]) do
       if status in 200..299,
@@ -101,6 +113,10 @@ defmodule TuistWeb.API.LuftTelemetryController do
       error -> sentry_error(conn, error)
     end
   end
+
+  defp producer(conn), do: Map.fetch!(@producers, conn.assigns.app_session.app)
+
+  defp admit_user(conn), do: if(FeatureFlags.telemetry_blocked?(conn.assigns.app_user), do: :blocked, else: :ok)
 
   defp format(conn) do
     case get_req_header(conn, "content-type") do
@@ -138,7 +154,7 @@ defmodule TuistWeb.API.LuftTelemetryController do
   defp partial_message(signal, _dropped, message) do
     dropped =
       case signal do
-        "metrics" -> "Dropped data points outside Luft's metric or the accepted time window."
+        "metrics" -> "Dropped data points outside the accepted metrics or time window."
         "traces" -> "Dropped spans outside the accepted time window."
         "logs" -> "Dropped log records outside the accepted time window."
       end
@@ -146,13 +162,13 @@ defmodule TuistWeb.API.LuftTelemetryController do
     String.trim(dropped <> " " <> message)
   end
 
-  defp admit_request(conn), do: hit("luft_telemetry:requests:user:#{conn.assigns.app_user.id}", @requests, 1)
+  defp admit_request(conn), do: hit("telemetry:requests:user:#{conn.assigns.app_user.id}", @requests, 1)
 
   defp admit_bytes(conn, bytes) do
     kib = max(1, div(bytes + 1023, 1024))
 
-    with :ok <- hit("luft_telemetry:kib:user:#{conn.assigns.app_user.id}", @user_kib, kib) do
-      hit("luft_telemetry:kib", @all_kib, kib)
+    with :ok <- hit("telemetry:kib:user:#{conn.assigns.app_user.id}", @user_kib, kib) do
+      hit("telemetry:kib", @all_kib, kib)
     end
   end
 
@@ -212,7 +228,8 @@ defmodule TuistWeb.API.LuftTelemetryController do
     conn |> put_status(status) |> json(%{detail: message})
   end
 
-  defp failure(:not_found), do: {404, @not_found, "This server does not take Luft telemetry."}
+  defp failure(:not_found), do: {404, @not_found, "This server does not take telemetry."}
+  defp failure(:blocked), do: {403, @permission_denied, "This account may not send telemetry."}
 
   defp failure(:unsupported), do: {415, @invalid_argument, "Send OTLP as application/x-protobuf or application/json."}
 

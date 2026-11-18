@@ -144,12 +144,12 @@ defmodule Tuist.Tests.Coverage.Deltas do
   end
 
   defp write_at_place(project, sha, summary, place, opts) do
-    {moved, kept} = project.id |> rows_of(sha) |> Enum.split_with(&({&1.ref_id, &1.position} != place))
+    moved = moved_rows(project.id, sha, place)
     retired = retire(moved)
 
     {outcome, changed?} =
       if summary && complete?(summary),
-        do: write_complete(project, summary, place, moved, kept),
+        do: write_complete(project, summary, place, moved),
         else: {:skipped, false}
 
     if Keyword.get(opts, :cascade, true) do
@@ -168,81 +168,259 @@ defmodule Tuist.Tests.Coverage.Deltas do
     |> Enum.each(&enqueue(project_id, &1))
   end
 
-  defp write_complete(project, summary, place, moved, kept) do
+  defp write_complete(project, summary, place, moved) do
     case final_files(project, summary) do
       # The targets last: they mark the files as written.
-      {:ok, files} ->
+      {:ok, source} ->
         written =
           if place,
-            do: write_files(project.id, summary, place, files),
+            do: write_files(project.id, summary, place, source),
             else: {{:ok, %{rows: 0, checkpoint: false}}, false}
 
-        write_targets(summary, place, files)
+        if written != {:unavailable, false}, do: write_targets(summary, place, source.targets)
         written
 
       # Kept where the commit now is, and tried again for its own figures.
-      :unavailable when not is_nil(place) and moved != [] and kept == [] ->
-        {_outcome, changed?} = copy(summary, place, moved)
-        {:unavailable, changed?}
+      :unavailable when not is_nil(place) and moved != [] ->
+        if held_at?(project.id, summary.git_commit_sha, place) do
+          {:unavailable, false}
+        else
+          {_outcome, changed?} = copy(summary, place, moved)
+          {:unavailable, changed?}
+        end
 
       :unavailable ->
         {:unavailable, false}
     end
   end
 
-  # The figures the commit's pages show, provided they add up to its
-  # published totals.
+  # Where the figures the commit's pages show come from, with its targets,
+  # provided they add up to its published totals. A commit coverage was
+  # carried into reads them in Elixir (`Commits.final_files/3`: the carried
+  # fold decides some of them) and sends them along with the write; any other
+  # reads its runs' rows, and the write reads them again in ClickHouse, so
+  # its files never reach Elixir.
   defp final_files(project, summary) do
-    files = Commits.final_files(project.id, summary.git_commit_sha, consistent: true)
-
     {covered, executable} =
       if Commits.carried?(summary),
         do: {summary.reported_covered_lines, summary.reported_executable_lines},
         else: {summary.covered_lines, summary.executable_lines}
 
-    if sum(files, :covered_lines) == covered and sum(files, :executable_lines) == executable,
-      do: {:ok, files},
+    source =
+      if Commits.carried?(summary),
+        do: carried_source(project, summary),
+        else: measured_source(project.id, summary)
+
+    if source.covered_lines == covered and source.executable_lines == executable,
+      do: {:ok, source},
       else: :unavailable
+  end
+
+  defp carried_source(project, summary) do
+    files = Commits.final_files(project.id, summary.git_commit_sha, consistent: true)
+
+    %{
+      files: files,
+      covered_lines: sum(files, :covered_lines),
+      executable_lines: sum(files, :executable_lines),
+      targets: Commits.targets_of(files)
+    }
+  end
+
+  defp measured_source(project_id, summary) do
+    case Commits.run_ids(project_id, summary.git_commit_sha) do
+      [] ->
+        %{sql: nil, covered_lines: 0, executable_lines: 0, targets: []}
+
+      run_ids ->
+        sql =
+          Coverage.inline_sql(
+            Coverage.merged_files_query_for_runs(project_id, run_ids, Coverage.excluded(project_id, []))
+          )
+
+        # Each file once for the totals, and once per target it belongs to.
+        rows =
+          """
+          SELECT entry.1, entry.2, toUInt32(count()), toUInt64(sum(covered_lines)), toUInt64(sum(executable_lines))
+          FROM (#{sql})
+          ARRAY JOIN arrayConcat([(toUInt8(1), '')], arrayMap(t -> (toUInt8(0), toString(t)), targets)) AS entry
+          GROUP BY entry.1, entry.2
+          """
+          |> ClickHouseRepo.query!(%{}, settings: @consistent)
+          |> Map.fetch!(:rows)
+
+        {totals, targets} = Enum.split_with(rows, fn [total | _] -> total == 1 end)
+        [[_total, _name, _files, covered, executable]] = if totals == [], do: [[1, "", 0, 0, 0]], else: totals
+
+        %{
+          sql: sql,
+          covered_lines: covered,
+          executable_lines: executable,
+          targets:
+            Enum.map(targets, fn [_total, name, files, covered, executable] ->
+              %{name: name, files_count: files, covered_lines: covered, executable_lines: executable}
+            end)
+        }
+    end
   end
 
   defp sum(files, field), do: files |> Enum.map(&Map.fetch!(&1, field)) |> Enum.sum()
 
-  defp write_files(project_id, summary, place, files) do
-    below = read_state(project_id, chain(place, :below))
+  @input "input('path String, covered_lines UInt64, executable_lines UInt64')"
 
-    current =
-      for %{executable_lines: executable} = file <- files, executable > 0, into: %{}, do: {file.path, figure(file)}
+  # Writes, in one `INSERT ... SELECT`, what the commit's files change from
+  # what the chain holds just below it: a row per changed path and a
+  # tombstone per path below it the commit no longer has, or all of its files
+  # (a checkpoint) once the delta rows its ref holds since the ref's last
+  # checkpoint would reach its file count. What is already at the place and
+  # not written again is retired, and nothing is written when the place holds
+  # exactly those rows already. The files come from `source`: the runs' rows,
+  # read again here, or the carried commit's figures, sent as the query's
+  # input. A read that no longer adds up to the totals `final_files/2`
+  # checked (a replica behind, a report landing in between) stops the write
+  # before it writes anything.
+  defp write_files(project_id, summary, place, source) do
+    before = place_state(project_id, place)
+    version = max(before.max_version + 1, System.os_time(:microsecond))
 
-    changed = Enum.reject(current, fn {path, figure} -> Map.get(below.files, path) == figure end)
-    lost = for {path, _figure} <- below.files, not Map.has_key?(current, path), do: {path, {0, 0}}
-    checkpoint? = below.delta_rows + length(changed) + length(lost) >= map_size(current)
+    {current, body} =
+      case source do
+        %{files: files} ->
+          {"SELECT path, covered_lines, executable_lines FROM #{@input}", [input_body(files)]}
 
-    {kind, rows, base} =
-      if checkpoint?,
-        do: {"checkpoint", Enum.to_list(current) ++ lost, ""},
-        else: {"delta", changed ++ lost, base_sha(summary.project_id, place)}
+        %{sql: sql} ->
+          {"SELECT path, covered_lines, executable_lines FROM (#{sql})", %{}}
+      end
 
-    rows =
-      Enum.map(rows, fn {path, {covered, executable}} ->
-        %{
-          project_id: project_id,
-          ref_id: elem(place, 0),
-          position: elem(place, 1),
-          path: path,
-          git_commit_sha: summary.git_commit_sha,
-          base_sha: base,
-          kind: kind,
-          covered_lines: covered,
-          executable_lines: executable,
-          commit_version: summary.version,
-          committed_at: usec(summary.committed_at)
-        }
-      end)
+    sql = """
+    INSERT INTO coverage_file_deltas (project_id, ref_id, position, path, git_commit_sha, base_sha, kind,
+      covered_lines, executable_lines, commit_version, committed_at, row_version, is_deleted)
+    SELECT #{project_id}, #{elem(place, 0)}, #{elem(place, 1)}, path,
+      if(in_rows, #{literal(summary.git_commit_sha)}, e_sha),
+      if(in_rows, if(checkpoint, '', #{literal(base_sha(project_id, place))}), e_base),
+      if(in_rows, new_kind, e_kind),
+      if(in_rows, n_covered, e_covered), if(in_rows, n_executable, e_executable),
+      if(in_rows, toUInt64(#{summary.version}), e_version),
+      if(in_rows, fromUnixTimestamp64Micro(toInt64(#{to_usec(summary.committed_at)}), 'UTC'), e_committed_at),
+      toUInt64(#{version}), toUInt8(NOT in_rows)
+    FROM (
+      SELECT *, sum(toUInt64(differs)) OVER () AS differences
+      FROM (
+        SELECT *, if(checkpoint, 'checkpoint', 'delta') AS new_kind,
+          (in_rows != e_found) OR (in_rows AND (n_covered != e_covered OR n_executable != e_executable
+            OR new_kind != e_kind OR e_sha != #{literal(summary.git_commit_sha)})) AS differs
+        FROM (
+          SELECT *, delta_rows + changes >= current AS checkpoint,
+            if(delta_rows + changes >= current, n_found OR lost, changed OR lost) AS in_rows
+          FROM (
+            SELECT *,
+              sum(b_delta_rows) OVER () AS delta_rows,
+              sum(toUInt64(changed OR lost)) OVER () AS changes,
+              sum(toUInt64(n_found)) OVER () AS current,
+              sum(n_all_covered) OVER () AS covered_total,
+              sum(n_all_executable) OVER () AS executable_total
+            FROM (
+              SELECT path,
+                n.covered_lines AS n_all_covered, n.executable_lines AS n_all_executable,
+                n.present AND n.executable_lines > 0 AS n_found,
+                toUInt32(if(n_found, n.covered_lines, 0)) AS n_covered,
+                toUInt32(if(n_found, n.executable_lines, 0)) AS n_executable,
+                b.executable_lines > 0 AS b_live,
+                b.delta_rows AS b_delta_rows,
+                n_found AND NOT (b_live AND b.covered_lines = n_covered AND b.executable_lines = n_executable) AS changed,
+                b_live AND NOT n_found AS lost,
+                e.present AS e_found, e.covered_lines AS e_covered, e.executable_lines AS e_executable,
+                e.kind AS e_kind, e.git_commit_sha AS e_sha, e.base_sha AS e_base, e.commit_version AS e_version,
+                e.committed_at AS e_committed_at
+              FROM (SELECT *, true AS present FROM (#{current})) AS n
+              FULL OUTER JOIN (#{below_sql(project_id, place)}) AS b USING (path)
+              FULL OUTER JOIN (#{at_place_sql(project_id, place)}) AS e USING (path)
+            )
+          )
+        )
+      )
+    )
+    WHERE throwIf(covered_total != #{source.covered_lines} OR executable_total != #{source.executable_lines},
+        'coverage_rows_unavailable') = 0
+      AND differences > 0 AND (in_rows OR e_found)
+    """
 
-    {{:ok, %{rows: length(rows), checkpoint: checkpoint?}}, replace_at(project_id, place, rows)}
+    # The input follows the statement in the request's body, from the byte
+    # after `FORMAT RowBinary`.
+    sql = if body == %{}, do: sql, else: String.trim_trailing(sql) <> " FORMAT RowBinary"
+
+    opts = [settings: @consistent ++ @final_filter ++ [join_use_nulls: 0], timeout: to_timeout(minute: 2)]
+    opts = if body == %{}, do: opts, else: opts ++ [command: :insert, encode: false, cast_params: []]
+
+    case IngestRepo.query(sql, body, opts) do
+      {:ok, _result} ->
+        after_write = place_state(project_id, place)
+        changed? = {after_write.count, after_write.figures} != {before.count, before.figures}
+        {{:ok, %{rows: after_write.count, checkpoint: after_write.checkpoint}}, changed?}
+
+      {:error, %{message: message} = error} ->
+        if String.contains?(message, "coverage_rows_unavailable"), do: {:unavailable, false}, else: raise(error)
+    end
   end
 
-  defp figure(file), do: {file.covered_lines, file.executable_lines}
+  defp input_body(files) do
+    files
+    |> Enum.map(&[&1.path, &1.covered_lines, &1.executable_lines])
+    |> Ch.RowBinary.encode_rows(["String", "UInt64", "UInt64"])
+    |> IO.iodata_to_binary()
+  end
+
+  # What the chain holds per path just below the place, from its nearest
+  # checkpoint up, and how many of its rows are the commit's own ref's delta
+  # rows: a ref that forked reads its parent's checkpoint until its own
+  # deltas would cost as much, so a short-lived branch never stores a
+  # snapshot of its own.
+  defp below_sql(project_id, place) do
+    [%{ref_id: own_ref} | _] = chain = chain(place, :below)
+
+    case from_checkpoint(project_id, chain, @consistent) do
+      [] ->
+        "SELECT '' AS path, toUInt32(0) AS covered_lines, toUInt32(0) AS executable_lines, toUInt64(0) AS delta_rows WHERE 0"
+
+      segments ->
+        Coverage.inline_sql(
+          from(d in state_query(project_id, segments),
+            select_merge: %{delta_rows: fragment("countIf(? = 'delta' AND ? = ?)", d.kind, d.ref_id, ^own_ref)}
+          )
+        )
+    end
+  end
+
+  defp at_place_sql(project_id, {ref_id, position}) do
+    """
+    SELECT path, covered_lines, executable_lines, toString(kind) AS kind, git_commit_sha, base_sha, commit_version,
+      committed_at, true AS present
+    FROM coverage_file_deltas FINAL
+    WHERE project_id = #{project_id} AND ref_id = #{ref_id} AND position = #{position}
+    """
+  end
+
+  # What the place holds: how many rows, a fingerprint of their figures,
+  # whether they are a checkpoint, and the newest row version written there
+  # (retired rows included), which a write must exceed.
+  defp place_state(project_id, {ref_id, position}) do
+    where = "project_id = #{project_id} AND ref_id = #{ref_id} AND position = #{position}"
+
+    [[count, figures, checkpoint, max_version]] =
+      """
+      SELECT count(), groupBitXor(cityHash64(path, covered_lines, executable_lines)), countIf(kind = 'checkpoint') > 0,
+        (SELECT max(row_version) FROM coverage_file_deltas WHERE #{where})
+      FROM coverage_file_deltas FINAL WHERE #{where}
+      """
+      |> ClickHouseRepo.query!(%{}, settings: @consistent ++ @final_filter)
+      |> Map.fetch!(:rows)
+
+    %{count: count, figures: figures, checkpoint: checkpoint in [true, 1], max_version: max_version}
+  end
+
+  defp literal(value), do: "'" <> String.replace(value, ["\\", "'"], &("\\" <> &1)) <> "'"
+
+  defp to_usec(at), do: at |> usec() |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:microsecond)
 
   # The commit's place moved but its runs' rows are gone: what it stored at
   # its old place is kept as it was, compared with what was below it there.
@@ -320,22 +498,37 @@ defmodule Tuist.Tests.Coverage.Deltas do
   defp insert(schema, rows),
     do: rows |> Enum.chunk_every(@insert_chunk_size) |> Enum.each(&IngestRepo.insert_all(schema, &1))
 
-  # The commit's rows wherever they are, by its SHA.
-  defp rows_of(project_id, sha) do
-    ClickHouseRepo.all(
+  # The commit's rows anywhere but its place, by its SHA: rows left behind
+  # by a move, usually none. The rows at its place stay in ClickHouse.
+  defp moved_rows(project_id, sha, place) do
+    query =
+      from(d in CoverageFileDelta, hints: ["FINAL"], where: d.project_id == ^project_id and d.git_commit_sha == ^sha)
+
+    query =
+      case place do
+        nil -> query
+        {ref_id, position} -> from(d in query, where: not (d.ref_id == ^ref_id and d.position == ^position))
+      end
+
+    ClickHouseRepo.all(query, settings: @consistent ++ @final_filter)
+  end
+
+  defp held_at?(project_id, sha, {ref_id, position}) do
+    ClickHouseRepo.exists?(
       from(d in CoverageFileDelta,
         hints: ["FINAL"],
-        where: d.project_id == ^project_id and d.git_commit_sha == ^sha
+        where: d.project_id == ^project_id and d.git_commit_sha == ^sha,
+        where: d.ref_id == ^ref_id and d.position == ^position
       ),
       settings: @consistent ++ @final_filter
     )
   end
 
-  defp write_targets(summary, place, files) do
+  defp write_targets(summary, place, targets) do
     {ref_id, position} = place || {0, 0}
 
     targets =
-      case Commits.targets_of(files) do
+      case targets do
         # A marker, so the commit reads as written.
         [] -> [%{name: "", files_count: 0, covered_lines: 0, executable_lines: 0}]
         targets -> targets
@@ -437,32 +630,6 @@ defmodule Tuist.Tests.Coverage.Deltas do
   end
 
   defp chain(place, which), do: GitHistory.chain(place, which)
-
-  # What the chain holds per path, from its nearest checkpoint up, and how
-  # many delta rows that took.
-  # The delta rows counted are the commit's own ref's: a ref that forked reads
-  # its parent's checkpoint until its own deltas would cost as much, so a
-  # short-lived branch never stores a snapshot of its own.
-  defp read_state(project_id, [%{ref_id: own_ref} | _] = chain) do
-    segments = from_checkpoint(project_id, chain, @consistent)
-
-    rows =
-      if segments == [] do
-        []
-      else
-        ClickHouseRepo.all(
-          from(d in state_query(project_id, segments),
-            select_merge: %{delta_rows: fragment("countIf(? = 'delta' AND ? = ?)", d.kind, d.ref_id, ^own_ref)}
-          ),
-          settings: @consistent
-        )
-      end
-
-    %{
-      files: for(%{executable_lines: executable} = row <- rows, executable > 0, into: %{}, do: {row.path, figure(row)}),
-      delta_rows: rows |> Enum.map(& &1.delta_rows) |> Enum.sum()
-    }
-  end
 
   # The chain cut at its nearest checkpoint: the segments nearer than the
   # checkpoint whole, and the checkpoint's own from its position up.

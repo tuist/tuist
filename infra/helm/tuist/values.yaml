@@ -3558,6 +3558,10 @@ kataContainers:
   # guest memory before adding the container's requested memory.
   # The remaining 512 MiB covers Quick Emulator
   # (https://www.qemu.org/), virtiofsd, and kata-shim under build load.
+  # That holds only while the Pod has no memory limit: exclusive-CPU
+  # Pods cap their host cgroup at the budget plus this, and a full
+  # 34 GiB guest also needs about 1 GiB of host page tables and slab,
+  # so the chart requires at least 3584Mi when any pool is exclusive.
   # Keep this aligned with measured guest memory and host resident
   # usage; the runners-controller reads the live RuntimeClass so its
   # fleet allocator uses the same cost as the scheduler.

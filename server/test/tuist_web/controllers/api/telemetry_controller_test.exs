@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.LuftTelemetryControllerTest do
+defmodule TuistWeb.API.TelemetryControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
@@ -18,7 +18,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     app_client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> app_client_id end)
-    stub(Pulse, :luft_telemetry?, fn -> true end)
+    stub(Pulse, :own_telemetry?, fn -> true end)
 
     stub(Environment, :sentry_pulse_dsn, fn ->
       "http://sentry:writer-secret@pulse.observability.svc.cluster.local:4000/v1/sentry/server/1"
@@ -48,7 +48,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
     conn
     |> put_req_header("authorization", "Bearer #{bearer}")
     |> put_req_header("content-type", content_type)
-    |> post("/api/luft/telemetry/v1/#{signal}", body)
+    |> post("/api/telemetry/v1/#{signal}", body)
   end
 
   defp attribute(key, value), do: %{"key" => key, "value" => %{"stringValue" => value}}
@@ -98,7 +98,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
     {resource, scope, span}
   end
 
-  test "forwards OTLP/JSON spans as protobuf, confined to the luft service, and answers in JSON",
+  test "forwards OTLP/JSON spans as protobuf, confined to the luft-client service, and answers in JSON",
        %{conn: conn, bearer: bearer} do
     start = now()
 
@@ -110,7 +110,10 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
 
       {resource, scope, span} = decoded_spans(request.body)
       # A sender can't claim another service, add columns or keep span events.
-      assert Enum.map(resource.attributes, &{&1.key, &1.value.value}) == [{"service.name", {:string_value, "luft"}}]
+      assert Enum.map(resource.attributes, &{&1.key, &1.value.value}) == [
+               {"service.name", {:string_value, "luft-client"}}
+             ]
+
       assert scope == %{name: "tuist-app-core", version: "", attributes: [], dropped_attributes_count: 0}
       assert span.trace_id == Base.decode16!("5B8EFFF798038103D269B633813FC60C")
       assert span.kind == :SPAN_KIND_CLIENT
@@ -235,7 +238,10 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
       %{resource_metrics: [%{resource: resource, scope_metrics: [%{metrics: [metric, empty]}]}]} =
         :opentelemetry_exporter_metrics_service_pb.decode_msg(request.body, :export_metrics_service_request)
 
-      assert Enum.map(resource.attributes, &{&1.key, &1.value.value}) == [{"service.name", {:string_value, "luft"}}]
+      assert Enum.map(resource.attributes, &{&1.key, &1.value.value}) == [
+               {"service.name", {:string_value, "luft-client"}}
+             ]
+
       assert metric.name == "luft.core.operations"
       assert metric.unit == ""
       assert {:sum, %{aggregation_temporality: :AGGREGATION_TEMPORALITY_DELTA, data_points: points}} = metric.data
@@ -252,7 +258,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
     assert %{"partialSuccess" => %{"rejectedDataPoints" => "6", "errorMessage" => message}} =
              conn |> post_otlp(bearer, "metrics", metrics) |> json_response(200)
 
-    assert message =~ "Luft"
+    assert message =~ "accepted metrics"
   end
 
   test "masks span names that aren't Luft's and rejects spans far from now", %{conn: conn, bearer: bearer} do
@@ -330,7 +336,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
   test "throttles with 429 and Retry-After, without the app session's shared limit",
        %{conn: conn, bearer: bearer, user: user} do
     reject(&Req.request/1)
-    key = "luft_telemetry:requests:user:#{user.id}"
+    key = "telemetry:requests:user:#{user.id}"
 
     stub(RateLimit, :hit, fn
       ^key, opts ->
@@ -350,7 +356,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
       build_conn()
       |> put_req_header("authorization", "Bearer #{bearer}")
       |> put_req_header("content-type", "application/x-sentry-envelope")
-      |> post("/api/luft/telemetry/api/1/envelope/", @envelope)
+      |> post("/api/telemetry/api/1/envelope/", @envelope)
 
     assert json_response(conn, 429)["detail"]
     assert get_resp_header(conn, "x-sentry-rate-limits") == ["1::organization"]
@@ -358,14 +364,14 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
 
   test "limits the bytes forwarded per user and across all users", %{conn: conn, bearer: bearer, user: user} do
     reject(&Req.request/1)
-    user_key = "luft_telemetry:kib:user:#{user.id}"
+    user_key = "telemetry:kib:user:#{user.id}"
 
     stub(RateLimit, :hit, fn
       ^user_key, opts ->
         assert opts[:cost] == 1
         {:allow, 1}
 
-      "luft_telemetry:kib", _opts ->
+      "telemetry:kib", _opts ->
         {:deny, 60_000}
 
       _key, _opts ->
@@ -379,7 +385,7 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
 
   test "asks for a wait that refills the batch's bytes", %{conn: conn, bearer: bearer, user: user} do
     reject(&Req.request/1)
-    user_key = "luft_telemetry:kib:user:#{user.id}"
+    user_key = "telemetry:kib:user:#{user.id}"
 
     stub(RateLimit, :hit, fn
       ^user_key, opts -> if opts[:cost] > 16, do: {:deny, 1_000}, else: {:allow, 1}
@@ -404,9 +410,9 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
     assert String.to_integer(seconds) in 30..40
   end
 
-  test "forwards Luft's Sentry envelopes, gzipped or not, as luft errors", %{conn: conn, bearer: bearer} do
+  test "forwards Luft's Sentry envelopes, gzipped or not, as luft-client errors", %{conn: conn, bearer: bearer} do
     expect(Req, :request, 2, fn request ->
-      assert URI.to_string(request.url) == "#{@pulse}/v1/sentry/luft/api/1/envelope/"
+      assert URI.to_string(request.url) == "#{@pulse}/v1/sentry/luft-client/api/1/envelope/"
       assert request.headers["content-type"] == ["application/x-sentry-envelope"]
       refute Map.has_key?(request.headers, "content-encoding")
       assert request.body == @envelope
@@ -420,10 +426,30 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
         |> put_req_header("authorization", "Bearer #{bearer}")
         |> put_req_header("content-type", "application/x-sentry-envelope")
         |> then(&if encoding, do: put_req_header(&1, "content-encoding", encoding), else: &1)
-        |> post("/api/luft/telemetry/api/1/envelope/", body)
+        |> post("/api/telemetry/api/1/envelope/", body)
 
       assert json_response(conn, 200) == %{"id" => "9ec79c33ec9942ab8353589fcb2e04dc"}
     end
+  end
+
+  test "refuses, without retry, a user blocked from sending", %{conn: conn, user: user, bearer: bearer} do
+    # Only the user who isn't blocked reaches Pulse.
+    expect(Req, :request, fn _ -> {:ok, %Req.Response{status: 200, body: ""}} end)
+    other = AccountsFixtures.user_fixture()
+    stub(Tuist.FeatureFlags, :telemetry_blocked?, &(&1.id == user.id))
+
+    assert %{"code" => 7} = conn |> post_otlp(bearer, "traces", spans()) |> json_response(403)
+
+    conn =
+      build_conn()
+      |> put_req_header("authorization", "Bearer #{bearer}")
+      |> put_req_header("content-type", "application/x-sentry-envelope")
+      |> post("/api/telemetry/api/1/envelope/", @envelope)
+
+    assert %{"detail" => _} = json_response(conn, 403)
+
+    # The block is the user's alone.
+    assert build_conn() |> post_otlp(sign_in(other, %{id: Clients.luft_client_id()}), "traces", spans()) |> response(200)
   end
 
   test "admits only Luft's own session", %{conn: conn, user: user} do
@@ -431,12 +457,12 @@ defmodule TuistWeb.API.LuftTelemetryControllerTest do
     app_bearer = sign_in(user, Clients.public!())
 
     assert conn |> post_otlp(app_bearer, "traces", spans()) |> json_response(403)
-    assert build_conn() |> post("/api/luft/telemetry/v1/traces", spans()) |> json_response(401)
+    assert build_conn() |> post("/api/telemetry/v1/traces", spans()) |> json_response(401)
   end
 
   test "answers 404 while this server has no Pulse for Luft", %{conn: conn, bearer: bearer} do
     reject(&Req.request/1)
-    stub(Pulse, :luft_telemetry?, fn -> false end)
+    stub(Pulse, :own_telemetry?, fn -> false end)
 
     assert conn |> post_otlp(bearer, "logs", %{}) |> json_response(404)
   end

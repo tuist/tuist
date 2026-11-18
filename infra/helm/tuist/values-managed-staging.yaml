@@ -977,6 +977,10 @@ sandboxes:
 # every bare-metal worker that joins the workload cluster.
 kataContainers:
   enabled: true
+  # Exclusive-CPU Pods' host cgroup is their budget plus this, so it must
+  # cover Kata's 2 GiB guest base plus QEMU's page tables and slab.
+  podFixed:
+    memory: "3584Mi"
 
 runnersController:
   features:

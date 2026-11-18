@@ -75,6 +75,8 @@ pub struct MobileClient {
     live: crate::live::Live,
     /// The open local store and the profile it belongs to.
     store: Option<(String, Store)>,
+    /// The newer preview `preview_update` last suggested installing, so edges prompt once per build.
+    suggested_preview: Option<String>,
 }
 
 impl MobileClient {
@@ -243,6 +245,8 @@ impl MobileClient {
                 }
             }
             "flush_outbox" => self.flush_outbox(host),
+            // Pure; edges may also call `tuist_app_compose` to skip the client lock.
+            "compose" => Ok(crate::compose::compose(args)),
             // The live sockets of the threads screens show (`crate::live`),
             // by a handle the edge picks for each. Opening one refreshes the
             // bearer first, which the edge needs to open it.
@@ -276,7 +280,7 @@ impl MobileClient {
                 Ok(Value::Null)
             }
             op @ ("halls" | "hall" | "send_hall_message" | "read_hall" | "create_hall"
-            | "start_direct" | "hall_people") => {
+            | "start_direct" | "hall_people" | "invite_hall") => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
                 let organization = self.vault.profiles[index].organization.is_some();
@@ -399,6 +403,8 @@ impl MobileClient {
             "push_enable" => self.push_enable(args, host),
             "live_activity_register" => self.live_activity_register(args, host),
             "live_activity_unregister" => self.live_activity_unregister(args, host),
+            "live_activity_starter_register" => self.live_activity_starter_register(args, host),
+            "live_activity_starter_unregister" => self.live_activity_starter_unregister(args, host),
             "open_notification" => self.open_notification(args, host),
             "delete_account" => {
                 let index = self.active()?;
@@ -954,11 +960,17 @@ impl MobileClient {
             .append_pair("supported_platforms", platform)
             .append_pair("page", "1")
             .append_pair("page_size", "20");
-        match self.api(index, "GET", url, host) {
-            Ok(data) => updates::select(&data, platform, binary_id),
-            Err("Access denied" | NOT_FOUND) => Ok(json!({"update":null})),
-            Err(error) => Err(error),
+        let mut result = match self.api(index, "GET", url, host) {
+            Ok(data) => updates::select(&data, platform, binary_id)?,
+            Err("Access denied" | NOT_FOUND) => json!({"update":null}),
+            Err(error) => return Err(error),
+        };
+        let id = result["update"]["id"].as_str().map(str::to_owned);
+        result["suggest"] = json!(id.is_some() && id != self.suggested_preview);
+        if id.is_some() {
+            self.suggested_preview = id;
         }
+        Ok(result)
     }
 
     /// The signed-in person's runners: their own machines, which threads can
@@ -1161,6 +1173,69 @@ impl MobileClient {
         let url = endpoint(
             &server_url(&self.vault.profiles[index].server)?,
             &format!("api/me/thread-live-activities/{id}"),
+        );
+        let unregistered = matches!(
+            self.send(index, "DELETE", url, None, host),
+            Ok((200..=299 | 404, _))
+        );
+        Ok(json!({"unregistered":unregistered}))
+    }
+
+    /// Registers this device's ActivityKit push-to-start `token` for the active
+    /// profile at `/api/me/thread-live-activity-starter`, with the profile's ID,
+    /// which the server puts in the attributes of the activities it starts. The
+    /// server then starts the threads Live Activity when a thread starts working
+    /// and the sign-in has none. Returns `{registered:true}`, or
+    /// `{registered:false,reason:"unavailable"}` on a server without it (404).
+    fn live_activity_starter_register(
+        &mut self,
+        args: &Value,
+        host: &mut dyn Host,
+    ) -> Result<Value> {
+        let index = self.active()?;
+        let token = text(args, "token")?;
+        let environment = text(args, "environment")?;
+        if !matches!(environment, "sandbox" | "production")
+            || token.len() < 32
+            || token.len() % 2 != 0
+            || !token.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err("Invalid Live Activity");
+        }
+        let profile = &self.vault.profiles[index];
+        let url = endpoint(
+            &server_url(&profile.server)?,
+            "api/me/thread-live-activity-starter",
+        );
+        let body = json!({"token":token,"environment":environment,"profile_id":profile.id});
+        match self.send(index, "PUT", url, Some(body), host)? {
+            (200..=299, _) => Ok(json!({"registered":true})),
+            (404, _) => Ok(json!({"registered":false,"reason":"unavailable"})),
+            response => successful(response).map(|_| Value::Null),
+        }
+    }
+
+    /// Forgets the push-to-start token of `profile_id` (the active profile when
+    /// omitted) on its server, best effort, before it signs out or when the
+    /// device moves to another profile. Returns `{unregistered}`; a 404 counts
+    /// as done.
+    fn live_activity_starter_unregister(
+        &mut self,
+        args: &Value,
+        host: &mut dyn Host,
+    ) -> Result<Value> {
+        let index = match args.get("profile_id").and_then(Value::as_str) {
+            Some(profile) => self
+                .vault
+                .profiles
+                .iter()
+                .position(|p| p.id == profile)
+                .ok_or("Unknown profile")?,
+            None => self.active()?,
+        };
+        let url = endpoint(
+            &server_url(&self.vault.profiles[index].server)?,
+            "api/me/thread-live-activity-starter",
         );
         let unregistered = matches!(
             self.send(index, "DELETE", url, None, host),

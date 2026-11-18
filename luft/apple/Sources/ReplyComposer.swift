@@ -14,6 +14,10 @@ struct ReplyComposer: View {
     let disabled: Bool
     let sending: Bool
     @ObservedObject var voice: VoiceInput
+    /// Suggests people after `@` and says what mentioning them does; nil offers no mentions.
+    var mentions: Mentions?
+    /// The hall's title, for the invite note.
+    var place: String?
     let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -25,6 +29,9 @@ struct ReplyComposer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let mentions, !recording {
+                MentionBar(mentions: mentions, text: $reply, place: place)
+            }
             if let message = voice.errorMessage {
                 Text(verbatim: message).font(.caption).foregroundStyle(Noora.labelDestructive)
                     .padding(.horizontal, 12)
@@ -103,6 +110,7 @@ struct ReplyComposer: View {
             .interactiveGlass(in: RoundedRectangle(cornerRadius: 26))
         }
         .accessibilityElement(children: .contain)
+        .onChange(of: reply) { _, text in mentions?.update(text) }
     }
 }
 

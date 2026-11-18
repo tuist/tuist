@@ -13,12 +13,16 @@ struct PreviewUpdate: Decodable, Equatable {
 
 private struct PreviewUpdateResponse: Decodable {
     let update: PreviewUpdate?
+    /// The core suggests each newer build once per launch.
+    let suggest: Bool?
 }
 
 @MainActor @Observable
 final class PreviewUpdater {
     private(set) var update: PreviewUpdate?
     private(set) var installing = false
+    /// Whether to ask the person to update now, which keeps them on the latest preview.
+    var suggesting = false
     /// iOS took over the install: the app stays open until iOS replaces it.
     private(set) var awaitingInstall = false
     @ObservationIgnored private let client: AppClient
@@ -46,6 +50,7 @@ final class PreviewUpdater {
                   )
             else { return }
             update = response.update
+            if response.suggest == true { suggesting = true }
         #endif
     }
 

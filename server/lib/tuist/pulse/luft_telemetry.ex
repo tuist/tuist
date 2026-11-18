@@ -2,7 +2,8 @@ defmodule Tuist.Pulse.LuftTelemetry do
   @moduledoc """
   What Luft may write to Pulse. Luft's OAuth client ID is public, so
   anyone with a Tuist account can hold a Luft session and send anything;
-  this is the allowlist that keeps such a sender inside the `luft` service.
+  this is the allowlist that keeps such a sender inside the `luft-client`
+  service.
 
   Pulse turns resource, scope, span and log attributes into columns (typed by
   the first value written), metric names and units into tables, metric
@@ -10,7 +11,7 @@ defmodule Tuist.Pulse.LuftTelemetry do
   into rows of its operations table. So every one of them is pinned to what
   Luft's core sends:
 
-    * every resource is `service.name` `luft`; traces and logs may add
+    * every resource is `service.name` `luft-client`; traces and logs may add
       `service.version` and `os.type`, metrics nothing (Pulse would promote
       `service.version` to a label);
     * scopes keep only their name and version;
@@ -39,7 +40,7 @@ defmodule Tuist.Pulse.LuftTelemetry do
 
   alias Tuist.Pulse.OTLP
 
-  @service "luft"
+  @service "luft-client"
   @max_bytes 1_048_576
   @text_length 256
   @past_nanos 7 * 86_400 * 1_000_000_000

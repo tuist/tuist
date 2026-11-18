@@ -542,6 +542,60 @@ defmodule TuistWeb.AuthControllerTest do
       assert oauth_identity.provider_organization_id == "https://auth.authctl-example.com"
     end
 
+    test "keeps SSO users signed in after the browser drops its session cookies, with or without MFA", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(email: "persistent@authctl-example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.authctl-example.com",
+          sso_login_domain: "authctl-example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.authctl-example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.authctl-example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.authctl-example.com/oauth2/userinfo"
+        )
+
+      stub(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      stub(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "persistent-sso-user", "email" => user.email, "name" => "Persistent User"}}
+      end)
+
+      callback = fn ->
+        conn
+        |> recycle()
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+
+      signed_in = callback.()
+      assert signed_in.resp_cookies["_tuist_key_auth"].max_age > 0
+      assert signed_in |> restart_browser() |> get(redirected_to(signed_in)) |> html_response(200)
+
+      # The SSO user's choice to stay signed in must survive the MFA challenge.
+      session = Accounts.get_user_session(get_session(signed_in, :user_token))
+      {:ok, factor} = Accounts.UserMFA.begin_enrollment(user, session)
+      code = NimbleTOTP.verification_code(factor.secret, time: Tuist.Time.utc_now())
+      {:ok, %{recovery_codes: [recovery | _]}} = Accounts.UserMFA.confirm_enrollment(user, session, code)
+
+      pending = callback.()
+      assert redirected_to(pending) == ~p"/users/mfa"
+      verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => recovery})
+      assert verified.resp_cookies["_tuist_key_auth"].max_age > 0
+      assert verified |> restart_browser() |> get(redirected_to(verified)) |> html_response(200)
+    end
+
     test "raises unauthorized error when the callback state does not match", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
@@ -1734,6 +1788,14 @@ defmodule TuistWeb.AuthControllerTest do
     expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
       {:ok, %{"sub" => sub, "email" => email, "name" => "Person"}}
     end)
+  end
+
+  # Mobile Safari discards cookies without an expiry whenever iOS ends the
+  # process. Replays only the cookies a browser keeps across restarts.
+  defp restart_browser(conn) do
+    conn.resp_cookies
+    |> Enum.filter(fn {_name, cookie} -> is_integer(cookie[:max_age]) and cookie.max_age > 0 end)
+    |> Enum.reduce(build_conn(), fn {name, cookie}, conn -> put_req_cookie(conn, name, cookie.value) end)
   end
 
   defp github_auth(uid, email) do

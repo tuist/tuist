@@ -18,6 +18,7 @@ defmodule Tuist.Push.LiveActivity do
     field :token_hash, :binary, redact: true
     field :expires_at, :utc_datetime
     field :last_digest, :binary, redact: true
+    field :last_phase_digest, :binary, redact: true
     field :last_sent_at, :utc_datetime
     field :working_thread_ids, {:array, Ecto.UUID}, default: []
     field :retired_at, :utc_datetime

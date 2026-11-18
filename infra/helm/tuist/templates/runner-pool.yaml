@@ -498,6 +498,20 @@ Hash the inputs so the controller can roll Pods admitted under an older
 value without comparing those immutable Pod fields to live cluster state.
 */}}
 {{- $kataRuntimeClassRevision := printf "v1|runtimeClass=kata-qemu|cpu=%v|memory=%v" .Values.kataContainers.podFixed.cpu .Values.kataContainers.podFixed.memory | sha256sum }}
+{{- /*
+An exclusive-CPU Pod's budget becomes a Pod-level memory limit, so its host
+cgroup is the budget plus podFixed. Kata's guest alone is its 2 GiB base plus
+the budget, and QEMU's page tables and slab add about 1 GiB more, so podFixed
+must leave headroom past that base or the host OOM killer stops the whole VM.
+*/}}
+{{- $kataPodFixedMemory := toString .Values.kataContainers.podFixed.memory }}
+{{- $kataPodFixedMiB := 0 }}
+{{- if hasSuffix "Gi" $kataPodFixedMemory }}
+{{- $kataPodFixedMiB = mul (trimSuffix "Gi" $kataPodFixedMemory | int) 1024 }}
+{{- else if hasSuffix "Mi" $kataPodFixedMemory }}
+{{- $kataPodFixedMiB = trimSuffix "Mi" $kataPodFixedMemory | int }}
+{{- end }}
+{{- $kataPodFixedTooSmall := lt (int $kataPodFixedMiB) 3584 }}
 {{- range $pool := $pools }}
 {{- $name := required "runnersFleetLinux.pools[].name required" $pool.name }}
 {{- $image := required (printf "runnersFleetLinux.pools[%s].runnerImage (or runnersFleetLinux.shapeRunnerImage) required" $name) ($pool.runnerImage | default $.Values.runnersFleetLinux.shapeRunnerImage) }}
@@ -574,6 +588,9 @@ spec:
   {{- end }}
   {{- if ne (mod (int $podCPU) 2000) 0 }}
   {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs requires pod.cpuMilli to be a whole, even number of CPUs, got %v" $name $podCPU) }}
+  {{- end }}
+  {{- if $kataPodFixedTooSmall }}
+  {{- fail (printf "runnersFleetLinux.pools[%s].exclusiveCPUs needs kataContainers.podFixed.memory of at least 3584Mi (Kata's 2Gi guest base plus host headroom), got %v" $name $.Values.kataContainers.podFixed.memory) }}
   {{- end }}
   exclusiveCPUs: true
   {{- end }}
@@ -718,6 +735,9 @@ spec:
   {{- end }}
   {{- if ne (mod $vcpus 2) 0 }}
   {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs requires an even number of vcpus" $shapeKey) }}
+  {{- end }}
+  {{- if $kataPodFixedTooSmall }}
+  {{- fail (printf "runnersFleetLinux.shapes[%s].exclusiveCPUs needs kataContainers.podFixed.memory of at least 3584Mi (Kata's 2Gi guest base plus host headroom), got %v" $shapeKey $.Values.kataContainers.podFixed.memory) }}
   {{- end }}
   exclusiveCPUs: true
   {{- end }}

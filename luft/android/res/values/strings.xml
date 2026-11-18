@@ -105,4 +105,6 @@
     <string name="update_available">"New version available"</string>
     <string name="update_build">"Build %1$s"</string>
     <string name="update">"Update"</string>
+    <string name="update_suggestion">"Update Luft to stay on the latest preview."</string>
+    <string name="later">"Later"</string>
 </resources>
