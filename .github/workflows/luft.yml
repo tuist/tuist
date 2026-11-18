@@ -24,7 +24,7 @@ concurrency:
 jobs:
   macos:
     name: macOS development build and core tests
-    runs-on: macos-15
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     defaults:
       run:
@@ -59,6 +59,9 @@ jobs:
         run: mise run --skip-tools test
       - name: Graph, formatting and Clippy
         run: mise run --skip-tools check
+  # Stays on GitHub-hosted runners: Linux packages keep the Ubuntu 22.04
+  # glibc baseline (see distribution/README.md), and the tuist account has
+  # no Ubuntu 22.04 or Windows runner profile.
   native:
     strategy:
       fail-fast: false
@@ -251,7 +254,7 @@ jobs:
         run: mise run --skip-tools "preview:$SIGNED"
   core:
     name: Independent Rust core tests
-    runs-on: macos-15
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     defaults:
       run:
@@ -286,7 +289,7 @@ jobs:
   android:
     name: Android arm64 debug preview
     needs: [macos, core]
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux-large
     timeout-minutes: 60
     defaults:
       run:
@@ -315,10 +318,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2t64
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-          log-accepted-android-sdk-licenses: false
+      # The runner image ships the SDK with cmdline-tools/latest and accepted
+      # licenses but leaves sdkmanager off PATH. setup-android would download
+      # another cmdline-tools release into the image's read-only cmdline-tools/.
+      - name: Put the Android SDK tools on PATH
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
       - name: Install Android SDK and Rust standard library
         run: |
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
