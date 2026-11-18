@@ -22,9 +22,14 @@ struct AppWorkspace: View {
     /// the sheet lives here so rebuilding the signed-in views for a new generation keeps it and its draft.
     @State private var startingConversation = false
     #if os(iOS)
-        /// Whether the iPhone's sidebar is over the open destination, and how far it is dragged.
+        /// Whether the iPhone's sidebar is over the open destination.
         @State private var sidebarOpen = false
-        @GestureState private var sidebarDrag: CGFloat = 0
+        /// The finger's horizontal travel while it drags the sidebar; nil otherwise. A gesture state,
+        /// so a drag the system cancels can't leave the sidebar stuck partway.
+        @GestureState(resetTransaction: Transaction(animation: .snappy(duration: 0.3)))
+        private var sidebarDrag: CGFloat?
+        /// Destinations opened so far, which stay mounted.
+        @State private var visitedTabs: Set<AppNavigation.Tab> = []
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #endif
     @Environment(\.scenePhase) private var scenePhase
@@ -166,26 +171,29 @@ struct AppWorkspace: View {
         }
     }
 
-    #if os(macOS)
-        /// The Halls or DMs tab: its list, and the conversation the core says is open in it.
-        private func hallsStack(_ tab: AppNavigation.Tab) -> some View {
-            let open = tab == .halls ? client.view.navigation.hall_id : client.view.navigation.dm_id
-            return NavigationStack(path: Binding(
-                get: { open.map { [WorkspaceRoute.hall($0)] } ?? [] },
-                set: { routes in
-                    if case let .hall(id) = routes.last, id != open {
-                        Task { await client.perform("navigate", ["url": "/\(tab.rawValue)/\(id)"]) }
-                    }
-                    if routes.isEmpty, client.view.navigation.tab == tab, open != nil {
-                        Task { await client.perform("navigation_back") }
-                    }
+    /// The Halls or DMs list, and the conversation the core says is open in it.
+    private func hallsStack(_ tab: AppNavigation.Tab) -> some View {
+        let open = tab == .halls ? client.view.navigation.hall_id : client.view.navigation.dm_id
+        return NavigationStack(path: Binding(
+            get: { open.map { [WorkspaceRoute.hall($0)] } ?? [] },
+            set: { routes in
+                if case let .hall(id) = routes.last, id != open {
+                    Task { await client.perform("navigate", ["url": "/\(tab.rawValue)/\(id)"]) }
                 }
-            )) {
-                HallsView(client: client, tab: tab.rawValue)
-                    .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
+                if routes.isEmpty, client.view.navigation.tab == tab, open != nil {
+                    Task { await client.perform("navigation_back") }
+                }
             }
+        )) {
+            HallsView(client: client, tab: tab.rawValue)
+            #if os(iOS)
+                .toolbar { sidebarButton }
+            #endif
+                .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
         }
+    }
 
+    #if os(macOS)
         private var threadsStack: some View {
             NavigationStack(path: Binding(
                 get: { client.view.navigation.thread_id.map { [WorkspaceRoute.thread($0)] } ?? [] },
@@ -209,107 +217,128 @@ struct AppWorkspace: View {
         private var sidebarStack: some View {
             GeometryReader { geometry in
                 let width = min(geometry.size.width * 0.85, 360)
+                let base: CGFloat = sidebarOpen ? 0 : -width
+                // How far out the sidebar is: -width when closed, 0 when open, between while dragged.
+                let offset = min(0, max(-width, base + (sidebarDrag ?? 0)))
+                let shown = 1 + offset / width
+                let visible = sidebarOpen || sidebarDrag != nil
                 ZStack(alignment: .leading) {
-                    NavigationStack(path: Binding(get: { mainPath }, set: { setMainPath($0) })) {
-                        mainRoot
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    Button("Open sidebar", systemImage: "line.3.horizontal") { sidebarOpen = true }
-                                }
+                    // Destinations stay mounted once visited, like tabs, so going back to one keeps its
+                    // list and scroll instead of loading it again.
+                    ZStack {
+                        ForEach([AppNavigation.Tab.threads, .halls, .dms, .profile], id: \.self) { tab in
+                            if visitedTabs.contains(tab) {
+                                let current = tab == client.view.navigation.tab
+                                destinationStack(tab)
+                                    .opacity(current ? 1 : 0)
+                                    .allowsHitTesting(current)
+                                    .accessibilityHidden(!current || visible)
                             }
-                            .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
+                        }
                     }
-                    // Swiping in from the edge opens the sidebar; once a hall is open, it goes Back instead.
+                    // Swiping in from the edge pulls the sidebar out under the finger; once a hall
+                    // is open, the edge goes Back instead. It stays while the finger drags from it.
                     .overlay(alignment: .leading) {
-                        if mainPath.isEmpty {
-                            Color.clear.frame(width: 16).contentShape(Rectangle())
-                                .gesture(DragGesture(minimumDistance: 10).onEnded {
-                                    if $0.translation.width > 60 { sidebarOpen = true }
-                                })
+                        if !sidebarOpen, canOpenSidebarFromEdge {
+                            Color.clear.frame(width: 20).contentShape(Rectangle())
+                                .gesture(sidebarGesture(width: width, minimumDistance: 5))
+                                // Below the navigation bar, so it never takes taps meant for the sidebar button.
+                                .padding(.top, 56)
                         }
                     }
-                    .accessibilityHidden(sidebarOpen)
 
-                    if sidebarOpen {
-                        Color.black.opacity(0.3)
-                            .ignoresSafeArea()
-                            .onTapGesture { sidebarOpen = false }
-                            .transition(.opacity)
-                            .accessibilityHidden(true)
+                    Color.black.opacity(0.3 * shown)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(visible)
+                        .onTapGesture { setSidebar(open: false) }
+                        .gesture(sidebarGesture(width: width, minimumDistance: 10))
+                        .accessibilityHidden(true)
 
-                        // Only there while open, so VoiceOver never reaches it offscreen. Start
-                        // conversation is the chat screen behind it, never a sheet.
-                        NavigationStack {
-                            ThreadsView(client: client, starting: .constant(false)) { open($0) }
-                        }
-                        .frame(width: width)
-                        .background(Noora.backgroundPrimary.ignoresSafeArea())
-                        .shadow(color: .black.opacity(0.2), radius: 16)
-                        .offset(x: min(0, sidebarDrag))
-                        .transition(.move(edge: .leading))
-                        .simultaneousGesture(
-                            DragGesture(minimumDistance: 20)
-                                .updating($sidebarDrag) { value, drag, _ in
-                                    if abs(value.translation.width) > abs(value.translation.height) {
-                                        drag = value.translation.width
-                                    }
-                                }
-                                .onEnded { if $0.translation.width < -width / 3 { sidebarOpen = false } }
-                        )
-                        // VoiceOver stays in the sidebar instead of reaching the screen it covers.
-                        .accessibilityAddTraits(.isModal)
-                        .accessibilityAction(.escape) { sidebarOpen = false }
+                    // Kept mounted, so it opens with its threads already there; hidden from VoiceOver
+                    // while offscreen. Start conversation is the chat screen behind it, never a sheet.
+                    NavigationStack {
+                        ThreadsView(client: client, starting: .constant(false)) { open($0) }
                     }
+                    .frame(width: width)
+                    .background(Noora.backgroundPrimary.ignoresSafeArea())
+                    .shadow(color: .black.opacity(0.2 * shown), radius: 16)
+                    .offset(x: offset)
+                    .simultaneousGesture(sidebarGesture(width: width, minimumDistance: 20))
+                    .allowsHitTesting(visible)
+                    .accessibilityHidden(!visible)
+                    // VoiceOver stays in the sidebar instead of reaching the screen it covers.
+                    .accessibilityAddTraits(visible ? .isModal : [])
+                    .accessibilityAction(.escape) { setSidebar(open: false) }
                 }
-                .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: sidebarOpen)
-                .animation(reduceMotion ? nil : .interactiveSpring(), value: sidebarDrag)
             }
+            .onChange(of: client.view.navigation.tab, initial: true) { _, tab in visitedTabs.insert(tab) }
             // Starting a conversation, from the sidebar or a shortcut, shows the chat screen.
             .onChange(of: client.view.navigation.compose) { _, compose in
-                if compose != nil { sidebarOpen = false }
+                if compose != nil { setSidebar(open: false) }
             }
         }
 
-        /// What the selected destination shows before anything is pushed onto it.
-        @ViewBuilder private var mainRoot: some View {
-            let navigation = client.view.navigation
-            switch navigation.tab {
+        /// A destination's own navigation stack, with the sidebar button at its root.
+        @ViewBuilder private func destinationStack(_ tab: AppNavigation.Tab) -> some View {
+            switch tab {
             case .threads:
-                if let id = navigation.thread_id {
-                    ConversationView(client: client, id: id).id(id)
-                } else {
-                    // A new chat; the core's Start conversation route (`compose`) raises its keyboard or dictation.
-                    StartConversationView(client: client, input: navigation.compose.map { $0 == "dictation" ? .voice : .text })
-                }
-            case .halls, .dms: HallsView(client: client, tab: navigation.tab.rawValue).id(navigation.tab)
-            case .profile: destination(.list(.profile))
+                NavigationStack { threadsRoot.toolbar { sidebarButton } }
+            case .halls, .dms:
+                hallsStack(tab)
+            case .profile:
+                NavigationStack { destination(.list(.profile)).toolbar { sidebarButton } }
             }
         }
 
-        /// A hall or DM pushed over its list.
-        private var mainPath: [WorkspaceRoute] {
+        /// The open thread, or a new chat when none is.
+        @ViewBuilder private var threadsRoot: some View {
             let navigation = client.view.navigation
-            let open = switch navigation.tab {
-            case .halls: navigation.hall_id
-            case .dms: navigation.dm_id
-            case .threads, .profile: String?.none
+            if let id = navigation.thread_id {
+                ConversationView(client: client, id: id).id(id)
+            } else {
+                // A new chat; the core's Start conversation route (`compose`) raises its keyboard or dictation.
+                StartConversationView(client: client, input: navigation.compose.map { $0 == "dictation" ? .voice : .text })
             }
-            return open.map { [.hall($0)] } ?? []
         }
 
-        /// Native pushes, Back and swipes change the same core state as a URL does.
-        private func setMainPath(_ routes: [WorkspaceRoute]) {
-            guard routes != mainPath else { return }
-            if case let .hall(id) = routes.last {
-                Task { await client.perform("navigate", ["url": "/\(client.view.navigation.tab.rawValue)/\(id)"]) }
-            } else if routes.isEmpty {
-                Task { await client.perform("navigation_back") }
+        private var sidebarButton: some ToolbarContent {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Open sidebar", systemImage: "line.3.horizontal") { setSidebar(open: true) }
             }
+        }
+
+        /// Nothing is pushed in the open destination, so its edge is free for the sidebar.
+        private var canOpenSidebarFromEdge: Bool {
+            let navigation = client.view.navigation
+            return switch navigation.tab {
+            case .halls: navigation.hall_id == nil
+            case .dms: navigation.dm_id == nil
+            case .threads, .profile: true
+            }
+        }
+
+        /// Moves the sidebar with the finger, then settles it open or closed by where the swipe was heading.
+        private func sidebarGesture(width: CGFloat, minimumDistance: CGFloat) -> some Gesture {
+            DragGesture(minimumDistance: minimumDistance)
+                .updating($sidebarDrag) { value, drag, _ in
+                    // A mostly vertical drag is the list scrolling, not the sidebar.
+                    if drag == nil, abs(value.translation.height) > abs(value.translation.width) { return }
+                    drag = value.translation.width
+                }
+                .onEnded { value in
+                    guard abs(value.translation.width) >= abs(value.translation.height) else { return }
+                    let base: CGFloat = sidebarOpen ? 0 : -width
+                    setSidebar(open: base + value.predictedEndTranslation.width > -width / 2)
+                }
+        }
+
+        private func setSidebar(open: Bool) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.3)) { sidebarOpen = open }
         }
 
         /// Opens what the person picked in the sidebar and closes it.
         private func open(_ route: WorkspaceRoute) {
-            sidebarOpen = false
+            setSidebar(open: false)
             let url = switch route {
             case let .thread(id): "/threads/\(id)"
             case let .hall(id): "/\(client.view.navigation.tab.rawValue)/\(id)"
