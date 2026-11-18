@@ -84,7 +84,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "$C > 0.3 && $B >= 20",
+          "expression": "$A > 0.3 * $B && $B >= 20",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
           "refId": "D",
@@ -195,7 +195,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "$C > 0.25 && $B >= 20",
+          "expression": "$A > 0.25 * $B && $B >= 20",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
           "refId": "D",

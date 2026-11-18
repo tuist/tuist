@@ -3317,7 +3317,10 @@ count(sum by (use) (count_over_time(
 #    result!~`unchanged|withheld|release_pending|cancelled`
 ```
 
-- Condition: `$A / $B > 0.3 && $B >= 20`
+- Condition: `$A > 0.3 * $B && $B >= 20`. `$C = $A / $B` only feeds the
+  annotations: in an hour with no counted saves on a platform (all
+  `unchanged` at night) `$A / $B` is NaN, NaN survives `&&`, and Grafana
+  fires on a NaN condition. That paged at 0 saves on 2026-11-18 at 05:25 UTC.
 - Pending period: 10 minutes; keep firing for 30 minutes, so a quiet hour in
   the middle of a breakage (17:30 to 19:00 on 2026-10-21 had 4 and 12 saves)
   does not resolve and re-page
@@ -7284,7 +7287,9 @@ or failed, so the job ran without its volume:
 - Linux failures: `operation` `acquire` with a result other than `success`,
   `cancelled` or `execution_pending` (`timeout` and `error`).
 - `execution_pending` is excluded on both sides because it has its own rule.
-- Condition: `$A / $B > 0.25 && $B >= 20`; pending period 10 minutes;
+- Condition: `$A > 0.25 * $B && $B >= 20` (no division, so an hour with
+  no counted attaches cannot fire on NaN, as the saves rule did); pending
+  period 10 minutes;
   severity warning; no contact point, so the policy tree sends it to
   `#notifications`. A cold job is slower, not broken, so this does not page.
 
