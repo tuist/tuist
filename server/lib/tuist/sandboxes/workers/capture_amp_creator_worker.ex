@@ -94,11 +94,23 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker do
           {:cancel, {:creator_command_failed, code}}
         end
 
+      # The daemon fences exec as soon as a pause starts, before the running
+      # database row changes. Let the next poll observe the settled lifecycle;
+      # never hold a residency or resume an Orb just to collect attribution.
+      {:error, "sandbox is being paused: " <> _} ->
+        {:snooze, @identity_poll_seconds}
+
+      {:error, "sandbox is not running: " <> _} ->
+        {:snooze, @identity_poll_seconds}
+
       {:error, :invalid_token} ->
         {:error, :invalid_creator_proof}
 
       false ->
         {:error, :creator_thread_mismatch}
+
+      {:error, reason} ->
+        {:error, {:creator_unavailable, reason}}
 
       _ ->
         {:error, :creator_unavailable}
