@@ -384,9 +384,21 @@ defmodule Tuist.Threads.Sandbox do
   # how the build progress a Once run in it reported finds the call.
   # Progress is best effort: failing to record it must not fail reading the
   # command, which the Bash tool and its watcher depend on.
+  #
+  # A command's watcher reads it every few hundred milliseconds, and Once
+  # rewrites its snapshot at most once a second, mostly with only the clock
+  # moved on, so the reading process skips a snapshot it reported in the
+  # last few seconds. Reporting it again later lets counts the server held
+  # back (`Threads.record_build_progress/3`) show while a target runs long.
   defp report_progress(%{run: %{thread_id: thread_id, id: run_id} = run}, id, %{progress: %{} = snapshot}) do
-    case String.split(id, "condukt-bash:#{thread_id}:#{run_id}:", parts: 2) do
-      ["", invocation_id] -> Threads.record_build_progress(run, invocation_id, snapshot)
+    seen = Map.delete(snapshot, "elapsed_ms")
+    now = System.monotonic_time(:millisecond)
+
+    with ["", invocation_id] <- String.split(id, "condukt-bash:#{thread_id}:#{run_id}:", parts: 2),
+         false <- reported_recently?(Process.get({__MODULE__, :progress, id}), seen, now) do
+      Process.put({__MODULE__, :progress, id}, {seen, now})
+      Threads.record_build_progress(run, invocation_id, snapshot)
+    else
       _ -> :ok
     end
   rescue
@@ -396,6 +408,9 @@ defmodule Tuist.Threads.Sandbox do
   end
 
   defp report_progress(_state, _id, _read), do: :ok
+
+  defp reported_recently?({seen, at}, seen, now), do: now - at < 5_000
+  defp reported_recently?(_reported, _seen, _now), do: false
 
   # Kills the command and forgets it, so its id starts afresh, as stopping
   # does on every Condukt sandbox. Its guest log goes with the sandbox.

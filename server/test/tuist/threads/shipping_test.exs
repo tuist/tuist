@@ -399,6 +399,8 @@ defmodule Tuist.Threads.ShippingTest do
     File.write!(Path.join(root, "b/child"), "replacement child\n")
     File.mkdir_p!(Path.join(root, ".once/out"))
     File.write!(Path.join(root, ".once/out/build.log"), "once runtime state\n")
+    File.mkdir_p!(Path.join(root, "app/.once/analysis"))
+    File.write!(Path.join(root, "app/.once/analysis/state"), "nested once state\n")
     thread = Repo.update!(Ecto.Changeset.change(c.thread, base_sha: base))
 
     stub(Repository, :review, fn account, snapshot, objects ->
@@ -435,6 +437,7 @@ defmodule Tuist.Threads.ShippingTest do
     assert preview.diff =~ "-old file"
     refute preview.diff =~ "forged benign"
     refute preview.diff =~ "once runtime state"
+    refute preview.diff =~ "nested once state"
     assert preview.actor =~ "GitHub App"
     assert {:ok, repeat} = Shipping.preview(c.user, thread)
     assert repeat.head_sha == preview.head_sha

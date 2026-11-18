@@ -688,7 +688,7 @@ defmodule Tuist.Push.LiveActivities do
 
     trail =
       calls
-      |> Enum.map(&tool_phase/1)
+      |> Enum.map(&trail_phase/1)
       |> Kernel.++([phase])
       |> Enum.dedup()
       |> Enum.take(-@max_trail)
@@ -710,6 +710,13 @@ defmodule Tuist.Push.LiveActivities do
   defp phase("idle", _run, _executing), do: "done"
   defp phase("outcome_unknown", _run, _executing), do: "needs_you"
   defp phase(_status, _run, _executing), do: "failed"
+
+  # A call's place in the trail stays what it did, so it doesn't change, and
+  # push again, when its Once run or the call ends: a Bash call that ran a
+  # Once build or test was Building or Testing, whatever its last state.
+  defp trail_phase({"Bash", _status, %{"command" => "test"}}), do: "testing"
+  defp trail_phase({"Bash", _status, %{"command" => "build"}}), do: "building"
+  defp trail_phase(call), do: tool_phase(call)
 
   # A Bash call whose command runs a Once build or test reports its
   # progress (`Tuist.Threads.record_build_progress/3`).
