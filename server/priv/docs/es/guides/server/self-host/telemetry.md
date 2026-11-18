@@ -11,7 +11,7 @@ Tuist ofrece tres señales de observabilidad complementarias: **métricas** (Pro
 
 ## Trazado distribuido (OpenTelemetry) {#opentelemetry}
 
-Tuist admite [OpenTelemetry](https://opentelemetry.io/) para el trazado distribuido. Cuando está activado, el servidor emite trazas para solicitudes HTTP (Phoenix y Bandit), consultas a la base de datos (Ecto), llamadas HTTP salientes (Finch) y el procesamiento de mensajes de Broadway. Estas trazas te permiten comprender la latencia de las solicitudes, identificar consultas lentas y seguir las solicitudes entre servicios.
+Tuist admite [OpenTelemetry](https://opentelemetry.io/) para el trazado distribuido. Cuando está habilitado, el servidor emite trazas para las solicitudes HTTP (Phoenix y Bandit), las consultas a la base de datos (Ecto), las llamadas HTTP salientes (Finch) y el procesamiento de mensajes de Broadway. Estas trazas te permiten comprender la latencia de las solicitudes, identificar consultas lentas y seguir las solicitudes entre servicios.
 
 ### Configuración {#opentelemetry-configuration}
 
@@ -21,11 +21,11 @@ Establece la siguiente variable de entorno para habilitar la exportación de tra
 | --- | --- | --- | --- | --- |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | El extremo gRPC de un recopilador de OpenTelemetry (por ejemplo, Grafana Alloy, Jaeger o cualquier recopilador compatible con OTLP) | No | | `http://localhost:4317` |
 
-Cuando esta variable no está configurada, el trazado está desactivado y no añade sobrecarga.
+Cuando esta variable no está definida, el trazado está deshabilitado y no añade sobrecarga.
 
 ### Bibliotecas instrumentadas {#opentelemetry-instrumented-libraries}
 
-Las siguientes bibliotecas se instrumentan automáticamente cuando el trazado está activado:
+Las siguientes bibliotecas se instrumentan automáticamente cuando el trazado está habilitado:
 
 - **Bandit**: spans de conexión del servidor HTTP
 - **Phoenix**: spans del ciclo de vida de las solicitudes (acciones del controlador, LiveView)
@@ -33,9 +33,9 @@ Las siguientes bibliotecas se instrumentan automáticamente cuando el trazado es
 - **Finch**: spans de solicitudes HTTP salientes del cliente
 - **Broadway**: spans de la canalización de procesamiento de mensajes
 
-### Configuración de ejemplo con Grafana Alloy {#opentelemetry-alloy-example}
+### Ejemplo de configuración con Grafana Alloy {#opentelemetry-alloy-example}
 
-Si usas [Grafana Alloy](https://grafana.com/docs/alloy/latest/) como tu recopilador, configúralo para recibir trazas OTLP y reenviarlas a tu backend de trazado (por ejemplo, Grafana Cloud Tempo):
+Si usas [Grafana Alloy](https://grafana.com/docs/alloy/latest/) como recopilador, configúralo para recibir trazas OTLP y reenviarlas a tu backend de trazado (por ejemplo, Grafana Cloud Tempo):
 
 ```alloy
 otelcol.receiver.otlp "default" {
@@ -60,9 +60,9 @@ Tuist puede reenviar los registros de la aplicación a un extremo compatible con
 | --- | --- | --- | --- | --- |
 | `TUIST_LOKI_URL` | La URL base de un extremo de API push compatible con Loki | No | | `http://localhost:3100` |
 
-Cuando esta variable no está configurada, el reenvío de registros está desactivado.
+Cuando esta variable no está definida, el reenvío de registros está deshabilitado.
 
-### Configuración de ejemplo con Grafana Alloy {#log-forwarding-alloy-example}
+### Ejemplo de configuración con Grafana Alloy {#log-forwarding-alloy-example}
 
 Grafana Alloy puede actuar como un relé local de registros usando su componente [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/):
 
@@ -97,7 +97,7 @@ Puedes ingerir las métricas recopiladas por el servidor de Tuist usando [Promet
 
 ## Monitorización de usuarios reales {#real-user-monitoring}
 
-Tuist puede informar del rendimiento del navegador desde el sitio de marketing, la documentación y el panel usando el SDK web de [Grafana Faro](https://grafana.com/oss/faro/), que está incluido en el JavaScript servido. Captura las Core Web Vitals (incluido Largest Contentful Paint), errores no capturados y vistas de página, y los envía a un [receptor de Faro](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) que ejecutes —por ejemplo, el componente `faro.receiver` en Grafana Alloy, que reenvía a Loki y Tempo.
+Tuist puede informar del rendimiento del navegador desde el sitio de marketing, la documentación y el panel usando el SDK web de [Grafana Faro](https://grafana.com/oss/faro/), que está incluido en el JavaScript servido. Captura las Core Web Vitals (incluido Largest Contentful Paint), errores no capturados y vistas de página, y los envía a un [receptor de Faro](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/) que ejecutes; por ejemplo, el componente `faro.receiver` en Grafana Alloy, que reenvía los datos a Loki y Tempo.
 
 ### Configuración {#real-user-monitoring-configuration}
 
@@ -106,15 +106,15 @@ Tuist puede informar del rendimiento del navegador desde el sitio de marketing, 
 | `TUIST_FARO_COLLECTOR_URL` | URL a la que el navegador envía las cargas de Faro | No | | `/-/faro` |
 
 > [!NOTE]
-> La monitorización de usuarios reales solo está activada cuando `TUIST_FARO_COLLECTOR_URL` está configurada. Sin ella, no se recopila telemetría del navegador ni se carga ningún script de terceros.
+> La monitorización de usuarios reales solo está habilitada cuando `TUIST_FARO_COLLECTOR_URL` está definida. Sin ella, no se recopila telemetría del navegador ni se carga ningún script de terceros.
 
-Una ruta del mismo origen como `/-/faro` evita solicitudes entre orígenes y mantiene inalterada la Política de Seguridad de Contenido del navegador. Apúntala a tu receptor de Faro a través de tu ingress.
+Una ruta del mismo origen como `/-/faro` evita solicitudes entre orígenes y mantiene sin cambios la Política de Seguridad de Contenido del navegador. Apúntala a tu receptor de Faro a través de tu ingress.
 
 ### Qué se recopila {#real-user-monitoring-collected}
 
 - **Métricas web**: LCP, CLS, INP, FCP y TTFB, capturadas automáticamente por el navegador
 - **Vistas de página**: registradas al cargar y durante la navegación de Phoenix LiveView
-- **Vistas**: cada carga lleva la sección que la produjo — `marketing`, `docs`, `dashboard` o `api-docs`
+- **Vistas**: cada carga incluye la sección que la generó: `marketing`, `docs`, `dashboard` o `api-docs`
 - **Errores**: excepciones no capturadas y rechazos de promesas no manejados
 
 ### Consideraciones de privacidad {#real-user-monitoring-privacy}
@@ -125,16 +125,16 @@ Una ruta del mismo origen como `/-/faro` evita solicitudes entre orígenes y man
 
 ## Métricas de Elixir {#elixir-metrics}
 
-Por defecto incluimos métricas del runtime de Elixir, BEAM, Elixir y algunas de las bibliotecas que usamos. A continuación se muestran algunas de las métricas que puedes esperar ver:
+De forma predeterminada incluimos métricas del runtime de Elixir, BEAM, Elixir y algunas de las bibliotecas que usamos. Estas son algunas de las métricas que puedes esperar ver:
 
-- [Aplicación](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+- [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
 - [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
 - [Phoenix LiveView](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-Recomendamos consultar esas páginas para saber qué métricas están disponibles y cómo usarlas.
+Te recomendamos consultar esas páginas para saber qué métricas están disponibles y cómo usarlas.
 
 ## Métricas de ejecuciones {#runs-metrics}
 
@@ -149,8 +149,8 @@ El número total de ejecuciones de Tuist.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `name` | El nombre del comando `tuist` que se ejecutó, como `build`, `test`, etc. |
-| `is_ci` | Un booleano que indica si el ejecutor era un CI o la máquina de un desarrollador. |
-| `status` | `1` en caso de `success`, `0` en caso de `failure`. |
+| `is_ci` | Un valor booleano que indica si el ejecutor era un entorno de CI o la máquina de un desarrollador. |
+| `status` | `0` en caso de `success`, `1` en caso de `failure`. |
 
 ### `tuist_runs_duration_milliseconds` (histograma) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -161,8 +161,8 @@ La duración total de cada ejecución de tuist en milisegundos.
 | Etiqueta | Descripción |
 |--- | ---- |
 | `name` | El nombre del comando `tuist` que se ejecutó, como `build`, `test`, etc. |
-| `is_ci` | Un booleano que indica si el ejecutor era un CI o la máquina de un desarrollador. |
-| `status` | `1` en caso de `success`, `0` en caso de `failure`. |
+| `is_ci` | Un valor booleano que indica si el ejecutor era un entorno de CI o la máquina de un desarrollador. |
+| `status` | `0` en caso de `success`, `1` en caso de `failure`. |
 
 ## Métricas de caché {#cache-metrics}
 
@@ -170,7 +170,7 @@ Un conjunto de métricas relacionadas con la caché de Tuist.
 
 ### `tuist_cache_events_total` (contador) {#tuist_cache_events_total-counter}
 
-El número total de eventos de caché binaria.
+El número total de eventos de la caché binaria.
 
 #### Etiquetas {#tuist-cache-events-total-tags}
 
@@ -196,9 +196,9 @@ El número de bytes descargados desde la caché binaria.
 
 ---
 
-## Métricas de Previews {#previews-metrics}
+## Métricas de previsualizaciones {#previews-metrics}
 
-Un conjunto de métricas relacionadas con la funcionalidad de previsualizaciones.
+Un conjunto de métricas relacionadas con la función de previsualizaciones.
 
 ### `tuist_previews_uploads_total` (suma) {#tuist_previews_uploads_total-counter}
 
@@ -212,7 +212,7 @@ El número total de previsualizaciones descargadas.
 
 ## Métricas de almacenamiento {#storage-metrics}
 
-Un conjunto de métricas relacionadas con el almacenamiento de artefactos en un almacenamiento remoto (por ejemplo, S3).
+Un conjunto de métricas relacionadas con el almacenamiento de artefactos en un almacenamiento remoto (por ejemplo, s3).
 
 > [!TIP]
 > Estas métricas son útiles para comprender el rendimiento de las operaciones de almacenamiento e identificar posibles cuellos de botella.
@@ -220,7 +220,7 @@ Un conjunto de métricas relacionadas con el almacenamiento de artefactos en un 
 
 ### `tuist_storage_get_object_size_size_bytes` (histograma) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-El tamaño (en bytes) de un objeto recuperado desde el almacenamiento remoto.
+El tamaño (en bytes) de un objeto obtenido desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-size-size-bytes-tags}
 
@@ -231,7 +231,7 @@ El tamaño (en bytes) de un objeto recuperado desde el almacenamiento remoto.
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (histograma) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-La duración (en milisegundos) de recuperar el tamaño de un objeto desde el almacenamiento remoto.
+La duración (en milisegundos) de obtener el tamaño de un objeto desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
@@ -242,7 +242,7 @@ La duración (en milisegundos) de recuperar el tamaño de un objeto desde el alm
 
 ### `tuist_storage_get_object_size_count` (contador) {#tuist_storage_get_object_size_count-counter}
 
-El número de veces que se recuperó el tamaño de un objeto desde el almacenamiento remoto.
+El número de veces que se obtuvo el tamaño de un objeto desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-size-count-tags}
 
@@ -295,7 +295,7 @@ El número de veces que se inició una subida al almacenamiento remoto.
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (histograma) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-La duración (en milisegundos) de recuperar un objeto como cadena desde el almacenamiento remoto.
+La duración (en milisegundos) de obtener un objeto como cadena desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
@@ -303,9 +303,9 @@ La duración (en milisegundos) de recuperar un objeto como cadena desde el almac
 |--- | ---- |
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
-### `tuist_storage_get_object_as_string_count` (contador) {#tuist_storage_get_object_as_string_count-count}
+### `tuist_storage_get_object_as_string_count` (conteo) {#tuist_storage_get_object_as_string_count-count}
 
-El número de veces que se recuperó un objeto como cadena desde el almacenamiento remoto.
+El número de veces que se obtuvo un objeto como cadena desde el almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-get-object-as-string-count-tags}
 
@@ -324,7 +324,7 @@ La duración (en milisegundos) de comprobar la existencia de un objeto en el alm
 |--- | ---- |
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
-### `tuist_storage_check_object_existence_count` (contador) {#tuist_storage_check_object_existence_count-count}
+### `tuist_storage_check_object_existence_count` (conteo) {#tuist_storage_check_object_existence_count-count}
 
 El número de veces que se comprobó la existencia de un objeto en el almacenamiento remoto.
 
@@ -345,7 +345,7 @@ La duración (en milisegundos) de generar una URL prefirmada de descarga para un
 | `object_key` | La clave de búsqueda del objeto en el almacenamiento remoto. |
 
 
-### `tuist_storage_generate_download_presigned_url_count` (contador) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_generate_download_presigned_url_count` (conteo) {#tuist_storage_generate_download_presigned_url_count-count}
 
 El número de veces que se generó una URL prefirmada de descarga para un objeto en el almacenamiento remoto.
 
@@ -367,7 +367,7 @@ La duración (en milisegundos) de generar una URL prefirmada de subida de parte 
 | `part_number` | El número de parte del objeto que se está subiendo. |
 | `upload_id` | El ID de subida de la subida multiparte. |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (contador) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (conteo) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
 El número de veces que se generó una URL prefirmada de subida de parte para un objeto en el almacenamiento remoto.
 
@@ -391,7 +391,7 @@ La duración (en milisegundos) de completar una subida al almacenamiento remoto.
 | `upload_id` | El ID de subida de la subida multiparte. |
 
 
-### `tuist_storage_multipart_complete_upload_count` (contador) {#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_multipart_complete_upload_count` (conteo) {#tuist_storage_multipart_complete_upload_count-count}
 
 El número total de veces que se completó una subida al almacenamiento remoto.
 
@@ -416,8 +416,8 @@ El número total de errores de actualización de token.
 
 | Etiqueta | Descripción |
 |--- | ---- |
-| `cli_version` | La versión de Tuist CLI que encontró el error. |
-| `reason` | La razón del error de actualización del token, como `invalid_token_type` o `invalid_token`. |
+| `cli_version` | La versión de la CLI de Tuist que encontró el error. |
+| `reason` | La razón del error de actualización de token, como `invalid_token_type` o `invalid_token`. |
 
 ---
 
@@ -448,7 +448,7 @@ El número total de usuarios.
 
 Un conjunto de métricas relacionadas con la conexión a la base de datos.
 
-Las métricas del pool de repositorios se muestrean internamente cada 100 ms y luego se exponen a Prometheus en `/metrics`. Las métricas de `last_value` que aparecen a continuación muestran el estado más reciente del pool en el momento de la recolección. Las métricas de presión que figuran más abajo son sumas derivadas de esas muestras de 100 ms, lo que facilita detectar ventanas cortas de saturación incluso cuando se recuperan antes de la siguiente recolección.
+Las métricas del pool de repositorios se muestrean internamente cada 100 ms y luego se exponen a Prometheus en `/metrics`. Las métricas de `last_value` que aparecen más abajo muestran el estado más reciente del pool en el momento del muestreo. Las métricas de presión que aparecen más adelante son sumas derivadas de esas muestras de 100 ms, lo que facilita detectar ventanas cortas de saturación incluso cuando se recuperan antes del siguiente muestreo.
 
 ### `tuist_repo_pool_checkout_queue_length` (último_valor) {#tuist_repo_pool_checkout_queue_length-last_value}
 
@@ -485,7 +485,7 @@ El número configurado de conexiones en el pool.
 
 ### `tuist_repo_pool_checkout_queue_total_samples_sum` (suma) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
 
-El número total de sondeos del pool de repositorios realizados (se incrementa en 1 en cada sondeo). Úsalo como denominador al calcular los porcentajes de ocupación o inanición: `rate(busy_samples) / rate(total_samples)` o `rate(starved_samples) / rate(total_samples)`.
+El número total de sondeos del pool de repositorios realizados (se incrementa en 1 en cada sondeo). Úsalo como denominador al calcular porcentajes de ocupación o inanición: `rate(busy_samples) / rate(total_samples)` o `rate(starved_samples) / rate(total_samples)`.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
 
@@ -496,7 +496,7 @@ El número total de sondeos del pool de repositorios realizados (se incrementa e
 
 ### `tuist_repo_pool_checkout_queue_observed_sum` (suma) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
-La suma de las solicitudes de checkout en cola observadas durante los sondeos del pool de repositorios. Esto es útil para detectar ráfagas cortas de contención del pool que pueden no ser visibles solo en la última muestra de longitud de cola.
+La suma de las solicitudes de checkout en cola observadas durante los sondeos del pool de repositorios. Esto es útil para detectar ráfagas cortas de contención del pool que pueden no ser visibles solo con la última muestra de longitud de cola.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_observed_sum-tags}
 
@@ -518,7 +518,7 @@ El número de sondeos del pool de repositorios en los que al menos una solicitud
 
 ### `tuist_repo_pool_checkout_queue_starved_samples_sum` (suma) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
-El número de sondeos del pool de repositorios en los que las solicitudes de checkout estaban en cola y no había conexiones listas disponibles. Un aumento sostenido aquí suele significar que el pool está saturado.
+El número de sondeos del pool de repositorios en los que las solicitudes de checkout estaban en cola y no había conexiones listas disponibles. Un aumento sostenido aquí suele indicar que el pool está saturado.
 
 #### Etiquetas {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 
@@ -549,11 +549,11 @@ Un conjunto de métricas relacionadas con las interacciones de Tuist con otros s
 
 El número de solicitudes HTTP salientes.
 
-### `tuist_http_request_duration_nanosecond_sum` (suma) {#tuist_http_request_duration_nanosecond_sum-last_value}
+### `tuist_http_request_duration_nanoseconds_sum` (suma) {#tuist_http_request_duration_nanoseconds_sum-last_value}
 
 La suma de la duración de las solicitudes salientes (incluido el tiempo que pasaron esperando ser asignadas a una conexión).
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribución) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+### `tuist_http_request_duration_nanoseconds_bucket` (distribución) {#tuist_http_request_duration_nanoseconds_bucket-distribution}
 La distribución de la duración de las solicitudes salientes (incluido el tiempo que pasaron esperando ser asignadas a una conexión).
 
 ### `tuist_http_queue_count` (contador) {#tuist_http_queue_count-counter}

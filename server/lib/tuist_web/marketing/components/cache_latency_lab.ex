@@ -106,7 +106,7 @@ defmodule TuistWeb.Marketing.Components.CacheLatencyLab do
         display: inline-block;
         width: 10px;
         height: 10px;
-        margin-right: var(--noora-spacing-2);
+        margin-inline-end: var(--noora-spacing-2);
       }
 
       .cache-latency-lab__note,

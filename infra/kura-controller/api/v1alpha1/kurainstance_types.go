@@ -45,10 +45,16 @@ type KuraInstanceSpec struct {
 	// address through the same mechanism.
 	PublicHostNetwork bool `json:"publicHostNetwork,omitempty"`
 
-	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
-	StorageClassName  string            `json:"storageClassName,omitempty"`
-	StorageSize       string            `json:"storageSize,omitempty"`
-	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	PeerTLSSecretName string `json:"peerTLSSecretName,omitempty"`
+	StorageClassName  string `json:"storageClassName,omitempty"`
+	StorageSize       string `json:"storageSize,omitempty"`
+	// DiskResource is what each replica requests for its claim so the scheduler
+	// bin-packs it against node disk. Empty reserves ephemeral-storage, for
+	// volumes on the node's /data; "tuist.dev/kura-disk" reserves the room the
+	// kura-volumes driver advertises for a node's volume group.
+	// +kubebuilder:validation:Enum="";tuist.dev/kura-disk
+	DiskResource string            `json:"diskResource,omitempty"`
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
 	// environments use this to colocate Kura on the generic preview pool
 	// (which carries role=preview:NoSchedule) instead of pinning to a

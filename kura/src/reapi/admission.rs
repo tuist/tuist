@@ -61,7 +61,7 @@ struct RetryInfo {
     retry_delay: Option<protobuf::Duration>,
 }
 
-fn write_admission_rejected(message: &str) -> Status {
+pub(super) fn write_admission_rejected(message: &str) -> Status {
     let retry = RetryInfo {
         retry_delay: Some(protobuf::Duration {
             seconds: crate::backpressure::retry_after_seconds(10) as i64,
@@ -618,7 +618,9 @@ where
 
         Box::pin(async move {
             let response = crate::serving_authority::scope(permit.clone(), future).await?;
-            if permit.as_ref().is_some_and(|p| p.check().is_err()) {
+            if (mutation && crate::migration::acknowledge(&state).await.is_err())
+                || permit.as_ref().is_some_and(|p| p.check().is_err())
+            {
                 return Ok(Status::unavailable("serving grant expired")
                     .into_http::<tonic::body::Body>()
                     .map(|body| {

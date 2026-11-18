@@ -1,16 +1,16 @@
 ---
 {
-  "title": "Segmentación de tests en Xcode",
-  "titleTemplate": ":title · Segmentación de tests · Funcionalidades · Guías · Tuist",
-  "description": "Distribuye los tests de Xcode entre varios runners de CI con la segmentación de tests de Tuist."
+  "title": "Fragmentación de tests en Xcode",
+  "titleTemplate": ":title · Fragmentación de tests · Funcionalidades · Guías · Tuist",
+  "description": "Distribuye los tests de Xcode entre varios runners de CI con la fragmentación de tests de Tuist."
 }
 ---
 # Fragmentación de tests de Xcode {#xcode-test-sharding}
 
-> [!WARNING]
+> [!IMPORTANT]
 > **Requisitos**
 >
-> - <.localized_link href="/guides/features/test-insights/xcode">Análisis de tests de Xcode</.localized_link> configurado. La fragmentación usa los datos de duración de los tests de los últimos 30 días para equilibrar los shards y, sin estos análisis, cada shard se ejecuta como si la suite fuera desconocida.
+> - <.localized_link href="/guides/features/test-insights/xcode">Análisis de tests de Xcode</.localized_link> configurado. La fragmentación usa los tiempos de los últimos 30 días de análisis de tests para equilibrar los shards y, sin estos datos, cada shard se ejecuta como si la suite fuera desconocida.
 
 La fragmentación de tests para proyectos de Xcode usa `tuist xcodebuild build-for-testing` para crear un plan de shards y `tuist xcodebuild test` para ejecutar cada shard.
 
@@ -18,12 +18,12 @@ La fragmentación de tests para proyectos de Xcode usa `tuist xcodebuild build-f
 
 La fragmentación de tests sigue un flujo de trabajo en dos fases:
 
-1. **Fase de compilación:** Tuist lee los módulos de test del archivo `.xctestrun` generado y crea un **plan de shards** en el servidor. El servidor usa datos históricos de duración de los tests de los últimos 30 días para distribuir los tests entre los shards, de modo que cada shard tarde aproximadamente lo mismo. La fase de compilación genera una **matriz de shards** que tu sistema de CI usa para lanzar runners en paralelo.
+1. **Fase de compilación:** Tuist lee los módulos de test del archivo `.xctestrun` generado y crea un **plan de shards** en el servidor. El servidor usa datos históricos de tiempos de ejecución de los últimos 30 días para distribuir los tests entre los shards, de modo que cada shard tarde aproximadamente lo mismo. La fase de compilación genera una **matriz de shards** que tu sistema de CI usa para lanzar runners en paralelo.
 2. **Fase de test:** Cada runner de integración continua recibe un **índice de shard** y el **identificador exacto del plan de shards**, y luego ejecuta la selección de tests de ese plan.
 
-Con granularidad a nivel de suite, el servidor elige las suites conocidas por módulo: para cada módulo del `.xctestrun` actual, une las suites de las últimas ejecuciones de CI en la rama que se está compilando, recurriendo a la rama predeterminada del proyecto para los módulos sin historial en esa rama. Leer varias ejecuciones en lugar de solo la última es importante porque una ejecución fragmentada sube una ejecución de test por shard a medida que cada shard finaliza, por lo que la ejecución más reciente contiene solo la fracción del módulo que se ha procesado hasta ese momento, y porque evita que las ejecuciones de tests selectivos oculten suites que se omitieron en la última ejecución de la rama.
+Con granularidad por suite, el servidor usa las suites que las ejecuciones recientes de CI en tu rama reportaron para cada módulo en el `.xctestrun` actual, recurriendo a la rama predeterminada del proyecto para los módulos sin historial en la rama. Combinar varias ejecuciones mantiene las suites que una ejecución fragmentada o selectiva dejó fuera del informe más reciente.
 
-Cuando se usa `--shard-granularity suite`, Tuist equilibra las suites conocidas entre el número de shards solicitado y usa el último shard como comodín. Por ejemplo, `--shard-total 5` produce índices de shard del `0` al `4`, siendo el índice de shard `4` el comodín. Los shards normales se ejecutan con `-only-testing` para sus suites asignadas. El último shard se ejecuta sin `-only-testing` y pasa `-skip-testing` para cada suite asignada a los shards anteriores, de modo que ejecuta sus suites planificadas más las suites recién añadidas o las que faltan en el inventario histórico. La granularidad a nivel de módulo no necesita un comodín porque el archivo `.xctestrun` proporciona la lista de módulos.
+Cuando se usa `--shard-granularity suite`, Tuist equilibra las suites conocidas entre la cantidad de shards solicitada y usa el último shard como comodín. Por ejemplo, `--shard-total 5` produce índices de shard del `0` al `4`, siendo el índice de shard `4` el comodín. Los shards normales se ejecutan con `-only-testing` para sus suites asignadas. El último shard se ejecuta sin `-only-testing` y pasa `-skip-testing` para cada suite asignada a los shards anteriores, de modo que ejecuta sus suites planificadas más las suites recién añadidas o las que faltan en el inventario histórico. La granularidad por módulo no necesita un comodín porque el archivo `.xctestrun` proporciona la lista de módulos.
 
 ## Fase de compilación {#build-phase}
 
@@ -38,25 +38,15 @@ tuist xcodebuild build-for-testing \
 
 Este comando:
 1. Compila tus tests con `xcodebuild build-for-testing`
-2. Crea un plan de shards en el servidor de Tuist usando datos históricos de duración
+2. Crea un plan de shards en el servidor de Tuist usando datos históricos de tiempos
 3. Sube el bundle `.xctestproducts` o escribe un archivo de shard para que lo usen los runners de shards
 4. Genera una matriz de shards para tu sistema de CI
 
-### Opciones de compilación {#build-options}
-
-| Flag | Variable de entorno | Descripción |
-|------|---------------------|-------------|
-| `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | Número máximo de shards. Se usa con `--shard-max-duration` para limitar la cantidad de shards |
-| `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | Número mínimo de shards |
-| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | Número exacto de shards (excluyente con `--shard-min`/`--shard-max`). Con granularidad a nivel de suite, el último shard es el comodín |
-| `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | Duración máxima objetivo por shard en milisegundos |
-| `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module` (predeterminado) distribuye módulos de test completos entre los shards; `suite` distribuye clases de test individuales para un equilibrio más fino |
-| `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Identificador único para el plan de shards (se deriva automáticamente en proveedores de CI compatibles) |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Ruta donde Tuist escribe el archivo de shard optimizado en lugar de subir los productos de test al almacenamiento remoto |
+<!-- @snippet: ./_xcode-build-options -->
 
 ## Fase de test {#test-phase}
 
-Cada runner de shard ejecuta los tests que le han sido asignados:
+Cada runner de shard ejecuta sus tests asignados:
 
 ```sh
 tuist xcodebuild test \
@@ -64,29 +54,11 @@ tuist xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-### Opciones de test {#test-options}
-
-| Flag | Variable de entorno | Descripción |
-|------|---------------------|-------------|
-| `--shard-index <N>` | `TUIST_SHARD_INDEX` | Índice base cero del shard a ejecutar |
-| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Identificador exacto del plan de shards emitido por la fase de compilación. Las salidas generadas por el proveedor incluyen este valor automáticamente |
-| `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Identificador único para el plan de shards (se deriva automáticamente en proveedores de CI compatibles) |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Ruta a un archivo de shard gestionado localmente; Tuist lo extrae en lugar de descargar los productos de test desde el almacenamiento remoto |
-
-Tuist descarga el bundle `.xctestproducts` y lo filtra para incluir solo los tests asignados a ese shard.
+<!-- @snippet: ./_xcode-test-options -->
 
 ## Integración continua {#continuous-integration}
 
-Tuist detecta automáticamente los siguientes proveedores de CI:
-
-- [GitHub Actions](#github-actions)
-- [GitLab CI](#gitlab-ci)
-- [CircleCI](#circleci)
-- [Buildkite](#buildkite)
-- [Codemagic](#codemagic)
-- [Bitrise](#bitrise)
-
-Para otros proveedores, consulta el archivo `.tuist-shard-matrix.json` para configurar trabajos paralelos.
+<!-- @snippet: ./_ci-providers -->
 
 ### GitHub Actions {#github-actions}
 
@@ -135,7 +107,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist genera un `.tuist-shard-child-pipeline.yml` que activas como un [pipeline hijo](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define un trabajo plantilla `.tuist-shard` que los trabajos de shard generados extienden:
+Tuist genera un `.tuist-shard-child-pipeline.yml` que activas como un [pipeline hijo](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines). Define un job plantilla `.tuist-shard` que extiendan los jobs de shard generados:
 
 ```yaml
 # .gitlab-ci.yml
@@ -290,7 +262,7 @@ tuist xcodebuild test \
 
 ### Codemagic {#codemagic}
 
-Codemagic no admite trabajos de matriz dinámicos, así que define un flujo de trabajo separado por shard. Tuist escribe `TUIST_SHARD_MATRIX` y `TUIST_SHARD_COUNT` en el archivo `CM_ENV` para usarlos dentro del flujo de trabajo de compilación. El `CM_ENV` de Codemagic tiene alcance de flujo de trabajo, por lo que el identificador exacto del plan de shards no cruza los límites del flujo; los flujos de test recurren a la búsqueda de shards basada en referencia:
+Codemagic no admite jobs de matriz dinámicos, así que define un workflow separado por shard. Tuist escribe `TUIST_SHARD_MATRIX` y `TUIST_SHARD_COUNT` en el archivo `CM_ENV` para usarlos dentro del workflow de compilación. El `CM_ENV` de Codemagic tiene alcance de workflow, por lo que el identificador exacto del plan de shards no cruza los límites del workflow; los workflows de test recurren a la búsqueda de shards basada en referencia:
 
 ```yaml
 # codemagic.yaml
@@ -359,7 +331,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-En Bitrise, Tuist escribe `.tuist-shard-matrix.json` (incluido `shard_plan_id`) en el `BITRISE_DEPLOY_DIR`, poniéndolo a disposición como artefacto de compilación para las etapas posteriores del pipeline. Cada flujo de trabajo de test extrae el ID del plan del artefacto descargado usando `envman` para que llegue al entorno del comando de test:
+En Bitrise, Tuist escribe `.tuist-shard-matrix.json` (incluyendo `shard_plan_id`) en el `BITRISE_DEPLOY_DIR`, haciéndolo disponible como artefacto de compilación para etapas posteriores del pipeline. Cada workflow de test extrae el ID del plan del artefacto descargado usando `envman` para que llegue al entorno del comando de test:
 
 ```yaml
 # bitrise.yml
@@ -433,13 +405,13 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise no admite la creación dinámica de trabajos paralelos en tiempo de ejecución. Define un número fijo de flujos de trabajo de shard en tus etapas de pipeline: los flujos dentro de una etapa se ejecutan en paralelo automáticamente.
+> Bitrise no admite la creación dinámica de jobs paralelos en tiempo de ejecución. Define un número fijo de workflows de shard en las etapas de tu pipeline; los workflows dentro de una etapa se ejecutan en paralelo automáticamente.
 
 ## Volúmenes compartidos {#shared-volumes}
 
-Por defecto, la fase de compilación sube el bundle `.xctestproducts` al almacenamiento remoto y cada runner de shard lo descarga. Si tu proveedor de CI admite **volúmenes compartidos** (almacenamiento persistente montado entre trabajos), puedes omitir por completo esta subida/descarga pasando los productos de test a través de un sistema de archivos compartido.
+Por defecto, la fase de compilación sube el bundle `.xctestproducts` al almacenamiento remoto y cada runner de shard lo descarga. Si tu proveedor de CI admite **volúmenes compartidos** (almacenamiento persistente montado entre jobs), puedes omitir por completo esta subida/descarga pasando los productos de test a través de un sistema de archivos compartido.
 
-Esto puede reducir significativamente el tiempo de inicio del shard, especialmente para bundles de test grandes.
+Esto puede reducir significativamente el tiempo de inicio de los shards, especialmente para bundles de test grandes.
 
 Para usar volúmenes compartidos:
 
@@ -464,7 +436,7 @@ tuist xcodebuild test \
 ```
 
 > [!IMPORTANT]
-> Usa una ruta única por ejecución de flujo de trabajo (por ejemplo, incluye el ID de ejecución de CI) para evitar colisiones entre ejecuciones concurrentes. También deberías limpiar los productos de test después de completar el sharding para evitar acumular datos obsoletos en el volumen.
+> Usa una ruta única por ejecución de workflow (por ejemplo, incluye el ID de la ejecución de CI) para evitar colisiones entre ejecuciones concurrentes. También debes limpiar los productos de test cuando finalice el sharding para evitar acumular datos obsoletos en el volumen.
 
 | Flag | Variable de entorno | Descripción |
 |------|---------------------|-------------|
@@ -472,9 +444,9 @@ tuist xcodebuild test \
 
 ## Artefactos autogestionados {#self-managed-artifacts}
 
-Si tu proveedor de CI ya tiene pasos de subida y descarga de artefactos, puedes dejar que Tuist gestione el archivo y la extracción mientras tu CI gestiona el transporte.
+Si tu proveedor de CI ya tiene pasos para subir y descargar artefactos, puedes dejar que Tuist gestione el archivado y la extracción mientras tu CI se encarga del transporte.
 
-1. En la **fase de compilación**, pasa `--shard-archive-path` para que Tuist escriba su archivo de shard optimizado localmente en lugar de subir los productos de test:
+1. En la **fase de compilación**, pasa `--shard-archive-path` para que Tuist escriba su archivo optimizado de shards localmente en lugar de subir los productos de test:
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -486,7 +458,7 @@ tuist xcodebuild build-for-testing \
 
 2. Sube ese archivo usando el paso nativo de artefactos de tu CI.
 
-3. En cada trabajo de la **fase de test**, descarga el archivo y pasa la misma ruta de vuelta a Tuist:
+3. En cada job de la **fase de test**, descarga el archivo y pasa la misma ruta de vuelta a Tuist:
 
 ```sh
 tuist xcodebuild test \
@@ -495,11 +467,11 @@ tuist xcodebuild test \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-Cuando `--shard-archive-path` está configurado, Tuist omite la transferencia remota de productos de test y usa el archivo local en su lugar. Si también pasas `--shard-skip-upload`, la ruta del archivo tiene prioridad.
+Cuando se establece `--shard-archive-path`, Tuist omite la transferencia remota de productos de test y usa el archivo local en su lugar. Si también pasas `--shard-skip-upload`, la ruta del archivo tiene prioridad.
 
 ### Namespace {#namespace}
 
-Los runners de [Namespace](https://namespace.so) funcionan bien con los artefactos de GitHub Actions. Configura `TUIST_TEST_SHARD_ARCHIVE_PATH` una vez para que el trabajo de compilación escriba el archivo del shard localmente, súbelo y descárgalo en cada trabajo del shard antes de ejecutar `tuist xcodebuild test`:
+Los runners de [Namespace](https://namespace.so) funcionan bien con los artefactos de GitHub Actions. Establece `TUIST_TEST_SHARD_ARCHIVE_PATH` una vez para que el job de compilación escriba el archivo de shards localmente, súbelo y descárgalo en cada job de shard antes de ejecutar `tuist xcodebuild test`:
 
 ```yaml
 name: Tests

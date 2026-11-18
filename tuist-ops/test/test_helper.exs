@@ -6,8 +6,6 @@ alias Ecto.Adapters.SQL.Sandbox
 Mimic.copy(TuistOps.Environment)
 Mimic.copy(TuistOps.GitHub.AppToken)
 Mimic.copy(TuistOps.GitHub.OrgMembership)
-Mimic.copy(TuistOps.Previews)
-Mimic.copy(TuistOps.Previews.GitHubActionsClient)
 Mimic.copy(TuistOps.JIT.Approvals)
 Mimic.copy(TuistOps.JIT.SlackClient)
 Mimic.copy(TuistOps.JIT.TailscaleClient)

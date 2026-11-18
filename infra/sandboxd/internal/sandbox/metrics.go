@@ -12,6 +12,7 @@ type Metrics struct {
 	Sandboxes     *prometheus.GaugeVec
 	Workers       prometheus.Gauge
 	Operations    *prometheus.CounterVec
+	Phases        *prometheus.HistogramVec
 	// Capacity as the server sees it in reports: the cgroup's memory
 	// limit and usage, and the data directory's disk budget, occupancy
 	// and the filesystem's free space.
@@ -26,6 +27,10 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 	fast := prometheus.ExponentialBuckets(0.05, 2, 12)
 	slow := prometheus.ExponentialBuckets(0.25, 2, 12)
 	m := &Metrics{
+		Phases: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name: "sandboxd_lifecycle_phase_seconds", Help: "Time spent in sandbox lifecycle phases.",
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 14),
+		}, []string{"phase"}),
 		Create: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name: "sandboxd_create_seconds", Help: "Time to create a sandbox (template restore, workspace format), including a lazy template build.", Buckets: fast,
 		}),
@@ -65,7 +70,7 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 	}
 	if registry != nil {
 		registry.MustRegister(
-			m.Create, m.Resume, m.Pause, m.TemplateBuild, m.Sandboxes, m.Workers, m.Operations,
+			m.Create, m.Resume, m.Pause, m.TemplateBuild, m.Sandboxes, m.Workers, m.Operations, m.Phases,
 			m.MemoryBudgetBytes, m.MemoryUsedBytes, m.DiskBudgetBytes, m.DiskSandboxesBytes, m.DiskAvailableBytes,
 		)
 	}

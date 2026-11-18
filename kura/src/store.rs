@@ -95,6 +95,8 @@ const MAX_MULTIPART_PARTS: usize = 10_000;
 const MAX_MULTIPART_RECORD_BYTES: usize = 8 << 20;
 const MULTIPART_RECONCILE_DELETE_BATCH: usize = 256;
 const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
+// Bytes a handover compaction copies under one segment fsync and one commit.
+const HANDOVER_COMPACTION_CHUNK_BYTES: u64 = 64 << 20;
 // Flush threshold for stale backfill-index row retirement collected across
 // one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
 pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
@@ -270,6 +272,11 @@ pub struct Store {
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
     write_commit_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    /// Runs on each authoritative manifest read, so tests can observe how many
+    /// overlap.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    manifest_read_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -451,6 +458,9 @@ pub enum RefreshTrigger {
     ActionCache,
     /// A `FindMissingBlobs` that reported the blob present.
     FindMissing,
+    /// A named handover destination compacting a sealed segment so it can
+    /// reclaim the space the source no longer retains.
+    Handover,
 }
 
 impl RefreshTrigger {
@@ -460,6 +470,7 @@ impl RefreshTrigger {
             Self::Sibling => "sibling",
             Self::ActionCache => "action_cache",
             Self::FindMissing => "find_missing",
+            Self::Handover => "handover",
         }
     }
 
@@ -472,7 +483,16 @@ impl RefreshTrigger {
     /// Whether siblings are told about this refresh. A refresh that mirrors a
     /// sibling's is never echoed back.
     fn hints_siblings(self) -> bool {
-        self != Self::Sibling
+        !matches!(self, Self::Sibling | Self::Handover)
+    }
+
+    /// Whether this refresh may copy out of `generation`. Lifetime extension
+    /// only rescues Old data; compaction empties any sealed segment.
+    fn copies_from(self, generation: Option<SegmentGeneration>) -> bool {
+        match self {
+            Self::Handover => generation.is_some(),
+            _ => generation == Some(SegmentGeneration::Old),
+        }
     }
 }
 
@@ -1550,6 +1570,8 @@ impl Store {
             write_thread_observer: Arc::new(StdMutex::new(None)),
             #[cfg(test)]
             write_commit_observer: StdMutex::new(None),
+            #[cfg(test)]
+            manifest_read_observer: StdMutex::new(None),
             action_cache_generations: StdMutex::new(HashMap::new()),
             action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
                 ACTION_CACHE_REMOVAL_LOG_MAX,
@@ -3122,7 +3144,7 @@ impl Store {
         let Some(segment_id) = manifest.segment_id.as_deref() else {
             return Ok(Some(manifest));
         };
-        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
+        if !trigger.copies_from(self.segment_generation(segment_id)?) {
             return Ok(Some(manifest));
         }
 
@@ -3134,7 +3156,7 @@ impl Store {
         let Some(current_segment_id) = current.segment_id.as_deref() else {
             return Ok(Some(current));
         };
-        if self.segment_generation(current_segment_id)? != Some(SegmentGeneration::Old) {
+        if !trigger.copies_from(self.segment_generation(current_segment_id)?) {
             return Ok(Some(current));
         }
         if !self.storage_exists(&current).await? {
@@ -3215,6 +3237,120 @@ impl Store {
         self.evict_segments(evicted_segments).await?;
 
         Ok(Some(refreshed))
+    }
+
+    /// Copies `manifests`, all from sealed `segment_id`, into the active
+    /// segment for a handover compaction: the appends share one segment fsync
+    /// and the manifest moves one synced metadata commit. Like a `Handover`
+    /// refresh it hints no sibling. Returns the bytes copied and how many of
+    /// them are still in `segment_id`.
+    async fn refresh_handover_manifests(
+        &self,
+        segment_id: &str,
+        manifests: Vec<ArtifactManifest>,
+    ) -> Result<(u64, u64), String> {
+        if manifests.is_empty() {
+            return Ok((0, 0));
+        }
+        if !self.memory.allow_segment_refresh() {
+            self.io
+                .metrics()
+                .record_memory_action("segment_refresh_skipped");
+            for manifest in &manifests {
+                self.io.metrics().record_segment_refresh_skipped(
+                    manifest.producer,
+                    RefreshTrigger::Handover.as_str(),
+                );
+            }
+            return Ok((0, manifests.len() as u64));
+        }
+        let refresh_started = std::time::Instant::now();
+        let _guard = self.segment_refresh_lock.lock().await;
+        if !RefreshTrigger::Handover.copies_from(self.segment_generation(segment_id)?) {
+            return Ok((0, manifests.len() as u64));
+        }
+        let mut pins = vec![self.pin_segment(segment_id)];
+        let (mut staged, mut retired, mut durability_seq) = (Vec::new(), Vec::new(), 0);
+        for manifest in manifests {
+            let Some(current) = self.manifest(&manifest.artifact_id)? else {
+                continue;
+            };
+            if current.segment_id.as_deref() != Some(segment_id)
+                || !self.storage_exists(&current).await?
+            {
+                continue;
+            }
+            let mut reader = self.open_manifest_reader(&current).await?;
+            let (location, evicted, seq) = self
+                .append_reader_to_segment(
+                    &mut reader,
+                    current.size,
+                    None,
+                    FileCachePolicy::Adaptive,
+                    ApplyDurability::DeferredBatch,
+                )
+                .await?;
+            durability_seq = durability_seq.max(seq);
+            pins.push(location.pin.clone());
+            retired.push(evicted);
+            staged.push((current, location));
+        }
+        if !staged.is_empty() {
+            self.ensure_segment_durable(durability_seq).await?;
+        }
+        let mut batch = WriteBatch::default();
+        let mut refreshed = Vec::with_capacity(staged.len());
+        for (current, location) in staged {
+            let mut moved = current.clone();
+            moved.inline = false;
+            moved.blob_path = None;
+            moved.segment_id = Some(location.segment_id.clone());
+            moved.segment_offset = Some(location.offset);
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_MANIFESTS),
+                moved.artifact_id.as_bytes(),
+                encode_manifest_record(&moved)?,
+            );
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
+                segment_artifact_index_key(segment_id, &current.artifact_id).as_bytes(),
+            );
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
+                segment_artifact_index_key(&location.segment_id, &current.artifact_id).as_bytes(),
+                [],
+            );
+            refreshed.push(moved);
+        }
+        if !refreshed.is_empty() {
+            self.write_batch_with_segment_pins(
+                batch,
+                "refreshed manifests",
+                ApplyDurability::Sync,
+                pins,
+            )
+            .await?;
+        }
+        let mut copied = 0u64;
+        for moved in &refreshed {
+            if let Some(segment) = moved.segment_id.as_deref() {
+                self.note_segment_version(segment, manifest_version_ms(moved))
+                    .await?;
+            }
+            self.maybe_cache_manifest_copy(moved);
+            self.io.metrics().record_segment_refresh(
+                moved.producer,
+                "ok",
+                RefreshTrigger::Handover.as_str(),
+                moved.size,
+                refresh_started.elapsed(),
+            );
+            copied = copied.saturating_add(moved.size);
+        }
+        for evicted in retired {
+            self.evict_segments(evicted).await?;
+        }
+        Ok((copied, 0))
     }
 
     /// Presence answer for the "is it there?" paths (FindMissingBlobs, write
@@ -4448,6 +4584,65 @@ impl Store {
         available_disk_bytes(&self.data_dir)
     }
 
+    /// Allocated bytes under each area of the data dir, in
+    /// `DATA_DIR_USAGE_COMPONENTS` order: what the volume's quota and free space
+    /// count, so a sparse or preallocated file reads at its real footprint.
+    /// Segment files the ring references are `ring_segments`; any other file in
+    /// `segments/` (retired and awaiting cleanup, or orphaned) is
+    /// `retired_segments`. Anything outside the known areas, including files at
+    /// the top of the data dir, is `other`.
+    ///
+    /// Blocking: walks the whole tree. Best effort, like `kura_tmp_dir_bytes`:
+    /// an entry that vanishes or cannot be read mid-walk is skipped.
+    pub fn data_dir_usage_bytes(&self) -> [(&'static str, u64); 7] {
+        let mut usage = DATA_DIR_USAGE_COMPONENTS.map(|component| (component, 0_u64));
+        let mut add = |component: &str, bytes: u64| {
+            if let Some((_, total)) = usage.iter_mut().find(|(name, _)| *name == component) {
+                *total = total.saturating_add(bytes);
+            }
+        };
+        let mut segments = Vec::new();
+        for entry in std::fs::read_dir(&self.data_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let path = entry.path();
+            match entry.file_name().to_str() {
+                Some("segments") => {
+                    for segment in std::fs::read_dir(&path).into_iter().flatten().flatten() {
+                        let segment_id = segment
+                            .file_name()
+                            .to_str()
+                            .and_then(|name| name.strip_suffix(".seg"))
+                            .map(str::to_owned);
+                        segments.push((segment_id, allocated_tree_bytes(&segment.path())));
+                    }
+                }
+                Some(component @ ("rocksdb" | "multipart" | "blobs" | "tmp")) => {
+                    add(component, allocated_tree_bytes(&path));
+                }
+                _ => add("other", allocated_tree_bytes(&path)),
+            }
+        }
+        // Classify against the ring as it stands after the walk. A rotation
+        // drops a segment from the ring before unlinking it, so a segment
+        // retired mid-walk reads as retired rather than as ring.
+        let snapshot = self.segment_state_snapshot();
+        for (segment_id, bytes) in segments {
+            let in_ring = segment_id.is_some_and(|id| snapshot.generations.contains_key(&id));
+            add(
+                if in_ring {
+                    "ring_segments"
+                } else {
+                    "retired_segments"
+                },
+                bytes,
+            );
+        }
+        usage
+    }
+
     fn effective_segment_ring_limits(&self) -> SegmentRingLimits {
         SegmentRingLimits::with_total(self.disk_pressure_segment_limit.load(Ordering::Acquire))
     }
@@ -4528,6 +4723,59 @@ impl Store {
     // retained source record from this sealed segment. Rotation still uses its
     // normal FIFO policy and unchanged capacity; this removes destination-only
     // segments first instead of repairing the shared corpus that FIFO evicts.
+    /// Copies every artifact of sealed `segment_id` that `keep` selects into
+    /// the active segment, without hinting siblings, so a named handover can
+    /// reclaim the rest. Returns the bytes copied and the selected artifacts
+    /// still in the segment; reclaim it only when none are left.
+    pub(crate) async fn compact_handover_segment(
+        &self,
+        segment_id: &str,
+        keep: impl Fn(&str) -> bool,
+    ) -> Result<(u64, u64), String> {
+        if self.is_active_segment(segment_id) || self.segment_generation(segment_id)?.is_none() {
+            return Ok((0, u64::MAX));
+        }
+        let prefix = segment_artifact_index_prefix(segment_id);
+        let (mut copied, mut left) = (0u64, 0u64);
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = self
+                .eviction_index_page(ROCKSDB_CF_SEGMENT_ARTIFACTS, &prefix, cursor.as_deref())
+                .await
+                .map_err(|error| error.to_string())?;
+            let Some(last) = page.last().cloned() else {
+                break;
+            };
+            cursor = Some(last);
+            let (mut chunk, mut chunk_bytes) = (Vec::new(), 0u64);
+            for index_key in page {
+                let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                    .map_err(|error| format!("invalid segment index key: {error}"))?;
+                if !keep(artifact_id) {
+                    continue;
+                }
+                let Some(manifest) = self.manifest(artifact_id)? else {
+                    continue;
+                };
+                if manifest.segment_id.as_deref() != Some(segment_id) {
+                    continue;
+                }
+                chunk_bytes = chunk_bytes.saturating_add(manifest.size);
+                chunk.push(manifest);
+                if chunk_bytes >= HANDOVER_COMPACTION_CHUNK_BYTES {
+                    let (moved, still) = self
+                        .refresh_handover_manifests(segment_id, std::mem::take(&mut chunk))
+                        .await?;
+                    (copied, left) = (copied.saturating_add(moved), left.saturating_add(still));
+                    chunk_bytes = 0;
+                }
+            }
+            let (moved, still) = self.refresh_handover_manifests(segment_id, chunk).await?;
+            (copied, left) = (copied.saturating_add(moved), left.saturating_add(still));
+        }
+        Ok((copied, left))
+    }
+
     pub(crate) async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
         self.finish_segment_retirement(&mut recovery, true).await?;
@@ -4589,6 +4837,9 @@ impl Store {
             );
         }
         if available < required {
+            self.io
+                .metrics()
+                .record_capacity_shed(crate::metrics::shed_kind::DISK_FULL);
             return Err(format!(
                 "{DISK_FULL_MARKER}: insufficient free space for segment rotation; reclamation requested: {available} bytes available, {required} required"
             ));
@@ -10987,6 +11238,11 @@ impl Store {
     }
 
     #[cfg(test)]
+    pub(crate) fn set_manifest_read_observer(&self, observer: Option<Arc<dyn Fn() + Send + Sync>>) {
+        *self.manifest_read_observer.lock().unwrap() = observer;
+    }
+
+    #[cfg(test)]
     pub(crate) fn wal_write_counts(&self) -> (u64, u64, u64) {
         (
             self.wal_sync_write_count.load(Ordering::Relaxed),
@@ -11075,6 +11331,13 @@ impl Store {
         &self,
         artifact_id: &str,
     ) -> Result<Option<ArtifactManifest>, String> {
+        #[cfg(test)]
+        {
+            let observer = self.manifest_read_observer.lock().unwrap().clone();
+            if let Some(observer) = observer {
+                observer();
+            }
+        }
         self.db
             .get_pinned_cf_opt(
                 self.cf(ROCKSDB_CF_MANIFESTS),
@@ -12210,6 +12473,52 @@ fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
     MAX_SEGMENT_BYTES
         .max(incoming_size)
         .saturating_mul(SEGMENT_FREE_SPACE_MARGIN)
+}
+
+/// Components `Store::data_dir_usage_bytes` reports, in order.
+const DATA_DIR_USAGE_COMPONENTS: [&str; 7] = [
+    "ring_segments",
+    "retired_segments",
+    "rocksdb",
+    "multipart",
+    "blobs",
+    "tmp",
+    "other",
+];
+
+/// Allocated bytes of `path` and everything under it, without following
+/// symlinks. Entries that vanish or cannot be read mid-walk are skipped.
+fn allocated_tree_bytes(path: &Path) -> u64 {
+    let mut total = 0_u64;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        total = total.saturating_add(allocated_bytes(&metadata));
+        if metadata.is_dir() {
+            stack.extend(
+                std::fs::read_dir(&path)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .map(|entry| entry.path()),
+            );
+        }
+    }
+    total
+}
+
+#[cfg(unix)]
+fn allocated_bytes(metadata: &std::fs::Metadata) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    // st_blocks is always in 512-byte units, whatever the filesystem block size.
+    metadata.blocks().saturating_mul(512)
+}
+
+#[cfg(not(unix))]
+fn allocated_bytes(metadata: &std::fs::Metadata) -> u64 {
+    metadata.len()
 }
 
 #[cfg(unix)]
@@ -13893,6 +14202,7 @@ mod tests {
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
             relaxed_durability_sync_interval_ms: None,
+            reapi_splice_verification_concurrency: 4,
             segment_handle_cache_size: 8,
             memory_limit_bytes: 512 * 1024 * 1024,
             memory_soft_limit_bytes: 128 * 1024 * 1024,
@@ -13932,6 +14242,7 @@ mod tests {
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
             sentry_dsn: None,
+            sentry_pulse_dsn: None,
             request_log_sample_rate: 0.0,
             slow_request_threshold_ms: 30_000,
             warning_log_interval_ms: 60_000,
@@ -19993,6 +20304,112 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn handover_compaction_copies_kept_artifacts_out_before_the_segment_is_reclaimed() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.sync_feed_activate().await.unwrap();
+        let mut manifests = Vec::new();
+        for key in ["retained", "destination-only"] {
+            manifests.push(
+                store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        key,
+                        "application/octet-stream",
+                        key.as_bytes(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+        let segment = manifests[0].segment_id.clone().unwrap();
+        assert_eq!(manifests[1].segment_id.as_deref(), Some(segment.as_str()));
+        assert_eq!(
+            store
+                .compact_handover_segment(&segment, |_| true)
+                .await
+                .unwrap(),
+            (0, u64::MAX),
+            "the active segment is never compacted"
+        );
+        store.age_every_segment_for_test();
+        let retained = manifests[0].artifact_id.clone();
+        let feed_head = store.sync_feed().head();
+
+        let (copied, left) = store
+            .compact_handover_segment(&segment, |id| id == retained)
+            .await
+            .unwrap();
+
+        assert_eq!((copied, left), (manifests[0].size, 0));
+        let moved = store.manifest(&retained).unwrap().unwrap();
+        assert_ne!(moved.segment_id.as_deref(), Some(segment.as_str()));
+        assert!(
+            store.pending_promotion_for_test(&retained).is_none()
+                && store.sync_feed().head() == feed_head,
+            "compaction neither queues a promotion nor hints the source"
+        );
+        store.reclaim_handover_segment(&segment).await.unwrap();
+        assert_eq!(
+            store.read_artifact_bytes(&moved).await.unwrap(),
+            b"retained".to_vec()
+        );
+        assert!(store.manifest(&manifests[1].artifact_id).unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn handover_compaction_syncs_once_per_page_not_once_per_artifact() {
+        let (_temp_dir, _config, store) = temp_store();
+        let mut manifests = Vec::new();
+        for index in 0..64 {
+            manifests.push(
+                store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        &format!("small-{index}"),
+                        "application/octet-stream",
+                        &[index as u8; 4096],
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+        let segment = manifests[0].segment_id.clone().unwrap();
+        assert!(
+            manifests
+                .iter()
+                .all(|manifest| manifest.segment_id.as_deref() == Some(segment.as_str()))
+        );
+        store.age_every_segment_for_test();
+        let fsyncs = store.segment_fsync_count.load(Ordering::Relaxed);
+
+        let (copied, left) = store
+            .compact_handover_segment(&segment, |_| true)
+            .await
+            .unwrap();
+
+        assert_eq!((copied, left), (64 * 4096, 0));
+        assert!(
+            store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs <= 2,
+            "compaction fsynced {} times for one page",
+            store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs
+        );
+        for (index, manifest) in manifests.iter().enumerate() {
+            let moved = store.manifest(&manifest.artifact_id).unwrap().unwrap();
+            assert_ne!(moved.segment_id.as_deref(), Some(segment.as_str()));
+            assert_eq!(
+                store.read_artifact_bytes(&moved).await.unwrap(),
+                vec![index as u8; 4096]
+            );
+        }
+        store.reclaim_handover_segment(&segment).await.unwrap();
+        for manifest in &manifests {
+            assert!(store.manifest(&manifest.artifact_id).unwrap().is_some());
+        }
+    }
+
+    #[tokio::test]
     async fn cancelled_handover_reclamation_respects_pins_and_finishes_retirement() {
         let (_temp_dir, _config, store) = temp_store();
         let store = Arc::new(store);
@@ -24667,6 +25084,15 @@ mod tests {
                 .unwrap_err()
                 .contains(DISK_FULL_MARKER)
         );
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .lines()
+                .any(|line| line == "kura_capacity_sheds_total_total{kind=\"disk_full\"} 1"),
+            "a refused rotation must count as a disk_full shed"
+        );
         for expected_count in [7, 6, 5] {
             store.reclaim_segment_headroom(1).await.unwrap();
             assert_eq!(
@@ -25525,6 +25951,52 @@ mod tests {
             "handover",
         );
         assert_eq!(store.retained_loss_evictions(), 2);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn data_dir_usage_attributes_allocated_bytes_by_component() {
+        let (_temp_dir, config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                &[7_u8; 256 * 1024],
+            )
+            .await
+            .expect("artifact should persist");
+        let data = |path: &str| config.data_dir.join(path);
+        // A segment file the ring no longer references, a multipart part, a
+        // file in the staging dir and one at the top of the data dir.
+        std::fs::write(data("segments/retired.seg"), [1_u8; 192 * 1024]).unwrap();
+        std::fs::create_dir_all(data("multipart/upload")).unwrap();
+        std::fs::write(data("multipart/upload/part-1"), [2_u8; 128 * 1024]).unwrap();
+        std::fs::create_dir_all(data("tmp/uploads")).unwrap();
+        std::fs::write(data("tmp/uploads/staged"), [3_u8; 64 * 1024]).unwrap();
+        std::fs::write(data("stray"), [4_u8; 96 * 1024]).unwrap();
+        // A sparse file: its length is not what it occupies on the volume.
+        std::fs::File::create(data("blobs/sparse"))
+            .unwrap()
+            .set_len(1 << 30)
+            .unwrap();
+
+        let usage = HashMap::from(store.data_dir_usage_bytes());
+        let allocated = |path: &str| allocated_bytes(&std::fs::metadata(data(path)).unwrap());
+        assert!(
+            usage["ring_segments"] >= 256 * 1024,
+            "the persisted artifact's segment is in the ring: {usage:?}"
+        );
+        assert_eq!(usage["retired_segments"], allocated("segments/retired.seg"));
+        assert!(usage["multipart"] >= allocated("multipart/upload/part-1"));
+        assert!(usage["tmp"] >= allocated("tmp/uploads/staged"));
+        assert!(usage["other"] >= allocated("stray"));
+        assert!(usage["rocksdb"] > 0);
+        assert!(
+            usage["blobs"] < 1 << 20,
+            "a sparse file counts its allocated blocks, not its length: {usage:?}"
+        );
     }
 
     #[tokio::test]

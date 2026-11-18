@@ -2,8 +2,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   @moduledoc """
   English marketing decision guides and unchanged policy sources.
 
-  Problem and comparison guides are Markdown-only documents, discovered through
-  the Markdown homepage and `/llms.txt`, not standalone browser pages.
+  Problem, comparison, and build-system guides are also English-only browser
+  pages rendered from the same Markdown, with links to Markdown representations
+  pointed at their HTML counterparts.
 
   Keep capabilities and constraints aligned with the corresponding HTML and
   feature documentation. Individual articles retain HTML-to-Markdown negotiation;
@@ -13,6 +14,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Customers
+  alias Tuist.Marketing.MDExConverter
   alias Tuist.Marketing.Newsletter
 
   @catalog_limit 20
@@ -22,7 +24,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
     Path.join(@guide_directory, "[a-z]*.md"),
     Path.join(@guide_directory, "solutions/[a-z]*.md"),
     Path.join(@guide_directory, "compare/[a-z]*.md"),
-    Path.join(@guide_directory, "build-systems/[a-z]*.md")
+    Path.join(@guide_directory, "build-systems/[a-z]*.md"),
+    Path.join(@guide_directory, "runners/[a-z]*.md")
   ]
   @policy_pattern Path.expand("../../../priv/marketing/pages/*.md", __DIR__)
   @patterns [@policy_pattern | @guide_patterns]
@@ -63,12 +66,75 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   @decision_guides @guides
                    |> Enum.filter(fn {path, _markdown} ->
                      path in ["/compare", "/build-systems"] or
-                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/"])
+                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/", "/runners/"])
                    end)
                    |> Map.new(fn {path, markdown} ->
                      [heading, description | _rest] = String.split(markdown, "\n\n")
                      {path, %{path: path, title: String.trim_leading(heading, "# "), description: description}}
                    end)
+
+  # Browser pages for the decision guides, rendered from the same Markdown.
+  # The page template renders the title, and links to Markdown representations
+  # point at their HTML counterparts instead.
+  @guide_pages Map.new(@decision_guides, fn {path, guide} ->
+                 [_heading, body] = String.split(@guides[path], "\n\n", parts: 2)
+
+                 body =
+                   body
+                   |> then(&Regex.replace(~r{\]\(/marketing-markdown/?}, &1, "](/"))
+                   |> then(&Regex.replace(~r|\]\((/[a-z]{2})/docs-markdown/|, &1, "](\\1/docs/"))
+
+                 {html, _template} = MDExConverter.compile_markdown(body, path, false)
+
+                 last_updated =
+                   case Regex.run(~r/(?:checked|reviewed) on \*\*(\d{4}-\d{2}-\d{2})\*\*/, body) do
+                     [_match, date] -> Date.from_iso8601!(date)
+                     nil -> nil
+                   end
+
+                 head_description =
+                   ~r/\[([^\]]+)\]\([^)]+\)/
+                   |> Regex.replace(guide.description, "\\1")
+                   |> String.replace(["**", "`"], "")
+
+                 # FAQPage structured data comes from the rendered FAQ section,
+                 # so it always matches what readers see: each `###` question
+                 # under `## Frequently asked questions` and the blocks up to
+                 # the next question.
+                 faqs =
+                   html
+                   |> Floki.parse_fragment!()
+                   |> Enum.filter(&is_tuple/1)
+                   |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
+                   |> Enum.drop(1)
+                   |> Enum.take_while(&(elem(&1, 0) != "h2"))
+                   |> Enum.drop_while(&(elem(&1, 0) != "h3"))
+                   |> Enum.chunk_while(
+                     [],
+                     fn
+                       {"h3", _, _} = question, [] -> {:cont, [question]}
+                       {"h3", _, _} = question, chunk -> {:cont, Enum.reverse(chunk), [question]}
+                       node, chunk -> {:cont, [node | chunk]}
+                     end,
+                     fn
+                       [] -> {:cont, []}
+                       chunk -> {:cont, Enum.reverse(chunk), []}
+                     end
+                   )
+                   |> Enum.map(fn [question | answer] ->
+                     {Floki.text(question), Enum.map_join(answer, " ", &Floki.raw_html/1)}
+                   end)
+
+                 {path,
+                  Map.merge(guide, %{
+                    slug: path,
+                    body: html,
+                    head_description: head_description,
+                    last_updated: last_updated,
+                    faqs: faqs,
+                    logo: nil
+                  })}
+               end)
 
   def __mix_recompile__? do
     @patterns |> Enum.flat_map(&Path.wildcard/1) |> Enum.sort() |> :erlang.md5() != @paths_digest
@@ -84,6 +150,21 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
     |> Map.values()
     |> Enum.sort_by(& &1.path)
     |> Enum.map(fn page -> %{page | description: render(page.description)} end)
+  end
+
+  def guide_page_paths, do: @guide_pages |> Map.keys() |> Enum.sort()
+
+  def guide_page(path), do: Map.get(@guide_pages, path)
+
+  # The short name of any authored guide, for breadcrumbs: its heading up to
+  # the first colon ("Tuist Runners" for "# Tuist Runners: managed …").
+  # Covers landing pages such as `/runners` that parent decision guides
+  # without being one themselves.
+  def short_title(path) do
+    case Map.fetch(@guides, path) do
+      {:ok, "# " <> markdown} -> markdown |> String.split("\n", parts: 2) |> hd() |> String.split(": ") |> hd()
+      _ -> nil
+    end
   end
 
   def get(path) do

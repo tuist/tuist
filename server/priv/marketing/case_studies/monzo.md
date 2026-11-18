@@ -5,6 +5,14 @@ url: "https://monzo.com/"
 founded_date: "2015"
 company: "Monzo"
 excerpt: "Monzo used Tuist to cut median PR time from 52 to 15 minutes while scaling its codebase to nearly 200 modules."
+# onboarded_date: "YYYY-MM-DD"  # TODO: confirm with Monzo the month it started using Tuist (the story only says it already used project generation).
+results:
+  - metric: "P50 pull request time"
+    before: "52 min"
+    after: "15 min"
+  - metric: "P90 pull request time"
+    before: "57 min"
+    after: "35 min"
 ---
 
 ## The challenge

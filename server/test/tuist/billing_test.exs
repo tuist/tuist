@@ -12,8 +12,13 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.UsagePricing
   alias Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorker
   alias Tuist.Environment
+  alias Tuist.IngestRepo
+  alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.CacheVolumes.SavedSize
+  alias Tuist.Runners.CacheVolumes.Volume
+  alias Tuist.Runners.Concurrency
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -471,6 +476,45 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert Billing.get_current_active_subscription(account).plan == :pro
+    end
+
+    test "raises an Air account's runner limits to the paid plan's, never lowering one and never again on redelivery" do
+      # Given an Air account whose Linux limit an operator already raised past Pro's
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
+
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 48,
+          runner_linux_memory_gb_limit: 96,
+          runner_macos_vcpus_limit: 8,
+          runner_macos_memory_gb_limit: 24
+        })
+
+      event = fn status ->
+        Billing.on_subscription_change(%{
+          id: "sub_some-id",
+          status: status,
+          customer: "customer_id",
+          default_payment_method: "pm_some-id",
+          items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+        })
+      end
+
+      # When
+      event.("active")
+      event.("active")
+      event.("canceled")
+
+      # Then
+      assert Concurrency.limits_for(account, :macos) == %{vcpus: 16, memory_gb: 48}
+      assert Concurrency.limits_for(account, :linux) == %{vcpus: 48, memory_gb: 96}
+
+      assert [%{platform: :macos, vcpus: 16, memory_gb: 48}] =
+               Repo.all(
+                 from(h in Tuist.Runners.ConcurrencyHistory, where: h.account_id == ^account.id and h.source == "plan")
+               )
     end
 
     test "when it's a new enterprise monthly subscription" do
@@ -1301,6 +1345,82 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "add_missing_runner_items/1" do
+    setup do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "runner.linux",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos.new"
+          },
+          "retired_runners" => %{"runner_macos_compute_unit_milliseconds" => ["runner.macos.old"]}
+        }
+      end)
+
+      accounts =
+        Map.new(["sub_macos", "sub_retired", "sub_both", "sub_trial", "sub_scheduled"], fn subscription_id ->
+          account = AccountsFixtures.user_fixture(preload: [:account]).account
+          BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: subscription_id, status: "active")
+          {subscription_id, account.id}
+        end)
+
+      stub(Stripe.Subscription, :retrieve, fn
+        "sub_macos" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "runner.macos.new"])}
+
+        "sub_retired" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "runner.macos.old"])}
+
+        "sub_both" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "runner.macos.new", "runner.linux"])}
+
+        "sub_trial" ->
+          {:ok, stripe_subscription("active", ["pro.usage", "pro.flat.monthly"])}
+
+        "sub_scheduled" ->
+          {:ok, %{stripe_subscription("active", ["runner.macos.new"]) | schedule: "sub_sched_1"}}
+      end)
+
+      %{accounts: accounts}
+    end
+
+    test "only reports what it would do by default" do
+      # Given
+      reject(&Stripe.Subscription.update/2)
+
+      # When
+      got = Billing.add_missing_runner_items()
+
+      # Then
+      assert Map.new(got, &{&1.subscription_id, {&1.action, &1.result}}) == %{
+               "sub_macos" => {{:add, [%{price: "runner.linux"}]}, :dry_run},
+               "sub_retired" => {{:add, [%{price: "runner.linux"}]}, :dry_run},
+               "sub_scheduled" => {{:skip, :scheduled}, :skipped}
+             }
+    end
+
+    test "adds the Linux item beside a macOS one without prorating", %{accounts: accounts} do
+      # Given
+      expect(Stripe.Subscription, :update, 2, fn subscription_id, params ->
+        assert subscription_id in ["sub_macos", "sub_retired"]
+        assert params == %{items: [%{price: "runner.linux"}], proration_behavior: "none"}
+        {:ok, %Stripe.Subscription{}}
+      end)
+
+      # When
+      got = Billing.add_missing_runner_items(dry_run: false)
+
+      # Then
+      assert Enum.find(got, &(&1.subscription_id == "sub_macos")) == %{
+               subscription_id: "sub_macos",
+               account_id: accounts["sub_macos"],
+               action: {:add, [%{price: "runner.linux"}]},
+               result: :ok
+             }
+    end
+  end
+
   describe "usage meter Prices" do
     setup do
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
@@ -1466,6 +1586,48 @@ defmodule Tuist.BillingTest do
              ]
     end
 
+    test "adds remote execution to the Linux runner meter" do
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer-#{UUIDv7.generate()}")
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      stub(Environment, :stripe_prices, fn -> %{"runners" => %{"runner_linux_compute_unit_milliseconds" => ""}} end)
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _from, _to -> [] end)
+
+      event = fn inserted_at ->
+        %{
+          id: UUIDv7.generate(),
+          account_id: account.id,
+          project_id: 1,
+          sandbox_id: UUIDv7.generate(),
+          mode: "leased",
+          vcpus: 4,
+          memory_mb: 8_192,
+          duration_ms: 60_000,
+          inserted_at: inserted_at
+        }
+      end
+
+      # The second action finished after the window, so it belongs to the
+      # next report.
+      IngestRepo.insert_all(RemoteExecutionUsageEvent, [
+        event.(~N[2026-07-16 10:00:00.000000]),
+        event.(~N[2026-07-17 00:00:00.000000])
+      ])
+
+      # A minute on 4 vCPU / 8 GB ($0.004) is 1.66 baseline minutes ($0.0024).
+      assert [%{event_name: "runner_linux_compute_unit_milliseconds", value: value}] =
+               Billing.customer_meter_values(account, period_start, period_end)
+
+      assert value in 99_990..100_000
+
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _from, _to ->
+        [%{platform: :linux, total_units: 400_000}]
+      end)
+
+      assert [%{value: combined}] = Billing.customer_meter_values(account, period_start, period_end)
+      assert combined == value + 400_000
+    end
+
     test "reports a platform whose Meter exists but whose Price is not set yet" do
       customer_id = "customer-#{UUIDv7.generate()}"
       %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
@@ -1486,6 +1648,40 @@ defmodule Tuist.BillingTest do
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
                %{event_name: "runner_macos_compute_unit_milliseconds", value: 750_125}
+             ]
+    end
+
+    test "reports cache volume storage in megabyte-months once its key exists" do
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer-#{UUIDv7.generate()}")
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      stub(RunnerBilling, :compute_units_by_platform, fn _account_id, _period_start, _period_end -> [] end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository_id: 1,
+          repository: "org/app",
+          key: "deps",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      Repo.insert!(%SavedSize{
+        volume_id: volume.id,
+        size_bytes: 73_000_000_000,
+        observed_at: ~U[2026-07-01 00:00:00.000000Z]
+      })
+
+      assert Billing.customer_meter_values(account, period_start, period_end) == []
+
+      stub(Environment, :stripe_prices, fn ->
+        %{"runners" => %{"runner_cache_volume_megabyte_months" => ""}}
+      end)
+
+      # 73 GB for a day of a 730-hour month is 2.4 GB-months.
+      assert Billing.customer_meter_values(account, period_start, period_end) == [
+               %{event_name: "runner_cache_volume_megabyte_months", value: 2_400}
              ]
     end
 

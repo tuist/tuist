@@ -119,9 +119,28 @@ spec:
             # No proxy mounted on this listener; only /healthz.
             - name: HEALTH_ADDR
               value: ":{{ .Values.kubeImpersonator.healthPort }}"
+            {{- if .Values.orbAccess.enabled }}
+            # Orb listener: on the pod IP so ingress-nginx reaches it.
+            # Every request must carry a valid Amp token for this
+            # audience and workspace; see kube-impersonator/orb.go.
+            - name: ORB_LISTEN_ADDR
+              value: ":{{ .Values.orbAccess.port }}"
+            - name: ORB_ISSUER
+              value: {{ .Values.orbAccess.issuer | quote }}
+            - name: ORB_AUDIENCE
+              value: {{ printf "https://%s" .Values.orbAccess.hostname | quote }}
+            - name: ORB_WORKSPACE_ID
+              value: {{ required "orbAccess.workspaceID is required" .Values.orbAccess.workspaceID | quote }}
+            - name: ORB_PROJECT_ID
+              value: {{ required "orbAccess.projectID is required" .Values.orbAccess.projectID | quote }}
+            {{- end }}
           ports:
             - name: imp-health
               containerPort: {{ .Values.kubeImpersonator.healthPort }}
+            {{- if .Values.orbAccess.enabled }}
+            - name: orb
+              containerPort: {{ .Values.orbAccess.port }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz

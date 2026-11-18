@@ -229,7 +229,7 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
     socket
     |> assign(
       :page_title,
-      gettext("%{token} · Inference · Atlas", token: token.name)
+      gettext("%{token} · Inference", token: token.name)
     )
     |> assign(:token, token)
     |> assign(:profile, profile)

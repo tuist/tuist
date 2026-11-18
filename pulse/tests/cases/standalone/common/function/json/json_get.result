@@ -1,0 +1,541 @@
+-- json_get functions --
+-- Invalid paths must report errors; a valid path with no match returns NULL.
+SELECT json_get_int(parse_json('{"a": 1}'), '$.a[');
+
+Error: 3001(EngineExecuteQuery), Execution error: Invalid JSONPath "$.a[": InvalidJsonPath
+
+SELECT json_get_int(parse_json('{"a": 1}'), '$.missing');
+
++--------------------------------------------------------------+
+| json_get_int(parse_json(Utf8("{"a": 1}")),Utf8("$.missing")) |
++--------------------------------------------------------------+
+|                                                              |
++--------------------------------------------------------------+
+
+-- Unterminated quoted fields must return errors without panicking.
+SELECT json_get_int(parse_json('{"a": 1}'), '$."a');
+
+Error: 3001(EngineExecuteQuery), Execution error: Invalid JSONPath "$.\"a": InvalidJsonPath
+
+SELECT json_get_object(parse_json('{"a": {}}'), '$["a');
+
+Error: 3001(EngineExecuteQuery), Execution error: InvalidJsonPath
+
+CREATE TABLE jsonpath_unterminated(j JSON2, ts TIMESTAMP TIME INDEX) WITH (append_mode='true');
+
+Affected Rows: 0
+
+INSERT INTO jsonpath_unterminated VALUES ('{"a": 1}', 1);
+
+Affected Rows: 1
+
+SELECT json_get(j, '$."a') FROM jsonpath_unterminated;
+
+Error: 3000(PlanQuery), Error during planning: Invalid JSONPath "$.\"a": InvalidJsonPath
+
+SELECT json_get(j, '$."a"')::BIGINT FROM jsonpath_unterminated;
+
++-------------------------------------------------+
+| json_get(jsonpath_unterminated.j,Utf8("$."a"")) |
++-------------------------------------------------+
+| 1                                               |
++-------------------------------------------------+
+
+DROP TABLE jsonpath_unterminated;
+
+Affected Rows: 0
+
+-- JSON and JSON2 share integer conversion rules.
+CREATE TABLE json_integer_conversion(j JSON, j2 JSON2, ts TIMESTAMP TIME INDEX)
+WITH (append_mode='true');
+
+Affected Rows: 0
+
+INSERT INTO json_integer_conversion VALUES
+    ('{"a":1.5}', '{"a":1.5}', 1),
+    ('{"a":-1.5}', '{"a":-1.5}', 2),
+    ('{"a":"1.5"}', '{"a":"1.5"}', 3);
+
+Affected Rows: 3
+
+SELECT
+    json_get(j, 'a')::BIGINT AS json_int,
+    json_get(j2, 'a')::BIGINT AS json2_int,
+    json_get_int(j, 'a') AS json_get_int,
+    json_get_int(j2, 'a') AS json2_get_int
+FROM json_integer_conversion ORDER BY ts;
+
++----------+-----------+--------------+---------------+
+| json_int | json2_int | json_get_int | json2_get_int |
++----------+-----------+--------------+---------------+
+| 1        | 1         | 1            | 1             |
+| -1       | -1        | -1           | -1            |
+|          |           |              |               |
++----------+-----------+--------------+---------------+
+
+DROP TABLE json_integer_conversion;
+
+Affected Rows: 0
+
+SELECT json_get_int(parse_json('{"a": {"b": {"c": 1}}}'), 'a.b.c');
+
++------------------------------------------------------------------------+
+| json_get_int(parse_json(Utf8("{"a": {"b": {"c": 1}}}")),Utf8("a.b.c")) |
++------------------------------------------------------------------------+
+| 1                                                                      |
++------------------------------------------------------------------------+
+
+SELECT json_get_float(parse_json('{"a": {"b": {"c": 1.234}}}'), 'a:b.c');
+
++------------------------------------------------------------------------------+
+| json_get_float(parse_json(Utf8("{"a": {"b": {"c": 1.234}}}")),Utf8("a:b.c")) |
++------------------------------------------------------------------------------+
+| 1.234                                                                        |
++------------------------------------------------------------------------------+
+
+SELECT json_get_string(parse_json('{"a": {"b": {"c": "foo"}}}'), 'a.b:c');
+
++-------------------------------------------------------------------------------+
+| json_get_string(parse_json(Utf8("{"a": {"b": {"c": "foo"}}}")),Utf8("a.b:c")) |
++-------------------------------------------------------------------------------+
+| foo                                                                           |
++-------------------------------------------------------------------------------+
+
+SELECT json_get_bool(parse_json('{"a": {"b": {"c": true}}}'), 'a.b["c"]');
+
++-------------------------------------------------------------------------------+
+| json_get_bool(parse_json(Utf8("{"a": {"b": {"c": true}}}")),Utf8("a.b["c"]")) |
++-------------------------------------------------------------------------------+
+| true                                                                          |
++-------------------------------------------------------------------------------+
+
+SELECT json_get_int(parse_json('{"a": {"b": {"c": {"d": 1}}}}'), 'a.b');
+
++-----------------------------------------------------------------------------+
+| json_get_int(parse_json(Utf8("{"a": {"b": {"c": {"d": 1}}}}")),Utf8("a.b")) |
++-----------------------------------------------------------------------------+
+|                                                                             |
++-----------------------------------------------------------------------------+
+
+SELECT json_get_string(parse_json('{"a": {"b": {"c": {"d": 1}}}}'), 'a.b');
+
++--------------------------------------------------------------------------------+
+| json_get_string(parse_json(Utf8("{"a": {"b": {"c": {"d": 1}}}}")),Utf8("a.b")) |
++--------------------------------------------------------------------------------+
+|                                                                                |
++--------------------------------------------------------------------------------+
+
+SELECT json_to_string(json_get_object(parse_json('{"a": {"b": {"c": {"d": 42}}}}'), 'a.b.c'));
+
++---------------------------------------------------------------------------------------------------+
+| json_to_string(json_get_object(parse_json(Utf8("{"a": {"b": {"c": {"d": 42}}}}")),Utf8("a.b.c"))) |
++---------------------------------------------------------------------------------------------------+
+| {"d":42}                                                                                          |
++---------------------------------------------------------------------------------------------------+
+
+SELECT json_get_int(json_get_object(parse_json('{"a": {"b": {"c": {"d": 42}}}}'), 'a.b.c'), 'd');
+
++-----------------------------------------------------------------------------------------------------------+
+| json_get_int(json_get_object(parse_json(Utf8("{"a": {"b": {"c": {"d": 42}}}}")),Utf8("a.b.c")),Utf8("d")) |
++-----------------------------------------------------------------------------------------------------------+
+| 42                                                                                                        |
++-----------------------------------------------------------------------------------------------------------+
+
+SELECT json_get_object(parse_json('{"a": {"b": {"c": {"d": 42}}}}'), 'a.e');
+
++---------------------------------------------------------------------------------+
+| json_get_object(parse_json(Utf8("{"a": {"b": {"c": {"d": 42}}}}")),Utf8("a.e")) |
++---------------------------------------------------------------------------------+
+|                                                                                 |
++---------------------------------------------------------------------------------+
+
+-- test functions with table rows --
+CREATE TABLE jsons(j JSON, ts timestamp time index);
+
+Affected Rows: 0
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": 1}}}'), 1);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": 1.234}}}'), 2);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": "foo"}}}'), 3);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": true}}}'), 4);
+
+Affected Rows: 1
+
+SELECT json_get_int(j, 'a.b.c') FROM jsons;
+
++-------------------------------------+
+| json_get_int(jsons.j,Utf8("a.b.c")) |
++-------------------------------------+
+| 1                                   |
+| 1                                   |
+|                                     |
+| 1                                   |
++-------------------------------------+
+
+SELECT json_get_float(j, 'a["b"].c') FROM jsons;
+
++------------------------------------------+
+| json_get_float(jsons.j,Utf8("a["b"].c")) |
++------------------------------------------+
+| 1.0                                      |
+| 1.234                                    |
+|                                          |
+| 1.0                                      |
++------------------------------------------+
+
+SELECT json_get_string(j, 'a.b.c?(@ == 1)') FROM jsons;
+
++-------------------------------------------------+
+| json_get_string(jsons.j,Utf8("a.b.c?(@ == 1)")) |
++-------------------------------------------------+
+| 1                                               |
+|                                                 |
+|                                                 |
+|                                                 |
++-------------------------------------------------+
+
+SELECT json_get_bool(j, 'a.b.c') FROM jsons;
+
++--------------------------------------+
+| json_get_bool(jsons.j,Utf8("a.b.c")) |
++--------------------------------------+
+|                                      |
+|                                      |
+|                                      |
+| true                                 |
++--------------------------------------+
+
+SELECT json_get_int(j, 'a.b["c"]') FROM jsons;
+
++----------------------------------------+
+| json_get_int(jsons.j,Utf8("a.b["c"]")) |
++----------------------------------------+
+| 1                                      |
+| 1                                      |
+|                                        |
+| 1                                      |
++----------------------------------------+
+
+SELECT json_to_string(json_get_object(j, 'a.b')) FROM jsons;
+
++------------------------------------------------------+
+| json_to_string(json_get_object(jsons.j,Utf8("a.b"))) |
++------------------------------------------------------+
+| {"c":1}                                              |
+| {"c":1.234}                                          |
+| {"c":"foo"}                                          |
+| {"c":true}                                           |
++------------------------------------------------------+
+
+SELECT json_get_string(json_get_object(j, 'a.b'), 'c') FROM jsons;
+
++-----------------------------------------------------------------+
+| json_get_string(json_get_object(jsons.j,Utf8("a.b")),Utf8("c")) |
++-----------------------------------------------------------------+
+| 1                                                               |
+| 1.234                                                           |
+| foo                                                             |
+| true                                                            |
++-----------------------------------------------------------------+
+
+SELECT json_get_object(j, 'a.x') FROM jsons;
+
++--------------------------------------+
+| json_get_object(jsons.j,Utf8("a.x")) |
++--------------------------------------+
+|                                      |
+|                                      |
+|                                      |
+|                                      |
++--------------------------------------+
+
+DROP TABLE jsons;
+
+Affected Rows: 0
+
+-- test functions with arrays --
+CREATE TABLE jsons(j JSON, ts timestamp time index);
+
+Affected Rows: 0
+
+INSERT INTO jsons VALUES(parse_json('["a", "bcde", "", "Long time ago, there is a little pig flying in the sky"]'), 1);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('[true, false, false, false]'), 2);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('[1, 0, -2147483649, 2147483648]'), 3);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('[1.2, 3.1415926535897932384626, -3e123, 1e100]'), 4);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('[{"a": {"i": 1}}, {"a": {"i": 2}}, {"a": {"i": 3}}]'), 5);
+
+Affected Rows: 1
+
+SELECT json_get_int(j, '[0]') FROM jsons;
+
++-----------------------------------+
+| json_get_int(jsons.j,Utf8("[0]")) |
++-----------------------------------+
+|                                   |
+| 1                                 |
+| 1                                 |
+| 1                                 |
+|                                   |
++-----------------------------------+
+
+SELECT json_get_float(j, '[1]') FROM jsons;
+
++-------------------------------------+
+| json_get_float(jsons.j,Utf8("[1]")) |
++-------------------------------------+
+|                                     |
+| 0.0                                 |
+| 0.0                                 |
+| 3.141592653589793                   |
+|                                     |
++-------------------------------------+
+
+SELECT json_get_bool(j, '[2]') FROM jsons;
+
++------------------------------------+
+| json_get_bool(jsons.j,Utf8("[2]")) |
++------------------------------------+
+|                                    |
+| false                              |
+|                                    |
+|                                    |
+|                                    |
++------------------------------------+
+
+SELECT json_get_string(j, '[3]') FROM jsons;
+
++--------------------------------------------------------+
+| json_get_string(jsons.j,Utf8("[3]"))                   |
++--------------------------------------------------------+
+| Long time ago, there is a little pig flying in the sky |
+| false                                                  |
+| 2147483648                                             |
+| 1e+100                                                 |
+|                                                        |
++--------------------------------------------------------+
+
+SELECT json_to_string(json_get_object(j, '[0]')) FROM jsons;
+
++------------------------------------------------------+
+| json_to_string(json_get_object(jsons.j,Utf8("[0]"))) |
++------------------------------------------------------+
+|                                                      |
+|                                                      |
+|                                                      |
+|                                                      |
+| {"a":{"i":1}}                                        |
++------------------------------------------------------+
+
+SELECT json_get_int(json_get_object(j, '[0]'), 'a.i') FROM jsons;
+
++----------------------------------------------------------------+
+| json_get_int(json_get_object(jsons.j,Utf8("[0]")),Utf8("a.i")) |
++----------------------------------------------------------------+
+|                                                                |
+|                                                                |
+|                                                                |
+|                                                                |
+| 1                                                              |
++----------------------------------------------------------------+
+
+SELECT json_get_int(json_get_object(j, '[9]'), 'a.i') FROM jsons;
+
++----------------------------------------------------------------+
+| json_get_int(json_get_object(jsons.j,Utf8("[9]")),Utf8("a.i")) |
++----------------------------------------------------------------+
+|                                                                |
+|                                                                |
+|                                                                |
+|                                                                |
+|                                                                |
++----------------------------------------------------------------+
+
+SELECT json_get(j, '[0]')::int8 FROM jsons;
+
++---------------------------------------------------------+
+| arrow_cast(json_get(jsons.j,Utf8("[0]")),Utf8("Int64")) |
++---------------------------------------------------------+
+|                                                         |
+| 1                                                       |
+| 1                                                       |
+| 1                                                       |
+|                                                         |
++---------------------------------------------------------+
+
+SELECT json_get(j, '[0]')::double FROM jsons;
+
++-------------------------------+
+| json_get(jsons.j,Utf8("[0]")) |
++-------------------------------+
+|                               |
+| 1.0                           |
+| 1.0                           |
+| 1.2                           |
+|                               |
++-------------------------------+
+
+SELECT json_get(j, '[1]')::int8 FROM jsons;
+
++---------------------------------------------------------+
+| arrow_cast(json_get(jsons.j,Utf8("[1]")),Utf8("Int64")) |
++---------------------------------------------------------+
+|                                                         |
+| 0                                                       |
+| 0                                                       |
+| 3                                                       |
+|                                                         |
++---------------------------------------------------------+
+
+SELECT json_get(j, '[1]')::double FROM jsons;
+
++-------------------------------+
+| json_get(jsons.j,Utf8("[1]")) |
++-------------------------------+
+|                               |
+| 0.0                           |
+| 0.0                           |
+| 3.141592653589793             |
+|                               |
++-------------------------------+
+
+SELECT json_get(j, '[2]')::bool FROM jsons;
+
++-----------------------------------------------------------+
+| arrow_cast(json_get(jsons.j,Utf8("[2]")),Utf8("Boolean")) |
++-----------------------------------------------------------+
+|                                                           |
+| false                                                     |
+|                                                           |
+|                                                           |
+|                                                           |
++-----------------------------------------------------------+
+
+SELECT json_get(j, '[3]')::string FROM jsons;
+
++--------------------------------------------------------+
+| json_get(jsons.j,Utf8("[3]"))                          |
++--------------------------------------------------------+
+| Long time ago, there is a little pig flying in the sky |
+| false                                                  |
+| 2147483648                                             |
+| 1e+100                                                 |
+|                                                        |
++--------------------------------------------------------+
+
+DROP TABLE jsons;
+
+Affected Rows: 0
+
+-- test functions in WHERE clause --
+CREATE TABLE jsons(j JSON, ts timestamp time index);
+
+Affected Rows: 0
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": 1}}}'), 1);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": 1.234}}}'), 2);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": "foo"}}}'), 3);
+
+Affected Rows: 1
+
+INSERT INTO jsons VALUES(parse_json('{"a": {"b": {"c": true}}}'), 4);
+
+Affected Rows: 1
+
+SELECT json_to_string(j) FROM jsons WHERE json_get_int(j, 'a.b.c') = 1;
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":1}}}     |
+| {"a":{"b":{"c":1.234}}} |
+| {"a":{"b":{"c":true}}}  |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE json_get_float(j, 'a.b.c') = 1.234;
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":1.234}}} |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE json_get_string(j, 'a.b.c') = 'foo';
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":"foo"}}} |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE json_get_bool(j, 'a.b.c') = true;
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":true}}}  |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE CAST(json_get_int(j, 'a.b.c') AS BOOLEAN);
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":1}}}     |
+| {"a":{"b":{"c":1.234}}} |
+| {"a":{"b":{"c":true}}}  |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE json_get_string(json_get_object(j, 'a.b'), 'c') == 'foo';
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":"foo"}}} |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE json_to_string(json_get_object(j, 'a.b')) == '{"c":1}';
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
+| {"a":{"b":{"c":1}}}     |
++-------------------------+
+
+SELECT json_to_string(j) FROM jsons WHERE json_get_string(json_get_object(j, 'a.x'), 'c') == 'foo';
+
++-------------------------+
+| json_to_string(jsons.j) |
++-------------------------+
++-------------------------+
+
+DROP TABLE jsons;
+
+Affected Rows: 0
+

@@ -256,6 +256,7 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 // WaitReady polls GET / until the API socket answers or the timeout passes.
 func (c *Client) WaitReady(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+	delay := time.Millisecond
 	var last error
 	for {
 		attempt, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -273,7 +274,8 @@ func (c *Client) WaitReady(ctx context.Context, timeout time.Duration) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(20 * time.Millisecond):
+		case <-time.After(delay):
+			delay = min(2*delay, 25*time.Millisecond)
 		}
 	}
 }

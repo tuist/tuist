@@ -2,6 +2,7 @@ import Crypto
 import Foundation
 import GRPCCore
 import SwiftProtobuf
+import TuistConstants
 
 public enum REAPI {
     public typealias Digest = Build_Bazel_Remote_Execution_V2_Digest
@@ -10,6 +11,9 @@ public enum REAPI {
     public typealias ActionResult = Build_Bazel_Remote_Execution_V2_ActionResult
     public typealias Directory = Build_Bazel_Remote_Execution_V2_Directory
     public typealias Tree = Build_Bazel_Remote_Execution_V2_Tree
+
+    /// gRPC sets no User-Agent of its own, and CDN and WAF managed rules commonly block requests without one.
+    static var userAgent: String { "tuist/\(Constants.version ?? "x.y.z")" }
 
     public static func digest(_ data: Data) -> Digest {
         Digest.with {

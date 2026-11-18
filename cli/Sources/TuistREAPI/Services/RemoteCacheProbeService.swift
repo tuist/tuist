@@ -27,6 +27,7 @@ public struct RemoteCacheProbeService: RemoteCacheProbing {
         let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
 
         var metadata = Metadata()
+        metadata.addString(REAPI.userAgent, forKey: "user-agent")
         if let token { metadata.addString("Bearer \(token)", forKey: "authorization") }
         metadata.addString(accountHandle, forKey: "x-tuist-account-handle")
 

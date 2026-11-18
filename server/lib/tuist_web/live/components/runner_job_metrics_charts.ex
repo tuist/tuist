@@ -41,7 +41,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
           <.metric_chart
             id={"#{@id}-memory"}
             title="Memory"
-            series={[%{name: dgettext("dashboard_runners", "Used"), values: @series.memory}]}
+            series={memory_series(@series)}
             y_max={@series.memory_total_gb}
             unit=" GB"
             window={@window}
@@ -100,7 +100,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
         <.metric_chart
           id={"#{@id}-memory"}
           title="Memory"
-          series={[%{name: dgettext("dashboard_runners", "Used"), values: @series.memory}]}
+          series={memory_series(@series)}
           y_max={@series.memory_total_gb}
           unit=" GB"
           window={@window}
@@ -256,11 +256,48 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
       cpu: line(points, fn m -> round1(m.cpu_usage_percent) end),
       iowait: line(points, fn m -> round1(m.cpu_iowait_percent) end),
       memory: line(points, fn m -> bytes_to_gb(m.memory_used_bytes) end),
+      out_of_memory: out_of_memory_points(points),
       memory_total_gb: memory_total_gb(points),
       network_in: line(points, fn m -> bytes_to_mib(m.network_bytes_in) end),
       network_out: line(points, fn m -> bytes_to_mib(m.network_bytes_out) end),
       storage: line(points, fn m -> percentage(m.disk_used_bytes, m.disk_total_bytes) end)
     }
+  end
+
+  # The Memory line, plus a red point on it at each sample that reported
+  # a new OOM kill, so the chart shows when memory ran out. A point on a
+  # series of its own rather than an ECharts markLine: Noora resolves its
+  # theme colors in series styles only.
+  defp memory_series(series) do
+    used = %{name: dgettext("dashboard_runners", "Used"), values: series.memory}
+
+    case series.out_of_memory do
+      [] ->
+        [used]
+
+      points ->
+        [
+          used,
+          %{
+            name: dgettext("dashboard_runners", "Out of memory"),
+            type: "scatter",
+            values: points,
+            symbolSize: 10,
+            z: 3,
+            itemStyle: %{color: "var:noora-chart-destructive"}
+          }
+        ]
+    end
+  end
+
+  defp out_of_memory_points(points) do
+    points
+    |> Enum.map_reduce(0, fn m, kills ->
+      {m.oom_kill_count > kills && [epoch_ms(m.timestamp), bytes_to_gb(m.memory_used_bytes)],
+       max(m.oom_kill_count, kills)}
+    end)
+    |> elem(0)
+    |> Enum.filter(& &1)
   end
 
   defp line(points, value_fun) do

@@ -980,10 +980,13 @@ cmd_recover() {
   (
     trap switch_close EXIT
     switch_open "$address" "$user" "$key" || exit 10
+    # Matched from a here-string, not a pipe: SIGPIPE is ignored while the
+    # session is open, so a writer upstream of `grep -q` fails with EPIPE when
+    # grep stops at its match, and pipefail reports a check that passed.
     switch_run "show system-info" 30 || exit 11
-    printf '%s' "$SWITCH_OUTPUT" | tr -d '\r' | grep -qE "System Name[[:space:]]*-[[:space:]]*$name([[:space:]]|\$)" || exit 20
+    grep -qE "System Name[[:space:]]*-[[:space:]]*$name([[:space:]]|\$)" <<<"${SWITCH_OUTPUT//$'\r'/}" || exit 20
     switch_run "$RUNNING_CONFIG" 90 || exit 12
-    printf '%s' "$SWITCH_OUTPUT" | tr -d '\r' | grep -qF "ip address $address $netmask" || exit 21
+    grep -qF "ip address $address $netmask" <<<"${SWITCH_OUTPUT//$'\r'/}" || exit 21
     switch_run "copy running-config startup-config" 60 || exit 13
     # Session one could not log out, because changing the address is what ended
     # it, so its line is still held and counts against the five concurrent

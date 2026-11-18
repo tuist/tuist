@@ -72,17 +72,25 @@ defmodule AtlasWeb.ConnectionControllerTest do
     refute params["scope"] =~ "https://www.googleapis.com/auth/calendar "
   end
 
-  test "Gmail read consent is explicit and cannot request email writes", %{conn: conn} do
+  test "Gmail read and draft consents are separate opt-ins that never request broader mailbox access", %{conn: conn} do
     {conn, _} = log_in_user(conn)
-    response = get(conn, ~p"/connections/google/authorize?gmail=read")
-    params = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
-    assert "https://www.googleapis.com/auth/gmail.readonly" in String.split(params["scope"])
-    refute params["scope"] =~ "gmail.modify"
-    refute params["scope"] =~ "gmail.send"
+    read = "https://www.googleapis.com/auth/gmail.readonly"
+    compose = "https://www.googleapis.com/auth/gmail.compose"
 
-    response = get(conn, ~p"/connections/google/authorize?gmail=write")
-    params = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
-    refute params["scope"] =~ "gmail"
+    gmail_scopes = fn consent ->
+      response = get(conn, "/connections/google/authorize?gmail=#{consent}")
+      params = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+      params["scope"] |> String.split() |> Enum.filter(&(&1 =~ "gmail" or &1 == "https://mail.google.com/"))
+    end
+
+    assert gmail_scopes.("read") == [read]
+    assert gmail_scopes.("compose") == [compose]
+    assert gmail_scopes.("read,compose") |> Enum.sort() == [compose, read]
+
+    # Only these two consents exist: no gmail.send, gmail.modify or full mailbox scope.
+    for consent <- ~w(write send modify full mail.google.com) do
+      assert gmail_scopes.(consent) == []
+    end
   end
 
   test "callback completes the connection once and retains the Atlas login", %{conn: conn} do

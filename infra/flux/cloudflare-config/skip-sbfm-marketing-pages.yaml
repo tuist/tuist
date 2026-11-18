@@ -1,0 +1,47 @@
+# Lets clients that Cloudflare cannot verify read the public marketing
+# site: agent web-fetch tools (Claude Code, Codex, Cursor, Amp), AI
+# assistants' user-initiated fetchers, link unfurlers and SEO tools. Without
+# it, Super Bot Fight Mode's "definitely automated" bucket serves them a
+# "Just a moment..." interstitial on /, /pricing, /blog and the product
+# pages, while docs, /llms.txt and /marketing-markdown already pass through
+# skip-sbfm-api-paths.yaml. An agent asked to compare Tuist's pricing or
+# product pages then answers from third-party pages instead.
+#
+# This is a separate rule because adding these paths to
+# skip-sbfm-api-paths.yaml would push that expression towards Cloudflare's
+# 4096-character expression limit.
+#
+# Only the case-sensitive, complete marketing route shapes from
+# server/lib/tuist_web/router.ex are exempt. Those routes dispatch before
+# account/project scopes even when historical handles collide. Never use
+# broad prefixes or case-insensitive wildcards: /Blog/acme/builds and
+# /es/customers/builds/123 are not marketing pages. Dated articles, numeric
+# newsletter issues cannot match dashboard routes.
+# Regex is supported by this zone's Business plan. Keep this same pattern
+# in both public-page counting expressions so HEAD, redirects and errors
+# are counted even when the origin omits x-tuist-public. /globe and
+# newsletter verification and database-backed project sitemaps are excluded.
+#
+# Two-segment guide and localized landing URLs already pass through the
+# guarded project-root clause in skip-sbfm-api-paths.yaml.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: skip-sbfm-marketing-pages
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Skip SBFM on public marketing pages"
+  expression: |-
+    http.host eq "tuist.dev" and
+    http.request.method in {"GET" "HEAD"} and
+    http.request.uri.path matches r"^/(?:(?:(?:ar|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant)/)?(?:about|brand|cache|compute|download|previews|pricing|tests|community|cookies|data-act-addendum|data-processing-addendum|imprint|longevity|openness|privacy|security|service-level-addendum|terms|trademark-guidelines|blog(?:/[0-9]{4}/[0-9]{2}/[0-9]{2}/[^/%]+(?:/iframe[.]html)?)?|changelog(?:/[^/%]+)?|customers(?:/[^/%]+)?|newsletter(?:/issues/[0-9]+)?)|ar|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant|compare|build-systems|case-studies(?:/[^/%]+)?|flaky-tests|test-insights|blog/bazel/timeline[.]json|rss[.]xml|(?:blog|changelog)/(?:rss|atom)[.]xml)?$"
+  action: skip
+  actionParameters:
+    phases:
+      - http_request_sbfm
+  enabled: true
+  # Both protective rate limits reconciled and the read-only proposal
+  # reported the expected create before this separate activation.
+  mode: active
+  createNewRule: true
+  retainOnDelete: false

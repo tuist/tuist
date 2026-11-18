@@ -52,7 +52,11 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
   @impl EMCP.Tool
   def call(conn, _args) do
     subject = Authorization.authenticated_subject(conn.assigns)
-    projects = Projects.list_accessible_projects(subject, preload: [:account])
+
+    projects =
+      subject
+      |> Projects.list_accessible_projects(preload: [:account])
+      |> Enum.filter(&Authorization.within_account_scope?(conn.assigns, &1))
 
     data = %{
       projects:

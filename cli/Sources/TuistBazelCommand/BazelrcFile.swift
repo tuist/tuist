@@ -1,6 +1,39 @@
 import Foundation
 import Path
 import TuistREAPI
+import TuistServer
+
+struct BazelExecutionConfiguration {
+    let endpoint: GRPCEndpoint
+    let image: String
+    /// Bazel's `--jobs`, which also caps remote actions in flight and otherwise
+    /// defaults to the client's CPU count: a 2 vCPU runner would execute 2 actions
+    /// at a time however much capacity the account has.
+    let jobs: Int?
+
+    /// Accepts only a gRPC endpoint without credentials and an immutable image tag, the two values written
+    /// verbatim into `.bazelrc.tuist`.
+    static func parse(_ capabilities: RemoteExecutionCapabilities) -> Self? {
+        let endpoint = capabilities.endpoint
+        let image = capabilities.image
+        guard image.range(of: "^sha-[a-f0-9]{12,40}$", options: .regularExpression) != nil,
+              endpoint.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: endpoint), let host = url.host, !host.isEmpty,
+              ["grpc", "grpcs"].contains(url.scheme ?? ""),
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+              url.path.isEmpty || url.path == "/"
+        else { return nil }
+        return Self(
+            endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"),
+            image: image,
+            jobs: capabilities.maxConcurrency.flatMap { $0 > 0 ? $0 * jobsPerSlot : nil }
+        )
+    }
+
+    /// Actions kept in flight per execution slot, so each slot has its next action queued while
+    /// the previous one's result travels back. The server queues up to four per slot.
+    static let jobsPerSlot = 2
+}
 
 /// The `.bazelrc.tuist` that `tuist bazel setup` generates, and the one thing
 /// about it that goes stale.
@@ -48,6 +81,7 @@ enum BazelrcFile {
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
         remoteDownloader: Bool = true,
+        execution: BazelExecutionConfiguration? = nil,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount,
         actorOverride: String? = nil
     ) -> String {
@@ -68,13 +102,29 @@ enum BazelrcFile {
         let downloaderConfiguration = remoteDownloader
             ? "\(remoteDownloaderFlag)\(endpoint.url)\n\(remoteDownloaderFallbackFlag)\n" : ""
 
+        let executionConfiguration: String
+        if let execution {
+            let helper = execution.endpoint.host == endpoint.host ? "" : "\(credentialHelperFlag)\(execution.endpoint.host)=\(credentialHelperPath.pathString)\n"
+            executionConfiguration = """
+            build --remote_executor=\(execution.endpoint.url)
+            build --remote_timeout=15m
+            build --remote_default_exec_properties=OSFamily=Linux
+            build --remote_default_exec_properties=Arch=amd64
+            build --remote_default_exec_properties=tuist-image=\(execution.image)
+            build --noremote_local_fallback
+            \(execution.jobs.map { "build --jobs=\($0)\n" } ?? "")\(helper)
+            """
+        } else {
+            executionConfiguration = ""
+        }
+
         return """
         \(remoteCacheFlag)\(endpoint.url)
         \(downloaderConfiguration)build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
         \(remoteCacheCompressionFlag)
-        \(buildEventServiceConfiguration)\(buildInsights ? actorMetadata(actorOverride) : "")
+        \(executionConfiguration)\(buildEventServiceConfiguration)\(buildInsights ? actorMetadata(actorOverride) : "")
 
         """
     }
@@ -148,6 +198,10 @@ enum BazelrcFile {
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String? {
         guard let previousEndpoint = remoteCache(in: contents) else { return nil }
+        let executorPrefix = "build --remote_executor="
+        let executorHost = contents.split(separator: "\n")
+            .first { $0.hasPrefix(executorPrefix) }
+            .flatMap { URL(string: String($0.dropFirst(executorPrefix.count)))?.host }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -162,7 +216,12 @@ enum BazelrcFile {
                     // `<host>=<path>`: the path may itself contain `=`, so split once.
                     let value = line.dropFirst(credentialHelperFlag.count)
                     guard let separator = value.firstIndex(of: "=") else { return String(line) }
+                    guard let previousHost = URL(string: previousEndpoint)?.host,
+                          String(value[..<separator]) == previousHost else { return String(line) }
                     let path = value[value.index(after: separator)...]
+                    if executorHost == previousHost, endpoint.host != previousHost {
+                        return "\(line)\n\(credentialHelperFlag)\(endpoint.host)=\(path)"
+                    }
                     return "\(credentialHelperFlag)\(endpoint.host)=\(path)"
                 }
                 if line.hasPrefix(buildEventServiceFlag) {

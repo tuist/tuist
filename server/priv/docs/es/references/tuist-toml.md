@@ -2,13 +2,13 @@
 {
   "title": "tuist.toml",
   "titleTemplate": ":title · Referencias · Tuist",
-  "description": "Referencia del formato de archivo de configuración tuist.toml."
+  "description": "Referencia del formato del archivo de configuración tuist.toml."
 }
 ---
 
 # tuist.toml {#tuist-toml}
 
-`tuist.toml` es un archivo de configuración independiente del sistema de compilación y una evolución de `Tuist.swift`. A diferencia de `Tuist.swift`, no requiere Swift, lo que permite su uso en cualquier plataforma y sistema de compilación. Es ideal para entornos donde Swift no está disponible, como los runners de CI basados en Linux, o cuando solo necesitas configurar ajustes relacionados con el servidor sin un manifiesto completo de `Tuist.swift`.
+`tuist.toml` es un archivo de configuración independiente del sistema de compilación y una evolución de `Tuist.swift`. A diferencia de `Tuist.swift`, no requiere Swift, lo que permite usarlo en cualquier plataforma y sistema de compilación. Es ideal para entornos donde Swift no está disponible, como los runners de CI basados en Linux, o cuando solo necesitas configurar ajustes relacionados con el servidor sin un manifiesto completo de `Tuist.swift` .
 
 Tuist busca `tuist.toml` recorriendo la jerarquía de directorios hacia arriba desde el directorio de trabajo actual, deteniéndose en la primera coincidencia. Esto significa que puedes colocarlo en la raíz de tu proyecto y ejecutar comandos de Tuist desde cualquier subdirectorio.
 
@@ -39,11 +39,11 @@ proxy = true
 ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
 ```
 
-## Precedencia de configuración {#configuration-precedence}
+## Prioridad de configuración {#configuration-precedence}
 
-Cuando el mismo ajuste se define en varios lugares, Tuist lo resuelve usando el siguiente orden de precedencia (de mayor a menor):
+Cuando el mismo ajuste se define en varios lugares, Tuist lo resuelve usando el siguiente orden de prioridad (de mayor a menor):
 
-1. **Flags de CLI**
+1. **Marcadores de CLI**
 2. **Variables de entorno**
 3. **Tuist.swift**
 4. **tuist.toml**

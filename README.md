@@ -19,46 +19,40 @@
 
 # Tuist
 
-Tuist supercharges your build system, whether you build with Xcode, Gradle, or Bazel. At its core, our cache reuses previously-built artifacts across environments to dramatically speed up your builds, and a suite of tools around it helps you keep them fast, reliable, and observable as you scale.
+Tuist is a build platform for engineering teams and their coding agents. It works with Xcode, Gradle, Bazel, Elixir, and Rust builds. Features vary by toolchain: Rust compilation caching is experimental, and Once support is in canary.
 
-The following solutions are part of Tuist:
-
-- [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Speed up builds across environments with a content-addressable store.
-- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
-- [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
-- [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
-- [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.
-- [📲 **Previews**](https://tuist.dev/en/docs/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
-- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
-
-Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
-
-- [📑 **Documentation**](https://tuist.dev/en/docs)
-- [📚 **Handbook**](https://handbook.tuist.dev)
-- [💬 **Community forum**](https://community.tuist.dev)
+- [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Reuse build artifacts across machines and CI.
+- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Skip test targets that haven't changed in Tuist-generated Xcode projects. Selecting individual XCTest/XCUITest tests is in early access.
+- [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Resolve [Swift Package Index](https://swiftpackageindex.com/) packages faster.
+- [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Track your projects, builds, and test runs.
+- [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/features/bundle-size): Analyze your built apps and find ways to shrink them.
+- [📲 **Previews**](https://tuist.dev/en/docs/guides/features/previews): Share app builds with a link.
+- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/features/projects): Define Xcode projects in Swift and keep them easy to manage.
 
 ## Get started
 
-Head to [the Tuist docs](https://tuist.dev/en/docs) for install instructions, an overview of the platform, step-by-step guides for the workflow you want to adopt, and pointers to sample projects and contribution resources.
+Read the [documentation](https://tuist.dev/en/docs) to install Tuist and set up your first workflow. For questions, join the [community forum](https://community.tuist.dev). Our [handbook](https://handbook.tuist.dev) explains how we work.
 
 ## Development
 
-This repository represents a monorepo with the following projects:
+This monorepo contains:
 
 | Project | Description |
 | ------ | -------  |
-| [cli](/cli) | The Tuist command-line interface (Swift) |
-| [app](/app) | The iOS and macOS app (Swift) |
-| [android](/android) | The Android app (Kotlin/Compose) |
-| [server](/server) | The Tuist server that hosts the cache, previews, analytics, and dashboard (Elixir/Phoenix) |
-| [registry](/registry) | The Swift package registry service (Elixir/Phoenix) |
-| [kura](/kura) | The Rust cache mesh service for distributed cache traffic |
-| [gradle](/gradle) | The Tuist Gradle plugin for Android/JVM builds (Kotlin) |
-| [noora](/noora) | The Noora design system that powers the Tuist web UI (Elixir/Phoenix) |
-| [codebase-search](/codebase-search) | The hosted source-code search service (Rust) |
-| [atlas](/atlas) | The internal ops app for CRM, contracts, finance, and GTM (Elixir/Phoenix) |
-| [skills](/skills) | The Tuist agent skills package |
-| [handbook](/handbook) | The company handbook |
+| [cli](/cli) | Command-line interface (Swift) |
+| [app](/app) | iOS and macOS app (Swift) |
+| [android](/android) | Android app (Kotlin/Compose) |
+| [server](/server) | Server for the cache, previews, analytics, and dashboard (Elixir/Phoenix) |
+| [registry](/registry) | Swift package registry (Elixir/Phoenix) |
+| [kura](/kura) | Distributed cache mesh (Rust) |
+| [gradle](/gradle) | Gradle plugin for Android/JVM builds (Kotlin) |
+| [noora](/noora) | Design system for the web UI (Elixir/Phoenix) |
+| [codebase-search](/codebase-search) | Hosted source-code search (Rust) |
+| [atlas](/atlas) | Internal ops app for CRM, contracts, finance, and GTM (Elixir/Phoenix) |
+| [skills](/skills) | Agent skills |
+| [handbook](/handbook) | Company handbook |
+
+To contribute, start with the [contribution docs](https://tuist.dev/en/docs/contributors/code) and the [good first issues](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Companies using Tuist
 
@@ -234,13 +228,9 @@ This repository represents a monorepo with the following projects:
   </tbody>
 </table>
 
-## Want to contribute?
-
-You can use our [contribution docs](https://tuist.dev/en/docs/contributors/code) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
-
 ## Core Alumni
 
-The following people were once core contributors helping steer the project in the right direction and ensuring we have a reliable foundation we can build new features upon:
+Former core contributors who helped steer the project and build its foundation:
 
 <table>
   <tr>

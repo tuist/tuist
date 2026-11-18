@@ -65,7 +65,8 @@ defmodule TuistWeb.API.GradleBuildStepsController do
   operation(:show,
     summary: "Get one recorded Gradle build step.",
     operation_id: "getGradleBuildStep",
-    description: "Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.",
+    description:
+      "Returns recorded metadata. For a failed task or configuration operation, log holds the failure message the Tuist Gradle plugin reported (the exception message and cause chain, sanitized and bounded to 16 KiB); otherwise log is null. Task output is not collected.",
     parameters:
       @path_params ++
         [

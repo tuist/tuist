@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistEnvironment
@@ -13,6 +14,7 @@ import TuistTesting
 /// workflow does. The build phase starts uploading within a second of creating the plan, so a
 /// server that reads the new plan back from a ClickHouse replica that has not fetched it yet fails
 /// here.
+@Suite(.coverageAttribution)
 struct ShardAcceptanceTests {
     @Test(
         .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),

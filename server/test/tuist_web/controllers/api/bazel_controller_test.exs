@@ -40,6 +40,8 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert invocation["cache_endpoint"] == "cache.tuist.dev"
       assert invocation["status"] == "success"
       assert invocation["duration_ms"] == 15_000
+      assert invocation["started_at"] == "2023-11-14T22:13:20Z"
+      assert invocation["finished_at"] == "2023-11-14T22:13:35Z"
       assert invocation["build_metrics"]["actions_created"] == 11
 
       assert invocation["build_timeline"]["spans"] == [
@@ -70,6 +72,50 @@ defmodule TuistWeb.API.BazelControllerTest do
       conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations?status=failure")
 
       assert %{"invocations" => [%{"invocation_id" => "failed"}]} = json_response(conn, 200)
+    end
+
+    test "returns the latest failure on a branch and filters by commit, environment and command", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_invocation(project, "main-older-failure",
+        git_branch: "main",
+        status: "failure",
+        exit_code: 1,
+        finished_at: ~N[2026-11-01 10:00:00]
+      )
+
+      create_invocation(project, "main-latest-failure",
+        git_branch: "main",
+        status: "failure",
+        exit_code: 1,
+        finished_at: ~N[2026-11-02 10:00:00],
+        git_commit_sha: "c0ffee",
+        is_ci: false
+      )
+
+      create_invocation(project, "main-latest-success", git_branch: "main", finished_at: ~N[2026-11-03 10:00:00])
+
+      create_invocation(project, "other-branch-failure",
+        git_branch: "feature/other",
+        status: "failure",
+        exit_code: 1,
+        finished_at: ~N[2026-11-04 10:00:00],
+        command: "build"
+      )
+
+      path = "/api/projects/#{user.account.name}/#{project.name}/bazel/invocations"
+
+      ids = fn query ->
+        conn |> get(path, query) |> json_response(200) |> Map.fetch!("invocations") |> Enum.map(& &1["invocation_id"])
+      end
+
+      assert ids.(%{status: "failure", git_branch: "main", page_size: 1}) == ["main-latest-failure"]
+      assert ids.(%{git_branch: "main"}) == ["main-latest-success", "main-latest-failure", "main-older-failure"]
+      assert ids.(%{git_commit_sha: "c0ffee"}) == ["main-latest-failure"]
+      assert ids.(%{is_ci: false}) == ["main-latest-failure"]
+      assert ids.(%{command: "build"}) == ["other-branch-failure"]
     end
 
     test "keeps a critical-path duration when Bazel reports no component actions", %{
@@ -103,6 +149,62 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert %{"logs" => logs, "pagination_metadata" => _} = json_response(conn, 200)
       assert Enum.map(logs, & &1["sequence_number"]) == [10, 20]
       assert Enum.map(logs, & &1["message"]) == ["first", "second"]
+      assert Enum.map(logs, & &1["observed_at"]) == ["2026-09-04T12:00:00Z", "2026-09-04T12:00:00Z"]
+      assert Enum.map(logs, &{&1["target_label"], &1["status"]}) == [{"", ""}, {"", ""}]
+    end
+
+    test "filters invocation logs by stream, source, target, and errors", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_invocation_log(
+        project,
+        "invocation-1",
+        4,
+        "INFO: Analyzed //a:a\nERROR: BUILD:3:1: Compiling a.c failed",
+        "stderr"
+      )
+
+      create_invocation_log(project, "invocation-1", 5, "ERROR: printed by the program", "stdout")
+
+      create_invocation_log(project, "invocation-1", 6, "[Bazel test log for //a:test]\nassertion", "stdout",
+        target_label: "//a:test",
+        status: "failure"
+      )
+
+      create_invocation_log(project, "invocation-1", 14, "[Bazel test log for //a:test]\nERROR: retried", "stdout",
+        target_label: "//a:test",
+        status: "success"
+      )
+
+      create_invocation_log(project, "invocation-1", 16, "[Bazel test log for //a:test_more]\nok", "stdout",
+        target_label: "//a:test_more",
+        status: "flaky"
+      )
+
+      create_invocation_log(project, "invocation-1", 8, "WARNING: no ERROR: at the start of a line", "stderr")
+      create_invocation_log(project, "invocation-1", 10, "FAIL: //a:test (see <LOCAL_PATH>)", "stderr")
+      create_invocation_log(project, "invocation-1", 12, "INFO: Build completed\n\rTIMEOUT: //b:test", "stderr")
+
+      sequence_numbers = fn query ->
+        conn
+        |> recycle()
+        |> Authentication.put_current_user(user)
+        |> get("/api/projects/#{user.account.name}/#{project.name}/bazel/invocations/invocation-1/logs?#{query}")
+        |> json_response(200)
+        |> Map.fetch!("logs")
+        |> Enum.map(& &1["sequence_number"])
+      end
+
+      assert sequence_numbers.("") == [4, 5, 6, 8, 10, 12, 14, 16]
+      assert sequence_numbers.("stream=stderr") == [4, 8, 10, 12]
+      assert sequence_numbers.("source=test_log") == [6, 14, 16]
+      assert sequence_numbers.("source=progress") == [4, 5, 8, 10, 12]
+      assert sequence_numbers.("target_label=//a:test") == [6, 14]
+      assert sequence_numbers.("errors=true") == [4, 6, 10, 12]
+      assert sequence_numbers.("errors=true&target_label=//a:test") == [6]
+      assert sequence_numbers.("errors=true&page_size=1") == [4]
     end
 
     test "gets one invocation log without crossing invocation boundaries", %{
@@ -223,17 +325,17 @@ defmodule TuistWeb.API.BazelControllerTest do
   end
 
   defp create_invocation(project, invocation_id, options \\ []) do
-    started_at = ~N[2023-11-14 22:13:20]
-    finished_at = ~N[2023-11-14 22:13:35]
+    finished_at = Keyword.get(options, :finished_at, ~N[2023-11-14 22:13:35])
+    started_at = NaiveDateTime.add(finished_at, -15)
 
     Bazel.create_invocations([
       %{
         invocation_id: invocation_id,
         command: Keyword.get(options, :command, "test"),
         target_patterns: ["//..."],
-        git_branch: "feature/bazel",
-        git_commit_sha: "abcdef",
-        is_ci: true,
+        git_branch: Keyword.get(options, :git_branch, "feature/bazel"),
+        git_commit_sha: Keyword.get(options, :git_commit_sha, "abcdef"),
+        is_ci: Keyword.get(options, :is_ci, true),
         custom_values: %{"environment" => "local", "runner" => "linux-arm64"},
         bazel_version: "9.1.0",
         cpu_time_ms: 1_250,
@@ -265,7 +367,7 @@ defmodule TuistWeb.API.BazelControllerTest do
     ])
   end
 
-  defp create_invocation_log(project, invocation_id, sequence_number, message) do
+  defp create_invocation_log(project, invocation_id, sequence_number, message, stream \\ "stdout", attribution \\ []) do
     id = UUIDv7.generate()
 
     Bazel.create_invocation_logs([
@@ -273,8 +375,10 @@ defmodule TuistWeb.API.BazelControllerTest do
         id: id,
         invocation_id: invocation_id,
         sequence_number: sequence_number,
-        stream: "stdout",
+        stream: stream,
         message: message,
+        target_label: Keyword.get(attribution, :target_label, ""),
+        status: Keyword.get(attribution, :status, ""),
         project_id: project.id,
         observed_at: ~N[2026-09-04 12:00:00]
       }

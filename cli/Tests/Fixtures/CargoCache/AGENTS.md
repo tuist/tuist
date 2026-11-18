@@ -36,7 +36,7 @@ The fixture clears GitHub and inherited internal cache settings; remote publicat
 
 Pass `--benchmark` to generate a standard Cargo local-registry leaf with substantial compiler work. This is an explicitly generated workload, not a representative real-world application. The driver compares three ordinary Cargo clean builds against three public-CLI local hits; timings include CLI setup/reporting. Chunked uploads leave transferred-byte provenance unknown rather than counting the full spliced parent size, so the benchmark does not require a positive cold upload counter; the subsequent remote hit after moving the publisher cache proves publication independently. Do not run benchmarks concurrently or present a small fixture's compiler avoidance as a wall-clock speedup. Tiny crates may cost less to compile than the cache/decorator overhead.
 
-These fixtures do not qualify cross-worker relocation: cache keys intentionally retain absolute paths and the effective environment. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
+These fixtures do not qualify cross-worker relocation; keys are path-free, but only same-machine moved checkouts are exercised. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
 
 ## Dependency and generated-input admission
 
@@ -49,7 +49,7 @@ This offline fixture creates a workspace with a generated-source library and two
 
 A proc macro reading an undeclared external file, an upstream generic using inline assembly with an assembler `.include`, and a `naked_asm!` function stay uncached. Mutating each external file must change program output without invalidating unrelated eligible libraries. This protects the transitive admission boundary: successful dep-info resolution and direct extern hashes alone cannot certify those backend/macro reads. Metadata admission must be available before Cargo pipelines a dependent compiler, not only when upstream codegen finishes. The assembly fixture supports aarch64 and x86-64 hosts. Success removes its temporary workspace; failure retains all sources, reports and logs.
 
-The direct-compiler guard cases also exercise an implicit proc macro hidden behind grouped `-gL` search options and a loader-library-search override. These must execute normally without a cache decision; changing the macro's undeclared input must change the linked program. Loader guards are conservative: `LD_`/`DYLD_` settings bypass caching, including Cargo's ordinary Linux `LD_LIBRARY_PATH`. The positive cache-reuse scenarios are currently qualified on macOS, not Linux.
+The direct-compiler guard cases also exercise an implicit proc macro hidden behind grouped `-gL` search options and a loader-library-search override. These must execute normally without a cache decision; changing the macro's undeclared input must change the linked program. Loader settings outside the toolchain and target bypass caching, such as this search directory. Cargo 1.100 hands these crates' rustc only rustup's toolchain `lib`, which is admitted, so the positive scenarios also pass on x86-64 Linux; these private-hook fixtures set no `TUIST_CARGO_TARGET_DIR`, so with a Cargo that adds `<profile>/deps` for every rustc they bypass caching. `recorded_e2e.sh` and `sources_e2e.sh` also run on Linux.
 
 ## Native build-script compiler actions
 
@@ -63,3 +63,54 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 This fixture exercises `cargo __native` with real Clang and verifies linked executable output against uncached Clang. It checks cold/warm reuse, corrupt-blob fallback, header edits, a newly present `__has_include` file without a corresponding `#include`, and an earlier search-path header shadowing an unchanged old header. SDK declaration asm labels and empty instruction templates remain eligible. Caller-owned dependency outputs and assembler `.include` inputs bypass caching; changing the assembler input still changes the program. The hook must work with an unavailable generic CLI state directory. Full public Cargo benchmarks separately qualify wrapper installation, normal build-script execution and remote storage.
 
 Header symlinks must support warm reuse and invalidate when retargeted. C23 digit separators must not hide assembly from source admission, and response files in option operands must bypass caching so caller-owned outputs are preserved. The small fixture runs local-only; remote native caching intentionally bypasses sources smaller than 32 KiB to avoid spending more on discovery and transfer than compilation.
+
+## Dependency units
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/units_e2e.sh
+```
+
+Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; the next build restores the absent profile from the snapshot that restoration left, and a snapshot whose files were rewritten, or that holds a file its record does not list, is discarded; a checkout whose `Cargo.lock` differs (an added path dependency) still restores it; a build without `CARGO_INCREMENTAL` restores it after `CARGO_INCREMENTAL=0` builds, and so does the per-crate cache when a different Cargo configuration makes the unit manifest miss; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib, with no snapshot to fall back on, is not restored and Cargo compiles it again. Every build's program must print `42`. A second project depends on `lzma-sys`, whose build script prints its include directory inside Cargo home: a checkout at another path must restore that run instead of compiling the C library again, and its program must print `true`. Fetch `lzma-sys 0.1.20` with ordinary Cargo first; the script builds offline.
+
+`units_e2e.sh`, `recorded_e2e.sh`, `sources_e2e.sh` and `check_e2e.sh` share `common.sh`, which isolates the cache and clears inherited Tuist, GitHub and loader settings. Write new fixtures in shell, not Python.
+
+## Recorded compilations and build-script runs
+
+On arm64 macOS, or x86_64/aarch64 Linux with glibc, `cc` and `ar`:
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/recorded_e2e.sh
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`, whose per-task cache lines the script reads. The workspace lives under `$TMPDIR` on purpose: macOS names it through both `/var` and `/private/var`, and it sits inside the recorder's writable temporary area, which must not hide its sources. A proc macro reads an undeclared file and environment variable, so only the read recorder can cache the library that uses it. Its build script stamps `OUT_DIR` with the current time: warm builds must keep the cold stamp (restored run) and an input change must produce a new one (rerun). Changing the macro's file or variable must miss and change the value; unchanged builds must hit, including the application's recorded link, whose restored executable every later scenario runs. A moved checkout must read its own files. A second workspace links native code the recorder cannot see: a binary links an archive its build script leaves in a `-L native=` directory, and another links one bundled into a `-sys` crate two levels down, behind a library whose outputs the archive does not change. Changing the archive must relink both, and the build scripts that compile it with `cc` through the session's shim must be restored on warm builds. A third workspace asks protected programs: a proc macro embeds `git describe --dirty` and a build script asks `git rev-parse --git-dir`, whose answer never changes, then reads the commit from `.git/HEAD` and its ref; a new commit must miss and show the new revision, and the next build must hit. The macro also reads `.git/index` and `.git/logs/HEAD` through `include_bytes!`, as `git_version!` does, so a copy at another path must hit. A fourth compiles a Swift helper with `swiftc`, signs it ad hoc, compiles a C helper through `cc` and asks `xcrun` for the SDK with a `PATH` and a variable of its own (so Rust forks and searches with `execvp`, as cc-rs does) in its build script: warm builds restore the run, and editing the Swift source or a header only the C compiler reads must rerun it. The C helper has debug information and its library embeds it, as mise's does, so the same sources at another path must restore the run and hit the library. Expected values are computed in the script, and the build script's compilation must hit on warm builds too. A fifth workspace checks debugging: lldb must stop in a workspace library's function with its local in place in a fresh link, in a binary restored into another checkout after the first is deleted, and in one restored after its target was removed. The script generates a lockfile first, because recording shares the dependency-unit cache's lockfile-keyed scope.
+
+On Linux the archive is built with `ar` from `PATH`, which loads the recorder like the compiler, and the developer-tools workspace (`swiftc`, `codesign`, `xcrun`) is skipped. Linux adds two workspaces. In the first, one build script prints `$SHELL_VALUE` through `sh`, which takes it from `environ` where the recorder cannot see, and another reads `/proc/self/cwd/input.txt`: an unchanged variable must restore the shell's run, a changed one must rerun it, and the `/proc/self` read must never be stored (the log explains it), so both changes reach the program. The second, only where `cc -static` links, has a build script compile and run a statically linked program that reads a file no other process names: the cold run must not be stored (the log explains it), and after changing the file the next build must rerun the script and print the new value. Without the hook server, build-script messages land in Cargo's `stderr` file for the run, which `said` searches as well as the build log.
+
+## Remembered source lists
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/sources_e2e.sh
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`. A path library is keyed by the sources an earlier compilation read, without a discovery run of rustc. With its list removed, a served session (macOS) keys it from rustc's dep-info notification while rustc runs and must hit, showing its warning once. Adding a submodule misses and is cached by that same build; editing it misses; adding `a/mod.rs` beside `a.rs` must fail compilation rather than restore the earlier result. A second library declares `#[link]` in a submodule, so it is deferred and strict admission refuses it only after rustc ran; on arm64 macOS and x86_64/aarch64 Linux that same cold build must record its reads and the warm build must hit. Program output is checked against values computed in the script.
+
+## Hit verification
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/verify_e2e.sh
+```
+
+Offline and local-only on arm64 macOS, through the public command with `TUIST_DEBUG=1`. A workspace has a strict path library, a proc-macro user with a deterministic build script, and a library whose build script writes the current time. Under `TUIST_CARGO_VERIFY=always` the strict hit's source list must agree and still restore, and every recorded compilation and build-script run must read what keyed it. Under `TUIST_CARGO_VERIFY_RECOMPILE=always` every hit compiles and only the timestamped run may differ, as `content`; with `CARGO_INCREMENTAL=1` (in a cache of its own, since Cargo folds it into workspace crates' `-C metadata`) the comparison must agree on metadata and dep-info and say it skipped codegen. A build after each must restore the cold build's timestamp, because verification never stores anything. `sampled` selects too few of these units to test here; its selection is unit-tested.
+
+## Check and Clippy
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/check_e2e.sh
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`, with Clippy installed for the toolchain. A warm `cargo check` restores a workspace library and the library it depends on, whose restored metadata must be certified for the first to hit, and replays its rustc warning. With its list removed, a served session (macOS) keys that library from rustc's dep-info notification and must restore the metadata-only entry, showing its warning once. A build afterwards must miss every library, since check entries never serve a build. A path library outside the workspace, which `cargo clippy` compiles with rustc, keeps its check entry. Clippy compilations miss on their first run, hit and replay Clippy's warning on the next, and miss when `CLIPPY_ARGS`, the `clippy.toml` Clippy finds above the package (a new file or edited content) or the package's `Cargo.toml` change; a comment in that manifest must not invalidate `cargo check`. Enabling the `cargo` lints, from the command line (including a joined, hyphenated `-Wclippy::multiple-crate-versions`) or in a crate's source, must never be restored. A library that calls a workspace proc macro is cached only by the read recorder (arm64 macOS, x86_64/aarch64 Linux), under both commands.

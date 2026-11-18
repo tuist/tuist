@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · 기능 · 가이드 · Tuist",
-  "description": "Tuist Runner에서 Docker 사용하기: 컨테이너 빌드 및 실행, 컨테이너 작업, 서비스 컨테이너, 비공개 레지스트리."
+  "description": "Tuist Runners에서 Docker를 사용하세요: 컨테이너 빌드 및 실행, 컨테이너 작업, 서비스 컨테이너, 비공개 레지스트리를 지원합니다."
 }
 ---
 # Docker {#docker}
 
-Linux 러너에는 Docker가 바로 사용할 수 있는 상태로 제공됩니다. 각 작업은 가상 머신 내부에서 자체 Docker 데몬을 가지며, `docker` CLI, Buildx 및 Compose가 사전 설치되어 있습니다. 별도의 설정 액션이 필요하지 않으며, `sudo`도 필요하지 않습니다.
+Linux 러너에는 Docker가 즉시 사용 가능한 상태로 제공됩니다. 각 작업은 가상 머신 내부에서 자체 Docker 데몬을 가지며, `docker` CLI, Buildx 및 Compose가 사전 설치되어 있습니다. 별도의 설정 액션이 필요하지 않으며 `sudo`도 필요하지 않습니다.
 
 ```yaml
 jobs:
@@ -64,7 +64,7 @@ jobs:
 
 ## 비공개 레지스트리 {#private-registries}
 
-이미지를 가져오거나 푸시하기 전에 레지스트리 자체의 로그인 액션 또는 `docker login`를 사용하여 인증하세요.
+이미지를 가져오거나 푸시하기 전에 레지스트리의 자체 로그인 액션 또는 `docker login`를 사용하여 인증하세요.
 
 ```yaml
       - uses: docker/login-action@v3
@@ -75,13 +75,13 @@ jobs:
       - run: docker pull ghcr.io/my-org/android-ci:latest
 ```
 
-작업 수준의 `container`의 경우, 위의 예시와 같이 대신 `credentials` 키를 통해 동일한 자격 증명을 전달하세요.
+작업 수준 `container`의 경우 위의 예시와 마찬가지로 `credentials` 키를 통해 동일한 자격 증명을 전달하세요.
 
 ## 이미지 가져오기 {#image-pulls}
 
-Docker Hub 이미지 가져오기는 Tuist가 운영하는 풀스루 캐시를 통해 제공되므로, 작업이 Docker Hub의 익명 속도 제한을 소비하지 않습니다. 다른 레지스트리의 이미지는 직접 가져옵니다.
+Docker Hub 이미지 가져오기는 Tuist가 운영하는 풀스루 캐시를 통해 제공되므로, 작업이 Docker Hub의 익명 속도 제한을 소모하지 않습니다. 다른 레지스트리의 이미지는 직접 가져옵니다.
 
-모든 작업은 빈 이미지 저장소로 시작하므로, 워크플로우에서 사용하는 이미지는 작업 간에 재사용되지 않고 작업당 한 번씩 가져옵니다. 작업에서 큰 크기의 사용자 정의 이미지를 가져오는 경우, 이미지 크기를 작게 유지하거나 캐시된 Buildx 빌더를 사용하여 워크플로우 내에서 빌드하세요.
+모든 작업은 빈 이미지 저장소로 시작하므로, 워크플로우에서 사용하는 이미지는 작업 간에 재사용되지 않고 작업당 한 번씩 가져옵니다. 작업에서 큰 크기의 커스텀 이미지를 가져오는 경우, 이미지 크기를 작게 유지하거나 캐시된 Buildx 빌더를 사용하여 워크플로우 내에서 빌드하세요.
 
 ```yaml
       - uses: docker/setup-buildx-action@v3
@@ -94,4 +94,4 @@ Docker Hub 이미지 가져오기는 Tuist가 운영하는 풀스루 캐시를 �
           cache-to: type=gha,mode=max
 ```
 
-네이티브 작업 또는 컨테이너 작업에서 영구적인 의존성 디렉토리를 사용하려면 <.localized_link href="/guides/features/runners/cache-volumes">캐시 볼륨 가이드</.localized_link>를 참조하세요.
+네이티브 작업 또는 컨테이너 작업에서 영구적인 종속성 디렉터리를 사용하려면 <.localized_link href="/guides/features/runners/cache-volumes">캐시 볼륨 가이드</.localized_link>를 참조하세요.

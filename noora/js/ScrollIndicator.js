@@ -29,11 +29,16 @@ export function bindScrollIndicator(
       overflow: Math.max(0, viewport[extent] - viewport[client]),
     };
   };
+  // In right-to-left viewports, scrollLeft starts at 0 on the right edge and grows negative
+  // toward the left. The thumb is positioned physically from the track's left edge, so map
+  // the scroll position to a physical left-to-right progress before translating it.
+  const rtl = () =>
+    horizontal && getComputedStyle(viewport).direction === "rtl";
   const update = () => {
     const { thumbSize, travel, overflow } = metrics();
-    const offset = overflow
-      ? Math.max(0, Math.min(1, viewport[position] / overflow)) * travel
-      : 0;
+    const progress = overflow ? viewport[position] / overflow : 0;
+    const offset =
+      Math.max(0, Math.min(1, rtl() ? 1 + progress : progress)) * travel;
     thumb.style[size] = `${thumbSize}px`;
     thumb.style.transform = `translate${horizontal ? "X" : "Y"}(${offset}px)`;
   };
@@ -72,9 +77,10 @@ export function bindScrollIndicator(
     event.preventDefault();
     const { thumbSize, travel, overflow } = metrics();
     const origin = track.getBoundingClientRect()[horizontal ? "left" : "top"];
-    if (travel > 0)
-      viewport[position] =
-        ((event[coordinate] - origin - thumbSize / 2) / travel) * overflow;
+    if (travel > 0) {
+      const progress = (event[coordinate] - origin - thumbSize / 2) / travel;
+      viewport[position] = (rtl() ? progress - 1 : progress) * overflow;
+    }
   });
   if (autoUpdate) update();
   return {

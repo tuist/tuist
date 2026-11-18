@@ -7,9 +7,9 @@
 ---
 # Crear un nuevo proyecto {#create-a-new-project}
 
-La forma más sencilla de iniciar un nuevo proyecto con Tuist es usar el comando `tuist init`. Este comando inicia una CLI interactiva que te guía durante la configuración del proyecto. Cuando se te solicite, asegúrate de seleccionar la opción para crear un "proyecto generado".
+La forma más directa de iniciar un nuevo proyecto con Tuist es usar el comando `tuist init`. Este comando lanza una CLI interactiva que te guía durante la configuración del proyecto. Cuando se te solicite, asegúrate de seleccionar la opción para crear un "proyecto generado".
 
-A continuación, puedes <.localized_link href="/guides/features/projects/editing">editar el proyecto</.localized_link> ejecutando `tuist edit`, y Xcode abrirá un proyecto donde podrás editarlo. Uno de los archivos generados es `Project.swift`, que contiene la definición de tu proyecto. Si estás familiarizado con Swift Package Manager, piénsalo como `Package.swift`, pero con la terminología de los proyectos de Xcode.
+A continuación, puedes <.localized_link href="/guides/features/projects/editing">editar el proyecto</.localized_link> ejecutando `tuist edit`, y Xcode abrirá un proyecto donde podrás editarlo. Uno de los archivos que se generan es `Project.swift`, que contiene la definición de tu proyecto. Si estás familiarizado con Swift Package Manager, considéralo como el `Package.swift`, pero con la terminología propia de los proyectos de Xcode.
 
 ::: code-group
 ```swift [Project.swift]
@@ -57,7 +57,7 @@ let project = Project(
 
 ## Crear un proyecto manualmente {#manually-creating-a-project}
 
-Como alternativa, puedes crear el proyecto manualmente. Recomendamos hacerlo solo si ya estás familiarizado con Tuist y sus conceptos. Lo primero que debes hacer es crear directorios adicionales para la estructura del proyecto:
+Como alternativa, puedes crear el proyecto manualmente. Recomendamos hacerlo solo si ya estás familiarizado con Tuist y sus conceptos. Lo primero que tendrás que hacer es crear directorios adicionales para la estructura del proyecto:
 
 ```bash
 mkdir MyFramework

@@ -7,13 +7,13 @@ struct SocialButton: View {
         case secondary
     }
 
-    private let title: String
+    private let title: LocalizedStringKey
     private let style: Style
     private let icon: String?
     private let action: () -> Void
 
     init(
-        title: String,
+        title: LocalizedStringKey,
         style: Style = .primary,
         icon: String? = nil,
         action: @escaping () -> Void
@@ -109,7 +109,7 @@ struct SocialButton: View {
         }
 
         SocialButton(
-            title: "Primary without icon",
+            title: "Sign in with Apple",
             style: .primary
         ) {
             print("Primary button without icon tapped")
@@ -129,7 +129,7 @@ struct SocialButton: View {
         }
 
         SocialButton(
-            title: "Secondary without icon",
+            title: "Sign in with GitHub",
             style: .secondary
         ) {
             print("Secondary button without icon tapped")

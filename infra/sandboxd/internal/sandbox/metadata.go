@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 )
 
@@ -29,12 +29,18 @@ type Metadata struct {
 	Slot        int    `json:"slot"`
 	Generation  int    `json:"generation"`
 	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	// FirecrackerVersion wrote the memory image beside the disks; another
+	// version cannot load it, so recovery turns a mismatch into a cold boot.
+	FirecrackerVersion string `json:"firecracker_version,omitempty"`
 	// DisksSynced records that the last pause flushed the guest page cache
 	// to the disks, so they can be saved without the memory image.
-	DisksSynced bool      `json:"disks_synced,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Error       string    `json:"error,omitempty"`
+	DisksSynced bool `json:"disks_synced,omitempty"`
+	// RootfsGrowPending records that the rootfs file was grown to its
+	// template's size and the guest has not grown its filesystem yet.
+	RootfsGrowPending bool      `json:"rootfs_grow_pending,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	Error             string    `json:"error,omitempty"`
 }
 
 func (m Metadata) Shape() template.Shape {

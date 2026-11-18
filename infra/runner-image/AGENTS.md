@@ -594,10 +594,12 @@ but not boot it.
   triggers above, and when the previous release published none for it
   (its `build-manifest.json` entry lacks `stacked: true`). Otherwise
   `carry` re-tags it like the standalone tag. The `build-stacked` job
-  runs on the macOS 27 builders (`macos-27` label), and the release gate
+  runs on the macOS 27 builders (`macos-27` label), each profile on the
+  builder `stacked-builders.json` pins it to, and the release gate
   requires both tags of every profile. Pulling the base is most of a
-  stacked build, so its disk reclaim keeps the release's other bases
-  cached, evicting the ones later in `profiles.json` first.
+  stacked build, so its disk reclaim keeps the bases of the builder's
+  profiles cached across releases (`../vm-image-builder.md`, "Stacked
+  build labels").
 - **Where it runs.** `server-deployment.yml` resolves each published
   stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
   Rack pools run it when `rackFleet.runners.stackedImages` is on, which
@@ -636,7 +638,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.3-beta", "27.2", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
@@ -652,7 +654,7 @@ channel a later `Release Candidate 2` moves. The longer
 Xcode 27.1 RC retirement removes RC builds and pools and the temporary
 stable bootstrap pin only after the additive chart is deployed and a
 versioned release includes stable. Keep the bootstrap image for rollback.
-The default stays 26.6. Follow the [retirement runbook](xcode-27.1-retirement.md)
+Follow the [retirement runbook](xcode-27.1-retirement.md)
 for merge prerequisites and required post-rollout reconciliation, including
 profiles saved by old replicas and jobs requeued after their claims release.
 Use the documented release `eval` with `Ecto.Migrator.with_repo/2` for this

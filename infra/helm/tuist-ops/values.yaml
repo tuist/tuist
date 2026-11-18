@@ -28,6 +28,12 @@ pomerium:
   audience: ops.tuist.dev
   publicKey: ""
 
+# Atlas' cluster JWKS (public, JSON). tuist-ops verifies the projected
+# ServiceAccount token Atlas calls POST /api/v1/atlas/elevations with
+# against it. Empty by default, which rejects every Atlas call.
+atlas:
+  tokenJwks: ""
+
 # Origins a signed project-access grant may be handed back to. The reason
 # form refuses any `return_to` outside this list, so a minted token cannot
 # be redirected to a host we do not run. Unset, tuist-ops falls back to
@@ -132,6 +138,9 @@ ingress:
   # off the public internet.
   paths:
     - path: /webhooks/slack
+      pathType: Prefix
+    # Atlas-approved orb elevations; authenticated by Atlas' token.
+    - path: /api/v1/atlas
       pathType: Prefix
 
 service:

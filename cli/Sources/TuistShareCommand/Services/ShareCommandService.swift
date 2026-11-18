@@ -26,6 +26,8 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
     case fullHandleNotFound
     case multipleAppsSpecified([String])
     case invalidExecutable
+    case invalidIcon(AbsolutePath)
+    case iconRequiresExecutable
     #if os(macOS)
         case appNotSpecified
     #endif
@@ -39,6 +41,10 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .invalidExecutable:
             return "Specify one executable file, or one distribution directory with --executable pointing to an executable inside it."
+        case let .invalidIcon(path):
+            return "The icon at \(path.pathString) doesn't exist or isn't a PNG file. Pass a PNG file with --icon."
+        case .iconRequiresExecutable:
+            return "--icon is only supported when sharing an executable. App bundles, IPAs, and APKs use their own icon."
         #if os(macOS)
             case .appNotSpecified:
                 return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
@@ -153,7 +159,8 @@ struct ShareCommandService {
             json: Bool,
             track: String?,
             releaseNotes: String? = nil,
-            executable: String? = nil
+            executable: String? = nil,
+            icon: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -176,13 +183,16 @@ struct ShareCommandService {
                     relativeTo: path
                 )
             }
+            let iconPath = try icon.map { try AbsolutePath(validating: $0, relativeTo: path) }
             if executable != nil || (appPaths.count == 1 && !["app", "ipa", "apk"].contains(appPaths[0].extension ?? "") &&
                 isExecutableFile(appPaths[0]))
             {
                 try await shareExecutable(
                     appPaths, entryPoint: executable, path: path, fullHandle: fullHandle,
-                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes
+                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes, icon: iconPath
                 )
+            } else if iconPath != nil {
+                throw ShareCommandServiceError.iconRequiresExecutable
             } else if appPaths.contains(where: { $0.extension == "apk" }) {
                 try await shareAPK(
                     appPaths,
@@ -250,7 +260,8 @@ struct ShareCommandService {
             json: Bool,
             track: String?,
             releaseNotes: String? = nil,
-            executable: String? = nil
+            executable: String? = nil,
+            icon: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -266,16 +277,19 @@ struct ShareCommandService {
                     relativeTo: path
                 )
             }
+            let iconPath = try icon.map { try AbsolutePath(validating: $0, relativeTo: path) }
 
             if executable != nil || (appPaths.count == 1 && !["app", "ipa", "apk"].contains(appPaths[0].extension ?? "") &&
                 isExecutableFile(appPaths[0]))
             {
                 try await shareExecutable(
                     appPaths, entryPoint: executable, path: path, fullHandle: fullHandle,
-                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes
+                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes, icon: iconPath
                 )
                 return
             }
+
+            guard iconPath == nil else { throw ShareCommandServiceError.iconRequiresExecutable }
 
             guard appPaths.allSatisfy({ $0.extension == "apk" }) else {
                 throw ShareCommandServiceError.appleBuildsSharingNotSupportedOnLinux
@@ -306,7 +320,8 @@ struct ShareCommandService {
         serverURL: URL,
         json: Bool,
         track: String?,
-        releaseNotes: String?
+        releaseNotes: String?,
+        icon: AbsolutePath?
     ) async throws {
         guard paths.count == 1, let input = paths.first else {
             throw ShareCommandServiceError.invalidExecutable
@@ -326,6 +341,12 @@ struct ShareCommandService {
         guard isExecutableFile(executablePath), source.basename != ExecutablePreviewManifest.filename else {
             throw ShareCommandServiceError.invalidExecutable
         }
+        if let icon {
+            let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+            guard try await fileSystem.exists(icon), try await fileSystem.readFile(at: icon).prefix(8) == pngSignature else {
+                throw ShareCommandServiceError.invalidIcon(icon)
+            }
+        }
         let gitInfo = await resolveGitInfo(at: path)
         let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(executablePath.basename)",
@@ -333,7 +354,7 @@ struct ShareCommandService {
             errorMessage: "Failed to upload \(executablePath.basename)"
         ) { updateProgress in
             try await previewsUploadService.uploadPreview(
-                .executable(path: source, entryPoint: entryPoint),
+                .executable(path: source, entryPoint: entryPoint, icon: icon),
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 gitBranch: gitInfo.branch,

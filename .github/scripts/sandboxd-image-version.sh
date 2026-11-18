@@ -7,6 +7,8 @@ set -euo pipefail
 source_sha=$(git log -1 --format=%H HEAD -- \
   infra/sandboxd \
   ':(exclude,glob)infra/sandboxd/**/*.md' \
+  infra/runner-cache/sparse \
+  infra/runner-cache/go.mod \
   .github/workflows/sandboxd-image.yml \
   .github/scripts/sandboxd-image-version.sh)
 if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then

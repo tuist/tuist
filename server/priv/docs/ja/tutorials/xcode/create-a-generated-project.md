@@ -1,13 +1,13 @@
 ---
 {
-  "title": "生成プロジェクトの作成",
-  "titleTemplate": ":title · Xcode · Tutorials · Tuist",
+  "title": "生成プロジェクトを作成する",
+  "titleTemplate": ":title · Xcode · チュートリアル · Tuist",
   "description": "最初のTuist生成Xcodeプロジェクトを作成し、依存関係を追加する方法を学びます"
 }
 ---
-# 生成されたプロジェクトを作成する {#create-a-generated-project}
+# 生成プロジェクトを作成する {#create-a-generated-project}
 
-任意のディレクトリ、または既存のプロジェクトのディレクトリで Tuist を使い始める最も簡単な方法：
+空のディレクトリ、または既存のプロジェクトのディレクトリで `tuist init` を実行します。
 
 ::: code-group
 
@@ -21,23 +21,23 @@ tuist init
 <!-- -->
 :::
 
-このコマンドは、<.localized_link href="/guides/features/projects">生成されたプロジェクトを作成</.localized_link>するか、既存の Xcode プロジェクトやワークスペースを統合する手順を案内します。セットアップをリモートサーバーに接続し、<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>、<.localized_link href="/guides/features/previews">プレビュー</.localized_link>、<.localized_link href="/guides/features/package-registries/swift">レジストリ</.localized_link>などの機能を利用できるようにします。
+このコマンドは、<.localized_link href="/guides/features/projects">生成プロジェクトを作成</.localized_link>するか、既存のXcodeプロジェクトまたはワークスペースを統合する手順を案内します。セットアップをリモートサーバーに接続し、<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>、<.localized_link href="/guides/features/previews">プレビュー</.localized_link>、<.localized_link href="/guides/features/package-registries/swift">レジストリ</.localized_link>などの機能を利用できるようにします。
 
 > [!NOTE]
-> **既存のプロジェクトを移行する**
+> **既存のプロジェクトを移行**
 >
-> 開発者体験を向上させ、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>を活用するために既存のプロジェクトを生成されたプロジェクトに移行したい場合は、<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">移行ガイド</.localized_link>をご覧ください。
+> 開発者体験を向上させ、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>を活用するために既存のプロジェクトを生成プロジェクトに移行したい場合は、<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">移行ガイド</.localized_link>をご覧ください。
 
 
 ## 依存関係を追加する {#add-dependencies}
 
-プロジェクトが追加機能を提供するためにサードパーティ製のライブラリに依存することは一般的です。そのためには、次のコマンドを実行して、プロジェクト編集の最適な環境を整えます：
+プロジェクトが追加機能を提供するためにサードパーティ製ライブラリに依存することは一般的です。そのためには、以下のコマンドを実行して、プロジェクト編集の最適な環境を整えます。
 
 ```bash
 tuist edit
 ```
 
-プロジェクトファイルを含む Xcode プロジェクトが開きます。`Package.swift`を編集して、以下を追加してください
+プロジェクトファイルを含むXcodeプロジェクトが開きます。`Tuist/Package.swift` を編集し、Kingfisherを追加します。
 
 ```swift
 // swift-tools-version: 5.9
@@ -59,13 +59,13 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
 
-次に、プロジェクト内のアプリケーションターゲットを編集して、`Kingfisher`を依存関係として宣言します：
+次に、プロジェクト内のアプリケーションターゲットを編集し、`Kingfisher` を依存関係として宣言します。
 
 ```swift
 import ProjectDescription
@@ -88,7 +88,7 @@ let project = Project(
                 "MyApp/Resources",
             ],
             dependencies: [
-                .external(name: "Kingfisher") // [!code ++]
+                .external(name: "Kingfisher")
             ]
         ),
         .target(
@@ -105,41 +105,39 @@ let project = Project(
 )
 ```
 
-その後、`tuist install`を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/)を使用して依存関係を解決および取得します。
+その後、`tuist install` を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/)を使用して依存関係を解決および取得します。
 
 > [!NOTE]
-> **依存関係リゾルバーとしての SPM**
+> **依存関係解決ツールとしてのSwiftPM**
 >
-> Tuist が推奨する依存関係の扱い方では、Swift Package Manager (SPM) は依存関係の解決のみを行います。その後、Tuist はそれらを最大限の設定性と制御性を実現するために Xcode プロジェクトとターゲットに変換します。
+> Tuistが推奨する依存関係の扱いは、Swift Package Manager (SPM) を依存関係の解決のみに使用します。その後、TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定可能性と制御を実現します。
 
 
 ## プロジェクトを可視化する {#visualize-the-project}
 
-次のコマンドを実行することで、プロジェクト構造を可視化できます：
+以下のコマンドを実行すると、プロジェクト構造を可視化できます。
 
 ```bash
 tuist graph
 ```
 
-このコマンドは、プロジェクトのディレクトリ内に `graph.png` ファイルを出力して開きます：
+このコマンドは、プロジェクトのディレクトリに `graph.png` ファイルを出力して開きます。
 
 ![プロジェクトグラフ](/images/guides/quick-start/graph.png)
 
 ## 依存関係を使用する {#use-the-dependency}
 
-`tuist generate`を実行して Xcode でプロジェクトを開き、`ContentView.swift`ファイルに以下の変更を加えます：
+`tuist generate` を実行してXcodeでプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます。
 
 ```swift
 import SwiftUI
-import Kingfisher // [!code ++]
+import Kingfisher
 
 public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        Text("Hello, World!") // [!code --]
-            .padding() // [!code --]
-        KFImage(URL(string: "https://cloud.tuist.io/images/tuist_logo_32x32@2x.png")!) // [!code ++]
+        KFImage(URL(string: "https://tuist.dev/images/tuist_logo_32x32@2x.png")!)
     }
 }
 
@@ -151,4 +149,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcode からアプリを実行すると、URL から読み込まれた画像が表示されます。
+Xcodeからアプリを実行すると、URLから画像が読み込まれているのが確認できます。

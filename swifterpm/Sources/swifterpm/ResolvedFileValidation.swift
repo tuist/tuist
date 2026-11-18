@@ -23,7 +23,7 @@ enum ResolvedFileValidation {
                 "swifterpm": swifterpmVersion,
                 "toolchain": toolchain,
                 "environment": await ManifestEnvironmentFingerprint.current(packageDir: packageDir),
-                "root": packageDir.standardizedFileURL.lastPathComponent,
+                "root": packageDir.syntacticallyStandardizedFileURL.lastPathComponent,
                 "manifests": try await manifestDigest(packageDir: packageDir),
                 "Package.resolved": try await Hashing.sha256Hex(
                     fileSystem.readFile(at: packageDir.appendingPathComponent("Package.resolved").absolutePath)
@@ -55,7 +55,10 @@ enum ResolvedFileValidation {
     }
 
     static func isRecorded(key: String, cacheDir: URL) async -> Bool {
-        (try? await fileSystem.exists(recordPath(key: key, cacheDir: cacheDir).absolutePath)) ?? false
+        let record = recordPath(key: key, cacheDir: cacheDir)
+        guard (try? await fileSystem.exists(record.absolutePath)) == true else { return false }
+        await Cache.markUsed(record)
+        return true
     }
 
     static func record(key: String, cacheDir: URL) async {

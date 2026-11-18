@@ -21,6 +21,42 @@ defmodule Tuist.BundlesTest do
     :ok
   end
 
+  describe "project_bundle_tags/2" do
+    test "returns sorted distinct recent tags from only the selected project" do
+      project = ProjectsFixtures.project_fixture()
+      assert Bundles.project_bundle_tags(project) == []
+
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["production", "debug"])
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["production"])
+      BundlesFixtures.bundle_fixture(custom_tags: ["other-project"])
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        custom_tags: ["expired"],
+        inserted_at: ~U[2023-08-09 00:00:00Z]
+      )
+
+      assert Bundles.project_bundle_tags(project) == ["debug", "production"]
+      assert Bundles.project_bundle_tags(project, "ROD") == ["production"]
+      assert Bundles.project_bundle_tags(project, "%") == []
+    end
+
+    test "searches all recent tags before limiting results" do
+      project = ProjectsFixtures.project_fixture()
+
+      for group <- Enum.chunk_every(1..1000, 10) do
+        BundlesFixtures.bundle_fixture(project: project, custom_tags: Enum.map(group, &"a-tag-#{&1}"))
+      end
+
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["z-production"])
+
+      initial_tags = Bundles.project_bundle_tags(project)
+      assert length(initial_tags) == 1000
+      refute "z-production" in initial_tags
+      assert Bundles.project_bundle_tags(project, "PROD") == ["z-production"]
+    end
+  end
+
   describe "create_bundle/1" do
     test "creates a bundle" do
       # Given
@@ -1811,6 +1847,57 @@ defmodule Tuist.BundlesTest do
         )
 
       assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
+    end
+
+    test "scopes a tagged threshold to bundles and baselines carrying the tag" do
+      project = ProjectsFixtures.project_fixture()
+
+      threshold =
+        BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 10.0, tag: "release")
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        custom_tags: ["release"],
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      # A newer untagged bundle on main must not become the baseline.
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1950,
+        git_branch: "main",
+        custom_tags: ["debug"],
+        inserted_at: ~U[2024-01-02 00:00:00Z]
+      )
+
+      tagged =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 2000,
+          git_branch: "feature",
+          custom_tags: ["debug", "release"],
+          inserted_at: ~U[2024-01-03 00:00:00Z]
+        )
+
+      untagged =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 5000,
+          git_branch: "feature",
+          custom_tags: ["debug"],
+          inserted_at: ~U[2024-01-03 00:00:00Z]
+        )
+
+      assert {:violated, ^threshold, %{baseline_size: 1000, current_size: 2000}} =
+               Bundles.evaluate_project_thresholds(project, tagged)
+
+      assert :ok == Bundles.evaluate_project_thresholds(project, untagged)
     end
 
     test "returns :ok when no baseline bundle exists" do

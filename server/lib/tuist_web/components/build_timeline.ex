@@ -61,6 +61,8 @@ defmodule TuistWeb.Components.BuildTimeline do
       data-metric-out={dgettext("dashboard_builds", "Out")}
       data-metric-read={dgettext("dashboard_builds", "Read")}
       data-metric-write={dgettext("dashboard_builds", "Write")}
+      data-metric-used={dgettext("dashboard_builds", "Used")}
+      data-metric-total={dgettext("dashboard_builds", "Total")}
       data-outcome-labels={
         JSON.encode!(%{
           "local_hit" => dgettext("dashboard_builds", "Local cache hit"),
@@ -114,7 +116,8 @@ defmodule TuistWeb.Components.BuildTimeline do
                   {"cpu", "CPU", "%"},
                   {"memory", dgettext("dashboard_builds", "Memory"), "GB"},
                   {"network", dgettext("dashboard_builds", "Network"), "MiB/s"},
-                  {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"}
+                  {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"},
+                  {"disk-space", dgettext("dashboard_builds", "Disk space"), "GB"}
                 ]
               }
               data-part="metric-track"
@@ -122,13 +125,17 @@ defmodule TuistWeb.Components.BuildTimeline do
             >
               <div data-part="metric-heading">
                 <span>{label}</span>
-                <span :if={key in ["network", "disk"]} data-part="metric-series">
-                  <span data-series="primary">{if key == "network",
-                    do: dgettext("dashboard_builds", "In"),
-                    else: dgettext("dashboard_builds", "Read")}</span>
-                  <span data-series="secondary">{if key == "network",
-                    do: dgettext("dashboard_builds", "Out"),
-                    else: dgettext("dashboard_builds", "Write")}</span>
+                <span :if={key in ["network", "disk", "disk-space"]} data-part="metric-series">
+                  <span data-series="primary">{case key do
+                    "network" -> dgettext("dashboard_builds", "In")
+                    "disk" -> dgettext("dashboard_builds", "Read")
+                    "disk-space" -> dgettext("dashboard_builds", "Used")
+                  end}</span>
+                  <span data-series="secondary">{case key do
+                    "network" -> dgettext("dashboard_builds", "Out")
+                    "disk" -> dgettext("dashboard_builds", "Write")
+                    "disk-space" -> dgettext("dashboard_builds", "Total")
+                  end}</span>
                 </span>
                 <output data-metric-value={key}>{unit}</output>
               </div>

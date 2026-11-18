@@ -197,6 +197,16 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 	if err := Prepare(root, spec.UID, spec.GID); err != nil {
 		return nil, fmt.Errorf("preparing jail %s: %w", root, err)
 	}
+	// The jailer copies Firecracker into the jail root and fails with
+	// ETXTBSY when a killed predecessor's image is still mapped, as after a
+	// warm restore whose userfaultfd server still held its memory. Unlinking
+	// the copy lets the jailer write a new one either way.
+	if spec.JailerEnabled {
+		jailed := filepath.Join(root, filepath.Base(spec.FirecrackerBin))
+		if err := os.Remove(jailed); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("removing %s: %w", jailed, err)
+		}
+	}
 	logFile, err := openCappedLog(filepath.Join(root, LogFileName), MaxLogBytes)
 	if err != nil {
 		return nil, err

@@ -59,7 +59,8 @@
       </div>
       <div data-part="cta">
         <div data-part="socials">
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             size="large"
             href="https://github.com/tuist/tuist/tree/main/atlas"
             target="_blank"
@@ -67,13 +68,14 @@
             aria-label="Atlas on GitHub"
           >
             <.brand_github />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <.theme_toggle id="docs-theme-toggle" label="Toggle theme" />
         <.button label="Open Atlas" variant="primary" size="large" href={~p"/login"} />
       </div>
       <div data-part="mobile-actions">
-        <.neutral_button
+        <.ghost_button
+          variant="secondary"
           size="large"
           href="https://github.com/tuist/tuist/tree/main/atlas"
           target="_blank"
@@ -81,7 +83,7 @@
           aria-label="Atlas on GitHub"
         >
           <.brand_github />
-        </.neutral_button>
+        </.ghost_button>
         <.theme_toggle id="docs-mobile-theme-toggle" label="Toggle theme" />
         <.button label="Open Atlas" variant="primary" size="large" href={~p"/login"} />
       </div>

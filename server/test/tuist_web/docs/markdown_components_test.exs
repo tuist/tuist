@@ -20,7 +20,7 @@ defmodule TuistWeb.Docs.MarkdownComponentsTest do
              ~w(apple android gradle bazel elixir rust)
 
     assert [_] = Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))
-    assert [_] = Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg[fill="currentColor"]))
+    assert [_] = Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg path[fill="currentColor"]))
   end
 
   test "home cards omit the support row when no systems are specified" do

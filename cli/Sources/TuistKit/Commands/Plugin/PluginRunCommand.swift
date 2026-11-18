@@ -7,6 +7,7 @@ public struct PluginRunCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
+            _superCommandName: "plugin",
             abstract: "Runs a plugin."
         )
     }

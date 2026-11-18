@@ -1,0 +1,147 @@
+# Managed shadow deployment. No public ingress or collector cutover by default.
+storage:
+  bucket: ""
+  endpoint: ""
+  region: auto
+  # Never share Pulse's tenants/ or system/ namespaces.
+  prefix: openobserve/
+
+credentials:
+  storeName: onepassword
+  # Reuse the environment's bucket credentials through ESO, never by reading
+  # or copying the existing Kubernetes Secret in an agent session.
+  accessKey: PULSE_S3_CREDENTIALS/access_key_id
+  secretKey: PULSE_S3_CREDENTIALS/secret_access_key
+
+metadata:
+  instances: 2
+  storageClass: hcloud-volumes
+  size: 10Gi
+
+openobserve:
+  fullnameOverride: openobserve
+  image:
+    oss:
+      repository: o2cr.ai/openobserve/openobserve
+      tag: v1.1.2
+  enterprise:
+    enabled: false
+    openfga:
+      enabled: false
+    o2ai:
+      enabled: false
+  reportserver:
+    enabled: false
+  minio:
+    enabled: false
+  # The wrapper creates a least-privilege CNPG application database instead
+  # of the upstream chart's superuser role and example password.
+  postgres:
+    enabled: false
+  externalSecret:
+    enabled: true
+    name: openobserve-credentials
+  auth:
+    ZO_ROOT_USER_EMAIL: ""
+    ZO_ROOT_USER_PASSWORD: ""
+    ZO_META_POSTGRES_DSN: ""
+    ZO_TRACING_HEADER_VALUE: ""
+  config:
+    ZO_CLUSTER_NAME: tuist-openobserve
+    ZO_LOCAL_MODE: "false"
+    ZO_META_STORE: postgres
+    ZO_DATA_DIR: /data/
+    ZO_TELEMETRY: "false"
+    ZO_MMDB_DISABLE_DOWNLOAD: "true"
+    ZO_PROMETHEUS_ENABLED: "true"
+    # This does not recognize an ordinary `cluster` label as an HA pair.
+    ZO_PROMETHEUS_HA_CLUSTER: __o2_ha_cluster
+    ZO_PROMETHEUS_HA_REPLICA: __replica__
+    ZO_COMPACT_DATA_RETENTION_DAYS: "0"
+    ZO_MEMORY_CIRCUIT_BREAKER_ENABLED: "true"
+    ZO_MEMORY_CACHE_ENABLED: "false"
+  extraEnv:
+    - name: ZO_ROOT_USER_EMAIL
+      value: openobserve@tuist.dev
+    - name: ZO_ROOT_USER_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-auth
+          key: root-password
+    - name: ZO_INTERNAL_GRPC_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-auth
+          key: internal-token
+    - name: ZO_META_POSTGRES_DSN
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-metadata-app
+          key: uri
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  replicaCount:
+    ingester: 2
+    querier: 2
+    router: 2
+    scheduler: 1
+    compactor: 1
+    alertquerier: 0
+    reportserver: 0
+    o2ai: 0
+  nodeSelector:
+    ingester: &general
+      node.cluster.x-k8s.io/pool: general
+    querier: *general
+    router: *general
+    scheduler: *general
+    compactor: *general
+  resources:
+    ingester:
+      requests: {cpu: 500m, memory: 1Gi}
+      limits: {memory: 4Gi}
+    querier:
+      requests: {cpu: 500m, memory: 1Gi}
+      limits: {memory: 4Gi}
+    router:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {memory: 512Mi}
+    scheduler:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {memory: 1Gi}
+    compactor:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 2Gi}
+  ingester:
+    persistence: {enabled: true, size: 50Gi, storageClass: hcloud-volumes}
+  querier:
+    persistence: {enabled: true, size: 20Gi, storageClass: hcloud-volumes}
+  scheduler:
+    persistence: {enabled: true, size: 10Gi, storageClass: hcloud-volumes}
+  probes:
+    ingester: {enabled: true}
+    querier: {enabled: true}
+    router: {enabled: true}
+    scheduler: {enabled: true}
+    compactor: {enabled: true}
+  nats:
+    config:
+      cluster: {enabled: true, replicas: 3}
+      jetstream:
+        enabled: true
+        fileStore:
+          pvc: {enabled: true, size: 10Gi, storageClassName: hcloud-volumes}
+    container:
+      resources:
+        requests: {cpu: 100m, memory: 256Mi}
+        limits: {memory: 1Gi}
+    podTemplate:
+      merge:
+        spec:
+          nodeSelector: *general
+    promExporter:
+      enabled: true
+      podMonitor: {enabled: false}
+    natsBox: {enabled: false}

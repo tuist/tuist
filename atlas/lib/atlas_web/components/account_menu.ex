@@ -12,6 +12,7 @@ defmodule AtlasWeb.AccountMenu do
   attr :current_user, :any, required: true
   attr :account_settings?, :boolean, default: false
   attr :current_path, :string, default: nil
+  attr :mobile_navigation?, :boolean, default: false
 
   def headerbar(assigns) do
     assigns = assign(assigns, :native_url, native_url(assigns.current_path))
@@ -19,6 +20,14 @@ defmodule AtlasWeb.AccountMenu do
     ~H"""
     <header class="headerbar">
       <div data-part="left-section">
+        <label
+          :if={@mobile_navigation?}
+          for="mobile-navigation-toggle"
+          data-part="mobile-navigation-trigger"
+          aria-label={gettext("Open navigation")}
+        >
+          <.icon name="menu" />
+        </label>
         <.link navigate={~p"/"} class="headerbar__brand">
           <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
           <span class="headerbar__title">Atlas</span>

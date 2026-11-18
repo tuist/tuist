@@ -1,4 +1,5 @@
 import Foundation
+import Path
 
 /// A cache category.
 public enum CacheCategory: String, CaseIterable, RawRepresentable {
@@ -99,6 +100,13 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
 
     /// Cargo scopes action/blob entries by project. Evict the entries, not a perpetually hot project directory.
     var entryGlob: String { self == .cargo ? "*/*/*" : "*" }
+
+    /// Cargo's hook client and read recorder are tools a running build starts by path, so they are never evicted.
+    /// Renewing their modification times instead would make Cargo probe the compiler again, since its probe cache is
+    /// keyed by the wrapper's.
+    func isEvictable(_ path: AbsolutePath) -> Bool {
+        self != .cargo || !["hook", "recorder"].contains(path.parentDirectory.basename)
+    }
 
     /// The categories the shared support-cache budget bounds, in the order they are evicted:
     /// what costs the least to lose goes first.

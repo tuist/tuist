@@ -523,7 +523,7 @@ func TestHandoverPreparationRenewsSourceAndRequiresExactCompletion(t *testing.T)
 		t.Fatal("pending preparation did not renew only the serving lease", renewed)
 	}
 	target := statuses["test-1"]
-	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true}
+	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true, ContentVerified: true}
 	target.ServingAuthority.Preparation = preparation
 	statuses["test-1"] = target
 	if next := authorityStep(t, r); next.Phase != "Serving" {
@@ -707,5 +707,16 @@ func TestAuthorityDropsAnExitBindingWhenResumingTheLiveWriter(t *testing.T) {
 	}
 	if next.ExitResume != nil || next.HolderExit != nil {
 		t.Fatal("a live-writer resume kept an earlier exit binding the runtime would refuse", next.ExitResume)
+	}
+}
+
+func TestHandoverPreparationWithoutVerifiedContentNeverQuiesces(t *testing.T) {
+	r, _, statuses, grant := preparationFixture(t)
+	target := statuses["test-1"]
+	target.ServingAuthority.Preparation = &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch, Complete: true}
+	statuses["test-1"] = target
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Handover != nil || next.LastHandover != grant.Handover.ID {
+		t.Fatal("a preparation without verified content was not abandoned while the source serves", next)
 	}
 }

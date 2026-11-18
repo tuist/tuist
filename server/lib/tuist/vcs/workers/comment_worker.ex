@@ -11,6 +11,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
 
   import Ecto.Query
 
+  alias Tuist.EntireTrails
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
@@ -45,6 +46,13 @@ defmodule Tuist.VCS.Workers.CommentWorker do
         build_url: &build_url/1
       })
     end
+
+    # Queued here rather than when this job is enqueued, because processors
+    # enqueue it and their database role cannot read Entire connections; this
+    # queue runs only on web nodes. Queuing after the comment keeps uploads
+    # that arrived while this job was pending or running (deduplicated into
+    # it) covered by the report, whose own delay outlasts their buffer flush.
+    EntireTrails.enqueue(project_id)
 
     :ok
   end

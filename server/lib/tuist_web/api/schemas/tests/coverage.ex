@@ -25,6 +25,11 @@ defmodule TuistWeb.API.Schemas.Tests.Coverage do
         type: :string,
         description: "The version of the tool, or of the runtime that provides it, so only like figures are compared."
       },
+      platform: %Schema{
+        type: :string,
+        description:
+          "The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none."
+      },
       partial: %Schema{
         type: :boolean,
         description:

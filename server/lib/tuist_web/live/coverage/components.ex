@@ -309,7 +309,7 @@ defmodule TuistWeb.Coverage.Components do
       <.tooltip id={@id} size="large" title={@label} description={@description}>
         <:trigger :let={attrs}>
           <span {attrs} tabindex="0">
-            <.badge label={@label} color={@color} style="light-fill" size="large" />
+            <.badge label={@label} color={@color} style="light-fill" size="medium" />
           </span>
         </:trigger>
       </.tooltip>
@@ -834,7 +834,7 @@ defmodule TuistWeb.Coverage.Components do
               branch: @branch
             )
           }
-          get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+          get_started_href="https://tuist.dev/en/docs/guides/features/test-code-coverage"
           data-part="empty-analytics"
         />
       </div>

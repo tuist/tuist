@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "201ce71925e4eb9da9b53e03fb999e12f10ea94614d91955eaabc1f60bfe3ca6",
+  "hash": "bcea85700c013aa449ad76502b00713eba1c8d461afe2bb538ae6cbdd3343975",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "be4ae8403d871f7f27a820ca243d6037c9a0eaae5c14fe3b172ba6fd51d7f403"
                 },
                 "## What to log {#what-to-log}": {
-                  "content_hash": "e8906eda26d454ab4ce363431c4a2a81ac9fca7655d753449e4333de3f2ffe38"
+                  "content_hash": "4f313a3779a513aaca08e991c5dcb1a8fce9fd6d19dff5dc34df19464725950c"
                 },
                 "Preamble": {
                   "content_hash": "19d3a2a373a6db8e911dfef8cae9ce3ae903d400059113c0127a7de69c9dda60"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ccfba1f5feeaf098dad6e6f028ee05dbb4d22c00e78dc2bbc2f197149bf7f974",
+          "hash": "784feee7df00987019036f30f783df746632f8a97457e6a7e2ae781daba59c28",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/cli/logging.md",
           "metadata": {
-            "content_hash": "7e652597a94f29ed91f676a091da6c5daa14ff516d7d5139d765bf0eb9e927e4"
+            "content_hash": "bb70c7ddcb6c5aec4e19147352b609eb129862f1d69b13e47ea11642cad5f05f"
           }
         },
         {
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -217,21 +217,21 @@
             }
           ],
           "details": {},
-          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
+          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "201ce71925e4eb9da9b53e03fb999e12f10ea94614d91955eaabc1f60bfe3ca6",
+      "hash": "bcea85700c013aa449ad76502b00713eba1c8d461afe2bb538ae6cbdd3343975",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/cli/logging.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "250e9e04d9ed4d9118e6b97f414ebebd5be6bb6ad9f329dc79b80b3224c40215",
+  "output_hash": "205f02b12456f4b87acf68ec451574e72332887d4fa3f6bd2a034daf43599603",
   "output_path": "server/priv/docs/ka/contributors/cli/logging.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6015683fe02afd165cfac93aaea4a0a2e6b13251",
+  "source_commit_sha": "92cdb470cfe891bd71471ea92bd1b14409c523db",
   "source_path": "server/priv/docs/en/contributors/cli/logging.md",
-  "translated_at": "2026-10-30T13:03:28.252777Z",
-  "translation_session_id": "01a18ce1-c02e-7bc6-a18d-aa70ecc3e653"
+  "translated_at": "2026-11-06T15:36:35.548412Z",
+  "translation_session_id": "01a1b17e-ce4a-773d-acc9-dd237d9e7e04"
 }

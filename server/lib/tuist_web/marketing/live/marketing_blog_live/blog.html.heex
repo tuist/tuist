@@ -152,7 +152,9 @@
               />
             <% end %>
           </div>
-          <div data-part="content">
+          <%!-- Posts are written in English only; mark them so right-to-left
+          locales keep their punctuation and alignment. --%>
+          <div data-part="content" lang="en" dir="ltr">
             <h2 data-part="title">{Content.get_entry_title(post)}</h2>
             <p data-part="excerpt">{Content.get_entry_excerpt(post)}</p>
           </div>

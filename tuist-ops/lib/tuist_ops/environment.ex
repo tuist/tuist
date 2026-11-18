@@ -15,17 +15,11 @@ defmodule TuistOps.Environment do
   def slack_signing_secret, do: System.get_env("SLACK_SIGNING_SECRET")
   def slack_bot_token, do: System.get_env("SLACK_BOT_TOKEN")
   def approvals_channel_id, do: System.get_env("SLACK_APPROVALS_CHANNEL_ID")
-  def previews_channel_id, do: System.get_env("SLACK_PREVIEWS_CHANNEL_ID")
 
   def github_app_id, do: System.get_env("GITHUB_APP_ID")
   def github_app_installation_id, do: System.get_env("GITHUB_APP_INSTALLATION_ID")
   def github_app_private_key, do: System.get_env("GITHUB_APP_PRIVATE_KEY")
   def github_repository, do: System.get_env("GITHUB_REPOSITORY") || "tuist/tuist"
-  def github_workflow_ref, do: System.get_env("GITHUB_WORKFLOW_REF") || "main"
-
-  def preview_workflow_id do
-    System.get_env("PREVIEW_WORKFLOW_ID") || "preview-deploy.yml"
-  end
 
   # --- Operator project-access grants -----------------------------------
 
@@ -91,4 +85,21 @@ defmodule TuistOps.Environment do
   `"ops.tuist.dev"`; set `POMERIUM_AUDIENCE`.
   """
   def pomerium_audience, do: System.get_env("POMERIUM_AUDIENCE") || "ops.tuist.dev"
+
+  # --- Atlas workload identity -------------------------------------------
+
+  @doc """
+  The Atlas cluster's public JWKS (JSON), which signs the projected
+  ServiceAccount token Atlas calls `/api/v1/atlas/*` with. nil when
+  unset, which rejects every Atlas call.
+  """
+  def atlas_token_jwks, do: System.get_env("ATLAS_TOKEN_JWKS")
+
+  def atlas_token_issuer,
+    do: System.get_env("ATLAS_TOKEN_ISSUER") || "https://kubernetes.default.svc.cluster.local"
+
+  def atlas_token_audience, do: System.get_env("ATLAS_TOKEN_AUDIENCE") || "ops.tuist.dev"
+
+  def atlas_service_account,
+    do: System.get_env("ATLAS_SERVICE_ACCOUNT") || "system:serviceaccount:atlas-production:atlas"
 end

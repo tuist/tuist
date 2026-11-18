@@ -1,0 +1,1 @@
+The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.

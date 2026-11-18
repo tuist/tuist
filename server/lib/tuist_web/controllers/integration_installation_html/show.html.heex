@@ -9,32 +9,25 @@
       <div data-part="header">
         <h1 data-part="title">{dgettext("dashboard_auth", "Choose an organization")}</h1>
         <span data-part="subtitle">
-          {dgettext("dashboard_auth", "Select the Tuist organization to connect to %{provider}.",
-            provider: @provider
-          )}
+          <%= if match?(%{type: :organization}, @github_account) do %>
+            {dgettext(
+              "dashboard_auth",
+              "Select the Tuist organization to connect to the %{github_organization} GitHub organization.",
+              github_organization: @github_account.login
+            )}
+          <% else %>
+            {dgettext(
+              "dashboard_auth",
+              "Select the Tuist organization to connect to %{provider}.",
+              provider: @provider
+            )}
+          <% end %>
         </span>
       </div>
-      <div data-part="organizations">
-        <form :for={account <- @accounts} method="post" action={~p"/integrations/installation"}>
-          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-          <input type="hidden" name="account_id" value={account.id} />
-          <button type="submit" data-part="organization">
-            <.avatar id={"installation-account-#{account.id}"} name={account.name} size="medium" />
-            <span data-part="organization-details">
-              <span data-part="organization-name">{account.name}</span>
-              <span data-part="organization-type">
-                {if account.organization_id,
-                  do: dgettext("dashboard_auth", "Organization"),
-                  else: dgettext("dashboard_auth", "Personal account")}
-              </span>
-            </span>
-            <.chevron_right />
-          </button>
-        </form>
-      </div>
-      <span :if={@accounts == []} data-part="empty-state">
-        {dgettext("dashboard_auth", "You need administrator access to connect an integration.")}
-      </span>
+      {live_render(@conn, TuistWeb.IntegrationInstallationAccountsLive,
+        id: "integration-installation-accounts",
+        container: {:div, "data-part": "accounts"}
+      )}
       <form method="post" action={~p"/integrations/installation"} data-part="form">
         <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
         <input type="hidden" name="_method" value="delete" />
@@ -45,6 +38,23 @@
           label={dgettext("dashboard_auth", "Cancel")}
         />
       </form>
+    </div>
+    <div data-part="bottom-link">
+      <span data-part="bottom-link-title">
+        {dgettext("dashboard_auth", "Don't see your organization?")}
+      </span>
+      <span data-part="bottom-link-description">
+        {dgettext(
+          "dashboard_auth",
+          "Only organizations you administer are listed. Create one, or ask an admin to promote you."
+        )}
+      </span>
+      <.link_button
+        href={~p"/organizations/new?#{%{return_to: "integration_installation"}}"}
+        variant="primary"
+        size="large"
+        label={dgettext("dashboard_auth", "Create an organization")}
+      />
     </div>
   </div>
   <div data-part="background">

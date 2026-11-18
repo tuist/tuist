@@ -58,16 +58,6 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="task-reminder-cell"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-small);
-    white-space: nowrap;
-  }
-
-  & [data-part="scroll-container"] {
-    overflow: visible;
-  }
-
   @media (max-width: 768px) {
     & > [data-part="header"] {
       flex-direction: column;
@@ -93,8 +83,7 @@
     gap: var(--noora-spacing-5);
   }
 
-  & [data-part="task-select"],
-  & [data-part="reminder-field"] {
+  & [data-part="task-select"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);

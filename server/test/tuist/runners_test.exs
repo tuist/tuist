@@ -3,6 +3,7 @@ defmodule Tuist.RunnersTest do
 
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
+  import TuistTestSupport.Fixtures.SandboxesFixtures, only: [sandbox_fixture: 1]
 
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
@@ -1988,6 +1989,40 @@ defmodule Tuist.RunnersTest do
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
       assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # A warm sandbox pool runs no job, so without its shape's creates it
+    # reported no use and the controller gave its slot to idle CI runners.
+    test "reports a warm macOS sandbox pool's use from the creates of its shape" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      created = fn platform, memory_mb, minutes_ago ->
+        sandbox_fixture(
+          account: account,
+          platform: platform,
+          vcpus: 8,
+          memory_mb: memory_mb,
+          inserted_at: DateTime.add(now, -minutes_ago, :minute)
+        )
+      end
+
+      created.(:darwin, 8192, 10)
+      created.(:darwin, 8192, 3 * 60)
+      created.(:darwin, 16_384, 2 * 60)
+      # Linux has an 8 x 16384 shape too, and must not count.
+      created.(:linux, 16_384, 5)
+      created.(:darwin, 24_576, 2 * 24 * 60)
+
+      assert %{hours_with_jobs: 2, p95_concurrent_last_hour: 1, queued: 0} =
+               Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm")
+
+      assert %{hours_with_jobs: 1, p95_concurrent_last_hour: 0} =
+               Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-16gb")
+
+      # Its last create is older than a day, so it is not in use at all.
+      assert %{hours_with_jobs: 0, p95_concurrent_last_hour: 0} =
+               Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-24gb")
     end
 
     # A custom volume an earlier `CI / build` job of acme/cli attached.

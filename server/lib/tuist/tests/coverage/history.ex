@@ -120,7 +120,7 @@ defmodule Tuist.Tests.Coverage.History do
     {query, at} = trend_query(project, branch, [])
 
     query
-    |> order_by([c], desc: field(c, ^at), desc: c.git_commit_sha)
+    |> order_by(^chronological(at, :desc))
     |> limit(1)
     |> select([c], c.git_commit_sha)
     |> Repo.one()
@@ -138,13 +138,21 @@ defmodule Tuist.Tests.Coverage.History do
     {query |> Commits.comparable() |> Commits.complete_figures(), at}
   end
 
-  defp trend_rows(query, at, :commit),
-    do: query |> order_by([c], asc: field(c, ^at), asc: c.git_commit_sha) |> trend_select(at)
+  # The order a trend's commits follow. A ref's commits can share a commit
+  # time, as a rebase merge's do, and then their position orders them: the
+  # newest is the one nearest the head. Commits read by when they ran have
+  # no common ref to order them by.
+  defp chronological(:committed_at, direction),
+    do: [{direction, :committed_at}, {direction, :position}, {direction, :git_commit_sha}]
+
+  defp chronological(:ran_at, direction), do: [{direction, :ran_at}, {direction, :git_commit_sha}]
+
+  defp trend_rows(query, at, :commit), do: query |> order_by(^chronological(at, :asc)) |> trend_select(at)
 
   defp trend_rows(query, at, grouping) do
     query
     |> distinct(^[asc: bucket(at, grouping)])
-    |> order_by([c], desc: field(c, ^at), desc: c.git_commit_sha)
+    |> order_by(^chronological(at, :desc))
     |> trend_select(at)
     |> select_merge(^%{period: bucket(at, grouping)})
   end

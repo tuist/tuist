@@ -2,7 +2,7 @@
 {
   "title": "测试分片",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "通过 Tuist 测试分片，将测试分发到多个 CI 运行器上，以加速你的测试套件。"
+  "description": "通过 Tuist 测试分片，将测试分配到多个 CI 运行器上，以加速你的测试套件。"
 }
 ---
 # 测试分片 {#test-sharding}
@@ -16,27 +16,32 @@ Tuist 利用历史测试耗时数据，通过[装箱算法](https://en.wikipedia
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="在并行 CI 运行器上分片 Xcode 测试。"
+    details="在并行 CI 运行器上分片执行 Xcode 测试。"
     link="/guides/features/test-sharding/xcode"
 />
   <.home_card
     title="生成的项目"
-    details="在并行 CI 运行器上分片 Tuist 生成项目中的测试。"
+    details="在并行 CI 运行器上分片执行 Tuist 生成项目中的测试。"
     link="/guides/features/test-sharding/generated-xcode-project"
 />
   <.home_card
     title="Gradle"
-    details="在并行 CI 运行器上分片 Gradle 测试。"
+    details="在并行 CI 运行器上分片执行 Gradle 测试。"
     link="/guides/features/test-sharding/gradle"
 />
   <.home_card
     title="Elixir"
-    details="在并行 CI 运行器上分片 Elixir 项目的测试。"
+    details="在并行 CI 运行器上分片执行你的 Elixir 项目测试。"
     link="/guides/features/test-sharding/elixir"
 />
   <.home_card
     title="Rust"
     details="在并行 CI 工作节点上分发 Cargo 测试目标。"
     link="/guides/features/test-sharding/rust"
+/>
+  <.home_card
+    title="Once"
+    details="在使用托管方案的情况下，将发现的 Once 测试批次分发到 CI 工作节点并合并结果。"
+    link="/guides/features/test-sharding/once"
 />
 </.home_cards>

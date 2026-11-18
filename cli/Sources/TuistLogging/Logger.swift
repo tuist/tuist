@@ -86,7 +86,7 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         line _: UInt
     ) {
         guard shouldLog(level, message, source) else { return }
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = backend.timestamp(for: Date())
         let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
         let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
         let logMessage = lineTransformer("[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n")
@@ -111,6 +111,9 @@ private final class SimpleFileLogBackend: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dev.tuist.logging.file-backend")
     private let maximumFileSize: UInt64?
     private var currentSize: UInt64
+    /// Creating a formatter per line serialized concurrent logging on ICU's process-wide lock.
+    private let timestampFormatter = ISO8601DateFormatter()
+    private let timestampLock = NSLock()
 
     init(fileURL: URL, maximumFileSize: UInt64?) throws {
         self.fileURL = fileURL
@@ -122,6 +125,12 @@ private final class SimpleFileLogBackend: @unchecked Sendable {
         currentSize = (try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?
             .uint64Value ?? 0
         try fileHandle.seekToEnd()
+    }
+
+    func timestamp(for date: Date) -> String {
+        timestampLock.lock()
+        defer { timestampLock.unlock() }
+        return timestampFormatter.string(from: date)
     }
 
     func write(_ data: Data) {

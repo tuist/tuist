@@ -23,7 +23,7 @@
   & .noora-sidebar {
     flex-shrink: 0;
     align-self: stretch;
-    border-right: 1px solid var(--noora-content-divider-line);
+    border-inline-end: 1px solid var(--noora-content-divider-line);
     /* Scrolling happens on the inner viewport with an overlay scrollbar. */
     overflow: hidden;
   }

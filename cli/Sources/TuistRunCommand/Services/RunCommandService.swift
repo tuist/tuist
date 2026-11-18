@@ -812,7 +812,7 @@ struct RunCommandService {
             )
             let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
             if generate || workspacePath == nil {
-                Logger.current.notice("Generating project for running", metadata: .section)
+                Logger.current.info("Generating project for running", metadata: .section)
                 graph = try await generator.generateWithGraph(
                     path: path,
                     options: config.project.generatedProject?.generationOptions

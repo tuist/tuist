@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html
   lang={TuistWeb.Locale.language_tag(Gettext.get_locale(TuistWeb.Gettext))}
+  dir={TuistWeb.Locale.direction(Gettext.get_locale(TuistWeb.Gettext))}
   class="[scrollbar-gutter:stable]"
 >
   <head>
@@ -8,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="webmcp-endpoint" content={~p"/api/webmcp/public"} />
     <script nonce={get_csp_nonce()}>
       (function() {
         function getPreferredTheme() {

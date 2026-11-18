@@ -8,11 +8,13 @@ import TuistHTTP
 @Mockable
 protocol OIDCTokenFetching {
     func fetchToken(requestURL: String, requestToken: String, audience: String) async throws -> String
+    func fetchAmpOrbToken(audience: String) async throws -> String
 }
 
 enum OIDCTokenFetcherError: LocalizedError, Equatable {
     case invalidTokenRequestURL(String)
     case tokenRequestFailed(statusCode: Int, body: String)
+    case ampOrbTokenCommandFailed(exitCode: Int32, output: String)
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +22,8 @@ enum OIDCTokenFetcherError: LocalizedError, Equatable {
             "Invalid OIDC token request URL: \(url)"
         case let .tokenRequestFailed(statusCode, body):
             "Failed to fetch OIDC token. Status code: \(statusCode). Response: \(body)"
+        case let .ampOrbTokenCommandFailed(exitCode, output):
+            "`amp orb id-token` failed with exit code \(exitCode). \(output)"
         }
     }
 }
@@ -53,6 +57,32 @@ struct OIDCTokenFetcher: OIDCTokenFetching {
 
         let tokenResponse = try JSONDecoder().decode(OIDCTokenResponse.self, from: data)
         return tokenResponse.value
+    }
+}
+
+extension OIDCTokenFetcher {
+    func fetchAmpOrbToken(audience: String) async throws -> String {
+        try await Task.detached {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["amp", "orb", "id-token", "--audience", audience]
+            let output = Pipe()
+            let error = Pipe()
+            process.standardOutput = output
+            process.standardError = error
+            try process.run()
+            let token = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            let errorOutput = String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else {
+                throw OIDCTokenFetcherError.ampOrbTokenCommandFailed(
+                    exitCode: process.terminationStatus,
+                    output: errorOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            }
+            return token.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.value
     }
 }
 

@@ -27,6 +27,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
   @peer_roles_timeout_ms 3_000
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
+  @node_local_nvme_storage_class "scw-local-nvme"
+  @encrypted_nvme_storage_class "kura-encrypted-nvme"
+  @thin_encrypted_nvme_storage_class "kura-thin-encrypted-nvme"
+  @kura_disk_resource "tuist.dev/kura-disk"
   # The public host, ingress class and region label are not in the suffixes
   # below, so a change to any of them moves the base.
   @manifest_revision "2026-09-09-eu-west-region-rename-v1"
@@ -375,7 +379,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       self_hosted_peers(account, region, entitlements),
       entitlements,
       effective_egress(account, region, entitlements)
-    ) <> endpoint_identity_revision(account) <> serving_revision(account)
+    ) <> endpoint_identity_revision(account) <> serving_revision(account) <> storage_revision(region, account)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -426,7 +430,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     revision =
       manifest_revision_string(region, claim, external_peers, entitlements, egress) <>
         endpoint_identity_revision(account) <>
-        serving_revision(account)
+        serving_revision(account) <>
+        storage_revision(region, account)
 
     annotations = %{@manifest_revision_annotation => revision}
 
@@ -480,7 +485,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "memoryCeilingMib" => entitlements.memory && entitlements.memory.ceiling_mib,
           "cpuCeilingMilli" => entitlements.cpu_ceiling_milli,
           "memoryCeilingBinPacked" => Regions.memory_ceiling_bin_packed?(region),
-          "storageClassName" => storage_class(region),
+          "storageClassName" => storage_class(region, account),
+          "diskResource" => disk_resource(region, account),
           "storageSize" => claim,
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
@@ -1073,9 +1079,42 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp rewrite_loopback(uri, _), do: uri
 
-  defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
+  defp storage_class(region, account) do
+    cond do
+      Regions.thin_volumes?(region, account) -> @thin_encrypted_nvme_storage_class
+      encrypted_volumes?(region, account) -> @encrypted_nvme_storage_class
+      true -> configured_storage_class(region)
+    end
+  end
 
-  defp storage_class(_), do: nil
+  defp disk_resource(region, account) do
+    if Regions.disk_resource(region) == @kura_disk_resource or Regions.thin_volumes?(region, account),
+      do: @kura_disk_resource,
+      else: ""
+  end
+
+  defp configured_storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
+  defp configured_storage_class(_), do: nil
+
+  defp encrypted_volumes?(%Regions{provisioner_config: %{storage_class: storage_class} = config}, account)
+       when storage_class in [@node_local_nvme_storage_class, "kura-lvm-nvme"] do
+    Map.get(config, :encrypted_volumes, true) and
+      (storage_class == "kura-lvm-nvme" or FeatureFlags.kura_encrypted_volumes_enabled?(account))
+  end
+
+  defp encrypted_volumes?(_region, _account), do: false
+
+  # Flipping the flag moves the revision, so the account's instances are
+  # re-applied and roll onto the new class one replica at a time.
+  defp storage_revision(region, account) do
+    if Regions.thin_volumes?(region, account) do
+      "+thin-volumes-v1"
+    else
+      encryption = if encrypted_volumes?(region, account), do: "+encrypted-volumes-v1", else: ""
+      disk = if Regions.disk_resource(region) == @kura_disk_resource, do: "+lvm-volumes-v1", else: ""
+      encryption <> disk
+    end
+  end
 
   # The claim carried on the instance wins over anything else. A claim cannot be
   # expanded on the local-path class these regions run, so an instance whose

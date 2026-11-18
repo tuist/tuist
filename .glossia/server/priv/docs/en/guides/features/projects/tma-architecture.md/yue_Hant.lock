@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "611d4faeb82a0cfa1e7ca467af956565f1f30975310e11dee728a75ce5e6752f",
+  "hash": "9a6d01be5cee5a6f6714c57a8001c7e6df0548fe370524fc78dd3366b2c8812d",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,22 +11,22 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# The Modular Architecture (TMA) {#the-modular-architecture-tma}": {
-                  "content_hash": "6f83fe7ec13d9be77849348020ceaedddb00295246fa9d3085a9bb433713d2fe"
+                  "content_hash": "62ac31ba242b4892f508f39c15b23c3231ead11cda10145362869b98101366a1"
                 },
-                "# You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}": {
-                  "content_hash": "c7318793e0416df876b18e4069c7026a4334146003bb4f0e1a51843d03c07430"
+                "# You'll have to read the value of the variable from the manifest": {
+                  "content_hash": "59a9e067dd9c15cdb8181c889e061c656572d7df55bbdb2a48bbb8880b6c3860"
                 },
-                "# and use it to change the linking type {#and-use-it-to-change-the-linking-type}": {
-                  "content_hash": "553639db9dd533bade16f641a9c57dcbeaa347a930f57c34444977665ba0b99e"
+                "# and use it to change the linking type": {
+                  "content_hash": "d98898f90539838bf6b2f65668cb5d6c7b8814759490e092e8e81eda5d6135a2"
                 },
                 "## Code {#code}": {
-                  "content_hash": "81f71c2937448652480b764eb663f4104e38efd9433ea21c9c2bbc0040c1a085"
+                  "content_hash": "1ef1b600093d5d46eab64662afabac21539c3c4c9c29c91e8d006fcd612d41b1"
                 },
                 "## Core principle {#core-principle}": {
                   "content_hash": "7f310c567d57b73a98e774597f88a0a8019b34e40b8699984870ab35a190e7bf"
                 },
                 "## Dependencies {#dependencies}": {
-                  "content_hash": "44d07caf382526af76d3e754e6b0b25b91c10a8f891cecc29b95aefcb6184532"
+                  "content_hash": "1db576ce1313d3ec35d54f3b58fbcabd0dd5e72e81d439b391b904ad213f4f19"
                 },
                 "## Product types {#product-types}": {
                   "content_hash": "6e2dfb8a39e1d2ee439c250472d5219d742f010670ff2529fe47cd23fc50a670"
@@ -35,7 +35,7 @@
                   "content_hash": "b65cea2313c9858b123f92a66fd3b0154faa33b572d2f7402da5ff73a5eff559"
                 },
                 "## What is a module {#what-is-a-module}": {
-                  "content_hash": "c4c5559ab1e411cea16dfcd942cc99733b1923973fbb290a5abf0953e454c47c"
+                  "content_hash": "8a1d1cdd4a7df26b57953685617598bcd4107e9d2b3564e1a052ae47112b44d2"
                 },
                 "## Why a module {#why-a-module}": {
                   "content_hash": "4b32faaa238df79028f771236fc0b5c42c3690bd276527db19ab50c89d317c36"
@@ -56,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0919829924e9e8cec5ae5c360239bc39ce8d40264c682c895f243111cccacd02",
+          "hash": "1951860486f1e43325c43005590e6b042d3733019d478d91dd4bd3c834071ee7",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/tma-architecture.md",
           "metadata": {
-            "content_hash": "a29a98833b8185d725f274de83c9f8b54fd122dcc323fbfbde93db4a29c2ffd6"
+            "content_hash": "6dd50968b03ea6b8635a7d5dd05f532d6a81d5ac7476fb6471a89f6528a3de42"
           }
         },
         {
@@ -121,7 +121,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -140,7 +140,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -169,11 +169,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -256,21 +256,21 @@
             }
           ],
           "details": {},
-          "hash": "0eb022a5d221c221f3be02bb7d405fac0e9c389b5d3b6bdb9022ea99115a1a37",
+          "hash": "10345f58e23c63d398d69133e386da4743b3130c8231279fcaa951c06b0cd2d1",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "611d4faeb82a0cfa1e7ca467af956565f1f30975310e11dee728a75ce5e6752f",
+      "hash": "9a6d01be5cee5a6f6714c57a8001c7e6df0548fe370524fc78dd3366b2c8812d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/tma-architecture.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "de63a43c043dac225bae2b6d9cc05f968fde7768805a7d890f36f4e4d2b5dee7",
+  "output_hash": "92d9a96cc4e1101213c467a11792138b01fabec3d29684b5ede6233ce963595b",
   "output_path": "server/priv/docs/yue_Hant/guides/features/projects/tma-architecture.md",
   "protection_state": "recorded",
   "provider": "",
@@ -291,8 +291,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8a16553b61a598abfb5559ff7315f102198ba708",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/tma-architecture.md",
-  "translated_at": "2026-10-30T19:03:55.453933Z",
-  "translation_session_id": "01a18e31-01a6-71ce-84e3-1bf27cd63699"
+  "translated_at": "2026-11-06T19:04:22.032019Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

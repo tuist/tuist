@@ -1,0 +1,644 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "tuist-remote-execution"
+  },
+  "spec": {
+    "title": "Tuist Remote Execution",
+    "uid": "tuist-remote-execution",
+    "tags": [
+      "tuist",
+      "remote-execution"
+    ],
+    "editable": true,
+    "schemaVersion": 39,
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "1m",
+    "graphTooltip": 1,
+    "templating": {
+      "list": [
+        {
+          "name": "datasource",
+          "label": "Data Source",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": {
+            "text": "grafanacloud-prom",
+            "value": "grafanacloud-prom"
+          },
+          "hide": 0,
+          "refresh": 1
+        },
+        {
+          "name": "cluster",
+          "label": "Cluster",
+          "type": "query",
+          "datasource": "$datasource",
+          "definition": "label_values(up, cluster)",
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up, cluster)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "current": {
+            "text": "tuist-production",
+            "value": "tuist-production"
+          },
+          "refresh": 1,
+          "sort": 1,
+          "hide": 0
+        }
+      ]
+    },
+    "panels": [
+      {
+        "type": "row",
+        "title": "Gateway",
+        "id": 1,
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "panels": []
+      },
+      {
+        "type": "timeseries",
+        "title": "Executions",
+        "description": "Execute calls per second by path and final status. `lease` ran on a VM the gateway claimed directly; `server` went through the scheduler. A status other than OK is the RPC's error or the action's own status.",
+        "id": 2,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 1
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (path, code) (rate(reapi_gateway_executions_total{cluster=~\"$cluster\"}[5m]))",
+            "legendFormat": "{{path}} {{code}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Execute latency",
+        "description": "Admission to final message. The leased path should sit a few milliseconds below the server path; a rising server share or latency points at the scheduler or VM supply.",
+        "id": 3,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 1
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.5, sum by (le, path) (rate(reapi_gateway_execute_seconds_bucket{cluster=~\"$cluster\"}[5m])))",
+            "legendFormat": "p50 {{path}}",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le, path) (rate(reapi_gateway_execute_seconds_bucket{cluster=~\"$cluster\"}[5m])))",
+            "legendFormat": "p95 {{path}}",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Input prefetches",
+        "description": "How the gateway read each action's inputs: `inputs` in one Kura read, `tree` with GetTree, `walk` level by level, `skipped` without a known cache endpoint, `failed` leaving the VM to read them itself.",
+        "id": 4,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 9
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (result) (rate(reapi_gateway_prefetches_total{cluster=~\"$cluster\"}[5m]))",
+            "legendFormat": "{{result}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Action-cache publications and streams",
+        "description": "Background action-cache writes after the client has its result. `dropped` means more than 256 were pending; a lost publication only costs a later cache miss. Streams are admitted Execute and WaitExecution calls (128 per replica).",
+        "id": 5,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (result) (rate(reapi_gateway_publications_total{cluster=~\"$cluster\"}[5m]))",
+            "legendFormat": "publications {{result}}",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(reapi_gateway_streams{cluster=~\"$cluster\"})",
+            "legendFormat": "streams",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Scheduler",
+        "id": 6,
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 17
+        },
+        "panels": []
+      },
+      {
+        "type": "timeseries",
+        "title": "Submissions",
+        "description": "Actions submitted to account schedulers: `accepted`, `deduplicated` onto an identical in-flight action, or refused with `queue_full` (four times the account's concurrency).",
+        "id": 7,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 18
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (outcome) (rate(tuist_remote_execution_submissions_total{cluster=~\"$cluster\"}[5m]))",
+            "legendFormat": "{{outcome}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Operations",
+        "description": "Scheduler operations completed, by status. `unavailable` covers worker failures and queue timeouts; `failed_precondition` is execution being disabled for the account.",
+        "id": 8,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 18
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (outcome) (rate(tuist_remote_execution_operations_total{cluster=~\"$cluster\"}[5m]))",
+            "legendFormat": "{{outcome}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Queue time",
+        "description": "How long scheduler operations waited for a VM. Sustained queue time means the account is at its concurrency or VMs are prepared too slowly for its demand.",
+        "id": 9,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 26
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.5, sum by (le) (rate(tuist_remote_execution_operation_queue_time_milliseconds_bucket{cluster=~\"$cluster\"}[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_remote_execution_operation_queue_time_milliseconds_bucket{cluster=~\"$cluster\"}[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "VM preparation",
+        "description": "Reserving, creating and preparing a VM. `no_node` means no reserved host had room, `at_capacity` the account's limit, `unavailable` a failed create that backs off.",
+        "id": 10,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 26
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le, outcome) (rate(tuist_remote_execution_prepare_duration_milliseconds_bucket{cluster=~\"$cluster\"}[5m])))",
+            "legendFormat": "p95 {{outcome}}",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (outcome) (rate(tuist_remote_execution_prepare_duration_milliseconds_count{cluster=~\"$cluster\"}[5m])) * 1000",
+            "legendFormat": "per 1000 s {{outcome}}",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Leases",
+        "description": "VMs handed to gateways: `claimed` ran an action, `unclaimed` came back untouched after 30 s, `timeout` found no VM in time, `unsupported` hit a node without a direct endpoint.",
+        "id": 11,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 34
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (outcome) (rate(tuist_remote_execution_leases_total{cluster=~\"$cluster\"}[5m]))",
+            "legendFormat": "{{outcome}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Workers",
+        "id": 12,
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 42
+        },
+        "panels": []
+      },
+      {
+        "type": "timeseries",
+        "title": "Execution VMs by state",
+        "description": "VMs on the reserved remote-execution hosts.",
+        "id": 13,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 43
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (state) (sandboxd_sandboxes{cluster=~\"$cluster\", namespace=\"tuist-sandboxes\", pod=~\"remote-execution-workers-.*\"})",
+            "legendFormat": "{{state}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Lifecycle phases",
+        "description": "p95 of each sandboxd phase on the reserved hosts.",
+        "id": 14,
+        "datasource": "$datasource",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 43
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le, phase) (rate(sandboxd_lifecycle_phase_seconds_bucket{cluster=~\"$cluster\", namespace=\"tuist-sandboxes\", pod=~\"remote-execution-workers-.*\"}[5m])))",
+            "legendFormat": "{{phase}}",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  }
+}

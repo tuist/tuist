@@ -365,3 +365,30 @@ func TestExecDoesNotWaitForBackgroundedChildren(t *testing.T) {
 		t.Fatalf("exec waited on the backgrounded child: %s", elapsed)
 	}
 }
+
+// A request larger than one environment string may be (128 KiB) must reach the
+// executor intact; as an environment variable it fails exec with E2BIG.
+func TestExecPassesLargeExecutorRequestOnStdin(t *testing.T) {
+	executor := filepath.Join(t.TempDir(), "sbx-executor")
+	script := "#!/bin/sh\necho \"env=${SBX_EXECUTION_REQUEST-unset} token=$SBX_EXECUTION_TOKEN\"\nwc -c\n"
+	if err := os.WriteFile(executor, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	previous := executorPath
+	executorPath = executor
+	t.Cleanup(func() { executorPath = previous })
+
+	request := strings.Repeat("x", 300<<10)
+	h := newHandler(&fakeSystem{}, t.TempDir())
+	frames := roundTrip(t, h, protocol.Request{
+		ID: "r1", Op: protocol.OpExec, Cmd: []string{executor},
+		Env: map[string]string{"SBX_EXECUTION_REQUEST": request, "SBX_EXECUTION_TOKEN": "t"},
+	})
+	stdout, _, exit, _ := collect(t, frames)
+	if exit == nil || *exit != 0 {
+		t.Fatalf("unexpected exit %v (frames %+v)", exit, frames)
+	}
+	if want := "env=unset token=t\n307200\n"; stdout != want {
+		t.Fatalf("stdout = %q, want %q", stdout, want)
+	}
+}

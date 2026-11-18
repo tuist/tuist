@@ -1093,13 +1093,23 @@ server.stripe.prices is empty (self-hosted installs without Stripe).
 {{- end -}}
 
 {{/*
-Mailing identity env vars. The Mailgun sending domain + from/reply-to addresses
-are sender identity, not secrets, so they come from chart values (shared in
-values-managed-common.yaml). The Mailgun API key itself stays in the secret
-store. Each var is emitted only when set, so an unset value leaves the accessor
-nil (mail simply degrades) rather than overriding with "".
+Mailing provider and identity. Credentials stay in the secret store. Empty sender
+values are omitted so they do not override secrets-file configuration with "".
 */}}
 {{- define "tuist.mailingEnv" -}}
+{{- if not (has .Values.server.mailing.provider (list "mailgun" "ses")) }}
+{{- fail "server.mailing.provider must be mailgun or ses" }}
+{{- end }}
+- name: TUIST_MAILING_PROVIDER
+  value: {{ .Values.server.mailing.provider | quote }}
+{{- if or (eq .Values.server.mailing.provider "ses") .Values.server.mailing.sesStartsAt }}
+- name: TUIST_SES_REGION
+  value: {{ required "server.mailing.sesRegion is required for SES" .Values.server.mailing.sesRegion | quote }}
+{{- end }}
+{{- with .Values.server.mailing.sesStartsAt }}
+- name: TUIST_MAILING_SES_STARTS_AT
+  value: {{ . | quote }}
+{{- end }}
 {{- with .Values.server.mailing.domain }}
 - name: TUIST_MAILING_DOMAIN
   value: {{ . | quote }}
@@ -1527,6 +1537,43 @@ and follows a release together.
 {{- end -}}
 
 {{/*
+The Xcodes macOS sandboxes serve, as a JSON array of version strings with
+`sandboxes.macos.xcodeVersion` (the default) first, then each
+`sandboxes.macos.xcodeVersions` entry. Each one is a sandbox template,
+`macos-xcode-<xcode-dashes>`, that boots the Xcode's catalog runner image, and
+`macos` boots the default. A version beyond the default needs the rack's
+golden budget, which keeps the served images on every rack host
+(`tuist.dev/macos-sandbox-template` on their catalog pools), and has to be in
+`runnersFleet.xcodeVersions`. The server validates `xcode_version` against
+this list (`TUIST_MACOS_SANDBOX_XCODE_VERSIONS`).
+*/}}
+{{- define "tuist.macosSandboxXcodeVersions" -}}
+{{- $macos := .Values.sandboxes.macos -}}
+{{- $versions := list ($macos.xcodeVersion | toString) -}}
+{{- $catalog := list -}}
+{{- range (.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- $catalog = append $catalog (.xcodeVersion | toString) -}}
+{{- end -}}
+{{- $budget := int (dig "goldenBudget" 0 (.Values.rackFleet.runners | default dict)) -}}
+{{- range ($macos.xcodeVersions | default list) -}}
+{{- $version := . | toString -}}
+{{- if not (has $version $versions) -}}
+{{- if not (has $version $catalog) -}}
+{{- fail (printf "sandboxes.macos.xcodeVersions: %s is not in runnersFleet.xcodeVersions" $version) -}}
+{{- end -}}
+{{- if $macos.image -}}
+{{- fail "sandboxes.macos.xcodeVersions needs the catalog images: leave sandboxes.macos.image empty" -}}
+{{- end -}}
+{{- $versions = append $versions $version -}}
+{{- end -}}
+{{- end -}}
+{{- if and (gt (len $versions) 1) (lt $budget (len $versions)) -}}
+{{- fail (printf "sandboxes.macos.xcodeVersions: %d Xcodes need rackFleet.runners.goldenBudget of at least %d, which keeps their images on every rack host" (len $versions) (len $versions)) -}}
+{{- end -}}
+{{- toJson $versions -}}
+{{- end -}}
+
+{{/*
 The stacked runner image for a catalog Xcode version:
 `<runnersFleet.runnerImageRepository>@<digest>` with the digest
 `runnersFleet.runnerImageStackedDigests` resolves for it, or empty when it has
@@ -1562,6 +1609,46 @@ can serve. Empty unless the rack's runners are enabled, which does not need
 `rackFleet.enabled`: an env whose rack hosts are lent to it by another env
 (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
+{{/*
+Linux OS versions the shape pools run on, as a JSON array of
+`{osVersion, tag, default, image, autoscaling}`. `runnersFleetLinux.osVersions`
+lists them; exactly one carries `default: true` and runs
+`runnersFleetLinux.shapeRunnerImage` under the shape-only pool names every
+Linux pool had before profiles could pick an OS. Every other entry runs its
+own image, `runnerImage` on the entry or the deploy-resolved
+`runnersFleetLinux.osRunnerImages.<tag>` (`ubuntu-22-04`), and is left out
+when neither is set: no pools render for it and the server does not offer
+it, so a profile can never pick an OS without a pool behind it.
+*/}}
+{{- define "tuist.runnersLinuxOSVersions" -}}
+{{- $values := .Values.runnersFleetLinux -}}
+{{- $entries := $values.osVersions | default list -}}
+{{- $defaults := 0 -}}
+{{- $result := list -}}
+{{- range $entries -}}
+{{- $osVersion := required "runnersFleetLinux.osVersions[].osVersion required" .osVersion | toString -}}
+{{- if not (regexMatch "^ubuntu-[0-9]{2}\\.[0-9]{2}$" $osVersion) -}}
+{{- fail (printf "runnersFleetLinux.osVersions[].osVersion must look like ubuntu-24.04, got %s" $osVersion) -}}
+{{- end -}}
+{{- $tag := replace "." "-" $osVersion -}}
+{{- $isDefault := dig "default" false . -}}
+{{- $image := "" -}}
+{{- if $isDefault -}}
+{{- $defaults = add1 $defaults -}}
+{{- $image = $values.shapeRunnerImage | default "" -}}
+{{- else -}}
+{{- $image = .runnerImage | default (get ($values.osRunnerImages | default dict) $tag) | default "" -}}
+{{- end -}}
+{{- if or $isDefault $image -}}
+{{- $result = append $result (dict "osVersion" $osVersion "tag" $tag "default" $isDefault "image" $image "autoscaling" (.autoscaling | default dict)) -}}
+{{- end -}}
+{{- end -}}
+{{- if and $values.shapes (ne $defaults 1) -}}
+{{- fail "runnersFleetLinux.osVersions must contain exactly one entry with default: true when runnersFleetLinux.shapes is non-empty" -}}
+{{- end -}}
+{{- $result | toJson -}}
+{{- end -}}
+
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
 {{- if .Values.runnersFleet.enabled -}}
@@ -1640,6 +1727,42 @@ Secret, and the new name drifts the host onto it.
 {{- end -}}
 
 {{/*
+The node pools that host node-local Kura cache volumes, as a JSON list of pool
+names: the single OVH pool and every OVH or Vultr
+fleet whose nodes carry the kura-cache taint. Fleets in those maps that are not
+cache pools (the OVH Linux runner boxes) set their own taints and stay out, so
+nothing privileged that targets this list lands on a box with no cache volumes.
+Taints unset means the kura-cache taint, as in ovh-fleets.yaml and
+vultr-fleets.yaml. Rack storage pools are not listed: nothing a deploy waits on
+may run a pod on a rack node (see infra/rack-nodes/AGENTS.md).
+*/}}
+{{- define "tuist.kuraCachePools" -}}
+{{- $pools := list -}}
+{{- if .Values.ovhFleet.enabled -}}
+{{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") -}}
+{{- end -}}
+{{- range $key, $fleet := .Values.ovhFleets -}}
+{{- if $fleet.enabled -}}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet -}}
+{{- if eq $taint.key "tuist.dev/kura-cache" -}}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $fleet := .Values.vultrFleets -}}
+{{- if $fleet.enabled -}}
+{{- range $taint := dig "machine" "nodeTaints" (list (dict "key" "tuist.dev/kura-cache")) $fleet -}}
+{{- if eq $taint.key "tuist.dev/kura-cache" -}}
+{{- $pools = append $pools ($fleet.nodePool | default (printf "kura-%s" $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $pools | toJson -}}
+{{- end -}}
+
+{{/*
 The rack's VM image caches as tart-kubelet's `--image-mirror` entries,
 comma-separated in the order of `rackFleet.imageCache.nodes`: empty unless
 the caches run and the hosts are routed through them. The rack-nodes chart
@@ -1680,3 +1803,22 @@ than routing nothing.
 {{- end -}}
 {{- join "," $routed -}}
 {{- end -}}
+
+{{/*
+The ExternalSecret template expression for a service's Pulse Sentry DSN (see
+sentryPulse in values.yaml). Pass the service name and the ExternalSecret data
+key holding the Pulse user's password.
+*/}}
+{{- define "tuist.sentryPulseDsn" -}}
+{{- $p := .root.Values.sentryPulse -}}
+http://{{ $p.user }}:{{ printf "{{ .%s | trim }}" .key }}@{{ $p.host }}/v1/sentry/{{ .service }}/1
+{{- end }}
+
+{{/*
+Whether the agents Deployment runs. Its pods join the server's Erlang cluster
+for session wakes and the Condukt session registry, so without clustering the
+server pods host agent sessions themselves.
+*/}}
+{{- define "tuist.agentsEnabled" -}}
+{{- if and .Values.server.enabled .Values.agents.enabled .Values.server.cluster.enabled }}true{{- end }}
+{{- end }}

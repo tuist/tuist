@@ -148,6 +148,12 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, "tuist-amp-orbs", opts)
   end
 
+  # Audience of the projected token a Claude Code orchestrator workload hands
+  # Tuist with each work order. Must match `Tuist.Sandboxes.ClaudeCodeRuntime`.
+  def create_claude_code_provider_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, "tuist-claude-code-runners", opts)
+  end
+
   # Audience of the token a macOS runner host mints for its own per-machine
   # ServiceAccount to list the cache masters it should prefetch. Distinct from
   # the dispatch audience, which every guest holds a token for: the list carries
@@ -197,7 +203,9 @@ defmodule Tuist.Kubernetes.Client do
         end
 
       {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
-        if audience == "tuist-amp-orbs", do: {:error, :unauthenticated}, else: parse_sa_principal(user)
+        if audience in ["tuist-amp-orbs", "tuist-claude-code-runners"],
+          do: {:error, :unauthenticated},
+          else: parse_sa_principal(user)
 
       {:ok, %{"status" => %{"authenticated" => false}}} ->
         {:error, :unauthenticated}
@@ -210,6 +218,47 @@ defmodule Tuist.Kubernetes.Client do
 
       {:error, _} = err ->
         err
+    end
+  end
+
+  @doc """
+  TokenReview for a token that must claim `audience`, returning the
+  authenticated user's `username`, `uid`, and `extra` (for a pod-bound
+  ServiceAccount token, `extra` carries the node it was issued on under
+  `authentication.kubernetes.io/node-name`). Unlike `create_token_review/2`,
+  this does not narrow the principal to a ServiceAccount; the caller compares
+  the username itself.
+
+  Returns `{:error, :unauthenticated}` when the token is rejected or does not
+  claim `audience`.
+  """
+  def create_bound_token_review(token, audience, opts \\ []) when is_binary(token) and is_binary(audience) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token, "audiences" => [audience]}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}],
+           timeout: opts[:timeout]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => %{"username" => username} = user} = status}}
+      when is_binary(username) ->
+        if audience in (status["audiences"] || [audience]) do
+          {:ok, %{username: username, uid: user["uid"], extra: Map.get(user, "extra") || %{}}}
+        else
+          {:error, :unauthenticated}
+        end
+
+      {:ok, %{"status" => _status}} ->
+        {:error, :unauthenticated}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -344,6 +393,15 @@ defmodule Tuist.Kubernetes.Client do
   """
   def get_persistent_volume_claim(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
     get("/api/v1/namespaces/#{namespace}/persistentvolumeclaims/#{name}", opts)
+  end
+
+  @doc """
+  GETs a PersistentVolume by name. The Kura volume key endpoint reads a
+  volume's CSI driver, node affinity, and claim to decide whether the calling
+  node may open it. The server SA needs `persistentvolumes: [get]`.
+  """
+  def get_persistent_volume(name, opts \\ []) when is_binary(name) do
+    get("/api/v1/persistentvolumes/#{name}", opts)
   end
 
   @doc """
@@ -765,7 +823,16 @@ defmodule Tuist.Kubernetes.Client do
   defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid} = user) do
     case String.split(rest, ":", parts: 2) do
       [namespace, name] when namespace != "" and name != "" ->
-        {:ok, %{namespace: namespace, name: name, uid: uid, node_name: bound_node_name(user)}}
+        {:ok,
+         %{
+           namespace: namespace,
+           name: name,
+           uid: uid,
+           node_name: bound_node_name(user),
+           node_uid: bound_extra(user, "node-uid"),
+           pod_uid: bound_extra(user, "pod-uid"),
+           pod_name: bound_extra(user, "pod-name")
+         }}
 
       _ ->
         {:error, :not_service_account}
@@ -780,4 +847,11 @@ defmodule Tuist.Kubernetes.Client do
        when is_binary(node_name), do: node_name
 
   defp bound_node_name(_user), do: nil
+
+  defp bound_extra(user, key) do
+    case get_in(user, ["extra", "authentication.kubernetes.io/" <> key]) do
+      [value | _] when is_binary(value) -> value
+      _ -> nil
+    end
+  end
 end

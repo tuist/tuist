@@ -8,6 +8,7 @@ defmodule TuistWeb.MixBuildLive do
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.CIProviderIcon
   import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 
@@ -436,15 +437,15 @@ defmodule TuistWeb.MixBuildLive do
               label={format_number(Enum.count(@issues))}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="large"
+              size="medium"
             />
           </div>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
+          <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="medium">
             <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
+          </.ghost_button>
+          <.ghost_button data-part="open-collapsible-button" variant="secondary" size="medium">
             <.chevron_up />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <div data-part="content" data-state="closed">
           <%= for issue <- @issues do %>

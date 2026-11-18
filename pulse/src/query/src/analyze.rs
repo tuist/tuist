@@ -1,0 +1,562 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Customized `ANALYZE` plan that aware of [MergeScanExec].
+//!
+//! The code skeleton is taken from `datafusion/physical-plan/src/analyze.rs`
+
+use std::fmt::Display;
+use std::sync::Arc;
+
+use ahash::HashMap;
+use arrow::array::{StringBuilder, UInt32Builder};
+use arrow_schema::{DataType, Field, Schema, SchemaRef};
+use common_recordbatch::adapter::{MetricCollector, PlanMetrics, RecordBatchMetrics};
+use common_recordbatch::{DfRecordBatch, DfSendableRecordBatchStream};
+use datafusion::error::Result as DfResult;
+use datafusion::execution::TaskContext;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::physical_plan::{
+    ChildrenPropertiesMode, DisplayAs, DisplayFormatType, ExecutionPlan,
+    InputDistributionRequirements, PlanProperties, ReplaceChildrenOptions, accept,
+};
+use datafusion_common::tree_node::{TreeNode, TreeNodeRecursion};
+use datafusion_common::{DataFusionError, assert_eq_or_internal_err, internal_err};
+use datafusion_physical_expr::{EquivalenceProperties, Partitioning, PhysicalExpr};
+use futures::StreamExt;
+use serde::Serialize;
+use serde_json::{Value, json};
+use sqlparser::ast::AnalyzeFormat;
+
+use crate::dist_plan::MergeScanExec;
+
+const STAGE: &str = "stage";
+const NODE: &str = "node";
+const PLAN: &str = "plan";
+
+/// Fixed output schema of [`DistAnalyzeExec`], for `Describe` handlers:
+/// execution rewrites the plan in `optimize_physical_plan`, so this schema
+/// differs from the logical `Analyze` plan's.
+pub fn dist_analyze_output_schema() -> SchemaRef {
+    SchemaRef::new(Schema::new(vec![
+        Field::new(STAGE, DataType::UInt32, true),
+        Field::new(NODE, DataType::UInt32, true),
+        Field::new(PLAN, DataType::Utf8, true),
+    ]))
+}
+
+#[derive(Debug)]
+pub struct DistAnalyzeExec {
+    input: Arc<dyn ExecutionPlan>,
+    schema: SchemaRef,
+    properties: Arc<PlanProperties>,
+    verbose: bool,
+    format: AnalyzeFormat,
+}
+
+impl DistAnalyzeExec {
+    /// Create a new DistAnalyzeExec
+    pub fn new(input: Arc<dyn ExecutionPlan>, verbose: bool, format: AnalyzeFormat) -> Self {
+        let schema = dist_analyze_output_schema();
+        let properties = Arc::new(Self::compute_properties(&input, schema.clone()));
+        Self {
+            input,
+            schema,
+            properties,
+            verbose,
+            format,
+        }
+    }
+
+    /// This function creates the cache object that stores the plan properties such as schema, equivalence properties, ordering, partitioning, etc.
+    fn compute_properties(input: &Arc<dyn ExecutionPlan>, schema: SchemaRef) -> PlanProperties {
+        let eq_properties = EquivalenceProperties::new(schema);
+        let output_partitioning = Partitioning::UnknownPartitioning(1);
+        let properties = input.properties();
+        PlanProperties::new(
+            eq_properties,
+            output_partitioning,
+            properties.emission_type,
+            properties.boundedness,
+        )
+    }
+
+    pub fn input(&self) -> &Arc<dyn ExecutionPlan> {
+        &self.input
+    }
+}
+
+/// Returns verbose analyze metrics as JSON values using the same `JsonMetrics` shape
+/// as `EXPLAIN ANALYZE VERBOSE FORMAT JSON`.
+///
+/// This reads metrics directly from a running physical plan for the experimental
+/// HTTP analyze stream. It is a best-effort diagnostic live snapshot, not a
+/// transactionally consistent snapshot; metric values may change while this
+/// function traverses the plan.
+pub fn analyze_plan_metrics_to_json_value(
+    plan: &Arc<dyn ExecutionPlan>,
+    verbose: bool,
+) -> serde_json::Result<Value> {
+    let input = plan
+        .downcast_ref::<DistAnalyzeExec>()
+        .map(|exec| exec.input().clone())
+        .unwrap_or_else(|| plan.clone());
+
+    let mut stages = Vec::new();
+    let mut collector = MetricCollector::new(verbose);
+    accept(input.as_ref(), &mut collector).unwrap();
+    stages.push(json!({
+        "stage": 0,
+        "node": 0,
+        "plan": JsonMetrics::from_record_batch_metrics(collector.record_batch_metrics),
+    }));
+
+    let _ = input.apply(|plan| {
+        if let Some(merge_scan) = plan.downcast_ref::<MergeScanExec>() {
+            for (node, metric) in merge_scan.sub_stage_metrics().into_iter().enumerate() {
+                stages.push(json!({
+                    "stage": 1,
+                    "node": node,
+                    "plan": JsonMetrics::from_record_batch_metrics(metric),
+                }));
+            }
+        }
+        Ok(TreeNodeRecursion::Continue)
+    });
+
+    Ok(Value::Array(stages))
+}
+
+impl DisplayAs for DistAnalyzeExec {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match t {
+            DisplayFormatType::Default
+            | DisplayFormatType::Verbose
+            | DisplayFormatType::TreeRender => {
+                write!(f, "DistAnalyzeExec",)
+            }
+        }
+    }
+}
+
+impl ExecutionPlan for DistAnalyzeExec {
+    fn name(&self) -> &'static str {
+        "DistAnalyzeExec"
+    }
+
+    fn properties(&self) -> &Arc<PlanProperties> {
+        &self.properties
+    }
+
+    fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
+        vec![&self.input]
+    }
+
+    fn apply_expressions(
+        &self,
+        _f: &mut dyn FnMut(&Arc<dyn PhysicalExpr>) -> DfResult<TreeNodeRecursion>,
+    ) -> DfResult<TreeNodeRecursion> {
+        Ok(TreeNodeRecursion::Continue)
+    }
+
+    /// AnalyzeExec is handled specially so this value is ignored
+    fn input_distribution_requirements(&self) -> InputDistributionRequirements {
+        // AnalyzeExec is handled specially so this value is ignored.
+        InputDistributionRequirements::new(vec![
+            datafusion_physical_expr::Distribution::UnspecifiedDistribution,
+        ])
+    }
+
+    fn replace_children(
+        self: Arc<Self>,
+        mut children: Vec<Arc<dyn ExecutionPlan>>,
+        _options: ReplaceChildrenOptions,
+    ) -> DfResult<Arc<dyn ExecutionPlan>> {
+        assert_eq_or_internal_err!(
+            children.len(),
+            1,
+            "DistAnalyzeExec requires exactly one child"
+        );
+        Ok(Arc::new(Self::new(
+            children.swap_remove(0),
+            self.verbose,
+            self.format,
+        )))
+    }
+
+    #[allow(deprecated)]
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DfResult<Arc<dyn ExecutionPlan>> {
+        self.replace_children(
+            children,
+            ReplaceChildrenOptions::new(ChildrenPropertiesMode::Recompute),
+        )
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> DfResult<DfSendableRecordBatchStream> {
+        if 0 != partition {
+            return internal_err!("AnalyzeExec invalid partition. Expected 0, got {partition}");
+        }
+
+        // Wrap the input plan using `CoalescePartitionsExec` to poll multiple
+        // partitions in parallel
+        let coalesce_partition_plan = CoalescePartitionsExec::new(self.input.clone());
+
+        // Create future that computes thefinal output
+        let captured_input = self.input.clone();
+        let captured_schema = self.schema.clone();
+
+        // Finish the input stream and create the output
+        let format = self.format;
+        let verbose = self.verbose;
+        let mut input_stream = coalesce_partition_plan.execute(0, context)?;
+        let output = async move {
+            let mut total_rows = 0;
+            while let Some(batch) = input_stream.next().await.transpose()? {
+                total_rows += batch.num_rows();
+            }
+
+            create_output_batch(total_rows, captured_input, captured_schema, format, verbose)
+        };
+
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            self.schema.clone(),
+            futures::stream::once(output),
+        )))
+    }
+}
+
+/// Build the result [`DfRecordBatch`] of `ANALYZE`
+struct AnalyzeOutputBuilder {
+    stage_builder: UInt32Builder,
+    node_builder: UInt32Builder,
+    plan_builder: StringBuilder,
+    schema: SchemaRef,
+}
+
+impl AnalyzeOutputBuilder {
+    fn new(schema: SchemaRef) -> Self {
+        Self {
+            stage_builder: UInt32Builder::with_capacity(4),
+            node_builder: UInt32Builder::with_capacity(4),
+            plan_builder: StringBuilder::with_capacity(1, 1024),
+            schema,
+        }
+    }
+
+    fn append_metric(&mut self, stage: u32, node: u32, content: String) {
+        self.stage_builder.append_value(stage);
+        self.node_builder.append_value(node);
+        self.plan_builder.append_value(content);
+    }
+
+    fn append_total_rows(&mut self, total_rows: usize) {
+        self.stage_builder.append_null();
+        self.node_builder.append_null();
+        self.plan_builder
+            .append_value(format!("Total rows: {}", total_rows));
+    }
+
+    fn finish(mut self) -> DfResult<DfRecordBatch> {
+        DfRecordBatch::try_new(
+            self.schema,
+            vec![
+                Arc::new(self.stage_builder.finish()),
+                Arc::new(self.node_builder.finish()),
+                Arc::new(self.plan_builder.finish()),
+            ],
+        )
+        .map_err(DataFusionError::from)
+    }
+}
+
+/// Creates the output of AnalyzeExec as a RecordBatch
+fn create_output_batch(
+    total_rows: usize,
+    input: Arc<dyn ExecutionPlan>,
+    schema: SchemaRef,
+    format: AnalyzeFormat,
+    verbose: bool,
+) -> DfResult<DfRecordBatch> {
+    let mut builder = AnalyzeOutputBuilder::new(schema);
+
+    // Treat the current stage as stage 0. Fetch its metrics
+    let mut collector = MetricCollector::new(verbose);
+    // Safety: metric collector won't return error
+    accept(input.as_ref(), &mut collector).unwrap();
+    let stage_0_metrics = collector.record_batch_metrics;
+
+    // Append the metrics of the current stage
+    builder.append_metric(0, 0, metrics_to_string(stage_0_metrics, format)?);
+
+    // Find merge scan and append its sub_stage_metrics
+    input.apply(|plan| {
+        if let Some(merge_scan) = plan.downcast_ref::<MergeScanExec>() {
+            let sub_stage_metrics = merge_scan.sub_stage_metrics();
+            for (node, metric) in sub_stage_metrics.into_iter().enumerate() {
+                builder.append_metric(1, node as _, metrics_to_string(metric, format)?);
+            }
+            // might have multiple merge scans, so continue
+            return Ok(TreeNodeRecursion::Continue);
+        }
+        Ok(TreeNodeRecursion::Continue)
+    })?;
+
+    // Write total rows
+    builder.append_total_rows(total_rows);
+
+    builder.finish()
+}
+
+fn metrics_to_string(metrics: RecordBatchMetrics, format: AnalyzeFormat) -> DfResult<String> {
+    match format {
+        AnalyzeFormat::JSON => Ok(JsonMetrics::from_record_batch_metrics(metrics).to_string()),
+        AnalyzeFormat::TEXT => Ok(metrics.to_string()),
+        format => Err(DataFusionError::NotImplemented(format!(
+            "AnalyzeFormat {format}",
+        ))),
+    }
+}
+
+#[derive(Debug, Default, Serialize)]
+struct JsonMetrics {
+    name: String,
+    param: String,
+
+    // well-known metrics
+    output_rows: usize,
+    // busy time in nanoseconds
+    elapsed_compute: usize,
+
+    // other metrics
+    metrics: HashMap<String, usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    memory_usage: Option<usize>,
+    children: Vec<JsonMetrics>,
+}
+
+impl JsonMetrics {
+    fn from_record_batch_metrics(record_batch_metrics: RecordBatchMetrics) -> Self {
+        let mut layers: HashMap<usize, Vec<Self>> = HashMap::default();
+
+        let memory_usage = record_batch_metrics.memory_usage;
+        for plan_metrics in record_batch_metrics.plan_metrics.into_iter().rev() {
+            let (level, mut metrics) = Self::from_plan_metrics(plan_metrics);
+            if let Some(next_layer) = layers.remove(&(level + 1)) {
+                metrics.children = next_layer;
+            }
+            if level == 0 {
+                metrics.memory_usage = Some(memory_usage);
+                return metrics;
+            }
+            layers.entry(level).or_default().push(metrics);
+        }
+
+        // Unreachable path. Each metrics should contains at least one level 0.
+        Self::default()
+    }
+
+    /// Convert a [`PlanMetrics`] to a [`JsonMetrics`] without children.
+    ///
+    /// Returns the level of the plan and the [`JsonMetrics`].
+    fn from_plan_metrics(plan_metrics: PlanMetrics) -> (usize, Self) {
+        let raw_name = plan_metrics.plan.trim_end();
+        let mut elapsed_compute = 0;
+        let mut output_rows = 0;
+        let mut other_metrics = HashMap::default();
+        let (name, param) = raw_name.split_once(": ").unwrap_or((raw_name, ""));
+
+        for (name, value) in plan_metrics.metrics.into_iter() {
+            if name == "elapsed_compute" {
+                elapsed_compute = value;
+            } else if name == "output_rows" {
+                output_rows = value;
+            } else {
+                other_metrics.insert(name, value);
+            }
+        }
+
+        (
+            plan_metrics.level,
+            Self {
+                name: name.to_string(),
+                param: param.to_string(),
+                output_rows,
+                elapsed_compute,
+                metrics: other_metrics,
+                memory_usage: None,
+                children: vec![],
+            },
+        )
+    }
+}
+
+impl Display for JsonMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use datafusion::physical_plan::empty::EmptyExec;
+
+    use super::*;
+
+    fn empty_plan(name: &str) -> Arc<dyn ExecutionPlan> {
+        Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![Field::new(
+            name,
+            DataType::Utf8,
+            true,
+        )]))))
+    }
+
+    #[test]
+    fn qbs_dist_analyze_rejects_zero_children() {
+        let analyze = Arc::new(DistAnalyzeExec::new(
+            empty_plan("original"),
+            false,
+            AnalyzeFormat::TEXT,
+        ));
+
+        assert!(
+            ExecutionPlan::replace_children(
+                analyze,
+                vec![],
+                ReplaceChildrenOptions::new(ChildrenPropertiesMode::Recompute),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn qbs_dist_analyze_rejects_multiple_children() {
+        let analyze = Arc::new(DistAnalyzeExec::new(
+            empty_plan("original"),
+            false,
+            AnalyzeFormat::TEXT,
+        ));
+
+        let result = ExecutionPlan::replace_children(
+            analyze,
+            vec![empty_plan("first"), empty_plan("second")],
+            ReplaceChildrenOptions::new(ChildrenPropertiesMode::Recompute),
+        );
+
+        if let Ok(plan) = result {
+            let retained = plan
+                .downcast_ref::<DistAnalyzeExec>()
+                .unwrap()
+                .input()
+                .schema()
+                .field(0)
+                .name()
+                .clone();
+            panic!("expected an arity error for multiple children, but retained `{retained}`");
+        }
+    }
+
+    #[test]
+    fn qbs_dist_analyze_accepts_exactly_one_child() {
+        let analyze = Arc::new(DistAnalyzeExec::new(
+            empty_plan("original"),
+            false,
+            AnalyzeFormat::TEXT,
+        ));
+        let replacement = empty_plan("replacement");
+
+        let rebuilt = ExecutionPlan::replace_children(
+            analyze,
+            vec![replacement],
+            ReplaceChildrenOptions::new(ChildrenPropertiesMode::Recompute),
+        )
+        .unwrap();
+        let rebuilt = rebuilt.downcast_ref::<DistAnalyzeExec>().unwrap();
+
+        assert_eq!(rebuilt.input().schema().field(0).name(), "replacement");
+    }
+
+    #[test]
+    fn qbs_analyze_json_preserves_plan_name_without_parameters() {
+        let input = empty_plan("input");
+        let mut collector = MetricCollector::new(false);
+        accept(input.as_ref(), &mut collector).unwrap();
+
+        let plan_metrics = &collector.record_batch_metrics.plan_metrics;
+        assert_eq!(plan_metrics.len(), 1);
+        assert_eq!(plan_metrics[0].level, 0);
+        assert_eq!(plan_metrics[0].plan, input.name());
+
+        let analyze: Arc<dyn ExecutionPlan> = Arc::new(DistAnalyzeExec::new(
+            input.clone(),
+            false,
+            AnalyzeFormat::JSON,
+        ));
+        let metrics = analyze_plan_metrics_to_json_value(&analyze, false).unwrap();
+        let plan_name = metrics[0]["plan"]["name"].as_str().unwrap();
+        let plan_param = metrics[0]["plan"]["param"].as_str().unwrap();
+
+        assert!(!plan_name.is_empty());
+        assert_eq!(plan_name, input.name());
+        assert!(plan_param.is_empty());
+    }
+
+    #[test]
+    fn qbs_analyze_json_splits_plan_name_and_parameters() {
+        let (_, metrics) = JsonMetrics::from_plan_metrics(PlanMetrics {
+            plan: "FilterExec: predicate".to_string(),
+            plan_name: "FilterExec".to_string(),
+            level: 0,
+            metrics: vec![],
+        });
+
+        assert_eq!(metrics.name, "FilterExec");
+        assert_eq!(metrics.param, "predicate");
+    }
+
+    #[test]
+    fn qbs_analyze_json_includes_memory_usage_only_at_root() {
+        let metrics = JsonMetrics::from_record_batch_metrics(RecordBatchMetrics {
+            memory_usage: 42,
+            plan_metrics: vec![
+                PlanMetrics {
+                    plan: "RootExec".to_string(),
+                    plan_name: "RootExec".to_string(),
+                    level: 0,
+                    metrics: vec![("mem_used".to_string(), 24)],
+                },
+                PlanMetrics {
+                    plan: "ChildExec".to_string(),
+                    plan_name: "ChildExec".to_string(),
+                    level: 1,
+                    metrics: vec![("mem_used".to_string(), 18)],
+                },
+            ],
+            ..Default::default()
+        });
+        let value = serde_json::to_value(metrics).unwrap();
+
+        assert_eq!(value["memory_usage"], 42);
+        assert!(value["children"][0].get("memory_usage").is_none());
+        assert_eq!(value["metrics"]["mem_used"], 24);
+        assert_eq!(value["children"][0]["metrics"]["mem_used"], 18);
+    }
+}

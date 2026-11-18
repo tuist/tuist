@@ -7,6 +7,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   alias Ecto.Changeset
   alias Tuist.Accounts
+  alias Tuist.Accounts.UserMFA
+  alias Tuist.Accounts.UserPasskey
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.SCIM
@@ -26,12 +28,19 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @sso_default_roles Accounts.organization_role_names() -- ["admin"]
 
   @impl true
-  def mount(_params, _uri, %{assigns: %{selected_account: %{organization_id: nil} = account}} = socket) do
+  def mount(
+        _params,
+        _uri,
+        %{assigns: %{selected_account: %{organization_id: nil} = account, current_user: current_user}} = socket
+      ) do
     :ok = authorize_account_update!(socket)
 
     {:ok,
      socket
-     |> assign(organization: nil, flash_message: nil)
+     |> assign(organization: nil, flash_message: nil, passkeys_enabled?: TuistWeb.UserPasskeyController.enabled?())
+     |> assign(fresh_session?: UserMFA.fresh_session?(socket.assigns.current_user_session, current_user), mfa_secret: nil)
+     |> assign(:mfa_enabled?, account.user_id == current_user.id and UserMFA.enabled?(current_user))
+     |> assign(:passkeys, if(account.user_id == current_user.id, do: UserPasskey.list(current_user), else: []))
      |> WorkloadIdentities.initialize()
      |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}
   end
@@ -93,10 +102,39 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   @impl true
+  def handle_event("setup_authenticator", _params, socket) do
+    :ok = authorize_account_update!(socket)
+
+    case UserMFA.begin_enrollment(socket.assigns.current_user, socket.assigns.current_user_session) do
+      {:ok, factor} -> {:noreply, assign(socket, mfa_secret: factor.secret, fresh_session?: true)}
+      {:error, :already_enabled} -> {:noreply, assign(socket, mfa_secret: nil, mfa_enabled?: true)}
+      {:error, _} -> {:noreply, assign(socket, mfa_secret: nil, fresh_session?: false)}
+    end
+  end
+
+  def handle_event("authenticator_modal_change", %{"open" => false}, socket) do
+    :ok = UserMFA.cancel_enrollment(socket.assigns.current_user, socket.assigns.current_user_session)
+    {:noreply, assign(socket, :mfa_secret, nil)}
+  end
+
+  def handle_event("authenticator_modal_change", _params, socket), do: {:noreply, socket}
+
+  def handle_event("close_authenticator_modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "setup-authenticator-modal"})}
+  end
+
+  def handle_event("close-security-modal", %{"id" => id}, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: id})}
+  end
+
+  def handle_event("open-security-modal", %{"id" => id}, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: id})}
+  end
+
   def handle_event(event, params, socket)
       when event in [
-             "toggle_oidc_configuration",
              "select_oidc_template",
+             "dismiss_oidc_trust_policy",
              "change_oidc_trust_policy",
              "create_oidc_trust_policy",
              "delete_oidc_trust_policy"

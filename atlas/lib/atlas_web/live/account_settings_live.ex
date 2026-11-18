@@ -17,25 +17,26 @@ defmodule AtlasWeb.AccountSettingsLive do
           <p data-part="description">{gettext("Your personal Atlas account.")}</p>
         </div>
       </div>
-      <.card title={gettext("Profile")} icon="user">
-        <.card_section data-part="account-profile">
-          <dl data-part="profile-details">
-            <div data-part="profile-field">
+      <div data-part="settings-sections">
+        <.card_section id="account-profile" data-part="settings-section">
+          <div data-part="header">
+            <span data-part="title">{gettext("Profile")}</span>
+            <span data-part="subtitle">
+              {gettext("Your profile is managed by your sign-in provider.")}
+            </span>
+          </div>
+          <dl data-part="content">
+            <div data-part="field">
               <dt>{gettext("Name")}</dt>
-              <dd id="account-settings-name" data-part="profile-value">
-                {@current_user.name || gettext("Not set")}
-              </dd>
+              <dd id="account-settings-name">{@current_user.name || gettext("Not set")}</dd>
             </div>
-            <div data-part="profile-field">
+            <div data-part="field">
               <dt>{gettext("Email")}</dt>
-              <dd id="account-settings-email" data-part="profile-value">{@current_user.email}</dd>
+              <dd id="account-settings-email">{@current_user.email}</dd>
             </div>
           </dl>
-          <p data-part="description">
-            {gettext("Your profile is managed by your sign-in provider.")}
-          </p>
         </.card_section>
-      </.card>
+      </div>
     </section>
     """
   end

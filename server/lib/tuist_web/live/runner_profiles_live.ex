@@ -34,6 +34,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:catalog, Catalog.shapes(:linux))
      |> assign(:macos_catalog, Catalog.shapes(:macos))
      |> assign(:xcode_catalog, Catalog.xcode_versions())
+     |> assign(:os_catalog, Catalog.os_versions())
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
@@ -63,6 +64,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
+         |> assign(:form_os_version, profile.os_version || default_os_version(socket.assigns.os_catalog, profile))
          |> assign(:form_cache_writer_all_branches, profile.cache_writer_all_branches)
          |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
@@ -187,6 +189,19 @@ defmodule TuistWeb.RunnerProfilesLive do
     end
   end
 
+  def handle_event("select_os_version", params, socket) do
+    case shape_key_from_params(params) do
+      version when is_binary(version) and version != "" ->
+        {:noreply,
+         socket
+         |> assign(:form_os_version, version)
+         |> assign(:form_error, nil)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("save_profile", _params, %{assigns: assigns} = socket) do
     attrs = %{
       "name" => assigns.form_name,
@@ -201,7 +216,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     attrs =
       case assigns.form_platform do
         "macos" -> Map.put(attrs, "xcode_version", assigns.form_xcode_version)
-        _ -> attrs
+        _ -> Map.put(attrs, "os_version", assigns.form_os_version)
       end
 
     attrs =
@@ -348,6 +363,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_xcode_version, nil)
+    |> assign(:form_os_version, default_os_version(socket.assigns.os_catalog, nil))
     |> assign(:form_error, nil)
   end
 
@@ -360,7 +376,18 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_xcode_version, default_xcode && default_xcode.xcode_version)
+    |> assign(:form_os_version, nil)
     |> assign(:form_error, nil)
+  end
+
+  # A Linux row an older replica wrote has no OS and runs on the default.
+  defp default_os_version(_os_catalog, %Profile{platform: :macos}), do: nil
+
+  defp default_os_version(os_catalog, _profile) do
+    case pick_default(os_catalog) do
+      nil -> nil
+      default -> default.os_version
+    end
   end
 
   defp pick_default(list) when is_list(list) do
@@ -460,31 +487,41 @@ defmodule TuistWeb.RunnerProfilesLive do
     ]
 
   @doc """
-  Operating system the runner image for `platform` ships. Surfaces in
-  the form as a static (non-editable) field so customers know what
-  their workflows execute against.
-
-  Named at whatever granularity the image actually holds still.
-  Linux pins an exact release (the runner Dockerfile is `FROM
-  ubuntu:22.04`), so the label states it. macOS cannot: the image
-  builds on a floating Tahoe base and the Mac minis hosting it adopt
-  on the family rather than a point release, both by design — Scaleway
-  retires point releases without notice, and pinning one stranded the
-  staging fleet in Aug 2026. So the macOS label names the family only.
-  Claiming a point release here would be telling customers something
-  we don't actually guarantee.
+  Operating system label for the macOS form field, which is static: the
+  macOS image builds on a floating Tahoe base and the Mac minis hosting it
+  adopt on the family rather than a point release, both by design —
+  Scaleway retires point releases without notice, and pinning one stranded
+  the staging fleet in Aug 2026. So the label names the family only.
+  Linux profiles pick an Ubuntu release instead (`os_version_label/1`).
   """
-  def os_label_for_form("linux"), do: dgettext("dashboard_runners", "Ubuntu 22.04 LTS")
   def os_label_for_form("macos"), do: dgettext("dashboard_runners", "Tahoe")
   def os_label_for_form(_), do: ""
 
   @doc """
-  OS label for a persisted `%Profile{}` — the table-column variant
-  of `os_label_for_form/1`. Mirrors `platform_label/1`'s shape so
-  the table cell stays consistent with the form's read-only field.
+  OS label for a persisted `%Profile{}`, for the table column: the Linux
+  profile's Ubuntu release, or macOS's family.
   """
-  def os_label(%Profile{platform: :linux}), do: os_label_for_form("linux")
+  def os_label(%Profile{platform: :linux, os_version: os_version}), do: os_version_label(os_version)
   def os_label(%Profile{platform: :macos}), do: os_label_for_form("macos")
+
+  @doc """
+  Display label for a Linux `os_version` (`ubuntu-24.04` → `Ubuntu 24.04`),
+  from the catalog. A version the catalog no longer lists shows its
+  raw value; a profile without one runs on the catalog default.
+  """
+  def os_version_label(nil) do
+    case Catalog.default_os_version() do
+      nil -> ""
+      default -> default.label
+    end
+  end
+
+  def os_version_label(os_version) when is_binary(os_version) do
+    case Catalog.find_os_version(os_version) do
+      nil -> os_version
+      entry -> entry.label
+    end
+  end
 
   @doc """
   Label for the platform dropdown trigger, resolved from the selected

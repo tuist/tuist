@@ -302,6 +302,12 @@ spec:
                   type: string
                 storageSize:
                   type: string
+                # What each replica requests for its claim: empty reserves
+                # ephemeral-storage (volumes on /data), tuist.dev/kura-disk the
+                # room the kura-volumes driver advertises for a volume group.
+                diskResource:
+                  type: string
+                  enum: ["", "tuist.dev/kura-disk"]
                 nodeSelector:
                   type: object
                   additionalProperties:

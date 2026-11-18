@@ -261,4 +261,27 @@ for case in no-hosts no-pools; do
   stage
   if grep -q 'apply -f' "$work/calls"; then echo "Staged with $case" >&2; exit 1; fi
 done
+# Each Ubuntu release's pools stage only that release's image: a 22.04
+# pool takes its own argument, and without one it is left alone rather
+# than staging the default release's image.
+jammy="ghcr.io/tuist/tuist-linux-runner@sha256:$(printf 'e%.0s' {1..64})"
+jq '.items += [.items[0] | .metadata.name = "jammy-pool"
+  | .metadata.labels = ((.metadata.labels // {}) + {"tuist.dev/os-version":"ubuntu-22.04"})]' "$work/live.json" > "$work/live-os.json"
+for mapping in none jammy; do
+  reset
+  cp "$work/live-os.json" "$work/current.json"
+  jq '.items[].status.phase="Pending"' "$work/ready-pods.json" > "$work/pods.json"
+  args=()
+  [[ "$mapping" == none ]] || args=("ubuntu-22.04=$jammy")
+  NOW=1793059800 LINUX_IMAGE_STAGING_WAIT_SECONDS=10 IMAGE_TEST_EVENTUALLY_READY=true \
+    bash "$root/.github/scripts/linux-runner-image-stage.sh" "$image" tuist staging "${args[@]}" 2> "$work/log"
+  staged_images="$(jq -rs '[.[].spec.template.spec.containers[0].image] | sort | join(" ")' "$work"/daemonsets/*.json)"
+  case "$mapping" in
+    none) test "$staged_images" = "$image" ;;
+    jammy) test "$staged_images" = "$(printf '%s\n' "$image" "$jammy" | sort | paste -sd ' ')" ;;
+  esac
+done
+if bash "$root/.github/scripts/linux-runner-image-stage.sh" "$image" tuist staging "ubuntu-22.04=old:image" 2>/dev/null; then
+  echo 'Staging accepted a tag for an OS image' >&2; exit 1
+fi
 echo 'Linux staging: background holds, release staging and bounded, fail-closed canary preparation checks passed.'

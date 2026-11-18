@@ -555,7 +555,7 @@ public struct XCResultParser: Sendable {
             } else {
                 failures = testCaseFailures(
                     testName: name,
-                    suiteName: suiteName,
+                    suiteName: suiteName.map(innermostSuiteName),
                     node: node,
                     rootDirectory: rootDirectory,
                     actionLogFailures: actionLogFailures
@@ -658,10 +658,18 @@ public struct XCResultParser: Sendable {
         }
     }
 
+    /// Every component before the test name: a nested Swift Testing suite is identified as
+    /// `Outer/Inner/test()`, and xcodebuild only matches `-only-testing`/`-skip-testing` against the
+    /// whole `Outer/Inner` path.
     private func extractSuiteName(from identifier: String?) -> String? {
         guard let identifier else { return nil }
         let components = identifier.split(separator: "/")
-        return components.count >= 2 ? String(components[components.count - 2]) : nil
+        return components.count >= 2 ? components.dropLast().joined(separator: "/") : nil
+    }
+
+    /// The suite's own name, which the action log and the suite nodes are keyed by.
+    private func innermostSuiteName(_ suiteName: String) -> String {
+        suiteName.split(separator: "/").last.map(String.init) ?? suiteName
     }
 
     private func testStatus(from result: String?) -> TestStatus {
@@ -744,7 +752,8 @@ public struct XCResultParser: Sendable {
             .compactMap { suiteName, suiteTestCases in
                 guard let suiteName else { return nil }
                 let status: TestStatus = suiteTestCases.contains { $0.status == .failed } ? .failed : .passed
-                let duration = suiteDurations[suiteName] ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
+                let duration = suiteDurations[suiteName] ?? suiteDurations[innermostSuiteName(suiteName)]
+                    ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
                 return TestSuite(name: suiteName, status: status, duration: duration)
             }
     }

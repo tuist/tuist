@@ -81,6 +81,18 @@
       margin-top: var(--noora-spacing-11);
       width: 100%;
 
+      /* Text-page tables hold sentences (comparison guides, addenda), so let
+         cells wrap within the column instead of Noora's single-line
+         `min-width: max-content`. Narrow screens still scroll horizontally. */
+      & .noora-table table {
+        min-width: 100%;
+
+        & tbody tr td {
+          vertical-align: top;
+          min-width: 10rem;
+        }
+      }
+
       /* Every image rounds at 8px, like on the blog post — prose.css's
          site-wide 12px loses here. */
       & img,
@@ -94,7 +106,7 @@
         /* Media hangs past the 650px text column to the blog post's 780px. */
         & img,
         & video {
-          margin-left: calc((650px - 780px) / 2);
+          margin-inline-start: calc((650px - 780px) / 2);
           width: 780px;
           max-width: 780px;
         }

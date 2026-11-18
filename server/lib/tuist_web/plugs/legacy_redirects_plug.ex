@@ -22,8 +22,14 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
 
   def init(opts), do: opts
 
-  def call(conn, _opts) do
-    case resolve(conn) do
+  def call(conn, opts) do
+    target =
+      case Keyword.get(opts, :to) do
+        nil -> resolve(conn)
+        path -> append_query_string(path, conn.query_string)
+      end
+
+    case target do
       nil ->
         conn
 

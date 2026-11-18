@@ -12,3 +12,7 @@ ingress:
 # tuist-ops chart drops its own ops.tuist.dev Ingress at the same time.
 opsRoute:
   enabled: true
+
+orbAccess:
+  enabled: true
+  hostname: kube-orb-prod.tuist.dev

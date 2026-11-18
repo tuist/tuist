@@ -114,8 +114,8 @@ public class Generator: Generating {
         options: TuistGeneratedProjectOptions
             .GenerationOptions?
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        Logger.current.notice("Loading and constructing the graph", metadata: .section)
-        Logger.current.notice("It might take a while if the cache is empty")
+        Logger.current.info("Loading and constructing the graph", metadata: .section)
+        Logger.current.info("It might take a while if the cache is empty")
 
         let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(
             path: path,

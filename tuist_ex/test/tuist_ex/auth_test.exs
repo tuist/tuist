@@ -30,7 +30,92 @@ defmodule TuistEx.AuthTest do
     %{directory: directory, environment: environment}
   end
 
-  test "polls the browser device code and stores shared credentials", context do
+  test "signs in with a user code from the device authorization endpoint", context do
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/device_codes", %{} ->
+      {:ok, 200,
+       %{
+         "device_code" => "secret-device-code",
+         "user_code" => "WDJB-MJHT",
+         "verification_uri" => "https://tuist.example/auth/device",
+         "expires_in" => 300,
+         "interval" => 2,
+         "future_field" => true
+       }}
+    end)
+
+    {:ok, calls} = Agent.start_link(fn -> 0 end)
+
+    expect(HTTP, :request, 2, fn :get, url ->
+      assert url == "https://tuist.example/api/auth/device_code/secret-device-code"
+
+      Agent.get_and_update(calls, fn
+        0 -> {{:ok, 202, %{}}, 1}
+        1 -> {{:ok, 200, %{"access_token" => "access", "refresh_token" => "refresh"}}, 2}
+      end)
+    end)
+
+    Mix.shell(Mix.Shell.Process)
+    on_exit(fn -> Mix.shell(Mix.Shell.IO) end)
+
+    assert :ok =
+             Auth.login(
+               url: "https://tuist.example",
+               environment: context.environment,
+               device_code: fn -> flunk("the link flow must not run") end,
+               open_browser: fn url ->
+                 assert url == "https://tuist.example/auth/device"
+                 :ok
+               end,
+               sleep: fn 2_000 -> :ok end
+             )
+
+    assert_received {:mix_shell, :info, [message]}
+    assert message =~ "WDJB-MJHT"
+    assert credentials(context.directory)["refreshToken"] == "refresh"
+  end
+
+  test "stops polling a user code when it expires", context do
+    expect(HTTP, :request, fn :post, _url, %{} ->
+      {:ok, 200,
+       %{
+         "device_code" => "secret-device-code",
+         "user_code" => "WDJB-MJHT",
+         "verification_uri" => "https://tuist.example/auth/device",
+         "expires_in" => 6,
+         "interval" => 2
+       }}
+    end)
+
+    expect(HTTP, :request, 3, fn :get, _url -> {:ok, 202, %{}} end)
+
+    assert_raise Mix.Error, "Tuist authentication timed out", fn ->
+      Auth.login(
+        url: "https://tuist.example",
+        environment: context.environment,
+        open_browser: fn _ -> :ok end,
+        sleep: fn 2_000 -> :ok end
+      )
+    end
+  end
+
+  test "does not fall back to the link flow when the server fails", context do
+    expect(HTTP, :request, fn :post, _url, %{} -> {:ok, 500, %{"message" => "boom"}} end)
+    reject(HTTP, :request, 2)
+
+    assert_raise Mix.Error, "Browser authentication failed (500): boom", fn ->
+      Auth.login(
+        url: "https://tuist.example",
+        environment: context.environment,
+        open_browser: fn _ -> flunk("no browser should open") end
+      )
+    end
+  end
+
+  test "falls back to the browser link on servers without user codes", context do
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/device_codes", %{} ->
+      {:ok, 404, %{}}
+    end)
+
     {:ok, calls} = Agent.start_link(fn -> 0 end)
 
     expect(HTTP, :request, 2, fn :get, url ->
@@ -80,6 +165,7 @@ defmodule TuistEx.AuthTest do
   end
 
   test "continues browser login when a browser cannot be opened", context do
+    expect(HTTP, :request, fn :post, _url, %{} -> {:ok, 405, %{}} end)
     {:ok, calls} = Agent.start_link(fn -> 0 end)
 
     expect(HTTP, :request, 3, fn :get, _url ->
@@ -484,6 +570,30 @@ defmodule TuistEx.AuthTest do
 
     assert {:ok, ^access} = Auth.token(url: "https://tuist.example", environment: environment)
     assert {:ok, ^access} = Auth.token(url: "https://tuist.example", environment: environment)
+    refute File.exists?(Path.join(context.directory, "config/tuist/credentials"))
+  end
+
+  test "exchanges an Amp orb's identity token without a login and reuses it", context do
+    environment = fn
+      "AMP_ORB" -> "1"
+      key -> context.environment.(key)
+    end
+
+    access = jwt(4_000_000_000)
+
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body == %{token: "amp-identity"}
+      {:ok, 200, %{"access_token" => access}}
+    end)
+
+    options = [
+      url: "https://tuist.example",
+      environment: environment,
+      amp_identity_token: fn -> {:ok, "amp-identity"} end
+    ]
+
+    assert {:ok, ^access} = Auth.token(options)
+    assert {:ok, ^access} = Auth.token(options)
     refute File.exists?(Path.join(context.directory, "config/tuist/credentials"))
   end
 

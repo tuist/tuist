@@ -7,7 +7,7 @@ ready for independent installation.
 
 ## Runtime and dependencies
 
-- The pinned Condukt 1.14.0 defaults `use Condukt` and anonymous runs to
+- The local `../condukt` dependency defaults `use Condukt` and anonymous runs to
   `Condukt.AgentRuntimes.Native`. Sessions default to `Condukt.Sandbox.Local`.
   That object accesses the local filesystem; it is not a security isolation
   boundary and does not provision a container or VM.
@@ -16,9 +16,10 @@ ready for independent installation.
   session-option overrides as well as agent callbacks when adding a workflow.
 - Condukt starts session stores and supervisors, including an idle Kubernetes
   network-policy control-channel supervisor. No cluster connection or sandbox
-  starts just because that supervisor exists. Its transitive K8s package and
-  precompiled native libraries remain build dependencies; this inventory does
-  not remove them or claim native-free packaging.
+  starts just because that supervisor exists. Its transitive K8s package remains
+  a build dependency. Atlas disables both bundled Rust NIFs in compile config,
+  including Once's isolated dependency builds; it does not need their native
+  release artifacts.
 - `Atlas.LLMs.Runner` builds model client options. Local mode dispatches through
   `Atlas.LLMs.LocalTransport` to Atlas' inference relay in-process; the relay
   can still call an explicitly configured external model provider. Remote

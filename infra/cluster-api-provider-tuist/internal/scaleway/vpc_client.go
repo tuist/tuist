@@ -20,9 +20,9 @@ type VPCAPI interface {
 }
 
 // VPCClient resolves the per-env runner-cache Private Network by name, creating
-// it if it doesn't exist yet, and returns its ID. The Elastic Metal and Apple
-// Silicon reconcilers attach their servers to the *same* PN, so it's addressed
-// by a stable name + CIDR (declared in values) rather than a hand-pasted UUID,
+// it if it doesn't exist yet, and returns its ID. The Apple Silicon reconciler
+// attaches its servers to it, so it's addressed by a stable name + CIDR
+// (declared in values) rather than a hand-pasted UUID,
 // and the operator owns its lifecycle.
 type VPCClient struct {
 	VPC       VPCAPI
@@ -43,7 +43,7 @@ func NewVPCClient(client *scw.Client) *VPCClient {
 }
 
 // NewVPCClientFromEnv builds a VPCClient from the standard Scaleway environment
-// variables — the same construction the baremetal client uses.
+// variables.
 func NewVPCClientFromEnv() (*VPCClient, error) {
 	if cfg, err := scw.LoadConfig(); err == nil {
 		if profile, perr := cfg.GetActiveProfile(); perr == nil {

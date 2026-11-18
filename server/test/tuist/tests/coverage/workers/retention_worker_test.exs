@@ -3,6 +3,7 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorkerTest do
 
   alias Tuist.GitHistory
   alias Tuist.GitHistory.Ref
+  alias Tuist.GitHistory.Workers.FileChangesWorker
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.Workers.RetentionWorker
@@ -43,6 +44,19 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorkerTest do
     # The default window (365 days) applies where no project narrows it.
     assert GitHistory.known?(other_repository, "day40")
     assert Enum.reject(["day400", "day40"], &GitHistory.known?(projectless_repository, &1)) == ["day400"]
+  end
+
+  test "queues the file-change write of a listed commit whose job was lost" do
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+    repository = GitHistory.repository_id(account.id, "git@github.com:acme/app.git")
+    GitHistory.record_commits(repository, "sha1", [%{sha: "a", parents: [], committed_at: DateTime.utc_now()}])
+    GitHistory.record_branch_head(repository, "main", "a", "main")
+    GitHistory.record_listing(repository, "a", [%{path: "A.swift", git_blob_id: "a1", mode: 0o100644}], files_count: 1)
+    Repo.delete_all(Oban.Job)
+
+    assert :ok = perform_job(RetentionWorker, %{})
+
+    assert [%{args: %{"repository_id" => ^repository, "sha" => "a"}}] = all_enqueued(worker: FileChangesWorker)
   end
 
   test "drops the commits' coverage past its retention" do

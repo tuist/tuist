@@ -44,6 +44,33 @@ defmodule TuistWeb.Marketing.MarketingIllustrations do
     "#8B8E91" => "var(--noora-purple-400)"
   }
 
+  # Tuist Runners chip drawings (pricing page): they sit quietly behind the
+  # price card, so every grey lands a few neutral steps from the surface.
+  # The board is the tertiary surface, and the lettering gradient
+  # (LETTERING_* stops) is shared so "M5" and "x86" match.
+  @runner_tokens %{
+    "#EFF0F1" => "var(--noora-surface-background-tertiary)",
+    "#FDFDFD" => "light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100))",
+    "LETTERING_STROKE_TOP" => "light-dark(var(--noora-neutral-light-800), var(--noora-neutral-dark-400))",
+    "LETTERING_STROKE_BOTTOM" => "light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700))",
+    "LETTERING_FILL_TOP" => "light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000))",
+    "LETTERING_FILL_BOTTOM" => "light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100))"
+  }
+
+  # Each drawing uses its own greys for the same roles: component fills,
+  # outlines, and the dashed guides.
+  @runners_macos_tokens Map.merge(@runner_tokens, %{
+                          "#E6E8EA" => "light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-900))",
+                          "#535659" => "light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-800))",
+                          "#707478" => "light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-700))"
+                        })
+
+  @runners_linux_tokens Map.merge(@runner_tokens, %{
+                          "#C9CCCF" => "light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900))",
+                          "#A2A5A8" => "light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-800))",
+                          "#8B8E91" => "light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700))"
+                        })
+
   # {rendered name, source file, color map}
   @svg_specs Enum.map(
                ~w(cache compute tests previews-iphone transparency-windows transparency-open-source transparency-stacked-faces transparency-stacked-faces-wide),
@@ -51,7 +78,9 @@ defmodule TuistWeb.Marketing.MarketingIllustrations do
              ) ++
                [
                  {"transparency-soc-badge", "transparency-soc-badge", @soc_badge_tokens},
-                 {"security-soc-badge", "security-soc-badge", @security_badge_tokens}
+                 {"security-soc-badge", "security-soc-badge", @security_badge_tokens},
+                 {"runners-macos", "runners-macos", @runners_macos_tokens},
+                 {"runners-linux", "runners-linux", @runners_linux_tokens}
                ]
 
   @svgs Map.new(@svg_specs, fn {name, file, tokens} ->

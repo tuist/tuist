@@ -9,18 +9,24 @@
     },
     "items": {
       "agentic-coding": { "text": "에이전트 코딩" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel 캐시" },
       "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "빌드 및 배포" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "캐시 볼륨" },
+      "calendar": { "text": "캘린더" },
+      "channels": { "text": "채널" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "호환성" },
       "coverage": { "text": "커버리지" },
-      "data-retention": { "text": "데이터 보관" },
+      "data-retention": { "text": "데이터 보존" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 캐시" },
+      "entire": { "text": "전체" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -29,14 +35,21 @@
       "iphone-app": { "text": "iPhone 앱" },
       "macos-app": { "text": "macOS 앱" },
       "new-project": { "text": "새 프로젝트" },
+      "once": { "text": "Once" },
+      "once-cache": { "text": "Once 캐시" },
+      "once-project": { "text": "Once 프로젝트" },
+      "once-remote-execution": { "text": "Once 원격 실행" },
       "origin": { "text": "Origin" },
       "profiles": { "text": "프로파일" },
       "project-description": { "text": "프로젝트 설명" },
+      "release": { "text": "릴리스" },
+      "release-calendar": { "text": "릴리스 캘린더" },
       "release-channels": { "text": "릴리스 채널" },
       "run-previews": { "text": "프리뷰 실행" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 캐시" },
       "rust-project": { "text": "Rust 프로젝트" },
+      "sandboxes": { "text": "샌드박스" },
       "scim-provisioning": { "text": "SCIM 프로비저닝" },
       "server-api": { "text": "서버 API" },
       "single-sign-on": { "text": "SSO" },
@@ -78,9 +91,9 @@
           "recent-searches-title": "검색 기록",
           "no-recent-searches-text": "검색 기록 없음",
           "save-recent-search-button-title": "검색 기록에 저장",
-          "remove-recent-search-button-title": "검색 기록에서 제거",
+          "remove-recent-search-button-title": "검색 기록에서 삭제",
           "favorite-searches-title": "즐겨찾기",
-          "remove-favorite-search-button-title": "즐겨찾기에서 제거"
+          "remove-favorite-search-button-title": "즐겨찾기에서 삭제"
         },
         "error-screen": {
           "title-text": "결과를 가져올 수 없습니다",
@@ -96,7 +109,7 @@
           "no-results-text": "관련 결과를 찾을 수 없습니다",
           "suggested-query-text": "다음 쿼리를 시도해 보세요",
           "report-missing-results-text": "이 쿼리에 결과가 있어야 한다고 생각하시나요?",
-          "report-missing-results-link-text": "피드백 제출"
+          "report-missing-results-link-text": "피드백 보내기"
         }
       }
     }
@@ -360,7 +373,7 @@
                       "text": "새 프로젝트 만들기"
                     },
                     "swift-package": {
-                      "text": "Swift Package로 체험하기"
+                      "text": "Swift Package로 시도하기"
                     },
                     "migrate": {
                       "text": "마이그레이션",
@@ -397,7 +410,7 @@
                   "text": "코드 공유"
                 },
                 "synthesized-files": {
-                  "text": "합성 파일"
+                  "text": "생성된 파일"
                 },
                 "dynamic-configuration": {
                   "text": "동적 구성"
@@ -415,15 +428,15 @@
                   "text": "검사",
                   "items": {
                     "implicit-imports": {
-                      "text": "암시적 import"
+                      "text": "암시적 임포트"
                     }
                   }
                 },
                 "the-cost-of-convenience": {
-                  "text": "편의의 비용"
+                  "text": "편의성의 비용"
                 },
                 "tma-architecture": {
-                  "text": "모듈식 아키텍처"
+                  "text": "모듈형 아키텍처"
                 },
                 "metadata-tags": {
                   "text": "메타데이터 태그"

@@ -85,7 +85,7 @@ def run(enabled):
         rendered = subprocess.check_output([
             "helm", "template", "k8s-monitoring", str(DIRECTORY), "-n", "observability",
             "-f", str(DIRECTORY / "values-production.yaml"), "--set-string",
-            "k8s-monitoring.destinations.grafana-cloud-metrics.extraLabels."
+            "k8s-monitoring.destinations.pulse-metrics.extraLabels."
             f"kura_latency_aggregate_enabled={str(enabled).lower()}",
         ], text=True)
         manifests = json.loads(subprocess.check_output(
@@ -93,7 +93,7 @@ def run(enabled):
         config = next(item["data"]["config.alloy"] for item in manifests
                       if item.get("kind") == "ConfigMap"
                       and item["metadata"]["name"].endswith("-alloy-metrics"))
-        writer = block(config, 'prometheus.remote_write "grafana_cloud_metrics"')
+        writer = block(config, 'prometheus.remote_write "pulse_metrics"')
         for prefix in ["headers = {", "basic_auth {", "tls_config {"]:
             if prefix in writer:
                 writer = writer.replace(block(writer, prefix), "")
@@ -105,7 +105,7 @@ prometheus.scrape "fixture" {{
   targets = [{{"__address__" = "host.docker.internal:{source_port}"}}]
   scrape_interval = "1s"
   scrape_timeout = "1s"
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.remote_write.pulse_metrics.receiver]
 }}
 '''
         (temporary / "config.alloy").write_text(writer + scrape)

@@ -145,6 +145,45 @@ func TestReservationRevokesBeforeTaintAndFailsClosed(t *testing.T) {
 	}
 }
 
+// A remote execution worker shares the node with the agent daemon, connects
+// to the server under its own name and is revoked like it.
+func TestReservationRevokesARemoteExecutionWorkerUnderItsOwnName(t *testing.T) {
+	node := linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024)
+	worker := sandboxDaemonPod("worker", node.Name, 9, 9, false)
+	worker.Labels = map[string]string{executionDaemonLabel: "true"}
+	_, c := sandboxFixture(t, node, sandboxDaemonPod("daemon", node.Name, 1, 1, false), worker)
+	revoked := map[string]string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		var grant scaling.SandboxAllocation
+		if err := json.NewDecoder(req.Body).Decode(&grant); err != nil {
+			t.Error(err)
+		}
+		if !grant.Reclaim {
+			t.Errorf("not a revocation: %+v", grant)
+		}
+		revoked[grant.Node] = grant.Pod
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	signals := sandboxAllocationClient(t)
+	signals.BaseURL = server.URL
+	r := &RunnerPoolReconciler{Client: c, APIReader: c, SandboxesNamespace: "tuist-sandboxes", SignalsClient: signals}
+	if err := r.reserveNode(context.Background(), node, "ci", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if len(revoked) != 2 || revoked["node-a"] != "daemon" || revoked["node-a.remote-execution"] != "worker" {
+		t.Fatalf("revoked = %v, want the agent daemon as node-a and the worker as node-a.remote-execution", revoked)
+	}
+	daemons, err := listSandboxDaemons(context.Background(), c, "tuist-sandboxes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both carve-outs come off the node's runner seats.
+	if available := nodeWithoutSandboxes(node, daemons).Status.Allocatable.Memory().Value(); available != 54*gib {
+		t.Fatalf("available = %d GiB, want 54", available/gib)
+	}
+}
+
 func TestSandboxGrowthRetiresOnlyIdleRunnersEvenWithQueuedCI(t *testing.T) {
 	pool := linuxFleetPool("small", 2, 8192, 0, 10)
 	r, c := sandboxFixture(t, pool, linuxNode("node-a", 64),

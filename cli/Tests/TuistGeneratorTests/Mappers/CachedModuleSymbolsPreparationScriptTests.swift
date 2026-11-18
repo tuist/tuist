@@ -19,12 +19,48 @@ struct CachedModuleSymbolsPreparationScriptTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func listsSourcesAgainOnlyWhenTheDebugInformationOrRelocationsChange() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let resources = try await makeDSYM(at: root.appending(component: "products"), name: "Feature.framework")
+        let path = resources.appending(component: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE.plist")
+        #expect(try execute(at: root) == 1)
+        #expect(try execute(at: root) == 0)
+        try await FileSystem().remove(path)
+        #expect(try execute(at: root) == 0)
+        #expect(try readPlist(path)["DBGSourcePathRemapping"] as? [String: String] == [
+            "/producer/Feature.swift": "/consumer/Feature.swift",
+        ])
+
+        #expect(try execute(at: root, observedSource: "/producer/Other.swift", producer: "/producer/Other.swift") == 1)
+        #expect(try readPlist(path)["DBGSourcePathRemapping"] as? [String: String] == [
+            "/producer/Other.swift": "/consumer/Feature.swift",
+        ])
+
+        let dwarf = resources.appending(components: "DWARF", "Feature")
+        try await FileSystem().remove(dwarf)
+        try await FileSystem().writeText("relinked debug bytes", at: dwarf)
+        #expect(try execute(at: root, observedSource: "/consumer/OnlyNative.swift", producer: "/producer/Other.swift") == 1)
+        #expect(try readPlist(path)["DBGSourcePathRemapping"] as? [String: String] == [:])
+    }
+
+    @Test(.inTemporaryDirectory)
     func composesWithTheTargetsCompilerSourceMapInsteadOfRemappingBreakpointsTwice() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await makeDSYM(at: root.appending(component: "products"), name: "Feature.framework")
         try execute(at: root, prefixMapping: true)
         let info = try readPlist(resources.appending(component: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE.plist"))
         #expect(info["DBGSourcePathRemapping"] as? [String: String] == ["/producer/Feature.swift": "/^root/Feature.swift"])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func skipsSourcesTheCompilerSourceMapAlreadyResolves() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let resources = try await makeDSYM(at: root.appending(component: "products"), name: "Feature.framework")
+        #expect(try execute(
+            at: root, prefixMapping: true, observedSource: "/^root/Feature.swift", producer: "/^root/Feature.swift"
+        ) == 0)
+        #expect(!FileManager.default
+            .fileExists(atPath: resources.appending(component: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE.plist").pathString))
     }
 
     @Test(.inTemporaryDirectory)
@@ -143,18 +179,20 @@ struct CachedModuleSymbolsPreparationScriptTests {
         state = {"fresh": False}
         def run(arguments, **kwargs):
             calls.append(arguments)
-            if arguments[1] == "dsymutil":
+            if arguments[:2] == ["/usr/bin/xcrun", "--find"]:
+                return types.SimpleNamespace(stdout="/toolchain/" + arguments[2] + "\\n")
+            if arguments[0] == "/toolchain/dsymutil":
                 if mode == "tool-failure":
                     raise subprocess.CalledProcessError(1, arguments)
-                assert ["-cas", "/local/cas"] == arguments[2:4]
+                assert ["-cas", "/local/cas"] == arguments[1:3]
                 assert "-cas-plugin-option" in arguments
                 staged = pathlib.Path(arguments[-1]) / "Contents/Resources/DWARF"
                 staged.mkdir(parents=True)
                 (staged / "Consumer").write_text("linked debug information")
                 state["fresh"] = True
                 return types.SimpleNamespace(stdout="")
-            assert arguments[1] == "dwarfdump"
-            if arguments[2] == "--show-sources":
+            assert arguments[0] == "/toolchain/dwarfdump"
+            if arguments[1] == "--show-sources":
                 return types.SimpleNamespace(stdout="/producer/Feature.swift\\n")
             path = arguments[-1]
             stale = mode in ("owned-stale", "custom-stale", "owned-custom") and not state["fresh"] and ".tuist-debug-symbols-" not in path and path.endswith("/Consumer.dSYM")
@@ -167,7 +205,7 @@ struct CachedModuleSymbolsPreparationScriptTests {
             exec(\(String(reflecting: CachedModuleSymbolsPreparationScript.value)))
         except Exception as failure:
             error = str(failure)
-        print(json.dumps({"error": error, "linked": any(call[1] == "dsymutil" for call in calls)}))
+        print(json.dumps({"error": error, "linked": any(call[0] == "/toolchain/dsymutil" for call in calls)}))
         """
         try JSONSerialization.data(withJSONObject: [
             "CASPath": "/local/cas", "PluginPath": "/local/plugin.dylib", "PluginOptions": [["remote-service-path": "/socket"]],
@@ -244,34 +282,49 @@ struct CachedModuleSymbolsPreparationScriptTests {
         return resources
     }
 
+    /// Returns how many times the script listed a dSYM's sources.
+    @discardableResult
     private func execute(
-        at root: AbsolutePath, prefixMapping: Bool = false, observedSource: String = "/producer/Feature.swift"
-    ) throws {
+        at root: AbsolutePath,
+        prefixMapping: Bool = false,
+        observedSource: String = "/producer/Feature.swift",
+        producer: String = "/producer/Feature.swift"
+    ) throws -> Int {
         let script = """
         import json, os, subprocess, sys, types
         environment = {"BUILT_PRODUCTS_DIR": \(pythonString(root.appending(component: "products").pathString))}
         mappings = \(prefixMapping ? "{'/^root': '/consumer'}" : "{}")
         compiler_precedence = lambda mapping: -len(mapping[1])
-        plan = {"mappings": [["/producer/Feature.swift", "/consumer/Feature.swift"]], "artifacts": [],
+        plan = {"mappings": [[\(pythonString(producer)), "/consumer/Feature.swift"]], "artifacts": [],
                 "nativeProducts": ["Feature.framework"], "requiresLinkedDebugInformation": False}
+        listed_sources = []
         def run(arguments, **kwargs):
-            assert arguments[:2] == ["/usr/bin/xcrun", "dwarfdump"]
-            assert len(arguments) == 4
+            if arguments == ["/usr/bin/xcrun", "--find", "dwarfdump"]:
+                return types.SimpleNamespace(stdout="/toolchain/dwarfdump\\n")
+            assert arguments[0] == "/toolchain/dwarfdump"
+            assert len(arguments) == 3
+            if arguments[1] == "--show-sources":
+                listed_sources.append(arguments[2])
             output = \(pythonString(observedSource +
-                    "\n")) if arguments[2] == "--show-sources" else "UUID: AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE (arm64)\\n"
+                    "\n")) if arguments[1] == "--show-sources" else "UUID: AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE (arm64)\\n"
             return types.SimpleNamespace(stdout=output)
         subprocess.run = run
         \(CachedModuleSymbolsPreparationScript.value)
+        print(len(listed_sources))
         """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
         process.arguments = ["-c", script]
+        let output = Pipe()
         let errors = Pipe()
+        process.standardOutput = output
         process.standardError = errors
         try process.run()
-        let data = errors.fileHandleForReading.readDataToEndOfFile()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let diagnostics = errors.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        #expect(process.terminationStatus == 0, Comment(rawValue: String(decoding: data, as: UTF8.self)))
+        #expect(process.terminationStatus == 0, Comment(rawValue: String(decoding: diagnostics, as: UTF8.self)))
+        return try #require(Int(String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
     }
 
     private func pythonString(_ value: String) -> String {

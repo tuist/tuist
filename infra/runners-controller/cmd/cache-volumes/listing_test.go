@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -40,6 +43,7 @@ func TestListingRestoresTheListedMastersItLacksInOrder(t *testing.T) {
 	defer server.Close()
 
 	var restored []cachevolumes.Slot
+	var logs bytes.Buffer
 	installed := map[string]int64{}
 	l := &listing{
 		url: server.URL + "/masters", node: "linux-01", tokenPath: token, client: server.Client(),
@@ -50,12 +54,12 @@ func TestListingRestoresTheListedMastersItLacksInOrder(t *testing.T) {
 			}
 			restored = append(restored, slot)
 			if slot.ID == "full" {
-				return cachevolumes.ErrCapacity
+				return fmt.Errorf("%w: needs 2000 bytes free, has 10", cachevolumes.ErrCapacity)
 			}
 			return nil
 		},
 		installed: func(reason string, bytes int64) { installed[reason] += bytes },
-		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)), budget: time.Minute,
+		logger:    slog.New(slog.NewJSONHandler(&logs, nil)), budget: time.Minute,
 	}
 	l.once(context.Background())
 
@@ -72,6 +76,24 @@ func TestListingRestoresTheListedMastersItLacksInOrder(t *testing.T) {
 	}
 	if installed["prewarm"] != 100 || installed["recent"] != 20 || len(installed) != 2 {
 		t.Fatal("installed bytes", installed)
+	}
+	// Each listed custom master it could restore logs one decision, and a refusal
+	// for space keeps how much it needed.
+	var decisions []string
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var entry struct{ Msg, Decision, Scope, Error string }
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatal(err)
+		}
+		if entry.Msg == "prefetch listed master" {
+			decisions = append(decisions, entry.Scope[:1]+"="+entry.Decision)
+		}
+		if entry.Decision == "no_space" && !strings.Contains(entry.Error, "needs 2000 bytes free, has 10") {
+			t.Fatal("no_space error", entry.Error)
+		}
+	}
+	if strings.Join(decisions, ",") != "a=held,b=restored,d=no_space,e=restored" {
+		t.Fatal("decisions", decisions)
 	}
 }
 

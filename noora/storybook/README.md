@@ -15,4 +15,4 @@ mix setup
 mix phx.server
 ```
 
-Visit [localhost:4000](http://localhost:4000). Client-side custom elements are listed under **Web components**. Open the [Badge](http://localhost:4000/web_components/badge) or [Button](http://localhost:4000/web_components/button) story directly.
+Visit [localhost:4000](http://localhost:4000).

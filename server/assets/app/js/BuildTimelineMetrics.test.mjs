@@ -2,6 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
 
+test("disk space derives used bytes and keeps empty, full and missing readings distinct", () => {
+  const model = new TimelineMetrics([
+    { offset_ms: 0 },
+    { offset_ms: 1000, disk_total_bytes: 500e9, disk_available_bytes: 125e9 },
+    { offset_ms: 2000, disk_total_bytes: 500e9, disk_available_bytes: 0 },
+    { offset_ms: 3000, disk_total_bytes: null, disk_available_bytes: null },
+    { offset_ms: 4000, disk_total_bytes: 500e9 },
+    { offset_ms: 5000, disk_available_bytes: 125e9 },
+    { offset_ms: 6000, disk_total_bytes: 500e9, disk_available_bytes: 500e9 },
+  ]);
+  const track = model.tracks.find((track) => track.key === "disk-space");
+  assert.equal(track.max, 500e9);
+  assert.equal(model.label(track, 0), "Used — · Total —");
+  assert.equal(model.label(track, 1000), "Used 375 GB · Total 500 GB");
+  assert.equal(model.label(track, 2000), "Used 500 GB · Total 500 GB");
+  assert.equal(model.label(track, 3000), "Used — · Total —");
+  assert.equal(model.label(track, 4000), "Used — · Total 500 GB");
+  assert.equal(model.label(track, 5000), "Used — · Total —");
+  assert.equal(model.label(track, 6000), "Used 0 GB · Total 500 GB");
+});
+
 test("prefers normalized Bazel percentages while retaining the native cores fallback", () => {
   const sample = { offset_ms: 0, duration_ms: 1000, cpu_usage_cores: 6 };
   const normalized = new TimelineMetrics([{ ...sample, cpu_usage_percent: 50 }]);

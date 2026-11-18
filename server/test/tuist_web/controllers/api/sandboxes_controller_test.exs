@@ -7,9 +7,13 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxCommand
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
+  alias Tuist.Sandboxes.Workers.DeleteUploadWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
 
@@ -23,6 +27,12 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> put_req_header("content-type", "application/json")
 
     %{conn: conn, user: user, account: user.account}
+  end
+
+  defp token_conn(account, scopes) do
+    build_conn()
+    |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: scopes})
+    |> put_req_header("content-type", "application/json")
   end
 
   describe "account flag" do
@@ -44,17 +54,62 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     end
   end
 
+  test "native API accepts the 24 GiB shape", %{conn: conn, account: account} do
+    body = %{platform: "darwin", memory_mb: 24_576}
+
+    expect(Capacity, :place, fn sandbox ->
+      sandbox |> Ecto.Changeset.change(node_name: "mac-1", node_uid: "node-uid", resident: true) |> Repo.update!()
+      {:ok, "mac-1"}
+    end)
+
+    expect(Nodes, :call, fn "mac-1", "create", args, _opts ->
+      assert %{vcpus: 8, memory_mb: 24_576, template: "macos", node_uid: "node-uid"} = args
+      {:ok, %{"template_tag" => "versioned-image"}}
+    end)
+
+    response = conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:created)
+    assert response["platform"] == "darwin"
+    assert response["resident"] == true
+    assert response["memory_mb"] == 24_576
+  end
+
+  test "an xcode_version boots that Xcode's macOS template and an unserved one is refused with the served list",
+       %{conn: conn, account: account} do
+    stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+
+    expect(Capacity, :place, fn %Sandbox{platform: :darwin, template: "macos-xcode-26-1-1", vcpus: 8} = sandbox ->
+      sandbox |> Ecto.Changeset.change(node_name: "mac-1", node_uid: "node-uid") |> Repo.update!()
+      {:ok, "mac-1"}
+    end)
+
+    expect(Nodes, :call, fn "mac-1", "create", %{template: "macos-xcode-26-1-1"}, _opts -> {:ok, %{}} end)
+
+    response =
+      conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{xcode_version: "26.1.1"}) |> json_response(:created)
+
+    assert %{"platform" => "darwin", "template" => "macos-xcode-26-1-1"} = response
+
+    assert %{"message" => "xcode_version must be one of: 26.6, 26.1.1"} =
+             conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{xcode_version: "26.1"}) |> json_response(400)
+
+    assert %{"message" => "xcode_version is only supported on macOS (platform darwin)"} =
+             conn
+             |> post(~p"/api/accounts/#{account.name}/sandboxes", %{platform: "linux", xcode_version: "26.6"})
+             |> json_response(400)
+  end
+
   describe "Amp Orb dispatch" do
     test "marks only admission refusals as retryable", %{conn: conn, account: account} do
       for {reason, status, hint} <- [
             {:no_capacity, 503, ["admission"]},
+            {{:host_busy, :ci}, 503, ["admission"]},
             {:sandbox_concurrency_limit, 429, ["admission"]},
             {:sandbox_account_busy, 409, ["admission"]},
             {:locked, 409, ["admission"]},
             {:orb_bootstrap_failed, 502, []},
             {:node_disconnected, 503, []}
           ] do
-        expect(Tuist.Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
+        expect(Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
 
         result =
           post(conn, ~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{
@@ -164,6 +219,52 @@ defmodule TuistWeb.API.SandboxesControllerTest do
                conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:ok)
     end
 
+    test "connects a Claude Code environment, which keeps idle sessions for half an hour and starts its orchestrator",
+         %{conn: conn, account: account} do
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+          kind: "claude_code",
+          anthropic_environment_id: "ccpool_01mac",
+          environment_key: "sk-ant-cc-secret",
+          platform: "darwin"
+        })
+        |> json_response(:created)
+
+      assert %{"kind" => "claude_code", "platform" => "darwin", "template" => "macos", "max_idle_seconds" => 1800} =
+               response
+
+      stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+
+      assert %{"id" => id, "platform" => "darwin", "template" => "macos-xcode-26-1-1", "xcode_version" => "26.1.1"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+                 kind: "claude_code",
+                 anthropic_environment_id: "ccpool_01mac_xcode",
+                 environment_key: "sk-ant-cc-secret",
+                 xcode_version: "26.1.1"
+               })
+               |> json_response(:created)
+
+      assert %{"template" => "macos", "xcode_version" => nil} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{id}", %{xcode_version: nil})
+               |> json_response(:ok)
+
+      assert_enqueued(worker: Tuist.Sandboxes.ClaudeCodeReconciler)
+
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+          kind: "claude_code",
+          anthropic_environment_id: "env_01managed",
+          environment_key: "sk-ant-secret"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "does not name a claude_code environment"
+    end
+
     test "rejects invalid params", %{conn: conn, account: account} do
       response =
         conn
@@ -199,6 +300,55 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       conn
       |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{other.id}", %{agent_model: "claude-opus-5"})
       |> json_response(:not_found)
+    end
+
+    test "stores the federation ids all or none and returns the account's issuer", %{conn: conn, account: account} do
+      federation_ids = %{
+        anthropic_organization_id: "00000000-0000-4000-8000-000000000001",
+        anthropic_workspace_id: "wrkspc_01Abc",
+        anthropic_service_account_id: "svac_01Abc",
+        anthropic_federation_rule_id: "fdrl_01Abc"
+      }
+
+      created =
+        conn
+        |> post(
+          ~p"/api/accounts/#{account.name}/sandboxes/agent-environments",
+          Map.merge(federation_ids, %{anthropic_environment_id: "env_federated", environment_key: "sk-ant-secret"})
+        )
+        |> json_response(:created)
+
+      assert %{
+               "has_api_key" => false,
+               "anthropic_organization_id" => "00000000-0000-4000-8000-000000000001",
+               "anthropic_workspace_id" => "wrkspc_01Abc",
+               "anthropic_service_account_id" => "svac_01Abc",
+               "anthropic_federation_rule_id" => "fdrl_01Abc",
+               "federation_issuer_url" => issuer_url,
+               "federation_subject" => subject
+             } = created
+
+      assert String.ends_with?(issuer_url, "/oidc/accounts/#{account.id}")
+      assert subject == "account:#{account.id}:agent-environment:#{created["id"]}"
+
+      response =
+        conn
+        |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{created["id"]}", %{
+          anthropic_federation_rule_id: nil
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "anthropic_federation_rule_id"
+
+      cleared =
+        conn
+        |> patch(
+          ~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{created["id"]}",
+          Map.new(federation_ids, fn {key, _value} -> {key, nil} end)
+        )
+        |> json_response(:ok)
+
+      assert %{"anthropic_organization_id" => nil, "anthropic_federation_rule_id" => nil} = cleared
     end
 
     test "stores the agent settings, reports has_api_key and drops the cached agent when the model changes", %{
@@ -264,10 +414,36 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
       assert response["message"] =~ "minLength"
     end
+
+    test "sets a Claude Code environment's setup script and refuses one on other environments", %{
+      conn: conn,
+      account: account
+    } do
+      claude_code =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_01linux")
+
+      assert %{"setup_script" => "mise install\n"} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{claude_code.id}", %{
+                 setup_script: "mise install\n"
+               })
+               |> json_response(:ok)
+
+      managed_agents = agent_environment_fixture(account: account)
+
+      response =
+        conn
+        |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{managed_agents.id}", %{
+          setup_script: "mise install\n"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "setup_script"
+    end
   end
 
   describe "authorization" do
-    test "forbids a user who is not an admin of the account", %{conn: conn, account: account} do
+    test "forbids a user outside the account", %{conn: conn, account: account} do
       other_user = AccountsFixtures.user_fixture()
 
       response =
@@ -279,11 +455,30 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert response["message"] =~ "not authorized"
     end
 
-    test "forbids an account token", %{account: account} do
-      build_conn()
-      |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
-      |> get(~p"/api/accounts/#{account.name}/sandboxes")
-      |> json_response(:forbidden)
+    test "forbids an account token without the sandboxes write scope", %{account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      for scopes <- [["account:runners:write"], ["ci"], ["mcp"]] do
+        conn = token_conn(account, scopes)
+
+        conn |> get(~p"/api/accounts/#{account.name}/sandboxes") |> json_response(:forbidden)
+        conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:forbidden)
+
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/exec", %{command: "true"})
+        |> json_response(:forbidden)
+      end
+    end
+
+    test "forbids an account token for another account", %{account: account} do
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+      conn = token_conn(other_account, ["account:sandboxes:write"])
+
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}") |> json_response(:forbidden)
+      conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:forbidden)
     end
 
     test "requires authentication", %{account: account} do
@@ -344,15 +539,132 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert Repo.get(Sandbox, id) == nil
     end
 
+    test "lists one filtered page with each sandbox's dashboard status", %{conn: conn, account: account} do
+      now = DateTime.utc_now()
+      idle = sandbox_fixture(account: account, state: :running, inserted_at: DateTime.add(now, -3, :minute))
+
+      active =
+        sandbox_fixture(
+          account: account,
+          state: :running,
+          residency_work_id: "w-1",
+          inserted_at: DateTime.add(now, -2, :minute)
+        )
+
+      failed =
+        sandbox_fixture(
+          account: account,
+          state: :error,
+          vcpus: 4,
+          memory_mb: 8192,
+          inserted_at: DateTime.add(now, -1, :minute)
+        )
+
+      sandbox_fixture(state: :running)
+
+      assert %{
+               "sandboxes" => [%{"id" => failed_id, "status" => "failed"}, %{"id" => active_id, "status" => "active"}],
+               "pagination_metadata" => %{"total_count" => 3, "total_pages" => 2, "has_next_page" => true}
+             } = conn |> get(~p"/api/accounts/#{account.name}/sandboxes?page_size=2") |> json_response(:ok)
+
+      assert {failed_id, active_id} == {failed.id, active.id}
+
+      assert %{"sandboxes" => [%{"id" => idle_id, "status" => "idle"}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes?page=2&page_size=2") |> json_response(:ok)
+
+      assert idle_id == idle.id
+
+      assert %{
+               "sandboxes" => [%{"id" => ^idle_id}, %{"id" => ^active_id}],
+               "pagination_metadata" => %{"total_count" => 2}
+             } =
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes?vcpus=2&sort_order=asc")
+               |> json_response(:ok)
+
+      assert %{"sandboxes" => [%{"id" => ^failed_id}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes?status=failed") |> json_response(:ok)
+
+      by_identifier =
+        [failed, active, idle]
+        |> Enum.sort_by(&(&1.amp_orb_id || &1.anthropic_session_id || &1.id))
+        |> Enum.map(& &1.id)
+
+      assert by_identifier ==
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes?sort_by=identifier")
+               |> json_response(:ok)
+               |> Map.fetch!("sandboxes")
+               |> Enum.map(& &1["id"])
+
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes?status=sleeping") |> json_response(:bad_request)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes?sort_by=name") |> json_response(:bad_request)
+    end
+
+    test "queues the archive of a paused sandbox and refuses a running one", %{conn: conn, account: account} do
+      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
+      running = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      assert %{"id" => id, "state" => "paused"} =
+               conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
+
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: id})
+
+      assert conn
+             |> post(~p"/api/accounts/#{account.name}/sandboxes/#{running.id}/archive")
+             |> json_response(:conflict)
+             |> Map.fetch!("message") =~ "running"
+    end
+
+    test "answers analytics for a range with the account's limits and validates the range", %{
+      conn: conn,
+      account: account
+    } do
+      sandbox_fixture(account: account, state: :running, vcpus: 4, memory_mb: 8192, workspace_gb: 10)
+      finish = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      start = DateTime.utc_now() |> DateTime.add(-12, :hour) |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+
+      assert %{
+               "bucket" => "hour",
+               "vcpu_hours" => vcpu_hours,
+               "created" => %{"count" => 0, "points" => points},
+               "concurrency" => %{
+                 "limits" => %{"vcpus" => 32, "memory_gb" => 64.0},
+                 "in_use" => %{"vcpus" => 4, "memory_gb" => 8.0}
+               }
+             } =
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics?start=#{start}&end=#{finish}")
+               |> json_response(:ok)
+
+      assert vcpu_hours == 0
+      assert length(points) in 12..13
+
+      too_long = DateTime.utc_now() |> DateTime.add(-91, :day) |> DateTime.to_iso8601()
+
+      conn
+      |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics?start=#{too_long}")
+      |> json_response(:bad_request)
+    end
+
     test "answers 503 when no node can host the sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn _ -> {:error, :no_node} end)
 
-      response =
-        conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
-        |> json_response(:service_unavailable)
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
 
-      assert response["message"] =~ "No sandbox node"
+      assert json_response(conn, :service_unavailable)["message"] =~ "No sandbox node"
+      # Longer than the CLI's retry budget, so it reports the error instead of replaying the wait.
+      assert get_resp_header(conn, "retry-after") == ["300"]
+    end
+
+    test "answers 503 with the reason when the sandbox's archive store is not configured",
+         %{conn: conn, account: account} do
+      sandbox =
+        sandbox_fixture(account: account, state: :archived, archive_key: "archives/gone", archive_store: "removed-store")
+
+      conn = delete(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}")
+
+      assert json_response(conn, :service_unavailable)["message"] =~ "archive can't be reached"
     end
 
     test "answers 503 when no node has memory or disk left", %{conn: conn, account: account} do
@@ -407,6 +719,388 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
       conn
       |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/exec", %{})
+      |> json_response(:bad_request)
+    end
+  end
+
+  describe "commands" do
+    # The guest's read answer: a header line, then the stdout chunk.
+    defp guest_read(header, stdout) do
+      fn "node-a", "exec", _args, opts ->
+        opts[:on_stream].({:stdout, header <> "\n" <> stdout})
+        {:ok, %{"exit_code" => 0}}
+      end
+    end
+
+    defp member_conn(conn, role) do
+      admin = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: admin, preload: [:account])
+      member = AccountsFixtures.user_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(member, organization, role: role)
+      {Authentication.put_current_user(conn, member), organization.account}
+    end
+
+    test "a member starts a command and streams its output to the exit", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        assert env["TUIST_COMMAND"] == "exec 'xcodebuild' '-scheme' 'My App'"
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert %{"id" => id, "status" => "running"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{
+                 command: "xcodebuild",
+                 args: ["-scheme", "My App"]
+               })
+               |> json_response(:accepted)
+
+      expect(Nodes, :call, guest_read("running - 6 0 -", "hello\n"))
+      expect(Nodes, :call, guest_read("exited 0 12 0 -", "world\n"))
+
+      response = get(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{id}/logs?stdout_offset=0")
+
+      assert response.status == 200
+      assert response |> get_resp_header("content-type") |> hd() =~ "application/x-ndjson"
+
+      assert response.resp_body |> String.split("\n", trim: true) |> Enum.map(&JSON.decode!/1) == [
+               %{"type" => "stdout", "data" => "hello\n", "offset" => 6},
+               %{"type" => "stdout", "data" => "world\n", "offset" => 12},
+               %{"type" => "exit", "status" => "exited", "exit_code" => 0}
+             ]
+
+      assert %{"commands" => [%{"id" => ^id, "status" => "exited", "exit_code" => 0}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands") |> json_response(:ok)
+    end
+
+    # The environment the next command launches with.
+    defp command_env(conn, account, sandbox, body) do
+      test = self()
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        send(test, {:env, env})
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      %{"id" => id} =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", body)
+        |> json_response(:accepted)
+
+      assert_received {:env, env}
+      {id, env}
+    end
+
+    defp exchange(token) do
+      build_conn()
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/auth/oidc/token", %{token: token})
+    end
+
+    test "a member's command signs in to the account's cache while it runs", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      {id, env} = command_env(conn, account, sandbox, %{command: "tuist cache", timeout_ms: 600_000})
+
+      assert env["TUIST_URL"] == Environment.app_url()
+      assert "tuist-sandbox-" <> _ = token = env["TUIST_OIDC_TOKEN"]
+      refute inspect(Repo.get!(SandboxCommand, id)) =~ token
+
+      response = token |> exchange() |> json_response(:ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["sub"] == to_string(account.id)
+      assert claims["scopes"] == ["ci"]
+      assert claims["all_projects"] == true
+      # Never past the command's deadline.
+      assert response["expires_in"] in 590..601
+
+      # A forged or altered token is refused.
+      assert token |> String.slice(0..-2//1) |> exchange() |> json_response(:unauthorized)
+
+      # Once the command ended, its token no longer exchanges.
+      SandboxCommand |> Repo.get!(id) |> Ecto.Changeset.change(status: :exited) |> Repo.update!()
+      assert token |> exchange() |> json_response(:unauthorized)
+
+      # Variables the caller sends win.
+      {_id, env} = command_env(conn, account, Repo.reload!(sandbox), %{command: "true", env: %{"TUIST_URL" => "x"}})
+      assert env["TUIST_URL"] == "x"
+      assert env["TUIST_OIDC_TOKEN"] != token
+    end
+
+    test "a command's credential is never broader than its starter's cache access", %{conn: conn} do
+      {member, account} = member_conn(conn, :user)
+      {:ok, account} = Tuist.Accounts.update_account(account, %{cache_write_policy: :tokens_only})
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      # Members of an account whose cache only tokens write only read it.
+      {_id, env} = command_env(member, account, sandbox, %{command: "true"})
+
+      {:ok, claims} =
+        env["TUIST_OIDC_TOKEN"]
+        |> exchange()
+        |> json_response(:ok)
+        |> then(&Tuist.Guardian.decode_and_verify(&1["access_token"]))
+
+      assert claims["scopes"] == ["account:cache:read", "project:cache:read"]
+
+      # A token without cache access gets the environment but no credential.
+      sandbox = Repo.reload!(sandbox)
+      {_id, env} = command_env(token_conn(account, ["account:sandboxes:write"]), account, sandbox, %{command: "true"})
+      assert env["TUIST_URL"]
+      refute Map.has_key?(env, "TUIST_OIDC_TOKEN")
+
+      # A token keeps its own projects and the CI scopes it holds, never the sandboxes scope.
+      project_token =
+        build_conn()
+        |> assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["account:sandboxes:write", "account:cache:write", "project:cache:write"],
+          all_projects: false,
+          project_ids: [42]
+        })
+        |> put_req_header("content-type", "application/json")
+
+      {_id, env} = command_env(project_token, account, Repo.reload!(sandbox), %{command: "true"})
+
+      {:ok, claims} =
+        env["TUIST_OIDC_TOKEN"]
+        |> exchange()
+        |> json_response(:ok)
+        |> then(&Tuist.Guardian.decode_and_verify(&1["access_token"]))
+
+      assert claims["scopes"] == ["account:cache:write", "project:cache:write"]
+      assert claims["project_ids"] == [42]
+      refute claims["all_projects"]
+    end
+
+    test "an administrator's command in an agent's sandbox gets no Tuist credential", %{conn: conn, account: account} do
+      environment = agent_environment_fixture(account: account)
+
+      sandbox =
+        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
+
+      {_id, env} = command_env(conn, account, sandbox, %{command: "true"})
+      refute Map.has_key?(env, "TUIST_OIDC_TOKEN")
+      refute Map.has_key?(env, "TUIST_URL")
+    end
+
+    @tag :tmp_dir
+    test "refuses a working directory missing in the sandbox with 400", %{conn: conn, account: account, tmp_dir: home} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      missing = Path.join(home, "does-not-exist")
+
+      # Runs the real start script. The guest agent cannot start a process in
+      # a missing directory, so the exec itself must run in the workspace.
+      expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-c", script], cwd: cwd, env: env}, _opts ->
+        assert cwd == Sandboxes.workspace(sandbox)
+        {_output, code} = System.cmd("/bin/bash", ["-c", script], env: Map.put(env, "HOME", home), cd: home)
+        {:ok, %{"exit_code" => code}}
+      end)
+
+      assert %{"message" => message} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{
+                 command: "true",
+                 cwd: missing
+               })
+               |> json_response(:bad_request)
+
+      assert message =~ missing
+
+      assert conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands") |> json_response(:ok) == %{
+               "commands" => []
+             }
+
+      refute File.exists?(Path.join(home, ".cache"))
+    end
+
+    test "streams 404 as a plain status for an unknown command", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      conn
+      |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{Ecto.UUID.generate()}/logs")
+      |> json_response(:not_found)
+    end
+
+    test "a member uses an agent's sandbox, analytics and archiving, but not agent environments", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      environment = agent_environment_fixture(account: account)
+
+      sandbox =
+        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
+
+      paused =
+        sandbox_fixture(
+          account: account,
+          state: :paused,
+          paused_at: DateTime.utc_now(),
+          agent_environment_id: environment.id
+        )
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert %{"status" => "running"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
+               |> json_response(:accepted)
+
+      assert %{"id" => paused_id} =
+               conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
+
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: paused_id})
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
+    end
+
+    test "a viewer cannot run commands", %{conn: conn} do
+      {conn, account} = member_conn(conn, :viewer)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "true"})
+      |> json_response(:forbidden)
+    end
+
+    test "an account token with the sandboxes write scope creates, runs commands in and deletes a sandbox", %{
+      account: account
+    } do
+      conn = token_conn(account, ["account:sandboxes:write"])
+      stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"template_tag" => "sha-1"}} end)
+
+      assert %{"id" => id, "state" => "running"} =
+               conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:created)
+
+      assert %{"sandboxes" => [%{"id" => ^id}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes") |> json_response(:ok)
+
+      assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+
+      expect(Nodes, :call, fn "node-a", "exec", %{cmd: ["/bin/bash", "-lc", "echo hi"]}, opts ->
+        opts[:on_stream].({:stdout, "hi\n"})
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert %{"exit_code" => 0, "stdout" => "hi\n"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{id}/exec", %{command: "echo hi"})
+               |> json_response(:ok)
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert %{"id" => command_id, "status" => "running"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{id}/commands", %{command: "xcodebuild"})
+               |> json_response(:accepted)
+
+      assert %{"commands" => [%{"id" => ^command_id}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}/commands") |> json_response(:ok)
+
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+      conn |> delete(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> response(:no_content)
+      assert Repo.get(Sandbox, id) == nil
+    end
+
+    test "an account token with the sandboxes write scope uses an agent's sandbox, but not agent environments", %{
+      account: account
+    } do
+      conn = token_conn(account, ["account:sandboxes:write"])
+      environment = agent_environment_fixture(account: account)
+
+      sandbox =
+        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
+
+      id = sandbox.id
+      reject(&Nodes.call/4)
+
+      assert %{"id" => ^id} = conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{id}") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:ok)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:forbidden)
+    end
+
+    test "a member creates an upload, which is deleted once its URLs expire", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      other_sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      prefix = "sandbox-uploads/#{account.id}/#{sandbox.id}/"
+      reject(&Nodes.call/4)
+
+      expect(Tuist.Storage, :generate_upload_url, fn key, %{id: account_id}, [expires_in: 3600] ->
+        assert account_id == account.id
+        assert String.starts_with?(key, prefix)
+        "https://storage/#{key}?put"
+      end)
+
+      expect(Tuist.Storage, :generate_download_url, fn key, _account, [expires_in: 3600] ->
+        "https://storage/#{key}?get"
+      end)
+
+      assert %{
+               "upload_url" => "https://storage/" <> upload,
+               "download_url" => "https://storage/" <> download,
+               "expires_at" => expires_at
+             } =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/uploads")
+               |> json_response(:ok)
+
+      # Whole seconds: the CLI's generated client fails to decode fractional ones.
+      assert expires_at =~ ~r/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/
+
+      key = String.trim_trailing(upload, "?put")
+      assert download == key <> "?get"
+      assert [%Oban.Job{args: args, scheduled_at: scheduled_at}] = all_enqueued(worker: DeleteUploadWorker)
+      assert args == %{"account_id" => account.id, "key" => key}
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) > 3600
+
+      expect(Tuist.Storage, :delete_object, fn ^key, %{id: account_id} when account_id == account.id -> :ok end)
+      assert :ok = perform_job(DeleteUploadWorker, args)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{other_sandbox.id}/uploads")
+      |> json_response(:not_found)
+    end
+
+    test "writes the decoded stdin bytes to the command", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      %{"id" => id} =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "cat", stdin: true})
+        |> json_response(:accepted)
+
+      bytes = <<"hello", 0, 255, "\n">>
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        assert env["TUIST_STDIN_PARTS"] == "1"
+        assert Base.decode64!(env["TUIST_STDIN_DATA_0"]) == bytes
+        assert env["TUIST_STDIN_CLOSE"] == "1"
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert %{"id" => ^id} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{id}/stdin", %{
+                 data: Base.encode64(bytes),
+                 close: true
+               })
+               |> json_response(:ok)
+    end
+
+    test "rejects stdin data that is not base64", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{Ecto.UUID.generate()}/stdin", %{
+        data: "not base64!"
+      })
       |> json_response(:bad_request)
     end
   end

@@ -68,8 +68,16 @@ defmodule TuistWeb.Storybook.Alert do
       },
       %VariationGroup{
         id: :status_primary,
-        description: "Status variations for primary alerts: error, information, success, warning",
+        description: "Status variations for primary alerts: default, error, information, success, warning",
         variations: [
+          %Variation{
+            id: :default,
+            attributes: %{
+              id: "alert-status-primary-default",
+              status: "default",
+              title: "Insert your text here"
+            }
+          },
           %Variation{
             id: :error,
             attributes: %{
@@ -106,8 +114,17 @@ defmodule TuistWeb.Storybook.Alert do
       },
       %VariationGroup{
         id: :status_secondary,
-        description: "Status variations for secondary alerts: error, information, success, warning",
+        description: "Status variations for secondary alerts: default, error, information, success, warning",
         variations: [
+          %Variation{
+            id: :default,
+            attributes: %{
+              id: "alert-status-secondary-default",
+              type: "secondary",
+              status: "default",
+              title: "Insert your text here"
+            }
+          },
           %Variation{
             id: :error,
             attributes: %{
@@ -185,7 +202,7 @@ defmodule TuistWeb.Storybook.Alert do
       },
       %VariationGroup{
         id: :with_actions,
-        description: "Alerts with action buttons for small and large sizes",
+        description: "Alerts with one or two actions. With two, the first is underlined and a dot separates them.",
         variations: [
           %Variation{
             id: :with_actions_small,
@@ -197,7 +214,7 @@ defmodule TuistWeb.Storybook.Alert do
             },
             slots: [
               """
-              <:action><.link_button size="medium" variant="secondary" underline label="Action" /></:action>
+              <:action><.link_button size="medium" variant="secondary" label="Action" /></:action>
               """
             ]
           },
@@ -212,7 +229,74 @@ defmodule TuistWeb.Storybook.Alert do
             },
             slots: [
               """
-              <:action><.link_button size="large" variant="secondary" underline label="Action" /></:action>
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
+              """
+            ]
+          },
+          %Variation{
+            id: :default_with_two_actions_large,
+            attributes: %{
+              id: "alert-default-with-two-actions-large",
+              status: "default",
+              size: "large",
+              dismissible: true,
+              title: "Insert your text here",
+              description: "Insert your description here. Description in this case is usually two lines"
+            },
+            slots: [
+              """
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
+              """
+            ]
+          },
+          %Variation{
+            id: :default_secondary_with_two_actions_large,
+            attributes: %{
+              id: "alert-default-secondary-with-two-actions-large",
+              type: "secondary",
+              status: "default",
+              size: "large",
+              dismissible: true,
+              title: "Insert your text here",
+              description: "Insert your description here. Description in this case is usually two lines"
+            },
+            slots: [
+              """
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
+              """
+            ]
+          },
+          %Variation{
+            id: :with_two_actions_small,
+            attributes: %{
+              id: "alert-with-two-actions-small",
+              status: "information",
+              size: "small",
+              title: "Insert your text here"
+            },
+            slots: [
+              """
+              <:action><.link_button size="medium" variant="secondary" label="Action" /></:action>
+              <:action><.link_button size="medium" variant="secondary" label="Action" /></:action>
+              """
+            ]
+          },
+          %Variation{
+            id: :with_two_actions_large,
+            attributes: %{
+              id: "alert-with-two-actions-large",
+              status: "information",
+              size: "large",
+              dismissible: true,
+              title: "Insert your text here",
+              description: "Insert your description here. Description in this case is usually two lines"
+            },
+            slots: [
+              """
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
+              <:action><.link_button size="large" variant="secondary" label="Action" /></:action>
               """
             ]
           }
@@ -227,7 +311,8 @@ defmodule TuistWeb.Storybook.Alert do
             attributes: %{
               id: "alert-edge-long-title",
               status: "information",
-              title: "This is a very long title that might wrap to multiple lines in smaller containers or on mobile devices to test text wrapping behavior"
+              title:
+                "This is a very long title that might wrap to multiple lines in smaller containers or on mobile devices to test text wrapping behavior"
             }
           },
           %Variation{
@@ -237,7 +322,8 @@ defmodule TuistWeb.Storybook.Alert do
               size: "large",
               status: "warning",
               title: "Important Notice",
-              description: "This is a very long description that contains multiple sentences and important information. It should properly wrap and maintain readability even when the content extends beyond the typical two-line description. This helps test the layout behavior with extensive content."
+              description:
+                "This is a very long description that contains multiple sentences and important information. It should properly wrap and maintain readability even when the content extends beyond the typical two-line description. This helps test the layout behavior with extensive content."
             }
           },
           %Variation{
@@ -251,8 +337,8 @@ defmodule TuistWeb.Storybook.Alert do
             },
             slots: [
               """
-              <:action><.link_button size="medium" variant="secondary" underline label="View Details" /></:action>
-              <:action><.link_button size="medium" variant="secondary" underline label="Dismiss" /></:action>
+              <:action><.link_button size="medium" variant="secondary" label="View Details" /></:action>
+              <:action><.link_button size="medium" variant="secondary" label="Dismiss" /></:action>
               """
             ]
           }

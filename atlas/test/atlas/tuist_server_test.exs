@@ -282,6 +282,87 @@ defmodule Atlas.TuistServerTest do
     end
   end
 
+  describe "runner billing" do
+    test "GETs billing through the workload-identity endpoint and preserves the response" do
+      body = %{"revision" => "billing-1", "activation" => nil}
+
+      request = fn req ->
+        assert req.method == :get
+        assert req.url.path == "/api/internal/atlas/accounts/42/runner-billing"
+        assert req.options[:auth] == {:bearer, "tok"}
+        {:ok, %Req.Response{status: 200, body: body}}
+      end
+
+      assert {:ok, ^body} =
+               TuistServer.get_runner_billing(42, token: "tok", base_url: "https://tuist.test", request: request)
+    end
+
+    test "PUTs activation once without retries, preserving success, conflict and partial-effect errors" do
+      attrs = %{
+        "paid_cents" => 100_000,
+        "credit_multiplier" => "1.50",
+        "platforms" => ["linux", "macos"],
+        "starts_on" => "2026-11-01",
+        "expires_on" => "2027-10-31",
+        "invoice_id" => "in_paid123",
+        "expected_revision" => "billing-1",
+        "change_id" => Ecto.UUID.generate(),
+        "reason" => "Paid runner order",
+        "actor" => %{"id" => Ecto.UUID.generate(), "email" => "operator@tuist.dev"},
+        "interface" => "mcp"
+      }
+
+      for {status, body, expected} <- [
+            {200, %{"revision" => "billing-2"}, {:ok, %{"revision" => "billing-2"}}},
+            {409, %{"error" => "stale_revision"}, {:error, "stale_revision"}},
+            {422, %{"error" => "activation_failed"}, {:error, "activation_failed"}}
+          ] do
+        request = fn req ->
+          assert req.method == :put
+          assert req.url.path == "/api/internal/atlas/accounts/42/runner-billing"
+          assert req.options[:auth] == {:bearer, "tok"}
+          assert req.options[:json] == attrs
+          assert req.options[:retry] == false
+          send(self(), :activation_requested)
+          {:ok, %Req.Response{status: status, body: body}}
+        end
+
+        assert ^expected =
+                 TuistServer.activate_runner_prepaid_pool(42, attrs,
+                   token: "tok",
+                   base_url: "https://tuist.test",
+                   request: request
+                 )
+
+        assert_received :activation_requested
+        refute_received :activation_requested
+      end
+    end
+
+    test "bounds ambiguous transport errors without logging credentials or retrying" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          request = fn req ->
+            assert req.options[:retry] == false
+            send(self(), :activation_requested)
+            {:error, %{request: req, secret: "sensitive-runner-token"}}
+          end
+
+          assert {:error, "Could not reach the Tuist server."} =
+                   TuistServer.activate_runner_prepaid_pool(42, %{"change_id" => Ecto.UUID.generate()},
+                     token: "sensitive-runner-token",
+                     base_url: "https://tuist.test",
+                     request: request
+                   )
+        end)
+
+      assert_received :activation_requested
+      refute_received :activation_requested
+      assert log =~ "transport error"
+      refute log =~ "sensitive-runner-token"
+    end
+  end
+
   describe "configured?/1" do
     test "false when no token is available" do
       refute TuistServer.configured?(base_url: "https://tuist.test", token_path: "/no/such/token")

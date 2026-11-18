@@ -8,6 +8,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
   alias Tuist.AppBuilds.Preview
   alias Tuist.Artifacts
   alias Tuist.Artifacts.Package
+  alias Tuist.Artifacts.PreviewIconWorker
   alias Tuist.Artifacts.Publication
   alias Tuist.Repo
   alias Uniq.UUID
@@ -63,7 +64,19 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
         if attributes && valid_attributes?(attributes) do
           id = UUID.uuid5(:oid, "artifact:#{publication.id}:#{name}")
-          {:ok, Map.merge(attributes, %{id: id, payload: manifest["payloads"][interface["payload"]]})}
+          payload = manifest["payloads"][interface["payload"]]
+
+          {:ok,
+           Map.merge(attributes, %{
+             id: id,
+             payload: payload,
+             binary_id: binary_id(attributes, payload),
+             icon:
+               icon_descriptor(
+                 manifest,
+                 interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"]
+               )
+           })}
         else
           {:ok, nil}
         end
@@ -85,7 +98,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
       type: :apk,
       platforms: [:android],
       identifier: identifier,
-      name: identifier,
+      name: android_display_name(metadata["display_name"], identifier),
       version: metadata["version_name"],
       build_version: metadata["version_code"]
     }
@@ -135,6 +148,29 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
 
   defp app_attributes(_), do: nil
 
+  # The APK payload is the APK itself, so its digest is the content hash `tuist share`
+  # records as an APK's binary ID, and an installed app can compute it to find
+  # its own preview. Apple bundles are archived, so their digest identifies no binary.
+  defp binary_id(%{type: :apk}, %{"digest" => "sha256:" <> hash}), do: hash
+  defp binary_id(_attributes, _payload), do: nil
+
+  # The display name is optional and newer than the application ID, so an
+  # unusable one falls back to the ID instead of dropping the preview.
+  defp android_display_name(name, identifier) do
+    if is_binary(name) and byte_size(name) in 1..255 and not String.contains?(name, "\0"),
+      do: name,
+      else: identifier
+  end
+
+  defp icon_descriptor(manifest, %{"spec" => %{"icon_payload" => payload}}) when is_binary(payload) do
+    case manifest["payloads"][payload] do
+      %{"media_type" => "image/png"} = descriptor -> descriptor
+      _ -> nil
+    end
+  end
+
+  defp icon_descriptor(_manifest, _interface), do: nil
+
   defp valid_attributes?(%{type: :executable, name: name}) do
     is_binary(name) and byte_size(name) in 1..255 and not String.contains?(name, "\0")
   end
@@ -183,12 +219,19 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
               type: app.type,
               supported_platforms: app.platforms,
               supported_architectures: Map.get(app, :architectures, []),
+              binary_id: app.binary_id,
               build_version: app.build_version,
               inserted_at: publication.inserted_at
             })
             |> Repo.insert!()
           end)
 
+          icon_jobs =
+            for %{icon: %{}} = app <- applications do
+              PreviewIconWorker.new(%{publication_id: publication.id, preview_id: app.id, icon: app.icon})
+            end
+
+          Oban.insert_all(icon_jobs)
           current |> Ecto.Changeset.change(projected: true) |> Repo.update!()
       end
     end)

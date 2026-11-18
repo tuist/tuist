@@ -5,6 +5,8 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Allowance
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -15,6 +17,47 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
     %{user: user, account: user.account}
+  end
+
+  test "gets a runner job with what its machine stopped for running out of memory", %{
+    conn: conn,
+    user: user,
+    account: account
+  } do
+    account_id = account.id
+    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+    stub(Jobs, :get_for_account, fn ^account_id, job_id -> {:ok, %{runner_job() | workflow_job_id: job_id}} end)
+
+    :ok =
+      JobMetrics.record(920_101, account_id, [
+        oom_sample(1_750_000_000.0, 0, ""),
+        oom_sample(1_750_000_015.0, 1, "java"),
+        oom_sample(1_750_000_030.0, 1, "java")
+      ])
+
+    :ok = JobMetrics.record(920_102, account_id, [oom_sample(1_750_000_000.0, 0, "")])
+
+    conn = Authentication.put_current_user(conn, user)
+
+    response = conn |> get(~p"/api/accounts/#{account.name}/runners/jobs/920101") |> json_response(:ok)
+
+    assert %{
+             "kill_count" => 1,
+             "first_kill_at" => "2025-06-15T15:06:55.000Z",
+             "victim" => %{
+               "process" => "java",
+               "memory_bytes" => 27_917_287_424,
+               "container" => "gradle-build",
+               "image" => "gradle:8-jdk21"
+             },
+             "description" => description
+           } = response["out_of_memory"]
+
+    assert description =~ "It stopped java, which was using 27.9 GB, in the container gradle-build (gradle:8-jdk21)."
+    assert description =~ "org.gradle.jvmargs"
+
+    assert %{"out_of_memory" => nil} =
+             conn |> get(~p"/api/accounts/#{account.name}/runners/jobs/920102") |> json_response(:ok)
   end
 
   test "lists account-scoped runner jobs without internal runtime identifiers", %{
@@ -119,6 +162,93 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
     assert [%{"id" => id, "signing_secret_last_four" => "abcd"}] = response["endpoints"]
     assert id == endpoint.id
     refute inspect(response) =~ "plaintext-signing-secret"
+  end
+
+  describe "API jobs" do
+    setup %{account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+      stub(Allowance, :exhausted?, fn _account -> false end)
+      {:ok, _} = Profiles.create(account, %{name: "ci", platform: :linux, vcpus: 4, memory_gb: 16})
+      :ok
+    end
+
+    defp job_body(overrides \\ %{}) do
+      Map.merge(
+        %{
+          profile: "ci",
+          repository_url: "https://git.example.com/acme/app.git",
+          commit_sha: String.duplicate("b", 40),
+          ref: "refs/heads/main",
+          name: "test",
+          script: "mise run test",
+          env: %{"PLAIN" => "visible"},
+          secrets: %{"API_TOKEN" => "secret-value"},
+          idempotency_key: "acme/app:bbbb:test"
+        },
+        overrides
+      )
+    end
+
+    test "lets account tokens with runner write scope run, replay and cancel jobs", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]})
+        |> put_req_header("content-type", "application/json")
+
+      created =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body())
+        |> json_response(:created)
+
+      assert %{"status" => "queued", "repository" => "acme/app", "head_branch" => "main", "job_name" => "test"} = created
+      refute inspect(created) =~ "secret-value"
+
+      assert %{"workflow_job_id" => id} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body(%{script: "other"}))
+               |> json_response(:ok)
+
+      assert id == created["workflow_job_id"]
+
+      assert %{"status" => "completed", "conclusion" => "cancelled"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs/#{id}/cancel")
+               |> json_response(:ok)
+    end
+
+    test "explains a job it cannot run", %{conn: conn, user: user, account: account} do
+      conn = conn |> Authentication.put_current_user(user) |> put_req_header("content-type", "application/json")
+
+      assert %{"message" => "No runner profile matches the profile field."} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body(%{profile: "missing"}))
+               |> json_response(:unprocessable_entity)
+
+      assert %{"message" => "repository_url must be an https URL without credentials"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body(%{repository_url: "http://x.dev/a.git"}))
+               |> json_response(:unprocessable_entity)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/runners/jobs", Map.delete(job_body(), :script))
+      |> json_response(:bad_request)
+
+      stub(Allowance, :exhausted?, fn _account -> true end)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body())
+      |> json_response(:payment_required)
+    end
+
+    test "forbids runner readers from running or cancelling jobs", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: ["account:runners:read"]})
+        |> put_req_header("content-type", "application/json")
+
+      conn |> post(~p"/api/accounts/#{account.name}/runners/jobs", job_body()) |> json_response(:forbidden)
+      conn |> post(~p"/api/accounts/#{account.name}/runners/jobs/1/cancel") |> json_response(:forbidden)
+    end
   end
 
   describe "runner profiles" do
@@ -331,6 +461,17 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       refute Profiles.get_by_name(account, "new")
       assert Profiles.get_by_name(account, "ci")
     end
+  end
+
+  defp oom_sample(timestamp, kill_count, process) do
+    %{
+      timestamp: timestamp,
+      oom_kill_count: kill_count,
+      oom_victim_process: process,
+      oom_victim_memory_bytes: if(process == "", do: 0, else: 27_917_287_424),
+      oom_victim_container: if(process == "", do: "", else: "gradle-build"),
+      oom_victim_image: if(process == "", do: "", else: "gradle:8-jdk21")
+    }
   end
 
   defp runner_job do

@@ -67,8 +67,14 @@ does not repair embedded/native verification or qualify running processes.
   After its repair walk, a preparing destination pulls the serving source's
   content descriptors (`/_internal/handover/descriptors`, named destination of
   the current Serving intent only) and records the versions whose bytes match
-  in its bounded verified set. A same-version mismatch fails preparation; any
-  other walk failure stops it and keeps what was verified. Inside the barrier,
+  in its bounded verified set. It requests up to eight ranges of the source's
+  index at once, cut at versions from its own index, so a source that hashes
+  one record at a time still serves the walk in parallel; the ranges must
+  cover the index exactly once. A same-version mismatch fails preparation, and
+  so does a walk that does not reach the end of the source's index (deadline,
+  refused route or unreachable source): never freeze a source with content left
+  to hash. The preparation report's `content_verified` says the walk finished;
+  the controller freezes only for it. Inside the barrier,
   when begin advertises verified records, the source sends metadata-only
   descriptors (`/_internal/handover/verify-descriptors`) and verifies in full
   only the records the destination names. A version's bytes never change, and a
@@ -83,6 +89,17 @@ does not repair embedded/native verification or qualify running processes.
   a source-listed local record, including newer local versions. Failed/incomplete
   listing must reclaim nothing. Durable retirements use supervised, resumable
   cleanup; active segments, capacity limits and ordinary FIFO rotation stay intact.
+  While the source still serves, that walk also keeps a fixed 2 MiB filter of
+  listed ids, retained bytes per segment sealed before it began, the oldest
+  listed version and the missing bytes. When bodies are missing it then
+  compacts the least-retained of those segments (any whose reclaim frees at
+  least 64 MiB): it copies the filtered artifacts into the active segment
+  without a sibling hint and reclaims the segment only when none of them is
+  left. It copies a segment only while the store admits the copy plus 64 MiB
+  without rotating out anything at or after that version, and stops once the
+  bytes still missing fit with 1 GiB to spare. The applier repeats this before
+  every repair batch of that pass, against the missing bytes not yet applied.
+  Never compact under the frozen source.
   Repeat the retained walk if eviction committed during it, including cascaded
   action-cache removals. Publish the eviction generation from the blocking
   commit and compare it under the same lock that acquires the destination hold.
@@ -275,6 +292,73 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 
 - Account renames separate immutable storage identity from a mesh-refreshed authorization handle. Preserve the configured tenant, workload and peer CA. Client endpoints follow the current name with 90-day DNS/TLS/HTTP/gRPC aliases only after the server's default-off per-account endpoint-migration gate is enabled. Pausing freezes deployed routing and clears redirect targets, including for already-renamed accounts, without gating authorization identity refresh or extending expiry deadlines. The server expires URL routing separately from permanent name reservations and runtime authorization/analytics identity. Snapshot the handle, aliases and ready redirect targets together; HTTP redirects require explicit client capability and gRPC remains an alias. See `docs/account-renames.md` for readiness gates and retirement policy. Missing optional identity fields preserve learned state during version overlap.
 
-- Linux builds keep content-addressed Bazel downloads and action outputs under `~/.cache/tuist/bazel`, configured in `.bazelrc`. CI mounts that directory directly; do not persist the output base or generated remote credentials. Disk-cache idle GC is a soft 12 GiB/seven-day target within the 20 GB volume.
+- Linux builds keep content-addressed Bazel downloads and action outputs under `~/.cache/tuist/bazel`, configured in `.bazelrc`. CI mounts that directory directly; do not persist the output base or generated remote credentials. Disk-cache idle GC is a soft 12 GiB/seven-day target within the 20 GB volume. The `tuist-remote-execution` config turns the disk cache off: Bazel cannot upload tree-artifact or tool-runfiles outputs of a disk-cache hit to a remote CAS that evicted them, so remote actions fail with lost inputs. Keep `--enable_platform_specific_config` above the `.bazelrc.tuist` import so that config overrides `build:linux`.
 
 - Bazel failure analytics retain bounded structured failure codes as `tuist.detected_failure_category`, and the BuildStarted user as `tuist.reported_user` (128 bytes maximum), within the existing custom metadata limit. Classify compiler/test nonzero exits only with recognized action mnemonics; arbitrary commands remain unknown. Infrastructure evidence takes precedence. Never retain FailureDetail messages or stack traces for classification.
+
+Planned thin-storage migration retires public connection reuse before terminating
+its donor. `/_internal/connections/retire` is internal/mTLS only and requires the
+process's `connection_incarnation` from rollout status. It swaps a bounded
+connection cohort once, keeps serving/admission/replication unchanged, and makes
+HTTP/1 responses close after completion (including accelerated GETs). The receipt
+counts connections accepted before retirement, including TLS handshakes; newer
+health probes cannot keep that cohort alive. HTTP/2 connections in the retired
+cohort, on every public listener that leases into it, get a GOAWAY at retirement
+and close after their in-flight streams; the client's connection preface, not a
+request, identifies them. This is unit-tested with a real h2c client and not
+rehearsed on staging. Retirement is not draining or serving-authority permission.
+Never substitute a timer or Kubernetes readiness for an empty cohort receipt.
+An empty cohort is also not a data-transfer receipt: staging still observed
+fresh-write GET misses at handoff. Zero-error migration needs destination-bound
+write completion and serving coordination; do not claim asynchronous replication
+is synchronized by closing the donor's connections.
+
+The pending migration acknowledgment path in `src/migration.rs` binds a legacy
+storage move to one destination process. Preparation pins the source feed at its
+head and proves, on that peer, every write committed after the pin; armed
+HTTP/gRPC mutation completion checks committed feed records against actual
+destination content. Feed cursors alone never prove retention. Records retained
+from before the pin are not checked: ordinary replication copied them and each
+replica evicts on its own LRU schedule, so a miss on one is an acceptable cache
+miss and must never fail or stall preparation (a full-corpus walk could not pass
+on two full replicas). Do not reintroduce a retained walk as a readiness gate.
+A fixed deadline per preparation attempt, bounded verification batches and a
+single verification worker prevent unbounded work. A prepare for the same source
+process and destination process after a failed, unarmed attempt that advanced
+continues the feed proof under a new deadline; one that advanced nothing keeps
+returning its failure. Feed history trimmed below the pin of an unarmed attempt
+pins again at the head (those writes were ordinary asynchronous writes), and
+reset, rebind and another destination never inherit proof. Only the proof
+through the feed head plus the destination identity reports ready. Resumption is
+unit-tested, not rehearsed on staging. Acknowledgments group-commit:
+only a run whose feed head was taken after a write committed may prove it, and
+the bridge loop forces a run to probe an idle destination. Polling or resetting
+a preparation must tolerate the other clearing or restarting it, never panic.
+This is not a serving grant or permission to bypass cache capacity. Its
+implementation is still awaiting Linux tests, failure recovery qualification and
+live staging rehearsal.
+
+A ready migration bridge must survive the preparation deadline and controller
+pauses. Its bounded weak-reference task retains the feed pin until draining;
+release that pin on draining and on a failed preparation that made no progress.
+The pin is a snapshot consumer at the pin position (so a rebind can re-prove
+from it), which the feed cap and stale window still bound and the drain gate
+never waits for. The internal reset API may
+clear only a completed failed unarmed attempt and must serialize with write
+acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
+The internal abort API clears the attempt for its exact target in any state:
+it disarms first (so acknowledgments waiting on the bridge complete as ordinary
+writes), then takes the gate, discards resume progress and releases the pin.
+Preparation, bridge-loop and re-proof tasks check their attempt or migration id
+and exit without writing state back. It is safe only while the source was never
+demoted, so routing never moved; the controller enforces that, the runtime
+cannot. Abort is unit-tested and not rehearsed on staging.
+A destination process restart is recovered with the internal rebind API: only an
+armed bridge may move to a new incarnation at the same URL, it stays armed, and
+it reports ready only after re-proving the feed from the pin on the new process;
+feed history trimmed below the pin keeps it unready. Never carry proof from one
+destination process to another.
+Bridge state is exported as `kura_migration_*` (armed, ready, last-proof age,
+re-proof failures) and drives the proposed
+armed-but-not-ready rule in `../infra/helm/k8s-monitoring/alerts.md`; a ready
+bridge whose destination dies shows only as a growing last-proof age.

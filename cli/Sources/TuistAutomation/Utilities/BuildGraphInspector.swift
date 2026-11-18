@@ -138,7 +138,7 @@ public struct BuildGraphInspector: BuildGraphInspecting {
                 // the target built so xcodebuild can skip the individual case. Mirrors the
                 // generator's `excludedTargets` filter so the scheme and this check stay in sync.
                 return !skipTestTargets.contains {
-                    $0.target == testTarget.target.name && $0.class == nil
+                    $0.target == testTarget.target.name && $0.class == nil && $0.method == nil
                 }
             } else {
                 return testTargets.contains { $0.target == testTarget.target.name }

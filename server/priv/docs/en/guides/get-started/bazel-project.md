@@ -16,7 +16,7 @@ https://tuist.dev/en/docs/guides/get-started/bazel-project
 
 :::
 
-Follow this path to plug an existing Bazel workspace into Tuist. Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache, and a Build Event Service stream that turns every build and test into visible data on the dashboard.
+Follow this path to plug an existing Bazel workspace into Tuist. Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache, and a Build Event Service stream that turns every build and test into visible data on the dashboard. For an overview of what Tuist adds to Bazel, see [Bazel with Tuist](https://tuist.dev/build-systems/bazel). If you are moving from another Bazel provider, the [BuildBuddy](https://tuist.dev/compare/buildbuddy) and [EngFlow](https://tuist.dev/compare/engflow) comparisons cover what changes.
 
 Every section below opens with what's missing today and then walks you through the feature that fills the gap.
 
@@ -26,9 +26,6 @@ Every section below opens with what's missing today and then walks you through t
 - The <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>.
 
 ## Connect the workspace
-
-> [!NOTE]
-> The Bazel workflow inside `tuist init` requires a version of the Tuist CLI that ships with it. On earlier releases, `tuist init` will not list "Integrate a Bazel workspace" as an option. Fall back to `tuist auth login` followed by `tuist bazel setup` from the workspace root, which walks through the same steps below.
 
 From the root of the Bazel workspace, run `tuist init`. Tuist detects the `WORKSPACE` / `MODULE.bazel` and offers **Integrate a Bazel workspace**. Authenticate in the browser and pick the account that should own the project.
 

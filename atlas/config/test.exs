@@ -31,7 +31,12 @@ config :atlas, Atlas.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   # We don't run a server during test. If one is required,
   # you can enable the server option below.
-  pool_size: System.schedulers_online() * 2
+  pool_size: System.schedulers_online() * 2,
+  # Processes allowed on a test's sandbox connection (LiveViews, channels,
+  # presence refreshes) queue behind each other. The 50ms default drops those
+  # checkouts on loaded CI runners and crashes the process.
+  queue_target: 5000,
+  queue_interval: 1000
 
 config :atlas, AtlasWeb.AccountLive, screenshot_note_agent: ScreenshotNoteAgent
 

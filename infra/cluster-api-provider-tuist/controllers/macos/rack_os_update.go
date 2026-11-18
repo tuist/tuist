@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -977,7 +977,7 @@ func (r *RackAppleSiliconMachineReconciler) activePodsOn(ctx context.Context, no
 // Machine, valued so the update can tell it set it. One already set, by anyone,
 // is left as it is.
 func (r *RackAppleSiliconMachineReconciler) suspendRemediationForOSUpdate(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) error {
-	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	owner, err := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if err != nil || owner == nil {
 		return err
 	}
@@ -991,7 +991,7 @@ func (r *RackAppleSiliconMachineReconciler) suspendRemediationForOSUpdate(ctx co
 
 // resumeRemediationAfterOSUpdate removes skip-remediation only when an update set it.
 func (r *RackAppleSiliconMachineReconciler) resumeRemediationAfterOSUpdate(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) error {
-	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	owner, err := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if err != nil || owner == nil {
 		return err
 	}

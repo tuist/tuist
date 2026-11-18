@@ -354,7 +354,7 @@ func TestRuntimeStatusOverPortForwardClosesAStalledHandshakeAtItsDeadline(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	statusClient.(*portForwardRuntimeStatusClient).timeout = 200 * time.Millisecond
+	statusClient.timeout = 200 * time.Millisecond
 
 	started := time.Now()
 	_, err = statusClient.Status(context.Background(), corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-ber1-0", Namespace: "kura"}})

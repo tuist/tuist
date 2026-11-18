@@ -186,4 +186,28 @@ defmodule TuistWeb.BuildRunsLiveTest do
     assert has_element?(lv, "[data-part='build-runs-table'] span", "Regular")
     refute has_element?(lv, "[data-part='build-runs-table'] span", "Queued")
   end
+
+  test "filters build runs by tag without turning tags into atoms", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    nightly = "nightly_#{System.unique_integer([:positive])}"
+    release = "release_#{System.unique_integer([:positive])}"
+    RunsFixtures.build_fixture(project_id: project.id, scheme: "NightlyApp", custom_tags: [nightly])
+    RunsFixtures.build_fixture(project_id: project.id, scheme: "ReleaseApp", custom_tags: [release])
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_custom_tags_op=contains&filter_custom_tags_val=#{nightly}"
+      )
+
+    assert has_element?(lv, "span", "NightlyApp")
+    refute has_element?(lv, "span", "ReleaseApp")
+
+    for tag <- [nightly, release] do
+      assert_raise ArgumentError, fn -> String.to_existing_atom(tag) end
+    end
+  end
 end

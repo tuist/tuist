@@ -15,6 +15,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Kura.OriginRollup
   alias Tuist.Repo
   alias Tuist.Storage
+  alias Tuist.Tests.Workers.RecordRunSelectionWorker
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1056,6 +1057,47 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert response["test_run_url"] ==
                url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{existing_test_run.id}")
+
+      # It hashed no test target, so it selected nothing.
+      refute_enqueued(worker: RecordRunSelectionWorker)
+    end
+
+    test "queues the selection of the test run a test command hashed test targets for", %{conn: conn, user: user} do
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      test_run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/analytics?project_id=#{account.name}/#{project.name}", %{
+        name: "test",
+        command_arguments: ["test", "App"],
+        duration: 3000,
+        tuist_version: "4.120.0",
+        swift_version: "5.9",
+        macos_version: "14.0",
+        is_ci: true,
+        client_id: "client-id",
+        test_run_id: test_run_id,
+        xcode_graph: %{
+          name: "Graph",
+          projects: [
+            %{
+              name: "App",
+              path: ".",
+              targets: [%{name: "AppTests", selective_testing_metadata: %{hash: "hash-app-tests", hit: "local"}}]
+            }
+          ]
+        }
+      })
+      |> json_response(:ok)
+
+      assert_enqueued(
+        worker: RecordRunSelectionWorker,
+        args: %{project_id: project.id, test_run_id: test_run_id}
+      )
     end
 
     test "strips credentials from the remote URL before enqueuing the VCS comment", %{conn: conn, user: user} do

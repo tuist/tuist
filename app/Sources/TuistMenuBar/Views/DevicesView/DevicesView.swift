@@ -50,6 +50,8 @@ struct DevicesView: View, ErrorViewHandling {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    // Flipping after the rotation points the chevron left when collapsed and down when expanded.
+                    .flipsForRightToLeftLayoutDirection(true)
                     .frame(height: 16)
             }
             .padding(.vertical, 2)

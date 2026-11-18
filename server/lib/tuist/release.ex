@@ -3,13 +3,23 @@ defmodule Tuist.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
   """
+  import Ecto.Query, only: [from: 2]
+
   alias Ecto.Adapters.SQL
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.CredentialRevocation
+  alias Tuist.Accounts.Workers.CredentialRotationNoticeWorker
+  alias Tuist.Billing.AirUsageNotifications
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
+  alias Tuist.Sandboxes.Archives
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
 
   require Logger
 
@@ -37,8 +47,8 @@ defmodule Tuist.Release do
   @grafana_query_log_view "grafana_query_log"
 
   # Exact column allowlist for the Grafana role behind the "Tuist Product Usage"
-  # dashboard and the "Runner cache volume warm rate low" alert rule.
-  # Column-level rather than table-level because every table below sits next to a
+  # dashboard, runner cache warm-rate alert and runner lifecycle incident queries.
+  # Column-level rather than table-level because application data sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
   # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
@@ -58,6 +68,19 @@ defmodule Tuist.Release do
     {"roles", ~w(id resource_id resource_type)},
     {"runner_cache_volume_uses", ~w(volume_id base_generation warm attached_at)},
     {"runner_cache_volumes", ~w(id key platform)},
+    # Admission uses live claims and limits; historical limit-held exclusions
+    # use sessions overlapping enqueue-to-executor-claim, not deleted claims.
+    # Exclude repository/branch metadata, execution_identity and outbox payloads.
+    {"runner_claims",
+     ~w(pod_name workflow_job_id account_id fleet_name site claimed_at platform vcpus memory_gb lifecycle_state
+        runner_name executed_workflow_job_id pod_missing_since)},
+    {"runner_concurrency_limits", ~w(account_id platform vcpus memory_gb updated_at)},
+    {"runner_sessions",
+     ~w(id account_id workflow_job_id executed_workflow_job_id fleet_name platform vcpus memory_gb started_at ended_at
+        job_started_at job_ended_at pod_name runner_name node_name)},
+    {"runner_workflow_jobs",
+     ~w(workflow_job_id account_id fleet_name status conclusion platform vcpus memory_gb enqueued_at claimed_at
+        executor_claimed_at started_at completed_at pod_name runner_name executed_workflow_job_id)},
     {"subscriptions", ~w(account_id status)},
     {"users", ~w(created_at)},
     {"users_roles", ~w(user_id role_id)}
@@ -66,9 +89,7 @@ defmodule Tuist.Release do
   def migrate do
     load_app()
 
-    Logger.info(
-      "Migrating with a pool of size of #{:tuist |> Application.get_env(Tuist.Repo) |> Keyword.get(:pool_size)}"
-    )
+    Logger.info("Migrating with a pool of size of #{:tuist |> Application.get_env(Repo) |> Keyword.get(:pool_size)}")
 
     assert_supported_clickhouse_version()
 
@@ -127,6 +148,25 @@ defmodule Tuist.Release do
   end
 
   @doc """
+  Writes the test maps of a project's commits measured in the last `days`
+  days (31 by default, the maps' retention) from their runs' retained
+  evidence (`Tuist.TestImpactAnalysis.Snapshots.backfill/2`), as their folds
+  would have. Evidence is kept two days, so only the runs of those days
+  still write. The migration that ships the maps queues it per project on its
+  own (`Tuist.TestImpactAnalysis.Workers.SnapshotBackfillWorker`); this runs
+  it again by hand. It reads through the application's repositories, so it
+  runs on a live node, and repeating it writes nothing already written:
+
+      bin/tuist rpc "Tuist.Release.backfill_test_impact_snapshots(<project id>)"
+      bin/tuist rpc "Tuist.Release.backfill_test_impact_snapshots(<project id>, <days>)"
+  """
+  def backfill_test_impact_snapshots(project_id, days \\ 31) do
+    project = Tuist.Projects.get_project_by_id(project_id)
+    :ok = Snapshots.backfill(project, days)
+    Logger.info("Test maps of project #{project_id} for the last #{days} days recorded")
+  end
+
+  @doc """
   Writes the coverage file deltas of every complete commit whose runs' rows
   are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for one project
   or every project, each ref's oldest commit first. The migration that
@@ -154,23 +194,20 @@ defmodule Tuist.Release do
   end
 
   @doc """
-  Records the test versions and target sources carried coverage reads
-  (`Tuist.Tests.Coverage.TestSources.backfill/1`) for the runs still within
-  the file retention, for one project or every project. The migration that
-  ships the index queues it on its own
-  (`Tuist.Tests.Coverage.Workers.SourceBackfillWorker`); this runs it
-  again by hand, on a live node:
+  Queues the backfill of `test_run_selections`, the per-run test selection
+  effectiveness the dashboards read
+  (`Tuist.Tests.Workers.RunSelectionsBackfillWorker`), for one project or
+  every project with runs to fill. The migration that ships the table queues
+  it on its own; this queues it again, on a live node. Repeating it rewrites
+  each run's row with the same counts:
 
-      bin/tuist rpc "Tuist.Release.backfill_coverage_sources()"
-      bin/tuist rpc "Tuist.Release.backfill_coverage_sources(<project id>)"
+      bin/tuist rpc "Tuist.Release.backfill_test_run_selections()"
+      bin/tuist rpc "Tuist.Release.backfill_test_run_selections(<project id>)"
   """
-  def backfill_coverage_sources(project_id \\ nil) do
-    if project_id do
-      Coverage.TestSources.backfill(project_id)
-      Logger.info("Coverage sources of project #{project_id} recorded")
-    else
-      Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
-    end
+  def backfill_test_run_selections(project_id \\ nil) do
+    args = if project_id, do: %{project_ids: [project_id]}, else: %{}
+    {:ok, _job} = args |> RunSelectionsBackfillWorker.new() |> Oban.insert()
+    :ok
   end
 
   @doc """
@@ -187,6 +224,71 @@ defmodule Tuist.Release do
   end
 
   @doc """
+  The sandbox drain check before a Linux runner box's Machine is deleted:
+  lists the sandboxes the box still holds and queues the next archive, on a
+  live node:
+
+      bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
+
+  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/2`).
+  Raises, so the command exits nonzero, until no sandbox but errored ones is
+  left; rerun it until it passes. A turn that does not end moves too with
+  `pause_turns: true`, which pauses it with its memory:
+
+      bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>", pause_turns: true)'
+  """
+  def sandbox_node_drain(node_name, opts \\ []) when is_binary(node_name) do
+    drain = Archives.node_drain(node_name, opts)
+
+    if !drain.reclaiming,
+      do: IO.puts("#{node_name} is not reclaimed by CI: cordon the Node; nothing is archived until it is.")
+
+    if !drain.archive_tier,
+      do: IO.puts("The archive tier is off (TUIST_SANDBOX_ARCHIVE_AFTER_HOURS): paused sandboxes cannot leave the node.")
+
+    Enum.each(drain.sandboxes, fn sandbox ->
+      IO.puts(
+        Enum.join(
+          [
+            sandbox.state,
+            sandbox.id,
+            "account=#{sandbox.account}",
+            "orb=#{sandbox.amp_orb_id || "-"}",
+            "in_turn=#{not is_nil(sandbox.residency_work_id)}",
+            "paused_at=#{sandbox.paused_at || "-"}",
+            "uploading=#{sandbox.uploading}",
+            "last_archive_attempt=#{sandbox.archive_attempted_at || "-"}"
+          ],
+          " "
+        )
+      )
+    end)
+
+    if drain.reclaiming, do: print_failed_archives(drain.sandboxes)
+
+    left = Enum.count(drain.sandboxes, &(&1.state != :error))
+
+    if drain.drained do
+      IO.puts("DRAINED: #{node_name} holds no sandbox to archive; its Machine can be deleted.")
+    else
+      raise "#{node_name} still holds #{left} sandbox(es) to archive; rerun the check."
+    end
+  end
+
+  # A failed archive backs its sandbox off for a few minutes while the next
+  # one moves; a row that keeps failing never leaves the node on its own.
+  defp print_failed_archives(sandboxes) do
+    failed = Enum.count(sandboxes, &(&1.state == :paused and not &1.uploading and not is_nil(&1.archive_attempted_at)))
+
+    if failed > 0,
+      do:
+        IO.puts(
+          "#{failed} paused sandbox(es) failed their last archive and are retried after a backoff: " <>
+            "server logs \"sandboxes: could not move a sandbox off a node CI reclaims\" give the reason."
+        )
+  end
+
+  @doc """
   Clears an account's runner cache volume, the same clear as
   **Runners → Volumes**:
 
@@ -200,7 +302,7 @@ defmodule Tuist.Release do
     Application.load(@app)
 
     {:ok, result, _apps} =
-      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
         with_insert_only_oban(fn -> CacheVolumes.delete(account_id, volume_id) end)
       end)
 
@@ -214,6 +316,139 @@ defmodule Tuist.Release do
 
       {:error, :not_found} ->
         raise "Account #{account_id} has no runner cache volume #{inspect(volume_id)}"
+    end
+  end
+
+  @doc """
+  Revokes customer-facing credentials in bulk
+  (`Tuist.Accounts.CredentialRevocation`), for everyone or for one account,
+  on a live node so connected dashboards are disconnected too:
+
+      bin/tuist rpc 'Tuist.Release.revoke_credentials(<account id>)'
+      bin/tuist rpc 'Tuist.Release.revoke_credentials(:everything)'
+
+  Follow it with `send_credential_rotation_notice/2` so admins know to create
+  new tokens.
+  """
+  def revoke_credentials(:everything) do
+    counts = CredentialRevocation.revoke_everything()
+    Logger.warning("Revoked every customer credential: #{inspect(counts)}")
+    counts
+  end
+
+  def revoke_credentials(account_id) when is_integer(account_id) do
+    case CredentialRevocation.revoke_account(account_id) do
+      {:ok, counts} ->
+        Logger.warning("Revoked the credentials of account #{account_id}: #{inspect(counts)}")
+        counts
+
+      {:error, :not_found} ->
+        raise "No account #{account_id}"
+    end
+  end
+
+  @doc """
+  Emails the admins of one account, or of every account (personal accounts
+  reach their owner), a credential rotation notice
+  (`Tuist.Accounts.Workers.CredentialRotationNoticeWorker`), on a live node:
+
+      bin/tuist rpc 'Tuist.Release.send_credential_rotation_notice(<account id>, kind: :revoked)'
+      bin/tuist rpc 'Tuist.Release.send_credential_rotation_notice(:everything, kind: :rotate, details_url: "https://...")'
+
+  `kind` is `:revoked` after `revoke_credentials/1`, or `:rotate` to ask
+  admins to rotate them. `notice_id` names the sending: pass the one a run
+  returned to resume it without emailing anyone twice. Returns how many
+  notices it queued, not counting those an earlier run already queued.
+  """
+  def send_credential_rotation_notice(scope, opts) do
+    kind = Keyword.fetch!(opts, :kind)
+    true = kind in [:revoked, :rotate]
+    notice_id = Keyword.get_lazy(opts, :notice_id, &Ecto.UUID.generate/0)
+    args = %{notice_id: notice_id, kind: kind, details_url: Keyword.get(opts, :details_url)}
+
+    queued =
+      case scope do
+        :everything ->
+          queue_rotation_notices_from(0, args, 0)
+
+        account_id when is_integer(account_id) ->
+          queue_rotation_notices(Repo.all(from(a in Account, where: a.id == ^account_id)), args)
+      end
+
+    Logger.info("Queued #{queued} credential rotation notices for notice #{notice_id}")
+    %{notice_id: notice_id, queued: queued}
+  end
+
+  defp queue_rotation_notices_from(after_id, args, queued) do
+    accounts = Repo.all(from(a in Account, where: a.id > ^after_id, order_by: a.id, limit: 500))
+
+    case accounts do
+      [] -> queued
+      _ -> queue_rotation_notices_from(List.last(accounts).id, args, queued + queue_rotation_notices(accounts, args))
+    end
+  end
+
+  defp queue_rotation_notices(accounts, args) do
+    accounts
+    |> Enum.flat_map(fn account ->
+      account
+      |> AirUsageNotifications.recipients()
+      |> Enum.reject(&(is_nil(&1) or not &1.active))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.map(&CredentialRotationNoticeWorker.new(Map.merge(args, %{account_id: account.id, user_id: &1.id})))
+    end)
+    # One insert per job, because uniqueness, which makes a resumed sending
+    # skip the notices already queued, is not enforced by `Oban.insert_all/1`.
+    |> Enum.count(fn changeset -> match?({:ok, %Oban.Job{conflict?: false}}, Oban.insert(changeset)) end)
+  end
+
+  @doc """
+  Reports how many legacy user and project tokens (the ones without a
+  `tuist_` prefix) are still set and how many authenticated within `days`,
+  to decide when they can be retired:
+
+      bin/tuist rpc 'Tuist.Release.legacy_token_usage()'
+  """
+  def legacy_token_usage(days \\ 30) do
+    since = DateTime.add(DateTime.utc_now(), -days, :day)
+
+    usage =
+      for table <- ["users", "projects"], into: %{} do
+        {table,
+         Repo.one(
+           from(r in table,
+             select: %{
+               set: filter(count(r.id), not is_nil(r.token_hash)),
+               used_since: filter(count(r.id), r.legacy_token_last_used_at >= ^since),
+               plaintext: filter(count(r.id), not is_nil(r.token))
+             }
+           )
+         )}
+      end
+
+    Logger.info("Legacy tokens (used within #{days} days): #{inspect(usage)}")
+    usage
+  end
+
+  @doc """
+  Hashes the legacy tokens written by replicas that predate hashing and clears
+  the plaintext `users.token` and `projects.token` columns. The digest is taken
+  from the plaintext, so a token an old replica replaced during the rollout
+  (a password reset) is not left matching its previous digest. Run it once every
+  replica runs the hashed lookup; a later migration drops the columns:
+
+      bin/tuist rpc 'Tuist.Release.clear_plaintext_legacy_tokens()'
+  """
+  def clear_plaintext_legacy_tokens do
+    for table <- ["users", "projects"], into: %{} do
+      {:ok, %{num_rows: count}} =
+        SQL.query(
+          Repo,
+          "UPDATE #{table} SET token_hash = sha256(convert_to(token, 'UTF8')), token = NULL WHERE token IS NOT NULL",
+          []
+        )
+
+      {table, count}
     end
   end
 
@@ -302,7 +537,7 @@ defmodule Tuist.Release do
   defp configure_migration_database_url(nil), do: :ok
 
   defp configure_migration_database_url(url) do
-    config = Application.fetch_env!(@app, Tuist.Repo)
+    config = Application.fetch_env!(@app, Repo)
 
     # Release migrations run through Ecto.Migrator.with_repo/3, which starts
     # the Repo from application config and does not accept a separate URL.
@@ -310,7 +545,7 @@ defmodule Tuist.Release do
     # when the runtime DATABASE_URL points at a narrower web role.
     Application.put_env(
       @app,
-      Tuist.Repo,
+      Repo,
       Keyword.merge(config, Environment.database_config_from_url(url))
     )
   end
@@ -324,7 +559,7 @@ defmodule Tuist.Release do
     end
   end
 
-  defp ensure_database_schema(repo) when repo == Tuist.Repo do
+  defp ensure_database_schema(repo) when repo == Repo do
     if Environment.default_database_schema?() do
       :ok
     else
@@ -554,7 +789,7 @@ defmodule Tuist.Release do
     end
   end
 
-  defp grant_runtime_role(repo) when repo == Tuist.Repo do
+  defp grant_runtime_role(repo) when repo == Repo do
     case Environment.database_runtime_role() do
       role when is_binary(role) and role != "" ->
         do_grant_runtime_role(repo, role)
@@ -609,7 +844,7 @@ defmodule Tuist.Release do
   # TUIST_DATABASE_PROCESSOR_ROLE, which the chart
   # sets only for managed CNPG migration Jobs, so self-hosted and non-CNPG
   # deployments leave the role untouched.
-  defp grant_processor_role(repo) when repo == Tuist.Repo do
+  defp grant_processor_role(repo) when repo == Repo do
     case Environment.database_processor_role() do
       role when is_binary(role) and role != "" ->
         do_grant_processor_role(repo, role)
@@ -677,7 +912,7 @@ defmodule Tuist.Release do
   # owner, so enabling swiftRegistrySync carries its own grants instead of
   # the drift-prone manual `infra/cnpg/tuist-swift-registry-sync-grants.sql`
   # runbook.
-  defp grant_swift_registry_sync_role(repo) when repo == Tuist.Repo do
+  defp grant_swift_registry_sync_role(repo) when repo == Repo do
     case Environment.database_swift_registry_sync_role() do
       role when is_binary(role) and role != "" ->
         do_grant_swift_registry_sync_role(repo, role)
@@ -713,7 +948,7 @@ defmodule Tuist.Release do
   # untouched. Applied on every migrate so the allowlist tracks the schema
   # declaratively rather than drifting behind a manual psql runbook — the
   # `.sql` file is only a bootstrap/restore fallback.
-  defp grant_grafana_role(repo) when repo == Tuist.Repo do
+  defp grant_grafana_role(repo) when repo == Repo do
     case Environment.database_grafana_role() do
       role when is_binary(role) and role != "" ->
         do_grant_grafana_role(repo, role)

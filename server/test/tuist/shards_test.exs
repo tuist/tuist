@@ -430,6 +430,43 @@ defmodule Tuist.ShardsTest do
       assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
     end
 
+    test "does not plan a nested suite the built products skip by its innermost name" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "Onboarding/FlowTests", status: "success", duration: 6_000},
+              %{name: "FlowTests/Checkout", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-nested-history-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/FlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The CLI sends the xctestrun's `Onboarding/FlowTests` skip as `FlowTests`; runs record the whole path.
+      assert planned_targets(result) == MapSet.new(["AppUITests/FlowTests/Checkout"])
+    end
+
     test "does not plan a suite the built products both select and skip" do
       project = ProjectsFixtures.project_fixture()
 
@@ -2743,6 +2780,36 @@ defmodule Tuist.ShardsTest do
       end)
 
       assert :ok =
+               Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
+    end
+
+    test "succeeds when a replayed completion finds the upload gone and the object present" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-3")
+      key = Shards.bundle_object_key(account, project, plan.id)
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
+        {:error, :multipart_upload_not_found}
+      end)
+
+      expect(Tuist.Storage, :object_exists?, fn ^key, _account -> true end)
+
+      assert :ok = Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
+    end
+
+    test "fails when the upload is gone and the object was never written" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-4")
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
+        {:error, :multipart_upload_not_found}
+      end)
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+
+      assert {:error, :multipart_upload_not_found} =
                Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
     end
   end

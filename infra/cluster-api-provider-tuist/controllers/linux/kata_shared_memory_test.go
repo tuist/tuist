@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/yaml"
 )
 
@@ -105,7 +105,7 @@ func TestKataSharedMemoryRepairFailureNeverRecordsProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := reconcileLinuxKataRuntimeDrift(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 	if err == nil {
 		t.Fatal("expected repair to fail against an unreachable host")
 	}
@@ -150,6 +150,9 @@ func TestKataSharedMemoryRepairDoesNotRestartRuntime(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("invalid repair script: %v: %s", err, out)
 		}
+		if !strings.Contains(script, kataNeedrestartConfPath) || !strings.Contains(script, kataNeedrestartConf) {
+			t.Fatal("existing Kata hosts must get the needrestart override")
+		}
 		for _, banned := range []string{"apt-get", "restart containerd", "restart kubelet", "reboot", "umount"} {
 			if strings.Contains(script, banned) {
 				t.Fatalf("shared-memory-only repair contains %q", banned)
@@ -168,6 +171,7 @@ func TestHetznerKataSharedMemoryMatchesProvider(t *testing.T) {
 		"/etc/systemd/system/tuist-kata-shared-memory.service": kataSharedMemoryUnit,
 		kataVirtiofsSysctlPath:                                 kataVirtiofsSysctl,
 		kataVirtiofsDropInPath:                                 kataVirtiofsDropIn,
+		kataSandboxCgroupDropInPath:                            kataSandboxCgroupDropIn,
 	}
 	for _, document := range strings.Split(string(data), "\n---") {
 		var template struct {

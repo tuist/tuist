@@ -207,7 +207,7 @@ We should be honest about where this stops. Plain scripts are coarse. If you tri
 
 ## Where this goes
 
-None of this is tied to compilers. A script that installs dependencies or runs a test suite in a JavaScript workspace is a node like any other, and skipping it when nothing changed is [Nx](https://nx.dev) territory. [Once](https://github.com/tuist/once) doesn't care whether the command is `rustc` or `npm test`. And where the work runs stays a separate concern: Once talks to infrastructure through a [provider interface](https://docs.buildonce.dev/guide/infrastructure/), so the graph doesn't care who's underneath it. Tuist is one provider, the one we're building, so you point Once at it and get low-latency remote caching without standing anything up. The graph stays yours, the infrastructure is swappable.
+None of this is tied to compilers. A script that installs dependencies or runs a test suite in a JavaScript workspace is a node like any other, and skipping it when nothing changed is [Nx](https://nx.dev) territory (we compare the two in [Nx vs Tuist](/compare/nx)). [Once](https://github.com/tuist/once) doesn't care whether the command is `rustc` or `npm test`. And where the work runs stays a separate concern: Once talks to infrastructure through a [provider interface](https://docs.buildonce.dev/guide/infrastructure/), so the graph doesn't care who's underneath it. Tuist is one provider, the one we're building, so you point Once at it and get low-latency remote caching without standing anything up. The graph stays yours, the infrastructure is swappable.
 
 That's the shape of it. The parts we don't have answers for yet are where the series goes from here:
 

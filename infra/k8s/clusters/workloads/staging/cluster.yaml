@@ -1,5 +1,5 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus a
+# 3× cpx22 control plane + 3× cpx32 workers in fsn1, plus a
 # `bare-metal-worker` MachineDeployment that claims Hetzner Robot
 # AX42-U boxes for the Linux runner fleet.
 #
@@ -28,7 +28,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.34.6
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
@@ -77,10 +77,12 @@ spec:
         # General-purpose pool: Phoenix server, system DaemonSets.
         # Stays on Hetzner Cloud (cpx32) since these workloads don't
         # benefit from bare metal and the elastic scaling matters
-        # more than per-host cost.
+        # more than per-host cost. Four nodes, because Pulse's cluster
+        # topology places one etcd, Kafka, metasrv and datanode replica per
+        # node and must keep all three of each scheduled after losing a node.
         - class: hcloud-worker
           name: md-0
-          replicas: 2
+          replicas: 4
           failureDomain: fsn1
           rollout:
             strategy:
@@ -176,3 +178,8 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
+            # Follows topology.version. The class is OnDelete, so a version
+            # change moves only the MachineDeployment: its boxes keep running
+            # and are upgraded in place, one at a time, without touching
+            # ClickHouse's data. See "Upgrading the ClickHouse pool in place"
+            # in infra/k8s/clusters/README.md.

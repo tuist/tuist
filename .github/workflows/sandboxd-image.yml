@@ -13,6 +13,8 @@ on:
   pull_request:
     paths:
       - infra/sandboxd/**
+      - infra/runner-cache/sparse/**
+      - infra/runner-cache/go.mod
       - .github/workflows/sandboxd-image.yml
       - .github/scripts/sandboxd-image-version.sh
   workflow_dispatch: {}

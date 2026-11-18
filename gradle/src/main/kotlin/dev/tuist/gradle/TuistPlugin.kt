@@ -55,7 +55,10 @@ data class TuistGradleConfig(
     val rootProjectName: String = "",
     val projectPaths: List<String> = listOf(":"),
     val shard: Shard? = null,
-    val shardIndex: Int? = null
+    val shardIndex: Int? = null,
+    val coverageEnabled: Boolean = false,
+    /** Each module, named as test insights names it, and its directory relative to the root project's. */
+    val moduleDirectories: Map<String, String> = emptyMap()
 ) {
     data class Network(val proxy: Boolean)
 
@@ -91,11 +94,24 @@ data class TuistGradleConfig(
                     values = extension.buildInsights.values
                 ),
                 rootProjectName = settings.rootProject.name,
-                projectPaths = projectPaths(settings.rootProject)
+                projectPaths = projectPaths(settings.rootProject),
+                coverageEnabled = CoverageSettings.enabled(
+                    environmentValue = System.getenv(CoverageSettings.ENVIRONMENT_VARIABLE),
+                    extensionValue = extension.coverage.enabled
+                ),
+                moduleDirectories = projectDescriptors(settings.rootProject).associate { descriptor ->
+                    val module = if (descriptor.path == ":") settings.rootProject.name else descriptor.path
+                    module to descriptor.projectDir.relativeTo(settings.rootProject.projectDir).invariantSeparatorsPath
+                }
             )
 
         private fun projectPaths(project: org.gradle.api.initialization.ProjectDescriptor): List<String> =
-            listOf(project.path) + project.children.flatMap(::projectPaths)
+            projectDescriptors(project).map { it.path }
+
+        private fun projectDescriptors(
+            project: org.gradle.api.initialization.ProjectDescriptor
+        ): List<org.gradle.api.initialization.ProjectDescriptor> =
+            listOf(project) + project.children.flatMap(::projectDescriptors)
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
             project.extensions.extraProperties.let {
@@ -158,6 +174,7 @@ class TuistPlugin : Plugin<Settings> {
         config.stressNewTestsMode?.let { mode ->
             logger.lifecycle("Tuist: Stress-testing new tests configured in $mode mode")
         }
+        if (config.coverageEnabled) logger.lifecycle("Tuist: Code coverage configured")
     }
 
     private fun configureBuildCache(
@@ -271,6 +288,18 @@ open class TuistExtension {
      */
     fun stressNewTests(action: Action<StressNewTestsExtension>) {
         action.execute(stressNewTests)
+    }
+
+    /**
+     * Code coverage configuration.
+     */
+    val coverage: CoverageExtension = CoverageExtension()
+
+    /**
+     * Configure code coverage.
+     */
+    fun coverage(action: Action<CoverageExtension>) {
+        action.execute(coverage)
     }
 
     /**

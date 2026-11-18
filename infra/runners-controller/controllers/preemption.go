@@ -27,8 +27,9 @@ const (
 	preemptedAtAnnotation  = "tuist.dev/preempted-at"
 
 	// preemptionWait is how long the scheduler must have refused a Pod for
-	// lack of resources before its pool counts as starved.
-	preemptionWait = 30 * time.Second
+	// lack of resources before surplus idle runners can yield. Fresh
+	// dispatchable demand and the victim's allocation still bound every cut.
+	preemptionWait = 5 * time.Second
 
 	// preemptionGrace is how long an idle runner must have been warm before
 	// it can be preempted.
