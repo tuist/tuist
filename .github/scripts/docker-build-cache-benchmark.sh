@@ -8,9 +8,9 @@ set -euo pipefail
 case "$CACHE_PHASE" in
   cold|warm-layers) version=first; previous= ;;
   changed-source) version=second; previous=first ;;
-  # Writes the changed source into the mount for the next job without any
-  # cache claim: BuildKit may drop a cache mount between two builds at any
-  # time, so only a later job's MOUNT_REUSED proves persistence.
+  # Writes the changed source into an empty mount for the next job without
+  # any cache claim: BuildKit may drop a cache mount between two builds at
+  # any time, so only a later job's MOUNT_REUSED proves persistence.
   seed) version=second; previous= ;;
   same-size-write) version=third!; previous=second ;;
   verify-final) version=third!; previous= ;;
@@ -41,6 +41,12 @@ printf 'package main\nimport ("fmt"; _ "net/http")\nfunc main() { fmt.Println("%
 
 docker version > "$results/docker-version.txt"
 docker buildx inspect "${CACHE_BUILDER:-default}" > "$results/builder.txt"
+# When BuildKit drops the mount between the cold and seed builds, the seed
+# writes a new record and the cold one survives under the same id, so the
+# next job may read `first`. Leave the seed's record as the only one.
+if [ "$CACHE_PHASE" = seed ]; then
+  docker buildx prune --builder "${CACHE_BUILDER:-default}" --all --force --filter type=exec.cachemount
+fi
 start=$(date +%s%N)
 docker buildx build --builder "${CACHE_BUILDER:-default}" --progress=plain \
   --build-arg "EXPERIMENT=$experiment" --output "type=local,dest=$work/output" \
