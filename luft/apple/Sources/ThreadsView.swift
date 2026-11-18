@@ -75,18 +75,22 @@ struct ThreadsView: View {
     let client: AppClient
     /// Start conversation, presented by `AppWorkspace`.
     @Binding var starting: Bool
+    /// The inbox, owned by `AppWorkspace` so it outlives this view: switching
+    /// tabs shows it as it was instead of an empty list and a spinner.
+    let inbox: ThreadInbox
     /// The Mac's open thread: the list is the middle column of a split view, as in Mail.
     var selection: Binding<String?> = .constant(nil)
     /// Opens a destination from the iPhone's sidebar, which then closes.
     var open: (WorkspaceRoute) -> Void = { _ in }
-    @State private var threads: [AppThread] = []
-    @State private var nextCursor: String?
-    @State private var loaded = false
-    @State private var available = true
-    @State private var signInRequired = false
-    @State private var loading: Task<Void, Never>?
     @State private var showingArchived = false
-    @State private var error: String?
+
+    private var threads: [AppThread] { inbox.threads }
+    private var nextCursor: String? { inbox.nextCursor }
+    private var loaded: Bool { inbox.loaded }
+    private var available: Bool { inbox.available }
+    private var signInRequired: Bool { inbox.signInRequired }
+    private var loading: Task<Void, Never>? { inbox.loading }
+    private var error: String? { inbox.error }
     @State private var snoozeChoices = SnoozeChoices()
     /// The thread whose snooze choices show, after a swipe.
     @State private var snoozing: AppThread?
@@ -208,8 +212,9 @@ struct ThreadsView: View {
             CustomSnoozeView { snooze(thread, until: $0) }
         }
         .task(id: client.view.active_profile_id) {
-            // Render what's on the device first, then bring it up to date.
-            await fetch(operation: "cached_threads", cursor: nil)
+            // Render what's on the device first, then bring it up to date. Coming back
+            // to the tab keeps what it showed and only refreshes it.
+            if !inbox.loaded { await inbox.fetch(client, operation: "cached_threads", cursor: nil) }
             await reload()
         }
         // The core opens Start conversation (`navigation.compose`) and closes it on any other navigation.
@@ -457,31 +462,47 @@ struct ThreadsView: View {
         }
     }
 
+    private func reload() async { await inbox.reload(client) }
+
+    private func loadMore() async { await inbox.loadMore(client) }
+}
+
+/// The selected account's threads, for `ThreadsView`. One per signed-in generation.
+@MainActor @Observable
+final class ThreadInbox {
+    private(set) var threads: [AppThread] = []
+    private(set) var nextCursor: String?
+    private(set) var loaded = false
+    private(set) var available = true
+    private(set) var signInRequired = false
+    private(set) var loading: Task<Void, Never>?
+    var error: String?
+
     /// Replaces the list. A refresh supersedes a load in flight rather than being dropped.
-    private func reload() async {
+    func reload(_ client: AppClient) async {
         loading?.cancel()
-        await run(cursor: nil)
+        await run(client, cursor: nil)
     }
 
-    private func loadMore() async {
+    func loadMore(_ client: AppClient) async {
         guard loading == nil, let cursor = nextCursor else { return }
-        await run(cursor: cursor)
+        await run(client, cursor: cursor)
     }
 
-    private func run(cursor: String?) async {
-        let task = Task { await fetch(operation: "threads", cursor: cursor) }
+    private func run(_ client: AppClient, cursor: String?) async {
+        let task = Task { await fetch(client, operation: "threads", cursor: cursor) }
         loading = task
         await task.value
         if loading == task { loading = nil }
     }
 
-    private func fetch(operation: String, cursor: String?) async {
-        let profile = client.view.active_profile_id
+    func fetch(_ client: AppClient, operation: String, cursor: String?) async {
+        let generation = client.view.generation
         do {
             let data = try await client.call(operation, cursor.map { ["cursor": $0] } ?? [:])
             let page = try JSONDecoder().decode(ThreadPage.self, from: JSONSerialization.data(withJSONObject: data))
-            // A newer load, or another profile, owns the list now.
-            guard !Task.isCancelled, profile == client.view.active_profile_id else { return }
+            // A newer load, or another account, owns the list now.
+            guard !Task.isCancelled, generation == client.view.generation else { return }
             // The core returns the whole stored inbox, with queued threads, for every page.
             threads = page.threads
             nextCursor = page.next_cursor
