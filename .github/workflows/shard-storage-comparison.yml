@@ -46,7 +46,7 @@ jobs:
           LABEL: ${{ inputs.label }}
           ITERATIONS: ${{ inputs.iterations }}
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           results="$RUNNER_TEMP/shard-storage-$LABEL.jsonl"
           stamp() { perl -MTime::HiRes=time -ne '$|=1; printf "%.3f %s", time, $_'; }
           # Seconds between the first lines matching two patterns.
@@ -73,6 +73,10 @@ jobs:
               "$(span "$work/plan.log" 'Uploading test products artifacts' 'Upload complete')" \
               "$(span "$work/test.log" 'Resolved shard plan' 'Downloaded ')" \
               "$(hosts "$work/plan.log" "$work/test.log")" | tee -a "$results"
+            if [ "$plan_exit" -ne 0 ] || [ "$test_exit" -ne 0 ]; then
+              # Query strings carry signatures: keep only scheme, host and path.
+              tail -n 25 "$work/plan.log" "$work/test.log" | sed -E 's#(https://[^ ?]*)\?[^ ]*#\1?<redacted>#g'
+            fi
             rm -rf "$work"
           done
       - uses: actions/upload-artifact@v4
