@@ -90,6 +90,29 @@ func TestKataVirtiofsDropInKeepsKataDefaults(t *testing.T) {
 	}
 }
 
+// virtiofsd writes the guest's file writes to host files, and those dirty host
+// pages count against the runner Pod's memory cgroup. Next to a full guest, the
+// default 20% dirty ratio let them reach 1.3 to 1.5 GB plus 0.4 to 0.5 GB of
+// writeback, past the Pod's headroom, and the host OOM-killed QEMU
+// (2026-11-18 probes on 8x32 and 16x64).
+func TestKataVirtiofsSysctlCapsDirtyMemory(t *testing.T) {
+	values := map[string]int{}
+	for _, line := range strings.Split(strings.TrimSpace(kataVirtiofsSysctl), "\n") {
+		var key string
+		var value int
+		if _, err := fmt.Sscanf(line, "%s = %d", &key, &value); err == nil {
+			values[key] = value
+		}
+	}
+	dirty, background := values["vm.dirty_bytes"], values["vm.dirty_background_bytes"]
+	if dirty == 0 || dirty > 512<<20 {
+		t.Fatalf("vm.dirty_bytes = %d, want a cap of at most 512 MiB", dirty)
+	}
+	if background == 0 || background >= dirty {
+		t.Fatalf("vm.dirty_background_bytes = %d, want a positive value below vm.dirty_bytes (%d)", background, dirty)
+	}
+}
+
 func TestKataHostConfigRevisionCoversVirtiofs(t *testing.T) {
 	node := &corev1.Node{}
 	node.Status.NodeInfo.BootID = "boot"

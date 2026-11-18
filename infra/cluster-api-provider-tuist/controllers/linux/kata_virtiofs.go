@@ -19,7 +19,18 @@ const kataVirtiofsSysctlPath = "/etc/sysctl.d/90-tuist-kata-virtiofs.conf"
 
 // setrlimit refuses values above fs.nr_open, so virtiofsd can only use the
 // higher budget once the host allows it.
-var kataVirtiofsSysctl = fmt.Sprintf("fs.nr_open = %d\n", kataVirtiofsFileLimit)
+//
+// virtiofsd also writes the guest's file writes to host files, and the dirty
+// host pages count against the runner Pod's memory cgroup, whose limit sits
+// only podFixed above the guest RAM once a Pod has exclusive CPUs. At the
+// default 20% dirty ratio a full guest writing to its rootfs dirtied 1.3 to
+// 1.5 GB plus 0.4 to 0.5 GB of writeback and the host OOM-killed QEMU
+// (2026-11-18, 8x32 and 16x64 probes). Byte caps start writeback early and
+// throttle virtiofsd well before that. Setting them zeroes the ratios.
+var kataVirtiofsSysctl = fmt.Sprintf(`fs.nr_open = %d
+vm.dirty_background_bytes = 67108864
+vm.dirty_bytes = 268435456
+`, kataVirtiofsFileLimit)
 
 // Kata merges config.d drop-ins next to the configuration containerd points the
 // kata-qemu handler at. The array replaces the stock one, so it repeats Kata's

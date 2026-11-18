@@ -2530,6 +2530,13 @@ containerd; running Pods keep the old budget until they are replaced. Every
 cached inode also pins host kernel memory outside the Pod's cgroup, which is
 why the budget is four times the default rather than unbounded.
 
+The same sysctl file caps host dirty memory (`vm.dirty_bytes = 268435456`,
+`vm.dirty_background_bytes = 67108864`). virtiofsd's writes of guest files are
+dirty host page cache charged to the runner Pod's memory cgroup; at the default
+20% ratio they grew past an exclusive-CPU Pod's headroom and the host
+OOM-killed QEMU (2026-11-18). The repair applies it to running hosts with
+`sysctl -p`, without restarting anything.
+
 The alternatives were rejected. A pod-template `ulimit` changes nothing, since
 the guest process limit is already high. `--inode-file-handles` would avoid the
 descriptors only for filesystems with decodable file handles, which the
