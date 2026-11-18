@@ -36,7 +36,10 @@ jobs:
           dir="$RUNNER_TEMP/tuist-cli"
           mkdir -p "$dir"
           gh release download "$CLI_VERSION" -R tuist/tuist -p tuist.zip -p SHASUMS256.txt -D "$dir"
-          (cd "$dir" && grep ' tuist.zip$' SHASUMS256.txt | shasum -a 256 -c - && unzip -q tuist.zip)
+          expected=$(awk '$2 == "./tuist.zip" || $2 == "tuist.zip" {print $1}' "$dir/SHASUMS256.txt")
+          test -n "$expected"
+          test "$(shasum -a 256 "$dir/tuist.zip" | awk '{print $1}')" = "$expected"
+          (cd "$dir" && unzip -q tuist.zip)
           echo "TUIST_CLI=$dir/tuist" >> "$GITHUB_ENV"
       - name: Run the cycles
         env:
