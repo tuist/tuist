@@ -105,6 +105,7 @@ msgstr "Conexión establecida"
 msgid "Contact us"
 msgstr "Contáctanos"
 
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -572,7 +573,8 @@ msgstr "Ya vinculado"
 #: lib/tuist_web/components/user_security.ex:225
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
@@ -618,6 +620,7 @@ msgid "Sign in with single sign-on again to link your account."
 msgstr "Vuelve a iniciar sesión con el inicio de sesión único para vincular tu cuenta."
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -702,27 +705,27 @@ msgstr "usando Cargo"
 msgid "Choose an organization"
 msgstr "Elige una organización"
 
-#: lib/tuist_web/controllers/integration_installation_controller.ex:53
+#: lib/tuist_web/controllers/integration_installation_controller.ex:93
 #, elixir-autogen, elixir-format
 msgid "Choose an organization · Tuist"
 msgstr "Elige una organización · Tuist"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:27
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr "Organización"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:28
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Personal account"
 msgstr "Cuenta personal"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:12
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Select the Tuist organization to connect to %{provider}."
 msgstr "Selecciona la organización de Tuist para conectar con %{provider}."
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
 msgstr "Necesitas acceso de administrador para conectar una integración."
@@ -882,7 +885,7 @@ msgstr "No se ha podido verificar la clave de acceso. Inténtalo de nuevo."
 msgid "This passkey is already registered."
 msgstr "Esta clave de acceso ya está registrada."
 
-#: lib/tuist_web/authentication.ex:837
+#: lib/tuist_web/authentication.ex:839
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "Cada una de tus organizaciones requiere su propio inicio de sesión único, por lo que esta sesión no puede iniciar sesión en la CLI de Tuist, la aplicación o los clientes MCP. Pide ayuda a un administrador de la organización."
@@ -1341,3 +1344,43 @@ msgstr "Regenerar"
 #, elixir-autogen, elixir-format
 msgid "Manage 2FA"
 msgstr "Gestionar 2FA"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
+msgstr "%{client} podrá usar tu cuenta de Tuist como si fueras tú, incluidos tus hilos y suscripciones de IA."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just started signing in to %{client} yourself."
+msgstr "Continúa solo si acabas de iniciar sesión en %{client} por tu cuenta."
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:146
+#, elixir-autogen, elixir-format
+msgid "Sign in to %{client} · Tuist"
+msgstr "Iniciar sesión en %{client} · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Sign in to %{client}?"
+msgstr "¿Iniciar sesión en %{client}?"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Create an organization"
+msgstr "Crear una organización"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Don't see your organization?"
+msgstr "¿No ves tu organización?"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Select the Tuist organization to connect to the %{github_organization} GitHub organization."
+msgstr "Selecciona la organización de Tuist que deseas conectar con la organización %{github_organization} de GitHub."
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
+msgstr "Solo se muestran las organizaciones que administras. Crea una o pide a un administrador que te otorgue permisos."

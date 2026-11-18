@@ -40,7 +40,7 @@
       "once-project": { "text": "Once 项目" },
       "once-remote-execution": { "text": "Once 远程执行" },
       "origin": { "text": "来源" },
-      "profiles": { "text": "配置" },
+      "profiles": { "text": "配置文件" },
       "project-description": { "text": "项目描述" },
       "release": { "text": "发布" },
       "release-calendar": { "text": "发布日历" },
@@ -66,7 +66,7 @@
         "text": "语言 🌍"
       },
       "description": {
-        "text": "你可以帮助 Tuist 支持更多语言，或改进本页面的语言指引。"
+        "text": "你可以帮助 Tuist 支持更多语言，或改进此页面的语言指南。"
       },
       "cta": {
         "text": "贡献"
@@ -252,7 +252,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "日志"
+              "text": "日志记录"
             }
           }
         }
@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "状态"
-        },
-        "metrics-dashboard": {
-          "text": "指标仪表板"
         }
       }
     },
@@ -316,10 +313,10 @@
       "text": "指南",
       "items": {
         "get-started": {
-          "text": "开始使用",
+          "text": "入门",
           "items": {
             "choose-your-path": {
-              "text": "开始使用"
+              "text": "入门"
             },
             "existing-xcode-project": {
               "text": "Xcode 项目"
@@ -350,13 +347,13 @@
           }
         },
         "quick-start": {
-          "text": "快速入门",
+          "text": "快速开始",
           "items": {
             "install-tuist": {
               "text": "安装 Tuist"
             },
             "get-started": {
-              "text": "开始使用"
+              "text": "入门"
             }
           }
         },
@@ -421,7 +418,7 @@
                   "text": "代码共享"
                 },
                 "synthesized-files": {
-                  "text": "合成文件"
+                  "text": "生成文件"
                 },
                 "dynamic-configuration": {
                   "text": "动态配置"
@@ -500,7 +497,7 @@
               }
             },
             "selective-testing": {
-              "text": "选择",
+              "text": "选择性测试",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"
@@ -508,7 +505,7 @@
               }
             },
             "test-sharding": {
-              "text": "分片",
+              "text": "测试分片",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成的 Xcode 项目"
@@ -524,7 +521,7 @@
               }
             },
             "test-insights": {
-              "text": "洞察",
+              "text": "测试洞察",
               "items": {
                 "flaky-tests": {
                   "text": "不稳定性",
@@ -537,7 +534,7 @@
               }
             },
             "bundle-insights": {
-              "text": "洞察",
+              "text": "应用包洞察",
               "items": {
                 "apple": {
                   "text": "Apple"

@@ -11,7 +11,7 @@
 msgid ""
 msgstr "Language: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist/billing.ex:73
+#: lib/tuist/billing.ex:75
 #: lib/tuist_web/live/billing_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "$0"
@@ -44,14 +44,14 @@ msgstr "新增付款方式"
 msgid "Admin"
 msgstr "管理員"
 
-#: lib/tuist/billing.ex:51
+#: lib/tuist/billing.ex:53
 #: lib/tuist_web/live/billing_live.ex:425
 #: lib/tuist_web/live/billing_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
-#: lib/tuist/billing.ex:60
+#: lib/tuist/billing.ex:62
 #: lib/tuist_web/live/billing_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
@@ -105,7 +105,8 @@ msgstr "帳單電子郵件"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1057
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
-#: lib/tuist_web/live/create_organization_live.ex:79
+#: lib/tuist_web/live/create_organization_live.ex:84
+#: lib/tuist_web/live/create_organization_live.ex:90
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
@@ -134,7 +135,7 @@ msgstr "變更訂閱方案以符合你的需求。"
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr "選擇模組快取二進位檔等構件（artifacts）的儲存位置，以確保法律合規性。"
 
-#: lib/tuist/billing.ex:61
+#: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format
 msgid "Community support"
 msgstr "社群支援"
@@ -164,13 +165,13 @@ msgstr "確認你的電子郵件"
 msgid "Confirmation instructions"
 msgstr "確認說明"
 
-#: lib/tuist/billing.ex:93
+#: lib/tuist/billing.ex:95
 #: lib/tuist_web/live/billing_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr "聯絡銷售團隊"
 
-#: lib/tuist_web/live/create_organization_live.ex:43
+#: lib/tuist_web/live/create_organization_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr "建立組織"
@@ -180,7 +181,7 @@ msgstr "建立組織"
 msgid "Create your plan or self-host your instance"
 msgstr "建立您的方案或自行託管執行個體"
 
-#: lib/tuist/billing.ex:91
+#: lib/tuist/billing.ex:93
 #: lib/tuist_web/live/billing_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
@@ -193,7 +194,7 @@ msgstr "建立您的方案或自行託管執行個體。"
 msgid "Current plan"
 msgstr "目前方案"
 
-#: lib/tuist/billing.ex:92
+#: lib/tuist/billing.ex:94
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:247
@@ -202,7 +203,7 @@ msgstr "目前方案"
 msgid "Custom"
 msgstr "自訂"
 
-#: lib/tuist/billing.ex:95
+#: lib/tuist/billing.ex:97
 #: lib/tuist_web/live/billing_live.ex:485
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
@@ -354,7 +355,7 @@ msgstr "輸入此組織名稱以確認"
 msgid "Enter your username to confirm"
 msgstr "輸入您的使用者名稱以確認"
 
-#: lib/tuist/billing.ex:89
+#: lib/tuist/billing.ex:91
 #: lib/tuist_web/live/billing_live.ex:481
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
@@ -366,7 +367,7 @@ msgstr "Enterprise"
 msgid "Europe"
 msgstr "歐洲"
 
-#: lib/tuist/billing.ex:54
+#: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:427
 #: lib/tuist_web/live/billing_live.html.heex:178
 #: lib/tuist_web/live/billing_live.html.heex:179
@@ -384,7 +385,7 @@ msgstr "已超出免費方案額度"
 msgid "Free under tier limits"
 msgstr "免費方案額度內"
 
-#: lib/tuist/billing.ex:77
+#: lib/tuist/billing.ex:79
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
 msgstr "優惠的基本價格"
@@ -394,7 +395,7 @@ msgstr "優惠的基本價格"
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr "優惠的基本價格：若未超出免費方案限制，則無需付費"
 
-#: lib/tuist/billing.ex:57
+#: lib/tuist/billing.ex:59
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
 msgstr "慷慨的每月免費方案"
@@ -404,8 +405,8 @@ msgstr "慷慨的每月免費方案"
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr "慷慨的每月免費方案：用量上限為免費方案限制"
 
-#: lib/tuist/billing.ex:55
-#: lib/tuist/billing.ex:75
+#: lib/tuist/billing.ex:57
+#: lib/tuist/billing.ex:77
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr "立即開始"
@@ -415,7 +416,7 @@ msgstr "立即開始"
 msgid "Get started with no credit card required"
 msgstr "無需信用卡即可開始使用"
 
-#: lib/tuist/billing.ex:53
+#: lib/tuist/billing.ex:55
 #: lib/tuist_web/live/billing_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
@@ -467,7 +468,7 @@ msgstr "邀請成員"
 msgid "Invite members to your organization"
 msgstr "邀請成員加入你的組織"
 
-#: lib/tuist/billing.ex:59
+#: lib/tuist/billing.ex:61
 #, elixir-autogen, elixir-format
 msgid "Like, totally free"
 msgstr "完全免費"
@@ -506,7 +507,7 @@ msgstr "最受歡迎"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1077
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
-#: lib/tuist_web/live/create_organization_live.ex:61
+#: lib/tuist_web/live/create_organization_live.ex:66
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:31
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
@@ -517,7 +518,7 @@ msgstr "最受歡迎"
 msgid "Name"
 msgstr "名稱"
 
-#: lib/tuist/billing.ex:65
+#: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "No credit card required"
 msgstr "無需信用卡"
@@ -532,7 +533,7 @@ msgstr "尚未建立邀請"
 msgid "No members found"
 msgstr "找不到成員"
 
-#: lib/tuist/billing.ex:97
+#: lib/tuist/billing.ex:99
 #: lib/tuist_web/live/billing_live.ex:486
 #, elixir-autogen, elixir-format
 msgid "On-premise"
@@ -559,13 +560,13 @@ msgstr "組織名稱"
 msgid "Passwords don't match"
 msgstr "密碼不相符"
 
-#: lib/tuist/billing.ex:78
+#: lib/tuist/billing.ex:80
 #: lib/tuist_web/live/billing_live.ex:458
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr "若未超過免費方案額度，則無需付費"
 
-#: lib/tuist/billing.ex:80
+#: lib/tuist/billing.ex:82
 #: lib/tuist_web/live/billing_live.ex:459
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
@@ -596,7 +597,7 @@ msgstr "價格"
 msgid "Pricing details"
 msgstr "定價詳情"
 
-#: lib/tuist/billing.ex:99
+#: lib/tuist/billing.ex:101
 #, elixir-autogen, elixir-format
 msgid "Priority support"
 msgstr "優先支援"
@@ -611,7 +612,7 @@ msgstr "透過共用 Slack 頻道提供優先支援"
 msgid "Priority support: Via shared Slack channel"
 msgstr "優先支援：透過共享 Slack 頻道"
 
-#: lib/tuist/billing.ex:70
+#: lib/tuist/billing.ex:72
 #: lib/tuist_web/live/billing_live.ex:453
 #: lib/tuist_web/live/billing_live.html.heex:171
 #, elixir-autogen, elixir-format
@@ -709,7 +710,7 @@ msgstr "搜尋成員..."
 msgid "Select region"
 msgstr "選擇區域"
 
-#: lib/tuist/billing.ex:98
+#: lib/tuist/billing.ex:100
 #, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
 msgstr "自行託管 Tuist 執行個體"
@@ -725,7 +726,7 @@ msgstr "自行託管 Tuist 執行個體"
 msgid "Settings"
 msgstr "設定"
 
-#: lib/tuist/billing.ex:81
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Standard support"
 msgstr "標準支援"
@@ -754,12 +755,12 @@ msgstr "狀態"
 msgid "Storage region"
 msgstr "儲存區域"
 
-#: lib/tuist/billing.ex:62
+#: lib/tuist/billing.ex:64
 #, elixir-autogen, elixir-format
 msgid "Support via community forum"
 msgstr "透過社群論壇取得支援"
 
-#: lib/tuist/billing.ex:96
+#: lib/tuist/billing.ex:98
 #, elixir-autogen, elixir-format
 msgid "Tailored agreements to meet your specific needs"
 msgstr "量身打造的協議，滿足您的特定需求"
@@ -789,7 +790,7 @@ msgid "Try changing your search term"
 msgstr "嘗試變更搜尋字詞"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:111
-#: lib/tuist_web/live/create_organization_live.ex:37
+#: lib/tuist_web/live/create_organization_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr "Tuist 標誌"
@@ -805,7 +806,7 @@ msgstr "美國"
 msgid "Unknown"
 msgstr "未知"
 
-#: lib/tuist/billing.ex:84
+#: lib/tuist/billing.ex:86
 #, elixir-autogen, elixir-format
 msgid "Unlimited projects"
 msgstr "無限專案"
@@ -847,7 +848,7 @@ msgstr "升級方案"
 msgid "Usage"
 msgstr "用量"
 
-#: lib/tuist/billing.ex:58
+#: lib/tuist/billing.ex:60
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
 msgstr "用量已達免費方案上限"
@@ -862,7 +863,7 @@ msgstr "用量詳情"
 msgid "Usage-based"
 msgstr "依用量計費"
 
-#: lib/tuist/billing.ex:79
+#: lib/tuist/billing.ex:81
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing"
 msgstr "依用量定價"
@@ -872,7 +873,7 @@ msgstr "依用量定價"
 msgid "Usage-based pricing after free tier"
 msgstr "超過免費方案後依用量定價"
 
-#: lib/tuist/billing.ex:72
+#: lib/tuist/billing.ex:74
 #: lib/tuist_web/live/billing_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
@@ -901,12 +902,12 @@ msgstr "使用者"
 msgid "Username"
 msgstr "使用者名稱"
 
-#: lib/tuist/billing.ex:81
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
 msgstr "透過 Slack 和電子郵件"
 
-#: lib/tuist/billing.ex:99
+#: lib/tuist/billing.ex:101
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
 msgstr "透過共享的 Slack 頻道"
@@ -957,7 +958,7 @@ msgstr "即將完成！"
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
 msgstr "您已超出免費方案的配額，額外使用量將產生費用。"
 
-#: lib/tuist/billing.ex:74
+#: lib/tuist/billing.ex:76
 #: lib/tuist_web/live/billing_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "and up"
@@ -1165,17 +1166,17 @@ msgstr "啟用後，組織成員將無法使用電子郵件和密碼登入。他
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr "在強制實施 SSO 之前，你必須先透過 SSO 提供者進行驗證。請先使用你的 SSO 提供者登入。"
 
-#: lib/tuist_web/live/create_organization_live.ex:73
+#: lib/tuist_web/live/create_organization_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "繼續"
 
-#: lib/tuist_web/live/create_organization_live.ex:45
+#: lib/tuist_web/live/create_organization_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
 msgstr "建立組織以繼續。組織可讓你將相關專案分組"
 
-#: lib/tuist_web/live/create_organization_live.ex:63
+#: lib/tuist_web/live/create_organization_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr "你的公司或團隊名稱是什麼？你可以在設定中稍後更改此名稱"
@@ -2106,22 +2107,22 @@ msgstr "快取寫入"
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
 msgstr "為持續整合工作執行快取寫入、預覽、套件、測試、建置與執行。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:217
+#: lib/tuist_web/live/account_token_helpers.ex:222
 #, elixir-autogen, elixir-format
 msgid "Create and manage previews."
 msgstr "建立並管理預覽。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:249
+#: lib/tuist_web/live/account_token_helpers.ex:254
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
 msgstr "建立並管理執行。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:173
+#: lib/tuist_web/live/account_token_helpers.ex:174
 #, elixir-autogen, elixir-format
 msgid "Manage organization members and invitations."
 msgstr "管理組織成員與邀請。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:201
+#: lib/tuist_web/live/account_token_helpers.ex:206
 #, elixir-autogen, elixir-format
 msgid "Manage project administration data."
 msgstr "管理專案管理資料。"
@@ -2141,12 +2142,12 @@ msgstr "成員寫入"
 msgid "Presets"
 msgstr "預設值"
 
-#: lib/tuist_web/live/account_token_helpers.ex:147
+#: lib/tuist_web/live/account_token_helpers.ex:148
 #, elixir-autogen, elixir-format
 msgid "Previews read"
 msgstr "預覽讀取"
 
-#: lib/tuist_web/live/account_token_helpers.ex:148
+#: lib/tuist_web/live/account_token_helpers.ex:149
 #, elixir-autogen, elixir-format
 msgid "Previews write"
 msgstr "預覽寫入"
@@ -2157,112 +2158,112 @@ msgstr "預覽寫入"
 msgid "Project"
 msgstr "專案"
 
-#: lib/tuist_web/live/account_token_helpers.ex:181
+#: lib/tuist_web/live/account_token_helpers.ex:186
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
 msgstr "將套件發布至帳戶註冊表。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:161
+#: lib/tuist_web/live/account_token_helpers.ex:162
 #, elixir-autogen, elixir-format
 msgid "Read account-level cache entries."
 msgstr "讀取帳戶層級的快取項目。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:165
+#: lib/tuist_web/live/account_token_helpers.ex:166
 #, elixir-autogen, elixir-format
 msgid "Read and write account-level cache entries."
 msgstr "讀寫帳號層級的快取項目。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:209
+#: lib/tuist_web/live/account_token_helpers.ex:214
 #, elixir-autogen, elixir-format
 msgid "Read and write project cache entries."
 msgstr "讀寫專案快取項目。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:237
+#: lib/tuist_web/live/account_token_helpers.ex:242
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
 msgstr "讀取建置分析資料。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:221
+#: lib/tuist_web/live/account_token_helpers.ex:226
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
 msgstr "讀取套件分析資料。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:169
+#: lib/tuist_web/live/account_token_helpers.ex:170
 #, elixir-autogen, elixir-format
 msgid "Read organization members and invitations."
 msgstr "讀取組織成員與邀請。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:177
+#: lib/tuist_web/live/account_token_helpers.ex:182
 #, elixir-autogen, elixir-format
 msgid "Read packages from the account registry."
 msgstr "從帳號註冊表讀取套件。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:213
+#: lib/tuist_web/live/account_token_helpers.ex:218
 #, elixir-autogen, elixir-format
 msgid "Read previews."
 msgstr "讀取預覽。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:197
+#: lib/tuist_web/live/account_token_helpers.ex:202
 #, elixir-autogen, elixir-format
 msgid "Read project administration data."
 msgstr "讀取專案管理資料。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:205
+#: lib/tuist_web/live/account_token_helpers.ex:210
 #, elixir-autogen, elixir-format
 msgid "Read project cache entries."
 msgstr "讀取專案快取項目。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:245
+#: lib/tuist_web/live/account_token_helpers.ex:250
 #, elixir-autogen, elixir-format
 msgid "Read runs."
 msgstr "讀取執行紀錄。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:229
+#: lib/tuist_web/live/account_token_helpers.ex:234
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
 msgstr "讀取測試分析資料。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:149
+#: lib/tuist_web/live/account_token_helpers.ex:150
 #, elixir-autogen, elixir-format
 msgid "Registry read"
 msgstr "Registry 讀取"
 
-#: lib/tuist_web/live/account_token_helpers.ex:150
+#: lib/tuist_web/live/account_token_helpers.ex:151
 #, elixir-autogen, elixir-format
 msgid "Registry write"
 msgstr "Registry 寫入"
 
-#: lib/tuist_web/live/account_token_helpers.ex:151
+#: lib/tuist_web/live/account_token_helpers.ex:152
 #, elixir-autogen, elixir-format
 msgid "Runs read"
 msgstr "執行紀錄讀取"
 
-#: lib/tuist_web/live/account_token_helpers.ex:152
+#: lib/tuist_web/live/account_token_helpers.ex:153
 #, elixir-autogen, elixir-format
 msgid "Runs write"
 msgstr "執行紀錄寫入"
 
-#: lib/tuist_web/live/account_token_helpers.ex:156
+#: lib/tuist_web/live/account_token_helpers.ex:157
 #, elixir-autogen, elixir-format
 msgid "Tests read"
 msgstr "測試讀取"
 
-#: lib/tuist_web/live/account_token_helpers.ex:157
+#: lib/tuist_web/live/account_token_helpers.ex:158
 #, elixir-autogen, elixir-format
 msgid "Tests write"
 msgstr "測試寫入"
 
-#: lib/tuist_web/live/account_token_helpers.ex:241
+#: lib/tuist_web/live/account_token_helpers.ex:246
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
 msgstr "上傳並管理建置資料。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:225
+#: lib/tuist_web/live/account_token_helpers.ex:230
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
 msgstr "上傳並管理套件資料。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:233
+#: lib/tuist_web/live/account_token_helpers.ex:238
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
 msgstr "上傳並管理測試資料。"
@@ -2890,22 +2891,22 @@ msgstr "我們無法收取 %{account_name} 訂閱的款項，且重試已結束�
 msgid "Your account moved to the Air plan"
 msgstr "您的帳戶已移至 Air 方案"
 
-#: lib/tuist_web/live/account_token_helpers.ex:189
+#: lib/tuist_web/live/account_token_helpers.ex:194
 #, elixir-autogen, elixir-format
 msgid "Manage runner profiles and clear runner volumes."
 msgstr "管理執行者設定檔並清除執行者磁碟區。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:185
+#: lib/tuist_web/live/account_token_helpers.ex:190
 #, elixir-autogen, elixir-format
 msgid "Read runner jobs, workflows, profiles, and volumes."
 msgstr "讀取執行者工作、工作流程、設定檔和磁碟區。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:153
+#: lib/tuist_web/live/account_token_helpers.ex:154
 #, elixir-autogen, elixir-format
 msgid "Runners read"
 msgstr "執行者讀取權限"
 
-#: lib/tuist_web/live/account_token_helpers.ex:154
+#: lib/tuist_web/live/account_token_helpers.ex:155
 #, elixir-autogen, elixir-format
 msgid "Runners write"
 msgstr "執行者寫入權限"
@@ -3516,7 +3517,7 @@ msgstr "為組織的 AI 工作流程選擇模型。在選取預設值之前，�
 msgid "Connect AI providers using your organization's API keys. Each provider can be used by multiple models."
 msgstr "使用貴組織的 API 金鑰連線 AI 提供者。每個提供者可供多個模型使用。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:193
+#: lib/tuist_web/live/account_token_helpers.ex:198
 #, elixir-autogen, elixir-format
 msgid "Create sandboxes and run commands in them."
 msgstr "建立沙箱並在其中執行指令。"
@@ -3605,7 +3606,7 @@ msgstr "移除提供者"
 msgid "Requests already sent may finish."
 msgstr "已發送的請求可能會完成。"
 
-#: lib/tuist_web/live/account_token_helpers.ex:155
+#: lib/tuist_web/live/account_token_helpers.ex:156
 #, elixir-autogen, elixir-format
 msgid "Sandboxes write"
 msgstr "沙盒寫入"
@@ -3689,3 +3690,13 @@ msgstr "輪換 %{account_name} 的 Tuist 憑證"
 #, elixir-autogen, elixir-format
 msgid "We revoked the Tuist credentials of %{account_name}"
 msgstr "我們已撤銷 %{account_name} 的 Tuist 憑證"
+
+#: lib/tuist_web/live/account_token_helpers.ex:147
+#, elixir-autogen, elixir-format
+msgid "Pulse write"
+msgstr "Pulse 寫入"
+
+#: lib/tuist_web/live/account_token_helpers.ex:178
+#, elixir-autogen, elixir-format
+msgid "Send errors to the account's Pulse with a Sentry SDK."
+msgstr "使用 Sentry SDK 將錯誤傳送至帳戶的 Pulse。"

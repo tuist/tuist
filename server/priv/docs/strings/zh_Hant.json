@@ -8,7 +8,7 @@
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "AI 代理程式開發" },
+      "agentic-coding": { "text": "代理式編碼" },
       "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
@@ -44,7 +44,7 @@
       "project-description": { "text": "專案描述" },
       "release": { "text": "版本" },
       "release-calendar": { "text": "版本行事曆" },
-      "release-channels": { "text": "版本頻道" },
+      "release-channels": { "text": "發布頻道" },
       "run-previews": { "text": "執行預覽" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 快取" },
@@ -66,7 +66,7 @@
         "text": "語言 🌍"
       },
       "description": {
-        "text": "您可以協助 Tuist 支援更多語言，或改進本頁的語言指引。"
+        "text": "你可以協助 Tuist 支援更多語言，或改進此頁面的語言指引。"
       },
       "cta": {
         "text": "貢獻"
@@ -88,16 +88,16 @@
           "cancel-button-aria-label": "取消"
         },
         "start-screen": {
-          "recent-searches-title": "搜尋歷史記錄",
-          "no-recent-searches-text": "無搜尋歷史記錄",
-          "save-recent-search-button-title": "儲存至搜尋歷史記錄",
-          "remove-recent-search-button-title": "從搜尋歷史記錄中移除",
-          "favorite-searches-title": "收藏",
-          "remove-favorite-search-button-title": "從收藏中移除"
+          "recent-searches-title": "搜尋歷史",
+          "no-recent-searches-text": "無搜尋歷史",
+          "save-recent-search-button-title": "儲存至搜尋歷史",
+          "remove-recent-search-button-title": "從搜尋歷史移除",
+          "favorite-searches-title": "最愛",
+          "remove-favorite-search-button-title": "從最愛移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
-          "help-text": "您可能需要檢查網路連線"
+          "help-text": "你可能需要檢查網路連線"
         },
         "footer": {
           "select-text": "選擇",
@@ -107,8 +107,8 @@
         },
         "no-results-screen": {
           "no-results-text": "未找到相關結果",
-          "suggested-query-text": "您可以嘗試查詢",
-          "report-missing-results-text": "您認為此查詢應該有結果嗎？",
+          "suggested-query-text": "你可以嘗試查詢",
+          "report-missing-results-text": "你認為此查詢應該有結果嗎？",
           "report-missing-results-link-text": "點擊提供回饋"
         }
       }
@@ -137,7 +137,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "變更記錄"
+          "text": "變更紀錄"
         }
       }
     }
@@ -246,7 +246,7 @@
           "text": "語言"
         },
         "releases": {
-          "text": "版本"
+          "text": "版本發布"
         },
         "cli": {
           "text": "CLI",
@@ -278,7 +278,7 @@
           }
         },
         "on-premise": {
-          "text": "內部部署",
+          "text": "本地部署",
           "items": {
             "install": {
               "text": "安裝"
@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "狀態"
-        },
-        "metrics-dashboard": {
-          "text": "指標儀表板"
         }
       }
     },
@@ -393,7 +390,7 @@
                           "text": "Xcode 專案"
                         },
                         "swift-package": {
-                          "text": "Swift package"
+                          "text": "Swift Package"
                         },
                         "xcodegen-project": {
                           "text": "XcodeGen 專案"
@@ -427,7 +424,7 @@
                   "text": "動態設定"
                 },
                 "templates": {
-                  "text": "範本"
+                  "text": "模板"
                 },
                 "plugins": {
                   "text": "外掛"
@@ -444,7 +441,7 @@
                   }
                 },
                 "the-cost-of-convenience": {
-                  "text": "便利的成本"
+                  "text": "便利的代價"
                 },
                 "tma-architecture": {
                   "text": "模組化架構"
@@ -492,7 +489,7 @@
                   "text": "基於 XcodeProj 的整合"
                 },
                 "swift-package": {
-                  "text": "Swift package"
+                  "text": "Swift Package"
                 },
                 "continuous-integration": {
                   "text": "持續整合"
@@ -558,7 +555,7 @@
           }
         },
         "agentic-coding": {
-          "text": "AI 代理程式開發",
+          "text": "代理式編碼",
           "items": {
             "mcp": {
               "text": "MCP"

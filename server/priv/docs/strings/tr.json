@@ -38,7 +38,7 @@
       "once": { "text": "Bir kez" },
       "once-cache": { "text": "Once önbelleği" },
       "once-project": { "text": "Once projesi" },
-      "once-remote-execution": { "text": "Once uzaktan yürütme" },
+      "once-remote-execution": { "text": "Once uzak yürütme" },
       "origin": { "text": "Kaynak" },
       "profiles": { "text": "Profiller" },
       "project-description": { "text": "Proje açıklaması" },
@@ -66,7 +66,7 @@
         "text": "Diller 🌍"
       },
       "description": {
-        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
+        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfa için dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
       },
       "cta": {
         "text": "Katkıda bulunun"
@@ -134,10 +134,10 @@
           "text": "Referanslar"
         },
         "contributors": {
-          "text": "Katkıda Bulunanlar"
+          "text": "Katkıda bulunanlar"
         },
         "changelog": {
-          "text": "Değişiklik Günlüğü"
+          "text": "Değişiklik günlüğü"
         }
       }
     }
@@ -211,7 +211,7 @@
       }
     },
     "contributors": {
-      "text": "Katkıda Bulunanlar",
+      "text": "Katkıda bulunanlar",
       "items": {
         "code": {
           "text": "Kod",
@@ -223,7 +223,7 @@
               "text": "Sunucu"
             },
             "handbook": {
-              "text": "El Kitabı"
+              "text": "El kitabı"
             },
             "docs": {
               "text": "Belgeler"
@@ -293,9 +293,6 @@
         },
         "status": {
           "text": "Durum"
-        },
-        "metrics-dashboard": {
-          "text": "Metrik panosu"
         }
       }
     },
@@ -339,13 +336,13 @@
           }
         },
         "install-tuist": {
-          "text": "Tuist Kurulumu"
+          "text": "Tuist'i kurun"
         },
         "tuist": {
           "text": "Tuist",
           "items": {
             "about": {
-              "text": "Tuist Hakkında"
+              "text": "Tuist hakkında"
             }
           }
         },
@@ -353,7 +350,7 @@
           "text": "Hızlı başlangıç",
           "items": {
             "install-tuist": {
-              "text": "Tuist Kurulumu"
+              "text": "Tuist'i kurun"
             },
             "get-started": {
               "text": "Başlangıç"
@@ -508,7 +505,7 @@
               }
             },
             "test-sharding": {
-              "text": "Parçalama",
+              "text": "Parçalara ayırma",
               "items": {
                 "generated-xcode-project": {
                   "text": "Oluşturulan Xcode projesi"
@@ -564,7 +561,7 @@
               "text": "MCP"
             },
             "skills": {
-              "text": "Beceriler"
+              "text": "Yetenekler"
             }
           }
         },

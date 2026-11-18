@@ -60,30 +60,30 @@ msgstr "평균"
 msgid "Bad request"
 msgstr "잘못된 요청"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:66
+#: lib/tuist_web/components/dashboard_navigation.ex:62
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "결제"
 
 #: lib/tuist_web/components/app_layout_components.ex:72
-#: lib/tuist_web/components/app_layout_components.ex:324
-#: lib/tuist_web/components/dashboard_navigation.ex:137
+#: lib/tuist_web/components/app_layout_components.ex:330
+#: lib/tuist_web/components/dashboard_navigation.ex:133
 #: lib/tuist_web/components/dashboard_search.ex:74
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr "빌드 실행"
 
 #: lib/tuist_web/components/app_layout_components.ex:61
-#: lib/tuist_web/components/app_layout_components.ex:311
-#: lib/tuist_web/components/dashboard_navigation.ex:135
-#: lib/tuist_web/components/dashboard_navigation.ex:295
+#: lib/tuist_web/components/app_layout_components.ex:317
+#: lib/tuist_web/components/dashboard_navigation.ex:131
+#: lib/tuist_web/components/dashboard_navigation.ex:298
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "빌드"
 
-#: lib/tuist_web/components/app_layout_components.ex:452
-#: lib/tuist_web/components/dashboard_navigation.ex:205
-#: lib/tuist_web/components/dashboard_navigation.ex:245
+#: lib/tuist_web/components/app_layout_components.ex:470
+#: lib/tuist_web/components/dashboard_navigation.ex:207
+#: lib/tuist_web/components/dashboard_navigation.ex:247
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "번들"
@@ -94,8 +94,8 @@ msgstr "번들"
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:262
-#: lib/tuist_web/components/dashboard_navigation.ex:187
+#: lib/tuist_web/components/app_layout_components.ex:268
+#: lib/tuist_web/components/dashboard_navigation.ex:189
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr "캐시 실행"
@@ -111,7 +111,7 @@ msgstr "조직 만들기"
 msgid "Download macOS app"
 msgstr "macOS 앱 다운로드"
 
-#: lib/tuist_web/components/app_layout_components.ex:651
+#: lib/tuist_web/components/app_layout_components.ex:670
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "이메일"
@@ -123,13 +123,13 @@ msgstr "이메일"
 msgid "Error"
 msgstr "오류"
 
-#: lib/tuist_web/components/app_layout_components.ex:666
+#: lib/tuist_web/components/app_layout_components.ex:685
 #: lib/tuist_web/components/dashboard_navigation.ex:58
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "오류"
 
-#: lib/tuist_web/components/app_layout_components.ex:644
+#: lib/tuist_web/components/app_layout_components.ex:663
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "플래그"
@@ -145,14 +145,14 @@ msgstr "시작하기"
 msgid "Go to dashboard"
 msgstr "대시보드로 이동"
 
-#: lib/tuist_web/components/app_layout_components.ex:674
+#: lib/tuist_web/components/app_layout_components.ex:693
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:565
-#: lib/tuist_web/components/dashboard_navigation.ex:242
+#: lib/tuist_web/components/app_layout_components.ex:584
+#: lib/tuist_web/components/dashboard_navigation.ex:244
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "통합"
@@ -163,13 +163,13 @@ msgid "Invalid GitHub app installation. Please try again."
 msgstr "GitHub 앱 설치가 유효하지 않습니다. 다시 시도하세요."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:132
-#: lib/tuist_web/controllers/integration_installation_controller.ex:121
+#: lib/tuist_web/controllers/integration_installation_controller.ex:142
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
 msgstr "설치 요청이 유효하지 않습니다. 다시 시도하세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:638
-#: lib/tuist_web/components/dashboard_navigation.ex:29
+#: lib/tuist_web/components/app_layout_components.ex:657
+#: lib/tuist_web/components/dashboard_navigation.ex:30
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "작업"
@@ -179,7 +179,7 @@ msgstr "작업"
 msgid "Learn more"
 msgstr "자세히 알아보기"
 
-#: lib/tuist_web/components/app_layout_components.ex:632
+#: lib/tuist_web/components/app_layout_components.ex:651
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "라이브 대시보드"
@@ -189,14 +189,14 @@ msgstr "라이브 대시보드"
 msgid "Log out"
 msgstr "로그아웃"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:48
+#: lib/tuist_web/components/dashboard_navigation.ex:49
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr "멤버"
 
-#: lib/tuist_web/components/app_layout_components.ex:245
-#: lib/tuist_web/components/dashboard_navigation.ex:185
-#: lib/tuist_web/components/dashboard_navigation.ex:296
+#: lib/tuist_web/components/app_layout_components.ex:251
+#: lib/tuist_web/components/dashboard_navigation.ex:187
+#: lib/tuist_web/components/dashboard_navigation.ex:299
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "모듈 캐시"
@@ -219,8 +219,8 @@ msgstr "해당 없음"
 
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
-#: lib/tuist_web/live/pulse_error_live.ex:303
-#: lib/tuist_web/live/pulse_live.ex:560
+#: lib/tuist_web/live/pulse_error_live.ex:299
+#: lib/tuist_web/live/pulse_live.ex:602
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "다음"
@@ -257,10 +257,10 @@ msgid "Operations"
 msgstr "작업"
 
 #: lib/tuist_web/components/app_layout_components.ex:32
-#: lib/tuist_web/components/dashboard_navigation.ex:134
+#: lib/tuist_web/components/dashboard_navigation.ex:130
 #: lib/tuist_web/live/ops_database_live.html.heex:8
-#: lib/tuist_web/live/pulse_error_live.ex:155
-#: lib/tuist_web/live/pulse_error_live.ex:171
+#: lib/tuist_web/live/pulse_error_live.ex:151
+#: lib/tuist_web/live/pulse_error_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "개요"
@@ -271,26 +271,26 @@ msgid "Please, make sure you are accessing the right resource and that you have 
 msgstr "올바른 리소스에 접근하고 있으며 해당 리소스에 대한 권한이 있는지 확인하세요."
 
 #: lib/tuist_web/components/app_components.ex:53
-#: lib/tuist_web/live/pulse_error_live.ex:294
-#: lib/tuist_web/live/pulse_live.ex:551
+#: lib/tuist_web/live/pulse_error_live.ex:290
+#: lib/tuist_web/live/pulse_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr "이전"
 
-#: lib/tuist_web/components/app_layout_components.ex:440
-#: lib/tuist_web/components/dashboard_navigation.ex:204
+#: lib/tuist_web/components/app_layout_components.ex:458
+#: lib/tuist_web/components/dashboard_navigation.ex:206
 #: lib/tuist_web/components/dashboard_search.ex:76
 #: lib/tuist_web/controllers/dashboard_search_controller.ex:136
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "프리뷰"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:32
+#: lib/tuist_web/components/dashboard_navigation.ex:33
 #, elixir-autogen, elixir-format
 msgid "Profiles"
 msgstr "프로필"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:20
+#: lib/tuist_web/components/dashboard_navigation.ex:21
 #: lib/tuist_web/components/dashboard_search.ex:72
 #, elixir-autogen, elixir-format
 msgid "Projects"
@@ -301,15 +301,15 @@ msgstr "프로젝트"
 msgid "Server error"
 msgstr "서버 오류"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:68
-#: lib/tuist_web/components/dashboard_navigation.ex:234
-#: lib/tuist_web/components/dashboard_navigation.ex:241
+#: lib/tuist_web/components/dashboard_navigation.ex:64
+#: lib/tuist_web/components/dashboard_navigation.ex:236
+#: lib/tuist_web/components/dashboard_navigation.ex:243
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "설정"
 
-#: lib/tuist_web/components/app_layout_components.ex:464
-#: lib/tuist_web/components/dashboard_navigation.ex:308
+#: lib/tuist_web/components/app_layout_components.ex:482
+#: lib/tuist_web/components/dashboard_navigation.ex:311
 #, elixir-autogen, elixir-format
 msgid "Project Settings"
 msgstr "프로젝트 설정"
@@ -329,7 +329,7 @@ msgstr "죄송합니다. 요청하신 페이지가 존재하지 않거나 이동
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "죄송합니다. 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:658
+#: lib/tuist_web/components/app_layout_components.ex:677
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "저장소"
@@ -340,25 +340,25 @@ msgid "Switch to your preferred theme"
 msgstr "선호하는 테마로 전환"
 
 #: lib/tuist_web/components/app_layout_components.ex:123
-#: lib/tuist_web/components/app_layout_components.ex:381
-#: lib/tuist_web/components/dashboard_navigation.ex:147
+#: lib/tuist_web/components/app_layout_components.ex:387
+#: lib/tuist_web/components/dashboard_navigation.ex:143
 #: lib/tuist_web/components/dashboard_search.ex:73
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr "테스트 케이스"
 
 #: lib/tuist_web/components/app_layout_components.ex:111
-#: lib/tuist_web/components/app_layout_components.ex:366
-#: lib/tuist_web/components/dashboard_navigation.ex:143
+#: lib/tuist_web/components/app_layout_components.ex:372
+#: lib/tuist_web/components/dashboard_navigation.ex:139
 #: lib/tuist_web/components/dashboard_search.ex:75
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr "테스트 실행"
 
 #: lib/tuist_web/components/app_layout_components.ex:103
-#: lib/tuist_web/components/app_layout_components.ex:353
-#: lib/tuist_web/components/dashboard_navigation.ex:141
-#: lib/tuist_web/components/dashboard_navigation.ex:294
+#: lib/tuist_web/components/app_layout_components.ex:359
+#: lib/tuist_web/components/dashboard_navigation.ex:137
+#: lib/tuist_web/components/dashboard_navigation.ex:297
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "테스트"
@@ -368,7 +368,7 @@ msgstr "테스트"
 msgid "The account %{account_handle} was not found."
 msgstr "계정 %{account_handle}을 찾을 수 없습니다."
 
-#: lib/tuist_web/authentication.ex:894
+#: lib/tuist_web/authentication.ex:896
 #: lib/tuist_web/live/layout_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
@@ -423,8 +423,8 @@ msgstr "요청이 너무 많습니다"
 msgid "Too many requests."
 msgstr "요청이 너무 많습니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:713
-#: lib/tuist_web/components/app_layout_components.ex:751
+#: lib/tuist_web/components/app_layout_components.ex:732
+#: lib/tuist_web/components/app_layout_components.ex:770
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist 아이콘"
@@ -443,15 +443,15 @@ msgstr "인증되지 않음"
 #: lib/tuist_web/components/runs/ran_by_badge.ex:75
 #: lib/tuist_web/live/ops_account_helpers.ex:15
 #: lib/tuist_web/live/ops_account_helpers.ex:24
-#: lib/tuist_web/live/ops_account_live.ex:1117
-#: lib/tuist_web/live/ops_account_live.ex:1153
+#: lib/tuist_web/live/ops_account_live.ex:1101
+#: lib/tuist_web/live/ops_account_live.ex:1137
 #: lib/tuist_web/live/sandboxes_live.ex:794
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "알 수 없음"
 
-#: lib/tuist_web/components/app_layout_components.ex:301
-#: lib/tuist_web/components/dashboard_navigation.ex:178
+#: lib/tuist_web/components/app_layout_components.ex:307
+#: lib/tuist_web/components/dashboard_navigation.ex:180
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Xcode 캐시"
@@ -493,9 +493,9 @@ msgstr "p90"
 msgid "p99"
 msgstr "p99"
 
-#: lib/tuist_web/components/app_layout_components.ex:165
-#: lib/tuist_web/components/app_layout_components.ex:396
-#: lib/tuist_web/components/dashboard_navigation.ex:148
+#: lib/tuist_web/components/app_layout_components.ex:162
+#: lib/tuist_web/components/app_layout_components.ex:414
+#: lib/tuist_web/components/dashboard_navigation.ex:144
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr "불안정한 테스트"
@@ -515,21 +515,21 @@ msgstr "문의하기"
 msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr "이것은 %{account_name}/%{project_name} 프로젝트의 공개 대시보드입니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:176
-#: lib/tuist_web/components/app_layout_components.ex:407
-#: lib/tuist_web/components/dashboard_navigation.ex:149
+#: lib/tuist_web/components/app_layout_components.ex:173
+#: lib/tuist_web/components/app_layout_components.ex:425
+#: lib/tuist_web/components/dashboard_navigation.ex:145
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr "격리된 테스트"
 
-#: lib/tuist_web/components/app_layout_components.ex:274
-#: lib/tuist_web/components/dashboard_navigation.ex:193
+#: lib/tuist_web/components/app_layout_components.ex:280
+#: lib/tuist_web/components/dashboard_navigation.ex:195
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr "생성 횟수"
 
-#: lib/tuist_web/components/app_layout_components.ex:431
-#: lib/tuist_web/components/dashboard_navigation.ex:180
+#: lib/tuist_web/components/app_layout_components.ex:449
+#: lib/tuist_web/components/dashboard_navigation.ex:182
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr "Gradle 캐시"
@@ -539,8 +539,8 @@ msgstr "Gradle 캐시"
 msgid "Create project"
 msgstr "프로젝트 생성"
 
-#: lib/tuist_web/components/app_layout_components.ex:601
-#: lib/tuist_web/components/dashboard_navigation.ex:65
+#: lib/tuist_web/components/app_layout_components.ex:620
+#: lib/tuist_web/components/dashboard_navigation.ex:61
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -552,7 +552,7 @@ msgstr "캐시"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "프리뷰 APK가 존재하지 않거나 만료되었습니다."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:54
+#: lib/tuist_web/components/dashboard_navigation.ex:55
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:85
 #, elixir-autogen, elixir-format
 msgid "Metrics"
@@ -569,9 +569,9 @@ msgstr "인증 실패"
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr "ID 공급자가 액세스를 거부했습니다. 조직 관리자에게 문의하여 Tuist 애플리케이션에 할당해 주세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:191
-#: lib/tuist_web/components/app_layout_components.ex:418
-#: lib/tuist_web/components/dashboard_navigation.ex:151
+#: lib/tuist_web/components/app_layout_components.ex:188
+#: lib/tuist_web/components/app_layout_components.ex:436
+#: lib/tuist_web/components/dashboard_navigation.ex:147
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr "샤드"
@@ -676,7 +676,7 @@ msgstr "인증 공급자가 인증 오류를 반환했습니다. 다시 시도�
 msgid "Dashboard"
 msgstr "대시보드"
 
-#: lib/tuist_web/components/app_layout_components.ex:614
+#: lib/tuist_web/components/app_layout_components.ex:633
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -684,7 +684,7 @@ msgstr "대시보드"
 msgid "Accounts"
 msgstr "계정"
 
-#: lib/tuist_web/components/app_layout_components.ex:571
+#: lib/tuist_web/components/app_layout_components.ex:590
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "인증"
@@ -711,7 +711,7 @@ msgid "Account ID"
 msgstr "계정 ID"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:90
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:26
 #: lib/tuist_web/live/ops_account_kura_placement_live.ex:19
 #: lib/tuist_web/live/ops_account_kura_sizing_live.ex:19
 #: lib/tuist_web/live/ops_account_live.ex:56
@@ -739,22 +739,22 @@ msgstr "주소 2 (선택 사항)"
 msgid "Air"
 msgstr "Air"
 
-#: lib/tuist_web/live/ops_account_live.ex:1291
+#: lib/tuist_web/live/ops_account_live.ex:1275
 #, elixir-autogen, elixir-format
 msgid "Argentina"
 msgstr "아르헨티나"
 
-#: lib/tuist_web/live/ops_account_live.ex:1292
+#: lib/tuist_web/live/ops_account_live.ex:1276
 #, elixir-autogen, elixir-format
 msgid "Australia"
 msgstr "호주"
 
-#: lib/tuist_web/live/ops_account_live.ex:1293
+#: lib/tuist_web/live/ops_account_live.ex:1277
 #, elixir-autogen, elixir-format
 msgid "Austria"
 msgstr "오스트리아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1294
+#: lib/tuist_web/live/ops_account_live.ex:1278
 #, elixir-autogen, elixir-format
 msgid "Belgium"
 msgstr "벨기에"
@@ -766,17 +766,17 @@ msgstr "벨기에"
 msgid "Billing email"
 msgstr "결제 이메일"
 
-#: lib/tuist_web/live/ops_account_live.ex:1295
+#: lib/tuist_web/live/ops_account_live.ex:1279
 #, elixir-autogen, elixir-format
 msgid "Brazil"
 msgstr "브라질"
 
-#: lib/tuist_web/live/ops_account_live.ex:1296
+#: lib/tuist_web/live/ops_account_live.ex:1280
 #, elixir-autogen, elixir-format
 msgid "Bulgaria"
 msgstr "불가리아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1297
+#: lib/tuist_web/live/ops_account_live.ex:1281
 #, elixir-autogen, elixir-format
 msgid "Canada"
 msgstr "캐나다"
@@ -803,17 +803,17 @@ msgid "Cancel plan"
 msgstr "플랜 취소"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:44
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr "취소됨"
 
-#: lib/tuist_web/live/ops_account_live.ex:1298
+#: lib/tuist_web/live/ops_account_live.ex:1282
 #, elixir-autogen, elixir-format
 msgid "Chile"
 msgstr "칠레"
 
-#: lib/tuist_web/live/ops_account_live.ex:1299
+#: lib/tuist_web/live/ops_account_live.ex:1283
 #, elixir-autogen, elixir-format
 msgid "China"
 msgstr "중국"
@@ -823,7 +823,7 @@ msgstr "중국"
 msgid "City"
 msgstr "도시"
 
-#: lib/tuist_web/live/ops_account_live.ex:1300
+#: lib/tuist_web/live/ops_account_live.ex:1284
 #, elixir-autogen, elixir-format
 msgid "Colombia"
 msgstr "콜롬비아"
@@ -838,7 +838,7 @@ msgstr "국가"
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
 msgstr "Stripe 고객을 생성하고(없는 경우), 청구 주소를 설정하며, 인보이스로 청구되는 Enterprise 구독을 시작합니다. 고객은 이메일로 인보이스를 받으며, 여기서는 카드 정보를 수집하지 않습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1301
+#: lib/tuist_web/live/ops_account_live.ex:1285
 #, elixir-autogen, elixir-format
 msgid "Croatia"
 msgstr "크로아티아"
@@ -848,27 +848,27 @@ msgstr "크로아티아"
 msgid "Current version"
 msgstr "현재 버전"
 
-#: lib/tuist_web/live/ops_account_live.ex:1302
+#: lib/tuist_web/live/ops_account_live.ex:1286
 #, elixir-autogen, elixir-format
 msgid "Cyprus"
 msgstr "키프로스"
 
-#: lib/tuist_web/live/ops_account_live.ex:1303
+#: lib/tuist_web/live/ops_account_live.ex:1287
 #, elixir-autogen, elixir-format
 msgid "Czechia"
 msgstr "체코"
 
-#: lib/tuist_web/live/ops_account_live.ex:1304
+#: lib/tuist_web/live/ops_account_live.ex:1288
 #, elixir-autogen, elixir-format
 msgid "Denmark"
 msgstr "덴마크"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:38
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Deployment"
 msgstr "배포"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:30
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Deployment not found."
 msgstr "배포를 찾을 수 없습니다."
@@ -878,12 +878,12 @@ msgstr "배포를 찾을 수 없습니다."
 msgid "Enterprise"
 msgstr "Enterprise"
 
-#: lib/tuist_web/live/ops_account_live.ex:1305
+#: lib/tuist_web/live/ops_account_live.ex:1289
 #, elixir-autogen, elixir-format
 msgid "Estonia"
 msgstr "에스토니아"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:79
 #: lib/tuist_web/live/ops_database_live.html.heex:123
 #: lib/tuist_web/live/ops_database_live.html.heex:355
 #, elixir-autogen, elixir-format
@@ -895,72 +895,72 @@ msgstr "실패"
 msgid "Finished"
 msgstr "완료"
 
-#: lib/tuist_web/live/ops_account_live.ex:1306
+#: lib/tuist_web/live/ops_account_live.ex:1290
 #, elixir-autogen, elixir-format
 msgid "Finland"
 msgstr "핀란드"
 
-#: lib/tuist_web/live/ops_account_live.ex:1307
+#: lib/tuist_web/live/ops_account_live.ex:1291
 #, elixir-autogen, elixir-format
 msgid "France"
 msgstr "프랑스"
 
-#: lib/tuist_web/live/ops_account_live.ex:1308
+#: lib/tuist_web/live/ops_account_live.ex:1292
 #, elixir-autogen, elixir-format
 msgid "Germany"
 msgstr "독일"
 
-#: lib/tuist_web/live/ops_account_live.ex:1309
+#: lib/tuist_web/live/ops_account_live.ex:1293
 #, elixir-autogen, elixir-format
 msgid "Greece"
 msgstr "그리스"
 
-#: lib/tuist_web/live/ops_account_live.ex:1310
+#: lib/tuist_web/live/ops_account_live.ex:1294
 #, elixir-autogen, elixir-format
 msgid "Hong Kong"
 msgstr "홍콩"
 
-#: lib/tuist_web/live/ops_account_live.ex:1311
+#: lib/tuist_web/live/ops_account_live.ex:1295
 #, elixir-autogen, elixir-format
 msgid "Hungary"
 msgstr "헝가리"
 
-#: lib/tuist_web/live/ops_account_live.ex:1312
+#: lib/tuist_web/live/ops_account_live.ex:1296
 #, elixir-autogen, elixir-format
 msgid "Iceland"
 msgstr "아이슬란드"
 
-#: lib/tuist_web/live/ops_account_live.ex:1313
+#: lib/tuist_web/live/ops_account_live.ex:1297
 #, elixir-autogen, elixir-format
 msgid "India"
 msgstr "인도"
 
-#: lib/tuist_web/live/ops_account_live.ex:1314
+#: lib/tuist_web/live/ops_account_live.ex:1298
 #, elixir-autogen, elixir-format
 msgid "Indonesia"
 msgstr "인도네시아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1315
+#: lib/tuist_web/live/ops_account_live.ex:1299
 #, elixir-autogen, elixir-format
 msgid "Ireland"
 msgstr "아일랜드"
 
-#: lib/tuist_web/live/ops_account_live.ex:1316
+#: lib/tuist_web/live/ops_account_live.ex:1300
 #, elixir-autogen, elixir-format
 msgid "Israel"
 msgstr "이스라엘"
 
-#: lib/tuist_web/live/ops_account_live.ex:1317
+#: lib/tuist_web/live/ops_account_live.ex:1301
 #, elixir-autogen, elixir-format
 msgid "Italy"
 msgstr "이탈리아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1318
+#: lib/tuist_web/live/ops_account_live.ex:1302
 #, elixir-autogen, elixir-format
 msgid "Japan"
 msgstr "일본"
 
-#: lib/tuist_web/components/app_layout_components.ex:607
+#: lib/tuist_web/components/app_layout_components.ex:626
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -976,27 +976,27 @@ msgstr "쿠라 배포"
 msgid "Latest deployment"
 msgstr "최신 배포"
 
-#: lib/tuist_web/live/ops_account_live.ex:1319
+#: lib/tuist_web/live/ops_account_live.ex:1303
 #, elixir-autogen, elixir-format
 msgid "Latvia"
 msgstr "라트비아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1320
+#: lib/tuist_web/live/ops_account_live.ex:1304
 #, elixir-autogen, elixir-format
 msgid "Lithuania"
 msgstr "리투아니아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1321
+#: lib/tuist_web/live/ops_account_live.ex:1305
 #, elixir-autogen, elixir-format
 msgid "Luxembourg"
 msgstr "룩셈부르크"
 
-#: lib/tuist_web/live/ops_account_live.ex:1322
+#: lib/tuist_web/live/ops_account_live.ex:1306
 #, elixir-autogen, elixir-format
 msgid "Malaysia"
 msgstr "말레이시아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1323
+#: lib/tuist_web/live/ops_account_live.ex:1307
 #, elixir-autogen, elixir-format
 msgid "Malta"
 msgstr "몰타"
@@ -1006,7 +1006,7 @@ msgstr "몰타"
 msgid "Manage on Stripe"
 msgstr "Stripe에서 관리"
 
-#: lib/tuist_web/live/ops_account_live.ex:1324
+#: lib/tuist_web/live/ops_account_live.ex:1308
 #, elixir-autogen, elixir-format
 msgid "Mexico"
 msgstr "멕시코"
@@ -1023,12 +1023,12 @@ msgstr "이름"
 msgid "Name on invoice"
 msgstr "송장 표기 이름"
 
-#: lib/tuist_web/live/ops_account_live.ex:1325
+#: lib/tuist_web/live/ops_account_live.ex:1309
 #, elixir-autogen, elixir-format
 msgid "Netherlands"
 msgstr "네덜란드"
 
-#: lib/tuist_web/live/ops_account_live.ex:1326
+#: lib/tuist_web/live/ops_account_live.ex:1310
 #, elixir-autogen, elixir-format
 msgid "New Zealand"
 msgstr "뉴질랜드"
@@ -1050,8 +1050,8 @@ msgstr "취소할 활성 구독이 없습니다."
 
 #: lib/tuist/utilities/date_formatter.ex:5
 #: lib/tuist/utilities/date_formatter.ex:76
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:87
-#: lib/tuist_web/live/ops_account_live.ex:937
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:90
+#: lib/tuist_web/live/ops_account_live.ex:921
 #: lib/tuist_web/live/ops_account_live.html.heex:41
 #: lib/tuist_web/live/ops_account_live.html.heex:53
 #: lib/tuist_web/live/ops_account_live.html.heex:57
@@ -1062,7 +1062,7 @@ msgstr "취소할 활성 구독이 없습니다."
 msgid "None"
 msgstr "없음"
 
-#: lib/tuist_web/live/ops_account_live.ex:1327
+#: lib/tuist_web/live/ops_account_live.ex:1311
 #, elixir-autogen, elixir-format
 msgid "Norway"
 msgstr "노르웨이"
@@ -1084,12 +1084,12 @@ msgstr "오픈 소스"
 msgid "Organization"
 msgstr "조직"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:73
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr "대기 중"
 
-#: lib/tuist_web/live/ops_account_live.ex:1328
+#: lib/tuist_web/live/ops_account_live.ex:1312
 #, elixir-autogen, elixir-format
 msgid "Philippines"
 msgstr "필리핀"
@@ -1105,12 +1105,12 @@ msgstr "요금제"
 msgid "Plan & billing"
 msgstr "요금제 및 결제"
 
-#: lib/tuist_web/live/ops_account_live.ex:1329
+#: lib/tuist_web/live/ops_account_live.ex:1313
 #, elixir-autogen, elixir-format
 msgid "Poland"
 msgstr "폴란드"
 
-#: lib/tuist_web/live/ops_account_live.ex:1330
+#: lib/tuist_web/live/ops_account_live.ex:1314
 #, elixir-autogen, elixir-format
 msgid "Portugal"
 msgstr "포르투갈"
@@ -1135,12 +1135,12 @@ msgstr "Pro"
 msgid "Region"
 msgstr "지역"
 
-#: lib/tuist_web/live/ops_account_live.ex:1331
+#: lib/tuist_web/live/ops_account_live.ex:1315
 #, elixir-autogen, elixir-format
 msgid "Romania"
 msgstr "루마니아"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:74
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "실행 중"
@@ -1155,32 +1155,32 @@ msgstr "이름으로 검색"
 msgid "Select a country"
 msgstr "국가 선택"
 
-#: lib/tuist_web/live/ops_account_live.ex:1332
+#: lib/tuist_web/live/ops_account_live.ex:1316
 #, elixir-autogen, elixir-format
 msgid "Singapore"
 msgstr "싱가포르"
 
-#: lib/tuist_web/live/ops_account_live.ex:1333
+#: lib/tuist_web/live/ops_account_live.ex:1317
 #, elixir-autogen, elixir-format
 msgid "Slovakia"
 msgstr "슬로바키아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1334
+#: lib/tuist_web/live/ops_account_live.ex:1318
 #, elixir-autogen, elixir-format
 msgid "Slovenia"
 msgstr "슬로베니아"
 
-#: lib/tuist_web/live/ops_account_live.ex:1335
+#: lib/tuist_web/live/ops_account_live.ex:1319
 #, elixir-autogen, elixir-format
 msgid "South Africa"
 msgstr "남아프리카 공화국"
 
-#: lib/tuist_web/live/ops_account_live.ex:1336
+#: lib/tuist_web/live/ops_account_live.ex:1320
 #, elixir-autogen, elixir-format
 msgid "South Korea"
 msgstr "대한민국"
 
-#: lib/tuist_web/live/ops_account_live.ex:1337
+#: lib/tuist_web/live/ops_account_live.ex:1321
 #, elixir-autogen, elixir-format
 msgid "Spain"
 msgstr "스페인"
@@ -1211,27 +1211,27 @@ msgstr "상태"
 msgid "Stripe customer"
 msgstr "Stripe 고객"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:75
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
 msgstr "성공"
 
-#: lib/tuist_web/live/ops_account_live.ex:1338
+#: lib/tuist_web/live/ops_account_live.ex:1322
 #, elixir-autogen, elixir-format
 msgid "Sweden"
 msgstr "스웨덴"
 
-#: lib/tuist_web/live/ops_account_live.ex:1339
+#: lib/tuist_web/live/ops_account_live.ex:1323
 #, elixir-autogen, elixir-format
 msgid "Switzerland"
 msgstr "스위스"
 
-#: lib/tuist_web/live/ops_account_live.ex:1340
+#: lib/tuist_web/live/ops_account_live.ex:1324
 #, elixir-autogen, elixir-format
 msgid "Taiwan"
 msgstr "대만"
 
-#: lib/tuist_web/live/ops_account_live.ex:1341
+#: lib/tuist_web/live/ops_account_live.ex:1325
 #, elixir-autogen, elixir-format
 msgid "Thailand"
 msgstr "태국"
@@ -1241,7 +1241,7 @@ msgstr "태국"
 msgid "Trialing"
 msgstr "체험판 사용 중"
 
-#: lib/tuist_web/live/ops_account_live.ex:1342
+#: lib/tuist_web/live/ops_account_live.ex:1326
 #, elixir-autogen, elixir-format
 msgid "Turkey"
 msgstr "터키"
@@ -1257,22 +1257,22 @@ msgstr "유형"
 msgid "URL"
 msgstr "URL"
 
-#: lib/tuist_web/live/ops_account_live.ex:1343
+#: lib/tuist_web/live/ops_account_live.ex:1327
 #, elixir-autogen, elixir-format
 msgid "Ukraine"
 msgstr "우크라이나"
 
-#: lib/tuist_web/live/ops_account_live.ex:1344
+#: lib/tuist_web/live/ops_account_live.ex:1328
 #, elixir-autogen, elixir-format
 msgid "United Arab Emirates"
 msgstr "아랍에미리트"
 
-#: lib/tuist_web/live/ops_account_live.ex:1345
+#: lib/tuist_web/live/ops_account_live.ex:1329
 #, elixir-autogen, elixir-format
 msgid "United Kingdom"
 msgstr "영국"
 
-#: lib/tuist_web/live/ops_account_live.ex:1346
+#: lib/tuist_web/live/ops_account_live.ex:1330
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr "미국"
@@ -1288,7 +1288,7 @@ msgstr "%{account}을 Enterprise로 업그레이드"
 msgid "Upgrade to Enterprise"
 msgstr "Enterprise로 업그레이드"
 
-#: lib/tuist_web/live/ops_account_live.ex:1347
+#: lib/tuist_web/live/ops_account_live.ex:1331
 #, elixir-autogen, elixir-format
 msgid "Uruguay"
 msgstr "우루과이"
@@ -1298,7 +1298,7 @@ msgstr "우루과이"
 msgid "User"
 msgstr "사용자"
 
-#: lib/tuist_web/live/ops_account_live.ex:1348
+#: lib/tuist_web/live/ops_account_live.ex:1332
 #, elixir-autogen, elixir-format
 msgid "Vietnam"
 msgstr "베트남"
@@ -1362,22 +1362,22 @@ msgstr "매니페스트를 변환하는 동안 GitHub Enterprise Server에서 40
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr "매니페스트를 변환하는 동안 GitHub Enterprise Server에서 HTTP %{status} 오류가 발생했습니다. 요청 본문을 확인하려면 서버 로그를 검토한 후 다시 시도하세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:553
+#: lib/tuist_web/components/app_layout_components.ex:572
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "일반"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:24
+#: lib/tuist_web/components/dashboard_navigation.ex:25
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr "러너"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:64
+#: lib/tuist_web/components/dashboard_navigation.ex:60
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr "웹훅"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:28
+#: lib/tuist_web/components/dashboard_navigation.ex:29
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr "워크플로"
@@ -1470,7 +1470,7 @@ msgstr "Markdown으로 복사"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "Kubernetes API에서 클러스터의 Backup 리소스를 읽을 수 없습니다. postgresql.cnpg.io에 대한 서버 ServiceAccount의 RBAC를 확인하세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:626
+#: lib/tuist_web/components/app_layout_components.ex:645
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1518,7 +1518,7 @@ msgid "Export"
 msgstr "내보내기"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:42
-#: lib/tuist_web/live/pulse_live.ex:382
+#: lib/tuist_web/live/pulse_live.ex:410
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "필터"
@@ -1771,7 +1771,7 @@ msgid "Size"
 msgstr "크기"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:49
-#: lib/tuist_web/live/pulse_live.ex:368
+#: lib/tuist_web/live/pulse_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr "정렬 기준:"
@@ -1853,18 +1853,18 @@ msgstr "WAL 아카이브"
 msgid "Write lag (bytes)"
 msgstr "쓰기 지연 시간(바이트)"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:67
+#: lib/tuist_web/components/dashboard_navigation.ex:63
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "사용량"
 
-#: lib/tuist_web/components/app_layout_components.ex:734
+#: lib/tuist_web/components/app_layout_components.ex:753
 #: lib/tuist_web/components/dashboard_search.ex:93
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "문서"
 
-#: lib/tuist_web/components/app_layout_components.ex:559
+#: lib/tuist_web/components/app_layout_components.ex:578
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "토큰"
@@ -1927,7 +1927,7 @@ msgstr "vCPU 제한"
 msgid "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
 msgstr "귀하의 조직은 이 이메일 도메인에 대한 자동 가입을 허용하지 않습니다. 조직 관리자에게 초대를 요청하세요."
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:78
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Superseded"
 msgstr "대체됨"
@@ -1997,18 +1997,18 @@ msgstr "공개 범위"
 msgid "Claim"
 msgstr "청구"
 
-#: lib/tuist_web/live/ops_account_live.ex:1232
+#: lib/tuist_web/live/ops_account_live.ex:1216
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built."
 msgstr "Kura 디스크 청구량이 %{claim}으로 설정되었습니다. 실행 중인 인스턴스는 변경되지 않으며, 다음 볼륨 빌드 시 적용됩니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1261
+#: lib/tuist_web/live/ops_account_live.ex:1245
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget."
 msgid_plural "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget."
 msgstr[0] "Kura 디스크 청구량이 %{claim}으로 감소했습니다. %{count}개의 실행 중인 인스턴스는 캐시를 유지하며 새로운 예산 한도까지 데이터를 제거합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1276
+#: lib/tuist_web/live/ops_account_live.ex:1260
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving."
@@ -2049,7 +2049,7 @@ msgstr "체험을 시작할 수 없습니다: %{reason}"
 msgid "Expires"
 msgstr "만료일"
 
-#: lib/tuist_web/live/ops_account_live.ex:688
+#: lib/tuist_web/live/ops_account_live.ex:672
 #, elixir-autogen, elixir-format
 msgid "No expiry"
 msgstr "만료 없음"
@@ -2074,7 +2074,7 @@ msgstr "러너 체험판 시작하기"
 msgid "Minutes remaining"
 msgstr "남은 분"
 
-#: lib/tuist_web/live/ops_account_live.ex:686
+#: lib/tuist_web/live/ops_account_live.ex:670
 #, elixir-autogen, elixir-format
 msgid "Prepaid"
 msgstr "선불"
@@ -2094,7 +2094,7 @@ msgstr "소스"
 msgid "This account has no prepaid runner minutes."
 msgstr "이 계정에는 선불 러너 시간이 없습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:684
+#: lib/tuist_web/live/ops_account_live.ex:668
 #, elixir-autogen, elixir-format
 msgid "Trial"
 msgstr "체험판"
@@ -2104,12 +2104,12 @@ msgstr "체험판"
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
 msgstr "취소하면 러너 항목이 이 계정의 구독에 추가되며, 그 시점부터 러너 사용량이 청구 대상이 됩니다. 체험판 기간 동안 실행된 시간은 현재 청구 주기에 이미 기록된 시간을 포함하여 무료로 유지됩니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:940
+#: lib/tuist_web/live/ops_account_live.ex:924
 #, elixir-autogen, elixir-format
 msgid "%{floor} / %{burst} Mbps"
 msgstr "%{floor} / %{burst} Mbps"
 
-#: lib/tuist_web/live/ops_account_live.ex:955
+#: lib/tuist_web/live/ops_account_live.ex:939
 #, elixir-autogen, elixir-format
 msgid "%{mbps} Mbps"
 msgstr "%{mbps} Mbps"
@@ -2154,8 +2154,8 @@ msgstr "이그레스 제한 저장"
 msgid "Unshaped"
 msgstr "제한 없음"
 
-#: lib/tuist_web/live/ops_account_live.ex:954
-#: lib/tuist_web/live/ops_account_live.ex:1083
+#: lib/tuist_web/live/ops_account_live.ex:938
+#: lib/tuist_web/live/ops_account_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "unknown"
 msgstr "알 수 없음"
@@ -2165,23 +2165,23 @@ msgstr "알 수 없음"
 msgid "The floor this account's pods reserve and the ceiling they may burst to, set per region because the boxes differ. Empty a field to hand that number back to the region, which is a default rather than a limit: where the two disagree the region's half gives way to the one you set. The only limit is each region's node budget, since the floor is what the scheduler bin-packs against it. Saving recreates the account's instances in that region so the new pair takes effect. They keep their volumes and restart one at a time behind the standby, so no cache is lost."
 msgstr "각 리전마다 인스턴스 사양이 다르므로, 해당 리전에서 이 계정의 Pod가 보장받는 최소 리소스와 최대 버스트 가능한 리소스를 설정합니다. 필드를 비우면 해당 값을 리전 기본값으로 되돌립니다. 이는 제한이 아닌 기본값이며, 두 값이 충돌할 경우 사용자가 설정한 값이 우선 적용됩니다. 유일한 제한은 각 리전의 노드 예산입니다. 스케줄러는 이 최소 보장량을 기준으로 빈 패킹을 수행합니다. 저장하면 해당 리전의 계정 인스턴스가 재생성되어 새로운 설정이 적용됩니다. 볼륨은 유지되며, 대기 인스턴스 뒤에서 한 번에 하나씩 재시작되므로 캐시가 손실되지 않습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:986
+#: lib/tuist_web/live/ops_account_live.ex:970
 #, elixir-autogen, elixir-format
 msgid "up to %{mbps}"
 msgstr "최대 %{mbps}"
 
-#: lib/tuist_web/live/ops_account_live.ex:896
+#: lib/tuist_web/live/ops_account_live.ex:880
 #, elixir-autogen, elixir-format
 msgid "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up."
 msgid_plural "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up."
 msgstr[0] "%{regions}의 아웃바운드 트래픽 제한이 업데이트되었습니다. 이를 적용하기 위해 인스턴스 %{count}개가 다시 생성됩니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:871
+#: lib/tuist_web/live/ops_account_live.ex:855
 #, elixir-autogen, elixir-format
 msgid "No egress limits changed."
 msgstr "아웃바운드 트래픽 제한이 변경되지 않았습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:910
+#: lib/tuist_web/live/ops_account_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Nothing was saved: %{regions} was rejected."
 msgid_plural "Nothing was saved: %{regions} were rejected."
@@ -2192,13 +2192,13 @@ msgstr[0] "저장되지 않았습니다: %{regions}이 거부되었습니다."
 msgid "Saving recreates this account's Kura instances in the regions you changed. They keep their volumes and restart one at a time behind the standby, so no cache is lost. Continue?"
 msgstr "저장하면 변경한 리전에서 이 계정의 Kura 인스턴스가 다시 생성됩니다. 볼륨은 유지되며 대기 인스턴스 뒤에서 하나씩 재시작되므로 캐시가 손실되지 않습니다. 계속하시겠습니까?"
 
-#: lib/tuist_web/live/ops_account_live.ex:920
+#: lib/tuist_web/live/ops_account_live.ex:904
 #, elixir-autogen, elixir-format
 msgid "%{regions} was rejected and not saved."
 msgid_plural "%{regions} were rejected and not saved."
 msgstr[0] "%{regions}이 거부되어 저장되지 않았습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:977
+#: lib/tuist_web/live/ops_account_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "up to %{mbps}, across %{count} box"
 msgid_plural "up to %{mbps}, across %{count} boxes"
@@ -2214,7 +2214,7 @@ msgstr "Kura 롤아웃 기록"
 msgid "Kura Rollouts"
 msgstr "Kura 롤아웃"
 
-#: lib/tuist_web/live/ops_account_live.ex:1087
+#: lib/tuist_web/live/ops_account_live.ex:1071
 #, elixir-autogen, elixir-format
 msgid "%{count} days"
 msgstr "%{count}일"
@@ -2226,17 +2226,17 @@ msgid "%{count} decision"
 msgid_plural "%{count} decisions"
 msgstr[0] "%{count}개 결정"
 
-#: lib/tuist_web/live/ops_account_live.ex:1088
+#: lib/tuist_web/live/ops_account_live.ex:1072
 #, elixir-autogen, elixir-format
 msgid "%{count} hours"
 msgstr "%{count}시간"
 
-#: lib/tuist_web/live/ops_account_live.ex:1089
+#: lib/tuist_web/live/ops_account_live.ex:1073
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes"
 msgstr "%{count}분"
 
-#: lib/tuist_web/live/ops_account_live.ex:1221
+#: lib/tuist_web/live/ops_account_live.ex:1205
 #, elixir-autogen, elixir-format
 msgid "%{used} of %{budget}"
 msgstr "%{used} / %{budget}"
@@ -2300,8 +2300,8 @@ msgstr "지난 주 동안 디스크를 보고한 Pod가 없습니다."
 msgid "No sizing decisions"
 msgstr "크기 결정 없음"
 
-#: lib/tuist_web/live/ops_account_live.ex:1111
-#: lib/tuist_web/live/ops_account_live.ex:1147
+#: lib/tuist_web/live/ops_account_live.ex:1095
+#: lib/tuist_web/live/ops_account_live.ex:1131
 #, elixir-autogen, elixir-format
 msgid "Not resolved yet"
 msgstr "아직 해결되지 않음"
@@ -2324,13 +2324,13 @@ msgstr "Pod"
 msgid "Reported"
 msgstr "보고됨"
 
-#: lib/tuist_web/live/ops_account_live.ex:1052
+#: lib/tuist_web/live/ops_account_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
 msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache)."
 msgstr[0] "측정 %{count}일 동안 확인됨(%{bytes} 삭제, 전체 캐시의 %{turnover}x)."
 
-#: lib/tuist_web/live/ops_account_live.ex:1075
+#: lib/tuist_web/live/ops_account_live.ex:1059
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements."
 msgid_plural "Seen on %{count} consecutive days of measurements."
@@ -2342,7 +2342,7 @@ msgid "Segments"
 msgstr "세그먼트"
 
 #: lib/tuist_web/live/ops_account_kura_sizing_live.ex:24
-#: lib/tuist_web/live/ops_account_live.ex:1114
+#: lib/tuist_web/live/ops_account_live.ex:1098
 #, elixir-autogen, elixir-format
 msgid "Sizing"
 msgstr "사이즈 결정"
@@ -2373,12 +2373,12 @@ msgstr "크기 조정은 디스크 할당량을 %{current}에서 %{recommended}�
 msgid "Sizing proposes shrinking the disk claim from %{current} to %{recommended}."
 msgstr "크기 조정은 디스크 할당량을 %{current}에서 %{recommended}로 줄일 것을 제안합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1039
+#: lib/tuist_web/live/ops_account_live.ex:1023
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing."
 msgstr "%{region}의 캐시는 예약된 디스크의 %{peak}%를 초과하여 채워지지 않았으며, 아무것도 삭제하지 않았습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1019
+#: lib/tuist_web/live/ops_account_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}."
 msgstr "%{region}의 캐시는 기록된 후 평균 %{shed_age} 뒤에 작업을 삭제하고 있으며, 최소 %{floor} 동안 모든 데이터를 유지해야 합니다."
@@ -2410,43 +2410,43 @@ msgstr "시점"
 msgid "Why"
 msgstr "이유"
 
-#: lib/tuist_web/live/ops_account_live.ex:1106
+#: lib/tuist_web/live/ops_account_live.ex:1090
 #, elixir-autogen, elixir-format
 msgid "applied"
 msgstr "적용됨"
 
-#: lib/tuist_web/live/ops_account_live.ex:1122
+#: lib/tuist_web/live/ops_account_live.ex:1106
 #, elixir-autogen, elixir-format
 msgid "discarding work after %{shed_age}, target %{floor}"
 msgstr "%{shed_age} 이후 작업 중단, 대상 %{floor}"
 
-#: lib/tuist_web/live/ops_account_live.ex:1107
+#: lib/tuist_web/live/ops_account_live.ex:1091
 #, elixir-autogen, elixir-format
 msgid "dismissed"
 msgstr "종료됨"
 
-#: lib/tuist_web/live/ops_account_live.ex:1136
+#: lib/tuist_web/live/ops_account_live.ex:1120
 #, elixir-autogen, elixir-format
 msgid "peaked at %{peak}% of its disk"
 msgstr "디스크 사용률 최대 %{peak}% 도달"
 
-#: lib/tuist_web/live/ops_account_live.ex:1108
+#: lib/tuist_web/live/ops_account_live.ex:1092
 #, elixir-autogen, elixir-format
 msgid "superseded"
 msgstr "대체됨"
 
-#: lib/tuist_web/live/ops_account_live.ex:1109
+#: lib/tuist_web/live/ops_account_live.ex:1093
 #, elixir-autogen, elixir-format
 msgid "waiting"
 msgstr "대기 중"
 
-#: lib/tuist_web/live/ops_account_live.ex:1165
-#: lib/tuist_web/live/ops_account_live.ex:1172
+#: lib/tuist_web/live/ops_account_live.ex:1149
+#: lib/tuist_web/live/ops_account_live.ex:1156
 #, elixir-autogen, elixir-format
 msgid "%{rate} runs a day over %{days} days"
 msgstr "%{days}일 동안 하루 %{rate}회 실행"
 
-#: lib/tuist_web/live/ops_account_live.ex:1158
+#: lib/tuist_web/live/ops_account_live.ex:1142
 #, elixir-autogen, elixir-format
 msgid "%{share}%% of runs over %{days} days"
 msgstr "%{days}일 동안의 실행 중 %{share}%%"
@@ -2462,12 +2462,12 @@ msgid "No placement decisions"
 msgstr "배치 결정 없음"
 
 #: lib/tuist_web/live/ops_account_kura_placement_live.ex:24
-#: lib/tuist_web/live/ops_account_live.ex:1150
+#: lib/tuist_web/live/ops_account_live.ex:1134
 #, elixir-autogen, elixir-format
 msgid "Placement"
 msgstr "배치"
 
-#: lib/tuist_web/live/ops_account_live.ex:1213
+#: lib/tuist_web/live/ops_account_live.ex:1197
 #, elixir-autogen, elixir-format
 msgid "Placement added %{region}. It is provisioned on the account's next cache demand."
 msgstr "%{region}에 배치가 추가되었습니다. 이 리전은 계정의 다음 캐시 요청 시 프로비저닝됩니다."
@@ -2488,12 +2488,12 @@ msgstr "이 계정에 대해 아직 배치 결정이 이루어지지 않았습�
 msgid "Placement has recorded nothing for this account; it is served from wherever its instances already are."
 msgstr "이 계정에 대한 배치 기록이 없습니다. 기존 인스턴스가 위치한 곳 어디서든 제공됩니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1217
+#: lib/tuist_web/live/ops_account_live.ex:1201
 #, elixir-autogen, elixir-format
 msgid "Placement is leaving %{region}. It drains once nothing else is waiting on it."
 msgstr "배치가 %{region}에서 제거됩니다. 더 이상 대기 중인 항목이 없으면 연결이 종료됩니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1204
+#: lib/tuist_web/live/ops_account_live.ex:1188
 #, elixir-autogen, elixir-format
 msgid "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains."
 msgstr "배치가 %{to}로 이동했습니다. %{to}가 가동될 때까지 %{from}이 계속 서비스를 제공한 후 연결을 종료합니다."
@@ -2503,17 +2503,17 @@ msgstr "배치가 %{to}로 이동했습니다. %{to}가 가동될 때까지 %{fr
 msgid "Placement proposal dismissed."
 msgstr "배치 제안이 취소되었습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1193
+#: lib/tuist_web/live/ops_account_live.ex:1177
 #, elixir-autogen, elixir-format
 msgid "Placement proposes also serving this account from %{to}."
 msgstr "배치에서 이 계정을 %{to}에서도 추가로 서비스하도록 제안합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1197
+#: lib/tuist_web/live/ops_account_live.ex:1181
 #, elixir-autogen, elixir-format
 msgid "Placement proposes giving up %{from} for this account."
 msgstr "배치는 이 계정에 대해 %{from}을 포기할 것을 제안합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1179
+#: lib/tuist_web/live/ops_account_live.ex:1163
 #, elixir-autogen, elixir-format
 msgid "Placement proposes moving this account from %{from} to %{to}."
 msgstr "배치는 이 계정을 %{from}에서 %{to}로 이동할 것을 제안합니다."
@@ -2533,12 +2533,12 @@ msgstr "시작일"
 msgid "The proposal no longer applies; the next placement sweep re-evaluates the account."
 msgstr "더 이상 적용되지 않는 제안입니다. 다음 배치 스윕에서 계정을 다시 평가합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1142
+#: lib/tuist_web/live/ops_account_live.ex:1126
 #, elixir-autogen, elixir-format
 msgid "add %{region}"
 msgstr "%{region} 추가"
 
-#: lib/tuist_web/live/ops_account_live.ex:1145
+#: lib/tuist_web/live/ops_account_live.ex:1129
 #, elixir-autogen, elixir-format
 msgid "leave %{region}"
 msgstr "%{region} 제거"
@@ -2623,14 +2623,14 @@ msgstr "일시적으로 사용할 수 없음"
 msgid "Temporarily unavailable."
 msgstr "일시적으로 사용할 수 없습니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:288
-#: lib/tuist_web/components/dashboard_navigation.ex:199
+#: lib/tuist_web/components/app_layout_components.ex:294
+#: lib/tuist_web/components/dashboard_navigation.ex:201
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "모듈"
 
-#: lib/tuist_web/components/app_layout_components.ex:335
-#: lib/tuist_web/components/dashboard_navigation.ex:169
+#: lib/tuist_web/components/app_layout_components.ex:341
+#: lib/tuist_web/components/dashboard_navigation.ex:165
 #, elixir-autogen, elixir-format
 msgid "Tasks"
 msgstr "태스크"
@@ -2650,19 +2650,19 @@ msgstr "데이터를 불러올 수 없습니다. 페이지를 새로 고침한 �
 msgid "No change"
 msgstr "변경 사항 없음"
 
-#: lib/tuist_web/live/ops_account_live.ex:1065
+#: lib/tuist_web/live/ops_account_live.ex:1049
 #, elixir-autogen, elixir-format
 msgid "Seen on %{count} day of measurements (%{bytes} discarded)."
 msgid_plural "Seen on %{count} days of measurements (%{bytes} discarded)."
 msgstr[0] "측정일 %{count}일에 확인됨(%{bytes} 폐기)."
 
-#: lib/tuist_web/live/ops_account_live.ex:1186
+#: lib/tuist_web/live/ops_account_live.ex:1170
 #, elixir-autogen, elixir-format
 msgid "Placement proposes moving this account off its first region, %{from}, to %{to}."
 msgstr "배치에서는 이 계정을 첫 번째 리전인 %{from}에서 %{to}로 이동할 것을 제안합니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:204
-#: lib/tuist_web/components/dashboard_navigation.ex:174
+#: lib/tuist_web/components/app_layout_components.ex:201
+#: lib/tuist_web/components/dashboard_navigation.ex:170
 #, elixir-autogen, elixir-format
 msgid "Bazel Cache"
 msgstr "Bazel 캐시"
@@ -2692,7 +2692,7 @@ msgstr "무료 티어"
 msgid "Last reset"
 msgstr "마지막 재설정"
 
-#: lib/tuist_web/live/ops_account_live.ex:691
+#: lib/tuist_web/live/ops_account_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "없음"
@@ -2712,24 +2712,24 @@ msgstr "이 계정은 무료 티어를 초과하여 업그레이드하거나 무
 msgid "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
 msgstr "이 계정의 무료 티어를 재설정하시겠습니까? 이번 달 남은 기간 동안 전체 할당량을 다시 받게 되며, 이미 실행된 러ンは 더 이상 카운트되지 않습니다."
 
-#: lib/tuist_web/authentication.ex:880
+#: lib/tuist_web/authentication.ex:882
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr "찾으시는 프로젝트가 존재하지 않거나 이동되었습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1249
+#: lib/tuist_web/live/ops_account_live.ex:1233
 #, elixir-autogen, elixir-format
 msgid "%{count} instance was lowered and keeps its cache, evicting down to the new budget."
 msgid_plural "%{count} instances were lowered and keep their caches, evicting down to the new budget."
 msgstr[0] "%{count}개 인스턴스가 다운그레이드되었으며 캐시를 유지하면서 새 예산에 맞게 데이터를 제거했습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1243
+#: lib/tuist_web/live/ops_account_live.ex:1227
 #, elixir-autogen, elixir-format
 msgid "%{count} instance was raised and rebuilds its volumes, one replica at a time behind the standby that keeps serving."
 msgid_plural "%{count} instances were raised and rebuild their volumes, one replica at a time behind the standby that keeps serving."
 msgstr[0] "%{count}개의 인스턴스가 생성되었으며, 서비스를 계속 제공하는 스탠바이 뒤에 있는 각 복제본을 한 번에 하나씩 볼륨을 재구축합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1242
+#: lib/tuist_web/live/ops_account_live.ex:1226
 #, elixir-autogen, elixir-format
 msgid "Kura disk claim moved to %{claim}."
 msgstr "Kura 디스크 클레임이 %{claim}로 이동되었습니다."
@@ -2739,12 +2739,12 @@ msgstr "Kura 디스크 클레임이 %{claim}로 이동되었습니다."
 msgid "Sizing proposes growing the instances pinned below %{recommended} to it, the claim the account's other instances hold."
 msgstr "크기 조정은 계정 내 다른 인스턴스가 보유한 클레임인 %{recommended} 미만으로 고정된 인스턴스를 해당 크기로 확장할 것을 제안합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1029
+#: lib/tuist_web/live/ops_account_live.ex:1013
 #, elixir-autogen, elixir-format
 msgid "The cache in %{region} has kept work for at least %{retention} before discarding it, when it needs to keep everything for %{floor}."
 msgstr "%{region}의 캐시는 모든 데이터를 %{floor} 동안 유지해야 할 때, 최소 %{retention} 동안 작업을 보관한 후 삭제합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:1129
+#: lib/tuist_web/live/ops_account_live.ex:1113
 #, elixir-autogen, elixir-format
 msgid "keeps work %{retention}, needs %{floor}"
 msgstr "작업을 %{retention} 동안 보관하며, %{floor} 필요"
@@ -2764,14 +2764,15 @@ msgstr "PR #%{number}"
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
 msgstr "조직에서 이메일과 일치하는 로그인 이메일 도메인을 검증하지 않아, 단일 로그인으로 Tuist 계정을 생성할 수 없습니다. 초대받았다면 초대받은 이메일 주소로 가입하고 초대를 수락한 후, 단일 로그인으로 로그인하여 계정을 연동하세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:142
-#: lib/tuist_web/components/dashboard_navigation.ex:157
+#: lib/tuist_web/components/app_layout_components.ex:139
+#: lib/tuist_web/components/app_layout_components.ex:403
+#: lib/tuist_web/components/dashboard_navigation.ex:153
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
 msgstr "코드 커버리지"
 
-#: lib/tuist_web/components/app_layout_components.ex:216
-#: lib/tuist_web/components/dashboard_navigation.ex:175
+#: lib/tuist_web/components/app_layout_components.ex:213
+#: lib/tuist_web/components/dashboard_navigation.ex:171
 #: lib/tuist_web/live/once_cache_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Once Cache"
@@ -2797,7 +2798,7 @@ msgstr "Tuist가 %{url}에 연결할 수 없습니다. GitHub Enterprise API URL
 msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise API URL is correct and publicly resolvable."
 msgstr "Tuist가 %{url}을 해결할 수 없습니다. GitHub Enterprise API URL이 올바르고 공개적으로 해결 가능한지 다시 확인하세요."
 
-#: lib/tuist_web/live/ops_account_live.ex:629
+#: lib/tuist_web/live/ops_account_live.ex:613
 #, elixir-autogen, elixir-format
 msgid "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}."
 msgstr "%{account} 계정에 이제 %{credit}의 러너 크레딧(약 %{minutes} 기준 분)이 있으며, %{date}까지 사용할 수 있습니다."
@@ -2817,42 +2818,42 @@ msgstr "기준 분"
 msgid "Contract's last day"
 msgstr "계약 종료일"
 
-#: lib/tuist_web/live/ops_account_live.ex:680
+#: lib/tuist_web/live/ops_account_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: %{reason}"
 msgstr "풀을 부여할 수 없습니다: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.ex:674
+#: lib/tuist_web/live/ops_account_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: a Stripe invoice id starts with in_."
 msgstr "풀을 부여할 수 없습니다: Stripe 송장 ID는 in_로 시작합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:657
+#: lib/tuist_web/live/ops_account_live.ex:641
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: choose the platforms the credit pays for."
 msgstr "풀을 부여할 수 없습니다: 크레딧이 적용될 플랫폼을 선택하세요."
 
-#: lib/tuist_web/live/ops_account_live.ex:641
+#: lib/tuist_web/live/ops_account_live.ex:625
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: enter the amount paid in dollars, a credit multiplier such as 1.25, the platforms, and the contract's last day."
 msgstr "풀을 부여할 수 없습니다: 결제 금액(달러), 크레딧 배수(예: 1.25), 플랫폼, 계약 종료일을 입력하세요."
 
-#: lib/tuist_web/live/ops_account_live.ex:677
+#: lib/tuist_web/live/ops_account_live.ex:661
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: no runner price is configured for this environment yet."
 msgstr "풀을 부여할 수 없습니다: 이 환경에 대한 러너 가격이 아직 설정되지 않았습니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:647
+#: lib/tuist_web/live/ops_account_live.ex:631
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the amount paid has to be more than zero."
 msgstr "풀을 부여할 수 없습니다: 결제 금액은 0보다 커야 합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:668
+#: lib/tuist_web/live/ops_account_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the contract's last day has to be after today and within thirteen months."
 msgstr "풀을 부여할 수 없습니다: 계약 종료일은 오늘 이후이며 13개월 이내여야 합니다."
 
-#: lib/tuist_web/live/ops_account_live.ex:651
+#: lib/tuist_web/live/ops_account_live.ex:635
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
 msgstr "풀을 부여할 수 없습니다: 크레딧 배수는 소수점 이하 최대 네 자리로 1.0에서 2.0 사이여야 합니다."
@@ -2877,7 +2878,7 @@ msgstr "풀 부여"
 msgid "Platforms"
 msgstr "플랫폼"
 
-#: lib/tuist_web/live/ops_account_live.ex:685
+#: lib/tuist_web/live/ops_account_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Pool"
 msgstr "풀"
@@ -2897,7 +2898,7 @@ msgstr "macOS 및 Linux"
 msgid "Contract's first day"
 msgstr "계약 시작일"
 
-#: lib/tuist_web/live/ops_account_live.ex:661
+#: lib/tuist_web/live/ops_account_live.ex:645
 #, elixir-autogen, elixir-format
 msgid "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
 msgstr "풀을 할당할 수 없습니다: 계약은 마지막 날짜 이전 또는 당일에 시작해야 하며 최대 1년을 초과할 수 없습니다."
@@ -2947,7 +2948,7 @@ msgstr "오픈 소스 플랜 시작"
 msgid "Invalid Origin installation request. Please try again."
 msgstr "잘못된 Origin 설치 요청입니다. 다시 시도하세요."
 
-#: lib/tuist_web/live/pulse_live.ex:265
+#: lib/tuist_web/live/pulse_live.ex:277
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -2996,28 +2997,28 @@ msgstr "지난 7일"
 msgid "Local"
 msgstr "로컬"
 
-#: lib/tuist_web/components/app_layout_components.ex:237
-#: lib/tuist_web/components/dashboard_navigation.ex:177
+#: lib/tuist_web/components/app_layout_components.ex:243
+#: lib/tuist_web/components/dashboard_navigation.ex:179
 #: lib/tuist_web/live/toolchain_cache_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Mix Cache"
 msgstr "캐시 혼합"
 
-#: lib/tuist_web/live/mix_build_live.ex:278
-#: lib/tuist_web/live/mix_build_live.ex:319
-#: lib/tuist_web/live/pulse_live.ex:575
+#: lib/tuist_web/live/mix_build_live.ex:279
+#: lib/tuist_web/live/mix_build_live.ex:320
+#: lib/tuist_web/live/pulse_live.ex:629
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "데이터 없음"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:172
-#: lib/tuist_web/live/mix_build_live.ex:343
+#: lib/tuist_web/live/mix_build_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "All results"
 msgstr "모든 결과"
 
-#: lib/tuist_web/live/mix_build_live.ex:295
+#: lib/tuist_web/live/mix_build_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Hits divided by hits plus misses. Work without a cache lookup is excluded."
 msgstr "캐시 히트 수를 캐시 히트와 미스 합계로 나눈 값입니다. 캐시 조회 없이 실행된 작업은 제외됩니다."
@@ -3027,8 +3028,8 @@ msgstr "캐시 히트 수를 캐시 히트와 미스 합계로 나눈 값입니�
 msgid "No matching cache entries"
 msgstr "일치하는 캐시 항목 없음"
 
-#: lib/tuist_web/live/mix_build_live.ex:337
-#: lib/tuist_web/live/mix_build_live.ex:342
+#: lib/tuist_web/live/mix_build_live.ex:338
+#: lib/tuist_web/live/mix_build_live.ex:343
 #: lib/tuist_web/live/toolchain_cache_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Not cached"
@@ -3049,12 +3050,12 @@ msgstr "개별 빌드 캐시 히트율의 평균과 백분위수입니다. 캐�
 msgid "No cache measurements yet"
 msgstr "아직 캐시 측정값 없음"
 
-#: lib/tuist_web/live/mix_build_live.ex:290
+#: lib/tuist_web/live/mix_build_live.ex:291
 #, elixir-autogen, elixir-format
 msgid "Artifacts restored from local snapshots or the shared remote CAS."
 msgstr "로컬 스냅샷 또는 공유 원격 CAS에서 복원된 아티팩트입니다."
 
-#: lib/tuist_web/live/mix_build_live.ex:292
+#: lib/tuist_web/live/mix_build_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Cache lookups without reusable local or remote artifacts."
 msgstr "재사용 가능한 로컬 또는 원격 아티팩트가 없는 캐시 조회입니다."
@@ -3069,24 +3070,24 @@ msgstr "성공한 클라이언트 CAS 전송 또는 로컬 폴백 복사 시간�
 msgid "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
 msgstr "성공한 클라이언트 클라이언트 CAS 전송 및 로컬 폴백 복사이며, 각 빌드의 태스크 행에 출처가 표시됩니다. 원격 시간은 전송을 측정하며, 로컬 시간에는 검증 및 설치가 포함됩니다. 처리량은 바이트를 작업 시간으로 나눈 값입니다. 컴파일과 연결된 리소스는 제외됩니다. CAS Outputs는 Kura가 보고한 원격 전송만 별도로 표시합니다."
 
-#: lib/tuist_web/live/mix_build_live.ex:299
+#: lib/tuist_web/live/mix_build_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS download bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
 msgstr "성공한 클라이언트 CAS 다운로드 바이트 및 로컬 스냅샷 복사 바이트입니다. CAS Outputs는 Kura가 보고한 원격 전송만 표시합니다."
 
-#: lib/tuist_web/live/mix_build_live.ex:306
+#: lib/tuist_web/live/mix_build_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
 msgstr "성공한 클라이언트 CAS 업로드 바이트 및 로컬 스냅샷 복사 바이트입니다. CAS Outputs는 Kura가 보고한 원격 전송만 표시합니다."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:98
-#: lib/tuist_web/controllers/integration_installation_controller.ex:87
+#: lib/tuist_web/controllers/integration_installation_controller.ex:108
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub App registered for a different GitHub host."
 msgstr "이 계정에는 이미 다른 GitHub 호스트에 등록된 GitHub 앱이 있습니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:228
-#: lib/tuist_web/components/dashboard_navigation.ex:176
+#: lib/tuist_web/components/app_layout_components.ex:234
+#: lib/tuist_web/components/dashboard_navigation.ex:178
 #: lib/tuist_web/live/toolchain_cache_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Cargo Cache"
@@ -3143,7 +3144,7 @@ msgstr "풀은 일반적으로 은행 송금을 통해 최대 1년의 계약 기
 msgid "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
 msgstr "지불한 1달러당 부여되는 크레딧: 온디맨드 분당 가격 ÷ 계약의 선불 분당 가격입니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:585
+#: lib/tuist_web/components/app_layout_components.ex:604
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #: lib/tuist_web/live/organization_ai_settings_live.ex:14
 #, elixir-autogen, elixir-format
@@ -3180,18 +3181,18 @@ msgstr "로그인 제공업체를 통해 이메일 주소를 인증한 후 다�
 msgid "Your account changed while you were signing in. Please try again."
 msgstr "로그인 중에 계정 정보가 변경되었습니다. 다시 시도해 주세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:154
-#: lib/tuist_web/components/dashboard_navigation.ex:163
+#: lib/tuist_web/components/app_layout_components.ex:151
+#: lib/tuist_web/components/dashboard_navigation.ex:159
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "테스트 선택"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:55
+#: lib/tuist_web/components/dashboard_navigation.ex:56
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "로그"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:56
+#: lib/tuist_web/components/dashboard_navigation.ex:57
 #, elixir-autogen, elixir-format
 msgid "Traces"
 msgstr "추적"
@@ -3206,48 +3207,48 @@ msgstr "Tuist는 엔지니어링 팀과 코딩 에이전트를 위한 빌드 플
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Disk is budgeted per sandbox node, not per account."
 msgstr "샌드박스 제한은 CI와 독립적입니다. 샌드박스 생성, 재개 및 실행은 CPU 및 메모리 제한에 포함됩니다. 디스크는 계정별가 아닌 샌드박스 노드별로 할당됩니다."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:109
+#: lib/tuist_web/components/dashboard_navigation.ex:105
 #, elixir-autogen, elixir-format
 msgid "Account AI"
 msgstr "계정 AI"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:102
+#: lib/tuist_web/components/dashboard_navigation.ex:98
 #, elixir-autogen, elixir-format
 msgid "Account Authentication"
 msgstr "계정 인증"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:95
+#: lib/tuist_web/components/dashboard_navigation.ex:91
 #, elixir-autogen, elixir-format
 msgid "Account Integrations"
 msgstr "계정 통합"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:82
+#: lib/tuist_web/components/dashboard_navigation.ex:78
 #, elixir-autogen, elixir-format
 msgid "Account Settings"
 msgstr "계정 설정"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:89
+#: lib/tuist_web/components/dashboard_navigation.ex:85
 #, elixir-autogen, elixir-format
 msgid "Account Tokens"
 msgstr "계정 토큰"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:80
+#: lib/tuist_web/components/dashboard_navigation.ex:76
 #, elixir-autogen, elixir-format
 msgid "Account: %{name}"
 msgstr "계정: %{name}"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:297
+#: lib/tuist_web/components/dashboard_navigation.ex:300
 #: lib/tuist_web/controllers/dashboard_search_controller.ex:138
 #, elixir-autogen, elixir-format
 msgid "App previews"
 msgstr "앱 미리보기"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:298
+#: lib/tuist_web/components/dashboard_navigation.ex:301
 #, elixir-autogen, elixir-format
 msgid "App size analysis"
 msgstr "앱 크기 분석"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:244
+#: lib/tuist_web/components/dashboard_navigation.ex:246
 #, elixir-autogen, elixir-format
 msgid "Automations"
 msgstr "자동화"
@@ -3257,7 +3258,7 @@ msgstr "자동화"
 msgid "Back to search"
 msgstr "검색으로 돌아가기"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:288
+#: lib/tuist_web/components/dashboard_navigation.ex:291
 #, elixir-autogen, elixir-format
 msgid "Build and test insights"
 msgstr "빌드 및 테스트 인사이트"
@@ -3267,7 +3268,7 @@ msgstr "빌드 및 테스트 인사이트"
 msgid "Builds and test runs appear when you search by ID or link, or with a filter like is:test-run."
 msgstr "ID나 링크로 검색하거나 is:test-run과 같은 필터를 사용하면 빌드와 테스트 실행이 표시됩니다."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:323
+#: lib/tuist_web/components/dashboard_navigation.ex:326
 #, elixir-autogen, elixir-format
 msgid "Bundle Settings"
 msgstr "번들 설정"
@@ -3282,32 +3283,32 @@ msgstr "검색 닫기"
 msgid "Commit SHA or prefix"
 msgstr "커밋 SHA 또는 접두사"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:299
+#: lib/tuist_web/components/dashboard_navigation.ex:302
 #, elixir-autogen, elixir-format
 msgid "Compilation cache"
 msgstr "컴파일레이션 캐시"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:292
+#: lib/tuist_web/components/dashboard_navigation.ex:295
 #, elixir-autogen, elixir-format
 msgid "Configure app bundle analysis"
 msgstr "앱 번들 분석 구성"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:291
+#: lib/tuist_web/components/dashboard_navigation.ex:294
 #, elixir-autogen, elixir-format
 msgid "Configure automated project workflows"
 msgstr "자동화된 프로젝트 워크플로우 구성"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:290
+#: lib/tuist_web/components/dashboard_navigation.ex:293
 #, elixir-autogen, elixir-format
 msgid "Configure project notifications"
 msgstr "프로젝트 알림 구성"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:97
+#: lib/tuist_web/components/dashboard_navigation.ex:93
 #, elixir-autogen, elixir-format
 msgid "Connect repositories and CI providers"
 msgstr "저장소 및 CI 제공업체 연결"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:289
+#: lib/tuist_web/components/dashboard_navigation.ex:292
 #, elixir-autogen, elixir-format
 msgid "Connect this project to a repository"
 msgstr "이 프로젝트를 저장소에 연결"
@@ -3332,17 +3333,17 @@ msgstr "Git 브랜치"
 msgid "Help"
 msgstr "도움말"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:111
+#: lib/tuist_web/components/dashboard_navigation.ex:107
 #, elixir-autogen, elixir-format
 msgid "Manage AI subscriptions and routing"
 msgstr "AI 구독 및 라우팅 관리"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:104
+#: lib/tuist_web/components/dashboard_navigation.ex:100
 #, elixir-autogen, elixir-format
 msgid "Manage SSO, SCIM and sign-in security"
 msgstr "SSO, SCIM 및 로그인 보안 관리"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:91
+#: lib/tuist_web/components/dashboard_navigation.ex:87
 #, elixir-autogen, elixir-format
 msgid "Manage account API keys"
 msgstr "계정 API 키 관리"
@@ -3367,7 +3368,7 @@ msgstr "“%{query}”에 대한 결과 없음"
 msgid "No results."
 msgstr "결과가 없습니다."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:243
+#: lib/tuist_web/components/dashboard_navigation.ex:245
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr "알림"
@@ -3382,17 +3383,17 @@ msgstr "%{page} 열기…"
 msgid "Pages"
 msgstr "페이지"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:317
+#: lib/tuist_web/components/dashboard_navigation.ex:320
 #, elixir-autogen, elixir-format
 msgid "Project Automations"
 msgstr "프로젝트 자동화"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:309
+#: lib/tuist_web/components/dashboard_navigation.ex:312
 #, elixir-autogen, elixir-format
 msgid "Project Integrations"
 msgstr "프로젝트 통합"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:311
+#: lib/tuist_web/components/dashboard_navigation.ex:314
 #, elixir-autogen, elixir-format
 msgid "Project Notifications"
 msgstr "프로젝트 알림"
@@ -3402,7 +3403,7 @@ msgstr "프로젝트 알림"
 msgid "Project name"
 msgstr "프로젝트 이름"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:293
+#: lib/tuist_web/components/dashboard_navigation.ex:296
 #, elixir-autogen, elixir-format
 msgid "Project settings"
 msgstr "프로젝트 설정"
@@ -3437,7 +3438,7 @@ msgstr "실행 결과"
 msgid "Search"
 msgstr "검색"
 
-#: lib/tuist_web/components/app_layout_components.ex:761
+#: lib/tuist_web/components/app_layout_components.ex:780
 #: lib/tuist_web/components/dashboard_search.ex:12
 #: lib/tuist_web/components/dashboard_search.ex:134
 #: lib/tuist_web/components/dashboard_search.ex:150
@@ -3489,3 +3490,10 @@ msgstr "결과 유형"
 #, elixir-autogen, elixir-format
 msgid "to close"
 msgstr "닫기"
+
+#: lib/tuist_web/components/app_layout_components.ex:225
+#: lib/tuist_web/components/dashboard_navigation.ex:173
+#: lib/tuist_web/live/remote_execution_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "Remote execution"
+msgstr "원격 실행"

@@ -105,6 +105,7 @@ msgstr "კავშირი წარმატებით დამყარ�
 msgid "Contact us"
 msgstr "დაგვიკავშირდით"
 
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:26
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:119
 #: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
@@ -572,7 +573,8 @@ msgstr "უკვე დაკავშირებულია"
 #: lib/tuist_web/components/user_security.ex:225
 #: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:38
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:34
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
@@ -618,6 +620,7 @@ msgid "Sign in with single sign-on again to link your account."
 msgstr "ხელახლა შედით ერთიანი შესვლის საშუალებით, რათა დააკავშიროთ თქვენი ანგარიში."
 
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:15
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
@@ -702,27 +705,27 @@ msgstr "Cargo-ს გამოყენებით"
 msgid "Choose an organization"
 msgstr "აირჩიეთ ორგანიზაცია"
 
-#: lib/tuist_web/controllers/integration_installation_controller.ex:53
+#: lib/tuist_web/controllers/integration_installation_controller.ex:93
 #, elixir-autogen, elixir-format
 msgid "Choose an organization · Tuist"
 msgstr "აირჩიეთ ორგანიზაცია · Tuist"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:27
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr "ორგანიზაცია"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:28
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Personal account"
 msgstr "პირადი ანგარიში"
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:12
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Select the Tuist organization to connect to %{provider}."
 msgstr "აირჩიეთ Tuist-ის ორგანიზაცია %{provider}-თან დასაკავშირებლად."
 
-#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
+#: lib/tuist_web/live/integration_installation_accounts_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
 msgstr "ინტეგრაციის დასაკავშირებლად საჭიროა ადმინისტრატორის წვდომა."
@@ -882,7 +885,7 @@ msgstr "პასკეის ვერიფიკაცია ვერ მო
 msgid "This passkey is already registered."
 msgstr "ეს პასკეი უკვე რეგისტრირებულია."
 
-#: lib/tuist_web/authentication.ex:837
+#: lib/tuist_web/authentication.ex:839
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "თქვენს თითოეულ ორგანიზაციას საჭიროებს საკუთარ ერთჯერად შესვლას (SSO), ამიტომ ეს სესია ვერ შეძლებს Tuist CLI-ში, აპლიკაციაში ან MCP კლიენტებში შესვლას. დახმარებისთვის მიმართეთ ორგანიზაციის ადმინისტრატორს."
@@ -1341,3 +1344,43 @@ msgstr "ხელახლა გენერირება"
 #, elixir-autogen, elixir-format
 msgid "Manage 2FA"
 msgstr "2FA-ის მართვა"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "%{client} will be able to use your Tuist account as you, including your threads and AI subscriptions."
+msgstr "%{client}-ს შეეძლება გამოიყენოს თქვენი Tuist ანგარიში თქვენს სახელით, მათ შორის თქვენი თრედები და AI გამოწერები."
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just started signing in to %{client} yourself."
+msgstr "გააგრძელეთ მხოლოდ მაშინ, თუ თავად ახლა დაიწყეთ %{client}-ში შესვლა."
+
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:146
+#, elixir-autogen, elixir-format
+msgid "Sign in to %{client} · Tuist"
+msgstr "შესვლა %{client}-ში · Tuist"
+
+#: lib/tuist_web/controllers/oauth/authorize_html/consent.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Sign in to %{client}?"
+msgstr "შედიხართ %{client}-ში?"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Create an organization"
+msgstr "ორგანიზაციის შექმნა"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Don't see your organization?"
+msgstr "არ ჩანს თქვენი ორგანიზაცია?"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Select the Tuist organization to connect to the %{github_organization} GitHub organization."
+msgstr "აირჩიეთ Tuist-ის ორგანიზაცია, რომელიც დაუკავშირდება %{github_organization} GitHub-ის ორგანიზაციას."
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Only organizations you administer are listed. Create one, or ask an admin to promote you."
+msgstr "ჩამოთვლილია მხოლოდ ის ორგანიზაციები, რომლებსაც თქვენ ადმინისტრირებთ. შექმენით ახალი ან სთხოვეთ ადმინისტრატორს, რომ გაგიზარდოთ უფლებები."

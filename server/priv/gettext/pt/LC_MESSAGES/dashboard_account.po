@@ -11,7 +11,7 @@
 msgid ""
 msgstr "Language: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/tuist/billing.ex:73
+#: lib/tuist/billing.ex:75
 #: lib/tuist_web/live/billing_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "$0"
@@ -44,14 +44,14 @@ msgstr "Adicionar método de pagamento"
 msgid "Admin"
 msgstr "Admin"
 
-#: lib/tuist/billing.ex:51
+#: lib/tuist/billing.ex:53
 #: lib/tuist_web/live/billing_live.ex:425
 #: lib/tuist_web/live/billing_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
-#: lib/tuist/billing.ex:60
+#: lib/tuist/billing.ex:62
 #: lib/tuist_web/live/billing_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
@@ -105,7 +105,8 @@ msgstr "E-mail de faturamento"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1057
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
-#: lib/tuist_web/live/create_organization_live.ex:79
+#: lib/tuist_web/live/create_organization_live.ex:84
+#: lib/tuist_web/live/create_organization_live.ex:90
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
@@ -134,7 +135,7 @@ msgstr "Altere sua assinatura para atender às suas necessidades."
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr "Escolha onde seus artefatos, como binários do cache de módulos, são armazenados para conformidade legal."
 
-#: lib/tuist/billing.ex:61
+#: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format
 msgid "Community support"
 msgstr "Suporte da comunidade"
@@ -164,13 +165,13 @@ msgstr "Confirme seu e-mail"
 msgid "Confirmation instructions"
 msgstr "Instruções de confirmação"
 
-#: lib/tuist/billing.ex:93
+#: lib/tuist/billing.ex:95
 #: lib/tuist_web/live/billing_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr "Fale com o time comercial"
 
-#: lib/tuist_web/live/create_organization_live.ex:43
+#: lib/tuist_web/live/create_organization_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr "Criar organização"
@@ -180,7 +181,7 @@ msgstr "Criar organização"
 msgid "Create your plan or self-host your instance"
 msgstr "Crie seu plano ou hospede sua própria instância"
 
-#: lib/tuist/billing.ex:91
+#: lib/tuist/billing.ex:93
 #: lib/tuist_web/live/billing_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
@@ -193,7 +194,7 @@ msgstr "Crie seu plano ou hospede sua própria instância."
 msgid "Current plan"
 msgstr "Plano atual"
 
-#: lib/tuist/billing.ex:92
+#: lib/tuist/billing.ex:94
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:247
@@ -202,7 +203,7 @@ msgstr "Plano atual"
 msgid "Custom"
 msgstr "Personalizado"
 
-#: lib/tuist/billing.ex:95
+#: lib/tuist/billing.ex:97
 #: lib/tuist_web/live/billing_live.ex:485
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
@@ -354,7 +355,7 @@ msgstr "Digite o nome desta organização para confirmar"
 msgid "Enter your username to confirm"
 msgstr "Digite seu nome de usuário para confirmar"
 
-#: lib/tuist/billing.ex:89
+#: lib/tuist/billing.ex:91
 #: lib/tuist_web/live/billing_live.ex:481
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
@@ -366,7 +367,7 @@ msgstr "Enterprise"
 msgid "Europe"
 msgstr "Europa"
 
-#: lib/tuist/billing.ex:54
+#: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:427
 #: lib/tuist_web/live/billing_live.html.heex:178
 #: lib/tuist_web/live/billing_live.html.heex:179
@@ -384,7 +385,7 @@ msgstr "Limite do plano gratuito excedido"
 msgid "Free under tier limits"
 msgstr "Dentro dos limites do plano gratuito"
 
-#: lib/tuist/billing.ex:77
+#: lib/tuist/billing.ex:79
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
 msgstr "Preço base generoso"
@@ -394,7 +395,7 @@ msgstr "Preço base generoso"
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr "Preço base generoso: Não pague nada se estiver abaixo dos limites do plano gratuito"
 
-#: lib/tuist/billing.ex:57
+#: lib/tuist/billing.ex:59
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
 msgstr "Plano mensal gratuito generoso"
@@ -404,8 +405,8 @@ msgstr "Plano mensal gratuito generoso"
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr "Plano mensal gratuito generoso: Uso limitado aos limites do plano gratuito"
 
-#: lib/tuist/billing.ex:55
-#: lib/tuist/billing.ex:75
+#: lib/tuist/billing.ex:57
+#: lib/tuist/billing.ex:77
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr "Começar"
@@ -415,7 +416,7 @@ msgstr "Começar"
 msgid "Get started with no credit card required"
 msgstr "Comece sem necessidade de cartão de crédito"
 
-#: lib/tuist/billing.ex:53
+#: lib/tuist/billing.ex:55
 #: lib/tuist_web/live/billing_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
@@ -467,7 +468,7 @@ msgstr "Convidar membros"
 msgid "Invite members to your organization"
 msgstr "Convidar membros para sua organização"
 
-#: lib/tuist/billing.ex:59
+#: lib/tuist/billing.ex:61
 #, elixir-autogen, elixir-format
 msgid "Like, totally free"
 msgstr "Grátis, de verdade"
@@ -506,7 +507,7 @@ msgstr "Mais popular"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:1077
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
-#: lib/tuist_web/live/create_organization_live.ex:61
+#: lib/tuist_web/live/create_organization_live.ex:66
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:31
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
 #: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
@@ -517,7 +518,7 @@ msgstr "Mais popular"
 msgid "Name"
 msgstr "Nome"
 
-#: lib/tuist/billing.ex:65
+#: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "No credit card required"
 msgstr "Sem necessidade de cartão de crédito"
@@ -532,7 +533,7 @@ msgstr "Nenhuma convite criado"
 msgid "No members found"
 msgstr "Nenhum membro encontrado"
 
-#: lib/tuist/billing.ex:97
+#: lib/tuist/billing.ex:99
 #: lib/tuist_web/live/billing_live.ex:486
 #, elixir-autogen, elixir-format
 msgid "On-premise"
@@ -559,13 +560,13 @@ msgstr "Nome da organização"
 msgid "Passwords don't match"
 msgstr "As senhas não coincidem"
 
-#: lib/tuist/billing.ex:78
+#: lib/tuist/billing.ex:80
 #: lib/tuist_web/live/billing_live.ex:458
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr "Não pague nada se estiver abaixo dos limites do plano gratuito"
 
-#: lib/tuist/billing.ex:80
+#: lib/tuist/billing.ex:82
 #: lib/tuist_web/live/billing_live.ex:459
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
@@ -596,7 +597,7 @@ msgstr "Preço"
 msgid "Pricing details"
 msgstr "Detalhes de preços"
 
-#: lib/tuist/billing.ex:99
+#: lib/tuist/billing.ex:101
 #, elixir-autogen, elixir-format
 msgid "Priority support"
 msgstr "Suporte prioritário"
@@ -611,7 +612,7 @@ msgstr "Suporte prioritário via canal compartilhado no Slack"
 msgid "Priority support: Via shared Slack channel"
 msgstr "Suporte prioritário: via canal compartilhado no Slack"
 
-#: lib/tuist/billing.ex:70
+#: lib/tuist/billing.ex:72
 #: lib/tuist_web/live/billing_live.ex:453
 #: lib/tuist_web/live/billing_live.html.heex:171
 #, elixir-autogen, elixir-format
@@ -709,7 +710,7 @@ msgstr "Pesquisar membros..."
 msgid "Select region"
 msgstr "Selecionar região"
 
-#: lib/tuist/billing.ex:98
+#: lib/tuist/billing.ex:100
 #, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
 msgstr "Hospede sua própria instância do Tuist"
@@ -725,7 +726,7 @@ msgstr "Hospede sua própria instância do Tuist"
 msgid "Settings"
 msgstr "Configurações"
 
-#: lib/tuist/billing.ex:81
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Standard support"
 msgstr "Suporte padrão"
@@ -754,12 +755,12 @@ msgstr "Status"
 msgid "Storage region"
 msgstr "Região de armazenamento"
 
-#: lib/tuist/billing.ex:62
+#: lib/tuist/billing.ex:64
 #, elixir-autogen, elixir-format
 msgid "Support via community forum"
 msgstr "Suporte via fórum da comunidade"
 
-#: lib/tuist/billing.ex:96
+#: lib/tuist/billing.ex:98
 #, elixir-autogen, elixir-format
 msgid "Tailored agreements to meet your specific needs"
 msgstr "Acordos personalizados para atender às suas necessidades específicas"
@@ -789,7 +790,7 @@ msgid "Try changing your search term"
 msgstr "Tente alterar o termo de pesquisa"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:111
-#: lib/tuist_web/live/create_organization_live.ex:37
+#: lib/tuist_web/live/create_organization_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr "Logotipo do Tuist"
@@ -805,7 +806,7 @@ msgstr "Estados Unidos"
 msgid "Unknown"
 msgstr "Desconhecido"
 
-#: lib/tuist/billing.ex:84
+#: lib/tuist/billing.ex:86
 #, elixir-autogen, elixir-format
 msgid "Unlimited projects"
 msgstr "Projetos ilimitados"
@@ -847,7 +848,7 @@ msgstr "Atualizar plano"
 msgid "Usage"
 msgstr "Uso"
 
-#: lib/tuist/billing.ex:58
+#: lib/tuist/billing.ex:60
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
 msgstr "Uso limitado aos limites do plano gratuito"
@@ -862,7 +863,7 @@ msgstr "Detalhes de uso"
 msgid "Usage-based"
 msgstr "Baseado em uso"
 
-#: lib/tuist/billing.ex:79
+#: lib/tuist/billing.ex:81
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing"
 msgstr "Preços baseados em uso"
@@ -872,7 +873,7 @@ msgstr "Preços baseados em uso"
 msgid "Usage-based pricing after free tier"
 msgstr "Preços baseados em uso após o plano gratuito"
 
-#: lib/tuist/billing.ex:72
+#: lib/tuist/billing.ex:74
 #: lib/tuist_web/live/billing_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
@@ -901,12 +902,12 @@ msgstr "Usuário"
 msgid "Username"
 msgstr "Nome de usuário"
 
-#: lib/tuist/billing.ex:81
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
 msgstr "Via Slack e e-mail"
 
-#: lib/tuist/billing.ex:99
+#: lib/tuist/billing.ex:101
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
 msgstr "Via canal compartilhado no Slack"
@@ -957,7 +958,7 @@ msgstr "Quase pronto!"
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
 msgstr "Você excedeu a cota do plano gratuito e será cobrado pelo uso adicional."
 
-#: lib/tuist/billing.ex:74
+#: lib/tuist/billing.ex:76
 #: lib/tuist_web/live/billing_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "and up"
@@ -1165,17 +1166,17 @@ msgstr "Quando ativado, os membros da organização não poderão fazer login co
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr "Você deve se autenticar com o provedor de SSO antes de impor o uso de SSO. Faça login primeiro com seu provedor de SSO."
 
-#: lib/tuist_web/live/create_organization_live.ex:73
+#: lib/tuist_web/live/create_organization_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "Continuar"
 
-#: lib/tuist_web/live/create_organization_live.ex:45
+#: lib/tuist_web/live/create_organization_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
 msgstr "Crie uma organização para continuar. As organizações permitem agrupar projetos relacionados"
 
-#: lib/tuist_web/live/create_organization_live.ex:63
+#: lib/tuist_web/live/create_organization_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr "Qual é o nome da sua empresa ou equipe? Você pode alterar isso mais tarde nas configurações"
@@ -2107,22 +2108,22 @@ msgstr "Escrita de cache"
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
 msgstr "Escritas em cache, previews, bundles, testes, builds e execuções para jobs de CI."
 
-#: lib/tuist_web/live/account_token_helpers.ex:217
+#: lib/tuist_web/live/account_token_helpers.ex:222
 #, elixir-autogen, elixir-format
 msgid "Create and manage previews."
 msgstr "Criar e gerenciar previews."
 
-#: lib/tuist_web/live/account_token_helpers.ex:249
+#: lib/tuist_web/live/account_token_helpers.ex:254
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
 msgstr "Criar e gerenciar execuções."
 
-#: lib/tuist_web/live/account_token_helpers.ex:173
+#: lib/tuist_web/live/account_token_helpers.ex:174
 #, elixir-autogen, elixir-format
 msgid "Manage organization members and invitations."
 msgstr "Gerenciar membros da organização e convites."
 
-#: lib/tuist_web/live/account_token_helpers.ex:201
+#: lib/tuist_web/live/account_token_helpers.ex:206
 #, elixir-autogen, elixir-format
 msgid "Manage project administration data."
 msgstr "Gerenciar dados de administração do projeto."
@@ -2142,12 +2143,12 @@ msgstr "Membros escrevem"
 msgid "Presets"
 msgstr "Predefinições"
 
-#: lib/tuist_web/live/account_token_helpers.ex:147
+#: lib/tuist_web/live/account_token_helpers.ex:148
 #, elixir-autogen, elixir-format
 msgid "Previews read"
 msgstr "Leitura de Previews"
 
-#: lib/tuist_web/live/account_token_helpers.ex:148
+#: lib/tuist_web/live/account_token_helpers.ex:149
 #, elixir-autogen, elixir-format
 msgid "Previews write"
 msgstr "Escrita em Previews"
@@ -2158,112 +2159,112 @@ msgstr "Escrita em Previews"
 msgid "Project"
 msgstr "Projeto"
 
-#: lib/tuist_web/live/account_token_helpers.ex:181
+#: lib/tuist_web/live/account_token_helpers.ex:186
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
 msgstr "Publique pacotes no registro da conta."
 
-#: lib/tuist_web/live/account_token_helpers.ex:161
+#: lib/tuist_web/live/account_token_helpers.ex:162
 #, elixir-autogen, elixir-format
 msgid "Read account-level cache entries."
 msgstr "Leia entradas do cache no nível da conta."
 
-#: lib/tuist_web/live/account_token_helpers.ex:165
+#: lib/tuist_web/live/account_token_helpers.ex:166
 #, elixir-autogen, elixir-format
 msgid "Read and write account-level cache entries."
 msgstr "Ler e escrever entradas de cache no nível da conta."
 
-#: lib/tuist_web/live/account_token_helpers.ex:209
+#: lib/tuist_web/live/account_token_helpers.ex:214
 #, elixir-autogen, elixir-format
 msgid "Read and write project cache entries."
 msgstr "Ler e escrever entradas de cache do projeto."
 
-#: lib/tuist_web/live/account_token_helpers.ex:237
+#: lib/tuist_web/live/account_token_helpers.ex:242
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
 msgstr "Ler análises de builds."
 
-#: lib/tuist_web/live/account_token_helpers.ex:221
+#: lib/tuist_web/live/account_token_helpers.ex:226
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
 msgstr "Ler análises de bundles."
 
-#: lib/tuist_web/live/account_token_helpers.ex:169
+#: lib/tuist_web/live/account_token_helpers.ex:170
 #, elixir-autogen, elixir-format
 msgid "Read organization members and invitations."
 msgstr "Ler membros e convites da organização."
 
-#: lib/tuist_web/live/account_token_helpers.ex:177
+#: lib/tuist_web/live/account_token_helpers.ex:182
 #, elixir-autogen, elixir-format
 msgid "Read packages from the account registry."
 msgstr "Ler pacotes do registro da conta."
 
-#: lib/tuist_web/live/account_token_helpers.ex:213
+#: lib/tuist_web/live/account_token_helpers.ex:218
 #, elixir-autogen, elixir-format
 msgid "Read previews."
 msgstr "Ler previews."
 
-#: lib/tuist_web/live/account_token_helpers.ex:197
+#: lib/tuist_web/live/account_token_helpers.ex:202
 #, elixir-autogen, elixir-format
 msgid "Read project administration data."
 msgstr "Ler dados de administração do projeto."
 
-#: lib/tuist_web/live/account_token_helpers.ex:205
+#: lib/tuist_web/live/account_token_helpers.ex:210
 #, elixir-autogen, elixir-format
 msgid "Read project cache entries."
 msgstr "Ler entradas do cache do projeto."
 
-#: lib/tuist_web/live/account_token_helpers.ex:245
+#: lib/tuist_web/live/account_token_helpers.ex:250
 #, elixir-autogen, elixir-format
 msgid "Read runs."
 msgstr "Ler execuções."
 
-#: lib/tuist_web/live/account_token_helpers.ex:229
+#: lib/tuist_web/live/account_token_helpers.ex:234
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
 msgstr "Ler análises de testes."
 
-#: lib/tuist_web/live/account_token_helpers.ex:149
+#: lib/tuist_web/live/account_token_helpers.ex:150
 #, elixir-autogen, elixir-format
 msgid "Registry read"
 msgstr "Leitura no Registry"
 
-#: lib/tuist_web/live/account_token_helpers.ex:150
+#: lib/tuist_web/live/account_token_helpers.ex:151
 #, elixir-autogen, elixir-format
 msgid "Registry write"
 msgstr "Escrita no Registry"
 
-#: lib/tuist_web/live/account_token_helpers.ex:151
+#: lib/tuist_web/live/account_token_helpers.ex:152
 #, elixir-autogen, elixir-format
 msgid "Runs read"
 msgstr "Leitura de execuções"
 
-#: lib/tuist_web/live/account_token_helpers.ex:152
+#: lib/tuist_web/live/account_token_helpers.ex:153
 #, elixir-autogen, elixir-format
 msgid "Runs write"
 msgstr "Escrita de execuções"
 
-#: lib/tuist_web/live/account_token_helpers.ex:156
+#: lib/tuist_web/live/account_token_helpers.ex:157
 #, elixir-autogen, elixir-format
 msgid "Tests read"
 msgstr "Leitura de testes"
 
-#: lib/tuist_web/live/account_token_helpers.ex:157
+#: lib/tuist_web/live/account_token_helpers.ex:158
 #, elixir-autogen, elixir-format
 msgid "Tests write"
 msgstr "Escrita de testes"
 
-#: lib/tuist_web/live/account_token_helpers.ex:241
+#: lib/tuist_web/live/account_token_helpers.ex:246
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
 msgstr "Envie e gerencie dados de builds."
 
-#: lib/tuist_web/live/account_token_helpers.ex:225
+#: lib/tuist_web/live/account_token_helpers.ex:230
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
 msgstr "Envie e gerencie dados de bundles."
 
-#: lib/tuist_web/live/account_token_helpers.ex:233
+#: lib/tuist_web/live/account_token_helpers.ex:238
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
 msgstr "Envie e gerencie dados de testes."
@@ -2894,22 +2895,22 @@ msgstr "Não foi possível cobrar o pagamento da assinatura de %{account_name} e
 msgid "Your account moved to the Air plan"
 msgstr "Sua conta mudou para o plano Air"
 
-#: lib/tuist_web/live/account_token_helpers.ex:189
+#: lib/tuist_web/live/account_token_helpers.ex:194
 #, elixir-autogen, elixir-format
 msgid "Manage runner profiles and clear runner volumes."
 msgstr "Gerencie perfis de runners e limpe volumes de runners."
 
-#: lib/tuist_web/live/account_token_helpers.ex:185
+#: lib/tuist_web/live/account_token_helpers.ex:190
 #, elixir-autogen, elixir-format
 msgid "Read runner jobs, workflows, profiles, and volumes."
 msgstr "Leia jobs, fluxos de trabalho, perfis e volumes de runners."
 
-#: lib/tuist_web/live/account_token_helpers.ex:153
+#: lib/tuist_web/live/account_token_helpers.ex:154
 #, elixir-autogen, elixir-format
 msgid "Runners read"
 msgstr "Leitura de runners"
 
-#: lib/tuist_web/live/account_token_helpers.ex:154
+#: lib/tuist_web/live/account_token_helpers.ex:155
 #, elixir-autogen, elixir-format
 msgid "Runners write"
 msgstr "Escrita de runners"
@@ -3520,7 +3521,7 @@ msgstr "Escolha o modelo para os fluxos de trabalho de IA da organização. Nenh
 msgid "Connect AI providers using your organization's API keys. Each provider can be used by multiple models."
 msgstr "Conecte provedores de IA usando as chaves de API da sua organização. Cada provedor pode ser usado por vários modelos."
 
-#: lib/tuist_web/live/account_token_helpers.ex:193
+#: lib/tuist_web/live/account_token_helpers.ex:198
 #, elixir-autogen, elixir-format
 msgid "Create sandboxes and run commands in them."
 msgstr "Crie sandboxes e execute comandos nelas."
@@ -3609,7 +3610,7 @@ msgstr "Remover provedor"
 msgid "Requests already sent may finish."
 msgstr "Requisições já enviadas podem terminar."
 
-#: lib/tuist_web/live/account_token_helpers.ex:155
+#: lib/tuist_web/live/account_token_helpers.ex:156
 #, elixir-autogen, elixir-format
 msgid "Sandboxes write"
 msgstr "Sandboxes escrevem"
@@ -3693,3 +3694,13 @@ msgstr "Rotacione as credenciais do Tuist de %{account_name}"
 #, elixir-autogen, elixir-format
 msgid "We revoked the Tuist credentials of %{account_name}"
 msgstr "Revogamos as credenciais do Tuist de %{account_name}"
+
+#: lib/tuist_web/live/account_token_helpers.ex:147
+#, elixir-autogen, elixir-format
+msgid "Pulse write"
+msgstr "Escrita do Pulse"
+
+#: lib/tuist_web/live/account_token_helpers.ex:178
+#, elixir-autogen, elixir-format
+msgid "Send errors to the account's Pulse with a Sentry SDK."
+msgstr "Envie erros para o Pulse da conta com um SDK do Sentry."
