@@ -1694,7 +1694,7 @@ rackFleet:
   # than spilling over.
   #
   # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the fleet allocator. A 16 vCPU
+  # and the `ber1` smoke pool share through the compute allocator. A 16 vCPU
   # profile's guest takes a whole host, so that shape's ceiling is the host
   # count.
   #
@@ -2239,7 +2239,7 @@ runnersFleet:
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
   # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the fleet's GUEST-slot budget
+  # compute allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; `maxReplicas: 16` lets either pool absorb the whole
@@ -2334,7 +2334,7 @@ runnersFleet:
   # and Helm never warns.
   #
   # It autoscales from zero so it shares the rack's guest slots with the
-  # catalog's rack pools through the fleet allocator, which only counts
+  # catalog's rack pools through the compute allocator, which only counts
   # autoscaling pools: a fixed count would hold slots the allocator believes
   # free. Thirty-two is every guest slot in the rack, so a load run still reaches
   # all of them when nothing else is running.

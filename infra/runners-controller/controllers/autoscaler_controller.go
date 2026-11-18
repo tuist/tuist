@@ -105,7 +105,7 @@ type AutoscalerReconciler struct {
 	Now func() time.Time
 
 	// MemReserveFraction is the share of a Linux node pool's
-	// allocatable memory the fleet allocator may hand to runner Pods.
+	// allocatable memory the compute allocator may hand to runner Pods.
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
@@ -272,7 +272,7 @@ func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
-// per-pool policy. Everything else runs through the fleet allocator,
+// per-pool policy. Everything else runs through the compute allocator,
 // which apportions a shared capacity budget across sibling pools and
 // squeezes idle pools' speculative warm buffers before another pool's
 // real queued work. The budget unit depends on OS:
@@ -330,7 +330,7 @@ type fleetMember struct {
 	allocated int32
 }
 
-// allocate runs the shared-capacity fleet allocator for `pool`,
+// allocate runs the shared-capacity compute allocator for `pool`,
 // returning the (possibly squeezed) replica target. Fleet-view read
 // failures fall back to the per-pool target, while an unavailable
 // per-Pod scheduling cost leaves replicas unchanged.
@@ -361,10 +361,10 @@ func (r *AutoscalerReconciler) allocate(
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
 	// almost always a transient empty node-list read (informer cache
 	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
-	// capacity" state. Routing it into AllocateFleet would squeeze every
+	// capacity" state. Routing it into AllocateCompute would squeeze every
 	// pool's floor to zero and reap their warm Pods fleet-wide, the exact
 	// blip-driven mass scale-down this per-pool fallback exists to
-	// prevent. AllocateFleet's own zero-capacity contract (see its unit
+	// prevent. AllocateCompute's own zero-capacity contract (see its unit
 	// test) is therefore never exercised from here.
 	capacity, err := r.fleetCapacity(ctx, pool)
 	if err != nil || capacity <= 0 {
@@ -383,7 +383,7 @@ func (r *AutoscalerReconciler) allocate(
 			"fleetSelector", pool.Spec.FleetSelector)
 	}
 
-	alloc := scaling.AllocateFleet(demands, capacity, shapeCaps)
+	alloc := scaling.AllocateCompute(demands, capacity, shapeCaps)
 	v, ok := alloc[pool.Name]
 	if !ok {
 		return perPool, nil
@@ -554,7 +554,7 @@ func nodeSeatsForShape(node *corev1.Node, shape podShape) int32 {
 }
 
 // fleetCapacity returns the shared budget `pool` competes for with
-// its siblings, in the same unit AllocateFleet expects PerPodCost to
+// its siblings, in the same unit AllocateCompute expects PerPodCost to
 // be expressed in — allocatable memory bytes, for both OSes. An
 // unrecognised OS returns (0, nil), which trips the per-pool fallback
 // in desiredForPool without an error log — pools without a known OS
