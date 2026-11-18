@@ -842,6 +842,14 @@ server:
       enabled: false
       item: CHATGPT_OAUTH
       field: client_id
+    # Claude linked billing (Tuist.Accounts.ClaudeLinkedBilling): the
+    # Claude Console OAuth app and Workload Identity Federation ids, one
+    # text field each. Enable only after the item exists with all six
+    # fields in the environment's vault; a missing item fails the
+    # pre-upgrade ExternalSecret and blocks the deploy.
+    claudeLinkedBilling:
+      enabled: false
+      item: ANTHROPIC_LINKED_BILLING
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:

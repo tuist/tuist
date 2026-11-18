@@ -116,6 +116,10 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    # Only production: the Claude Console's federation trusts the
+    # https://tuist.dev/oidc/claude-linked-billing issuer alone.
+    claudeLinkedBilling:
+      enabled: true
     apns:
       enabled: true
     fcm:
