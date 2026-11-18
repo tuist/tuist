@@ -4,7 +4,7 @@
       "builds": { "text": "ბილდები" },
       "tests": { "text": "ტესტები" },
       "compute": { "text": "გამოთვლები" },
-      "bundles": { "text": "ბანდლები" },
+      "bundles": { "text": "პაკეტები" },
       "other-features": { "text": "სხვა ფუნქციები" }
     },
     "items": {
@@ -26,26 +26,27 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir ქეში" },
-      "entire": { "text": "მთლიანი" },
+      "entire": { "text": "სრული" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "implicit-dependencies": { "text": "იგივე დამოკიდებულებები" },
+      "images": { "text": "გამოსახულებები" },
+      "implicit-dependencies": { "text": "იგივური დამოკიდებულებები" },
       "iphone-app": { "text": "iPhone აპლიკაცია" },
       "macos-app": { "text": "macOS აპლიკაცია" },
       "new-project": { "text": "ახალი პროექტი" },
-      "once": { "text": "Once" },
+      "once": { "text": "ერთხელ" },
       "once-cache": { "text": "Once ქეში" },
       "once-project": { "text": "Once პროექტი" },
       "once-remote-execution": { "text": "Once დისტანციური შესრულება" },
-      "origin": { "text": "Origin" },
+      "origin": { "text": "ორიგინალი" },
       "profiles": { "text": "პროფილები" },
       "project-description": { "text": "პროექტის აღწერა" },
-      "release": { "text": "რელიზი" },
-      "release-calendar": { "text": "რელიზების კალენდარი" },
-      "release-channels": { "text": "რელიზების არხები" },
-      "run-previews": { "text": "პრივიუების გაშვება" },
+      "release": { "text": "გამოცემა" },
+      "release-calendar": { "text": "გამოცემების კალენდარი" },
+      "release-channels": { "text": "გამოცემის არხები" },
+      "run-previews": { "text": "პრევიუების გაშვება" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust ქეში" },
       "rust-project": { "text": "Rust პროექტი" },
@@ -74,11 +75,11 @@
     }
   },
   "search": {
-    "placeholder": "ძიება",
+    "placeholder": "ძებნა",
     "translations": {
       "button": {
-        "button-text": "დოკუმენტაციის ძიება",
-        "button-aria-label": "დოკუმენტაციის ძიება"
+        "button-text": "დოკუმენტაციის ძებნა",
+        "button-aria-label": "დოკუმენტაციის ძებნა"
       },
       "modal": {
         "search-box": {
@@ -88,22 +89,22 @@
           "cancel-button-aria-label": "გაუქმება"
         },
         "start-screen": {
-          "recent-searches-title": "ძიების ისტორია",
-          "no-recent-searches-text": "ძიების ისტორია არ არის",
-          "save-recent-search-button-title": "შეინახეთ ძიების ისტორიაში",
-          "remove-recent-search-button-title": "წაშალეთ ძიების ისტორიიდან",
+          "recent-searches-title": "ძებნის ისტორია",
+          "no-recent-searches-text": "ძებნის ისტორია არ არის",
+          "save-recent-search-button-title": "შეინახეთ ძებნის ისტორიაში",
+          "remove-recent-search-button-title": "წაშალეთ ძებნის ისტორიიდან",
           "favorite-searches-title": "რჩეულები",
           "remove-favorite-search-button-title": "წაშალეთ რჩეულებიდან"
         },
         "error-screen": {
-          "title-text": "შედეგების მიღება შეუძლებელია",
-          "help-text": "შეიძლება საჭირო იყოს ქსელის კავშირის შემოწმება"
+          "title-text": "შედეგების მიღება ვერ ხერხდება",
+          "help-text": "შეიძლება საჭირო იყოს ქსელთან კავშირის შემოწმება"
         },
         "footer": {
           "select-text": "არჩევა",
           "navigate-text": "ნავიგაცია",
           "close-text": "დახურვა",
-          "search-by-text": "ძიების პროვაიდერი"
+          "search-by-text": "ძებნის პროვაიდერი"
         },
         "no-results-screen": {
           "no-results-text": "შესაბამისი შედეგები ვერ მოიძებნა",
@@ -131,7 +132,7 @@
       "text": "რესურსები",
       "items": {
         "references": {
-          "text": "ცნობარები"
+          "text": "მითითებები"
         },
         "contributors": {
           "text": "ავტორები"
@@ -149,13 +150,13 @@
         "cli": {
           "items": {
             "debugging": {
-              "text": "დიბაგინგი"
+              "text": "გამართვა"
             },
             "directories": {
               "text": "დირექტორიები"
             },
             "shell-completions": {
-              "text": "Shell-ის ავტოშევსება"
+              "text": "Shell-ის დასრულებები"
             }
           }
         },
@@ -165,7 +166,7 @@
       }
     },
     "references": {
-      "text": "ცნობარები",
+      "text": "მითითებები",
       "items": {
         "xcode": {
           "text": "Xcode",
@@ -240,13 +241,13 @@
           "text": "პრინციპები"
         },
         "debugging": {
-          "text": "დიბაგინგი"
+          "text": "გამართვა"
         },
         "translate": {
           "text": "ენები"
         },
         "releases": {
-          "text": "რელიზები"
+          "text": "გამოცემები"
         },
         "cli": {
           "text": "CLI",
@@ -270,7 +271,7 @@
               "text": "ანგარიშები და პროექტები"
             },
             "authentication": {
-              "text": "ავთენტიკაცია"
+              "text": "აუთენტიფიკაცია"
             },
             "integrations": {
               "text": "ინტეგრაციები"
@@ -278,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "ადგილობრივი განლაგება",
+          "text": "ლოკალური განლაგება",
           "items": {
             "install": {
               "text": "ინსტალაცია"
@@ -381,7 +382,7 @@
                       "text": "ახალი პროექტის შექმნა"
                     },
                     "swift-package": {
-                      "text": "ცდა Swift Package-ით"
+                      "text": "სცადეთ Swift პაკეტით"
                     },
                     "migrate": {
                       "text": "მიგრაცია",
@@ -436,7 +437,7 @@
                   "text": "ინსპექცია",
                   "items": {
                     "implicit-imports": {
-                      "text": "იგივე იმპორტები"
+                      "text": "იგივური იმპორტები"
                     }
                   }
                 },
@@ -447,7 +448,7 @@
                   "text": "მოდულური არქიტექტურა"
                 },
                 "metadata-tags": {
-                  "text": "მეტამონაცემების თეგები"
+                  "text": "მეტამონაცემების ტეგები"
                 },
                 "best-practices": {
                   "text": "საუკეთესო პრაქტიკა"
@@ -545,7 +546,7 @@
               }
             },
             "runners": {
-              "text": "რანერები",
+              "text": "შემსრულებლები",
               "items": {
                 "ci-providers": {
                   "text": "CI პროვაიდერები"
@@ -581,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git პლატფორმები",
+              "text": "Git ფორჯები",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -597,7 +598,7 @@
               "text": "ანგარიშები და პროექტები"
             },
             "authentication": {
-              "text": "ავთენტიკაცია"
+              "text": "აუთენტიფიკაცია"
             },
             "network": {
               "text": "ქსელი"
@@ -622,7 +623,7 @@
           "text": "გაზიარება",
           "items": {
             "previews": {
-              "text": "პრივიუები"
+              "text": "პრევიუები"
             }
           }
         }

@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "이미지" },
       "implicit-dependencies": { "text": "암시적 의존성" },
       "iphone-app": { "text": "iPhone 앱" },
       "macos-app": { "text": "macOS 앱" },
@@ -91,9 +92,9 @@
           "recent-searches-title": "검색 기록",
           "no-recent-searches-text": "검색 기록 없음",
           "save-recent-search-button-title": "검색 기록에 저장",
-          "remove-recent-search-button-title": "검색 기록에서 삭제",
+          "remove-recent-search-button-title": "검색 기록에서 제거",
           "favorite-searches-title": "즐겨찾기",
-          "remove-favorite-search-button-title": "즐겨찾기에서 삭제"
+          "remove-favorite-search-button-title": "즐겨찾기에서 제거"
         },
         "error-screen": {
           "title-text": "결과를 가져올 수 없습니다",
@@ -101,7 +102,7 @@
         },
         "footer": {
           "select-text": "선택",
-          "navigate-text": "탐색",
+          "navigate-text": "이동",
           "close-text": "닫기",
           "search-by-text": "검색 제공자"
         },
@@ -137,7 +138,7 @@
           "text": "기여자"
         },
         "changelog": {
-          "text": "변경 내역"
+          "text": "변경 로그"
         }
       }
     }
@@ -264,7 +265,7 @@
           "text": "소개",
           "items": {
             "why-server": {
-              "text": "왜 서버인가?"
+              "text": "왜 서버인가요?"
             },
             "accounts-and-projects": {
               "text": "계정 및 프로젝트"
@@ -381,7 +382,7 @@
                       "text": "새 프로젝트 만들기"
                     },
                     "swift-package": {
-                      "text": "Swift Package로 시도하기"
+                      "text": "Swift 패키지로 체험하기"
                     },
                     "migrate": {
                       "text": "마이그레이션",

@@ -131,6 +131,11 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
     link="/guides/features/runners/profiles"
 />
   <.home_card
+    title="Images"
+    details="See what's preinstalled on macOS and Linux runners: Xcode, simulators, the Metal toolchain, Docker, the Android SDK and more."
+    link="/guides/features/runners/images"
+/>
+  <.home_card
     title="Cache volumes"
     details="Keep the Xcode, module and Gradle caches and any other directory between jobs, with a private writable copy for each run."
     link="/guides/features/runners/cache-volumes"

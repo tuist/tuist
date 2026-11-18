@@ -7,8 +7,10 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
   alias Tuist.Environment
   alias Tuist.Ops.AccountPlanChange
   alias Tuist.Ops.RunnerConcurrencyLimitChange
+  alias Tuist.Ops.RunnerTrialChange
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistWeb.RateLimit
@@ -25,6 +27,7 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert conn |> put("/api/internal/atlas/accounts/1/runner-concurrency-limits", %{}) |> json_response(401)
     assert conn |> get("/api/internal/atlas/accounts/1/runner-billing") |> json_response(401)
     assert conn |> put("/api/internal/atlas/accounts/1/runner-billing", %{}) |> json_response(401)
+    assert conn |> put("/api/internal/atlas/accounts/1/runner-trial", %{}) |> json_response(401)
   end
 
   test "runner billing reads use workload authentication and invalid activations do not mutate the account", %{conn: conn} do
@@ -444,6 +447,154 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
 
       assert Repo.aggregate(AccountPlanChange, :count) == 0
     end
+  end
+
+  describe "runner trial" do
+    test "starts a trial, records the change once, replays it and refuses to restart it", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture(customer_id: nil, preload: [:account]).account
+      request = trial_request(conn, account.id, %{"operation" => "start"})
+
+      expect(Billing, :sync_runner_subscription_items, fn synced ->
+        assert Trials.on_trial?(synced)
+        {:ok, :no_subscription}
+      end)
+
+      result = conn |> authed() |> put(trial_path(account.id), request) |> json_response(200)
+
+      assert %{"runner_trial" => %{"active" => true, "started_at" => started_at, "ended_at" => nil}} = result
+      assert started_at
+      refute result["revision"] == request["expected_revision"]
+      # The returned state is what the next read sees, so its revision is current.
+      assert result ==
+               conn |> authed() |> get("/api/internal/atlas/accounts/#{account.id}/runner-billing") |> json_response(200)
+
+      change = Repo.get_by!(RunnerTrialChange, change_id: request["change_id"])
+      assert {change.account_id, change.request} == {account.id, request}
+      assert change.principal == %{"namespace" => "atlas-production", "name" => "atlas"}
+      assert change.before["runner_trial"]["active"] == false
+      assert change.after == result
+
+      # An identical retry replays without touching Stripe; reusing the ID for another request conflicts.
+      assert ^result = conn |> authed() |> put(trial_path(account.id), request) |> json_response(200)
+
+      assert %{"error" => "change_id_conflict"} =
+               conn
+               |> authed()
+               |> put(trial_path(account.id), %{request | "reason" => "Something else"})
+               |> json_response(409)
+
+      again = trial_request(conn, account.id, %{"operation" => "start"})
+
+      assert %{"error" => "already_on_trial"} =
+               conn |> authed() |> put(trial_path(account.id), again) |> json_response(409)
+
+      assert Repo.aggregate(RunnerTrialChange, :count) == 1
+    end
+
+    test "cancelling an Air account's trial needs confirm_air_limits", %{conn: conn} do
+      account = trial_account()
+      request = trial_request(conn, account.id, %{"operation" => "cancel"})
+      stub(Billing, :sync_runner_subscription_items, fn _ -> {:ok, :no_subscription} end)
+
+      assert %{"error" => "paid_plan_required"} =
+               conn |> authed() |> put(trial_path(account.id), request) |> json_response(409)
+
+      assert Trials.on_trial?(Repo.reload!(account))
+      assert Repo.aggregate(RunnerTrialChange, :count) == 0
+
+      confirmed = Map.put(request, "confirm_air_limits", true)
+
+      assert %{"runner_trial" => %{"active" => false, "ended_at" => ended_at}} =
+               conn |> authed() |> put(trial_path(account.id), confirmed) |> json_response(200)
+
+      assert ended_at
+
+      again = trial_request(conn, account.id, %{"operation" => "cancel", "confirm_air_limits" => true})
+
+      assert %{"error" => "not_on_trial"} =
+               conn |> authed() |> put(trial_path(account.id), again) |> json_response(409)
+    end
+
+    test "cancels a paid account's trial, and a Stripe failure leaves the trial and audit untouched", %{conn: conn} do
+      account = trial_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      request = trial_request(conn, account.id, %{"operation" => "cancel"})
+
+      expect(Billing, :sync_runner_subscription_items, fn synced ->
+        refute Trials.on_trial?(synced)
+        {:error, %Stripe.Error{source: :stripe, code: :api_error, message: "down"}}
+      end)
+
+      assert %{"error" => "stripe_request_failed"} =
+               conn |> authed() |> put(trial_path(account.id), request) |> json_response(502)
+
+      assert Trials.on_trial?(Repo.reload!(account))
+      assert Repo.aggregate(RunnerTrialChange, :count) == 0
+
+      expect(Billing, :sync_runner_subscription_items, fn _ -> {:ok, :updated} end)
+
+      assert %{"runner_trial" => %{"active" => false}} =
+               conn |> authed() |> put(trial_path(account.id), request) |> json_response(200)
+
+      assert Repo.aggregate(RunnerTrialChange, :count) == 1
+    end
+
+    test "malformed or forged requests never change the trial", %{conn: conn} do
+      account = trial_account()
+      reject(&Billing.sync_runner_subscription_items/1)
+
+      for attrs <- [
+            %{"operation" => "restart"},
+            %{"operation" => "start", "confirm_air_limits" => true},
+            %{"confirm_air_limits" => "yes"},
+            %{"reason" => " "},
+            %{"interface" => "slack"},
+            %{"actor" => %{"id" => "forged", "email" => "operator@example.com"}},
+            %{"ended_at" => "2026-01-01T00:00:00Z"}
+          ] do
+        params = trial_request(conn, account.id, Map.merge(%{"operation" => "cancel"}, attrs))
+
+        assert %{"error" => "invalid_request"} =
+                 conn |> authed() |> put(trial_path(account.id), params) |> json_response(422)
+      end
+
+      stale =
+        conn
+        |> trial_request(account.id, %{"operation" => "cancel"})
+        |> Map.put("expected_revision", String.duplicate("0", 64))
+
+      assert %{"error" => "stale_revision"} =
+               conn |> authed() |> put(trial_path(account.id), stale) |> json_response(409)
+
+      assert Trials.on_trial?(Repo.reload!(account))
+      assert Repo.aggregate(RunnerTrialChange, :count) == 0
+    end
+  end
+
+  defp trial_account do
+    account = AccountsFixtures.organization_fixture(customer_id: nil, preload: [:account]).account
+
+    account
+    |> Ecto.Changeset.change(runner_trial_started_at: DateTime.add(DateTime.utc_now(:second), -1, :day))
+    |> Repo.update!()
+  end
+
+  defp trial_path(account_id), do: "/api/internal/atlas/accounts/#{account_id}/runner-trial"
+
+  defp trial_request(conn, account_id, attrs) do
+    path = "/api/internal/atlas/accounts/#{account_id}/runner-billing"
+    %{"revision" => revision} = conn |> authed() |> get(path) |> json_response(200)
+
+    Map.merge(
+      %{
+        "expected_revision" => revision,
+        "reason" => "Bringing the account onto runners",
+        "change_id" => Ecto.UUID.generate(),
+        "actor" => %{"id" => "273ee746-33fb-4db0-bc1d-7c3b6a602e6d", "email" => "operator@example.com"},
+        "interface" => "mcp"
+      },
+      attrs
+    )
   end
 
   defp plan_path(account_id), do: "/api/internal/atlas/accounts/#{account_id}/plan"

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "790d630b3b2603ec0901c8ce82390dbfff2c0178a7eef18eb752fefb81047663",
+  "hash": "a7aa3611da291e2a4dc89343371c7541f8b77e908fe78cb83e9f59a71bc188b7",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "18af2fcbc443917835ce9df965a9c48f4455d3945cd9c53e29ddb8a4faf20bb0"
                 },
                 "### macOS {#macos}": {
-                  "content_hash": "bff29ef5631f8490883f0dd158497bf80d7aa7b5ad535625a35c72f72cd31d3b"
+                  "content_hash": "a0bc3f69c13d17ffd0795e5cc5256fe256119da37d55bab1dd61fc89d23c01e4"
                 },
                 "Preamble": {
                   "content_hash": "dd3f74cbbdf2b795441bd0d15a37a32ae216c2edd6737cfb8492e70181ed242c"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1ab153ed94ed512ea5a9a4c8b2af2d3977fb081ec976d9b0868007c92f183fa7",
+          "hash": "1d53b23fc117e6c698e42e26088e7b0f18647020f1210e832239351373382b7b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/profiles.md",
           "metadata": {
-            "content_hash": "d8ac43566e704313b75f2845fb352b7e1ea0709535d480f66b355515c13279f0"
+            "content_hash": "d26dedfb7234d20998a9f29e7a1a3317bde613ff91fd41809734b7dfc9a47c86"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "790d630b3b2603ec0901c8ce82390dbfff2c0178a7eef18eb752fefb81047663",
+      "hash": "a7aa3611da291e2a4dc89343371c7541f8b77e908fe78cb83e9f59a71bc188b7",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/profiles.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "bff6526a867ed3e7e943f73fb25106660468ab8a9283d258e3927a0974239848",
+  "output_hash": "2def0e56504d7cda10c073d7e78ed2c6419d5aa337b645f6f20a26289cfcfd27",
   "output_path": "server/priv/docs/ka/guides/features/runners/profiles.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "84bb7d2e418aaa057973fd386cf14a9b9aa116b8",
   "source_path": "server/priv/docs/en/guides/features/runners/profiles.md",
-  "translated_at": "2026-11-06T21:23:41.334619Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-18T12:58:21.140229Z",
+  "translation_session_id": "01a1eeb4-a5e6-752f-ad14-c45bda7fd7b9"
 }

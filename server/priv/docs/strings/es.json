@@ -4,7 +4,7 @@
       "builds": { "text": "Compilaciones" },
       "tests": { "text": "Tests" },
       "compute": { "text": "Cómputo" },
-      "bundles": { "text": "Bundles" },
+      "bundles": { "text": "Paquetes" },
       "other-features": { "text": "Otras funcionalidades" }
     },
     "items": {
@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Imágenes" },
       "implicit-dependencies": { "text": "Dependencias implícitas" },
       "iphone-app": { "text": "App para iPhone" },
       "macos-app": { "text": "App para macOS" },
@@ -45,7 +46,7 @@
       "release": { "text": "Versión" },
       "release-calendar": { "text": "Calendario de versiones" },
       "release-channels": { "text": "Canales de versión" },
-      "run-previews": { "text": "Previews en ejecución" },
+      "run-previews": { "text": "Ejecutar previsualizaciones" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Caché de Rust" },
       "rust-project": { "text": "Proyecto de Rust" },
@@ -53,11 +54,11 @@
       "scim-provisioning": { "text": "Aprovisionamiento SCIM" },
       "server-api": { "text": "API del servidor" },
       "single-sign-on": { "text": "Inicio de sesión único" },
-      "supported-types": { "text": "Tipos admitidos" },
+      "supported-types": { "text": "Tipos compatibles" },
       "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "Proyecto de XcodeGen" },
       "xcodeproj-integration": { "text": "Integración con Xcodeproj" },
-      "ufeatures-architecture": { "text": "Arquitectura uFeatures" }
+      "ufeatures-architecture": { "text": "Arquitectura de uFeatures" }
     }
   },
   "aside": {
@@ -66,7 +67,7 @@
         "text": "Idiomas 🌍"
       },
       "description": {
-        "text": "Puedes ayudar a Tuist a admitir más idiomas o mejorar las guías lingüísticas de esta página."
+        "text": "Puedes ayudar a Tuist a admitir más idiomas o mejorar la guía lingüística de esta página."
       },
       "cta": {
         "text": "Contribuir"
@@ -77,8 +78,8 @@
     "placeholder": "Buscar",
     "translations": {
       "button": {
-        "button-text": "Buscar documentación",
-        "button-aria-label": "Buscar documentación"
+        "button-text": "Buscar en la documentación",
+        "button-aria-label": "Buscar en la documentación"
       },
       "modal": {
         "search-box": {
@@ -107,7 +108,7 @@
         },
         "no-results-screen": {
           "no-results-text": "No se encontraron resultados relevantes",
-          "suggested-query-text": "Prueba a buscar",
+          "suggested-query-text": "Puedes intentar buscar",
           "report-missing-results-text": "¿Crees que esta consulta debería tener resultados?",
           "report-missing-results-link-text": "Haz clic para enviar comentarios"
         }
@@ -155,7 +156,7 @@
               "text": "Directorios"
             },
             "shell-completions": {
-              "text": "Autocompletado de shell"
+              "text": "Completado de shell"
             }
           }
         },
@@ -281,7 +282,7 @@
           "text": "On-premise",
           "items": {
             "install": {
-              "text": "Instalación"
+              "text": "Instalar"
             },
             "metrics": {
               "text": "Métricas"
@@ -313,10 +314,10 @@
       "text": "Guías",
       "items": {
         "get-started": {
-          "text": "Primeros pasos",
+          "text": "Empezar",
           "items": {
             "choose-your-path": {
-              "text": "Primeros pasos"
+              "text": "Empezar"
             },
             "existing-xcode-project": {
               "text": "Proyecto de Xcode"
@@ -353,7 +354,7 @@
               "text": "Instalar Tuist"
             },
             "get-started": {
-              "text": "Primeros pasos"
+              "text": "Empezar"
             }
           }
         },
@@ -381,7 +382,7 @@
                       "text": "Crear un nuevo proyecto"
                     },
                     "swift-package": {
-                      "text": "Probar con un paquete Swift"
+                      "text": "Probar con un paquete de Swift"
                     },
                     "migrate": {
                       "text": "Migrar",
@@ -390,7 +391,7 @@
                           "text": "Un proyecto de Xcode"
                         },
                         "swift-package": {
-                          "text": "Un paquete Swift"
+                          "text": "Un paquete de Swift"
                         },
                         "xcodegen-project": {
                           "text": "Un proyecto de XcodeGen"
@@ -489,7 +490,7 @@
                   "text": "Integración basada en XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Paquete Swift"
+                  "text": "Paquete de Swift"
                 },
                 "continuous-integration": {
                   "text": "Integración continua"
@@ -581,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Forjas Git",
+              "text": "Forjas de Git",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -622,7 +623,7 @@
           "text": "Compartir",
           "items": {
             "previews": {
-              "text": "Previews"
+              "text": "Previsualizaciones"
             }
           }
         }

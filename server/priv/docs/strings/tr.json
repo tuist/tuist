@@ -14,7 +14,7 @@
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel önbelleği" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "Derle ve yayımla" },
+      "build-and-publish": { "text": "Derle ve yayınla" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Önbellek birimleri" },
       "calendar": { "text": "Takvim" },
@@ -31,11 +31,12 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "implicit-dependencies": { "text": "Örtük bağımlılıklar" },
+      "images": { "text": "İmajlar" },
+      "implicit-dependencies": { "text": "Örtülü bağımlılıklar" },
       "iphone-app": { "text": "iPhone uygulaması" },
       "macos-app": { "text": "macOS uygulaması" },
       "new-project": { "text": "Yeni proje" },
-      "once": { "text": "Bir kez" },
+      "once": { "text": "Once" },
       "once-cache": { "text": "Once önbelleği" },
       "once-project": { "text": "Once projesi" },
       "once-remote-execution": { "text": "Once uzak yürütme" },
@@ -66,7 +67,7 @@
         "text": "Diller 🌍"
       },
       "description": {
-        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfa için dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
+        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfa için dil rehberliğinin iyileştirilmesine yardımcı olabilirsiniz."
       },
       "cta": {
         "text": "Katkıda bulunun"
@@ -134,10 +135,10 @@
           "text": "Referanslar"
         },
         "contributors": {
-          "text": "Katkıda bulunanlar"
+          "text": "Katkıda Bulunanlar"
         },
         "changelog": {
-          "text": "Değişiklik günlüğü"
+          "text": "Değişiklik Günlüğü"
         }
       }
     }
@@ -211,7 +212,7 @@
       }
     },
     "contributors": {
-      "text": "Katkıda bulunanlar",
+      "text": "Katkıda Bulunanlar",
       "items": {
         "code": {
           "text": "Kod",
@@ -223,7 +224,7 @@
               "text": "Sunucu"
             },
             "handbook": {
-              "text": "El kitabı"
+              "text": "El Kitabı"
             },
             "docs": {
               "text": "Belgeler"
@@ -278,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Şirket içi",
+          "text": "Yerinde barındırma",
           "items": {
             "install": {
               "text": "Kurulum"
@@ -433,10 +434,10 @@
                   "text": "Hashing"
                 },
                 "inspect": {
-                  "text": "İnceleme",
+                  "text": "İncele",
                   "items": {
                     "implicit-imports": {
-                      "text": "Örtük içe aktarmalar"
+                      "text": "Örtülü içe aktarmalar"
                     }
                   }
                 },
@@ -561,7 +562,7 @@
               "text": "MCP"
             },
             "skills": {
-              "text": "Yetenekler"
+              "text": "Beceriler"
             }
           }
         },
@@ -581,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git forjları",
+              "text": "Git platformları",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -619,7 +620,7 @@
           }
         },
         "share": {
-          "text": "Paylaşım",
+          "text": "Paylaş",
           "items": {
             "previews": {
               "text": "Önizlemeler"

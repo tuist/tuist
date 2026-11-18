@@ -1620,14 +1620,21 @@ defmodule Tuist.Billing do
   Whether the account's metered cache usage this month has reached either
   cache allowance, regardless of its plan.
 
+  An account on a runner trial never has: the trial is extended to accounts
+  we are bringing onto runners, typically before they subscribe, and it would
+  defeat it to cut their cache off at Air's caps meanwhile. Every Air limit
+  that reads this (`cache_access_blocked?/1`, `cache_blocked_account_ids/1`
+  and the API's `BillingPlug`) therefore leaves a trial account alone.
+
   Both counters are refreshed nightly, so the check never reaches ClickHouse
   from the cache authorization path.
   """
   def over_free_tier?(%Account{} = account) do
-    UsagePricing.cache_allowance_reached?(%{
-      egress_megabytes: account.current_month_cache_egress_megabytes,
-      requests: account.current_month_cache_requests
-    })
+    not Trials.on_trial?(account) and
+      UsagePricing.cache_allowance_reached?(%{
+        egress_megabytes: account.current_month_cache_egress_megabytes,
+        requests: account.current_month_cache_requests
+      })
   end
 
   defp latest_subscription([subscription | subscriptions]) do

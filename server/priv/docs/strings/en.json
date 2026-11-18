@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Images" },
       "implicit-dependencies": { "text": "Implicit dependencies" },
       "iphone-app": { "text": "iPhone app" },
       "macos-app": { "text": "macOS app" },

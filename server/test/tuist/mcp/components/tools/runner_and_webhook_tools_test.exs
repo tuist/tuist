@@ -243,7 +243,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{"shapes" => shapes, "xcode_versions" => xcode_versions} = JSON.decode!(text)
       assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in shapes
       assert %{"platform" => "macos", "vcpus" => 8, "memory_gb" => 24, "default" => true} in shapes
-      assert %{"xcode_version" => "26.5", "default" => true} in xcode_versions
+      assert %{"xcode_version" => "27.2", "default" => true} in xcode_versions
     end
 
     test "creates a profile and returns its runs-on label", %{account: account, conn: conn} do
@@ -295,7 +295,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
                  "xcode_version" => "15.0"
                })
 
-      assert text =~ "xcode_version must be one of: 26.5, 26.4.1"
+      assert text =~ "xcode_version must be one of: 27.3-beta, 27.2, 27.1"
     end
 
     test "refuses to create a profile past the account limit", %{account: account, conn: conn} do

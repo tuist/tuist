@@ -2533,6 +2533,19 @@ defmodule Tuist.BillingTest do
       assert Billing.cache_blocked_account_ids([account]) == MapSet.new()
     end
 
+    test "never blocks an account on a runner trial, and blocks it again once the trial ends" do
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+      %{account: on_air} = AccountsFixtures.user_fixture(preload: [:account])
+      on_air = with_cache_usage(on_air, 100_000, 1_000_000)
+      %{account: on_trial} = AccountsFixtures.user_fixture(preload: [:account])
+      on_trial = on_trial |> with_cache_usage(100_000, 1_000_000) |> Map.put(:runner_trial_started_at, now)
+
+      refute Billing.over_free_tier?(on_trial)
+      refute Billing.cache_access_blocked?(on_trial)
+      assert Billing.cache_blocked_account_ids([on_trial, on_air]) == MapSet.new([on_air.id])
+      assert Billing.cache_access_blocked?(%{on_trial | runner_trial_ended_at: now})
+    end
+
     test "returns true when the only subscription has lapsed and the account is over an allowance" do
       %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
       account = with_cache_usage(account, 0, 2_000_000)

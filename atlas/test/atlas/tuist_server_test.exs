@@ -339,6 +339,22 @@ defmodule Atlas.TuistServerTest do
       end
     end
 
+    test "PUTs trial changes once to the runner trial endpoint without retries" do
+      attrs = %{"operation" => "start", "change_id" => Ecto.UUID.generate()}
+
+      request = fn req ->
+        assert req.method == :put
+        assert req.url.path == "/api/internal/atlas/accounts/42/runner-trial"
+        assert req.options[:auth] == {:bearer, "tok"}
+        assert req.options[:json] == attrs
+        assert req.options[:retry] == false
+        {:ok, %Req.Response{status: 409, body: %{"error" => "paid_plan_required"}}}
+      end
+
+      assert {:error, "paid_plan_required"} =
+               TuistServer.update_runner_trial(42, attrs, token: "tok", base_url: "https://tuist.test", request: request)
+    end
+
     test "bounds ambiguous transport errors without logging credentials or retrying" do
       log =
         ExUnit.CaptureLog.capture_log(fn ->
