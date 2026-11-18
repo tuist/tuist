@@ -574,8 +574,8 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "coverage_retention_days/1" do
-    test "keeps file detail for 90 days and run totals for a year by default" do
-      assert Environment.coverage_retention_days(%{}) == %{files: 90, runs: 365}
+    test "keeps file detail for 31 days and run totals for a year by default" do
+      assert Environment.coverage_retention_days(%{}) == %{files: 31, runs: 365}
     end
 
     test "reads each period from its environment variable" do

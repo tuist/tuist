@@ -87,7 +87,7 @@ The command reads the commit from the checkout or from your CI provider; pass `-
 > tuist test --no-selective-testing
 > ```
 >
-> Once on every merge is ideal. Daily or weekly can be enough for a repository with few changes. The recorded coverage expires after 90 days, so run it more often than that.
+> Once on every merge is ideal. Daily or weekly can be enough for a repository with few changes. The recorded coverage expires after 31 days, so run it more often than that.
 
 Carried coverage relies on full runs. They refresh every target's recorded coverage before it expires, and they give Tuist a recent state of the files a selective run doesn't build. The more a repository changes between full runs, the more often a selective run finds a file that changed since and its commit's coverage is **Incomplete**.
 
@@ -123,7 +123,7 @@ Tuist's upload resolves the mapped paths, but Xcode's coverage report and `xccov
 
 ### Skipped tests {#skipped-tests}
 
-Selective testing skips a test target when an earlier passing run already tested it with the same hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code. Tuist reuses the [target-level coverage](#target-level-coverage) that earlier run recorded for the target. If it recorded none, for example because coverage was off back then or the run is older than 90 days, there's nothing to carry and the commit is **Incomplete**.
+Selective testing skips a test target when an earlier passing run already tested it with the same hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code. Tuist reuses the [target-level coverage](#target-level-coverage) that earlier run recorded for the target. If it recorded none, for example because coverage was off back then or the run is older than 31 days, there's nothing to carry and the commit is **Incomplete**.
 
 A selective run also doesn't build every file. For the files it didn't compile, Tuist takes the lines from the nearest earlier full run, as long as the files haven't changed since. That's why the [full runs](#full-runs) on your default branch matter.
 
