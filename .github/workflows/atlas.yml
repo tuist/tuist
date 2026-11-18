@@ -140,7 +140,7 @@ jobs:
 
   format:
     name: Format
-    runs-on: tuist-linux
+    runs-on: tuist-linux-large
     needs: build
     permissions:
       contents: read
