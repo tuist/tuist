@@ -45,7 +45,7 @@ defmodule Condukt.Sandbox do
 
   Implement the `Condukt.Sandbox` behaviour. `init/1` builds the per-session
   state; `shutdown/1` releases it; the rest are I/O primitives. `glob/3`,
-  `grep/3`, `mount/3`, and the process callbacks are optional. Tools dispatch
+  `grep/3`, `list_dir/2`, `mount/3`, and the process callbacks are optional. Tools dispatch
   through this module's facade (`Condukt.Sandbox.read/2`, `.exec/3`, etc.) so
   custom sandboxes work with every built-in tool automatically.
 
@@ -110,10 +110,25 @@ defmodule Condukt.Sandbox do
               {:ok, [binary()]} | {:error, term()}
 
   @doc """
+  Lists the entries of the directory `path`, dotfiles included, each with
+  whether it is a directory or anything else. Whether a symlink to a
+  directory counts as one is the sandbox's choice: `Local` follows it, and a
+  sandbox that confines files to a checkout can list it as a file. Returns
+  `{:error, :enoent}` for a missing path and `{:error, :enotdir}` for one
+  that is not a directory.
+
+  Optional: `list_dir/2` falls back to a shell listing through `c:exec/3`.
+  Implement it when the sandbox confines file access more than its shell.
+  """
+  @callback list_dir(state :: term(), path :: binary()) ::
+              {:ok, [%{name: binary(), type: :directory | :file}]} | {:error, term()}
+
+  @doc """
   Searches file contents for `pattern` (regex). Options:
 
     * `:path` — directory to search (default: cwd)
-    * `:glob` — glob filter applied to file paths
+    * `:glob` — glob filter applied to file paths relative to `:path`; one
+      without a `/`, such as `*.ex`, matches file names at any depth
     * `:case_sensitive` — defaults to true
     * `:limit` — maximum matches to return
   """
@@ -262,6 +277,7 @@ defmodule Condukt.Sandbox do
               {:ok, url :: binary()} | {:error, term()}
 
   @optional_callbacks [
+    list_dir: 2,
     mount: 3,
     grep: 3,
     glob: 3,
@@ -335,6 +351,67 @@ defmodule Condukt.Sandbox do
       {:error, :not_supported}
     end
   end
+
+  @doc """
+  Lists a directory's entries. See `c:list_dir/2`. Sandboxes that do not
+  implement it list through `exec/3` with a POSIX shell script.
+  """
+  def list_dir(%__MODULE__{module: module, state: state} = sandbox, path) do
+    if supports?(sandbox, :list_dir, 2) do
+      module.list_dir(state, path)
+    else
+      list_dir_with_shell(sandbox, path)
+    end
+  end
+
+  # Exit 3 and 4 tell a missing path from one that is not a directory. Each
+  # entry is printed as `d/name` or `f/name`; `[ -e ] || [ -L ]` drops an
+  # unmatched glob, which stays literal without nullglob.
+  @list_dir_script ~S"""
+  [ -e "$dir" ] || exit 3
+  [ -d "$dir" ] || exit 4
+  cd "$dir" || exit 3
+  for p in * .*; do
+    case "$p" in .|..) continue ;; esac
+    [ -e "$p" ] || [ -L "$p" ] || continue
+    if [ -d "$p" ]; then printf 'd/%s\n' "$p"; else printf 'f/%s\n' "$p"; fi
+  done
+  """
+
+  defp list_dir_with_shell(sandbox, path) do
+    # bashkit's `cd` takes no `--`, so a path that looks like an option is
+    # made relative instead.
+    path = if String.starts_with?(path, "-"), do: "./" <> path, else: path
+
+    command = "dir='" <> String.replace(path, "'", "'\\''") <> "'\n" <> @list_dir_script
+
+    case exec(sandbox, command, timeout: 30_000) do
+      {:ok, %{exit_code: 0, output: output}} ->
+        entries =
+          for <<kind, ?/, name::binary>> <- String.split(output, "\n", trim: true) do
+            %{name: name, type: if(kind == ?d, do: :directory, else: :file)}
+          end
+
+        {:ok, entries}
+
+      {:ok, %{exit_code: 3}} ->
+        {:error, :enoent}
+
+      {:ok, %{exit_code: 4}} ->
+        {:error, :enotdir}
+
+      {:ok, %{output: output}} ->
+        {:error, String.trim(output)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc false
+  # For sandboxes that grep with `Path.wildcard/2` or a shell glob: a file
+  # glob without a `/` matches file names at any depth, as `c:grep/3` says.
+  def grep_file_glob(glob), do: if(String.contains?(glob, "/"), do: glob, else: "**/" <> glob)
 
   def mount(%__MODULE__{module: module, state: state}, host_path, vfs_path) do
     if function_exported?(module, :mount, 3) do

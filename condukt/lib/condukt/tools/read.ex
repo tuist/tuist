@@ -1,9 +1,11 @@
 defmodule Condukt.Tools.Read do
   @moduledoc """
-  Tool for reading file contents.
+  Tool for reading file contents, after pi's `read` tool.
 
-  Supports text files and images (jpg, png, gif, webp). Images are returned
-  as base64-encoded attachments. Text files are truncated to reasonable limits.
+  Supports text files and images (jpg, png, gif, webp), recognized by their
+  content. Images are returned as base64-encoded attachments. Text output is
+  cut to 2000 lines or 50KB, whichever comes first, and ends with a notice
+  that names the `offset` to continue from.
 
   All filesystem access goes through the active `Condukt.Sandbox`, so the
   same agent definition behaves identically against the host filesystem
@@ -15,20 +17,12 @@ defmodule Condukt.Tools.Read do
   - `path` - Path to the file (relative or absolute)
   - `offset` - Line number to start reading from (1-indexed, optional)
   - `limit` - Maximum number of lines to read (optional)
-
-  ## Limits
-
-  Output is truncated to 2000 lines or 50KB, whichever comes first.
-  For large files, use offset/limit to read in chunks.
   """
 
   use Condukt.Tool
 
   alias Condukt.Sandbox
-
-  @max_lines 2000
-  @max_bytes 50 * 1024
-  @image_extensions ~w(.jpg .jpeg .png .gif .webp)
+  alias Condukt.Tools.Truncate
 
   @impl true
   def name(opts), do: Keyword.get(opts, :name, "Read")
@@ -42,12 +36,10 @@ defmodule Condukt.Tools.Read do
 
   @impl true
   def description(_opts) do
-    """
-    Read the contents of a file. Supports text files and images (jpg, png, gif, webp).
-    Images are sent as attachments. For text files, output is truncated to #{@max_lines} lines
-    or #{div(@max_bytes, 1024)}KB. Use offset/limit for large files.
-    """
-    |> String.trim()
+    "Read the contents of a file. Supports text files and images (jpg, png, gif, webp). " <>
+      "Images are sent as attachments. For text files, output is truncated to #{Truncate.max_lines()} lines " <>
+      "or #{div(Truncate.max_bytes(), 1024)}KB (whichever is hit first). Use offset/limit for large files. " <>
+      "When you need the full file, continue with offset until complete."
   end
 
   @impl true
@@ -75,20 +67,12 @@ defmodule Condukt.Tools.Read do
   @impl true
   def call(%{"path" => path} = args, context) do
     sandbox = fetch_sandbox!(context)
-    offset = args["offset"]
-    limit = args["limit"]
 
     case Sandbox.read(sandbox, path) do
       {:ok, content} ->
-        if image?(path) do
-          {:ok,
-           %{
-             type: :image,
-             media_type: media_type_for(path),
-             data: Base.encode64(content)
-           }}
-        else
-          {:ok, format_text(content, offset, limit)}
+        case media_type(content) do
+          nil -> format_text(content, path, args["offset"], args["limit"])
+          media_type -> {:ok, %{type: :image, media_type: media_type, data: Base.encode64(content)}}
         end
 
       {:error, :enoent} ->
@@ -111,98 +95,52 @@ defmodule Condukt.Tools.Read do
             "Condukt.Sandbox.new(Condukt.Sandbox.Local, cwd: \"...\")."
   end
 
-  defp image?(path) do
-    ext = path |> Path.extname() |> String.downcase()
-    ext in @image_extensions
-  end
+  # Images are recognized by their signature, not their extension.
+  defp media_type(<<0x89, "PNG\r\n", 0x1A, "\n", _::binary>>), do: "image/png"
+  defp media_type(<<0xFF, 0xD8, 0xFF, _::binary>>), do: "image/jpeg"
+  defp media_type(<<"GIF8", v, "a", _::binary>>) when v in [?7, ?9], do: "image/gif"
+  defp media_type(<<"RIFF", _size::binary-size(4), "WEBP", _::binary>>), do: "image/webp"
+  defp media_type(_content), do: nil
 
-  defp media_type_for(path) do
-    path
-    |> Path.extname()
-    |> String.downcase()
-    |> case do
-      ".jpg" -> "image/jpeg"
-      ".jpeg" -> "image/jpeg"
-      ".png" -> "image/png"
-      ".gif" -> "image/gif"
-      ".webp" -> "image/webp"
-      _ -> "application/octet-stream"
-    end
-  end
-
-  defp format_text(content, offset, limit) do
+  # Lines are numbered as `String.split(content, "\\n")` splits them, so a
+  # final newline ends with an empty last line, as in pi.
+  defp format_text(content, path, offset, limit) do
     lines = String.split(content, "\n")
-    total_lines = length(lines)
+    total = length(lines)
+    offset = if is_number(offset), do: trunc(offset)
+    limit = if is_number(limit), do: max(trunc(limit), 0)
+    start = if offset && offset > 0, do: offset - 1, else: 0
 
-    {selected_lines, from_line, to_line} = select_lines(lines, offset, limit)
-    {output, truncated?} = truncate_output(selected_lines)
-    build_result(output, total_lines, from_line, to_line, truncated?)
-  end
-
-  defp select_lines(lines, nil, nil) do
-    {lines, 1, length(lines)}
-  end
-
-  defp select_lines(lines, offset, nil) when is_integer(offset) and offset > 0 do
-    selected = Enum.drop(lines, offset - 1)
-    {selected, offset, offset + length(selected) - 1}
-  end
-
-  defp select_lines(lines, nil, limit) when is_integer(limit) and limit > 0 do
-    selected = Enum.take(lines, limit)
-    {selected, 1, length(selected)}
-  end
-
-  defp select_lines(lines, offset, limit) when is_integer(offset) and offset > 0 and is_integer(limit) and limit > 0 do
-    selected = lines |> Enum.drop(offset - 1) |> Enum.take(limit)
-    {selected, offset, offset + length(selected) - 1}
-  end
-
-  defp select_lines(lines, _, _) do
-    {lines, 1, length(lines)}
-  end
-
-  defp truncate_output(lines) do
-    {lines, line_truncated?} =
-      if length(lines) > @max_lines do
-        {Enum.take(lines, @max_lines), true}
-      else
-        {lines, false}
-      end
-
-    {content, byte_truncated?} = truncate_by_bytes(lines)
-    {content, line_truncated? or byte_truncated?}
-  end
-
-  defp truncate_by_bytes(lines) do
-    {result, _, truncated?} =
-      Enum.reduce_while(lines, {[], 0, false}, fn line, {acc, size, _} ->
-        line_size = byte_size(line) + 1
-
-        if size + line_size > @max_bytes do
-          {:halt, {acc, size, true}}
-        else
-          {:cont, {[line | acc], size + line_size, false}}
-        end
-      end)
-
-    {result |> Enum.reverse() |> Enum.join("\n"), truncated?}
-  end
-
-  defp build_result(content, total_lines, from_line, to_line, truncated?) do
-    meta =
-      if truncated? do
-        "(showing lines #{from_line}-#{to_line} of #{total_lines}, output truncated)"
-      else
-        if from_line > 1 or to_line < total_lines do
-          "(lines #{from_line}-#{to_line} of #{total_lines})"
-        end
-      end
-
-    if meta do
-      Enum.join([meta, content], "\n\n")
+    if start >= total and offset do
+      {:error, "Offset #{offset} is beyond end of file (#{total} lines total)"}
     else
-      content
+      selected = if limit, do: Enum.slice(lines, start, limit), else: Enum.drop(lines, start)
+      truncation = Truncate.head(Enum.join(selected, "\n"))
+      remaining = if limit, do: total - start - length(selected), else: 0
+      {:ok, describe(truncation, path, lines, start, total, remaining)}
     end
   end
+
+  defp describe(%{first_line_exceeds_limit: true}, path, lines, start, _total, _remaining) do
+    size = lines |> Enum.at(start) |> byte_size() |> Truncate.format_size()
+    max = Truncate.format_size(Truncate.max_bytes())
+
+    "[Line #{start + 1} is #{size}, exceeds #{max} limit. " <>
+      "Use bash: sed -n '#{start + 1}p' #{path} | head -c #{Truncate.max_bytes()}]"
+  end
+
+  defp describe(%{truncated: true} = truncation, _path, _lines, start, total, _remaining) do
+    last = start + truncation.output_lines
+    by = if truncation.truncated_by == :bytes, do: " (#{Truncate.format_size(Truncate.max_bytes())} limit)", else: ""
+
+    truncation.content <>
+      "\n\n[Showing lines #{start + 1}-#{last} of #{total}#{by}. Use offset=#{last + 1} to continue.]"
+  end
+
+  defp describe(truncation, _path, _lines, start, _total, remaining) when remaining > 0 do
+    next = start + truncation.output_lines + 1
+    truncation.content <> "\n\n[#{remaining} more lines in file. Use offset=#{next} to continue.]"
+  end
+
+  defp describe(truncation, _path, _lines, _start, _total, _remaining), do: truncation.content
 end

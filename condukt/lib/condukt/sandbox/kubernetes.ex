@@ -280,7 +280,7 @@ defmodule Condukt.Sandbox.Kubernetes do
   def grep(state, pattern, opts) do
     base = Keyword.get(opts, :path) || state.base_cwd
     case_sensitive? = Keyword.get(opts, :case_sensitive, true)
-    file_glob = Keyword.get(opts, :glob, "**/*")
+    file_glob = opts |> Keyword.get(:glob, "**/*") |> Sandbox.grep_file_glob()
     limit = Keyword.get(opts, :limit, 1_000)
 
     case_flag = if case_sensitive?, do: "", else: "-i"
@@ -291,7 +291,7 @@ defmodule Condukt.Sandbox.Kubernetes do
     status=1
     for p in #{file_glob}; do
       [ -f "$p" ] || continue
-      grep -Hn #{case_flag} -e #{Exec.shell_quote(pattern)} -- "$p" 2>/dev/null
+      grep -HnE #{case_flag} -e #{Exec.shell_quote(pattern)} -- "$p" 2>/dev/null
       code=$?
       case "$code" in
         0) status=0 ;;

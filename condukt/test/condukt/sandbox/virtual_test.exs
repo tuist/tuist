@@ -128,4 +128,36 @@ defmodule Condukt.Sandbox.VirtualTest do
       assert {:ok, "boot"} = Sandbox.read(sb, "/m/bootstrap.txt")
     end
   end
+
+  describe "built-in file tools" do
+    setup %{sandbox: sandbox} do
+      :ok = Sandbox.write(sandbox, "/w/top.ex", "alpha\nneedle\ngamma")
+      :ok = Sandbox.write(sandbox, "/w/lib/deep.ex", "needle")
+      :ok = Sandbox.write(sandbox, "/w/.hidden", "")
+      %{context: %{sandbox: sandbox, opts: []}}
+    end
+
+    test "Glob matches slashless patterns at any depth", %{context: context} do
+      assert {:ok, "lib/deep.ex\ntop.ex"} = Condukt.Tools.Glob.call(%{"pattern" => "*.ex", "path" => "/w"}, context)
+
+      # The glob leaves the session's own shell options and variables as they were.
+      assert {:ok, %{output: "1 []\n"}} =
+               Sandbox.exec(context.sandbox, ~s(shopt -q globstar; echo "$? [$__condukt_gs]"))
+    end
+
+    test "Grep shows context for matches under a search path", %{context: context} do
+      assert {:ok, result} =
+               Condukt.Tools.Grep.call(
+                 %{"pattern" => "needle", "path" => "/w", "glob" => "*.ex", "context" => 1},
+                 context
+               )
+
+      assert result =~ "/w/top.ex-1- alpha\n/w/top.ex:2: needle\n/w/top.ex-3- gamma"
+      assert result =~ "/w/lib/deep.ex:1: needle"
+    end
+
+    test "Ls lists through the shell", %{context: context} do
+      assert {:ok, ".hidden\nlib/\ntop.ex"} = Condukt.Tools.Ls.call(%{"path" => "/w"}, context)
+    end
+  end
 end

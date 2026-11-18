@@ -14,7 +14,7 @@ defmodule Condukt.Tools.WriteTest do
   test "creates new file", %{tmp_dir: tmp_dir, context: context} do
     {:ok, result} = Write.call(%{"path" => "new.txt", "content" => "Hello!"}, context)
 
-    assert String.contains?(result, "Wrote new.txt")
+    assert String.contains?(result, "Successfully wrote")
     assert File.read!(Path.join(tmp_dir, "new.txt")) == "Hello!"
   end
 
@@ -24,7 +24,7 @@ defmodule Condukt.Tools.WriteTest do
 
     {:ok, result} = Write.call(%{"path" => "existing.txt", "content" => "new content"}, context)
 
-    assert String.contains?(result, "Wrote existing.txt")
+    assert String.contains?(result, "to existing.txt")
     assert File.read!(path) == "new content"
   end
 

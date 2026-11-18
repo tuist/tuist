@@ -84,6 +84,8 @@ defmodule Condukt.Sandbox.Lazy do
   @impl Sandbox
   def grep(pid, pattern, opts), do: with_sandbox(pid, &Sandbox.grep(&1, pattern, opts))
   @impl Sandbox
+  def list_dir(pid, path), do: with_sandbox(pid, &Sandbox.list_dir(&1, path))
+  @impl Sandbox
   def start_process(pid, id, command, opts), do: with_sandbox(pid, &Sandbox.start_process(&1, id, command, opts))
   @impl Sandbox
   def read_process(pid, id, offset, opts), do: with_sandbox(pid, &Sandbox.read_process(&1, id, offset, opts), false)
