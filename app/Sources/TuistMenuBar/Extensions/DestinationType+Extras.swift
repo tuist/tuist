@@ -11,6 +11,8 @@ extension Device {
             try .simulator(simulator.runtime.platform())
         case .androidDevice:
             .android
+        case .thisMac:
+            .device(.macOS)
         }
     }
 }
