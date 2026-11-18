@@ -2239,7 +2239,7 @@ demoted.
 
 ### Kura thin pool rules
 
-Six rules in folder `Alerts`, group **Kura thin pools**, recorded in
+Eight rules in folder `Alerts`, group **Kura thin pools**, recorded in
 [`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
 the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
 `:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
@@ -2247,14 +2247,19 @@ the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
 annotations, and `alloy-rack` scrapes the rack plugin on its node. Every series
 carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
 non-production keep list in `values.yaml`, because thin pools are rehearsed on
-staging, so every rule covers all environments. **No Data: Normal**,
-**Error: Error**. None sets `notification_settings`: the three critical rules
-page only in production through the sibling routes in
+staging. Each environment's metrics now land in its own Pulse, and only
+`kura-thin-pool-metrics-missing` runs there for staging and canary (as `-stg`
+and `-can` copies). The five usage and degraded rules read production Pulse
+(`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
+degraded alert until those rules get `-stg` and `-can` copies. **No Data:
+Normal**, **Error: Keep last state**. None sets `notification_settings`: the
+three critical rules page through the sibling routes in
 [`kura-thin-pool-notification-policy.json`](kura-thin-pool-notification-policy.json)
-(the same shape as the Kura availability policy), and staging and canary land
-in `#notifications-non-prod`. `test-kura-thin-pool-alerts.sh` tests the
-expressions with promtool and the routing with amtool. The rules are proposed:
-create them and the policy routes in Grafana separately.
+(the same shape as the Kura availability policy), which page only for
+`cluster="tuist-production"`; the policy still sends any staging or canary
+alert to `#notifications-non-prod`. `test-kura-thin-pool-alerts.sh` tests the
+expressions with promtool and the routing with amtool. Grafana does not import
+the JSON; publish rule and policy changes separately.
 
 | Rule | UID | Threshold | Pending | Severity | Routing |
 | --- | --- | --- | --- | --- | --- |
@@ -2317,11 +2322,17 @@ Do not run `thin_check` or `lvconvert --repair` against an active pool.
 ```promql
 max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"})
 unless on (cluster, node) (
-  max by (cluster, node) (kura_volumes_thin_pool_data_size_bytes)
-  and on (cluster, node)
-  (max by (cluster, node) (time() - kura_volumes_thin_pool_last_observation_timestamp_seconds) < 600)
+  (
+    max by (cluster, node) (kura_volumes_thin_pool_data_size_bytes)
+    and on (cluster, node)
+    (max by (cluster, node) (time() - kura_volumes_thin_pool_last_observation_timestamp_seconds) < 600)
+  )
+  or (max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"}) < -1)
 )
 ```
+
+The never-matching `or` branch gives `unless` its label columns on Pulse images
+without the `and`/`unless` fix in `FORK.md` (see `pulse-grafana.md`).
 
 Fires for a node labelled `tuist.dev/kura-thin-ready=true` (kube-state-metrics
 exports that label through `metricLabelsAllowlist`) that has no fresh pool
@@ -2449,14 +2460,13 @@ says so, which matters once a region has boxes with different budgets.
 
 ### Runner host disk buffer
 
-Rule `efss9ss24579ce`, **Runner Host Disk Buffer**, folder `Alerts`, group
+Rule **Runner Host Disk Buffer** (`efss9ss24579ce-prod`, `-stg`, `-can`), folder `Alerts`, group
 `Runners`: evaluate every minute, threshold **A < 10**, pending **15m**.
-It runs as `efss9ss24579ce-prod`, `-stg` and `-can` on the Pulse metrics data
-sources with **No Data: NoData**, **Error: Keep last state**, and the existing
-notification policy routing; `efss9ss24579ce` itself stays on Grafana Cloud
-for clusters outside Pulse. The separately provisioned payload is
+It reads the Pulse metrics data sources with **No Data: NoData**, **Error: Keep last state**, and the existing
+notification policy routing. The Grafana Cloud original `efss9ss24579ce` was
+deleted on November 17. The separately provisioned payload is
 [`runner-host-disk-alert-rule.json`](runner-host-disk-alert-rule.json), an
-array of all four; Helm does not install it. Before updating the live rules,
+array of the three copies; Helm does not install it. Before updating the live rules,
 GET them again and merge only the intended query/annotation changes into their
 current configuration.
 Do not replace notification policies or add a zero/healthy fallback.
@@ -5402,14 +5412,17 @@ Details` sync row), which have no rule yet.
 
 ### Kura instance has no ready replicas
 
-**Live since 2026-09-22 19:20 UTC:** [rule `ffz1ualjy8fswd`](https://tuist.grafana.net/alerting/grafana/ffz1ualjy8fswd/view)
-is enabled in the separate **Cache availability** evaluation group, running
-**every 60 seconds** with a two-minute pending period. The existing `Cache`
-group evaluates every five minutes and is unchanged. At 19:22:30 UTC, live
-evaluation reported health `ok`, state `normal`, and all 185 instances Normal.
+**Live since 2026-09-22 19:20 UTC** as rule `ffz1ualjy8fswd`, which read
+Grafana Cloud. Since November 17 it runs as one copy per Pulse metrics source,
+[`ffz1ualjy8fswd-prod`](https://tuist.grafana.net/alerting/grafana/ffz1ualjy8fswd-prod/view),
+`-stg` and `-can`; the Cloud original was deleted. The copies are enabled in
+the separate **Cache availability** evaluation group, running **every 60
+seconds** with a two-minute pending period. The existing `Cache` group
+evaluates every five minutes and is unchanged. On September 22 at 19:22:30
+UTC, the original's first live evaluation reported health `ok`, state `normal`, and all 185 instances Normal.
 
 [`kura-availability-alert-rules.json`](kura-availability-alert-rules.json)
-records the live rule, including its UID, folder and datasource. Merging this
+records the three live copies, including their UIDs, folder and datasources. Merging this
 file does not provision Grafana. The authenticated browser successfully saved
 the configuration after the Atlas MCP policy PUT continued to return HTTP 403;
 the MCP authorization issue remains separate. Readback through the API verified
@@ -8976,14 +8989,20 @@ sum_over_time(clamp_min(
 
 ### Remote execution rules
 
-Four rules in folder `Alerts`, group `Remote execution`, recorded in
+Four rules in folder `Alerts`, group `Remote execution`, each running as one
+copy per Pulse metrics source (12 in all), recorded in
 [`remote-execution-alert-rules.json`](remote-execution-alert-rules.json).
 Create them through `POST /api/v1/provisioning/alert-rules` with
 `X-Disable-Provenance: true` when remote execution is first enabled for an
 account (`infra/sandbox-image/remote-execution.md`). Merging the file does not
 provision Grafana: change the live rules and the file together.
 
-All four are severity warning, policy routing, No Data OK and Error Error.
+The copies are `remote-execution-gateway-errors-prod`, `-stg` and `-can`,
+and, for the three scheduler rules, the original UID on production Pulse plus
+`-stg` and `-can` (`remote-execution-vm-preparation-fail-stg` and `-can` are
+shortened to fit Grafana's 40-character limit). The staging copies add
+`env=staging`. All are severity warning, policy routing, No Data OK and
+Error: Keep last state.
 None sets `affected_service`: remote execution is enabled per account behind a
 feature flag, and there is no status-page component for it yet. Each groups by
 `cluster`, so the policy tree sends staging to `#notifications-non-prod`. The
@@ -9125,18 +9144,17 @@ files of the region with
 ### Pulse datanode telemetry missing
 
 ```promql
-absent_over_time(up{cluster="tuist-production", job="pulse-datanode"}[15m])
-or
-absent_over_time(up{cluster="tuist-staging", job="pulse-datanode"}[15m])
-or
-absent_over_time(up{cluster="tuist-canary", job="pulse-datanode"}[15m])
+((sum(count_over_time(up{job="pulse-datanode"}[15m])) or vector(0)) + 0) < bool 1
 ```
 
+- Condition: above 0
 - Pending period: 0 minutes
 - Severity: warning
 - Rule JSON: `pulse-datanode-telemetry-missing` in
-  [`pulse-capacity-alert-rules.json`](pulse-capacity-alert-rules.json).
-  **No Data: Normal** (the healthy result is empty), **Error: Error**.
+  [`pulse-capacity-alert-rules.json`](pulse-capacity-alert-rules.json), as one
+  copy per environment's Pulse metrics source (`-prod`, `-stg`, `-can`).
+  **No Data: Normal**, **Error: Error**. The copies are paused until the
+  `pulse-datanode` scrape reaches each environment's Pulse.
 
 The paired rule for the one above. The `pulse-datanode` job is the dedicated
 scrape in `values.yaml`, and it reaches the datanodes through the Pulse
