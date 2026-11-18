@@ -319,8 +319,8 @@ defmodule TuistWeb.Coverage.Components do
 
   @doc """
   Where a coverage page's back button leads when it was opened from another
-  coverage page (the `from` parameter the links out of a branch or a commit
-  carry): that page, named for what it is. Nil when
+  coverage page (the `from` parameter the links out of a branch, a pull
+  request or a commit carry): that page, named for what it is. Nil when
   `from` is missing or points anywhere but the project's coverage pages.
   """
   def back_to(nil, _account_name, _project_name), do: nil
@@ -339,6 +339,7 @@ defmodule TuistWeb.Coverage.Components do
     do: dgettext("dashboard_tests", "Branch %{name}", name: Enum.map_join(branch, "/", &URI.decode/1))
 
   defp back_label(["commits", sha]), do: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha))
+  defp back_label(["pulls", number]), do: dgettext("dashboard_tests", "Pull request #%{number}", number: number)
   defp back_label(_path), do: dgettext("dashboard_tests", "Code Coverage")
 
   @doc false

@@ -629,11 +629,11 @@ defmodule Tuist.Tests.Coverage.Commits do
       end
 
     nearest =
-      case first_parent_distance_in(measured, repository_id, sha) do
+      case nearest_first_parent_in(measured, repository_id, sha) do
         nil ->
           nil
 
-        distance ->
+        {_sha, distance} ->
           ancestors = repository_id |> GitHistory.ancestors(sha, max_depth: distance) |> Enum.reject(&(elem(&1, 1) == 0))
           found = shas_in(measured, Enum.map(ancestors, &elem(&1, 0)))
           Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(found, ancestor) end)
@@ -642,47 +642,55 @@ defmodule Tuist.Tests.Coverage.Commits do
     nearest || GitHistory.nearest_ancestor(repository_id, sha, Repo.all(select(measured, [c], c.git_commit_sha)))
   end
 
-  defp first_parent_distance_in(measured, repository_id, sha) do
+  @doc """
+  The nearest commit matching `query` (a query over `CoverageCommit`) on a
+  commit's first-parent chain, the commit itself included at distance 0, as
+  `{sha, distance}`, or nil when none does. The chain is the commits no ref
+  placed yet, then the refs' segments down from where it meets them (each
+  ref's commits up to its fork, then its parent's), so it follows the branch
+  the commit sits on and never a branch merged into it.
+  """
+  def nearest_first_parent_in(query, repository_id, sha) do
     {unowned, owned} = repository_id |> GitHistory.first_parents_to_segment(sha) |> Enum.split_with(&is_nil(&1.ref_id))
-    found = shas_in(measured, Enum.map(unowned, & &1.sha))
+    found = shas_in(query, Enum.map(unowned, & &1.sha))
 
     case Enum.find(unowned, &MapSet.member?(found, &1.sha)) do
-      %{depth: depth} ->
-        depth
+      %{sha: nearest, depth: depth} ->
+        {nearest, depth}
 
       nil ->
         with [%{depth: depth, ref_id: ref_id, position: position}] <- owned,
-             distance when is_integer(distance) <- segments_distance_in(measured, ref_id, position, 0) do
-          depth + distance
+             {nearest, distance} <- segments_nearest_in(query, ref_id, position, 0) do
+          {nearest, depth + distance}
         else
           _ -> nil
         end
     end
   end
 
-  defp segments_distance_in(_measured, nil, _position, _distance), do: nil
+  defp segments_nearest_in(_query, nil, _position, _distance), do: nil
 
-  defp segments_distance_in(measured, ref_id, position, distance) do
+  defp segments_nearest_in(query, ref_id, position, distance) do
     nearest =
-      measured
+      query
       |> where([c], c.ref_id == ^ref_id and c.position <= ^position)
       |> order_by([c], desc: c.position)
       |> limit(1)
-      |> select([c], c.position)
+      |> select([c], {c.git_commit_sha, c.position})
       |> Repo.one()
 
     case nearest do
       nil ->
         case GitHistory.get_ref(ref_id) do
           %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
-            segments_distance_in(measured, parent_id, fork, distance + position - fork)
+            segments_nearest_in(query, parent_id, fork, distance + position - fork)
 
           _ ->
             nil
         end
 
-      found ->
-        distance + position - found
+      {sha, found} ->
+        {sha, distance + position - found}
     end
   end
 
@@ -772,6 +780,36 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   def reported_figure(_summary), do: nil
+
+  @max_measured_run_ids 900
+
+  @doc """
+  The signed runs of a published commit (`summary/2`), as a query over
+  `Tuist.Tests.Test.query/0` that reads those runs rather than the project's
+  history. The view reads `test_runs` with `FINAL`, under which the commit
+  SHA's skip index narrows nothing (its granules are expanded back to whole
+  key ranges), so the runs are found by the table's partition (`inserted_at`,
+  from a day before the commit was made or first folded, whichever is
+  earlier) and by the run ids the fold recorded, the primary key, falling
+  back to the SHA when it recorded none or too many to bind.
+  """
+  def measured_runs_query(%{project_id: project_id} = summary) do
+    since =
+      [summary.committed_at, summary.inserted_at]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.min(DateTime, fn -> DateTime.utc_now() end)
+      |> DateTime.add(-1, :day)
+
+    query =
+      from(t in Test.query(),
+        where: t.project_id == ^project_id and t.inserted_at >= ^since and t.submission_auth != "network_trusted"
+      )
+
+    case summary.test_run_ids do
+      ids when ids != [] and length(ids) <= @max_measured_run_ids -> where(query, [t], t.id in ^ids)
+      _ids -> where(query, [t], t.git_commit_sha == ^summary.git_commit_sha)
+    end
+  end
 
   @doc """
   The runs that measured the commit and count towards it: one row per run
@@ -864,8 +902,8 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   One page of the runs with coverage of a subject, newest first: a commit's
-  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`), run
-  between `since` and `until`.
+  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`) or a
+  pull request (`{:pull_request, number}`), run between `since` and `until`.
   Runs from a dirty checkout are left out, as `runs/2` does, unless
   `dirty: true` lists them too, with `git_dirty` set, to show why a scheme
   is missing from a figure.
@@ -958,6 +996,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
   defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
+  defp run_scope(query, {:pull_request, number}), do: where(query, [t], t.pull_request_number == ^number)
 
   defp run_dirty(query, true), do: query
   defp run_dirty(query, false), do: having(query, [t], fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false)
