@@ -758,7 +758,10 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
     assert_eq!(update["id"], "newer");
     assert_eq!(update["commit"], "newer01");
     assert_eq!(update["install_url"], "https://storage.test/newer");
-    assert_eq!(result["data"]["suggest"], true, "a newer build is suggested");
+    assert_eq!(
+        result["data"]["suggest"], true,
+        "a newer build is suggested"
+    );
     let request = h.actions.last().unwrap();
     assert_eq!(
         request["url"],
