@@ -2497,15 +2497,15 @@ runnersFleetLinux:
   nestedVirtualization:
     nri:
       enabled: true
-  # Whole cores per runner Pod for every even shape; the 1 vCPU shape keeps
-  # shared cores. All runners-linux hosts run kubelet v1.36.6 with
-  # tuist.dev/pod-level-resource-managers=true, and these Pods get /dev/kvm
-  # from the kvm-nri-plugin above, not the device plugin
-  # (kubernetes/kubernetes#143490). Never restart the kubelet on a host
-  # running them: it leaks their cores (kubernetes/kubernetes#140989, see
-  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+  # Off until kataContainers.podFixed.memory leaves room past Kata's 2 GiB
+  # guest base. From 2026-11-17 the Pod-level limit plus 2560Mi capped each
+  # VM's host cgroup at its guest RAM plus 512 MiB, and the host OOM killer
+  # stopped full guests mid-job (GitHub's "runner lost communication").
+  # Turning it back on rolls idle Pods; never restart the kubelet on a host
+  # running exclusive Pods: it leaks their cores (kubernetes/kubernetes#140989,
+  # see infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
   exclusiveCPUs:
-    defaultEnabled: true
+    defaultEnabled: false
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
