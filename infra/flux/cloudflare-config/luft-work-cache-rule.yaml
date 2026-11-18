@@ -5,8 +5,8 @@
 # the origin, where nginx sends `max-age=31536000, immutable` for
 # /assets/ and `no-cache` for index.html (see luft/web/nginx.conf).
 #
-# Created in read_only. Switch to `mode: active` in a separate change
-# after the operator reports the expected proposed create.
+# Created in read_only and activated after the site went live on
+# 2026-11-18, when /assets/*.wasm was still served cf-cache-status DYNAMIC.
 apiVersion: cloudflare.tuist.dev/v1alpha1
 kind: CloudflareCacheRule
 metadata:
@@ -20,6 +20,6 @@ spec:
     mode: respect_origin
   browserTtl:
     mode: respect_origin
-  mode: read_only
+  mode: active
   createNewRule: true
   retainOnDelete: false
