@@ -5,18 +5,18 @@
   "description": "Tuist CLI'da günlük kaydının nasıl çalıştığı ve katkıda bulunanlar için yönergeler."
 }
 ---
-# Günlük kaydı {#logging}
+# Günlükleme {#logging}
 
-CLI, günlük kaydı için [swift-log](https://github.com/apple/swift-log) arayüzünü benimser. Bu paket, günlük kaydının uygulama ayrıntılarını soyutlayarak CLI'nin günlük kaydı altyapısından bağımsız olmasını sağlar. Günlük kaydedici, görev yerelleri kullanılarak bağımlılık enjeksiyonu ile sağlanır ve şu şekilde her yerden erişilebilir:
+CLI, günlükleme için [swift-log](https://github.com/apple/swift-log) arayüzünü benimser. Paket, günlükleme uygulama ayrıntılarını soyutlayarak CLI'nin günlük arka ucundan bağımsız olmasını sağlar. Günlükleyici, görev yerelleri kullanılarak bağımlılık enjekte edilir ve şu şekilde her yerden erişilebilir:
 
 ```bash
 Logger.current
 ```
 
 > [!NOTE]
-> `Dispatch` veya ayrık görevler kullanılırken görev yerelleri değeri yaymaz; bu nedenle bunları kullanıyorsanız, değeri alıp eşzamansız işleme iletmeniz gerekir.
+> `Dispatch` veya kopuk görevler kullanılırken görev yerelleri değeri yaymaz; bu nedenle bunları kullanıyorsanız, değeri almanız ve eşzamansız işleme iletmeniz gerekir.
 
 
-## Nelerin günlüğe kaydedileceği {#what-to-log}
+## Nelerin günlükleneceği {#what-to-log}
 
-Günlük kayıtları, CLI'nin kullanıcı arayüzü değildir. Sorunlar ortaya çıktığında teşhis etmek için bir araçtır. Bu nedenle, ne kadar çok bilgi sağlarsanız o kadar iyi olur. Yeni özellikler geliştirirken, beklenmeyen bir davranışla karşılaşan bir geliştiricinin yerine kendinizi koyun ve hangi bilgilerin onlar için yararlı olacağını düşünün. Doğru [günlük düzeyini](https://www.swift.org/documentation/server/guides/libraries/log-levels.html) kullandığınızdan emin olun. Aksi takdirde geliştiriciler gürültüyü filtreleyemez.
+Günlükler, CLI'nin kullanıcı arayüzü değildir. Sorunlar ortaya çıktığında teşhis etmek için bir araçtır. Bu nedenle, sağladığınız bilgi ne kadar çok olursa o kadar iyidir. Yeni özellikler geliştirirken, beklenmedik bir davranışla karşılaşan bir geliştiricinin yerine kendinizi koyun ve onlar için hangi bilgilerin yararlı olacağını düşünün. Doğru [günlük düzeyini](https://www.swift.org/documentation/server/guides/libraries/log-levels.html) kullandığınızdan emin olun. Aksi takdirde geliştiriciler gürültüyü filtreleyemez.

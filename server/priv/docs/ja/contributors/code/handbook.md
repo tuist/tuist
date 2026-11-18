@@ -2,7 +2,7 @@
 {
   "title": "ハンドブック",
   "titleTemplate": ":title · コード · コントリビューター · Tuist",
-  "description": "Tuistハンドブックに貢献する。"
+  "description": "Tuistハンドブックへの貢献"
 }
 ---
 # ハンドブック {#handbook}
@@ -11,7 +11,7 @@
 
 ## 目的 {#what-it-is-for}
 
-このハンドブックでは、Tuistが企業としてどのように運営されているか（価値観、ポリシー、エンジニアリングプラクティス）を説明しています。VitePressで構築されたサイトです。
+このハンドブックでは、Tuistという企業の仕組み（価値観、ポリシー、エンジニアリングプラクティス）を文書化しています。VitePressで構築されたサイトです。
 
 ## 貢献方法 {#how-to-contribute}
 
