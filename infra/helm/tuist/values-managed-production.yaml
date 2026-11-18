@@ -2596,11 +2596,8 @@ runnersFleetLinux:
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     # Each idle 32 GiB runner reserves 35.5 GiB with the kata overhead.
-    # First shape back on exclusive CPUs: no customer jobs, and the tuist
-    # account's `linux-xlarge` profile probes it.
     - vcpus: 8
       memoryGb: 32
-      exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
     - vcpus: 16
