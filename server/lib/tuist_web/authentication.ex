@@ -943,17 +943,32 @@ defmodule TuistWeb.Authentication do
   defp maybe_store_return_to(conn), do: conn
 
   def signed_in_path(user) do
-    project =
-      if is_nil(user.last_visited_project_id) do
-        user |> Projects.get_all_project_accounts() |> List.first()
-      else
-        Projects.get_project_account_by_project_id(user.last_visited_project_id)
+    case signed_in_project(user) do
+      nil -> "/#{user.account.name}/projects"
+      project -> "/#{project.handle}"
+    end
+  end
+
+  @doc """
+  The billing page of the account `signed_in_path/1` lands the user in, so a
+  user who works in an organization upgrades that organization rather than
+  their personal account.
+  """
+  def signed_in_billing_path(user) do
+    account =
+      case signed_in_project(user) do
+        nil -> user.account
+        project -> project.account
       end
 
-    if project do
-      "/#{project.handle}"
+    "/#{account.name}/billing"
+  end
+
+  defp signed_in_project(user) do
+    if is_nil(user.last_visited_project_id) do
+      user |> Projects.get_all_project_accounts() |> List.first()
     else
-      "/#{user.account.name}/projects"
+      Projects.get_project_account_by_project_id(user.last_visited_project_id)
     end
   end
 end
