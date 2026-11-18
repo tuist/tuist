@@ -2,12 +2,15 @@
 {
   "title": "Ejecución remota de Once",
   "titleTemplate": ":title · Runners · Funcionalidades · Guías · Tuist",
-  "description": "Ejecuta acciones de comandos del grafo de Once elegibles en los trabajadores de ejecución remota de Linux de Tuist."
+  "description": "Ejecuta acciones de comandos del grafo de Once elegibles en los workers de ejecución remota de Linux de Tuist."
 }
 ---
 # Ejecución remota de Once {#once-remote-execution}
 
-La caché compartida evita repetir trabajo que otra máquina ya ha completado. La ejecución remota también traslada los fallos de caché elegibles fuera de tu equipo: Once programa las acciones de comandos del grafo en workers Linux de un solo uso de Tuist y recupera sus resultados a través de la misma caché del proyecto.
+La caché compartida evita repetir trabajo que otra máquina ya ha completado. La ejecución remota también traslada fuera de tu ordenador los fallos de caché elegibles: Once programa las acciones de comandos del grafo en workers Linux de un solo uso de Tuist y recupera sus resultados a través de la misma caché del proyecto.
+
+> [!NOTE]
+> La ejecución remota está actualmente disponible solo por invitación. [Contáctanos](mailto:contact@tuist.dev) para solicitar acceso para tu cuenta.
 
 > [!IMPORTANT]
 > **Requisitos**
@@ -48,10 +51,14 @@ Sustituye el target y la etiqueta de la imagen por los tuyos. Once comprueba la 
 ## Preparar acciones para los workers {#prepare-actions-for-workers}
 
 - Declara las entradas y las salidas. Las salidas deben permanecer dentro del directorio de trabajo de la acción.
-- Resuelve las herramientas dentro de la imagen del worker, no en rutas absolutas del equipo iniciador.
-- Usa acciones que sean seguras para repetir: un fallo del worker o un reinicio del servicio puede provocar otra ejecución.
-- Mantén los tiempos de espera dentro del límite de diez minutos por acción del servicio. Los requisitos no compatibles, incluida la denegación de red, fallan en lugar de ejecutarse localmente de forma silenciosa.
+- Resuelve las herramientas dentro de la imagen del worker, no en rutas absolutas del ordenador iniciador.
+- Utiliza acciones seguras para repetirse: un fallo del worker o un reinicio del servicio puede provocar otra ejecución.
+- Mantén los tiempos de espera dentro del límite de diez minutos por acción del servicio. Los requisitos no admitidos, incluida la denegación de red, fallan en lugar de ejecutarse localmente de forma silenciosa.
 
-Once respeta la concurrencia de acciones anunciada por la cuenta y reduce la carga cuando la cola del servicio está llena. Cambiar la imagen separa la configuración de compilación y los resultados almacenados en caché, evitando su reutilización entre imágenes de worker incompatibles.
+Once respeta la concurrencia de acciones anunciada por la cuenta y reduce la carga cuando la cola del servicio está llena. Cambiar la imagen separa la configuración de compilación y los resultados almacenados en caché, lo que impide la reutilización entre imágenes de worker incompatibles.
+
+## Inspeccionar la ejecución remota {#inspect-remote-execution}
+
+La barra lateral del proyecto tiene una página de **Ejecución remota**, pero la telemetría de ejecución de Once aún no distingue la ejecución remota de las acciones locales. La página explica esta carencia y enlaza con **Ejecuciones de compilación** para ver los detalles de las acciones registradas; no infiere actividad remota a partir de los carriles de workers ni muestra esas acciones como uso remoto.
 
 Consulta la [guía de ejecución remota de Once](https://buildonce.dev/docs/guide/infrastructure/tuist#run-actions-on-tuist-workers) para obtener información sobre la puesta en cola, la actualización de la autenticación y las anulaciones del endpoint de la caché. Sigue las <.localized_link href="/guides/features/build-insights/once">métricas de compilación de Once</.localized_link> para inspeccionar las ejecuciones resultantes.
