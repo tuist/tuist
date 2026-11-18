@@ -226,10 +226,11 @@ struct ConversationView: View {
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: thread?.messages.last?.id) { _, _ in
+            .onChange(of: thread?.messages.last?.id) { previous, _ in
                 // Someone reading earlier history, or who jumped to a prompt, stays where they are.
                 guard atLatest else { return }
-                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("latest", anchor: .bottom) }
+                // The first messages open at the end; only later ones animate in.
+                withAnimation(previous == nil || reduceMotion ? nil : .default) { proxy.scrollTo("latest", anchor: .bottom) }
             }
             .onChange(of: pendingJump) { _, target in
                 guard let target else { return }
