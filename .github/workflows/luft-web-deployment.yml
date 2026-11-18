@@ -76,10 +76,11 @@ jobs:
           working_directory: luft
           install_args: rust github:tuist/once node cargo:wasm-bindgen-cli
           cache: "false"
-      - name: Install Once runtime libraries
+      # once links libasound; sqlite-wasm-rs compiles SQLite for wasm32 with clang.
+      - name: Install Once runtime libraries and clang
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y libasound2t64
+          sudo apt-get install -y --no-install-recommends libasound2t64 clang
       - name: Authenticate hosted cache and insights
         if: github.event.pull_request.head.repo.fork != true
         working-directory: luft
