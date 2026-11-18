@@ -7,6 +7,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   router so crawler policy stays aligned with the application.
   """
 
+  alias Tuist.Docs
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Router
   alias TuistWeb.Utilities.MarketingMarkdown
@@ -39,7 +40,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     [
       @robots_txt_header,
       Enum.map(content_usage_entries(route_infos), &content_usage_line/1),
-      allow_lines(allow_patterns(disallow_patterns)),
+      allow_lines(allow_patterns(route_infos, disallow_patterns)),
       disallow_lines(disallow_patterns),
       discovery_lines()
     ]
@@ -57,20 +58,32 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   def allow_patterns do
-    allow_patterns(disallow_patterns())
+    route_infos = route_infos()
+    allow_patterns(route_infos, disallow_patterns(route_infos))
   end
 
-  # Catch-all marketing routes (`/marketing-markdown/*path`) serve pages the
-  # router cannot name, so a dashboard rule such as `Disallow: /*/runners/` also
-  # catches `/marketing-markdown/runners/buildkite`, and no narrower Disallow can
-  # keep `/:account_handle/runners` out without catching
-  # `/marketing-markdown/runners`. Crawlers apply the longest matching rule
-  # (RFC 9309), so an Allow naming each such page wins over the shorter Disallow.
-  defp allow_patterns(disallow_patterns) do
+  # Some public pages share a shape with a dashboard route, and robots.txt
+  # wildcards cannot tell them apart: `Disallow: /*/runners$` keeps
+  # `/:account_handle/runners` out but also catches the localized `/ja/runners`
+  # and the docs page `/en/docs/guides/features/runners`, and `/*/runners/`
+  # catches `/marketing-markdown/runners/buildkite`. Catch-all routes serve the
+  # docs and marketing Markdown, so the Disallow safety check never sees them.
+  # Crawlers apply the longest matching rule and prefer Allow on a tie
+  # (RFC 9309), so an Allow naming each such page keeps it crawlable.
+  defp allow_patterns(route_infos, disallow_patterns) do
     matchers = Enum.map(disallow_patterns, &disallow_matcher/1)
+    static_exempt_paths = for %{dynamic?: false, raw: raw} <- exempt_paths(route_infos), do: raw
+
+    docs_paths =
+      Enum.flat_map(
+        Docs.compiled_slugs(),
+        &[Docs.Paths.public_path_from_slug(&1), Docs.Paths.markdown_path_from_slug(&1)]
+      )
 
     MarketingMarkdown.paths()
     |> Enum.flat_map(&[&1, MarketingMarkdown.alternate_path(&1)])
+    |> Enum.concat(static_exempt_paths)
+    |> Enum.concat(docs_paths)
     |> Enum.reject(&is_nil/1)
     |> Enum.filter(fn path -> Enum.any?(matchers, &Regex.match?(&1, path)) end)
     |> Enum.uniq()
@@ -92,11 +105,15 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     |> Enum.map(&Map.take(&1, [:pattern, :content_usage]))
   end
 
-  defp disallow_patterns(route_infos) do
-    exempt_paths = route_infos |> exempt_routes() |> Enum.map(& &1.path)
-    default_disallow_paths = route_infos |> default_disallow_routes() |> Enum.map(& &1.path)
+  defp exempt_paths(route_infos) do
+    route_infos |> exempt_routes() |> Enum.map(& &1.path)
+  end
 
-    default_disallow_paths
+  defp disallow_patterns(route_infos) do
+    exempt_paths = exempt_paths(route_infos)
+
+    route_infos
+    |> default_disallow_routes()
     |> Enum.map(&best_disallow_pattern(&1, exempt_paths))
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.rendered)
@@ -124,6 +141,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
       verb: verb,
       path: path_info(path),
       robots_txt: robots_txt,
+      project_redirect?: route.plug == TuistWeb.RedirectPlug,
       content_usage: content_usage_from_setting(robots_txt)
     }
   end
@@ -222,13 +240,36 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     end)
   end
 
-  defp best_disallow_pattern(path, exempt_paths) do
-    candidates = disallow_candidates(path)
+  defp best_disallow_pattern(route, exempt_paths) do
+    candidates = disallow_candidates(route.path)
 
     case Enum.find(candidates, &safe_disallow_pattern?(&1, exempt_paths)) do
-      nil -> nil
+      nil -> exact_disallow_pattern(route, List.last(candidates), exempt_paths)
       candidate -> finalize_disallow_pattern(candidate, List.last(candidates))
     end
+  end
+
+  # When every candidate also catches an exempt route, such as
+  # `/:account_handle/runners` against the localized `/ja/runners`, the route
+  # still gets its exact pattern as long as everything it catches is static:
+  # `allow_patterns/2` then names each of those pages in an Allow line. It does
+  # not when a dynamic exempt route matches (it cannot be named), when an exempt
+  # route has the same path (`POST /newsletter` beside the public
+  # `GET /newsletter`), or for project redirects, which lead to public project
+  # pages crawlers must be able to follow.
+  defp exact_disallow_pattern(_route, nil, _exempt_paths), do: nil
+  defp exact_disallow_pattern(%{project_redirect?: true}, _full_path, _exempt_paths), do: nil
+
+  defp exact_disallow_pattern(_route, full_path, exempt_paths) do
+    pattern = finalize_disallow_pattern(full_path, full_path)
+
+    blocked_by_exempt? =
+      Enum.any?(exempt_paths, fn exempt ->
+        exempt.segments == full_path.segments or
+          (exempt.dynamic? and disallow_pattern_matches?(pattern, exempt))
+      end)
+
+    if blocked_by_exempt?, do: nil, else: pattern
   end
 
   defp disallow_candidates(path) do
