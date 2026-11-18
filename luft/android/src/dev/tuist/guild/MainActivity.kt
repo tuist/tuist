@@ -83,6 +83,9 @@ class MainActivity : Activity() {
     private var scrollToLatest = false
     private var keepBottomOffset = false
     private var presence: Runnable? = null
+    /** The inbox's live socket while the threads list shows, and the profile and generation it follows. */
+    private var inboxLive: InboxLive? = null
+    private var inboxLiveKey: String? = null
     private var visible = false
     private var update: JSONObject? = null
     private val searchInputId = View.generateViewId()
@@ -120,6 +123,8 @@ class MainActivity : Activity() {
         if (active() != null) AppCore.submit("flush_outbox", JSONObject(), host) { }
         if (room != null) { markRead(); schedulePoll() }
         schedulePresence(0)
+        // Changes made while away show when the socket joins.
+        syncInboxLive()
     }
 
     // Halls are only polled, and the person only shows online, while someone can see them.
@@ -127,6 +132,7 @@ class MainActivity : Activity() {
         visible = false
         poll?.let(handler::removeCallbacks)
         presence?.let(handler::removeCallbacks)
+        syncInboxLive()
         // Recreation resumes right away and keeps the connection.
         if (!isChangingConfigurations) AppCore.submit("presence_disconnect", JSONObject(), host) { }
         super.onPause()
@@ -189,6 +195,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         ticket++
+        inboxLive?.stop()
+        inboxLive = null
         handler.removeCallbacksAndMessages(null)
         if (browserPending && isFinishing && !isChangingConfigurations) {
             AppCore.submit("cancel_sign_in", JSONObject(), host) { }
@@ -281,7 +289,7 @@ class MainActivity : Activity() {
         previewsSelected = false
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
-        threads = emptyList(); threadsSignInRequired = false; conversation = null; reply = ""
+        threads = emptyList(); threadsSignInRequired = false; threadsAvailable = true; conversation = null; reply = ""
         halls = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
     }
 
@@ -308,12 +316,14 @@ class MainActivity : Activity() {
         // Dark status bar icons, except over the login screen's dark artwork.
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = if (if (login) night else dark) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        if (login) { setContentView(loginScreen(night)); return }
+        if (login) { setContentView(loginScreen(night)); syncInboxLive(); return }
         // Rendering rebuilds the screen; keep typing in the search or reply field going.
         val focusedInput = (currentFocus as? EditText)?.takeIf { it.id == searchInputId || it.id == replyInputId }
         val selection = focusedInput?.selectionStart ?: -1
         // Halls and DMs re-render as messages and presence arrive; keep the reader where they were.
-        val place = if (screen == "halls" || screen == "dms") "$screen/${roomId.orEmpty()}" else null
+        // The threads list reloads as threads change, so it keeps its place too.
+        val place = if (screen == "halls" || screen == "dms") "$screen/${roomId.orEmpty()}"
+            else if (screen == "threads" && threadId == null && conversation == null) "threads" else null
         val previous = lastScroll?.takeIf { place != null && place == scrolledPlace }
         val previousY = previous?.scrollY ?: 0
         val previousBottom = (previous?.getChildAt(0)?.height ?: 0) - previousY
@@ -353,6 +363,7 @@ class MainActivity : Activity() {
             previous != null -> scroll.post { scroll.scrollTo(0, previousY) }
         }
         scrollToLatest = false; keepBottomOffset = false
+        syncInboxLive()
         lastScroll = scroll
         scrolledPlace = place
         if (selection >= 0) findViewById<EditText>(focusedInput!!.id)?.let {
@@ -721,14 +732,47 @@ class MainActivity : Activity() {
 
     /** Sessions from before Luft's first-party client must sign in again; they see why instead of an empty list. */
     private var threadsSignInRequired = false
+    /** False while the server answers that threads are off for this account. */
+    private var threadsAvailable = true
 
     private fun loadThreads() {
         if (active() == null) return
-        call("threads") { data ->
-            threads = (data as? JSONObject)?.optJSONArray("threads").objects()
-                .filter { it.optString("section") != "archived" }
-            threadsSignInRequired = (data as? JSONObject)?.optString("reason") == "sign_in_required"
-            render()
+        call("threads") { data -> showThreads(data as? JSONObject) }
+    }
+
+    private fun showThreads(data: JSONObject?) {
+        threads = data?.optJSONArray("threads").objects().filter { it.optString("section") != "archived" }
+        threadsSignInRequired = data?.optString("reason") == "sign_in_required"
+        threadsAvailable = data?.optBoolean("available", true) ?: true
+        render()
+    }
+
+    /**
+     * Follows the inbox while its list shows and the app is in front, where threads are on
+     * and the session can use them; another profile or account follows its own.
+     */
+    private fun syncInboxLive() {
+        val key = if (visible && !isDestroyed && active() != null && !addingProfile && screen == "threads" &&
+            threadId == null && threadsAvailable && !threadsSignInRequired
+        ) "${view.optString("active_profile_id")}/${view.optLong("generation", -1)}" else null
+        if (key == inboxLiveKey) return
+        inboxLive?.stop()
+        inboxLiveKey = key
+        inboxLive = key?.let { InboxLive(host) { runOnUiThread(::refreshThreads) } }
+    }
+
+    /** Reloads the threads list beside screen requests, like the hall poll, so it never cancels them. */
+    private fun refreshThreads() {
+        if (isDestroyed || busy || screen != "threads" || threadId != null) return
+        val generation = view.optLong("generation", -1)
+        val profile = view.optString("active_profile_id")
+        AppCore.submit("threads", JSONObject(), host) { result ->
+            runOnUiThread {
+                if (isDestroyed || busy || screen != "threads" || threadId != null ||
+                    generation != view.optLong("generation", -1) || profile != view.optString("active_profile_id")
+                ) return@runOnUiThread
+                showThreads(result.optJSONObject("data") ?: return@runOnUiThread)
+            }
         }
     }
 

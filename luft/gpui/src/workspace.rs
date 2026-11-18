@@ -132,7 +132,8 @@ impl Workspace {
                 HallsPanel::new(tab, session.clone(), scope.clone(), navigation.clone(), cx)
             })
         });
-        let threads = cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), cx));
+        let threads =
+            cx.new(|cx| ThreadsPanel::new(session, handle, navigation.clone(), window, cx));
         let observer = cx.observe(&navigation, |_, _, cx| cx.notify());
         Self {
             navigation,

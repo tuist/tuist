@@ -99,6 +99,7 @@ struct ThreadsView: View {
     /// The thread waiting for the person to confirm archiving it.
     @State private var archiving: AppThread?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo: .body) private var iconWidth = 20.0
 
     var body: some View {
@@ -224,11 +225,22 @@ struct ThreadsView: View {
                 ? "Its run stops. You can find it under Archived."
                 : "You can find it under Archived.")
         }
-        .task(id: client.view.active_profile_id) {
+        .task(id: InboxFollowKey(
+            profile: client.view.active_profile_id,
+            active: scenePhase == .active,
+            followable: available && !signInRequired
+        )) {
             // Render what's on the device first, then bring it up to date. Coming back
-            // to the tab keeps what it showed and only refreshes it.
+            // to the tab or the app keeps what it showed and only refreshes it.
             if !inbox.loaded { await inbox.fetch(client, operation: "cached_threads", cursor: nil) }
             await reload()
+            // Then follow the inbox while the app is in front: a thread that starts working,
+            // answers or finishes changes its row and section without a pull to refresh.
+            // Where threads are off or need a new sign-in, there is nothing to follow.
+            guard scenePhase == .active, available, !signInRequired else { return }
+            // The server starts the Live Activity for work that begins meanwhile, so these
+            // refreshes leave it alone: one the person dismissed stays dismissed.
+            await client.live("inbox") { await inbox.reload(client, announce: false) }
         }
         // The core opens Start conversation (`navigation.compose`) and closes it on any other navigation.
         .onChange(of: client.view.navigation.compose, initial: true) { previous, compose in
@@ -497,6 +509,14 @@ struct ThreadsView: View {
     private func loadMore() async { await inbox.loadMore(client) }
 }
 
+/// What restarts the inbox's loading and following: another profile, the app coming to the
+/// front or leaving it, and threads becoming available.
+private struct InboxFollowKey: Equatable {
+    let profile: String?
+    let active: Bool
+    let followable: Bool
+}
+
 /// The selected account's threads, for `ThreadsView`. One per signed-in generation.
 @MainActor @Observable
 final class ThreadInbox {
@@ -508,25 +528,27 @@ final class ThreadInbox {
     private(set) var loading: Task<Void, Never>?
     var error: String?
 
-    /// Replaces the list. A refresh supersedes a load in flight rather than being dropped.
-    func reload(_ client: AppClient) async {
+    /// Refreshes the list; the core keeps the pages loaded after the first. A refresh
+    /// supersedes a load in flight rather than being dropped. `announce` starts the
+    /// Live Activity when a thread is working.
+    func reload(_ client: AppClient, announce: Bool = true) async {
         loading?.cancel()
-        await run(client, cursor: nil)
+        await run(client, cursor: nil, announce: announce)
     }
 
     func loadMore(_ client: AppClient) async {
         guard loading == nil, let cursor = nextCursor else { return }
-        await run(client, cursor: cursor)
+        await run(client, cursor: cursor, announce: true)
     }
 
-    private func run(_ client: AppClient, cursor: String?) async {
-        let task = Task { await fetch(client, operation: "threads", cursor: cursor) }
+    private func run(_ client: AppClient, cursor: String?, announce: Bool) async {
+        let task = Task { await fetch(client, operation: "threads", cursor: cursor, announce: announce) }
         loading = task
         await task.value
         if loading == task { loading = nil }
     }
 
-    func fetch(_ client: AppClient, operation: String, cursor: String?) async {
+    func fetch(_ client: AppClient, operation: String, cursor: String?, announce: Bool = true) async {
         let generation = client.view.generation
         do {
             let data = try await client.call(operation, cursor.map { ["cursor": $0] } ?? [:])
@@ -542,7 +564,7 @@ final class ThreadInbox {
             // An inbox never loaded on this device isn't empty, only unknown yet.
             if page.freshness?.state != "never_loaded" { loaded = true }
             // Only what the server just said: a cached inbox can show threads that finished since.
-            if operation == "threads", page.freshness?.state == "live",
+            if announce, operation == "threads", page.freshness?.state == "live",
                page.threads.contains(where: { $0.section == "in_progress" })
             {
                 ThreadLiveActivity.shared.threadsWorking()

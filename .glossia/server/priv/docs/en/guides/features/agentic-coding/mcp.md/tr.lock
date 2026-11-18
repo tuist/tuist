@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "77d120b45771820bd6c3bb63c6a99de22a9d9e99a3cde4b70e801a286e39b98c",
+  "hash": "18ac084e17b06003fd568d52639e305cb2317cec5219baa0503d2b99a54237c4",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Model Context Protocol": {
-                  "content_hash": "929b49a4488d3b2dfaccabee70dbb4329c22aa2935df88d4bbb8dfb4a3a07fdb"
+                  "content_hash": "b7a84877598662d21e14591ccacc60895fdca27d5bd414bf3b409a54deed48c1"
                 },
                 "## Agents in Amp orbs and Claude Code cloud sessions": {
                   "content_hash": "618cd5023882a5fb52e0ff88ef367aeb00f914dfe869ed24ddbeb79e2083851d"
@@ -53,7 +53,7 @@
                   "content_hash": "0cf6808fb16ba2ded689a8eb80950c39440f1fbce612d55cde8ecab4fb2f8e26"
                 },
                 "#### Bazel invocations": {
-                  "content_hash": "4744eff53be2dda99bf0114eee3e48df242ac8f52037ebf9640a2257b9a000f1"
+                  "content_hash": "c93b590416013f7545f8357f5601567630dbcf6192eea1a441c9d24a4f80b938"
                 },
                 "#### Build traces": {
                   "content_hash": "c86c54d7d983d88c2e6a2ab558f52fb1c13c882a6df459982726b9e4e5d9973c"
@@ -100,11 +100,17 @@
                 "#### Once runs": {
                   "content_hash": "bd0da2319b17a7606d7ebc93fa429d869259c82a5e1b02af47eca92cd6e48ad7"
                 },
+                "#### Organization AI": {
+                  "content_hash": "114c2b035c2bb30e3e1b945f45ee29d1c763ed4de6e522184d56b75f0f8457bc"
+                },
                 "#### Previews": {
                   "content_hash": "ca096ffa225935ee190cf75f2d288b6dbb3c7b04ff58219d261e33bedd82cfa7"
                 },
                 "#### Projects": {
                   "content_hash": "68d4d961127f060ae6f8e8c6003a4e7cd673508a405ea4677c4f4a375a1f38eb"
+                },
+                "#### Remote execution": {
+                  "content_hash": "6ba7bb74667b20e2ad055b6a82a6ded2f22156fa772af48be7b530e521b381a7"
                 },
                 "#### Sandboxes": {
                   "content_hash": "914025b4658dcd91f7d65f14dfeb54ec6a09b4b4ba09e636a69ed1b340e4b418"
@@ -134,11 +140,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "30f4146821fbd8dfd876c72057e6eea3d61112f741d8cd00935f38200acf8abc",
+          "hash": "2c437d5de0480f2acd02bf6fc940eb946670f94ac0a8e964daf04021e128db00",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "7b4c6c93af7b13f223704b4e0308c4d1dca56a20da55051c8a7da5b819a43714"
+            "content_hash": "1947e831b47f362198a0b1e8d70bf3b0c1dff9383fe7e190177963713aa54066"
           }
         },
         {
@@ -199,7 +205,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -218,7 +224,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -247,11 +253,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -364,21 +370,21 @@
             }
           ],
           "details": {},
-          "hash": "d493fb2d3b491ae692b73494195a76450c3ab31af5c06a322f381ecc7f9b6cc9",
+          "hash": "b22cd8190000fdd6a99f3ea013c1817a76f270e015ce4d1c321c102cdbeb6984",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "77d120b45771820bd6c3bb63c6a99de22a9d9e99a3cde4b70e801a286e39b98c",
+      "hash": "18ac084e17b06003fd568d52639e305cb2317cec5219baa0503d2b99a54237c4",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "c4c0ebc0a7b339e60ba56310a85042e3090b0f137fe4b67b3bc2e6560236ae2e",
+  "output_hash": "ff9ca4a8f3a0c830d6abb6b44f7ba18b6f0dba678311c81f62d75c570010aa80",
   "output_path": "server/priv/docs/tr/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -404,8 +410,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ec8ca0e200cdd7c457c210a4ab6c9e0704697c3f",
+  "source_commit_sha": "43b523bdc7ac780541c4d77ba209a93f9062b01f",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-18T06:42:34.541655Z",
-  "translation_session_id": "01a1ed5b-554f-72ad-a736-e167332b209d"
+  "translated_at": "2026-11-18T20:07:24.618361Z",
+  "translation_session_id": "01a1f03a-4133-7890-9c7b-fd93095f7225"
 }

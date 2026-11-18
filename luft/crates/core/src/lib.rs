@@ -15,6 +15,7 @@ mod updates;
 pub use bridge::{tuist_app_call, tuist_app_free};
 pub use client::{Host, MobileClient};
 pub use halls::{Halls, organizations};
+pub use live::{INBOX, Live};
 pub use presence::{Presence, Socket};
 pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};
 

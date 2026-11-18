@@ -270,7 +270,9 @@ impl MobileClient {
             "live_connect" => {
                 let index = self.active()?;
                 let id = text(args, "id")?;
-                if !is_uuid(id) {
+                // `inbox` follows the whole inbox: the server pushes when any
+                // of the person's threads in the account changes.
+                if id != crate::live::INBOX && !is_uuid(id) {
                     return Err("Invalid thread ID");
                 }
                 self.refresh(index, host)?;
