@@ -60,7 +60,7 @@ jobs:
             printf 'import ProjectDescription\nlet tuist = Tuist(fullHandle: "tuist/tuist", project: .tuist())\n' > "$work/planner/Tuist.swift"
             cp -R "$work/planner" "$work/worker"
             ref="shard-compare-$LABEL-$GITHUB_RUN_ID-$i"
-            "$TUIST_CLI" test MacFrameworkTests --build-only --shard-total 1 --shard-reference "$ref" \
+            "$TUIST_CLI" test MacFrameworkTests --build-only --no-selective-testing --shard-total 1 --shard-reference "$ref" \
               --path "$work/planner" --verbose -- -testProductsPath "$work/products.xctestproducts" \
               -destination platform=macOS 2>&1 | stamp > "$work/plan.log"
             plan_exit=${PIPESTATUS[0]}
