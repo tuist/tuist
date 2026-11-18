@@ -2,12 +2,14 @@ defmodule Tuist.Locale do
   @moduledoc false
 
   @all_languages [
+    %{code: "ar", label: "Arabic", native: "العربية"},
     %{code: "en", label: "English", native: "English"},
     %{code: "es", label: "Spanish", native: "Castellano"},
     %{code: "ja", label: "Japanese", native: "日本語"},
     %{code: "ka", label: "Georgian", native: "ქართული"},
     %{code: "ko", label: "Korean", native: "한국어"},
     %{code: "ru", label: "Russian", native: "Русский"},
+    %{code: "tr", label: "Turkish", native: "Türkçe"},
     %{code: "yue_Hant", label: "Cantonese", native: "廣東話"},
     %{code: "zh_Hans", label: "Chinese (Simplified)", native: "简体中文"},
     %{code: "zh_Hant", label: "Chinese (Traditional)", native: "繁體中文"}
@@ -23,6 +25,16 @@ defmodule Tuist.Locale do
 
   def languages, do: @languages
   def supported_locales, do: Enum.map(@languages, & &1.code)
+
+  @rtl_languages ~w(ar fa he ur)
+
+  @doc """
+  Returns the HTML `dir` value for a Gettext locale, such as `"rtl"` for `"ar"`.
+  """
+  def direction(locale) when is_binary(locale) do
+    [language | _] = String.split(locale, ["_", "-"])
+    if language in @rtl_languages, do: "rtl", else: "ltr"
+  end
 
   @doc """
   Rewrites the locale segment of a router path to `:locale`.

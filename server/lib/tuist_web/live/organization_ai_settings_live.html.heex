@@ -1,0 +1,479 @@
+<div id="account-settings" data-page="organization-ai">
+  <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
+
+  <.card_section id="organization-ai-connections" data-part="ai-configuration-card-section">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Providers")}</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_account",
+        "Connect AI providers using your organization's API keys. Each provider can be used by multiple models."
+      )}</span>
+    </div>
+    <div data-part="button-container">
+      <.button
+        id="add-ai-connection"
+        label={dgettext("dashboard_account", "Add provider")}
+        variant="secondary"
+        phx-click="add-connection"
+      />
+    </div>
+    <div data-part="content">
+      <.table
+        id="ai-connections-table"
+        rows={@configuration.connections}
+        row_key={fn connection -> "ai-connection-#{connection.id}" end}
+      >
+        <:col :let={connection} label={dgettext("dashboard_account", "Name")}>
+          <.text_cell label={connection.name} />
+        </:col>
+        <:col :let={connection} label={dgettext("dashboard_account", "API base URL")}>
+          <.text_cell label={connection.base_url} />
+        </:col>
+        <:col :let={connection} label="">
+          <.button_cell>
+            <:button>
+              <.dropdown id={"ai-connection-actions-#{connection.id}"} icon_only>
+                <:icon><.dots_vertical /></:icon>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Edit provider")}
+                  value="edit"
+                  phx-click="edit-connection"
+                  phx-value-id={connection.id}
+                >
+                  <:left_icon><.pencil /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Remove provider")}
+                  value="remove"
+                  phx-click="remove-connection"
+                  phx-value-id={connection.id}
+                >
+                  <:left_icon><.trash /></:left_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No providers yet")}
+            subtitle={dgettext("dashboard_account", "Add a provider to get started.")}
+          />
+        </:empty_state>
+      </.table>
+    </div>
+  </.card_section>
+
+  <.card_section id="organization-ai-models" data-part="ai-configuration-card-section">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Models")}</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_account",
+        "Add the models your organization can use, then choose a default model below."
+      )}</span>
+    </div>
+    <div data-part="button-container">
+      <.button
+        id="add-ai-model"
+        label={dgettext("dashboard_account", "Add model")}
+        variant="secondary"
+        phx-click="add-model"
+        disabled={@configuration.connections == []}
+      />
+    </div>
+    <div data-part="content">
+      <.table
+        id="ai-models-table"
+        rows={@configuration.models}
+        row_key={fn model -> "ai-model-#{model.id}" end}
+      >
+        <:col :let={model} label={dgettext("dashboard_account", "Name")}>
+          <.text_cell label={model.name} />
+        </:col>
+        <:col :let={model} label={dgettext("dashboard_account", "Provider")}>
+          <.text_cell label={connection_name(@configuration, model.connection_id)} />
+        </:col>
+        <:col :let={model} label={dgettext("dashboard_account", "Model ID")}>
+          <.text_cell label={model.model_id} />
+        </:col>
+        <:col :let={model} label="">
+          <.button_cell>
+            <:button>
+              <.dropdown id={"ai-model-actions-#{model.id}"} icon_only>
+                <:icon><.dots_vertical /></:icon>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Edit model")}
+                  value="edit"
+                  phx-click="edit-model"
+                  phx-value-id={model.id}
+                >
+                  <:left_icon><.pencil /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Remove model")}
+                  value="remove"
+                  phx-click="remove-model"
+                  phx-value-id={model.id}
+                >
+                  <:left_icon><.trash /></:left_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No models yet")}
+            subtitle={
+              if @configuration.connections == [],
+                do:
+                  dgettext(
+                    "dashboard_account",
+                    "Add a provider before adding a model."
+                  ),
+                else:
+                  dgettext(
+                    "dashboard_account",
+                    "Add a model to make it available to organization workflows."
+                  )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </div>
+  </.card_section>
+
+  <.card_section id="organization-ai-default" data-part="ai-default-card-section">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Default model")}</span>
+      <span data-part="subtitle">{dgettext(
+        "dashboard_account",
+        "Choose the model for organization AI workflows. No requests are sent until a default is selected. Personal AI subscriptions are not affected."
+      )}</span>
+    </div>
+    <div data-part="content">
+      <.form for={@default_form} id="organization-ai-default-form" phx-submit="save-default">
+        <.alert
+          :if={@default_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@default_error}
+        />
+        <div data-part="ai-field">
+          <.label
+            label={dgettext("dashboard_account", "Model")}
+            for="select:ai-default-model:trigger"
+          />
+          <.select
+            id="ai-default-model"
+            field={@default_form[:model_id]}
+            label={dgettext("dashboard_account", "Default model")}
+          >
+            <:item value="none" label={dgettext("dashboard_account", "No default model")} />
+            <:item
+              :for={model <- @configuration.models}
+              value={to_string(model.id)}
+              label={"#{model.name} · #{connection_name(@configuration, model.connection_id)}"}
+            />
+          </.select>
+        </div>
+        <.button
+          type="submit"
+          variant="primary"
+          label={dgettext("dashboard_account", "Save")}
+        />
+      </.form>
+    </div>
+  </.card_section>
+
+  <.form
+    for={@connection_form}
+    id="organization-ai-connection-form"
+    phx-submit="save-connection"
+    phx-change="change-connection"
+    autocomplete="off"
+  >
+    <.modal
+      id="organization-ai-connection-modal"
+      title={
+        if @connection_form[:_id].value == "",
+          do: dgettext("dashboard_account", "Add provider"),
+          else: dgettext("dashboard_account", "Edit provider")
+      }
+      header_size="large"
+      on_dismiss="cancel-connection"
+    >
+      <:trigger :let={attrs}>
+        <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+      </:trigger>
+      <.line_divider />
+      <%!-- Replace browser-owned input state, including submitted secrets. --%>
+      <div id={"ai-connection-fields-#{@connection_form_version}"} data-part="ai-modal-content">
+        <input
+          type="hidden"
+          name={@connection_form[:_id].name}
+          value={@connection_form[:_id].value}
+        />
+        <.alert
+          :if={@connection_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@connection_error}
+        />
+        <div data-part="ai-field">
+          <.label
+            label={dgettext("dashboard_account", "Provider")}
+            for={"select:ai-connection-provider-#{@connection_form_version}:trigger"}
+          />
+          <.select
+            id={"ai-connection-provider-#{@connection_form_version}"}
+            field={@connection_form[:provider]}
+            label={dgettext("dashboard_account", "Provider")}
+          >
+            <:item
+              :for={template <- @provider_templates}
+              value={template.id}
+              label={template.name}
+            />
+            <:item
+              value="custom"
+              label={dgettext("dashboard_account", "Custom")}
+            />
+          </.select>
+        </div>
+        <input
+          :for={field <- [:name, :base_url]}
+          :if={@connection_form[:provider].value != "custom"}
+          type="hidden"
+          name={@connection_form[field].name}
+          value={@connection_form[field].value}
+        />
+        <.text_input
+          :if={@connection_form[:provider].value == "custom"}
+          field={@connection_form[:name]}
+          id={"ai-connection-name-#{@connection_form_version}"}
+          type="basic"
+          label={dgettext("dashboard_account", "Name")}
+          required
+          show_required
+        />
+        <.text_input
+          :if={@connection_form[:provider].value == "custom"}
+          field={@connection_form[:base_url]}
+          id={"ai-connection-url-#{@connection_form_version}"}
+          type="basic"
+          label={dgettext("dashboard_account", "API base URL")}
+          hint={
+            dgettext(
+              "dashboard_account",
+              "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
+            )
+          }
+          required
+          show_required
+        />
+        <.text_input
+          field={@connection_form[:api_key]}
+          id={"ai-connection-key-#{@connection_form_version}"}
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_account", "API key")}
+          hint={
+            dgettext(
+              "dashboard_account",
+              "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
+            )
+          }
+        />
+      </div>
+      <.line_divider />
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              type="button"
+              variant="secondary"
+              label={dgettext("dashboard_account", "Cancel")}
+              phx-click="cancel-connection"
+            />
+          </:action>
+          <:action>
+            <.button
+              type="submit"
+              variant="primary"
+              label={
+                if @connection_form[:_id].value == "",
+                  do: dgettext("dashboard_account", "Add provider"),
+                  else: dgettext("dashboard_account", "Save")
+              }
+            />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </.form>
+
+  <.form
+    :if={@configuration.connections != []}
+    for={@model_form}
+    id="organization-ai-model-form"
+    phx-submit="save-model"
+  >
+    <.modal
+      id="organization-ai-model-modal"
+      title={
+        if @model_form[:_id].value == "",
+          do: dgettext("dashboard_account", "Add model"),
+          else: dgettext("dashboard_account", "Edit model")
+      }
+      header_size="large"
+      on_dismiss="cancel-model"
+    >
+      <:trigger :let={attrs}>
+        <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+      </:trigger>
+      <.line_divider />
+      <div id={"ai-model-fields-#{@model_form_version}"} data-part="ai-modal-content">
+        <input type="hidden" name={@model_form[:_id].name} value={@model_form[:_id].value} />
+        <.alert
+          :if={@model_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@model_error}
+        />
+        <.text_input
+          field={@model_form[:name]}
+          id={"ai-model-name-#{@model_form_version}"}
+          type="basic"
+          label={dgettext("dashboard_account", "Name")}
+          required
+          show_required
+        />
+        <div data-part="ai-field">
+          <.label
+            label={dgettext("dashboard_account", "Provider")}
+            for={"select:ai-model-connection-#{@model_form_version}:trigger"}
+            required
+          />
+          <.select
+            id={"ai-model-connection-#{@model_form_version}"}
+            field={@model_form[:connection_id]}
+            label={dgettext("dashboard_account", "Provider")}
+          >
+            <:item value="none" label={dgettext("dashboard_account", "Choose a provider")} />
+            <:item
+              :for={connection <- @configuration.connections}
+              value={to_string(connection.id)}
+              label={connection.name}
+            />
+          </.select>
+        </div>
+        <.text_input
+          field={@model_form[:model_id]}
+          id={"ai-model-upstream-id-#{@model_form_version}"}
+          type="basic"
+          label={dgettext("dashboard_account", "Model ID")}
+          hint={
+            dgettext(
+              "dashboard_account",
+              "The model ID from your provider, including any account or model prefix."
+            )
+          }
+          required
+          show_required
+        />
+      </div>
+      <.line_divider />
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              type="button"
+              variant="secondary"
+              label={dgettext("dashboard_account", "Cancel")}
+              phx-click="cancel-model"
+            />
+          </:action>
+          <:action>
+            <.button
+              type="submit"
+              variant="primary"
+              label={
+                if @model_form[:_id].value == "",
+                  do: dgettext("dashboard_account", "Add model"),
+                  else: dgettext("dashboard_account", "Save")
+              }
+            />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </.form>
+
+  <.modal
+    id="organization-ai-removal"
+    title={
+      if @pending_removal,
+        do: dgettext("dashboard_account", "Remove %{name}?", name: @pending_removal.name),
+        else: dgettext("dashboard_account", "Remove")
+    }
+    header_size="large"
+    on_dismiss="cancel-removal"
+  >
+    <:trigger :let={attrs}>
+      <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+    </:trigger>
+    <.line_divider />
+    <div :if={@pending_removal} data-part="ai-modal-content">
+      <.alert
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          if @pending_removal.kind == :connections,
+            do:
+              dgettext(
+                "dashboard_account",
+                "This deletes the stored key and all models using this provider. If one is the default, routing stops until you select another. Revoke the key at the provider to revoke access there."
+              ),
+            else:
+              dgettext(
+                "dashboard_account",
+                "This removes the configured model, not its provider. If it is the default, routing stops until you select another."
+              )
+        }
+      />
+      <p>{dgettext("dashboard_account", "Requests already sent may finish.")}</p>
+    </div>
+    <.line_divider />
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            type="button"
+            variant="secondary"
+            label={dgettext("dashboard_account", "Cancel")}
+            phx-click="cancel-removal"
+          />
+        </:action>
+        <:action>
+          <.button
+            id="confirm-ai-removal"
+            type="button"
+            variant="destructive"
+            label={dgettext("dashboard_account", "Remove")}
+            phx-click="confirm-removal"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>

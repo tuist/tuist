@@ -38,6 +38,7 @@ func run(args []string, stdin io.Reader) error {
 	preinstall := fs.Bool("preinstall", false, "render the preinstall image's seeds, the deploy seed under deploy/ and the resident installer's under resident/, instead of one host's")
 	servers := fs.String("servers", "", "with -preinstall: the boot servers the resident installer asks, in order, comma-separated")
 	wansFile := fs.String("wans-file", "", "with -preinstall: the sites' static WANs, one \"site address/prefix gateway vlan\" per line")
+	kuraLVM := fs.Bool("kura-lvm", false, "explicitly use the enrolled Kura LVM disk layout for a storage host")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -75,6 +76,7 @@ func run(args []string, stdin io.Reader) error {
 	}
 
 	seed := rackinstall.Seed{
+		KuraLVM:         *kuraLVM,
 		Host:            *host,
 		Role:            *role,
 		User:            *user,

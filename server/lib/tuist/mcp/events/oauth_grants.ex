@@ -34,12 +34,14 @@ defmodule Tuist.MCP.Events.OAuthGrants do
     SELECT id FROM grant_ancestors ORDER BY depth DESC LIMIT 1
     """
 
-    case SQL.query(Repo, query, [Ecto.UUID.dump!(id), Ecto.UUID.dump!(client_id), user_id]) do
-      {:ok, %{rows: [[root_id]]}} -> {:ok, Ecto.UUID.load!(root_id)}
+    case SQL.query!(Repo, query, [Ecto.UUID.dump!(id), Ecto.UUID.dump!(client_id), user_id]) do
+      %{rows: [[root_id]]} -> {:ok, Ecto.UUID.load!(root_id)}
       _ -> {:error, :grant_unavailable}
     end
   end
 
+  # `:error` means the grant has ended. Database errors raise instead, so an
+  # outage is never mistaken for a sign-out.
   def active_scope(grant_id, client_id, user_id, refresh_token_ttl) do
     query = """
     WITH RECURSIVE grant_lineage AS (
@@ -60,8 +62,8 @@ defmodule Tuist.MCP.Events.OAuthGrants do
     LIMIT 1
     """
 
-    case SQL.query(Repo, query, [Ecto.UUID.dump!(grant_id), Ecto.UUID.dump!(client_id), to_string(user_id)]) do
-      {:ok, %{rows: [[scope, inserted_at]]}}
+    case SQL.query!(Repo, query, [Ecto.UUID.dump!(grant_id), Ecto.UUID.dump!(client_id), to_string(user_id)]) do
+      %{rows: [[scope, inserted_at]]}
       when is_binary(scope) and not is_nil(inserted_at) ->
         issued_at = DateTime.from_naive!(inserted_at, "Etc/UTC")
 

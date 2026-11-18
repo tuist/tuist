@@ -55,6 +55,12 @@ defmodule TuistOpsWeb.PolicyControllerTest do
   defp impersonate_groups(conn), do: get_resp_header(conn, "impersonate-group")
   defp impersonate_user(conn), do: get_resp_header(conn, "impersonate-user") |> List.first()
 
+  @thread "T-01a1a59e-55fb-744b-9415-b85a337f24d2"
+  @other_thread "T-11111111-2222-3333-4444-555555555555"
+
+  defp orb_headers(email, thread \\ @thread),
+    do: [{"x-tuist-amp-email", email}, {"x-tuist-amp-thread-id", thread}]
+
   defp insert_active_elevation!(email, group, opts \\ []) do
     expires_at =
       opts
@@ -69,6 +75,7 @@ defmodule TuistOpsWeb.PolicyControllerTest do
         intent: "policy controller test",
         ttl_seconds: 600,
         slack_channel_id: "C_TEST",
+        orb_thread_id: Keyword.get(opts, :thread),
         expires_at: expires_at,
         status: "approved"
       }
@@ -78,6 +85,7 @@ defmodule TuistOpsWeb.PolicyControllerTest do
       request_id: request.id,
       requester_email: email,
       target_group: group,
+      orb_thread_id: Keyword.get(opts, :thread),
       status: "active",
       expires_at: expires_at
     }
@@ -328,6 +336,79 @@ defmodule TuistOpsWeb.PolicyControllerTest do
         |> post("/api/v1/policy", "{}")
 
       assert c.status == 200
+    end
+  end
+
+  describe "Amp orb door (kube-orb-<env>)" do
+    test "an orb gets its creator's read tier under an orb username", %{conn: conn} do
+      stub_role(@member, :member)
+
+      c = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers(@member))
+      assert c.status == 200
+      assert impersonate_user(c) == "amp-orb:#{@member}:#{@thread}"
+      assert impersonate_groups(c) == ["tuist-eng"]
+    end
+
+    test "staging orbs get standing write like their creator", %{conn: conn} do
+      stub_role(@owner, :owner)
+
+      c = policy_get(conn, "kube-orb-staging.tuist.dev", orb_headers(@owner))
+      assert impersonate_groups(c) == ["tuist-admins", "tuist-staging-write"]
+    end
+
+    test "a thread elevation writes for that thread only", %{conn: conn} do
+      stub_role(@member, :member)
+      insert_active_elevation!(@member, "group:tuist-production-write", thread: @thread)
+
+      c = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers(@member))
+      assert impersonate_groups(c) == ["tuist-eng", "tuist-production-write"]
+
+      other = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers(@member, @other_thread))
+      assert impersonate_groups(other) == ["tuist-eng"]
+
+      human = policy_get(conn, "kube-prod.tuist.dev", [{"x-pomerium-claim-email", @member}])
+      assert impersonate_groups(human) == ["tuist-eng"]
+
+      canary = policy_get(conn, "kube-orb-canary.tuist.dev", orb_headers(@member))
+      assert impersonate_groups(canary) == ["tuist-eng"]
+    end
+
+    test "a person's own elevation does not reach their orbs", %{conn: conn} do
+      stub_role(@member, :member)
+      insert_active_elevation!(@member, "group:tuist-production-write")
+
+      c = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers(@member))
+      assert impersonate_groups(c) == ["tuist-eng"]
+    end
+
+    test "elevating someone else's thread grants that thread nothing", %{conn: conn} do
+      stub(TailscaleClient, :user_role, fn _ -> {:ok, :member} end)
+      insert_active_elevation!(@admin, "group:tuist-production-write", thread: @thread)
+
+      c = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers(@member))
+      assert impersonate_groups(c) == ["tuist-eng"]
+    end
+
+    test "each door reads only its own identity headers", %{conn: conn} do
+      stub_role(@owner, :owner)
+
+      orb_with_pomerium =
+        policy_get(conn, "kube-orb-prod.tuist.dev", [{"x-pomerium-claim-email", @owner}])
+
+      assert orb_with_pomerium.status == 403
+
+      pomerium_with_orb = policy_get(conn, "kube-prod.tuist.dev", orb_headers(@owner))
+      assert pomerium_with_orb.status == 403
+
+      bad_thread = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers(@owner, "T-nope"))
+      assert bad_thread.status == 403
+    end
+
+    test "an orb whose creator is off the tailnet gets nothing", %{conn: conn} do
+      stub(TailscaleClient, :user_role, fn _ -> {:error, :not_found} end)
+
+      c = policy_get(conn, "kube-orb-prod.tuist.dev", orb_headers("x@y.com"))
+      assert c.status == 403
     end
   end
 end

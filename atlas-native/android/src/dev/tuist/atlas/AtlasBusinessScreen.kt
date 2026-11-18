@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.Dialog
-import android.app.TimePickerDialog
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -38,11 +37,7 @@ import java.math.MathContext
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
-import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.FutureTask
 import java.util.concurrent.ThreadPoolExecutor
@@ -281,13 +276,7 @@ class AtlasBusinessScreen(
         } else if (!model.busy && model.error != null) {
             text("This destination remains available. Check your access with your Atlas administrator, or retry.")
         }
-        var previousGroup: String? = null
         model.items.forEach { value ->
-            if (model.resource == "tasks" && model.filters["group_by"] == "reminder") {
-                val group = value["reminder_group"]
-                if (group != previousGroup) text(reminderGroup(group), true)
-                previousGroup = group
-            }
             val subtitle =
                 when (model.resource) {
                     "tasks" ->
@@ -295,12 +284,6 @@ class AtlasBusinessScreen(
                             value["status"],
                             value["assignee_name"],
                             value["due_on"].takeIf(String::isNotEmpty)?.let { "Due $it" },
-                            value["remind_at"].takeIf(String::isNotEmpty)?.let {
-                                "${if (value["reminder_group"] == "overdue") "Overdue reminder" else "Reminder"}: ${display(
-                                    "remind_at",
-                                    it,
-                                )}"
-                            },
                         )
                     "accounts" -> listOf(value["primary_domain"], value["segment"], value["deal_stage"])
                     else ->
@@ -379,7 +362,7 @@ class AtlasBusinessScreen(
         if (!value.canEdit) text("Read-only record")
         val fields =
             when (model.resource) {
-                "tasks" -> listOf("title", "description", "status", "assignee_name", "account_name", "due_on", "remind_at")
+                "tasks" -> listOf("title", "description", "status", "assignee_name", "account_name", "due_on")
                 else -> model.editableFields
             }
         fields.forEach { key -> text("${label(key)}\n${display(key, value[key]).ifEmpty { "Not set" }}") }
@@ -405,11 +388,11 @@ class AtlasBusinessScreen(
 
     private fun editor(draft: AtlasBusinessModel.Draft) {
         text("${if (draft.id == null) "New" else "Edit"} ${singular()}", true)
-        if (model.resource == "tasks") text("A blank assignee on a new task assigns it to you. Reminder times use your device time zone.")
+        if (model.resource == "tasks") text("A blank assignee on a new task assigns it to you.")
         if (model.resource == "invoices") text("Only manually entered invoices can be edited. Enter an ISO currency code, for example EUR.")
         model.editableFields.forEach { key ->
             when {
-                key in listOf("due_on", "due_date", "invoice_date", "next_renewal_date", "remind_at") -> dateField(key, draft)
+                key in listOf("due_on", "due_date", "invoice_date", "next_renewal_date") -> dateField(key, draft)
                 choicesKey(key) != null -> choiceField(key, draft)
                 else -> input(key, draft.fields[key].orEmpty())
             }
@@ -456,13 +439,12 @@ class AtlasBusinessScreen(
 
     private fun filterChoices(key: String): List<AtlasBusinessModel.Choice> {
         val values =
-            when {
-                key == "group_by" -> listOf("reminder")
-                key == "reminder" -> listOf("overdue", "upcoming", "none")
-                key == "status" && model.resource == "tasks" -> listOf("open", "completed")
-                else -> return model.options[choicesKey(key)].orEmpty()
+            if (key == "status" && model.resource == "tasks") {
+                listOf("open", "completed")
+            } else {
+                return model.options[choicesKey(key)].orEmpty()
             }
-        return values.map { AtlasBusinessModel.Choice(it, if (key == "reminder") reminderGroup(it) else label(it)) }
+        return values.map { AtlasBusinessModel.Choice(it, label(it)) }
     }
 
     private fun filterName(
@@ -471,7 +453,7 @@ class AtlasBusinessScreen(
     ) = filterChoices(key).firstOrNull { it.id == value }?.name ?: value
 
     private fun filter(key: String) {
-        val rows = listOf(AtlasBusinessModel.Choice("", if (key == "group_by") "No grouping" else "All")) + filterChoices(key)
+        val rows = listOf(AtlasBusinessModel.Choice("", "All")) + filterChoices(key)
         val current = model.filters[key].orEmpty()
         dialog =
             AlertDialog
@@ -483,15 +465,6 @@ class AtlasBusinessScreen(
                 }.setNegativeButton("Cancel", null)
                 .show()
     }
-
-    private fun reminderGroup(value: String) =
-        when (value) {
-            "overdue" -> "Overdue reminders"
-            "upcoming" -> "Upcoming reminders"
-            "none" -> "No reminder"
-            "completed" -> "Completed"
-            else -> "Other reminders"
-        }
 
     private fun accountRow(
         value: AtlasBusinessModel.Record,
@@ -676,8 +649,7 @@ class AtlasBusinessScreen(
         val value = draft.fields[key].orEmpty()
         button("${label(key)}: ${display(key, value).ifEmpty { "Not set" }}") {
             hideKeyboard()
-            val instant = runCatching { Instant.parse(value).atZone(ZoneId.systemDefault()) }.getOrNull()
-            val date = if (key == "remind_at") instant?.toLocalDate() else runCatching { LocalDate.parse(value) }.getOrNull()
+            val date = runCatching { LocalDate.parse(value) }.getOrNull()
             val initial = date ?: LocalDate.now()
 
             fun set(value: String) {
@@ -688,28 +660,7 @@ class AtlasBusinessScreen(
             dialog =
                 DatePickerDialog(activity, { _, year, month, day ->
                     val chosen = LocalDate.of(year, month + 1, day)
-                    if (key == "remind_at") {
-                        val time = instant?.toLocalTime() ?: LocalTime.of(9, 0)
-                        dialog =
-                            TimePickerDialog(
-                                activity,
-                                { _, hour, minute ->
-                                    set(
-                                        chosen
-                                            .atTime(hour, minute)
-                                            .atZone(ZoneId.systemDefault())
-                                            .toInstant()
-                                            .toString(),
-                                    )
-                                },
-                                time.hour,
-                                time.minute,
-                                android.text.format.DateFormat
-                                    .is24HourFormat(activity),
-                            ).also { it.show() }
-                    } else {
-                        set(chosen.toString())
-                    }
+                    set(chosen.toString())
                 }, initial.year, initial.monthValue - 1, initial.dayOfMonth).also { it.show() }
         }
         if (value.isNotEmpty()) {
@@ -723,14 +674,7 @@ class AtlasBusinessScreen(
     private fun display(
         key: String,
         value: String,
-    ): String =
-        if (key == "remind_at" && value.isNotEmpty()) {
-            runCatching {
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z").format(Instant.parse(value).atZone(ZoneId.systemDefault()))
-            }.getOrDefault(value)
-        } else {
-            value
-        }
+    ): String = value
 
     private fun recordTitle(value: AtlasBusinessModel.Record) =
         value[
@@ -753,8 +697,6 @@ class AtlasBusinessScreen(
             "assignee_id", "assignee_name" -> "Assignee"
             "account_id", "account_name" -> "Account"
             "due_on", "due_date" -> "Due date"
-            "remind_at" -> "Reminder"
-            "group_by" -> "Group by"
             "total_amount_value" -> "Total amount"
             "total_amount_currency" -> "Currency"
             "url" -> "Website URL"

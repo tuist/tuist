@@ -272,12 +272,18 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [list]
+  # The Kura volume key endpoint authenticates the CSI node plugin's projected
+  # token and resolves the requested volume to its claim and node.
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
   # Capacity admission charges a node-local volume no claim is bound to any
   # more, such as a quarantined replica's retained volume, against the node and
-  # region whose disk it still holds.
+  # region whose disk it still holds. The volume key endpoint gets a volume to
+  # resolve it to its claim and node.
   - apiGroups: [""]
     resources: [persistentvolumes]
-    verbs: [list]
+    verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -409,6 +415,9 @@ spec:
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
             {{- if .Values.kuraController.privateReplication.enabled }}
             - --private-replication=true
+            {{- end }}
+            {{- if and .Values.egressTreeAgent.enabled .Values.egressTreeAgent.nodePools }}
+            - {{ printf "--egress-tree-node-pools=%s" (join "," .Values.egressTreeAgent.nodePools) | quote }}
             {{- end }}
             {{- if .Values.kuraController.stableDNS.enabled }}
             - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}
@@ -599,6 +608,38 @@ spec:
     - secretKey: kura_sentry_dsn
       remoteRef:
         key: "{{ required "kuraController.sentry.externalSecret.item is required when sentry externalSecret is enabled" .Values.kuraController.sentry.externalSecret.item }}/{{ .Values.kuraController.sentry.externalSecret.field | default "KURA_SENTRY_DSN" }}"
+{{- end }}
+{{- if .Values.sentryPulse.services.kura }}
+---
+# KURA_SENTRY_PULSE_DSN: a copy of every Kura error to Pulse beside
+# KURA_SENTRY_DSN (sentryPulse in values.yaml). Merged into the Secret every
+# Kura pod envFroms, so enabling it rolls every Kura pod. With Merge, disabling
+# it deletes this ExternalSecret but leaves the key in kura-shared-secrets
+# until someone removes it (see sentryPulse in values.yaml for the command).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-sentry-pulse-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.sentry.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.sentry.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.sentry.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_SENTRY_PULSE_DSN: {{ include "tuist.sentryPulseDsn" (dict "root" . "service" "kura" "key" "sentry_pulse_password") | quote }}
+  data:
+    - secretKey: sentry_pulse_password
+      remoteRef:
+        key: {{ printf "%s/%s" .Values.sentryPulse.item .Values.sentryPulse.field | quote }}
 {{- end }}
 {{- if .Values.kuraController.cacheTokenPublicKey.externalSecret.enabled }}
 ---

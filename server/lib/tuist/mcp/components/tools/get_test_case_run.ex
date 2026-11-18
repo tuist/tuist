@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   @moduledoc """
-  Get detailed information about a specific test case run including failures and repetitions. Use list_test_case_run_attachments to inspect attachments.
+  Get detailed information about a specific test case run including failures, repetitions and, when the run's coverage-based selection kept the test, why (its reason and the changed file that matched). Use list_test_case_run_attachments to inspect attachments.
   """
 
   use Tuist.MCP.Tool,
@@ -61,7 +61,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
             "required" => ["repetition_number", "status", "duration"],
             "additionalProperties" => false
           }
-        }
+        },
+        "selective_testing" => Tuist.MCP.Tool.json_schema(Tuist.Tests.Selections.Schemas.test_case_run())
       },
       "required" => [
         "id",
@@ -80,7 +81,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
         "git_commit_sha",
         "ran_at",
         "failures",
-        "repetitions"
+        "repetitions",
+        "selective_testing"
       ],
       "additionalProperties" => false
     }
@@ -88,11 +90,12 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
 
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific test case run including failures and repetitions. Use list_test_case_run_attachments to inspect attachments."
+      "Get detailed information about a specific test case run including failures, repetitions and, when the run's coverage-based selection kept the test, why (its reason and the changed file that matched). Use list_test_case_run_attachments to inspect attachments."
 
   def execute(conn, %{"test_case_run_id" => test_case_run_id}) do
     with {:ok, run, _project} <-
@@ -138,7 +141,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
                status: to_string(repetition.status),
                duration: repetition.duration
              }
-           end)
+           end),
+         selective_testing: SelectionQuery.test_case_run(run)
        }}
     end
   end

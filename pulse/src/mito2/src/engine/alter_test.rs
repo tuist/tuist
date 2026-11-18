@@ -1,0 +1,4063 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::assert_matches;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+
+use api::helper::encode_json_value;
+use api::v1::bulk_wal_entry::Body;
+use api::v1::helper::{row, tag_column_schema};
+use api::v1::region::{StrictWindow, compact_request};
+use api::v1::value::ValueData;
+use api::v1::{
+    ArrowIpc, BulkWalEntry, ColumnDataType, Row, Rows, SemanticType, Value, WalEntry, WriteHint,
+};
+use common_error::ext::ErrorExt;
+use common_error::status_code::StatusCode;
+use common_meta::ddl::utils::{parse_column_metadatas, parse_manifest_infos_from_extensions};
+use common_recordbatch::{DfRecordBatch, RecordBatches};
+use common_test_util::flight::encode_to_flight_data;
+use datafusion_common::ScalarValue;
+use datafusion_expr::{col, lit};
+use datatypes::arrow::array::{ArrayRef, Float64Array, StringArray, TimestampMillisecondArray};
+use datatypes::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use datatypes::extension::json::Json2ExtensionType;
+use datatypes::json::value::JsonValue;
+use datatypes::prelude::ConcreteDataType;
+use datatypes::schema::{
+    ColumnDefaultConstraint, ColumnSchema, FulltextAnalyzer, FulltextBackend, FulltextOptions,
+};
+use datatypes::types::json_type::{JsonNativeType, JsonObjectType};
+use store_api::codec::PrimaryKeyEncoding;
+use store_api::logstore::provider::Provider;
+use store_api::metadata::{ColumnMetadata, RegionMetadata};
+use store_api::metric_engine_consts::{PRIMARY_KEY_ENCODING, TABLE_COLUMN_METADATA_EXTENSION_KEY};
+use store_api::region_engine::{RegionEngine, RegionManifestInfo, RegionRole};
+use store_api::region_request::{
+    AddColumn, AddColumnLocation, AlterKind, ModifyColumnType, PathType, RegionAlterRequest,
+    RegionBulkInsertsRequest, RegionCompactRequest, RegionCreateRequest, RegionOpenRequest,
+    RegionPutRequest, RegionRequest, SetIndexOption, SetRegionOption, UnsetRegionOption,
+};
+use store_api::storage::consts::PRIMARY_KEY_COLUMN_NAME;
+use store_api::storage::{ColumnId, RegionId, ScanRequest};
+
+use crate::config::MitoConfig;
+use crate::engine::MitoEngine;
+use crate::engine::listener::{AlterFlushListener, NotifyRegionChangeResultListener};
+use crate::error;
+use crate::request::WorkerRequest;
+use crate::sst::FormatType;
+use crate::test_util::batch_util::sort_batches_and_print;
+use crate::test_util::sst_util::{new_sparse_primary_key, sst_region_metadata_with_encoding};
+use crate::test_util::{
+    CreateRequestBuilder, LogStoreImpl, TestEnv, build_rows, build_rows_for_key,
+    column_metadata_to_column_schema, flush_region, put_rows, reopen_region, rows_schema,
+};
+use crate::wal::Wal;
+
+async fn scan_check_after_alter(engine: &MitoEngine, region_id: RegionId, expected: &str) {
+    let request = ScanRequest::default();
+    let scanner = engine.scanner(region_id, request).await.unwrap();
+    assert_eq!(0, scanner.num_memtables());
+    assert_eq!(1, scanner.num_files());
+    let stream = scanner.scan().await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+fn add_tag1() -> RegionAlterRequest {
+    RegionAlterRequest {
+        kind: AlterKind::AddColumns {
+            columns: vec![AddColumn {
+                column_metadata: ColumnMetadata {
+                    column_schema: ColumnSchema::new(
+                        "tag_1",
+                        ConcreteDataType::string_datatype(),
+                        true,
+                    ),
+                    semantic_type: SemanticType::Tag,
+                    column_id: 3,
+                },
+                location: Some(AddColumnLocation::First),
+            }],
+        },
+    }
+}
+
+fn alter_column_inverted_index() -> RegionAlterRequest {
+    RegionAlterRequest {
+        kind: AlterKind::SetIndexes {
+            options: vec![SetIndexOption::Inverted {
+                column_name: "tag_0".to_string(),
+            }],
+        },
+    }
+}
+
+fn alter_column_fulltext_options() -> RegionAlterRequest {
+    RegionAlterRequest {
+        kind: AlterKind::SetIndexes {
+            options: vec![SetIndexOption::Fulltext {
+                column_name: "tag_0".to_string(),
+                options: FulltextOptions::new_unchecked(
+                    true,
+                    FulltextAnalyzer::English,
+                    false,
+                    FulltextBackend::Bloom,
+                    1000,
+                    0.01,
+                ),
+            }],
+        },
+    }
+}
+
+fn add_nullable_field1() -> RegionAlterRequest {
+    RegionAlterRequest {
+        kind: AlterKind::AddColumns {
+            columns: vec![AddColumn {
+                column_metadata: ColumnMetadata {
+                    column_schema: ColumnSchema::new(
+                        "field_1",
+                        ConcreteDataType::float64_datatype(),
+                        true,
+                    ),
+                    semantic_type: SemanticType::Field,
+                    column_id: 3,
+                },
+                location: None,
+            }],
+        },
+    }
+}
+
+#[rstest::rstest]
+#[case::implicit_time_series(false, None, false)]
+#[case::explicit_time_series(false, Some("time_series"), false)]
+#[case::explicit_bulk(false, Some("bulk"), true)]
+#[case::default_flat(true, None, true)]
+#[case::flat_overrides_time_series(true, Some("time_series"), true)]
+#[tokio::test]
+async fn test_engine_add_json2_format_validation(
+    #[case] default_flat_format: bool,
+    #[case] memtable: Option<&str>,
+    #[case] accepted: bool,
+    #[values(false, true)] write_before_alter: bool,
+) {
+    let mut env = TestEnv::with_prefix("add-json2-memtable-validation").await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format,
+            ..Default::default()
+        })
+        .await;
+    let region_id = RegionId::new(1, 1);
+    let mut request = CreateRequestBuilder::new().build();
+    if let Some(memtable) = memtable {
+        request
+            .options
+            .insert("memtable.type".into(), memtable.into());
+    }
+    engine
+        .handle_request(region_id, RegionRequest::Create(request.clone()))
+        .await
+        .unwrap();
+    if write_before_alter {
+        put_rows(
+            &engine,
+            region_id,
+            Rows {
+                schema: rows_schema(&request),
+                rows: build_rows(0, 1),
+            },
+        )
+        .await;
+    }
+    let region = engine.get_region(region_id).unwrap();
+    let old_metadata = region.metadata();
+    let mut column_schema = ColumnSchema::new(
+        "json",
+        ConcreteDataType::json2(JsonNativeType::Object(JsonObjectType::new())),
+        true,
+    );
+    column_schema.with_extension_type(&Json2ExtensionType::default());
+    let result = engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::AddColumns {
+                    columns: vec![AddColumn {
+                        column_metadata: ColumnMetadata {
+                            column_schema,
+                            semantic_type: SemanticType::Field,
+                            column_id: 3,
+                        },
+                        location: None,
+                    }],
+                },
+            }),
+        )
+        .await;
+    if accepted {
+        result.unwrap();
+        assert!(region.metadata().column_by_name("json").is_some());
+    } else {
+        let err = result.unwrap_err();
+        assert_eq!(StatusCode::InvalidArguments, err.status_code());
+        assert!(
+            err.output_msg()
+                .contains("JSON2 columns require sst_format=flat")
+        );
+        assert_eq!(old_metadata, region.metadata());
+    }
+    let expected_metadata = region.metadata();
+    assert_eq!(
+        expected_metadata,
+        region.manifest_ctx.manifest().await.metadata
+    );
+    reopen_region(&engine, region_id, request.table_dir, true, request.options).await;
+    assert_eq!(
+        expected_metadata,
+        engine.get_region(region_id).unwrap().metadata()
+    );
+}
+
+#[rstest::rstest]
+#[tokio::test]
+async fn test_engine_rejects_json2_primary_key_format_change(
+    #[values("bulk", "time_series")] memtable: &str,
+    #[values(false, true)] write_before_alter: bool,
+) {
+    let mut env = TestEnv::with_prefix("alter-json2-format-validation").await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new()
+        .field_datatype(ConcreteDataType::json2(JsonNativeType::Object(
+            JsonObjectType::new(),
+        )))
+        .insert_option("memtable.type", memtable)
+        .build();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request.clone()))
+        .await
+        .unwrap();
+    let json_rows = |n: i64| Rows {
+        schema: rows_schema(&request),
+        rows: vec![row(vec![
+            ValueData::StringValue("tag".into()),
+            ValueData::JsonValue(encode_json_value(JsonValue::from([("a", n)]))),
+            ValueData::TimestampMillisecondValue(n * 1000),
+        ])],
+    };
+    if write_before_alter {
+        put_rows(&engine, region_id, json_rows(1)).await;
+    }
+    let region = engine.get_region(region_id).unwrap();
+    let manifest_version = region.manifest_ctx.manifest_version().await;
+    let err = engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::SetRegionOptions {
+                    options: vec![SetRegionOption::Format("primary_key".into())],
+                },
+            }),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(StatusCode::InvalidArguments, err.status_code());
+    assert!(
+        err.output_msg()
+            .contains("JSON2 columns require sst_format=flat")
+    );
+    assert_eq!(Some(FormatType::Flat), region.version().options.sst_format);
+    assert_eq!(
+        FormatType::Flat,
+        region.manifest_ctx.manifest().await.sst_format
+    );
+    if !write_before_alter {
+        assert_eq!(
+            manifest_version,
+            region.manifest_ctx.manifest_version().await
+        );
+    }
+    put_rows(&engine, region_id, json_rows(2)).await;
+    let batches = RecordBatches::try_collect(
+        engine
+            .scan_to_stream(region_id, ScanRequest::default())
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        usize::from(write_before_alter) + 1,
+        batches.iter().map(|b| b.num_rows()).sum::<usize>()
+    );
+    let expected = batches.pretty_print().unwrap();
+    flush_region(&engine, region_id, None).await;
+    reopen_region(&engine, region_id, request.table_dir, true, request.options).await;
+    assert_eq!(
+        Some(FormatType::Flat),
+        engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .sst_format
+    );
+    let batches = RecordBatches::try_collect(
+        engine
+            .scan_to_stream(region_id, ScanRequest::default())
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+fn build_row_with_added_field(
+    metadata: &[ColumnMetadata],
+    tag_0: &str,
+    field_0: f64,
+    field_1: Option<f64>,
+    ts_millis: i64,
+) -> Row {
+    let values = metadata
+        .iter()
+        .map(|column| match column.column_schema.name.as_str() {
+            "tag_0" => Value {
+                value_data: Some(ValueData::StringValue(tag_0.to_string())),
+            },
+            "field_0" => Value {
+                value_data: Some(ValueData::F64Value(field_0)),
+            },
+            "field_1" => Value {
+                value_data: field_1.map(ValueData::F64Value),
+            },
+            "ts" => Value {
+                value_data: Some(ValueData::TimestampMillisecondValue(ts_millis)),
+            },
+            name => panic!("unexpected column {name}"),
+        })
+        .collect();
+
+    Row { values }
+}
+
+fn check_region_version(
+    engine: &MitoEngine,
+    region_id: RegionId,
+    last_entry_id: u64,
+    committed_sequence: u64,
+    flushed_entry_id: u64,
+    flushed_sequence: u64,
+) {
+    let region = engine.get_region(region_id).unwrap();
+    let version_data = region.version_control.current();
+    assert_eq!(last_entry_id, version_data.last_entry_id);
+    assert_eq!(committed_sequence, version_data.committed_sequence);
+    assert_eq!(flushed_entry_id, version_data.version.flushed_entry_id);
+    assert_eq!(flushed_sequence, version_data.version.flushed_sequence);
+}
+
+fn assert_column_metadatas(column_name: &[(&str, ColumnId)], column_metadatas: &[ColumnMetadata]) {
+    assert_eq!(column_name.len(), column_metadatas.len());
+    for (name, id) in column_name {
+        let column_metadata = column_metadatas
+            .iter()
+            .find(|c| c.column_id == *id)
+            .unwrap();
+        assert_eq!(column_metadata.column_schema.name, *name);
+    }
+}
+
+#[tokio::test]
+async fn test_sync_columns_preserves_primary_key_order() {
+    test_sync_columns_preserves_primary_key_order_with_format(false).await;
+    test_sync_columns_preserves_primary_key_order_with_format(true).await;
+}
+
+async fn assert_sync_columns_readable(
+    engine: &MitoEngine,
+    region_id: RegionId,
+    metadata: &RegionMetadata,
+    expected: &str,
+) {
+    let current = engine.get_region(region_id).unwrap().metadata();
+    assert_eq!(current.primary_key, metadata.primary_key);
+    let projection = metadata
+        .column_metadatas
+        .iter()
+        .map(|column| current.column_index_by_id(column.column_id).unwrap())
+        .collect();
+    let stream = engine
+        .scan_to_stream(
+            region_id,
+            ScanRequest {
+                projection: Some(projection),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        RecordBatches::try_collect(stream)
+            .await
+            .unwrap()
+            .pretty_print()
+            .unwrap(),
+        expected
+    );
+}
+
+async fn test_sync_columns_preserves_primary_key_order_with_format(flat_format: bool) {
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+    let table_dir = request.table_dir.clone();
+    let mut row_schema = rows_schema(&request);
+    row_schema.push(tag_column_schema("tag_1", ColumnDataType::String));
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+    engine
+        .handle_request(region_id, RegionRequest::Alter(add_tag1()))
+        .await
+        .unwrap();
+    let metadata = engine.get_region(region_id).unwrap().metadata();
+    assert_eq!(metadata.primary_key, vec![0, 3]);
+
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: row_schema,
+            rows: build_rows_for_tags("a", "b", 0, 2, 10),
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+    let before = RecordBatches::try_collect(
+        engine
+            .scanner(region_id, ScanRequest::default())
+            .await
+            .unwrap()
+            .scan()
+            .await
+            .unwrap(),
+    )
+    .await
+    .unwrap()
+    .pretty_print()
+    .unwrap();
+
+    let mut columns = metadata.column_metadatas.clone();
+    columns.push(ColumnMetadata {
+        column_schema: ColumnSchema::new("field_1", ConcreteDataType::float64_datatype(), true),
+        semantic_type: SemanticType::Field,
+        column_id: 4,
+    });
+    let tags = metadata.primary_key_columns().cloned().collect::<Vec<_>>();
+    let mut tags = tags.into_iter();
+    for column in &mut columns {
+        if column.semantic_type == SemanticType::Tag {
+            *column = tags.next().unwrap();
+        }
+    }
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::SyncColumns {
+                    column_metadatas: columns,
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    assert_sync_columns_readable(&engine, region_id, &metadata, &before).await;
+    reopen_region(&engine, region_id, table_dir, true, HashMap::new()).await;
+    assert_sync_columns_readable(&engine, region_id, &metadata, &before).await;
+}
+
+#[tokio::test]
+async fn test_alter_region() {
+    test_alter_region_with_format(false).await;
+    test_alter_region_with_format(true).await;
+}
+
+async fn test_alter_region_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    let response = engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+    let column_metadatas =
+        parse_column_metadatas(&response.extensions, TABLE_COLUMN_METADATA_EXTENSION_KEY).unwrap();
+    assert_column_metadatas(
+        &[("tag_0", 0), ("field_0", 1), ("ts", 2)],
+        &column_metadatas,
+    );
+
+    let rows = Rows {
+        schema: column_schemas,
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    let request = add_tag1();
+    let response = engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+
+    let expected = "\
++-------+-------+---------+---------------------+
+| tag_1 | tag_0 | field_0 | ts                  |
++-------+-------+---------+---------------------+
+|       | 0     | 0.0     | 1970-01-01T00:00:00 |
+|       | 1     | 1.0     | 1970-01-01T00:00:01 |
+|       | 2     | 2.0     | 1970-01-01T00:00:02 |
++-------+-------+---------+---------------------+";
+    scan_check_after_alter(&engine, region_id, expected).await;
+    check_region_version(&engine, region_id, 1, 3, 1, 3);
+
+    let mut manifests = parse_manifest_infos_from_extensions(&response.extensions).unwrap();
+    assert_eq!(manifests.len(), 1);
+    let (return_region_id, manifest) = manifests.remove(0);
+    assert_eq!(return_region_id, region_id);
+    assert_eq!(manifest, RegionManifestInfo::mito(2, 1, 0));
+    let column_metadatas =
+        parse_column_metadatas(&response.extensions, TABLE_COLUMN_METADATA_EXTENSION_KEY).unwrap();
+    assert_column_metadatas(
+        &[("tag_0", 0), ("field_0", 1), ("ts", 2), ("tag_1", 3)],
+        &column_metadatas,
+    );
+
+    // Reopen region.
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+    scan_check_after_alter(&engine, region_id, expected).await;
+    check_region_version(&engine, region_id, 1, 3, 1, 3);
+}
+
+async fn scan_time_index_values(engine: &MitoEngine, region_id: RegionId) -> Vec<i64> {
+    let request = ScanRequest::default();
+    let scanner = engine.scanner(region_id, request).await.unwrap();
+    let stream = scanner.scan().await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    let mut values = Vec::new();
+    for batch in batches.iter() {
+        let ts_column = batch
+            .df_record_batch()
+            .column_by_name("ts")
+            .expect("ts column must exist");
+        let unit = match ts_column.data_type() {
+            DataType::Timestamp(unit, _) => *unit,
+            other => panic!("unexpected ts type: {other:?}"),
+        };
+        assert_eq!(TimeUnit::Microsecond, unit);
+        let array = ts_column
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::TimestampMicrosecondArray>()
+            .unwrap();
+        values.extend(array.iter().map(|v| v.unwrap()));
+    }
+    values.sort();
+    values
+}
+
+/// Concatenates an error with its whole source chain, since engine errors are
+/// wrapped by the worker and the interesting message is usually the source.
+fn full_error_chain(err: &impl std::error::Error) -> String {
+    let mut chain = err.to_string();
+    let mut src = err.source();
+    while let Some(e) = src {
+        chain.push_str("; ");
+        chain.push_str(&e.to_string());
+        src = e.source();
+    }
+    chain
+}
+
+#[tokio::test]
+async fn test_alter_time_index_column_type() {
+    test_alter_time_index_column_type_with_format(false).await;
+    test_alter_time_index_column_type_with_format(true).await;
+}
+
+async fn test_alter_time_index_column_type_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Historical rows in millisecond resolution: ts = 0s, 1s, 2s.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 3),
+        },
+    )
+    .await;
+    // Flush the rows into an SST written with the old (millisecond) unit.
+    flush_region(&engine, region_id, None).await;
+
+    // Narrowing the time index unit is rejected.
+    let request = RegionAlterRequest {
+        kind: AlterKind::ModifyColumnTypes {
+            columns: vec![ModifyColumnType {
+                column_name: "ts".to_string(),
+                target_type: ConcreteDataType::timestamp_second_datatype(),
+            }],
+        },
+    };
+    let err = engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap_err();
+    // The error is wrapped by the worker, so inspect the whole source chain.
+    let chain = full_error_chain(&err);
+    assert!(chain.contains("only supports widening"), "{chain}");
+
+    // Widen the time index unit from millisecond to microsecond.
+    let request = RegionAlterRequest {
+        kind: AlterKind::ModifyColumnTypes {
+            columns: vec![ModifyColumnType {
+                column_name: "ts".to_string(),
+                target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+            }],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+
+    // Re-submitting the same alter succeeds as a no-op: a retried alter
+    // procedure (region already altered before the previous attempt failed)
+    // must not be rejected forever.
+    let request = RegionAlterRequest {
+        kind: AlterKind::ModifyColumnTypes {
+            columns: vec![ModifyColumnType {
+                column_name: "ts".to_string(),
+                target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+            }],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+
+    // Data in the old SST is read back cast to the new unit.
+    assert_eq!(vec![0, 1_000_000, 2_000_000], {
+        scan_time_index_values(&engine, region_id).await
+    });
+
+    // New writes use the microsecond unit; 3.5s is not representable in the old unit.
+    let metadata = engine.get_region(region_id).unwrap().metadata().clone();
+    let column_schemas: Vec<_> = metadata
+        .column_metadatas
+        .iter()
+        .map(column_metadata_to_column_schema)
+        .collect();
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: vec![row(vec![
+                ValueData::StringValue("3".to_string()),
+                ValueData::F64Value(3.0),
+                ValueData::TimestampMicrosecondValue(3_500_000),
+            ])],
+        },
+    )
+    .await;
+
+    // Old SST data and new memtable data merge in the new unit.
+    assert_eq!(vec![0, 1_000_000, 2_000_000, 3_500_000], {
+        scan_time_index_values(&engine, region_id).await
+    });
+
+    // Reopen the region to ensure the altered metadata survives manifest replay.
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(vec![0, 1_000_000, 2_000_000, 3_500_000], {
+        scan_time_index_values(&engine, region_id).await
+    });
+}
+
+#[tokio::test]
+async fn test_alter_time_index_unit_overflow_logged() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let _table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // A millisecond timestamp of 3000-01-01T00:00:00Z. It fits milliseconds
+    // and microseconds but overflows nanoseconds (max ~2262-04-11).
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: vec![row(vec![
+                ValueData::StringValue("a".to_string()),
+                ValueData::F64Value(1.0),
+                ValueData::TimestampMillisecondValue(32_503_680_000_000),
+            ])],
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+
+    // Widening to microseconds fits the value.
+    let request = RegionAlterRequest {
+        kind: AlterKind::ModifyColumnTypes {
+            columns: vec![ModifyColumnType {
+                column_name: "ts".to_string(),
+                target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+            }],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+    assert_eq!(vec![32_503_680_000_000_000], {
+        scan_time_index_values(&engine, region_id).await
+    });
+
+    // Widening to nanoseconds would overflow the value: logged, not rejected.
+    let request = RegionAlterRequest {
+        kind: AlterKind::ModifyColumnTypes {
+            columns: vec![ModifyColumnType {
+                column_name: "ts".to_string(),
+                target_type: ConcreteDataType::timestamp_nanosecond_datatype(),
+            }],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+    let metadata = engine.get_metadata(region_id).await.unwrap();
+    assert_eq!(
+        ConcreteDataType::timestamp_nanosecond_datatype(),
+        metadata.time_index_column().column_schema.data_type
+    );
+}
+
+/// Scans the region and returns `(ts, field_0)` pairs sorted on ts, so tests
+/// can assert both the rescaled timestamps and the values they carry.
+async fn scan_ts_and_field(
+    engine: &MitoEngine,
+    region_id: RegionId,
+    filters: Vec<datafusion_expr::Expr>,
+) -> Vec<(i64, f64)> {
+    let stream = engine
+        .scan_to_stream(
+            region_id,
+            ScanRequest {
+                filters,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    let mut pairs = Vec::new();
+    for batch in batches.iter() {
+        let batch = batch.df_record_batch();
+        let ts_column = batch.column_by_name("ts").expect("ts column must exist");
+        assert_eq!(
+            DataType::Timestamp(TimeUnit::Microsecond, None),
+            ts_column.data_type().clone(),
+            "time index must be read back in the new unit"
+        );
+        let ts_array = ts_column
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::TimestampMicrosecondArray>()
+            .unwrap();
+        let field_array = batch
+            .column_by_name("field_0")
+            .expect("field_0 column must exist")
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .unwrap();
+        for (ts, field) in ts_array.iter().zip(field_array.iter()) {
+            pairs.push((ts.unwrap(), field.unwrap()));
+        }
+    }
+    pairs.sort_by_key(|(ts, _)| *ts);
+    pairs
+}
+
+fn ts_us_lit(v: i64) -> datafusion_expr::Expr {
+    lit(ScalarValue::TimestampMicrosecond(Some(v), None))
+}
+
+/// Asserts every `expected` row is present in `actual`: `ScanRequest.filters`
+/// are advisory for pruning, so the guarantee under test is that no matching
+/// row is lost. Exact filtering is asserted by
+/// [`test_alter_time_index_widen_old_sst_filters_rows_exactly`].
+fn assert_rows_present(expected: &[(i64, f64)], actual: Vec<(i64, f64)>) {
+    for row in expected {
+        assert!(
+            actual.contains(row),
+            "row {row:?} is missing from the scan result {:?} \
+             (wrongly pruned)",
+            actual
+        );
+    }
+}
+
+/// Read paths over old-unit (pre-alter) SST data after widening the time
+/// index unit: predicate scans, dedup across units, mixed-unit SSTs, and
+/// compaction rewriting old-unit files in the new unit.
+#[tokio::test]
+async fn test_alter_time_index_read_paths_after_widen() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Historical rows in millisecond resolution: ts = 0s..5s.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 5),
+        },
+    )
+    .await;
+    // The whole history lives in one SST written in the old (ms) unit.
+    flush_region(&engine, region_id, None).await;
+
+    // Widen the time index unit to microsecond.
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::ModifyColumnTypes {
+                    columns: vec![ModifyColumnType {
+                        column_name: "ts".to_string(),
+                        target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+                    }],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    // Full scan: all pre-alter rows are rescaled to the new unit with their
+    // values intact.
+    let expected_full = vec![
+        (0, 0.0),
+        (1_000_000, 1.0),
+        (2_000_000, 2.0),
+        (3_000_000, 3.0),
+        (4_000_000, 4.0),
+    ];
+    assert_eq!(
+        expected_full,
+        scan_ts_and_field(&engine, region_id, vec![]).await
+    );
+
+    // Predicate scans: the predicate is in the new unit while the SST stats
+    // are in the old unit; no file or row group holding a matching row may be
+    // pruned. (Exact filtering is asserted by the test below and sqlness.)
+    assert_rows_present(
+        &[(3_000_000, 3.0), (4_000_000, 4.0)],
+        scan_ts_and_field(&engine, region_id, vec![col("ts").gt(ts_us_lit(2_500_000))]).await,
+    );
+    assert_rows_present(
+        &[(0, 0.0), (1_000_000, 1.0)],
+        scan_ts_and_field(&engine, region_id, vec![col("ts").lt(ts_us_lit(1_500_000))]).await,
+    );
+
+    // A post-alter write overwrites the pre-alter row ("2", ts = 2s) with a new
+    // field value, and inserts a sub-millisecond row at 5.5s. The old row and
+    // the new write are the same instant once the old row is cast to
+    // microseconds, so dedup must keep only the new write.
+    let metadata = engine.get_region(region_id).unwrap().metadata().clone();
+    let column_schemas: Vec<_> = metadata
+        .column_metadatas
+        .iter()
+        .map(column_metadata_to_column_schema)
+        .collect();
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: vec![
+                row(vec![
+                    ValueData::StringValue("2".to_string()),
+                    ValueData::F64Value(99.0),
+                    ValueData::TimestampMicrosecondValue(2_000_000),
+                ]),
+                row(vec![
+                    ValueData::StringValue("5".to_string()),
+                    ValueData::F64Value(5.5),
+                    ValueData::TimestampMicrosecondValue(5_500_000),
+                ]),
+            ],
+        },
+    )
+    .await;
+
+    let expected_after_overwrite = vec![
+        (0, 0.0),
+        (1_000_000, 1.0),
+        (2_000_000, 99.0),
+        (3_000_000, 3.0),
+        (4_000_000, 4.0),
+        (5_500_000, 5.5),
+    ];
+    assert_eq!(
+        expected_after_overwrite,
+        scan_ts_and_field(&engine, region_id, vec![]).await
+    );
+    // No matching row may disappear from predicate scans after the overwrite.
+    assert_rows_present(
+        &[(3_000_000, 3.0), (4_000_000, 4.0), (5_500_000, 5.5)],
+        scan_ts_and_field(&engine, region_id, vec![col("ts").gt(ts_us_lit(2_500_000))]).await,
+    );
+
+    // Flush the post-alter writes so the region holds both an old-unit SST
+    // and a new-unit SST, then compact. Compaction reads the old-unit file
+    // through the compat layer and rewrites it in the new unit; all values
+    // (including the deduped overwrite) must survive.
+    flush_region(&engine, region_id, None).await;
+    assert_eq!(
+        expected_after_overwrite,
+        scan_ts_and_field(&engine, region_id, vec![]).await
+    );
+
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Compact(RegionCompactRequest::default()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        expected_after_overwrite,
+        scan_ts_and_field(&engine, region_id, vec![]).await
+    );
+}
+
+/// Regression test: predicates on the time index must filter old-unit
+/// (pre-alter) SST rows **exactly** after widening — the predicate used to be
+/// dropped for old-unit files, returning every row of each surviving row
+/// group. Two row groups of five rows make a partial-match result
+/// distinguishable from both over- and under-selection; literals not
+/// representable in the file's (ms) unit must strengthen the operator
+/// instead of rounding to a boundary row.
+#[tokio::test]
+async fn test_alter_time_index_widen_old_sst_filters_rows_exactly() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    // Row groups of five rows: after flushing ten rows, the SST holds two
+    // row groups (0s..5s and 5s..9s) so a predicate matching a strict subset
+    // of a surviving row group is observable.
+    let request = CreateRequestBuilder::new()
+        .insert_option("max_row_group_row_count", "5")
+        .build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Ten historical rows in millisecond resolution: ts = 0s..9s.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 10),
+        },
+    )
+    .await;
+    // One SST written in the old (ms) unit, two row groups of five.
+    flush_region(&engine, region_id, None).await;
+
+    // Widen the time index unit to microsecond.
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::ModifyColumnTypes {
+                    columns: vec![ModifyColumnType {
+                        column_name: "ts".to_string(),
+                        target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+                    }],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    // The predicate hits the middle of the second row group. `ScanRequest`
+    // filters must filter exactly: only the matching row may be returned.
+    let actual =
+        scan_ts_and_field(&engine, region_id, vec![col("ts").eq(ts_us_lit(7_000_000))]).await;
+    assert_eq!(
+        vec![(7_000_000, 7.0)],
+        actual,
+        "old-unit SST rows must be filtered exactly after widening the time index unit"
+    );
+
+    // `!=` must complement `=` on the same data (the helper returns rows
+    // sorted by ts).
+    let expected_ne: Vec<(i64, f64)> = (0..10)
+        .filter(|ts| *ts != 7)
+        .map(|ts| (ts * 1_000_000, ts as f64))
+        .collect();
+    let actual_ne = scan_ts_and_field(
+        &engine,
+        region_id,
+        vec![col("ts").not_eq(ts_us_lit(7_000_000))],
+    )
+    .await;
+    assert_eq!(expected_ne, actual_ne);
+
+    // Literals not representable in the file's millisecond unit: the cast
+    // filter must strengthen the operator instead of rounding the literal to
+    // a boundary row (6s or 7s). `gt` and `lt` are the engine-level
+    // representatives; the full operator matrix is covered by the unit tests
+    // of `cast_timestamp_unit`.
+    let rows_after = |from: i64| -> Vec<(i64, f64)> {
+        (from..10).map(|ts| (ts * 1_000_000, ts as f64)).collect()
+    };
+    let rows_before =
+        |to: i64| -> Vec<(i64, f64)> { (0..to).map(|ts| (ts * 1_000_000, ts as f64)).collect() };
+    assert_eq!(
+        rows_after(7),
+        scan_ts_and_field(&engine, region_id, vec![col("ts").gt(ts_us_lit(6_500_000))]).await
+    );
+    assert_eq!(
+        rows_before(7),
+        scan_ts_and_field(&engine, region_id, vec![col("ts").lt(ts_us_lit(6_500_000))]).await
+    );
+
+    // A literal that no millisecond row can equal must not match anything.
+    assert!(
+        scan_ts_and_field(&engine, region_id, vec![col("ts").eq(ts_us_lit(7_000_500))],)
+            .await
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn test_filter_is_null_after_alter_add_field() {
+    test_filter_is_null_after_alter_add_field_with_format(false).await;
+    test_filter_is_null_after_alter_add_field_with_format(true).await;
+}
+
+async fn test_filter_is_null_after_alter_add_field_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: vec![build_rows_for_key("a", 0, 1, 1).into_iter().next().unwrap()],
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+
+    engine
+        .handle_request(region_id, RegionRequest::Alter(add_nullable_field1()))
+        .await
+        .unwrap();
+
+    let region = engine.get_region(region_id).unwrap();
+    let metadata = region.metadata().column_metadatas.clone();
+    let schema = metadata
+        .iter()
+        .map(column_metadata_to_column_schema)
+        .collect();
+
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema,
+            rows: vec![build_row_with_added_field(
+                &metadata,
+                "a",
+                1.0,
+                Some(10.0),
+                0,
+            )],
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+
+    // We skip field filters under merge mode because the flushed field values may be stale before
+    // the row is merged with newer field data.
+    let stream = engine
+        .scan_to_stream(
+            region_id,
+            ScanRequest {
+                filters: vec![col("field_1").is_null()],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    let expected = "\
++-------+---------+---------------------+---------+
+| tag_0 | field_0 | ts                  | field_1 |
++-------+---------+---------------------+---------+
+| a     | 1.0     | 1970-01-01T00:00:00 | 10.0    |
++-------+---------+---------------------+---------+";
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+/// Build rows with schema (string, f64, ts_millis, string).
+fn build_rows_for_tags(
+    tag0: &str,
+    tag1: &str,
+    start: usize,
+    end: usize,
+    value_start: usize,
+) -> Vec<Row> {
+    (start..end)
+        .enumerate()
+        .map(|(idx, ts)| {
+            row(vec![
+                ValueData::StringValue(tag0.to_string()),
+                ValueData::F64Value((value_start + idx) as f64),
+                ValueData::TimestampMillisecondValue(ts as i64 * 1000),
+                ValueData::StringValue(tag1.to_string()),
+            ])
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn test_put_after_alter() {
+    test_put_after_alter_with_format(false).await;
+    test_put_after_alter_with_format(true).await;
+}
+
+async fn test_put_after_alter_with_format(flat_format: bool) {
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let mut column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows_for_key("b", 0, 2, 0),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    let request = add_tag1();
+    engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+
+    let expected = "\
++-------+-------+---------+---------------------+
+| tag_1 | tag_0 | field_0 | ts                  |
++-------+-------+---------+---------------------+
+|       | b     | 0.0     | 1970-01-01T00:00:00 |
+|       | b     | 1.0     | 1970-01-01T00:00:01 |
++-------+-------+---------+---------------------+";
+    scan_check_after_alter(&engine, region_id, expected).await;
+
+    // Reopen region.
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+    // Convert region to leader.
+    engine
+        .set_region_role(region_id, RegionRole::Leader)
+        .unwrap();
+
+    // Put with old schema.
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows_for_key("b", 2, 3, 2),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Push tag_1 to schema.
+    column_schemas.push(tag_column_schema("tag_1", ColumnDataType::String));
+    // Put with new schema.
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows_for_tags("a", "a", 0, 2, 0),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Scan again.
+    let expected = "\
++-------+-------+---------+---------------------+
+| tag_1 | tag_0 | field_0 | ts                  |
++-------+-------+---------+---------------------+
+| a     | a     | 0.0     | 1970-01-01T00:00:00 |
+| a     | a     | 1.0     | 1970-01-01T00:00:01 |
+|       | b     | 0.0     | 1970-01-01T00:00:00 |
+|       | b     | 1.0     | 1970-01-01T00:00:01 |
+|       | b     | 2.0     | 1970-01-01T00:00:02 |
++-------+-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_region_retry() {
+    test_alter_region_retry_with_format(false).await;
+    test_alter_region_retry_with_format(true).await;
+}
+
+async fn test_alter_region_retry_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let rows = Rows {
+        schema: column_schemas,
+        rows: build_rows_for_key("a", 0, 2, 0),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    let request = add_tag1();
+    engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap();
+    // Retries request.
+    let request = add_tag1();
+    let err = engine
+        .handle_request(region_id, RegionRequest::Alter(request))
+        .await
+        .unwrap_err();
+    let err = err.as_any().downcast_ref::<error::Error>().unwrap();
+    assert_matches!(err, &error::Error::InvalidRegionRequest { .. });
+
+    let expected = "\
++-------+-------+---------+---------------------+
+| tag_1 | tag_0 | field_0 | ts                  |
++-------+-------+---------+---------------------+
+|       | a     | 0.0     | 1970-01-01T00:00:00 |
+|       | a     | 1.0     | 1970-01-01T00:00:01 |
++-------+-------+---------+---------------------+";
+    scan_check_after_alter(&engine, region_id, expected).await;
+    check_region_version(&engine, region_id, 1, 2, 1, 2);
+}
+
+#[tokio::test]
+async fn test_alter_on_flushing() {
+    test_alter_on_flushing_with_format(false).await;
+    test_alter_on_flushing_with_format(true).await;
+}
+
+async fn test_alter_on_flushing_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let listener = Arc::new(AlterFlushListener::default());
+    let engine = env
+        .create_engine_with(
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+            None,
+            Some(listener.clone()),
+            None,
+        )
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Prepares rows for flush.
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows_for_key("a", 0, 2, 0),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Spawns a task to flush the engine.
+    let engine_cloned = engine.clone();
+    let flush_job = tokio::spawn(async move {
+        flush_region(&engine_cloned, region_id, None).await;
+    });
+    // Waits for flush begin.
+    listener.wait_flush_begin().await;
+
+    // Consumes the notify permit in the listener.
+    listener.wait_request_begin().await;
+
+    // Submits an alter request to the region. The region should add the request
+    // to the pending ddl request list.
+    let request = add_tag1();
+    let engine_cloned = engine.clone();
+    let alter_job = tokio::spawn(async move {
+        engine_cloned
+            .handle_request(region_id, RegionRequest::Alter(request))
+            .await
+            .unwrap();
+    });
+    // Waits until the worker handles the alter request.
+    listener.wait_request_begin().await;
+
+    // Spawns two task to flush the engine. The flush scheduler should put them to the
+    // pending task list.
+    let engine_cloned = engine.clone();
+    let pending_flush_job = tokio::spawn(async move {
+        flush_region(&engine_cloned, region_id, None).await;
+    });
+    // Waits until the worker handles the flush request.
+    listener.wait_request_begin().await;
+
+    // Wake up flush.
+    listener.wake_flush();
+    // Wait for the flush job.
+    tokio::time::timeout(Duration::from_secs(5), flush_job)
+        .await
+        .unwrap()
+        .unwrap();
+    // Wait for pending flush job.
+    tokio::time::timeout(Duration::from_secs(5), pending_flush_job)
+        .await
+        .unwrap()
+        .unwrap();
+    // Wait for the write job.
+    tokio::time::timeout(Duration::from_secs(5), alter_job)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let request = ScanRequest::default();
+    let scanner = engine.scanner(region_id, request).await.unwrap();
+    assert_eq!(0, scanner.num_memtables());
+    assert_eq!(1, scanner.num_files());
+    let stream = scanner.scan().await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    let expected = "\
++-------+-------+---------+---------------------+
+| tag_1 | tag_0 | field_0 | ts                  |
++-------+-------+---------+---------------------+
+|       | a     | 0.0     | 1970-01-01T00:00:00 |
+|       | a     | 1.0     | 1970-01-01T00:00:01 |
++-------+-------+---------+---------------------+";
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_column_fulltext_options() {
+    test_alter_column_fulltext_options_with_format(false).await;
+    test_alter_column_fulltext_options_with_format(true).await;
+}
+
+async fn test_alter_column_fulltext_options_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let listener = Arc::new(AlterFlushListener::default());
+    let engine = env
+        .create_engine_with(
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+            None,
+            Some(listener.clone()),
+            None,
+        )
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let rows = Rows {
+        schema: column_schemas,
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Spawns a task to flush the engine.
+    let engine_cloned = engine.clone();
+    let flush_job = tokio::spawn(async move {
+        flush_region(&engine_cloned, region_id, None).await;
+    });
+    // Waits for flush begin.
+    listener.wait_flush_begin().await;
+
+    // Consumes the notify permit in the listener.
+    listener.wait_request_begin().await;
+
+    // Submits an alter request to the region. The region should add the request
+    // to the pending ddl request list.
+    let request = alter_column_fulltext_options();
+    let engine_cloned = engine.clone();
+    let alter_job = tokio::spawn(async move {
+        engine_cloned
+            .handle_request(region_id, RegionRequest::Alter(request))
+            .await
+            .unwrap();
+    });
+    // Waits until the worker handles the alter request.
+    listener.wait_request_begin().await;
+
+    // Spawns two task to flush the engine. The flush scheduler should put them to the
+    // pending task list.
+    let engine_cloned = engine.clone();
+    let pending_flush_job = tokio::spawn(async move {
+        flush_region(&engine_cloned, region_id, None).await;
+    });
+    // Waits until the worker handles the flush request.
+    listener.wait_request_begin().await;
+
+    // Wake up flush.
+    listener.wake_flush();
+    // Wait for the flush job.
+    flush_job.await.unwrap();
+    // Wait for pending flush job.
+    pending_flush_job.await.unwrap();
+    // Wait for the write job.
+    alter_job.await.unwrap();
+
+    let expect_fulltext_options = FulltextOptions::new_unchecked(
+        true,
+        FulltextAnalyzer::English,
+        false,
+        FulltextBackend::Bloom,
+        1000,
+        0.01,
+    );
+    let check_fulltext_options = |engine: &MitoEngine, expected: &FulltextOptions| {
+        let current_fulltext_options = engine
+            .get_region(region_id)
+            .unwrap()
+            .metadata()
+            .column_by_name("tag_0")
+            .unwrap()
+            .column_schema
+            .fulltext_options()
+            .unwrap()
+            .unwrap();
+        assert_eq!(*expected, current_fulltext_options);
+    };
+    check_fulltext_options(&engine, &expect_fulltext_options);
+    check_region_version(&engine, region_id, 1, 3, 1, 3);
+
+    // Reopen region.
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+    check_fulltext_options(&engine, &expect_fulltext_options);
+    check_region_version(&engine, region_id, 1, 3, 1, 3);
+}
+
+#[tokio::test]
+async fn test_alter_column_set_inverted_index() {
+    test_alter_column_set_inverted_index_with_format(false).await;
+    test_alter_column_set_inverted_index_with_format(true).await;
+}
+
+async fn test_alter_column_set_inverted_index_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let listener = Arc::new(AlterFlushListener::default());
+    let engine = env
+        .create_engine_with(
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+            None,
+            Some(listener.clone()),
+            None,
+        )
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let rows = Rows {
+        schema: column_schemas,
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Spawns a task to flush the engine.
+    let engine_cloned = engine.clone();
+    let flush_job = tokio::spawn(async move {
+        flush_region(&engine_cloned, region_id, None).await;
+    });
+    // Waits for flush begin.
+    listener.wait_flush_begin().await;
+
+    // Consumes the notify permit in the listener.
+    listener.wait_request_begin().await;
+
+    // Submits an alter request to the region. The region should add the request
+    // to the pending ddl request list.
+    let request = alter_column_inverted_index();
+    let engine_cloned = engine.clone();
+    let alter_job = tokio::spawn(async move {
+        engine_cloned
+            .handle_request(region_id, RegionRequest::Alter(request))
+            .await
+            .unwrap();
+    });
+    // Waits until the worker handles the alter request.
+    listener.wait_request_begin().await;
+
+    // Spawns two task to flush the engine. The flush scheduler should put them to the
+    // pending task list.
+    let engine_cloned = engine.clone();
+    let pending_flush_job = tokio::spawn(async move {
+        flush_region(&engine_cloned, region_id, None).await;
+    });
+    // Waits until the worker handles the flush request.
+    listener.wait_request_begin().await;
+
+    // Wake up flush.
+    listener.wake_flush();
+    // Wait for the flush job.
+    flush_job.await.unwrap();
+    // Wait for pending flush job.
+    pending_flush_job.await.unwrap();
+    // Wait for the write job.
+    alter_job.await.unwrap();
+
+    let check_inverted_index_set = |engine: &MitoEngine| {
+        assert!(
+            engine
+                .get_region(region_id)
+                .unwrap()
+                .metadata()
+                .column_by_name("tag_0")
+                .unwrap()
+                .column_schema
+                .is_inverted_indexed()
+        )
+    };
+    check_inverted_index_set(&engine);
+    check_region_version(&engine, region_id, 1, 3, 1, 3);
+
+    // Reopen region.
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+    check_inverted_index_set(&engine);
+    check_region_version(&engine, region_id, 1, 3, 1, 3);
+}
+
+#[tokio::test]
+async fn test_alter_region_ttl_options() {
+    test_alter_region_ttl_options_with_format(false).await;
+    test_alter_region_ttl_options_with_format(true).await;
+}
+
+async fn test_alter_region_ttl_options_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let listener = Arc::new(AlterFlushListener::default());
+    let engine = env
+        .create_engine_with(
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+            None,
+            Some(listener.clone()),
+            None,
+        )
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+    let engine_cloned = engine.clone();
+    let alter_ttl_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::Ttl(Some(Duration::from_secs(500).into()))],
+        },
+    };
+    let alter_job = tokio::spawn(async move {
+        engine_cloned
+            .handle_request(region_id, RegionRequest::Alter(alter_ttl_request))
+            .await
+            .unwrap();
+    });
+
+    alter_job.await.unwrap();
+
+    let check_ttl = |engine: &MitoEngine, expected: &Duration| {
+        let current_ttl = engine.get_region(region_id).unwrap().version().options.ttl;
+        assert_eq!(current_ttl, Some((*expected).into()));
+    };
+    // Verify the ttl.
+    check_ttl(&engine, &Duration::from_secs(500));
+}
+
+#[tokio::test]
+async fn test_alter_twcs_option_enables_compaction_override() {
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+    let region_id = RegionId::new(1, 1);
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Create(CreateRequestBuilder::new().build()),
+        )
+        .await
+        .unwrap();
+    let compaction_override = || {
+        engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .compaction_override
+    };
+    assert!(!compaction_override());
+
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::UnsetRegionOptions {
+                    keys: vec![UnsetRegionOption::TwcsTimeWindow],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+    assert!(!compaction_override());
+
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::SetRegionOptions {
+                    options: vec![SetRegionOption::Twsc(
+                        "compaction.twcs.time_window".to_string(),
+                        "2h".to_string(),
+                    )],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    assert!(compaction_override());
+}
+
+#[tokio::test]
+async fn test_mixed_region_options_are_published_after_flush() {
+    let mut env = TestEnv::new().await;
+    let listener = Arc::new(AlterFlushListener::default());
+    let engine = env
+        .create_engine_with(MitoConfig::default(), None, Some(listener.clone()), None)
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 3),
+        },
+    )
+    .await;
+
+    let engine_cloned = engine.clone();
+    let alter_job = tokio::spawn(async move {
+        engine_cloned
+            .handle_request(
+                region_id,
+                RegionRequest::Alter(RegionAlterRequest {
+                    kind: AlterKind::SetRegionOptions {
+                        options: vec![
+                            SetRegionOption::Ttl(Some(Duration::from_secs(500).into())),
+                            SetRegionOption::Twsc(
+                                "compaction.twcs.time_window".to_string(),
+                                "2h".to_string(),
+                            ),
+                            SetRegionOption::MaxRowGroupRowCount(Some(1024)),
+                        ],
+                    },
+                }),
+            )
+            .await
+            .unwrap();
+    });
+
+    listener.wait_flush_begin().await;
+    let version = engine.get_region(region_id).unwrap().version();
+    assert_eq!(None, version.options.ttl);
+    assert!(!version.options.compaction_override);
+    assert_eq!(None, version.options.max_row_group_row_count);
+
+    listener.wake_flush();
+    alter_job.await.unwrap();
+
+    let version = engine.get_region(region_id).unwrap().version();
+    assert_eq!(Some(Duration::from_secs(500).into()), version.options.ttl);
+    assert!(version.options.compaction_override);
+    assert_eq!(Some(1024), version.options.max_row_group_row_count);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_write_stall_on_altering() {
+    common_telemetry::init_default_ut_logging();
+
+    test_write_stall_on_altering_with_format(false).await;
+    test_write_stall_on_altering_with_format(true).await;
+}
+
+async fn test_write_stall_on_altering_with_format(flat_format: bool) {
+    let mut env = TestEnv::new().await;
+    let listener = Arc::new(NotifyRegionChangeResultListener::default());
+    let engine = env
+        .create_engine_with(
+            MitoConfig {
+                default_flat_format: flat_format,
+                ..Default::default()
+            },
+            None,
+            Some(listener.clone()),
+            None,
+        )
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let engine_cloned = engine.clone();
+    let alter_job = tokio::spawn(async move {
+        let request = add_tag1();
+        engine_cloned
+            .handle_request(region_id, RegionRequest::Alter(request))
+            .await
+            .unwrap();
+    });
+    // Make sure the loop is handling the alter request.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let column_schemas_cloned = column_schemas.clone();
+    let engine_cloned = engine.clone();
+    let put_job = tokio::spawn(async move {
+        let rows = Rows {
+            schema: column_schemas_cloned,
+            rows: build_rows(0, 3),
+        };
+        put_rows(&engine_cloned, region_id, rows).await;
+    });
+    // Make sure the loop is handling the put request.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    listener.wake_notify();
+    alter_job.await.unwrap();
+    put_job.await.unwrap();
+
+    let expected = "\
++-------+-------+---------+---------------------+
+| tag_1 | tag_0 | field_0 | ts                  |
++-------+-------+---------+---------------------+
+|       | 0     | 0.0     | 1970-01-01T00:00:00 |
+|       | 1     | 1.0     | 1970-01-01T00:00:01 |
+|       | 2     | 2.0     | 1970-01-01T00:00:02 |
++-------+-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let scanner = engine.scanner(region_id, request).await.unwrap();
+    let stream = scanner.scan().await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_region_sst_format_with_flush() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: false,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Inserts some data before alter
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Flushes to create SST files with primary_key format
+    flush_region(&engine, region_id, None).await;
+
+    let expected_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_data, batches.pretty_print().unwrap());
+
+    // Alters sst_format from primary_key to flat
+    let alter_format_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::Format("flat".to_string())],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_format_request))
+        .await
+        .unwrap();
+
+    // Inserts more data after alter
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(3, 6),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Flushes to create SST files with flat format
+    flush_region(&engine, region_id, None).await;
+
+    let expected_all_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 3     | 3.0     | 1970-01-01T00:00:03 |
+| 4     | 4.0     | 1970-01-01T00:00:04 |
+| 5     | 5.0     | 1970-01-01T00:00:05 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+
+    // Reopens region to verify format persists
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: false,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_region_sst_format_without_flush() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: false,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let check_format = |engine: &MitoEngine, expected: Option<FormatType>| {
+        let current_format = engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .sst_format;
+        assert_eq!(current_format, expected);
+    };
+    check_format(&engine, Some(FormatType::PrimaryKey));
+
+    // Inserts some data before alter
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Alters sst_format from primary_key to flat
+    let alter_format_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::Format("flat".to_string())],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_format_request))
+        .await
+        .unwrap();
+
+    check_format(&engine, Some(FormatType::Flat));
+
+    // Inserts more data after alter
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(3, 6),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    let expected_all_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 3     | 3.0     | 1970-01-01T00:00:03 |
+| 4     | 4.0     | 1970-01-01T00:00:04 |
+| 5     | 5.0     | 1970-01-01T00:00:05 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+
+    // Reopens region to verify format persists
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: false,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+
+    check_format(&engine, Some(FormatType::Flat));
+
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_region_sst_format_flat_to_pk_with_flush() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: true,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Inserts some data with flat format
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Flushes to create SST files with flat format
+    flush_region(&engine, region_id, None).await;
+
+    let expected_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_data, batches.pretty_print().unwrap());
+
+    // Alters sst_format from flat to primary_key
+    let alter_format_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::Format("primary_key".to_string())],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_format_request))
+        .await
+        .unwrap();
+
+    // Inserts more data after alter
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(3, 6),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Flushes to create SST files with primary_key format
+    flush_region(&engine, region_id, None).await;
+
+    let expected_all_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 3     | 3.0     | 1970-01-01T00:00:03 |
+| 4     | 4.0     | 1970-01-01T00:00:04 |
+| 5     | 5.0     | 1970-01-01T00:00:05 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+
+    // Reopens region to verify format persists
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: false,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_region_sst_format_flat_to_pk_without_flush() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: true,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let check_format = |engine: &MitoEngine, expected: Option<FormatType>| {
+        let current_format = engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .sst_format;
+        assert_eq!(current_format, expected);
+    };
+    check_format(&engine, Some(FormatType::Flat));
+
+    // Inserts some data with flat format
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Alters sst_format from flat to primary_key
+    let alter_format_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::Format("primary_key".to_string())],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_format_request))
+        .await
+        .unwrap();
+
+    check_format(&engine, Some(FormatType::PrimaryKey));
+
+    // Inserts more data after alter
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(3, 6),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    let expected_all_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 3     | 3.0     | 1970-01-01T00:00:03 |
+| 4     | 4.0     | 1970-01-01T00:00:04 |
+| 5     | 5.0     | 1970-01-01T00:00:05 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+
+    // Reopens region to verify format persists
+    let engine = env
+        .reopen_engine(
+            engine,
+            MitoConfig {
+                default_flat_format: false,
+                ..Default::default()
+            },
+        )
+        .await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+
+    check_format(&engine, Some(FormatType::PrimaryKey));
+
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(expected_all_data, batches.pretty_print().unwrap());
+}
+
+#[tokio::test]
+async fn test_alter_region_append_mode_with_flush() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    // Create a region with append_mode=false (default)
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let check_append_mode = |engine: &MitoEngine, expected: bool| {
+        let append_mode = engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .append_mode;
+        assert_eq!(append_mode, expected);
+    };
+    check_append_mode(&engine, false);
+
+    // Inserts some data before alter (memtable not empty, alter will trigger flush)
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Alters append_mode from false to true (this triggers internal flush)
+    let alter_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::AppendMode(true)],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_request))
+        .await
+        .unwrap();
+
+    check_append_mode(&engine, true);
+
+    // Inserts duplicate data after alter (same as rows 0, 1, 2)
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Flushes again
+    flush_region(&engine, region_id, None).await;
+
+    // After append_mode=true, duplicates should be preserved
+    let expected_all_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(
+        expected_all_data,
+        sort_batches_and_print(&batches, &["tag_0", "ts"])
+    );
+
+    // Reopens region to verify append_mode persists
+    let engine = env.reopen_engine(engine, MitoConfig::default()).await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+
+    check_append_mode(&engine, true);
+
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(
+        expected_all_data,
+        sort_batches_and_print(&batches, &["tag_0", "ts"])
+    );
+}
+
+#[tokio::test]
+async fn test_alter_region_append_mode_without_flush() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    // Create a region with append_mode=false (default)
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let check_append_mode = |engine: &MitoEngine, expected: bool| {
+        let append_mode = engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .append_mode;
+        assert_eq!(append_mode, expected);
+    };
+    check_append_mode(&engine, false);
+
+    // Alters append_mode from false to true immediately (no data, no flush needed)
+    let alter_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::AppendMode(true)],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_request))
+        .await
+        .unwrap();
+
+    check_append_mode(&engine, true);
+
+    // Inserts duplicate data
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Insert same data again
+    let rows = Rows {
+        schema: column_schemas.clone(),
+        rows: build_rows(0, 3),
+    };
+    put_rows(&engine, region_id, rows).await;
+
+    // Flushes
+    flush_region(&engine, region_id, None).await;
+
+    // Duplicates should be preserved
+    let expected_all_data = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 0     | 0.0     | 1970-01-01T00:00:00 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 1     | 1.0     | 1970-01-01T00:00:01 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 2     | 2.0     | 1970-01-01T00:00:02 |
++-------+---------+---------------------+";
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(
+        expected_all_data,
+        sort_batches_and_print(&batches, &["tag_0", "ts"])
+    );
+
+    // Reopens region to verify append_mode persists
+    let engine = env.reopen_engine(engine, MitoConfig::default()).await;
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Open(RegionOpenRequest {
+                engine: String::new(),
+                table_dir,
+                path_type: PathType::Bare,
+                options: HashMap::default(),
+                skip_wal_replay: false,
+                checkpoint: None,
+                requirements: Default::default(),
+            }),
+        )
+        .await
+        .unwrap();
+
+    check_append_mode(&engine, true);
+
+    let request = ScanRequest::default();
+    let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    assert_eq!(
+        expected_all_data,
+        sort_batches_and_print(&batches, &["tag_0", "ts"])
+    );
+}
+
+#[tokio::test]
+async fn test_alter_region_append_mode_invalid() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    // Create a region with append_mode=true
+    let request = CreateRequestBuilder::new()
+        .insert_option("append_mode", "true")
+        .build();
+
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let check_append_mode = |engine: &MitoEngine, expected: bool| {
+        let append_mode = engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .append_mode;
+        assert_eq!(append_mode, expected);
+    };
+    check_append_mode(&engine, true);
+
+    // Try to alter append_mode from true to false (should fail)
+    let alter_request = RegionAlterRequest {
+        kind: AlterKind::SetRegionOptions {
+            options: vec![SetRegionOption::AppendMode(false)],
+        },
+    };
+    engine
+        .handle_request(region_id, RegionRequest::Alter(alter_request))
+        .await
+        .unwrap_err();
+
+    // append_mode should still be true
+    check_append_mode(&engine, true);
+}
+
+#[tokio::test]
+async fn test_alter_region_preserve_row_sequence_lifecycle() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::with_prefix("test_alter_region_preserve_row_sequence_lifecycle").await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new()
+        .insert_option("append_mode", "true")
+        .build();
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let alter = |kind: AlterKind| {
+        engine.handle_request(region_id, RegionRequest::Alter(RegionAlterRequest { kind }))
+    };
+
+    // Fill the memtable while preserve_row_sequence is disabled.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas.clone(),
+            rows: build_rows(0, 3),
+        },
+    )
+    .await;
+    let version = engine.get_region(region_id).unwrap().version();
+    assert!(version.memtables.num_rows() > 0);
+    let flushed_sequence = version.flushed_sequence;
+
+    // Enable alone on the non-empty memtable: applies in memory through the
+    // fast path, neither flushing nor losing rows.
+    alter(AlterKind::SetRegionOptions {
+        options: vec![SetRegionOption::PreserveRowSequence(true)],
+    })
+    .await
+    .unwrap();
+    let version = engine.get_region(region_id).unwrap().version();
+    assert!(version.options.preserve_row_sequence);
+    assert_eq!(0, version.ssts.levels()[0].files.len());
+    assert!(version.memtables.num_rows() > 0);
+    assert_eq!(flushed_sequence, version.flushed_sequence);
+
+    // Rows written after the ALTER share the pre-ALTER memtable; a later flush
+    // writes both into one SST marked with preserve_row_sequence.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas.clone(),
+            rows: build_rows(3, 5),
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+    let version = engine.get_region(region_id).unwrap().version();
+    assert!(version.options.preserve_row_sequence);
+    let level0 = &version.ssts.levels()[0].files;
+    assert_eq!(1, level0.len());
+    assert!(
+        level0
+            .values()
+            .next()
+            .unwrap()
+            .meta_ref()
+            .preserve_row_sequence
+    );
+    let flushed_sequence = version.flushed_sequence;
+
+    // Exact scan (2, 5] returns pre-ALTER row "2" (seq 3) and post-ALTER rows
+    // "3" and "4" (seqs 4 and 5): distinct row sequences survive the flush.
+    let scan_exact = async |min: Option<u64>, max: Option<u64>| -> String {
+        let stream = engine
+            .scan_to_stream(
+                region_id,
+                ScanRequest {
+                    memtable_min_sequence: min,
+                    memtable_max_sequence: max,
+                    exact_sequence_range: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        sort_batches_and_print(&batches, &["tag_0", "ts"])
+    };
+    let expected = "\
++-------+---------+---------------------+
+| tag_0 | field_0 | ts                  |
++-------+---------+---------------------+
+| 2     | 2.0     | 1970-01-01T00:00:02 |
+| 3     | 3.0     | 1970-01-01T00:00:03 |
+| 4     | 4.0     | 1970-01-01T00:00:04 |
++-------+---------+---------------------+";
+    assert_eq!(expected, scan_exact(Some(2), Some(5)).await);
+
+    // Fill the memtable again and unset on the non-empty memtable: applies in
+    // memory without creating another SST.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(5, 7),
+        },
+    )
+    .await;
+    alter(AlterKind::UnsetRegionOptions {
+        keys: vec![UnsetRegionOption::PreserveRowSequence],
+    })
+    .await
+    .unwrap();
+    let version = engine.get_region(region_id).unwrap().version();
+    assert!(!version.options.preserve_row_sequence);
+    assert_eq!(1, version.ssts.levels()[0].files.len());
+    assert!(version.memtables.num_rows() > 0);
+
+    // The exact capability is unsupported immediately: both bounds are still
+    // enforceable against the flushed frontier, yet row-level filtering is off.
+    let err = engine
+        .scanner(
+            region_id,
+            ScanRequest {
+                memtable_min_sequence: Some(flushed_sequence),
+                memtable_max_sequence: Some(flushed_sequence),
+                exact_sequence_range: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .err()
+        .expect("expected sequence-range unsupported error");
+    assert!(matches!(err, error::Error::SequenceRangeUnsupported { .. }));
+
+    // A subsequent flush under the disabled state writes an unmarked SST while
+    // the earlier marked SST stays untouched.
+    flush_region(&engine, region_id, None).await;
+    let version = engine.get_region(region_id).unwrap().version();
+    let level0 = &version.ssts.levels()[0].files;
+    assert_eq!(2, level0.len());
+    let newest = level0
+        .values()
+        .max_by_key(|f| f.meta_ref().sequence)
+        .unwrap();
+    assert!(!newest.meta_ref().preserve_row_sequence);
+    assert_eq!(
+        1,
+        level0
+            .values()
+            .filter(|f| f.meta_ref().preserve_row_sequence)
+            .count()
+    );
+}
+
+#[tokio::test]
+async fn test_alter_region_append_mode_preserve_combined_flushes_in_both_orders() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::with_prefix(
+        "test_alter_region_append_mode_preserve_combined_flushes_in_both_orders",
+    )
+    .await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    // Both orders of the combined ALTER must behave identically: append_mode's
+    // requirement for an empty memtable is not bypassed by preserve_row_sequence.
+    for (region_id, options) in [
+        (
+            RegionId::new(1, 1),
+            vec![
+                SetRegionOption::AppendMode(true),
+                SetRegionOption::PreserveRowSequence(true),
+            ],
+        ),
+        (
+            RegionId::new(1, 2),
+            vec![
+                SetRegionOption::PreserveRowSequence(true),
+                SetRegionOption::AppendMode(true),
+            ],
+        ),
+    ] {
+        let request = CreateRequestBuilder::new().build();
+        let column_schemas = rows_schema(&request);
+        engine
+            .handle_request(region_id, RegionRequest::Create(request))
+            .await
+            .unwrap();
+
+        // Non-empty memtable: the combined ALTER must flush before applying.
+        put_rows(
+            &engine,
+            region_id,
+            Rows {
+                schema: column_schemas,
+                rows: build_rows(0, 3),
+            },
+        )
+        .await;
+
+        engine
+            .handle_request(
+                region_id,
+                RegionRequest::Alter(RegionAlterRequest {
+                    kind: AlterKind::SetRegionOptions { options },
+                }),
+            )
+            .await
+            .unwrap();
+
+        let version = engine.get_region(region_id).unwrap().version();
+        assert!(version.options.append_mode && version.options.preserve_row_sequence);
+        // The append_mode change forced a flush: the memtable is now empty and
+        // the pre-ALTER rows live in the flushed SST.
+        assert_eq!(0, version.memtables.num_rows());
+
+        let request = ScanRequest::default();
+        let stream = engine.scan_to_stream(region_id, request).await.unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        assert_eq!(3, batches.iter().map(|b| b.num_rows()).sum::<usize>());
+    }
+}
+
+#[tokio::test]
+async fn test_alter_region_preserve_row_sequence_requires_append_mode() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env =
+        TestEnv::with_prefix("test_alter_region_preserve_row_sequence_requires_append_mode").await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Create(CreateRequestBuilder::new().build()),
+        )
+        .await
+        .unwrap();
+
+    let alter = |options: Vec<SetRegionOption>| {
+        engine.handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::SetRegionOptions { options },
+            }),
+        )
+    };
+
+    let err = alter(vec![SetRegionOption::PreserveRowSequence(true)])
+        .await
+        .unwrap_err();
+    let err = err.as_any().downcast_ref::<error::Error>().unwrap();
+    assert_matches!(
+        err,
+        error::Error::InvalidMetadata { source, .. }
+            if source.to_string().contains("preserve_row_sequence is only supported for append-only tables")
+    );
+    assert_eq!(err.status_code(), StatusCode::InvalidArguments);
+
+    // Disabling on a non-append region is a no-op success and leaves the
+    // option off.
+    alter(vec![SetRegionOption::PreserveRowSequence(false)])
+        .await
+        .unwrap();
+    assert!(
+        !engine
+            .get_region(region_id)
+            .unwrap()
+            .version()
+            .options
+            .preserve_row_sequence
+    );
+}
+
+/// Builds a batch against the schema before [add_nullable_field1]
+/// (schema version 0): `(tag_0, field_0, ts)`.
+fn build_schema_v0_batch() -> DfRecordBatch {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("tag_0", DataType::Utf8, true),
+        Field::new("field_0", DataType::Float64, true),
+        Field::new(
+            "ts",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            false,
+        ),
+    ]));
+    let tag = Arc::new(StringArray::from_iter_values(
+        (0..3).map(|v| format!("a{v}")),
+    )) as ArrayRef;
+    let field = Arc::new(Float64Array::from_iter_values((0..3).map(|v| v as f64))) as ArrayRef;
+    let ts = Arc::new(TimestampMillisecondArray::from_iter_values(
+        (0..3).map(|v| v as i64 * 1000),
+    )) as ArrayRef;
+    DfRecordBatch::try_new(schema, vec![tag, field, ts]).unwrap()
+}
+
+fn encode_arrow_ipc(batch: &DfRecordBatch) -> ArrowIpc {
+    let (schema, record_batch) = encode_to_flight_data(batch.clone());
+    ArrowIpc {
+        schema: schema.data_header,
+        data_header: record_batch.data_header,
+        payload: record_batch.data_body,
+    }
+}
+
+/// Builds a bulk insert request whose batch was built against the schema
+/// before [add_nullable_field1] (schema version 0): `(tag_0, field_0, ts)`.
+fn build_schema_v0_bulk_request(region_id: RegionId) -> RegionBulkInsertsRequest {
+    let payload = build_schema_v0_batch();
+    let raw_data = encode_arrow_ipc(&payload);
+
+    RegionBulkInsertsRequest {
+        skip_wal: false,
+        region_id,
+        payload,
+        raw_data,
+        partition_expr_version: None,
+        // The writer only knows schema version 0 while the region is already
+        // at version 1, so the worker has to fill the missing columns.
+        aligned_schema_version: Some(0),
+    }
+}
+
+async fn scan_all_sorted(engine: &MitoEngine, region_id: RegionId) -> String {
+    let stream = engine
+        .scan_to_stream(region_id, ScanRequest::default())
+        .await
+        .unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    sort_batches_and_print(&batches, &["tag_0", "ts"])
+}
+
+const SCHEMA_V0_BULK_ROWS: &str = "\
++-------+---------+---------------------+---------+
+| tag_0 | field_0 | ts                  | field_1 |
++-------+---------+---------------------+---------+
+| a0    | 0.0     | 1970-01-01T00:00:00 |         |
+| a1    | 1.0     | 1970-01-01T00:00:01 |         |
+| a2    | 2.0     | 1970-01-01T00:00:02 |         |
++-------+---------+---------------------+---------+";
+
+#[tokio::test]
+async fn test_bulk_insert_stale_schema_wal_replay() {
+    test_bulk_insert_stale_schema_wal_replay_with_format(false).await;
+    test_bulk_insert_stale_schema_wal_replay_with_format(true).await;
+}
+
+async fn test_bulk_insert_stale_schema_wal_replay_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Bumps the region schema version to 1.
+    engine
+        .handle_request(region_id, RegionRequest::Alter(add_nullable_field1()))
+        .await
+        .unwrap();
+
+    // Bulk insert whose batch misses `field_1`. The worker fills the missing
+    // column before writing to the memtable and the WAL.
+    let response = engine
+        .handle_request(
+            region_id,
+            RegionRequest::BulkInserts(build_schema_v0_bulk_request(region_id)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(3, response.affected_rows);
+
+    assert_eq!(
+        SCHEMA_V0_BULK_ROWS,
+        scan_all_sorted(&engine, region_id).await,
+        "flat_format: {flat_format}"
+    );
+
+    // Reopens the region to replay the WAL. The rows must survive the replay.
+    reopen_region(&engine, region_id, table_dir, true, HashMap::new()).await;
+
+    assert_eq!(
+        SCHEMA_V0_BULK_ROWS,
+        scan_all_sorted(&engine, region_id).await,
+        "flat_format: {flat_format}"
+    );
+}
+
+/// Replays a bulk WAL entry that misses columns added by an alter. This
+/// simulates entries written by old versions that keep the stale raw data
+/// when filling missing columns.
+#[tokio::test]
+async fn test_bulk_insert_stale_wal_entry_replay() {
+    test_bulk_insert_stale_wal_entry_replay_with_format(false).await;
+    test_bulk_insert_stale_wal_entry_replay_with_format(true).await;
+}
+
+async fn test_bulk_insert_stale_wal_entry_replay_with_format(flat_format: bool) {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env
+        .create_engine(MitoConfig {
+            default_flat_format: flat_format,
+            ..Default::default()
+        })
+        .await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+    let table_dir = request.table_dir.clone();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Bumps the region schema version to 1.
+    engine
+        .handle_request(region_id, RegionRequest::Alter(add_nullable_field1()))
+        .await
+        .unwrap();
+
+    // Writes a bulk entry whose batch misses `field_1` to the WAL directly.
+    let batch = build_schema_v0_batch();
+    let entry = WalEntry {
+        mutations: vec![],
+        bulk_entries: vec![BulkWalEntry {
+            sequence: 1,
+            max_ts: 2000,
+            min_ts: 0,
+            timestamp_index: 2,
+            body: Some(Body::ArrowIpc(encode_arrow_ipc(&batch))),
+        }],
+    };
+    let LogStoreImpl::RaftEngine(log_store) = env.get_log_store().unwrap() else {
+        unreachable!()
+    };
+    let wal = Wal::new(log_store);
+    let mut writer = wal.writer();
+    writer
+        .add_entry(
+            region_id,
+            1,
+            &entry,
+            &Provider::raft_engine_provider(region_id.as_u64()),
+        )
+        .unwrap();
+    writer.write_to_wal().await.unwrap();
+
+    // Reopens the region to replay the WAL. The replay must fill the missing
+    // column instead of losing the rows.
+    reopen_region(&engine, region_id, table_dir, true, HashMap::new()).await;
+
+    assert_eq!(
+        SCHEMA_V0_BULK_ROWS,
+        scan_all_sorted(&engine, region_id).await,
+        "flat_format: {flat_format}"
+    );
+}
+
+/// Regression test: `Between` / `InList` predicates (physical prefilter
+/// expressions, not `SimpleFilterEvaluator`s) must not fail the scan when the
+/// file stores the time index in the old unit - evaluating the new-unit
+/// literals against the file's column raises a cross-unit comparison error.
+/// The prefilter is dropped for such files instead; the query layer re-applies
+/// the predicate, so at the engine level only "no matching row is lost" is
+/// guaranteed (exactness is covered by the sqlness cases).
+#[tokio::test]
+async fn test_alter_time_index_widen_old_sst_between_inlist() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new()
+        .insert_option("max_row_group_row_count", "5")
+        .build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 10),
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::ModifyColumnTypes {
+                    columns: vec![ModifyColumnType {
+                        column_name: "ts".to_string(),
+                        target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+                    }],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    let between_expected: Vec<(i64, f64)> = (3..=6).map(|ts| (ts * 1_000_000, ts as f64)).collect();
+    assert_rows_present(
+        &between_expected,
+        scan_ts_and_field(
+            &engine,
+            region_id,
+            vec![col("ts").between(ts_us_lit(3_000_000), ts_us_lit(6_000_000))],
+        )
+        .await,
+    );
+
+    let inlist_expected = vec![(2_000_000, 2.0)];
+    assert_rows_present(
+        &inlist_expected,
+        scan_ts_and_field(
+            &engine,
+            region_id,
+            vec![col("ts").in_list(vec![ts_us_lit(2_000_000), ts_us_lit(5_000_500)], false)],
+        )
+        .await,
+    );
+
+    let not_in_expected: Vec<(i64, f64)> = (0..10)
+        .filter(|ts| *ts != 2)
+        .map(|ts| (ts * 1_000_000, ts as f64))
+        .collect();
+    assert_rows_present(
+        &not_in_expected,
+        scan_ts_and_field(
+            &engine,
+            region_id,
+            vec![col("ts").in_list(vec![ts_us_lit(2_000_000), ts_us_lit(5_000_500)], true)],
+        )
+        .await,
+    );
+}
+
+/// Regression test: the range-result-cache key builder must tolerate a
+/// partition `FileTimeRange` whose unit differs from the implied range's
+/// (region) unit after the time index unit was widened. The key builder used
+/// to `assert_eq!` the units and panic for any scan combining a tag filter
+/// (fingerprinting is tag-gated) with a time filter over an old-unit SST.
+#[tokio::test]
+async fn test_alter_time_index_widen_range_cache_key_mixed_units() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Ten rows in millisecond resolution: ts = 0s..9s, tag = "0".."9".
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 10),
+        },
+    )
+    .await;
+    // One SST written in the old (ms) unit.
+    flush_region(&engine, region_id, None).await;
+
+    // Widen the time index unit to microsecond.
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::ModifyColumnTypes {
+                    columns: vec![ModifyColumnType {
+                        column_name: "ts".to_string(),
+                        target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+                    }],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    // A tag filter plus a time filter whose implied range does NOT cover the
+    // file range: the cache key keeps the time filters; both predicates are
+    // applied exactly against the old-unit SST.
+    let actual = scan_ts_and_field(
+        &engine,
+        region_id,
+        vec![
+            col("tag_0").eq(lit("7")),
+            col("ts").gt(ts_us_lit(2_500_000)),
+        ],
+    )
+    .await;
+    assert_eq!(vec![(7_000_000, 7.0)], actual);
+
+    // A time filter whose implied range covers the whole (old-unit) file
+    // range: the key builder compares instants across the unit mismatch to
+    // drop the time filters from the cache key; results stay exact.
+    let covering = |lit_us: i64| vec![col("tag_0").eq(lit("7")), col("ts").gt(ts_us_lit(lit_us))];
+    assert_eq!(
+        vec![(7_000_000, 7.0)],
+        scan_ts_and_field(&engine, region_id, covering(-10_000_000)).await
+    );
+    // A different but equally-covering bound resolves to the same cache key
+    // (time filters stripped) and must return the same rows, whether it hits
+    // the range cache or recomputes.
+    assert_eq!(
+        vec![(7_000_000, 7.0)],
+        scan_ts_and_field(&engine, region_id, covering(-20_000_000)).await
+    );
+}
+
+/// Compaction of mixed-unit files with **sparse** primary key encoding (the
+/// encoding used by metric-engine physical regions): the sparse compaction
+/// compat path must cast the old-unit time index column like the dense one.
+#[tokio::test]
+async fn test_alter_time_index_widen_sparse_compaction() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::with_prefix("widen_sparse_compact").await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let metadata = Arc::new(sst_region_metadata_with_encoding(
+        PrimaryKeyEncoding::Sparse,
+    ));
+    let mut request = CreateRequestBuilder::new().build();
+    request.column_metadatas = metadata.column_metadatas.clone();
+    request.primary_key = metadata.primary_key.clone();
+    request
+        .options
+        .insert(PRIMARY_KEY_ENCODING.to_string(), "sparse".to_string());
+    request
+        .options
+        .insert("memtable.type".to_string(), "bulk".to_string());
+    request
+        .options
+        .insert("sst_format".to_string(), "flat".to_string());
+
+    let full_row_schema = rows_schema(&request);
+    let mut encoded_pk_schema = full_row_schema[0].clone();
+    encoded_pk_schema.column_name = PRIMARY_KEY_COLUMN_NAME.to_string();
+    encoded_pk_schema.datatype = ColumnDataType::Binary.into();
+    encoded_pk_schema.semantic_type = SemanticType::Tag.into();
+    // Sparse batches: [__primary_key, ts, field_0].
+    let row_schema = vec![
+        encoded_pk_schema,
+        full_row_schema[5].clone(),
+        full_row_schema[4].clone(),
+    ];
+
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    let sparse_rows = |ts_millis: &[i64], field: u64| Rows {
+        schema: row_schema.clone(),
+        rows: ts_millis
+            .iter()
+            .map(|ts| {
+                row(vec![
+                    ValueData::BinaryValue(new_sparse_primary_key(&["a", "x"], &metadata, 10, 0)),
+                    ValueData::TimestampMillisecondValue(*ts),
+                    ValueData::U64Value(field),
+                ])
+            })
+            .collect(),
+    };
+    let put_sparse = |rows| {
+        RegionRequest::Put(RegionPutRequest {
+            skip_wal: false,
+            rows,
+            hint: Some(WriteHint {
+                primary_key_encoding: api::v1::PrimaryKeyEncoding::Sparse.into(),
+            }),
+            partition_expr_version: None,
+        })
+    };
+
+    // Old-unit (millisecond) data in one SST.
+    engine
+        .handle_request(region_id, put_sparse(sparse_rows(&[0, 1000, 2000], 1)))
+        .await
+        .unwrap();
+    flush_region(&engine, region_id, None).await;
+
+    // Widen the time index unit to microsecond.
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::ModifyColumnTypes {
+                    columns: vec![ModifyColumnType {
+                        column_name: "ts".to_string(),
+                        target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+                    }],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    // Post-alter (microsecond) data in a second SST, at a sub-millisecond
+    // instant the old unit cannot represent.
+    let mut post_rows = sparse_rows(&[], 2);
+    post_rows.schema[1].datatype = ColumnDataType::TimestampMicrosecond.into();
+    post_rows.rows = vec![row(vec![
+        ValueData::BinaryValue(new_sparse_primary_key(&["a", "x"], &metadata, 10, 0)),
+        ValueData::TimestampMicrosecondValue(2_500_500),
+        ValueData::U64Value(2),
+    ])];
+    engine
+        .handle_request(region_id, put_sparse(post_rows))
+        .await
+        .unwrap();
+    flush_region(&engine, region_id, None).await;
+
+    // Compacting the mixed-unit files must rewrite the old-unit column in the
+    // new unit without changing any instant.
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Compact(RegionCompactRequest::default()),
+        )
+        .await
+        .unwrap();
+
+    let request = ScanRequest::default();
+    let scanner = engine.scanner(region_id, request).await.unwrap();
+    let stream = scanner.scan().await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    let mut values = Vec::new();
+    for batch in batches.iter() {
+        let ts_column = batch
+            .df_record_batch()
+            .column_by_name("ts")
+            .expect("ts column must exist");
+        assert_eq!(
+            DataType::Timestamp(TimeUnit::Microsecond, None),
+            ts_column.data_type().clone()
+        );
+        let array = ts_column
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::TimestampMicrosecondArray>()
+            .unwrap();
+        values.extend(array.iter().map(|v| v.unwrap()));
+    }
+    values.sort();
+    assert_eq!(vec![0, 1_000_000, 2_000_000, 2_500_500], values);
+}
+
+/// Strict-window (manual) compaction over an old-unit SST: each window's
+/// output is trimmed by a predicate built in the region's new unit, and the
+/// compaction scan must apply it exactly to the old-unit file via the
+/// unit-cast filter — every instant survives exactly once (no loss, no
+/// duplication across window outputs), rescaled to the new unit.
+#[tokio::test]
+async fn test_alter_time_index_widen_strict_window_compaction() {
+    common_telemetry::init_default_ut_logging();
+
+    let mut env = TestEnv::with_prefix("widen_window_compact").await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+
+    let region_id = RegionId::new(1, 1);
+    let request = CreateRequestBuilder::new().build();
+
+    env.get_schema_metadata_manager()
+        .register_region_table_info(
+            region_id.table_id(),
+            "test_table",
+            "test_catalog",
+            "test_schema",
+            None,
+            env.get_kv_backend(),
+        )
+        .await;
+
+    let column_schemas = rows_schema(&request);
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+
+    // Old-unit rows: ts = 0s..4s in one SST spanning several strict windows.
+    put_rows(
+        &engine,
+        region_id,
+        Rows {
+            schema: column_schemas,
+            rows: build_rows(0, 5),
+        },
+    )
+    .await;
+    flush_region(&engine, region_id, None).await;
+
+    // Widen the time index unit to microsecond.
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::ModifyColumnTypes {
+                    columns: vec![ModifyColumnType {
+                        column_name: "ts".to_string(),
+                        target_type: ConcreteDataType::timestamp_microsecond_datatype(),
+                    }],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    // Compact with one-second strict windows: each window output keeps only
+    // its own rows (the trimming predicate is in the new unit while the input
+    // file stores the old one).
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Compact(RegionCompactRequest {
+                options: compact_request::Options::StrictWindow(StrictWindow { window_seconds: 1 }),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+
+    let request = ScanRequest::default();
+    let scanner = engine.scanner(region_id, request).await.unwrap();
+    let stream = scanner.scan().await.unwrap();
+    let batches = RecordBatches::try_collect(stream).await.unwrap();
+    let mut values = Vec::new();
+    for batch in batches.iter() {
+        let ts_column = batch
+            .df_record_batch()
+            .column_by_name("ts")
+            .expect("ts column must exist");
+        let array = ts_column
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::TimestampMicrosecondArray>()
+            .unwrap();
+        values.extend(array.iter().map(|v| v.unwrap()));
+    }
+    values.sort();
+    // Each instant exactly once, rescaled to microseconds.
+    assert_eq!(vec![0, 1_000_000, 2_000_000, 3_000_000, 4_000_000], values);
+}
+
+/// Returns a create request with a field `field_1` that defaults to 42, and the
+/// schema of rows that leave `field_1` out, so the engine fills it on puts.
+fn create_request_with_default_field() -> (RegionCreateRequest, Vec<api::v1::ColumnSchema>) {
+    let mut request = CreateRequestBuilder::new().build();
+    let column_schemas = rows_schema(&request);
+    request.column_metadatas.push(ColumnMetadata {
+        column_schema: ColumnSchema::new("field_1", ConcreteDataType::float64_datatype(), true)
+            .with_default_constraint(Some(ColumnDefaultConstraint::Value(
+                datatypes::value::Value::Float64(42.0.into()),
+            )))
+            .unwrap(),
+        semantic_type: SemanticType::Field,
+        column_id: 3,
+    });
+    (request, column_schemas)
+}
+
+fn add_nullable_field2() -> RegionAlterRequest {
+    RegionAlterRequest {
+        kind: AlterKind::AddColumns {
+            columns: vec![AddColumn {
+                column_metadata: ColumnMetadata {
+                    column_schema: ColumnSchema::new(
+                        "field_2",
+                        ConcreteDataType::float64_datatype(),
+                        true,
+                    ),
+                    semantic_type: SemanticType::Field,
+                    column_id: 4,
+                },
+                location: None,
+            }],
+        },
+    }
+}
+
+fn build_put_request(
+    schema: Vec<api::v1::ColumnSchema>,
+    start: usize,
+    end: usize,
+) -> RegionRequest {
+    RegionRequest::Put(RegionPutRequest {
+        rows: Rows {
+            schema,
+            rows: build_rows(start, end),
+        },
+        hint: None,
+        skip_wal: false,
+        partition_expr_version: None,
+    })
+}
+
+/// Sends a put that the engine boundary checked and filled with `metadata`,
+/// the region metadata before an alter, and returns the worker's answer.
+async fn put_filled_with_stale_metadata(
+    engine: &MitoEngine,
+    region_id: RegionId,
+    metadata: store_api::metadata::RegionMetadataRef,
+    schema: Vec<api::v1::ColumnSchema>,
+) -> error::Result<usize> {
+    let (request, receiver) = WorkerRequest::try_from_region_request(
+        region_id,
+        build_put_request(schema, 0, 2),
+        Some(metadata),
+    )
+    .unwrap();
+    engine
+        .inner
+        .workers
+        .submit_to_worker(region_id, request)
+        .await
+        .unwrap();
+    receiver
+        .await
+        .expect("the worker dropped the request without an answer")
+}
+
+/// A put filled with a default value at the engine boundary is checked again by
+/// the worker after a schema change; the filled column must not break the check.
+#[tokio::test]
+async fn test_put_filled_at_boundary_rechecked_after_add_column() {
+    common_telemetry::init_default_ut_logging();
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+    let region_id = RegionId::new(1, 1);
+    let (request, column_schemas) = create_request_with_default_field();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+    let metadata = engine.get_region(region_id).unwrap().metadata();
+    engine
+        .handle_request(region_id, RegionRequest::Alter(add_nullable_field2()))
+        .await
+        .unwrap();
+
+    let result =
+        put_filled_with_stale_metadata(&engine, region_id, metadata, column_schemas.clone()).await;
+    assert_eq!(2, result.unwrap());
+
+    // The worker still serves the region.
+    let response = engine
+        .handle_request(region_id, build_put_request(column_schemas, 2, 3))
+        .await
+        .unwrap();
+    assert_eq!(1, response.affected_rows);
+    let scanner = engine
+        .scanner(region_id, ScanRequest::default())
+        .await
+        .unwrap();
+    let batches = RecordBatches::try_collect(scanner.scan().await.unwrap())
+        .await
+        .unwrap();
+    let expected = "\
++-------+---------+---------------------+---------+---------+
+| tag_0 | field_0 | ts                  | field_1 | field_2 |
++-------+---------+---------------------+---------+---------+
+| 0     | 0.0     | 1970-01-01T00:00:00 | 42.0    |         |
+| 1     | 1.0     | 1970-01-01T00:00:01 | 42.0    |         |
+| 2     | 2.0     | 1970-01-01T00:00:02 | 42.0    |         |
++-------+---------+---------------------+---------+---------+";
+    assert_eq!(expected, batches.pretty_print().unwrap());
+}
+
+/// A put that left out a column which is dropped before the worker handles the
+/// put is still valid.
+#[tokio::test]
+async fn test_put_filled_at_boundary_rechecked_after_drop_column() {
+    common_telemetry::init_default_ut_logging();
+    let mut env = TestEnv::new().await;
+    let engine = env.create_engine(MitoConfig::default()).await;
+    let region_id = RegionId::new(1, 1);
+    let (request, column_schemas) = create_request_with_default_field();
+    engine
+        .handle_request(region_id, RegionRequest::Create(request))
+        .await
+        .unwrap();
+    let metadata = engine.get_region(region_id).unwrap().metadata();
+    engine
+        .handle_request(
+            region_id,
+            RegionRequest::Alter(RegionAlterRequest {
+                kind: AlterKind::DropColumns {
+                    names: vec!["field_1".to_string()],
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+    let result = put_filled_with_stale_metadata(&engine, region_id, metadata, column_schemas).await;
+    assert_eq!(2, result.unwrap());
+}

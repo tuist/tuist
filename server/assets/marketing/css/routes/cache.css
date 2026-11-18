@@ -38,14 +38,16 @@
     justify-content: flex-end;
     align-items: flex-start;
     gap: var(--noora-spacing-9);
-    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
+    padding-inline: var(--noora-spacing-4) var(--noora-spacing-13);
+    padding-block: 0 var(--noora-spacing-13);
     height: 600px;
     /* Clips the chart columns while they rise from below the hero, and the
        cached stems once they've dropped past the bottom edge. */
     overflow: hidden;
 
     @media (max-width: 720px) {
-      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      padding-inline: var(--noora-spacing-4) var(--noora-spacing-10);
+      padding-block: var(--noora-spacing-13) var(--noora-spacing-10);
       height: auto;
     }
 
@@ -166,7 +168,7 @@
 
         @media (min-width: 721px) {
           &:nth-child(2n) {
-            border-left: 1px solid var(--marketing-stroke-default);
+            border-inline-start: 1px solid var(--marketing-stroke-default);
           }
         }
 
@@ -258,7 +260,7 @@
               align-items: center;
               box-sizing: border-box;
               border: 1px solid var(--noora-purple-400);
-              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
               color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
 
               & > [data-part="value"] {
@@ -271,10 +273,10 @@
             & > [data-part="collapse"] {
               display: none;
               position: absolute;
-              right: 0;
               bottom: 0;
-              left: 0;
               z-index: var(--noora-z-index-1);
+              inset-inline-end: 0;
+              inset-inline-start: 0;
               background: var(--marketing-illustration-neutral-1);
               height: calc(100% - 24px);
             }
@@ -424,7 +426,7 @@
            the cached-box recipe (solid tints in light mode, alpha/deep
            tints in dark). */
         & > [data-part="illustration"][data-illustration="observability"] {
-          --observability-local: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+          --observability-local: light-dark(var(--noora-purple-100), var(--noora-alpha-purple-32));
           --observability-remote: light-dark(var(--noora-purple-200), var(--noora-purple-700));
           --observability-uploaded: light-dark(var(--noora-purple-400), var(--noora-purple-500));
           position: relative;
@@ -444,7 +446,7 @@
 
             & [data-part="panel"] {
               box-sizing: border-box;
-              box-shadow: var(--noora-border-light-default);
+              box-shadow: var(--noora-border-small-default);
               background: var(--noora-surface-background-primary);
               padding: var(--noora-spacing-6) var(--noora-spacing-7);
 
@@ -541,7 +543,7 @@
                 flex-direction: column;
                 gap: var(--noora-spacing-3);
                 box-sizing: border-box;
-                box-shadow: var(--noora-border-light-default);
+                box-shadow: var(--noora-border-small-default);
                 background: var(--noora-surface-background-primary);
                 padding: var(--noora-spacing-5) var(--noora-spacing-6);
                 min-width: 0;
@@ -604,13 +606,13 @@
            the observability, globe, and build-system cards. */
         & > [data-part="illustration"] > [data-part="fade"] {
           position: absolute;
-          right: 0;
           bottom: 0;
-          left: 0;
           /* Above every stacked layer in the illustrations. */
           z-index: var(--noora-z-index-2);
           backdrop-filter: blur(1px);
           mask-image: linear-gradient(180deg, transparent, black);
+          inset-inline-end: 0;
+          inset-inline-start: 0;
           background: linear-gradient(180deg, transparent, var(--noora-surface-background-primary));
           height: 123px;
           pointer-events: none;
@@ -660,7 +662,7 @@
               transform 0.45s var(--ease-out-cubic),
               box-shadow 0.3s ease;
             box-sizing: border-box;
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
             background: var(--noora-surface-background-primary);
             padding: var(--noora-spacing-6) var(--noora-spacing-7);
             width: 500px;
@@ -705,7 +707,7 @@
             &:hover {
               box-shadow:
                 0 0 0 1px var(--noora-purple-400),
-                0 0 28px 0 var(--noora-alpha-purple);
+                0 0 28px 0 var(--noora-alpha-purple-32);
             }
           }
 

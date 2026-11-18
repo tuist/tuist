@@ -32,6 +32,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
@@ -39,7 +40,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
@@ -129,10 +129,13 @@ defmodule Tuist.Tests.Coverage.Commits do
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
 
-      # The targets the commit's runs executed whole, and the versions of the
-      # tests they ran, become carry sources for the commits that skip them.
+      # The targets the commit's runs executed whole become carry sources for
+      # the commits that skip them.
       TargetSources.record(project.id, runs)
-      TestSources.record(project.id, runs)
+
+      # The test maps coverage-based test selection and coverage carry
+      # will read, for every project with coverage.
+      Snapshots.record(project, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
@@ -444,17 +447,19 @@ defmodule Tuist.Tests.Coverage.Commits do
            Repo.one(
              from(c in Tuist.GitHistory.Commit,
                where: c.repository_id == ^repository_id and c.sha == ^sha,
-               select: %{ref_id: c.ref_id, position: c.position, committed_at: c.committed_at}
+               select: c.committed_at
              )
            ) do
       nil ->
         %{ref_id: nil, position: nil, committed_at: ran_at, ran_at: ran_at}
 
-      commit ->
+      committed_at ->
+        {ref_id, position} = GitHistory.position(repository_id, sha) || {nil, nil}
+
         %{
-          ref_id: commit.ref_id,
-          position: commit.position,
-          committed_at: usec(commit.committed_at),
+          ref_id: ref_id,
+          position: position,
+          committed_at: usec(committed_at),
           ran_at: ran_at
         }
     end
@@ -774,8 +779,9 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   The runs that measured the commit and count towards it: one row per run
-  with its scheme, whether it was partial, and its repository. Runs from a
-  dirty checkout are left out.
+  with its scheme, whether it was partial, its repository, and the impact
+  run that selected its tests, if any. Runs from a dirty checkout are left
+  out.
   """
   def runs(project_id, sha) when is_binary(sha), do: runs(project_id, [sha])
 
@@ -818,6 +824,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
           only_test_identifiers: fragment("argMax(?, ?)", t.only_test_identifiers, t.inserted_at),
           skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
+          test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -846,6 +853,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: t.coverage_evidence_status,
           only_test_identifiers: t.only_test_identifiers,
           skip_test_identifiers: t.skip_test_identifiers,
+          test_impact_run_id: t.test_impact_run_id,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines
@@ -1095,7 +1103,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp report_paths(project_id, run_ids) do
     ClickHouseRepo.all(
-      from(f in Coverage.report_files_for_runs(project_id, run_ids), distinct: true, select: f.path),
+      from(f in Coverage.report_files_for_runs(project_id, run_ids, lines: false), distinct: true, select: f.path),
       settings: [select_sequential_consistency: 1]
     )
   end
@@ -1431,11 +1439,23 @@ defmodule Tuist.Tests.Coverage.Commits do
         {[], 0}
 
       ids ->
+        excluded = Coverage.excluded(project_id, opts)
+        search = Keyword.get(opts, :search, "")
+
         files_query =
           project_id
-          |> Coverage.merged_files_query_for_runs(ids, Coverage.excluded(project_id, opts))
+          |> Coverage.merged_files_query_for_runs(ids, excluded)
           |> subquery()
-          |> search_paths(Keyword.get(opts, :search, ""))
+          |> search_paths(search)
+
+        # The merged files are the product paths, which the count reads off the
+        # rows without their layouts.
+        paths_query =
+          project_id
+          |> Coverage.report_files_for_runs(ids, lines: false)
+          |> Coverage.without_excluded(excluded)
+          |> where([f], not f.is_test)
+          |> search_paths(search)
 
         [files, count] =
           Tuist.Tasks.parallel_tasks([
@@ -1448,7 +1468,7 @@ defmodule Tuist.Tests.Coverage.Commits do
                 )
               )
             end,
-            fn -> ClickHouseRepo.one(from(f in files_query, select: count(f.path))) || 0 end
+            fn -> ClickHouseRepo.one(from(f in paths_query, select: fragment("uniqExact(?)", f.path))) || 0 end
           ])
 
         {files, count}

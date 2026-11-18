@@ -42,8 +42,8 @@ block() {
   ' "${temporary}/metrics.alloy"
 }
 
-# Remove Cloud authentication and use only the isolated local receiver.
-block 'prometheus.remote_write "grafana_cloud_metrics"' | awk '
+# Remove Pulse authentication and use only the isolated local receiver.
+block 'prometheus.remote_write "pulse_metrics"' | awk '
   /^[[:space:]]*(headers = \{|basic_auth \{|tls_config \{)/ {
     skipping = 1
     indentation = substr($0, 1, match($0, /[^[:space:]]/) - 1)
@@ -70,18 +70,21 @@ done | awk '
     print "  api_server = \"http://fixture:8080\""
     discovery = 0
   }
-  { gsub(/"60s"|"10s"/, "\"1s\""); print }
+  {
+    gsub(/"60s"|"10s"/, "\"1s\"")
+    print
+  }
 ' >> "${temporary}/pipeline.alloy"
 cat >> "${temporary}/pipeline.alloy" <<'ALLOY'
 prometheus.scrape "service_control" {
   targets = discovery.relabel.annotation_autodiscovery_services.output
   scrape_interval = "1s"
   scrape_timeout = "1s"
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.remote_write.pulse_metrics.receiver]
 }
 ALLOY
 if grep -Eq 'remote\.kubernetes|url = "https://' "${temporary}/pipeline.alloy"; then
-  echo 'Fixture pipeline must not contain cluster credentials or Cloud destinations' >&2
+  echo 'Fixture pipeline must not contain cluster credentials or real destinations' >&2
   exit 1
 fi
 block 'prometheus.scrape "tuist_hubble"' | grep -q 'enabled = true'
@@ -126,6 +129,7 @@ for node in a b; do
   cat > "${temporary}/node-${node}.metrics" <<METRICS
 # TYPE hubble_drop_total counter
 hubble_drop_total{protocol="TCP",reason="POLICY_DENIED",source="192.0.2.1",destination="example/cache"} ${value}
+hubble_drop_total{protocol="ICMPv6",reason="UNSUPPORTED_L3_PROTOCOL",source="2001:db8::1"} 3
 hubble_flows_processed_total 101
 hubble_tcp_flags_total 102
 hubble_dns_queries_total 103
@@ -140,7 +144,7 @@ for dependency in "${image}" nginx:1.28-alpine prom/prometheus:v3.5.0; do
     "${docker}" pull "${dependency}"
   fi
 done
-# No collector can reach the cluster, Cloud telemetry, or the public Internet.
+# No collector can reach the cluster, Pulse, or the public Internet.
 "${docker}" network create --internal "${network}" >/dev/null
 "${docker}" run -d --rm --name "${fixture}" --network "${network}" \
   --network-alias fixture --network-alias hubble-metrics.kube-system.svc \
@@ -210,7 +214,7 @@ queries=(
   'sum(up{job="control"})'
 )
 for failed in false true; do
-  expected=(2 1 1 2 7 19 2 5 5 0 1 1)
+  expected=(2 1 1 2 7 19 2 6 6 0 1 1)
   if [[ "${failed}" == true ]]; then
     mv "${temporary}/node-b.metrics" "${temporary}/node-b.off"
     expected[2]=0

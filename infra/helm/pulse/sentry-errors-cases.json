@@ -1,0 +1,336 @@
+[
+  {
+    "name": "elixir exception with in-app frames",
+    "fingerprint": "3e8d45a883f070e5470424743760c1bc3cd6eba44c1e06df03e1033a3b8a82a5",
+    "level": "error",
+    "event": {
+      "event_id": "2D9F1C3E-4B5A-4C6D-8E7F-0A1B2C3D4E5F",
+      "timestamp": "2026-11-14T10:15:30.123456",
+      "platform": "elixir",
+      "level": "error",
+      "environment": "production",
+      "release": "4.12.0",
+      "server_name": "tuist-server-7d9f8-abcde",
+      "transaction": "GET /api/projects/:id",
+      "exception": {
+        "values": [
+          {
+            "type": "Ecto.NoResultsError",
+            "value": "expected at least one result but got none in query 42 for user jane@example.com",
+            "module": "Ecto",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "lib/plug/cowboy.ex",
+                  "module": "Plug.Cowboy",
+                  "function": "handle/2",
+                  "lineno": 12,
+                  "in_app": false
+                },
+                {
+                  "filename": "lib/tuist/projects.ex",
+                  "module": "Tuist.Projects",
+                  "function": "get_project!/1",
+                  "lineno": 88,
+                  "in_app": true,
+                  "context_line": "    Repo.get!(Project, id)",
+                  "vars": {
+                    "id": "secret"
+                  }
+                },
+                {
+                  "filename": "lib/ecto/repo.ex",
+                  "module": "Ecto.Repo",
+                  "function": "get!/3",
+                  "lineno": 400,
+                  "in_app": false
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "user": {
+        "id": "42",
+        "email": "jane@example.com",
+        "ip_address": "203.0.113.9"
+      },
+      "request": {
+        "url": "https://tuist.dev/api/projects/7?token=abc",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer abc.def"
+        },
+        "cookies": "session=1",
+        "data": {
+          "password": "x"
+        }
+      },
+      "tags": {
+        "selected_account_handle": "tuist",
+        "oban_worker": "Tuist.Worker",
+        "session_id": "s-1"
+      },
+      "extra": {
+        "auth_account_handle": "jane",
+        "selected_account_handle": "tuist",
+        "api_key": "sk_live_1",
+        "nested": {
+          "note": "contact jane@example.com from 10.1.2.3",
+          "password": "p"
+        }
+      },
+      "contexts": {
+        "trace": {
+          "trace_id": "0af7651916cd43dd8448eb211c80319c",
+          "span_id": "b7ad6b7169203331"
+        },
+        "os": {
+          "name": "Linux"
+        }
+      },
+      "breadcrumbs": {
+        "values": [
+          {
+            "timestamp": 1794650000.1,
+            "category": "http",
+            "level": "info",
+            "message": "GET https://tuist.dev/?email=jane@example.com",
+            "data": {
+              "url": "x"
+            }
+          }
+        ]
+      },
+      "modules": {
+        "phoenix": "1.8.0"
+      },
+      "sdk": {
+        "name": "sentry.elixir",
+        "version": "11.0.4"
+      }
+    }
+  },
+  {
+    "name": "no in-app frame uses the last frame and normalizes hex, digits and whitespace",
+    "fingerprint": "d1db1de9293736a8bcb538fd485c3cbc24381991fc3dc5cf6b0417464e5595f8",
+    "level": "fatal",
+    "event": {
+      "event_id": "a1b2",
+      "timestamp": 1794650000.5,
+      "level": "FATAL",
+      "exception": [
+        {
+          "type": "RuntimeError",
+          "value": "pointer 0xDEADbeef failed after 3 retries\n\t at   offset 77",
+          "stacktrace": {
+            "frames": [
+              {
+                "filename": "a.ex",
+                "module": "A",
+                "function": "one/0",
+                "lineno": 1
+              },
+              {
+                "filename": "b.ex",
+                "function": "two/0",
+                "lineno": 2
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty module does not fall back to filename",
+    "fingerprint": "2d8481c9c4327f40823f23ca897567043f67748061c444314c55cddb90d173cf",
+    "level": "error",
+    "event": {
+      "event_id": "c0ffee00c0ffee00c0ffee00c0ffee00",
+      "exception": {
+        "values": [
+          {
+            "type": "KeyError",
+            "value": "key :foo not found",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "lib/x.ex",
+                  "module": "",
+                  "function": "go/1",
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "logentry message without exception",
+    "fingerprint": "7e5a75198d4baf4f72612926968f63b3deb6475122335a188678b923e035d77a",
+    "level": "warning",
+    "event": {
+      "event_id": "11111111111111111111111111111111",
+      "level": "warning",
+      "logger": "Elixir.Tuist.Billing",
+      "logentry": {
+        "formatted": "Stripe sync failed for customer cus_12345 after 2 attempts",
+        "message": "Stripe sync failed for %s"
+      }
+    }
+  },
+  {
+    "name": "string message takes precedence over logentry",
+    "fingerprint": "553a070b7df7fff2dbadcb57431e1003763e546f569d2136b264c17d44379d62",
+    "level": "error",
+    "event": {
+      "event_id": "22222222222222222222222222222222",
+      "message": "Cache miss storm on shard 9",
+      "logentry": {
+        "formatted": "ignored"
+      }
+    }
+  },
+  {
+    "name": "empty string message falls through to logentry",
+    "fingerprint": "9a0a5526c511878dc5bd22cd366c02a3c34a6e14b15ead798af3b3e7501d7406",
+    "level": "error",
+    "event": {
+      "event_id": "33333333333333333333333333333333",
+      "message": "",
+      "logentry": {
+        "message": "Template %s"
+      }
+    }
+  },
+  {
+    "name": "log-shaped event groups by logger, transaction, level and tracing name",
+    "fingerprint": "badd64ca7e9f04748dadf82fc3025d5a54fda7f23d306830845e51cc86c0ebd5",
+    "level": "info",
+    "event": {
+      "event_id": "44444444444444444444444444444444",
+      "level": "info",
+      "logger": "kura::replication",
+      "transaction": "GET /users/12345/orders/0x1F",
+      "contexts": {
+        "Rust Tracing Fields": {
+          "name": "event src/replication.rs:120"
+        }
+      }
+    }
+  },
+  {
+    "name": "unknown level becomes error",
+    "fingerprint": "dc16e349ff89a95d2bba6be606ae1f41f056c472244e4f6c64b324c3de52a481",
+    "level": "error",
+    "event": {
+      "event_id": "55555555555555555555555555555555",
+      "level": "critical",
+      "logger": "app"
+    }
+  },
+  {
+    "name": "fingerprint override expands default",
+    "fingerprint": "8d864ab07b64e151a7423849b9a7af28286f15b2f932867a8e71eb8a0f876935",
+    "level": "error",
+    "event": {
+      "event_id": "66666666666666666666666666666666",
+      "fingerprint": [
+        "{{ default }}",
+        "tenant-a",
+        7
+      ],
+      "exception": {
+        "values": [
+          {
+            "type": "ArgumentError",
+            "value": "bad argument 12",
+            "stacktrace": {
+              "frames": [
+                {
+                  "module": "M",
+                  "function": "f/1",
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "fingerprint override without default",
+    "fingerprint": "6052a1c6f2c7d3d0227bc814558b914a20dd2bcb5a846a7f8e4d617ba0376bd7",
+    "level": "error",
+    "event": {
+      "event_id": "77777777777777777777777777777777",
+      "fingerprint": [
+        "database-unavailable"
+      ],
+      "exception": {
+        "values": [
+          {
+            "type": "DBConnection.ConnectionError",
+            "value": "connection refused"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "empty fingerprint override uses default grouping",
+    "fingerprint": "3476d6714d2e4d0c8ed772245d72188028d4b2c10710de8ddb5535f8b5741578",
+    "level": "error",
+    "event": {
+      "event_id": "88888888888888888888888888888888",
+      "fingerprint": [],
+      "exception": {
+        "values": [
+          {
+            "type": "ArgumentError",
+            "value": "bad argument 12",
+            "stacktrace": {
+              "frames": [
+                {
+                  "module": "M",
+                  "function": "f/1",
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "long unicode message is cut at 200 characters",
+    "fingerprint": "4e3ffd409c789150911f2276a5da7cc0d1242f846cc0ad0e29d2f51026ebfbb9",
+    "level": "error",
+    "event": {
+      "event_id": "99999999999999999999999999999999",
+      "message": "Échec de synchronisation ✓ — Ünïcödé text that keeps going and going and going and going and going and going and going and going and going and going and going and going and going and going and going and going and going and going and going past two hundred characters",
+      "level": "error"
+    }
+  },
+  {
+    "name": "exception value is used when message is absent; type only title",
+    "fingerprint": "f087ad58db8ba908ae25ab04eb4860d355e5401ac1a93261d8c57306d8d7eded",
+    "level": "error",
+    "event": {
+      "event_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "exception": {
+        "values": [
+          {
+            "type": "Oban.PerformError",
+            "value": ""
+          }
+        ]
+      }
+    }
+  }
+]

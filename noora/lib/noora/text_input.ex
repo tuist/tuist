@@ -115,6 +115,7 @@ defmodule Noora.TextInput do
     <div class="noora-text-input">
       <.label
         :if={@label}
+        for={@id}
         label={@label}
         sublabel={@sublabel}
         required={@required and @show_required}

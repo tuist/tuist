@@ -104,7 +104,7 @@ Internal service access and operator paths that are deliberately not exposed pub
 
 **Tailscale is responsible for** the security and availability of its coordination service.
 
-**Tuist is responsible for** the access control list, which is a static and code-reviewed document rather than something mutated at runtime, device and tag membership, and the decision about what is reachable on the private network rather than the public internet.
+**Tuist is responsible for** the access control list, which is a static, version-controlled document rather than something mutated at runtime, device and tag membership, and the decision about what is reachable on the private network rather than the public internet.
 
 ## Other services
 

@@ -15,8 +15,19 @@ defmodule TuistWeb.Helpers.FailureMessage do
   """
   def format_failure_message(failure, run) do
     path = if failure.path in [nil, ""], do: nil, else: failure.path
-    message = build_failure_message(path, failure.issue_type, failure.message, failure.line_number)
-    linkify_failure_location(message, path, failure, run)
+
+    if not is_nil(path) and has_github_vcs?(run) do
+      # The message, path, and commit SHA come from the client, so escape them
+      # before building the linked HTML.
+      path = escape(path)
+      message = if is_nil(failure.message), do: nil, else: escape(failure.message)
+
+      path
+      |> build_failure_message(failure.issue_type, message, failure.line_number)
+      |> linkify_failure_location(path, failure, %{run | git_commit_sha: escape(run.git_commit_sha)})
+    else
+      build_failure_message(path, failure.issue_type, failure.message, failure.line_number)
+    end
   end
 
   defp build_failure_message(nil, issue_type, message, _line_number) do
@@ -80,20 +91,18 @@ defmodule TuistWeb.Helpers.FailureMessage do
   defp format_message_with_path(_, message, path, line_number), do: "#{path}:#{line_number}: #{message}"
 
   defp linkify_failure_location(message, path, failure, run) do
-    if not is_nil(path) and has_github_vcs?(run) do
-      location_text = "#{path}:#{failure.line_number}"
-      base_url = GitHubHost.base_url_for_run(run)
+    location_text = "#{path}:#{failure.line_number}"
+    base_url = GitHubHost.base_url_for_run(run)
 
-      location_link =
-        ~s(<a href="#{base_url}/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
+    location_link =
+      ~s(<a href="#{base_url}/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
 
-      message
-      |> String.replace(location_text, location_link)
-      |> raw()
-    else
-      message
-    end
+    message
+    |> String.replace(location_text, location_link)
+    |> raw()
   end
+
+  defp escape(value), do: value |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
   defp has_github_vcs?(run) do
     case run do

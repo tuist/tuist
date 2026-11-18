@@ -26,6 +26,21 @@ defmodule Tuist.LocaleTest do
     end
   end
 
+  describe "direction/1" do
+    test "is rtl for right-to-left languages, including region and script variants" do
+      assert Locale.direction("ar") == "rtl"
+      assert Locale.direction("ar_EG") == "rtl"
+      assert Locale.direction("he-IL") == "rtl"
+    end
+
+    test "is ltr for left-to-right languages, including ones that share a prefix" do
+      assert Locale.direction("en") == "ltr"
+      assert Locale.direction("ja") == "ltr"
+      assert Locale.direction("zh_Hant") == "ltr"
+      assert Locale.direction("arn") == "ltr"
+    end
+  end
+
   describe "collapse_locale_path_prefix/1 for paths without a locale" do
     test "leaves unlocalized routes alone" do
       assert Locale.collapse_locale_path_prefix("/") == "/"

@@ -106,7 +106,7 @@ defmodule TuistWeb.XcodeOverviewLive do
             {:error, _reason} -> Bundles.project_app_bundle_options(project)
           end
 
-        fetch_bundles_data(project, bundle_size_period, apps)
+        fetch_bundles_data(project, bundle_size_period, apps, bundle_size_selected_app)
       end
     )
   end
@@ -214,8 +214,13 @@ defmodule TuistWeb.XcodeOverviewLive do
     )
   end
 
-  defp fetch_bundles_data(project, {start_datetime, end_datetime}, bundle_size_apps) do
-    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+  defp fetch_bundles_data(project, {start_datetime, end_datetime}, bundle_size_apps, selected_app) do
+    opts = [
+      project_id: project.id,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime,
+      name: selected_app || default_bundle_size_app(bundle_size_apps)
+    ]
 
     bundle_size_analytics =
       project

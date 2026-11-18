@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d421b01823fdc5c2eff2a0db0f37aacf7cda57d40ce93e5484146a27367093fa",
+  "hash": "085a6a31e5d2a17d6f6cce40e678d177001e9cdf864c0f60e9e1858ae435578f",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,37 +11,37 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# .buildkite/shard-step.sh": {
-                  "content_hash": "3747e57375ba82d9bfe87827d5ad1af4a18d43e6c3d68d4de952779d46308e66"
+                  "content_hash": "ad0d5d57319053e5abf3f558b55cae7cd169082638fc657e18757fccb085abad"
                 },
                 "# .circleci/config.yml": {
-                  "content_hash": "0b6ed02065d7c98ce7a89351be01a6d8aae16dec240b9ac23d00c871f217ab89"
+                  "content_hash": "b599b5400a55c30dede84a983e5dfcb1cd3db93e800675df31e8fb202ddb4a74"
                 },
                 "# .circleci/continue-config.yml": {
-                  "content_hash": "6f25290d4890f5e2604bbde30fd10a1e402474ec8c9ef9f543850a79b86b4bdc"
+                  "content_hash": "577e7d1662ab3a4d3d2be1f0936268471668dcea0a1980463daeb48c8e8dc32a"
                 },
                 "# .gitlab-ci.yml": {
-                  "content_hash": "d49cdcb746bff08c76dcfb849b0f1ef7e935b4f13f6c4a0522d41450caa1aaf0"
+                  "content_hash": "58abda9bf5964e4c7d0ebe037dbbbc7b3a7163e97d11637134332bb3cc72c66b"
                 },
                 "# .gitlab/shard-template.yml": {
-                  "content_hash": "5b8940a357592cfdd6cc3bf43d5a4c81f7989fd50a3c6f8199bd60b604e2b336"
+                  "content_hash": "ee1762a1ac9283aaa3b908c327b66d1dfbd67720eec2395009f5df0bc22cab0b"
                 },
                 "# Gradle test sharding {#gradle-test-sharding}": {
-                  "content_hash": "a2c340afd49646b03ddf9e160e7fe8eed0ae57efe919bb8a53496fbc23983d39"
+                  "content_hash": "9d3f819625fc65594a9dd1713a16e9989d49f720dc769decad1fa09b1fead0e6"
                 },
                 "# bitrise.yml": {
-                  "content_hash": "c44a2fd6f8b0dd5a8e90630e72375c2d9a857af09c0794cd332272185bd79cd9"
+                  "content_hash": "b81f4d229ce5be8a7afa069b2a012c79355500cfe0aa76dd49ddfcf2ca83186f"
                 },
                 "# codemagic.yaml": {
-                  "content_hash": "509a88c98c51a6f58a1d587358fe7cbbfda8db005315babaf76fad786ecc0175"
+                  "content_hash": "a6f44e01bbe68f1e2e4ddb4c1f705e3f439c1a85cf45cf62f97aae2642d594c3"
                 },
                 "# pipeline.yml": {
-                  "content_hash": "937383c6bc9609e887ebf5956342537bb1e3d3837774c1b53b0f721949bdda66"
+                  "content_hash": "4a2506e71a1836e266275d65273abc2bfd9bb7a5b660397fe6601bb04dcd5940"
                 },
                 "## Build phase {#build-phase}": {
                   "content_hash": "66c2db6c9304f5bf3dd8f598707d83318bf8142eeb926a67a977aefb9daf1c20"
                 },
                 "## Continuous integration {#continuous-integration}": {
-                  "content_hash": "526633f567ccae7f56f74ea0cfe4557b4d64cabc428975924fa75f3af60bb74d"
+                  "content_hash": "9e6ed521753b5d216a34bd7aefbb3740ebe922e431f4912c8c20ac691ab06732"
                 },
                 "## How it works {#how-it-works}": {
                   "content_hash": "c5edb2da0b121e8f5911333a3c86c6fbbfc87ce57862151d786119c465ccbd06"
@@ -65,10 +65,10 @@
                   "content_hash": "ba4a5a6ba9a76f3bf1ab8e17dd4ed3652686bd1ab7b9dcfed93533125a8577e7"
                 },
                 "### GitHub Actions {#github-actions}": {
-                  "content_hash": "9fffe1901a2371f5e1a5f1fff7339d4929fdd260c18ce92b423bdf04584c4f66"
+                  "content_hash": "4ac40f92a68faafd6ffdab93f79721f4f2fb982257df1300851e1402e81d660e"
                 },
                 "### GitLab CI {#gitlab-ci}": {
-                  "content_hash": "417f6e52de369cc4dd2f92b01309a7065d532b93914e9745efd6aa8cf07218a2"
+                  "content_hash": "3eea9c1649c2b8f1895deaa2dc5212932c787e9827e138720e92f08e89f2348d"
                 },
                 "Preamble": {
                   "content_hash": "6f1d545c6511aaf88460d3df9ff3dc8a98f0611f8182ad94566dc25b6fa6456a"
@@ -77,11 +77,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "cddca4af11c60d7fc1fcc2ddedbcd7b5a85484223e03cff3379ada5f83bf3990",
+          "hash": "28e694dd2dbbeb04ec24e8314c26f762cd811a1306d2279a43d45dd2671a32ef",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-sharding/gradle.md",
           "metadata": {
-            "content_hash": "ade7f38f92a5e0be95ab29596d10fa49f0f4e53831d3a51c0b49a12d0499335d"
+            "content_hash": "e819babb8291e65d65af0fa8366e3e9b78c5f55106be86f73dc016bff6d2a55d"
           }
         },
         {
@@ -142,7 +142,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -161,7 +161,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -190,11 +190,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -277,21 +277,21 @@
             }
           ],
           "details": {},
-          "hash": "c986106d97b0efee437c4608efec30ba2410bbc892c1912d4132db9ce960af4d",
+          "hash": "fd739470effa5045cb7750a0a726328b08aa66debb084405d86c5d4b62b844b3",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "d421b01823fdc5c2eff2a0db0f37aacf7cda57d40ce93e5484146a27367093fa",
+      "hash": "085a6a31e5d2a17d6f6cce40e678d177001e9cdf864c0f60e9e1858ae435578f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-sharding/gradle.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ba1c7c632d11897a9d4fa04f792979c2f8c9e17a91aee4ddce4ff224b3b9f1d7",
+  "output_hash": "f3fd02a54efd2cd6436fc60ae022e1d984e18e8dd51b6fd2ddef0f97e10e05a4",
   "output_path": "server/priv/docs/zh_Hant/guides/features/test-sharding/gradle.md",
   "protection_state": "recorded",
   "provider": "",
@@ -312,8 +312,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "d898a2e179dc435fad5461a5ce39f42cdac74dee",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-sharding/gradle.md",
-  "translated_at": "2026-11-02T15:12:19.849778Z",
-  "translation_session_id": "01a19ccd-c167-7b0e-8031-09b3a8a20582"
+  "translated_at": "2026-11-06T21:25:57.787645Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

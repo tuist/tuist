@@ -9,6 +9,7 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.RetentionWorker
+  alias Tuist.Storage
 
   defp days_ago(days), do: DateTime.add(DateTime.utc_now(), -days, :day)
 
@@ -21,6 +22,28 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
       assert :ok = perform_job(RetentionWorker, %{})
       assert Repo.reload!(sandbox).state == state
     end
+  end
+
+  test "deletes macOS Orbs a week after their pause, which have no archive tier" do
+    expired =
+      sandbox_fixture(
+        state: :paused,
+        amp_orb_id: "amp-old",
+        platform: :darwin,
+        node_name: "mac-a",
+        paused_at: days_ago(8)
+      )
+
+    fresh = sandbox_fixture(state: :paused, amp_orb_id: "amp-new", platform: :darwin, paused_at: days_ago(6))
+    linux = sandbox_fixture(state: :paused, amp_orb_id: "amp-linux", paused_at: days_ago(8))
+    expired_id = expired.id
+
+    expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: ^expired_id}, _opts -> {:ok, %{}} end)
+
+    assert :ok = perform_job(RetentionWorker, %{})
+    refute Repo.get(Sandbox, expired.id)
+    assert Repo.reload!(fresh).state == :paused
+    assert Repo.reload!(linux).state == :paused
   end
 
   test "deletes sandboxes paused for longer than the retention window and keeps the rest" do
@@ -41,6 +64,27 @@ defmodule Tuist.Sandboxes.Workers.RetentionWorkerTest do
     assert Repo.get(Sandbox, expired.id) == nil
     assert %Sandbox{state: :paused} = Repo.reload!(fresh)
     assert %Sandbox{state: :running} = Repo.reload!(running)
+  end
+
+  test "deletes a sandbox archived off its node once its pause is past the window, with its archive" do
+    archived =
+      sandbox_fixture(
+        state: :archived,
+        node_name: nil,
+        paused_at: days_ago(RetentionWorker.retention_days() + 1),
+        archived_at: days_ago(1),
+        archive_key: "sandbox-archives/1/x/y.sbxa"
+      )
+
+    fresh = sandbox_fixture(state: :archived, node_name: nil, paused_at: days_ago(1), archive_key: "k")
+    orb = sandbox_fixture(state: :archived, node_name: nil, amp_orb_id: "amp", paused_at: days_ago(365))
+    reject(&Nodes.call/4)
+    expect(Storage, :delete_object, fn "sandbox-archives/1/x/y.sbxa", _actor -> :ok end)
+
+    assert :ok = perform_job(RetentionWorker, %{})
+    assert Repo.get(Sandbox, archived.id) == nil
+    assert %Sandbox{state: :archived} = Repo.reload!(fresh)
+    assert %Sandbox{state: :archived} = Repo.reload!(orb)
   end
 
   test "falls back to the row's last update when the node paused the sandbox without the server" do

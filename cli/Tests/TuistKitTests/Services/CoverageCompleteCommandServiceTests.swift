@@ -48,15 +48,7 @@ struct CoverageCompleteCommandServiceTests {
     )
 
     @Test(.withMockedEnvironment())
-    func refusesWithoutTheCoverageFlag() async throws {
-        await #expect(throws: CoverageCompleteCommandServiceError.earlyAccess) {
-            try await subject.run(path: nil, fullHandle: "acme/app", commit: "abcdef1", json: false)
-        }
-    }
-
-    @Test(.withMockedEnvironment())
     func requiresAFullHandle() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject(fullHandle: nil)
 
         await #expect(throws: CoverageCompleteCommandServiceError.missingFullHandle) {
@@ -66,7 +58,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func requiresACommitWhenTheCheckoutHasNone() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         given(gitController).gitInfo(workingDirectory: .any).willThrow(NSError(domain: "git", code: 128))
 
@@ -80,7 +71,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func signalsTheCheckoutsCommitAndReportsTheCompleteCoverage() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         given(gitController).gitInfo(workingDirectory: .any).willReturn(
             GitInfo(ref: nil, branch: "main", sha: "abcdef1234567", remoteURLOrigin: nil)
@@ -104,7 +94,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func saysWhenTheFigureIsIncomplete() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         let incomplete = CommitCoverage(
             gitCommitSHA: "abcdef1234567",
@@ -134,7 +123,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func leavesOutTheSchemesOfABuildSystemWithoutThem() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         let schemeless = CommitCoverage(
             gitCommitSHA: "abcdef1234567",
@@ -164,7 +152,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func printsTheCompleteCoverageAsJSON() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         given(completeCommitCoverageService)
             .completeCommitCoverage(fullHandle: .value("other/app"), serverURL: .any, gitCommitSHA: .value("abcdef1234567"))
@@ -183,7 +170,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func saysTheSignalIsKeptWhenNoRunReportedCoverageYet() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         given(completeCommitCoverageService)
             .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
@@ -200,7 +186,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func printsAPendingSignalAsJSON() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         given(completeCommitCoverageService)
             .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)
@@ -215,7 +200,6 @@ struct CoverageCompleteCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func passesTheServersErrorOn() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         try await givenProject()
         given(completeCommitCoverageService)
             .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .any)

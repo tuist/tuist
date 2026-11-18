@@ -58,7 +58,7 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
     ]
 )
 ```
@@ -68,7 +68,7 @@ let package = Package(
 `Project.swift` is the manifest file where you'll define your project, and `Package.swift` is the manifest file where you'll define your dependencies. The `Tuist.swift` file is where you can define project-scoped Tuist settings for your project.
 
 > [!TIP]
-> **Project Name With -tuist Suffix**
+> **Project name with -Tuist suffix**
 >
 > To prevent conflicts with the existing Xcode project, we recommend adding the `-Tuist` suffix to the project name. You can drop it once you've fully migrated your project to Tuist.
 
@@ -101,8 +101,8 @@ import ProjectDescription
 let project = Project(
     name: "MyApp",
     settings: .settings(configurations: [
-        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
-        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
+        .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
+        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"),
     ]),
     targets: [
         /** Targets will go here **/
@@ -140,14 +140,14 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
 
 > [!TIP]
-> **Product Types**
+> **Product types**
 >
 > You can override the product type for a specific package by adding it to the `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist assumes that all packages are static frameworks.
 
@@ -189,28 +189,28 @@ let project = Project(
         .release(name: "Release", xcconfig: "./xcconfigs/Project.xcconfig"),
     ]),
     targets: [
-        .target( // [!code ++]
-            name: "TargetX", // [!code ++]
-            destinations: .iOS, // [!code ++]
-            product: .framework, // [!code ++] // or .staticFramework, .staticLibrary...
-            bundleId: "dev.tuist.targetX", // [!code ++]
-            sources: ["Sources/TargetX/**"], // [!code ++]
-            dependencies: [ // [!code ++]
-                /** Dependencies go here **/ // [!code ++]
-                /** .external(name: "Kingfisher") **/ // [!code ++]
-                /** .target(name: "OtherProjectTarget") **/ // [!code ++]
-            ], // [!code ++]
-            settings: .settings(configurations: [ // [!code ++]
-                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-                .debug(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-            ]) // [!code ++]
-        ), // [!code ++]
+        .target(
+            name: "TargetX",
+            destinations: .iOS,
+            product: .framework, // or .staticFramework, .staticLibrary...
+            bundleId: "dev.tuist.targetX",
+            sources: ["Sources/TargetX/**"],
+            dependencies: [
+                /** Dependencies go here **/
+                /** .external(name: "Kingfisher") **/
+                /** .target(name: "OtherProjectTarget") **/
+            ],
+            settings: .settings(configurations: [
+                .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+                .release(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"),
+            ])
+        ),
     ]
 )
 ```
 
 > [!NOTE]
-> **Test Targets**
+> **Test targets**
 >
 > If the target has an associated test target, you should define it in the `Project.swift` file as well repeating the same steps.
 

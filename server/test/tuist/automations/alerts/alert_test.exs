@@ -522,6 +522,44 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).recovery_config
     end
 
+    test "accepts a no-new-matches recovery condition over either window type" do
+      project = ProjectsFixtures.project_fixture()
+
+      for window <- [
+            %{"window_type" => "rolling", "rolling_window_size" => 100},
+            %{"window_type" => "last_days", "window" => "7d"}
+          ] do
+        changeset =
+          Alert.changeset(
+            %Alert{},
+            valid_attrs(project, %{
+              "recovery_enabled" => true,
+              "recovery_config" => Map.put(window, "condition", "no_new_matches"),
+              "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+            })
+          )
+
+        assert changeset.valid?
+      end
+    end
+
+    test "rejects an unknown recovery condition" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 5, "condition" => "always"},
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
     test "accepts rolling recovery_config with a positive rolling_window_size" do
       project = ProjectsFixtures.project_fixture()
 

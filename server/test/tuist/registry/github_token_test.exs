@@ -36,6 +36,20 @@ defmodule Tuist.Registry.GitHubTokenTest do
     end
   end
 
+  describe "github_fallback_token/2" do
+    test "offers the personal access token when the refused token was a different one" do
+      assert Registry.github_fallback_token("installation-token", "pat") == "pat"
+    end
+
+    test "offers nothing when the refused token already was the personal access token" do
+      assert Registry.github_fallback_token("pat", "pat") == nil
+    end
+
+    test "offers nothing when no personal access token is configured" do
+      assert Registry.github_fallback_token("installation-token", nil) == nil
+    end
+  end
+
   describe "github_credentials_configured?/2" do
     test "reads an App installation alone as configured, without minting a token" do
       reject(&App.get_installation_token/1)

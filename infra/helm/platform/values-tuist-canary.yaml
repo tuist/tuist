@@ -95,9 +95,6 @@ kura-ca-east-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-kura-runners-ingress-nginx:
-  enabled: true
-
 ipv4OptionsTcpDrop:
   enabled: true
 

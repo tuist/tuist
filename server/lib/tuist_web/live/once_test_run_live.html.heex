@@ -1,4 +1,4 @@
-<div id="test-run-detail">
+<div id="test-run-detail" phx-hook="PageFavicon" data-favicon-status={status(@run)}>
   <.button
     label={dgettext("dashboard_tests", "Test Runs")}
     data-part="back-button"
@@ -55,35 +55,35 @@
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "cancelled"}
                 label={dgettext("dashboard_tests", "Cancelled")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "interrupted"}
                 label={dgettext("dashboard_tests", "Interrupted")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
                 color="neutral"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">

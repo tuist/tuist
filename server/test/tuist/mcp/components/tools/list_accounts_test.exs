@@ -35,6 +35,15 @@ defmodule Tuist.MCP.Components.Tools.ListAccountsTest do
       assert organization_account_handle == organization.account.name
     end
 
+    test "lists only the scoped account" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      conn = %Plug.Conn{assigns: %{current_user: user, mcp_account_scope: organization.account}}
+
+      assert %{"accounts" => [%{"id" => account_id}]} = ListAccounts.call(conn, %{})["structuredContent"]
+      assert account_id == organization.account.id
+    end
+
     test "requires user authentication" do
       result = ListAccounts.call(%Plug.Conn{assigns: %{}}, %{})
 

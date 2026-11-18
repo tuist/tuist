@@ -4,7 +4,8 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorker do
   measured against (the ClickHouse tables expire by time-to-live): drops the
   commits' coverage past its retention (`Tuist.Tests.Coverage.Commits.prune/1`)
   and each repository's commits past its history window
-  (`Tuist.GitHistory.prune/2`).
+  (`Tuist.GitHistory.prune/2`). It then queues the file-change writes that
+  were lost (`Tuist.GitHistory.FileChanges.enqueue_unwritten/0`).
 
   The window is a project setting while the graph belongs to a repository,
   which any project of the repository's account can report runs against. A
@@ -17,6 +18,7 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorker do
   import Ecto.Query
 
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.FileChanges
   alias Tuist.GitHistory.Repository
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -38,6 +40,9 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorker do
       end)
 
     Logger.info("Coverage retention dropped #{coverage_commits} coverage commits and #{git_commits} Git commits")
+
+    # After the pruning, which may drop the detached refs some commits sat on.
+    FileChanges.enqueue_unwritten()
     :ok
   end
 

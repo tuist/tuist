@@ -65,11 +65,9 @@ const (
 
 	// idleHostReservationGrace is the shorter wait for a host that clears
 	// at once: clearing it retires warm Pods and waits on no job, so it
-	// costs those Pods a cold start and nothing else. Every rack image
-	// keeps a warm runner, so on a quiet fleet each host can hold one, and
-	// a 12 vCPU job would otherwise wait the full
-	// reservationGrace behind runners nobody is using. It matches
-	// preemptionWait, the same judgement for a same-shape sibling.
+	// costs those Pods a cold start and nothing else. A guarded fast path
+	// uses preemptionWait when fresh queued demand can be served entirely
+	// by eligible idle runners already above their pools' replica allocations.
 	idleHostReservationGrace = 30 * time.Second
 
 	// reservationTimeout bounds how long one host stays held. The Pods a
@@ -200,7 +198,7 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		}
 	}
 
-	if starvedFor < idleHostReservationGrace {
+	if starvedFor < preemptionWait {
 		return nil
 	}
 	if reservationCount(nodes) >= maxFleetReservations {
@@ -279,11 +277,115 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	if !starved && !clearsAtOnce {
 		return nil
 	}
+	if starvedFor < idleHostReservationGrace {
+		fast, err := r.canFastReserve(ctx, pool, target, now)
+		if err != nil {
+			return err
+		}
+		if !fast {
+			return nil
+		}
+	}
 
 	logger.Info("reserving node to fit a starved runner",
 		"node", target.Name, "pool", pool.Name,
 		"pod", unplacedPodName(pods), "starvedFor", starvedFor.String())
 	return r.reserveNode(ctx, target, value, now)
+}
+
+// canFastReserve only accelerates an otherwise idle-clearing reservation.
+// Re-read demand, Pods and replica allocations: the earlier placement snapshot
+// alone cannot distinguish burst spare from a currently withheld queue, or
+// idle runners already allocated to another pool's arriving work.
+func (r *RunnerPoolReconciler) canFastReserve(ctx context.Context, pool *tuistv1.RunnerPool, node *corev1.Node, now time.Time) (bool, error) {
+	if r.SignalsClient == nil {
+		return false, nil
+	}
+	signals, err := r.SignalsClient.Signals(ctx, pool.Name)
+	if err != nil {
+		return false, fmt.Errorf("fetch demand for fast reservation: %w", err)
+	}
+	var pods corev1.PodList
+	if err := r.apiReader().List(ctx, &pods); err != nil {
+		return false, err
+	}
+	alive, retiring := map[string]int32{}, map[string]int32{}
+	kept := map[string]corev1.ResourceList{}
+	var ownPods []corev1.Pod
+	var keptSlots int
+	var idleBound int32
+	rejected := false
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		runner := pod.Namespace == pool.Namespace && isRunnerPod(pod)
+		name := pod.Labels["tuist.dev/runner-pool"]
+		if runner && isAlive(pod) {
+			alive[name]++
+			if name == pool.Name {
+				ownPods = append(ownPods, *pod)
+				if pod.Spec.NodeName != "" && isIdle(pod) {
+					idleBound++
+				}
+				rejected = rejected || (pod.Spec.NodeName == "" && rejectedForCapacity(pod, now))
+			}
+		}
+		if pod.Spec.NodeName != node.Name {
+			continue
+		}
+		// A marked/deleting runner is already freeing this host. Do not reserve
+		// it early or count the same surplus again while deletion finishes.
+		_, marked := preemptionMark(pod, now)
+		if runner && (!pod.DeletionTimestamp.IsZero() || marked) {
+			return false, nil
+		}
+		if runner && name != pool.Name && isAlive(pod) && isIdle(pod) && !seatInFlight(pod, now) {
+			retiring[name]++
+			continue
+		}
+		// Revalidate fit against the uncached snapshot, including a runner
+		// that claimed since target selection and native sandbox executions
+		// outside the runners namespace. Never accelerate a wait on a job.
+		if pool.Spec.OS == "darwin" {
+			footprint := nativePodFootprint(pod)
+			keptSlots += footprint.slots
+			addResources(kept, node.Name, corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(footprint.cpu, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(footprint.memory, resource.BinarySI),
+			})
+		} else if !(pod.Namespace == r.SandboxesNamespace && isSandboxDaemon(pod)) && isAlive(pod) {
+			addResources(kept, node.Name, podFootprint(pod))
+		}
+	}
+	if !rejected || signals.Queued <= idleBound || len(retiring) == 0 {
+		return false, nil
+	}
+	daemons, err := r.reservationSandboxDaemons(ctx, pool)
+	if err != nil {
+		return false, err
+	}
+	if (pool.Spec.OS == "darwin" && keptSlots >= 2) || !fitsBeside(nodeWithoutSandboxes(node, daemons), kept[node.Name], unplacedFootprint(pool, ownPods)) {
+		return false, nil
+	}
+	for name, count := range retiring {
+		sibling := &tuistv1.RunnerPool{}
+		if err := r.apiReader().Get(ctx, client.ObjectKey{Namespace: pool.Namespace, Name: name}, sibling); err != nil {
+			return false, err
+		}
+		if sibling.Spec.Autoscaling == nil || !sibling.Spec.Autoscaling.Enabled || count > alive[name]-sibling.Spec.Replicas {
+			return false, nil
+		}
+		for i := range pods.Items {
+			pod := &pods.Items[i]
+			if pod.Namespace != pool.Namespace || pod.Spec.NodeName != node.Name || pod.Labels["tuist.dev/runner-pool"] != name || !isAlive(pod) || !isIdle(pod) || seatInFlight(pod, now) {
+				continue
+			}
+			since, warm := warmSince(pod)
+			if !warm || now.Sub(since) < preemptionGrace || isStaleRunner(pod, sibling) || !isWarmCapacity(pod, sibling) {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
 }
 
 // trackStarvation folds the pool's current placement state into
@@ -471,7 +573,9 @@ func shapeSeatableOnFleet(nodes []corev1.Node, shape podShape) bool {
 // hosts that converge equally soon, one already holding the pool's golden
 // image wins, so the starved job clones it instead of pulling it. Holding
 // the image never outranks convergence, since a customer job can run longer
-// than a pull. Remaining ties break on name so a reservation does not
+// than a pull. Then a host holding no macOS sandbox session wins, since a
+// session resumes only on its own Mac and waits out the reservation. Remaining
+// ties break on name so a reservation does not
 // wander between reconciles. The second result reports whether the chosen
 // host clears at once: it holds no such Pods, or, on Linux, the shape fits
 // beside them once its idle Pods are retired.
@@ -507,7 +611,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	kept := map[string]corev1.ResourceList{}
 	for i := range fleetPods.Items {
 		pod := &fleetPods.Items[i]
-		if pod.Namespace == r.SandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Namespace == r.SandboxesNamespace && isSandboxDaemon(pod) {
 			continue // Already subtracted from the node, even if namespaces coincide.
 		}
 		if pod.Spec.NodeName == "" || !pod.DeletionTimestamp.IsZero() {
@@ -611,6 +715,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		if warmA != warmB {
 			return warmA
 		}
+		_, sessionsA := candidates[a].Labels[podtemplate.MacosSandboxSessionsLabel]
+		_, sessionsB := candidates[b].Labels[podtemplate.MacosSandboxSessionsLabel]
+		if sessionsA != sessionsB {
+			return sessionsB
+		}
 		return candidates[a].Name < candidates[b].Name
 	})
 	return candidates[0], clearsAtOnce(candidates[0]), nil
@@ -656,7 +765,7 @@ func permanentFootprints(pods []corev1.Pod, pool *tuistv1.RunnerPool, sandboxesN
 	permanent := map[string]corev1.ResourceList{}
 	for i := range pods {
 		pod := &pods[i]
-		if pod.Namespace == sandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Namespace == sandboxesNamespace && isSandboxDaemon(pod) {
 			continue
 		}
 		if !isAlive(pod) || pod.Spec.NodeName == "" {
@@ -687,7 +796,8 @@ func unplacedFootprint(pool *tuistv1.RunnerPool, pods []corev1.Pod) corev1.Resou
 }
 
 // podFootprint is a Pod's scheduling request: the larger of its containers'
-// sum and its largest init container, plus overhead.
+// sum and its largest init container, or the Pod-level budget where the Pod
+// sets one, plus overhead.
 func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 	total := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
@@ -702,6 +812,11 @@ func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 			if current, ok := total[name]; !ok || quantity.Cmp(current) > 0 {
 				total[name] = quantity.DeepCopy()
 			}
+		}
+	}
+	if pod.Spec.Resources != nil {
+		for name, quantity := range pod.Spec.Resources.Requests {
+			total[name] = quantity.DeepCopy()
 		}
 	}
 	for name, quantity := range pod.Spec.Overhead {
@@ -862,7 +977,7 @@ func (r *RunnerPoolReconciler) reserveNode(
 			if r.SignalsClient == nil {
 				return fmt.Errorf("cannot revoke sandbox allocation without signals client")
 			}
-			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
+			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: daemon.grantNode(), Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
 				return err
 			}
 		}
@@ -954,6 +1069,9 @@ func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 		}
 		if pool.Spec.NestedVirtualization {
 			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		if pool.Spec.ExclusiveCPUs {
+			labels[podtemplate.PodLevelResourceManagersNodeLabel] = "true"
 		}
 		return labels
 	default:

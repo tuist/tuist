@@ -23,7 +23,10 @@ import (
 // their last Pod of it. Keeping every image on every host does not scale with
 // the catalog, so a fleet's hosts keep up to a budget of images, the catalog
 // pools' images ranked by warm floor and then by how recently their pools had
-// work, and every host holds the same top of that ranking.
+// work, and every host holds the same top of that ranking. The images macOS
+// sandboxes serve rank above all of them (sandboxTemplateLabel): a sandbox
+// template is an APFS clone of the host's golden, which costs no disk only
+// while the golden stays, and sandbox demand is not in a pool's lastDemandAt.
 //
 // The budget is per fleet, from the ConfigMaps labelled
 // `tuist.dev/runner-golden-budgets=true` (keyed by fleet, valued in images),
@@ -34,6 +37,10 @@ import (
 // goldenBudgetsLabel marks the ConfigMaps that give a fleet's hosts their
 // golden budget.
 const goldenBudgetsLabel = "tuist.dev/runner-golden-budgets"
+
+// sandboxTemplateLabel marks the catalog pools whose Xcode macOS sandboxes
+// serve. The chart sets it from `sandboxes.macos.xcodeVersions`.
+const sandboxTemplateLabel = "tuist.dev/macos-sandbox-template"
 
 // demandBucket is the granularity of a pool's recent demand in the ranking.
 // Images whose pools had work in the same day rank by the other keys, the
@@ -81,10 +88,11 @@ type imageLine struct {
 	replicas   int32
 	lastDemand time.Time
 	held       bool
+	sandbox    bool
 }
 
 // rankImageLines returns the image lines of fleet's catalog pools, best
-// first: warm floors, then the most recent demand by demandBucket, then the
+// first: sandbox templates, then warm floors, then the most recent demand by demandBucket, then the
 // lines this host holds, then current demand, then name.
 func rankImageLines(pools []runnerPoolSpec, upcoming upcomingImages, fleet string, held map[string]struct{}, now time.Time) []imageLine {
 	byNext := map[string]*imageLine{}
@@ -105,6 +113,7 @@ func rankImageLines(pools []runnerPoolSpec, upcoming upcomingImages, fleet strin
 		if pool.Spec.Image != next {
 			line.images = append(line.images, pool.Spec.Image)
 		}
+		line.sandbox = line.sandbox || pool.Metadata.Labels[sandboxTemplateLabel] == "true"
 		line.floor += pool.warmFloor()
 		line.replicas += pool.Spec.Replicas
 		if d := pool.Status.LastDemandAt; d != nil && d.After(line.lastDemand) {
@@ -124,6 +133,9 @@ func rankImageLines(pools []runnerPoolSpec, upcoming upcomingImages, fleet strin
 	}
 	sort.Slice(lines, func(i, j int) bool {
 		a, b := lines[i], lines[j]
+		if a.sandbox != b.sandbox {
+			return a.sandbox
+		}
 		if (a.floor > 0) != (b.floor > 0) {
 			return a.floor > 0
 		}

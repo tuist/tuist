@@ -5,11 +5,13 @@ defmodule TuistWeb.API.TestCasesController do
   alias OpenApiSpex.Schema
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.LegacySuiteIdentity
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -20,6 +22,15 @@ defmodule TuistWeb.API.TestCasesController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
 
   @valid_states ["enabled", "muted", "skipped"]
+
+  # The first CLI of each release line whose result parser names a nested Swift
+  # Testing suite by its whole path (`Outer/Inner`). Older ones name it `Inner`,
+  # which decides whether they tolerate a muted test's failure
+  # (`LegacySuiteIdentity`). The parser was backported to the 4.216 and 4.217
+  # lines, so a version is compared with its own line's first fixed release:
+  # 4.217.0-rc.4 and 4.218.0-canary.43 sort above 4.216.7 but don't have it.
+  # Lines before the first listed don't have it; lines after the last do.
+  @whole_suite_path_cli_versions Enum.map(["4.216.7", "4.217.0-rc.5", "4.218.0-canary.44"], &Version.parse!/1)
 
   tags ["Test Cases"]
 
@@ -132,6 +143,11 @@ defmodule TuistWeb.API.TestCasesController do
     }
 
     {test_cases, meta} = Tests.list_test_cases(selected_project.id, options)
+
+    test_cases =
+      if innermost_suite_cli?(conn, selected_project),
+        do: LegacySuiteIdentity.for_innermost_suite_clients(selected_project.id, test_cases),
+        else: test_cases
 
     json(conn, %{
       test_cases:
@@ -633,4 +649,23 @@ defmodule TuistWeb.API.TestCasesController do
 
   defp quarantined?(state) when state in ["muted", "skipped"], do: true
   defp quarantined?(_), do: false
+
+  # Only Xcode projects ever had their nested suites truncated, and only the
+  # Tuist CLI parses their results. Requests without a CLI version (other API
+  # clients) and development builds (`x.y.z`, which doesn't parse) get the
+  # stored suites.
+  defp innermost_suite_cli?(conn, %{build_system: :xcode}) do
+    case Headers.get_cli_version(conn) do
+      nil -> false
+      cli_version -> Version.compare(cli_version, first_whole_suite_path_version(cli_version)) == :lt
+    end
+  end
+
+  defp innermost_suite_cli?(_conn, _project), do: false
+
+  defp first_whole_suite_path_version(%Version{major: major, minor: minor}) do
+    Enum.find(@whole_suite_path_cli_versions, hd(@whole_suite_path_cli_versions), fn version ->
+      version.major == major and version.minor == minor
+    end)
+  end
 end

@@ -4,10 +4,13 @@ defmodule TuistWeb.AgentAuthControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Authentication
   alias Tuist.Repo
+  alias Tuist.Time
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RateLimit.AgentAuth
   alias TuistWeb.RateLimit.MCP
@@ -90,6 +93,34 @@ defmodule TuistWeb.AgentAuthControllerTest do
 
       assert %AgentRegistration{email: ^email, registration_ip: "127.0.0.1"} =
                Repo.get!(AgentRegistration, String.replace_prefix(response["registration_id"], "reg_", ""))
+    end
+
+    test "claiming an unconfirmed account by code drops the password set before confirmation", %{conn: conn} do
+      email = AccountsFixtures.unique_user_email()
+      password = "StrongP@ssword!2036"
+      squatted = AccountsFixtures.user_fixture(email: email, password: password, confirmed_at: nil)
+
+      response =
+        conn
+        |> post("/agent/auth", %{"type" => "anonymous", "requested_credential_type" => "api_key"})
+        |> json_response(200)
+
+      post(build_conn(), "/agent/auth/claim", %{"claim_token" => response["claim_token"], "email" => email})
+      assert_delivered_email_matches(%{to: [{_, ^email}], html_body: html_body})
+
+      otp =
+        build_conn()
+        |> get("/agent/auth/claim/view", %{"token" => extract_claim_view_token(html_body)})
+        |> html_response(200)
+        |> extract_otp()
+
+      complete_conn =
+        post(build_conn(), "/agent/auth/claim/complete", %{"claim_token" => response["claim_token"], "otp" => otp})
+
+      assert json_response(complete_conn, 200)["status"] == "claimed"
+      claimed = Accounts.get_user_by_id(squatted.id)
+      assert claimed.confirmed_at
+      refute Tuist.Accounts.User.valid_password?(claimed, password)
     end
 
     test "registers an anonymous API key and claims it later", %{conn: conn} do
@@ -177,6 +208,27 @@ defmodule TuistWeb.AgentAuthControllerTest do
                Authentication.authenticated_subject(response["credential"])
     end
 
+    test "an agent-verified ID-JAG for an existing account disconnects the sessions its proof ends", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "tuist.io" end)
+      squatted = AccountsFixtures.user_fixture(email: AccountsFixtures.unique_user_email())
+      TuistWeb.Endpoint.subscribe(Tuist.Accounts.UserToken.live_socket_id(Accounts.generate_user_session_token(squatted)))
+      {provider, assertion} = id_jag(squatted.email, "jti-existing-#{squatted.id}")
+      stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      conn =
+        post(conn, "/agent/auth", %{
+          "type" => "identity_assertion",
+          "assertion_type" => "urn:ietf:params:oauth:token-type:id-jag",
+          "assertion" => assertion,
+          "requested_credential_type" => "access_token"
+        })
+
+      assert json_response(conn, 200)
+      assert_received %Phoenix.Socket.Broadcast{event: "disconnect"}
+    end
+
     test "rejects replayed ID-JAG assertions", %{conn: conn} do
       email = AccountsFixtures.unique_user_email()
       {provider, assertion} = id_jag(email, "jti-replayed")
@@ -255,6 +307,82 @@ defmodule TuistWeb.AgentAuthControllerTest do
   end
 
   describe "claim completion" do
+    for credential <- ["access_token", "api_key", "anonymous"] do
+      @tag :agent_claim_mfa
+      test "requires browser MFA instead of mailbox proof for #{credential} claims", %{conn: conn} do
+        user = AccountsFixtures.user_fixture()
+
+        {:ok, {_token, existing_key}} =
+          Accounts.create_account_token(%{
+            account: user.account,
+            created_by_account: user.account,
+            name: "existing-agent",
+            scopes: ["mcp"],
+            all_projects: true
+          })
+
+        params =
+          if unquote(credential) == "anonymous" do
+            %{"type" => "anonymous", "requested_credential_type" => "api_key"}
+          else
+            %{
+              "type" => "identity_assertion",
+              "assertion_type" => "verified_email",
+              "assertion" => user.email,
+              "requested_credential_type" => unquote(credential)
+            }
+          end
+
+        registration = conn |> post("/agent/auth", params) |> json_response(200)
+
+        if unquote(credential) == "anonymous" do
+          assert build_conn()
+                 |> post("/agent/auth/claim", %{"claim_token" => registration["claim_token"], "email" => user.email})
+                 |> json_response(200)
+        end
+
+        assert_delivered_email_matches(%{to: [{_, email}], html_body: html_body})
+        assert email == user.email
+        claim_view_token = extract_claim_view_token(html_body)
+
+        otp =
+          build_conn()
+          |> get("/agent/auth/claim/view", %{"token" => claim_view_token})
+          |> html_response(200)
+          |> extract_otp()
+
+        # Enrollment after registration must still prevent issuance or rebinding.
+        session = user |> Accounts.generate_user_session_token(%{auth_method: :password}) |> Accounts.get_user_session()
+        {:ok, factor} = UserMFA.begin_enrollment(user, session)
+        code = NimbleTOTP.verification_code(factor.secret, time: Time.utc_now())
+        assert {:ok, _} = UserMFA.confirm_enrollment(user, session, code)
+        tokens_before = Repo.aggregate(AccountToken, :count)
+
+        response =
+          build_conn()
+          |> post("/agent/auth/claim/complete", %{"claim_token" => registration["claim_token"], "otp" => otp})
+          |> json_response(403)
+
+        assert response["error"] == "mfa_required"
+        assert response["message"] =~ "browser"
+        refute Map.has_key?(response, "credential")
+        stored = Repo.get!(AgentRegistration, String.replace_prefix(registration["registration_id"], "reg_", ""))
+        assert stored.status == :pending
+        assert is_nil(stored.claimed_by_user_id)
+        assert Repo.aggregate(AccountToken, :count) == tokens_before
+
+        assert %AuthenticatedAccount{account: %{user_id: user_id}} = Authentication.authenticated_subject(existing_key)
+        assert user_id == user.id
+
+        if unquote(credential) == "anonymous" do
+          assert %AuthenticatedAccount{account: %{user_id: anonymous_user_id}} =
+                   Authentication.authenticated_subject(registration["credential"])
+
+          refute anonymous_user_id == user.id
+        end
+      end
+    end
+
     test "renders the OTP page and exchanges the OTP for an access token", %{conn: conn} do
       email = AccountsFixtures.unique_user_email()
       %{claim_token: claim_token, claim_view_token: claim_view_token} = register_agent(email)

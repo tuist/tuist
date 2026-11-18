@@ -17,12 +17,24 @@ struct SupportCachePrunerTests {
         let now = Date()
         let stale = try await seed(.cargo, name: "stale", bytes: 1000, lastUsed: now.addingTimeInterval(-31 * day), in: cache)
         let fresh = try await seed(.cargo, name: "fresh", bytes: 1000, lastUsed: now.addingTimeInterval(-7 * day), in: cache)
+        // A build started from it may still be running; Cargo execs it by path for every compilation.
+        let client = try await seed(
+            .cargo,
+            name: "rustc-client",
+            bytes: 1000,
+            lastUsed: now.addingTimeInterval(-31 * day),
+            in: cache
+        )
+        let hook = fresh.parentDirectory.parentDirectory.appending(component: "hook")
+        try await fileSystem.makeDirectory(at: hook)
+        try await fileSystem.move(from: client, to: hook.appending(component: client.basename))
         try FileManager.default.setAttributes(
             [.modificationDate: now], ofItemAtPath: fresh.parentDirectory.parentDirectory.pathString
         )
         try await subject(cache).prune(maxBytes: maxBytes, now: now)
         #expect(try await !fileSystem.exists(stale))
         #expect(try await fileSystem.exists(fresh) == (maxBytes == nil))
+        #expect(try await fileSystem.exists(hook.appending(component: client.basename)))
     }
 
     @Test(.inTemporaryDirectory)

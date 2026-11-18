@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d100367269e74f9703e71579d2f7845226f213fd283648f665b8614bf9e5910f",
+  "hash": "3fd5eff855c170ccd87ce4b835cbd42f2d4de4343edfb34a6af950339cbf09b2",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,7 +29,7 @@
                   "content_hash": "de96daf328dfee0657f3dde9980b36ed7135cc9128bb0c6332e95e142dfa5685"
                 },
                 "## Release channels": {
-                  "content_hash": "523f47280c39d8e660a51226c2be0240f19bf41bc6ff6e1186ec96bf13fa2db6"
+                  "content_hash": "7a3c457ef80ac770606da5e658dc1afac4f96d53e953eb1fd7b4139423091bf1"
                 },
                 "## Release workflows": {
                   "content_hash": "9876c584168d211767a670c568436e6369d70bf94b64abe686664d0cddfeb8c6"
@@ -86,11 +86,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "6dfda339e71e6a2ed59c43fb1d298b070e9ad5e04c0fcae4a9ee0b76a2806d9b",
+          "hash": "be831492ac29ad15c4c419ffd9ea45b8765ffe5cff9e6524269e25393d0d4d58",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/releases.md",
           "metadata": {
-            "content_hash": "2291407f1174dad1b918dc3f37d10feaffe52395d6a6c6dcca5fabfa95a4d45e"
+            "content_hash": "813110a41c4e02f9c994014be050164849895e69181dfbd4d77a4415377d0925"
           }
         },
         {
@@ -151,7 +151,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -170,7 +170,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -199,11 +199,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -280,21 +280,21 @@
             }
           ],
           "details": {},
-          "hash": "e22d4bf8d7af5b49846be2a4105f60ec18fc1e91e29c2fd2c90ed633be3edd4e",
+          "hash": "06300a16edd44a8d3b2b7d17a58920a285f32a0ad06ef6aa4b7835da548e8635",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "d100367269e74f9703e71579d2f7845226f213fd283648f665b8614bf9e5910f",
+      "hash": "3fd5eff855c170ccd87ce4b835cbd42f2d4de4343edfb34a6af950339cbf09b2",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/releases.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b456a8f7b59066cba28413189154b969ede69bee6d08e38d59ed7d0f80dbc01a",
+  "output_hash": "02b13a39b18b91ea7fd3b86bb33c76f9c8a9c67cdd53c68cfec75ba071f31c55",
   "output_path": "server/priv/docs/zh_Hant/contributors/releases.md",
   "protection_state": "recorded",
   "provider": "",
@@ -314,8 +314,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6015683fe02afd165cfac93aaea4a0a2e6b13251",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/contributors/releases.md",
-  "translated_at": "2026-10-30T13:15:24.348559Z",
-  "translation_session_id": "01a18ce1-c02e-7bc6-a18d-aa70ecc3e653"
+  "translated_at": "2026-11-06T16:42:11.574254Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

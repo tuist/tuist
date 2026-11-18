@@ -12,6 +12,8 @@
 - `DeflateBodyReader` is the `Plug.Parsers` body reader in the endpoint: it inflates `Content-Encoding: deflate` (raw DEFLATE) request bodies, which the CLI sends for large test run uploads carrying code coverage, holding the decompressed size to the parser's `:length`.
 - `SameOriginCSRFExemptionPlug` sets `:plug_skip_csrf_protection` when the browser proves the request is same-origin (`Sec-Fetch-Site: same-origin`, or `Origin` equal to `TuistWeb.RequestOrigin.from_conn/1`). It exists for POSTs submitted from CDN-cached marketing pages, whose embedded CSRF token belongs to another session. Pipe it ahead of `:protect_from_forgery` and only through scopes that contain nothing but the routes meant to be exempt; it does not filter by path.
 
+- `OAuthRequestObjectPlug` rejects every `request` and `request_uri` on `/oauth2/token` and `/oauth2/authorize`. Boruta fetches http(s) `request_uri` values before authenticating the client, and it merges unsigned `request` claims past the controllers' grant and SSO checks. Do not relax it without verified request-object signatures, a pushed authorization request endpoint, and a server-side fetch allowlist.
+
 - `BrowserTelemetryPlug` owns the bounded same-origin `/-/faro/collect` gateway before the endpoint body parser. Validate signed sessions without refreshing cookies; never forward browser credentials to Alloy. Keep body/item/time limits, trusted Ray-ID handling and failure responses covered by tests.
 - Gateway LCP delivery uses shared replay receipts. A busy claim, unavailable
   database or failed receiver returns 503; acknowledge 202 only after the receiver

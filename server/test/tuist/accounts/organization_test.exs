@@ -7,22 +7,22 @@ defmodule Tuist.OrganizationTest do
 
   @okta_attrs %{
     sso_provider: :okta,
-    sso_organization_id: "tuist.okta.com",
+    sso_organization_id: "org-tuist.okta.com",
     oauth2_client_id: "client-id",
     oauth2_encrypted_client_secret: "client-secret",
-    oauth2_authorize_url: "https://tuist.okta.com/oauth2/v1/authorize",
-    oauth2_token_url: "https://tuist.okta.com/oauth2/v1/token",
-    oauth2_user_info_url: "https://tuist.okta.com/oauth2/v1/userinfo"
+    oauth2_authorize_url: "https://org-tuist.okta.com/oauth2/v1/authorize",
+    oauth2_token_url: "https://org-tuist.okta.com/oauth2/v1/token",
+    oauth2_user_info_url: "https://org-tuist.okta.com/oauth2/v1/userinfo"
   }
 
   @oauth2_attrs %{
     sso_provider: :oauth2,
-    sso_organization_id: "https://auth.example.com",
+    sso_organization_id: "https://auth.org-example.com",
     oauth2_client_id: "client-id",
     oauth2_encrypted_client_secret: "client-secret",
-    oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-    oauth2_token_url: "https://auth.example.com/oauth2/token",
-    oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+    oauth2_authorize_url: "https://auth.org-example.com/oauth2/authorize",
+    oauth2_token_url: "https://auth.org-example.com/oauth2/token",
+    oauth2_user_info_url: "https://auth.org-example.com/oauth2/userinfo"
   }
 
   describe "create_changeset/2" do
@@ -73,7 +73,7 @@ defmodule Tuist.OrganizationTest do
       changeset =
         Organization.create_changeset(%Organization{}, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "org-tuist.okta.com"
         })
 
       assert changeset.valid? == false
@@ -85,13 +85,13 @@ defmodule Tuist.OrganizationTest do
       refute Map.has_key?(errors_on(changeset), :oauth2_user_info_url)
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
-               "https://tuist.okta.com/oauth2/v1/authorize"
+               "https://org-tuist.okta.com/oauth2/v1/authorize"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
-               "https://tuist.okta.com/oauth2/v1/token"
+               "https://org-tuist.okta.com/oauth2/v1/token"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
-               "https://tuist.okta.com/oauth2/v1/userinfo"
+               "https://org-tuist.okta.com/oauth2/v1/userinfo"
     end
 
     test "changeset is valid when sso_provider is oauth2" do
@@ -117,7 +117,7 @@ defmodule Tuist.OrganizationTest do
         Organization.create_changeset(
           %Organization{},
           Map.merge(@oauth2_attrs, %{
-            sso_login_domain: "example.com",
+            sso_login_domain: "org-example.com",
             sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
             sso_automatic_enrollment: true
           })
@@ -168,10 +168,10 @@ defmodule Tuist.OrganizationTest do
         Organization.create_changeset(
           %Organization{},
           Map.merge(@oauth2_attrs, %{
-            sso_organization_id: "https://keycloak.example.com/realms/master",
-            oauth2_authorize_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/auth",
-            oauth2_token_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/token",
-            oauth2_user_info_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
+            sso_organization_id: "https://keycloak.org-example.com/realms/master",
+            oauth2_authorize_url: "https://keycloak.org-example.com/realms/master/protocol/openid-connect/auth",
+            oauth2_token_url: "https://keycloak.org-example.com/realms/master/protocol/openid-connect/token",
+            oauth2_user_info_url: "https://keycloak.org-example.com/realms/master/protocol/openid-connect/userinfo"
           })
         )
 
@@ -200,23 +200,23 @@ defmodule Tuist.OrganizationTest do
         Organization.create_changeset(
           %Organization{},
           Map.merge(@oauth2_attrs, %{
-            sso_organization_id: " https://auth.example.com/ ",
-            oauth2_authorize_url: " https://auth.example.com/oauth2/authorize ",
-            oauth2_token_url: " https://auth.example.com/oauth2/token ",
-            oauth2_user_info_url: " https://auth.example.com/oauth2/userinfo "
+            sso_organization_id: " https://auth.org-example.com/ ",
+            oauth2_authorize_url: " https://auth.org-example.com/oauth2/authorize ",
+            oauth2_token_url: " https://auth.org-example.com/oauth2/token ",
+            oauth2_user_info_url: " https://auth.org-example.com/oauth2/userinfo "
           })
         )
 
-      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.example.com"
+      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.org-example.com"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
-               "https://auth.example.com/oauth2/authorize"
+               "https://auth.org-example.com/oauth2/authorize"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
-               "https://auth.example.com/oauth2/token"
+               "https://auth.org-example.com/oauth2/token"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
-               "https://auth.example.com/oauth2/userinfo"
+               "https://auth.org-example.com/oauth2/userinfo"
     end
 
     test "validates the oauth2 site URL on create" do
@@ -331,7 +331,7 @@ defmodule Tuist.OrganizationTest do
         struct(
           Organization,
           Map.merge(@oauth2_attrs, %{
-            sso_login_domain: "example.com",
+            sso_login_domain: "org-example.com",
             sso_login_domain_verification_token: "verification-token",
             sso_login_domain_verified_at: nil,
             sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
@@ -361,7 +361,7 @@ defmodule Tuist.OrganizationTest do
     test "keeps saved policies when replacing the domain without granting verification", %{lapsed: lapsed} do
       changeset =
         Organization.sso_configuration_changeset(lapsed, %{
-          sso_login_domain: "replacement.example",
+          sso_login_domain: "org-replacement.example",
           sso_login_domain_verification_token: "replacement-token",
           sso_login_domain_last_verified_at: nil
         })
@@ -423,7 +423,7 @@ defmodule Tuist.OrganizationTest do
 
     test "changeset is valid when sso_provider is okta" do
       changeset =
-        Organization.update_changeset(%Organization{}, Map.put(@okta_attrs, :sso_organization_id, "dev.okta.com"))
+        Organization.update_changeset(%Organization{}, Map.put(@okta_attrs, :sso_organization_id, "org-dev.okta.com"))
 
       assert changeset.valid? == true
     end
@@ -451,23 +451,23 @@ defmodule Tuist.OrganizationTest do
         Organization.update_changeset(
           %Organization{},
           Map.merge(@oauth2_attrs, %{
-            sso_organization_id: " https://auth.example.com/ ",
-            oauth2_authorize_url: " https://auth.example.com/oauth2/authorize ",
-            oauth2_token_url: " https://auth.example.com/oauth2/token ",
-            oauth2_user_info_url: " https://auth.example.com/oauth2/userinfo "
+            sso_organization_id: " https://auth.org-example.com/ ",
+            oauth2_authorize_url: " https://auth.org-example.com/oauth2/authorize ",
+            oauth2_token_url: " https://auth.org-example.com/oauth2/token ",
+            oauth2_user_info_url: " https://auth.org-example.com/oauth2/userinfo "
           })
         )
 
-      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.example.com"
+      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.org-example.com"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
-               "https://auth.example.com/oauth2/authorize"
+               "https://auth.org-example.com/oauth2/authorize"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
-               "https://auth.example.com/oauth2/token"
+               "https://auth.org-example.com/oauth2/token"
 
       assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
-               "https://auth.example.com/oauth2/userinfo"
+               "https://auth.org-example.com/oauth2/userinfo"
     end
 
     test "validates the oauth2 site URL on update" do

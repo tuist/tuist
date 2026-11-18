@@ -7,7 +7,7 @@
 ---
 # Create a generated project {#create-a-generated-project}
 
-The easiest way to get started with Tuist in any directory or in the directory of an existing project:
+Run `tuist init` in an empty directory or in the directory of an existing project:
 
 ::: code-group
 
@@ -24,7 +24,7 @@ tuist init
 The command will walk you through the steps to <.localized_link href="/guides/features/projects">create a generated project</.localized_link> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, <.localized_link href="/guides/features/previews">previews</.localized_link>, and the <.localized_link href="/guides/features/package-registries/swift">registry</.localized_link>.
 
 > [!NOTE]
-> **Migrate An Existing Project**
+> **Migrate an existing project**
 >
 > If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <.localized_link href="/guides/features/cache">cache</.localized_link>, check out our <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</.localized_link>.
 
@@ -37,7 +37,7 @@ It's common for projects to depend on third-party libraries to provide additiona
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the
+An Xcode project will open containing your project files. Edit `Tuist/Package.swift` and add Kingfisher:
 
 ```swift
 // swift-tools-version: 5.9
@@ -59,8 +59,8 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
@@ -88,7 +88,7 @@ let project = Project(
                 "MyApp/Resources",
             ],
             dependencies: [
-                .external(name: "Kingfisher") // [!code ++]
+                .external(name: "Kingfisher")
             ]
         ),
         .target(
@@ -108,7 +108,7 @@ let project = Project(
 Then run `tuist install` to resolve and pull the dependencies using the [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
 > [!NOTE]
-> **Spm As A Dependency Resolver**
+> **SwiftPM as a dependency resolver**
 >
 > Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
 
@@ -131,15 +131,13 @@ Run `tuist generate` to open the project in Xcode, and make the following change
 
 ```swift
 import SwiftUI
-import Kingfisher // [!code ++]
+import Kingfisher
 
 public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        Text("Hello, World!") // [!code --]
-            .padding() // [!code --]
-        KFImage(URL(string: "https://cloud.tuist.io/images/tuist_logo_32x32@2x.png")!) // [!code ++]
+        KFImage(URL(string: "https://tuist.dev/images/tuist_logo_32x32@2x.png")!)
     }
 }
 

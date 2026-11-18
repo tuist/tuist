@@ -209,7 +209,16 @@ defmodule TuistWeb.OnceRunLive do
 
   def render(assigns) do
     ~H"""
-    <div id="once-run" class="once-run">
+    <div
+      id="once-run"
+      class="once-run"
+      phx-hook="PageFavicon"
+      data-favicon-status={
+        %{"success" => "success", "destructive" => "failure", "primary" => "in_progress"}[
+          run_status_badge_color(@run)
+        ]
+      }
+    >
       <.button
         label={dgettext("dashboard_projects", "Build Runs")}
         data-part="back-button"
@@ -312,12 +321,12 @@ defmodule TuistWeb.OnceRunLive do
                     label={run_status_label(@run)}
                     color={run_status_badge_color(@run)}
                     style="fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_projects", "Kind")}</div>
-                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="large" />
+                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="medium" />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>

@@ -2,7 +2,10 @@ defmodule TuistWeb.Oauth.GrantTypesTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
+  alias Tuist.Accounts.UserToken
   alias Tuist.Environment
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @client_id "00000000-0000-0000-0000-000000000001"
@@ -47,6 +50,39 @@ defmodule TuistWeb.Oauth.GrantTypesTest do
                |> json_response(200)
 
       assert refreshed_access_token != access_token
+    end
+
+    test "a password reset ends grants issued before it", %{conn: conn, user: user} do
+      code = authorize(conn)
+
+      %{"access_token" => access_token, "refresh_token" => refresh_token} =
+        build_conn()
+        |> post(~p"/oauth2/token", %{
+          "grant_type" => "authorization_code",
+          "client_id" => @client_id,
+          "redirect_uri" => @redirect_uri,
+          "code" => code,
+          "code_verifier" => @code_verifier
+        })
+        |> json_response(200)
+
+      {reset_token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+      {:ok, _} = Accounts.reset_user_password(reset_token, %{password: "new valid password"})
+
+      refute Tuist.Authentication.authenticated_subject(access_token)
+
+      response =
+        build_conn()
+        |> post(~p"/oauth2/token", %{
+          "grant_type" => "refresh_token",
+          "client_id" => @client_id,
+          "client_secret" => @client_secret,
+          "refresh_token" => refresh_token
+        })
+        |> json_response(400)
+
+      assert response["error"] == "invalid_grant"
     end
 
     test "rejects the password grant", %{user: user} do
@@ -108,6 +144,67 @@ defmodule TuistWeb.Oauth.GrantTypesTest do
 
       response = password_grant(registration["client_id"], registration["client_secret"], user)
       assert response["error"] == "unsupported_grant_type"
+    end
+  end
+
+  describe "request_uri" do
+    setup do
+      {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}, reuseaddr: true])
+      {:ok, port} = :inet.port(listener)
+      test_pid = self()
+      spawn_link(fn -> serve_request_uri_probe(listener, test_pid) end)
+      on_exit(fn -> :gen_tcp.close(listener) end)
+
+      %{request_uri: "http://127.0.0.1:#{port}/probe"}
+    end
+
+    test "is not fetched for the client credentials grant", %{request_uri: request_uri} do
+      response =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/oauth2/token", JSON.encode!(%{"grant_type" => "client_credentials", "request_uri" => request_uri}))
+        |> json_response(400)
+
+      refute_received {:request_uri_probe, _request_line}
+      assert response["error"] == "request_uri_not_supported"
+    end
+
+    test "is not fetched for the refresh token grant", %{request_uri: request_uri} do
+      response =
+        build_conn()
+        |> post("/oauth2/token?" <> URI.encode_query(%{"request_uri" => request_uri}), %{
+          "grant_type" => "refresh_token",
+          "refresh_token" => "unknown"
+        })
+        |> json_response(400)
+
+      refute_received {:request_uri_probe, _request_line}
+      assert response["error"] == "request_uri_not_supported"
+    end
+
+    test "is not fetched for an authorization request", %{conn: conn, request_uri: request_uri} do
+      response =
+        conn
+        |> get(~p"/oauth2/authorize", %{
+          "response_type" => "code",
+          "client_id" => @client_id,
+          "request_uri" => request_uri
+        })
+        |> json_response(400)
+
+      refute_received {:request_uri_probe, _request_line}
+      assert response["error"] == "request_uri_not_supported"
+    end
+  end
+
+  defp serve_request_uri_probe(listener, test_pid) do
+    with {:ok, socket} <- :gen_tcp.accept(listener),
+         {:ok, request} <- :gen_tcp.recv(socket, 0, 5_000) do
+      [request_line | _] = String.split(request, "\r\n")
+      send(test_pid, {:request_uri_probe, request_line})
+      :gen_tcp.send(socket, "HTTP/1.1 200 OK\r\ncontent-length: 9\r\nconnection: close\r\n\r\nnot-a-jwt")
+      :gen_tcp.close(socket)
+      serve_request_uri_probe(listener, test_pid)
     end
   end
 

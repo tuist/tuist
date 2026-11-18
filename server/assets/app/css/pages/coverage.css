@@ -1,9 +1,10 @@
 /* The coverage pages — a branch's glance, one subject in
    detail, and a file — are page roots laid out like every other dashboard
-   page. */
+   page. The Test Selection page is laid out the same way. */
 #coverage,
 #coverage-detail,
-#coverage-file-page {
+#coverage-file-page,
+#test-selections {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -205,7 +206,7 @@
       min-width: 48px;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-body-medium);
-      text-align: right;
+      text-align: end;
     }
   }
 
@@ -312,19 +313,19 @@
 
       & > [data-part="more-card"] {
         position: absolute;
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-4);
         background-color: var(--noora-surface-background-primary);
         height: 48px;
         &[data-index="one"] {
-          right: var(--noora-spacing-4);
           bottom: 9px;
-          left: var(--noora-spacing-4);
+          inset-inline-end: var(--noora-spacing-4);
+          inset-inline-start: var(--noora-spacing-4);
         }
         &[data-index="two"] {
-          right: var(--noora-spacing-7);
           bottom: 0;
-          left: var(--noora-spacing-7);
+          inset-inline-end: var(--noora-spacing-7);
+          inset-inline-start: var(--noora-spacing-7);
         }
       }
     }
@@ -334,7 +335,7 @@
 .coverage-change-card {
   display: block;
   z-index: var(--noora-z-index-1);
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-4);

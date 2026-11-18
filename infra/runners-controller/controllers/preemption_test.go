@@ -225,7 +225,7 @@ func TestClassifyForPreemption(t *testing.T) {
 		*marked,
 		*deleting,
 		*rejectedPod("rejected", pool.Name, time.Minute, insufficientCPU),
-		*rejectedPod("rejected-fresh", pool.Name, 5*time.Second, insufficientCPU),
+		*rejectedPod("rejected-fresh", pool.Name, 4*time.Second, insufficientCPU),
 		*rejectedPod("rejected-taint", pool.Name, time.Minute, "0/8 nodes are available: 8 node(s) had untolerated taint."),
 	}
 
@@ -350,6 +350,43 @@ func TestAutoscaler_PreemptsIdleRunnersForStarvedSiblingDuringCooldown(t *testin
 	}
 	if !got.Status.LastScaleDownAt.Time.Equal(preemptionNow) {
 		t.Errorf("LastScaleDownAt = %v, want %v", got.Status.LastScaleDownAt, preemptionNow)
+	}
+}
+
+func TestAutoscaler_FastReclaim(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		age     time.Duration
+		message string
+		marked  int
+	}{
+		{name: "before sustained rejection", age: 4 * time.Second, message: insufficientCPU},
+		{name: "at five seconds", age: 5 * time.Second, message: insufficientCPU, marked: 4},
+		{name: "not a capacity rejection", age: 10 * time.Second, message: "untolerated taint"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r, c := rackFixture(t, 4, 5*time.Minute)
+			var pending corev1.PodList
+			if err := c.List(context.Background(), &pending, client.MatchingLabels{"tuist.dev/runner-pool": "ber1"}); err != nil {
+				t.Fatal(err)
+			}
+			for i := range pending.Items {
+				pod := &pending.Items[i]
+				if pod.Spec.NodeName != "" {
+					continue
+				}
+				pod.Status.Conditions[0].LastTransitionTime = metav1.NewTime(preemptionNow.Add(-tt.age))
+				pod.Status.Conditions[0].Message = tt.message
+				if err := c.Status().Update(context.Background(), pod); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			reconcileOnce(t, r, "macos-ber1-27-0")
+			if marked := markedPods(t, c, "macos-ber1-27-0"); len(marked) != tt.marked {
+				t.Fatalf("marked = %v, want %d surplus idle runners", marked, tt.marked)
+			}
+		})
 	}
 }
 

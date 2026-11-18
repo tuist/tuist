@@ -29,7 +29,6 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     ]
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Processor.XCResultProcessor
   alias Tuist.Projects
   alias Tuist.Storage
@@ -75,6 +74,22 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @parse_timeout_attempts 2
   @parse_timeout_backoff_seconds 900
 
+  # Nothing else bounds a job: the download, the archive extraction and the
+  # writes have no overall deadline, and the parse only bounds itself. A job
+  # still running at Lifeline's `rescue_after` (30 minutes, config/runtime.exs)
+  # is put back while its first copy keeps its slot, so another processor runs
+  # it too. On 2026-11-12 five bundles from one project went round both
+  # processors that way for over two hours, holding five of each one's six
+  # slots, and the processor a rollout replaced could never drain:
+  # `Tuist.XcresultDrain` waits for the queue's running jobs, and
+  # tart-kubelet waits for the drain.
+  # Timing the job out below Lifeline frees the slot, records the attempt, and
+  # bounds that drain. A timed-out job is retried once like a parse timeout.
+  @job_timeout to_timeout(minute: 25)
+
+  @impl Oban.Worker
+  def timeout(_job), do: @job_timeout
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"test_run_id" => test_run_id}} = job) do
     OpenTelemetry.Tracer.with_span "xcresult.process" do
@@ -87,7 +102,19 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     finalize_failed_processing(args)
   end
 
-  defp perform_job(%Oban.Job{
+  defp perform_job(%Oban.Job{args: args, errors: errors} = job) do
+    if job_timeouts(errors) >= @parse_timeout_attempts do
+      Logger.error(
+        "Cancelling xcresult for test run #{args["test_run_id"]}: the job timed out on #{job_timeouts(errors)} attempts"
+      )
+
+      cancel_as_failed(args, :job_timeout)
+    else
+      process_job(job)
+    end
+  end
+
+  defp process_job(%Oban.Job{
          args: %{"test_run_id" => test_run_id, "storage_key" => storage_key} = args,
          attempt: attempt
        }) do
@@ -126,7 +153,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   @impl Oban.Worker
   def backoff(%Oban.Job{errors: errors} = job) do
-    if parse_timeout?(errors) do
+    if parse_timeout?(errors) or job_timeout?(List.last(errors || [])) do
       @parse_timeout_backoff_seconds
     else
       processing_backoff(job)
@@ -158,6 +185,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp parse_timeout?(_errors), do: false
+
+  # Oban records a job it killed at `timeout/1` as an `Oban.TimeoutError`.
+  defp job_timeouts(errors) when is_list(errors), do: Enum.count(errors, &job_timeout?/1)
+  defp job_timeouts(_errors), do: 0
+
+  defp job_timeout?(%{"error" => error}) when is_binary(error), do: String.contains?(error, "Oban.TimeoutError")
+  defp job_timeout?(_error), do: false
 
   defp complete_processing(args) do
     # The run just finished on this (isolated, non-clustered) processor
@@ -249,7 +283,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         case download do
           {:ok, _} ->
-            XCResultProcessor.process_local(temp_path, processor_options(test_run_id, args, account))
+            XCResultProcessor.process_local(temp_path, processor_options(test_run_id, args))
 
           {:error, _} = error ->
             error
@@ -260,7 +294,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  defp processor_options(test_run_id, args, account) do
+  defp processor_options(test_run_id, args) do
     [
       test_run_id: test_run_id,
       source_test_run_id: Map.get(args, "source_test_run_id") || test_run_id,
@@ -271,7 +305,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       account_handle: args["account_handle"],
       project_handle: args["project_handle"],
       s3_bucket: Environment.s3_bucket_name(),
-      read_coverage: Map.get(args, "reporting_version", 0) != 1 and FeatureFlags.xcode_coverage_enabled?(account)
+      read_coverage: Map.get(args, "reporting_version", 0) != 1
     ]
   end
 
@@ -310,7 +344,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
           {:ok, _} ->
             opts =
               test_run_id
-              |> processor_options(args, account)
+              |> processor_options(args)
               |> Keyword.put(:artifact, :stress)
               |> Keyword.put(:read_coverage, false)
 

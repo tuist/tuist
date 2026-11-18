@@ -170,25 +170,27 @@ public enum ServerCredentialsStoreBackend: Sendable {
         public func store(credentials: ServerCredentials, serverURL: URL) async throws {
             switch backend {
             case .keychain:
-                let serverURL = try CredentialFileLocator.canonicalURL(serverURL)
-                if credentials.rejected == true {
-                    try keychain(serverURL: serverURL).set("true", key: serverURL.absoluteString + "_rejected")
-                } else {
-                    try keychain(serverURL: serverURL).remove(serverURL.absoluteString + "_rejected")
-                }
-                if let oauthClientID = credentials.oauthClientID {
-                    try keychain(serverURL: serverURL).set(oauthClientID, key: serverURL.absoluteString + "_oauth_client_id")
-                } else {
-                    try keychain(serverURL: serverURL).remove(serverURL.absoluteString + "_oauth_client_id")
-                }
-                if let refreshToken = credentials.refreshToken {
+                try ServerAuthenticationSession.current.withCredentialWrite {
+                    let serverURL = try CredentialFileLocator.canonicalURL(serverURL)
+                    if credentials.rejected == true {
+                        try keychain(serverURL: serverURL).set("true", key: serverURL.absoluteString + "_rejected")
+                    } else {
+                        try keychain(serverURL: serverURL).remove(serverURL.absoluteString + "_rejected")
+                    }
+                    if let oauthClientID = credentials.oauthClientID {
+                        try keychain(serverURL: serverURL).set(oauthClientID, key: serverURL.absoluteString + "_oauth_client_id")
+                    } else {
+                        try keychain(serverURL: serverURL).remove(serverURL.absoluteString + "_oauth_client_id")
+                    }
+                    if let refreshToken = credentials.refreshToken {
+                        try keychain(serverURL: serverURL)
+                            .comment("Refresh token against \(serverURL.absoluteString)")
+                            .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
+                    }
                     try keychain(serverURL: serverURL)
                         .comment("Refresh token against \(serverURL.absoluteString)")
-                        .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
+                        .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")
                 }
-                try keychain(serverURL: serverURL)
-                    .comment("Refresh token against \(serverURL.absoluteString)")
-                    .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")
             #if os(macOS)
                 case .fileSystem:
                     let path = try credentialsFilePath(serverURL: serverURL)
@@ -248,12 +250,14 @@ public enum ServerCredentialsStoreBackend: Sendable {
         public func delete(serverURL: URL) async throws {
             switch backend {
             case .keychain:
-                for candidate in Set([try CredentialFileLocator.canonicalURL(serverURL), serverURL]) {
-                    let keychain = keychain(serverURL: candidate)
-                    try keychain.remove(candidate.absoluteString + "_refresh_token")
-                    try keychain.remove(candidate.absoluteString + "_access_token")
-                    try keychain.remove(candidate.absoluteString + "_oauth_client_id")
-                    try keychain.remove(candidate.absoluteString + "_rejected")
+                try ServerAuthenticationSession.current.withCredentialWrite {
+                    for candidate in Set([try CredentialFileLocator.canonicalURL(serverURL), serverURL]) {
+                        let keychain = keychain(serverURL: candidate)
+                        try keychain.remove(candidate.absoluteString + "_refresh_token")
+                        try keychain.remove(candidate.absoluteString + "_access_token")
+                        try keychain.remove(candidate.absoluteString + "_oauth_client_id")
+                        try keychain.remove(candidate.absoluteString + "_rejected")
+                    }
                 }
             #if os(macOS)
                 case .fileSystem:

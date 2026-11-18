@@ -17,10 +17,14 @@ defmodule Noora.Utils do
     end
   end
 
+  # HTML comments don't count as content: with debug annotations on (dev),
+  # LiveView wraps every component call in comments, so a slot that renders
+  # nothing would otherwise read as filled.
   defp rendered_content?(rendered) do
     rendered
     |> Phoenix.HTML.Safe.to_iodata()
     |> IO.iodata_to_binary()
+    |> String.replace(~r/<!--.*?-->/s, "")
     |> String.trim()
     |> Kernel.!=("")
   end

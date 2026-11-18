@@ -1,0 +1,88 @@
+/* Syntax highlighting in Noora colors, for every code block highlighted by
+   MDEx/Lumis with the `:html_linked` formatter (the blog, the docs, and the
+   Noora documentation). Lumis tags each token with a tree-sitter capture
+   name, prefixed `l-` (`l-keyword-import`, `l-function-call`,
+   `l-string-special-symbol`…), so prefix selectors color whole families and
+   the more specific rules after them refine a few members.
+
+   The palette is deliberately quiet: text, variables, and strings stay in
+   the foreground, structure (keywords, operators, punctuation, comments)
+   recedes into greys, and only a few roles carry a hue: a soft yellow for
+   functions and types, a soft orange for numbers and constants, purple for
+   attributes and keys. Every color is a light/dark pair of palette steps, so
+   code follows the color scheme. */
+.lumis {
+  color: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-dark-100));
+
+  & [class^="l-comment"] {
+    color: light-dark(var(--noora-neutral-light-900), var(--noora-neutral-dark-600));
+  }
+
+  & [class^="l-keyword"],
+  & [class^="l-operator"],
+  & [class^="l-conditional"],
+  & [class^="l-repeat"],
+  & [class^="l-include"],
+  & [class^="l-exception"] {
+    color: light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-dark-400));
+  }
+
+  & [class^="l-function"],
+  & [class^="l-method"],
+  & [class^="l-constructor"],
+  & [class^="l-type"],
+  & [class^="l-module"],
+  & [class^="l-namespace"],
+  & [class^="l-tag"],
+  & [class^="l-markup-heading"] {
+    color: light-dark(var(--noora-yellow-800), var(--noora-yellow-200));
+  }
+
+  & [class^="l-number"],
+  & [class^="l-float"],
+  & [class^="l-boolean"],
+  & [class^="l-constant"],
+  & [class^="l-character"] {
+    color: light-dark(var(--noora-orange-700), var(--noora-orange-200));
+  }
+
+  /* Attributes, properties, and keyword keys (`do:`, `name:`) read as the
+     names of things being set. */
+  & [class^="l-property"],
+  & [class^="l-attribute"],
+  & [class^="l-tag-attribute"],
+  & [class^="l-variable-member"],
+  & [class^="l-label"],
+  & [class^="l-string-special-symbol"] {
+    color: light-dark(var(--noora-purple-700), var(--noora-purple-300));
+  }
+
+  & [class^="l-punctuation"],
+  & [class^="l-tag-delimiter"] {
+    color: light-dark(var(--noora-neutral-light-900), var(--noora-neutral-dark-500));
+  }
+
+  /* Parameters, `self`/`this`, escapes, and regular expressions sit with
+     the keywords, a step back from the code around them. */
+  & [class^="l-variable-parameter"],
+  & [class^="l-variable-builtin"],
+  & [class^="l-string-escape"],
+  & [class^="l-string-regexp"],
+  & [class^="l-character-special"] {
+    color: light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-dark-400));
+  }
+
+  & [class^="l-string-special-url"],
+  & [class^="l-markup-link"] {
+    color: light-dark(var(--noora-blue-600), var(--noora-blue-400));
+  }
+
+  & [class^="l-error"],
+  & [class^="l-diff-minus"] {
+    color: light-dark(var(--noora-red-600), var(--noora-red-400));
+  }
+
+  & [class^="l-diff-plus"] {
+    color: light-dark(var(--noora-green-700), var(--noora-green-300));
+  }
+}

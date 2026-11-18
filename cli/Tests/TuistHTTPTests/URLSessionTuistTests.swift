@@ -29,6 +29,15 @@
         }
 
         @Test(.withMockedEnvironment())
+        func multipart_upload_lanes_give_concurrent_parts_separate_sessions() {
+            let concurrentParts = (1 ... 10).map { URLSession.tuistMultipartUpload(lane: $0) }
+            #expect(Set(concurrentParts.map(ObjectIdentifier.init)).count == 10)
+            #expect(!concurrentParts.contains { $0 === URLSession.tuistShared })
+            #expect(URLSession.tuistMultipartUpload(lane: 11) === URLSession.tuistMultipartUpload(lane: 1))
+            #expect(concurrentParts.allSatisfy { $0.delegate is TuistURLSessionDelegate })
+        }
+
+        @Test(.withMockedEnvironment())
         func tuistURLSessionConfiguration_uses_environment_proxy_when_enabled() async throws {
             let environment = try #require(Environment.mocked)
             environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"

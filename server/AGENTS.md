@@ -111,7 +111,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Shards download the exact build and disable compilation during database setup and explicit `--no-download` execution. Do not normalize checkout timestamps to hide invalidation. The guarded project-local compile function must skip SDK bootstrap as well. Load restored paths explicitly before discovering the test task, including in retry processes; discovery otherwise runs before forwarded flags can take effect.
 - Keep the builder's `_build` volume plain. On main, current ClickHouse shards instrument their own downloaded builds with `--cover`; shards do not retain `_build` in a volume. This avoids copying builds or publishing instrumented BEAMs into the builder cache. The builder's volume also owns CLDR downloads, without a nested archive cache.
 - `bash ../.github/scripts/server-db.test.sh` tests migration script forwarding and failure guards without databases.
-- Docker's optional `mix-cache` context retains only the production builds of `tuist`, `tuist_common`, `tuist_ex` and `noora`, never test outputs or fetched/native dependencies. Keep `deps-builder` layer-cached; seed the four project directories through a read-only bind in the compile RUN and let Mix invalidate them normally. Export `mix-cache-export` before assets/release so no old release enters the snapshot. Ordinary builds use an empty seed and require no cache service.
+- Docker's optional `mix-cache` context retains only the production builds of `tuist`, `tuist_common`, `tuist_ex` and `noora` plus `_build/prod/phoenix-colocated`, never test outputs or fetched/native dependencies. Colocated hooks and CSS are written only when their module compiles, so a snapshot without them is never restored: unchanged components would vanish from the asset bundles. Keep `deps-builder` layer-cached; seed the four project directories through a read-only bind in the compile RUN and let Mix invalidate them normally. Export `mix-cache-export` before assets/release so no old release enters the snapshot. Ordinary builds use an empty seed and require no cache service.
 - Keep the Docker `swift-artifacts` scratch stage between the Swift builder and runtime/release consumers. Only the parser executable and Swift runtime libraries belong there, so a cached build does not materialize the toolchain and `.build` tree just to copy shipped artifacts.
 - Docker builds use the repository root context and `Dockerfile.dockerignore`, not `server/.dockerignore`. Keep every Dockerfile COPY input allowed, and exclude nested dependency/build directories and credentials. The fetched dependency stage copies only local package manifests and skips local compilation; local sources compile in the application stage. Preserve per-commit runtime security updates. Explicitly retain the public `priv/static/server/self-host/.env.example` after the general `.env*` exclusion; the Docker smoke test asserts it ships. Bare parent negations re-include their entire subtree, so keep the context allowlist narrow.
 
@@ -127,6 +127,12 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
 
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
+
+LVM region enrollment encrypts all Kura claims by default and selects the
+extended disk resource. BER1 stays on its legacy class until explicitly
+enrolled after rack plugin/host preparation; the account flag alone cannot
+move it onto file-backed encryption. Desired and rendered manifest revisions
+must include both encryption and LVM enrollment identically.
 
 ## Deployment
 

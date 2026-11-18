@@ -44,6 +44,12 @@ if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
   fi
 fi
 
+if [ -s "${JIT_PATH}.api-job.json" ]; then
+  [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
+  exec /usr/local/bin/tuist-job-runner --job-file "${JIT_PATH}.api-job.json" \
+    --builds-dir "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}"
+fi
+
 if [ -s "${JIT_PATH}.gitlab.json" ]; then
   [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
   exec /usr/local/bin/tuist-gitlab-runner --job-file "${JIT_PATH}.gitlab.json" \
@@ -275,6 +281,12 @@ for _var in TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done
+# Hand the host the job's GitHub OIDC token before the attaches below, so the
+# server learns which job this runner runs without waiting for GitHub's report.
+# The runner offers a token only to jobs granted id-token: write.
+if [ -n "\${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --prove-execution || true
+fi
 # Move dockerd onto the repository's Docker cache volume before the runner
 # pulls job and service containers, beside the cached checkout and within its
 # window. Any miss leaves dockerd on the job's ephemeral data root.
@@ -296,6 +308,11 @@ exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"
 export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
+# After the job's steps, annotate a job that ran the VM out of memory or came
+# close, so its author sees the cause instead of an unexplained exit 137.
+if [ -x /usr/local/bin/memory-report.sh ]; then
+  export ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/usr/local/bin/memory-report.sh
+fi
 
 idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
 

@@ -9,6 +9,35 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
   alias TuistWeb.Marketing.StructuredMarkup
 
   describe "GET /blog/:year/:month/:day/:slug" do
+    @tag :locale
+    test "unavailable article locales temporarily redirect to the exact English source", %{conn: conn} do
+      for locale <- ~w(zh_Hant zh_Hans yue_Hant ka) do
+        response = get(conn, "/#{locale}/blog/2025/11/26/opening-registry?utm_source=audit&x=a%2Fb")
+
+        assert redirected_to(response, 302) == "/blog/2025/11/26/opening-registry?utm_source=audit&x=a%2Fb"
+      end
+    end
+
+    test "English articles have query-free self-canonicals and only available alternates", %{conn: conn} do
+      path = "/blog/2025/11/26/opening-registry"
+      document = conn |> get(path <> "?utm_source=audit") |> html_response(200) |> Floki.parse_document!()
+
+      assert Floki.attribute(Floki.find(document, ~s(link[rel="canonical"])), "href") == [
+               Tuist.Environment.app_url(path: path)
+             ]
+
+      assert Floki.attribute(Floki.find(document, "link[hreflang]"), "hreflang") == ["en", "x-default"]
+      assert document |> Floki.find("#blog-post-content") |> Floki.text() =~ "released"
+    end
+
+    @tag :locale
+    test "a nonexistent source stays a real 404 in every locale", %{conn: conn} do
+      for prefix <- ["", "/ko"],
+          path <- ["/blog/2025/11/25/opening-registry", "/blog/2025/11/26/unknown-post"] do
+        assert_error_sent 404, fn -> get(conn, prefix <> path) end
+      end
+    end
+
     test "renders a blog post without errors", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
 

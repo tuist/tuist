@@ -16,6 +16,7 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Tests
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.TestSelection.TestCaseRunTab
   alias TuistWeb.Utilities.Query
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -88,6 +89,7 @@ defmodule TuistWeb.TestCaseRunLive do
         )
       )
       |> assign_text_attachment_urls(test_case_run)
+      |> assign(:selection, TestCaseRunTab.load(project, test_run, test_case_run))
 
     {:ok, socket}
   end
@@ -95,14 +97,29 @@ defmodule TuistWeb.TestCaseRunLive do
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
-    selected_tab = params["tab"] || "overview"
+
+    selected_tab =
+      case params["tab"] do
+        "selective-testing" when is_nil(socket.assigns.selection) -> "overview"
+        nil -> "overview"
+        tab -> tab
+      end
 
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
 
+    socket =
+      if selected_tab == "selective-testing",
+        do: TestCaseRunTab.assign_files(socket, socket.assigns.selection, params),
+        else: socket
+
     {:noreply, socket}
+  end
+
+  def handle_event("search-selection-files", %{"search" => search}, socket) do
+    {:noreply, push_patch(socket, to: "?" <> TestCaseRunTab.search_query(socket.assigns.uri, search), replace: true)}
   end
 
   @doc false
@@ -168,7 +185,8 @@ defmodule TuistWeb.TestCaseRunLive do
               size="small"
             />
           </div>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             href={
               ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
             }
@@ -176,13 +194,13 @@ defmodule TuistWeb.TestCaseRunLive do
             size="small"
           >
             <.download />
-          </.neutral_button>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="small">
             <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="open-collapsible-button" variant="secondary" size="small">
             <.chevron_up />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <div data-part="content">
           <a
@@ -226,7 +244,8 @@ defmodule TuistWeb.TestCaseRunLive do
               size="small"
             />
           </div>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             href={
               ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
             }
@@ -234,13 +253,13 @@ defmodule TuistWeb.TestCaseRunLive do
             size="small"
           >
             <.download />
-          </.neutral_button>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="small">
             <.chevron_down />
-          </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          </.ghost_button>
+          <.ghost_button data-part="open-collapsible-button" variant="secondary" size="small">
             <.chevron_up />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <div data-part="content">
           <div
@@ -274,7 +293,8 @@ defmodule TuistWeb.TestCaseRunLive do
               size="small"
             />
           </div>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             href={
               ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
             }
@@ -282,7 +302,7 @@ defmodule TuistWeb.TestCaseRunLive do
             size="small"
           >
             <.download />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
     </div>

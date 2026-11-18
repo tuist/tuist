@@ -6,6 +6,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Workers.DispatchWorker
+  alias Tuist.Runners.Workers.RecordWorkflowRunWorker
+  alias Tuist.Runners.WorkflowRuns
   alias Tuist.VCS
 
   require Logger
@@ -204,6 +206,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "workflow_job" ->
         handle_workflow_job(conn, params)
 
+      "workflow_run" ->
+        handle_workflow_run(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
@@ -291,11 +296,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp enqueue_dispatch(conn, params, installation_id, delivery_guid) do
-    args = %{
-      "payload" => params,
-      "installation_id" => installation_id,
-      "delivery_guid" => delivery_guid
-    }
+    args =
+      Map.merge(
+        %{
+          "payload" => params,
+          "installation_id" => installation_id,
+          "delivery_guid" => delivery_guid
+        },
+        bound_account_args(conn)
+      )
 
     case args |> DispatchWorker.new() |> Oban.insert() do
       {:ok, _job} ->
@@ -309,6 +318,49 @@ defmodule TuistWeb.Webhooks.GitHubController do
         conn
         |> put_status(:service_unavailable)
         |> json(%{status: "error", reason: "transient"})
+    end
+  end
+
+  # GitHub sends `requested` when it creates a run attempt, before the run's
+  # jobs are queued. The run's cache scope inputs are stored so the jobs' Actions
+  # cache and cache volumes need not ask GitHub's API (`Tuist.Runners.WorkflowRuns`).
+  defp handle_workflow_run(conn, params) do
+    with %{"action" => "requested", "installation" => %{"id" => installation_id}} when is_integer(installation_id) <-
+           params,
+         %{} = run <- WorkflowRuns.from_webhook(params) do
+      args =
+        Map.merge(
+          %{
+            "run" => run,
+            "installation_id" => installation_id,
+            "delivery_guid" => conn |> get_req_header("x-github-delivery") |> List.first()
+          },
+          bound_account_args(conn)
+        )
+
+      case args |> RecordWorkflowRunWorker.new() |> Oban.insert() do
+        {:ok, _job} ->
+          conn |> put_status(:ok) |> json(%{status: "ok"})
+
+        {:error, reason} ->
+          Logger.warning("runners: failed to enqueue workflow run; returning 503", reason: inspect(reason))
+          conn |> put_status(:service_unavailable) |> json(%{status: "error", reason: "transient"})
+      end
+    else
+      _ -> conn |> put_status(:ok) |> json(%{status: "ok"})
+    end
+  end
+
+  # A delivery signed with an installation row's own secret (GitHub
+  # Enterprise Server) comes from a server its customer runs, so every body
+  # field, the installation id and repository owner included, is the
+  # sender's choice. The dispatch worker then takes the account from that
+  # row. github.com deliveries are signed with the Tuist App's secret, so
+  # their installation id is GitHub's word and the worker resolves from it.
+  defp bound_account_args(conn) do
+    case conn.assigns[:github_installation] do
+      nil -> %{}
+      installation -> %{"account_id" => installation.account_id}
     end
   end
 
@@ -560,7 +612,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
         # past it).
         attrs =
           if is_nil(github_app_installation.installation_id) do
-            %{html_url: html_url, installation_id: installation_id}
+            %{html_url: html_url, installation_id: to_string(installation_id)}
           else
             %{html_url: html_url}
           end

@@ -45,6 +45,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+  `sparse` finds those extents and zero runs for sandboxd's `SBXARC1`
+  archives too, so a change there also changes sandboxd's image (its tag
+  follows `sparse/` and `go.mod`). Keep it free of other dependencies.
 - Archive downloads, compression and both restoration formats flush every 16 MiB
   written, in addition to their final sync. Dirty filesystem pages count toward
   the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
@@ -63,6 +66,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
   GitHub to report its job, shared by its checkout and every volume; both the
   Linux and macOS agents use it.
+- A job's GitHub OIDC token reaches the server through the Linux agent's
+  `/execution` endpoint or a macOS `execution_token` mailbox request, with the
+  pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request
@@ -112,7 +118,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   refreshes, a prefetch has no deadline: its download ends on a stall or after
   its attempts. It also restores, one at a time, the HEADs the server lists
   for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/4`)
-  through `PrefetchSpare`: free space above `MinFreeBytes` plus
+  through `PrefetchSpare`: free space above the larger of `MinFreeBytes` and
+  `CheckoutCapacity` (a checkout evicts only idle masters for its room) plus
   `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
@@ -126,6 +133,18 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `Slot.PublishCold` for that one seal; the full, unchanged, identical and
   generation checks still apply. Linux checks `.cold` before its unchanged and
   full checks.
+- `.cold` holds why the host had no copy (`ColdReason`, reported as
+  `cold_reason`): `downloading` (a fetch of the lineage was in flight),
+  `evicted_<reason>` (the reason `evictMaster` wrote to the lineage's
+  `masters/<scope>/evicted` file when it removed its latest master) or
+  `not_on_host`. An empty marker (older agents) reports no reason.
+- Linux `verify` trims a branch (`LocalImages.Trim`, `TrimFS`: `FITRIM` through
+  the no-follow descriptor) right after the write-back check and before detach.
+  Branches mount without discard, so otherwise every block a job ever wrote stays
+  in the image, its master, archive and clones. The check's syncfs must come
+  first: it commits the frees FITRIM needs, and TrimFS must never consume the
+  one-shot write-back error the check reads. On a reflinked clone the loop
+  driver punches only the branch's own extents. A failed trim publishes untrimmed.
 - APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
@@ -297,7 +316,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   image busy and no build can unmount it again. A Linux checkout slot is
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
-  That check never evicts (`reserveSpare`); the usual reserve admission does.
+  That check (`admit` with `optional`) evicts only custom masters no job holds or
+  is attaching; it never displaces speculative work or reclaims checkouts.
 - Checkout Git commands and their children use one pack/indexing thread, a
   32 MiB delta-search window, 16 MiB delta and base caches, a 16 MiB large-blob
   streaming threshold, and 16 MiB pack mappings capped at 64 MiB. Keep these in
@@ -364,3 +384,44 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   aside before creating the replacement). Unlinking and immediately recreating
   a file can reuse its inode on Linux, so it does not reliably exercise the
   different-inode guard.
+
+- `ActionsCache` (`actions_cache.go`) serves GitHub's cache v2 protocol on the
+  Linux agent's :8090: the three JSON twirp cache methods, plus Put Blob, Put
+  Block, Put Block List and ranged reads (`Range` or `x-ms-range`) on
+  `/actions-cache/blobs/<id>`, the parts of Azure Blob Storage `@actions/cache`
+  and buildkit's `type=gha` client use. Every other `/twirp/` request goes to
+  GitHub unchanged. Jobs reach it only through the runner image's node shim.
+- Any failure is a miss (`ok: false`) or a refused save, never a 5xx: clients
+  retry those with backoff, which costs more than rebuilding. Blob refusals are
+  4xx for the same reason (413 without room). The index call shares a 5-second
+  budget; never wait longer for the server.
+- A lookup the mirror misses, or cannot answer, is asked of GitHub's cache
+  with the job's own request and token, within the same budget, and GitHub's
+  answer goes back unchanged: an account's first runs still restore what it
+  saved on GitHub. Saves never go to GitHub. An entry GitHub still holds is
+  restored from there, so an exact hit is not saved again; it moves to the
+  mirror once GitHub drops it.
+- Blob links carry an HMAC over operation, entry, expiry and the caller Pod's
+  UID, keyed per process, and the caller is resolved again by source address.
+  A link never authorizes another Pod or the other operation.
+- Entries live in a store, never on the host: the in-rack shard store's
+  quota-capped bucket at the host's site, or the account's own storage, as the
+  server places them. A restore relays ranged reads from the store's presigned
+  URL. `/actions-cache/healthz` fails while the store has not answered for 30
+  seconds, so the node shim leaves jobs on GitHub's cache during an outage.
+  It also fails for a Pod until the server says its job's account uses the
+  mirror (`Enabled`), asked once per Pod and kept; the probe waits 100 ms of the
+  shim's 150 ms for it, and the check finishes in the background for the next
+  probe.
+- `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
+  filesystem until `Run` copies them to the store (a presigned PUT bound to the
+  SHA-256) and the server commits them; a failed copy drops the entry. A block
+  list commits by hard-linking its blocks into `parts/` in list order
+  and hashing them; the copy streams the parts. Never reassemble them into one
+  file before answering: the job waits on it, seconds per GB. Never fsync per
+  block either: buildx sends 1 MiB blocks one at a time, and an fsync on the
+  loop-mounted cache costs 11 ms. Each stream starts writeback every 16 MiB and
+  at its end, and the store fsyncs once all streams staged 16 MiB, which bounds
+  dirty pages the loop device's backing file still charges to the agent. It
+  writes at most four streams at a time and admits only above the reserve.
+  Staging never evicts masters; uploads idle for an hour are removed.

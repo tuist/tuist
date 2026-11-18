@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, HashSet, VecDeque},
     pin::Pin,
     sync::{
         Arc,
@@ -74,6 +74,14 @@ const DEFAULT_INSTANCE_NAME: &str = "default";
 // reader buffer.
 const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+/// GetTree responses: directories per page unless the client asks for fewer,
+/// bytes per page, and directories per tree.
+const GET_TREE_PAGE_DIRECTORIES: usize = 1_000;
+const GET_TREE_PAGE_BYTES: usize = 1024 * 1024;
+const GET_TREE_MAX_DIRECTORIES: usize = 100_000;
+/// Asks a `BatchReadBlobs` of one Action to also return the Action's command,
+/// input directories and input files, as `<total bytes>,<bytes per input>`.
+const ACTION_INPUTS_HEADER: &str = "x-tuist-action-inputs";
 
 fn retain_response_permit<T>(
     response: &mut Response<T>,
@@ -171,25 +179,48 @@ const BATCH_UPDATE_GROUP_CONCURRENCY: usize = 2;
 /// temp-file write.
 pub(super) const REAPI_STAGING_WRITE_BUFFER_BYTES: u64 = 1024 * 1024;
 const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
-const MAX_CONCURRENT_SPLICE_VERIFICATIONS: usize = 4;
-static ACTIVE_SPLICE_VERIFICATIONS: AtomicUsize = AtomicUsize::new(0);
+/// How long a splice waits for a verification slot, matching the upload
+/// admission wait. Clients upload chunks concurrently and splice each blob as
+/// its last chunk lands, so bursts above the slot count are the normal case.
+const SPLICE_VERIFICATION_WAIT: Duration = Duration::from_secs(30);
+/// Splices that may queue per verification slot. A queued splice keeps its
+/// decoded recipe and reply reservation, so the queue is bounded and anything
+/// beyond it is refused at once.
+const SPLICE_VERIFICATION_QUEUE_PER_SLOT: usize = 4;
 
-struct SpliceVerificationSlot;
-
-impl SpliceVerificationSlot {
-    fn try_acquire() -> Option<Self> {
-        ACTIVE_SPLICE_VERIFICATIONS
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
-                (active < MAX_CONCURRENT_SPLICE_VERIFICATIONS).then_some(active + 1)
-            })
-            .ok()
-            .map(|_| Self)
-    }
+#[derive(Clone)]
+struct SpliceVerificationSlots {
+    running: Arc<tokio::sync::Semaphore>,
+    admitted: Arc<tokio::sync::Semaphore>,
 }
 
-impl Drop for SpliceVerificationSlot {
-    fn drop(&mut self) {
-        ACTIVE_SPLICE_VERIFICATIONS.fetch_sub(1, Ordering::Release);
+struct SpliceVerificationSlot {
+    _running: tokio::sync::OwnedSemaphorePermit,
+    _admitted: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl SpliceVerificationSlots {
+    fn new(concurrency: usize) -> Self {
+        Self {
+            running: Arc::new(tokio::sync::Semaphore::new(concurrency)),
+            admitted: Arc::new(tokio::sync::Semaphore::new(
+                concurrency * (1 + SPLICE_VERIFICATION_QUEUE_PER_SLOT),
+            )),
+        }
+    }
+
+    /// Waits in FIFO order for a slot, up to `wait`. `None` means the queue
+    /// was full or the wait ran out.
+    async fn acquire(&self, wait: Duration) -> Option<SpliceVerificationSlot> {
+        let admitted = self.admitted.clone().try_acquire_owned().ok()?;
+        let running = tokio::time::timeout(wait, self.running.clone().acquire_owned())
+            .await
+            .ok()?
+            .ok()?;
+        Some(SpliceVerificationSlot {
+            _running: running,
+            _admitted: admitted,
+        })
     }
 }
 #[derive(Clone)]
@@ -198,6 +229,7 @@ pub struct ReapiService {
     // Per-namespace action-cache snapshot indexes and their in-flight
     // builds, shared across the service clones tonic hands each server.
     snapshot_cache: std::sync::Arc<SnapshotCache>,
+    splice_verifications: SpliceVerificationSlots,
 }
 
 #[derive(Clone, Copy)]
@@ -363,6 +395,9 @@ impl ReapiService {
     pub(super) fn new(state: SharedState) -> Self {
         Self {
             snapshot_cache: state.snapshot_cache.clone(),
+            splice_verifications: SpliceVerificationSlots::new(
+                state.config.reapi_splice_verification_concurrency,
+            ),
             state,
         }
     }
@@ -458,6 +493,82 @@ impl ReapiService {
     // bandwidth reaches `kura_usage_events` on parity with the HTTP path. A no-op
     // when usage reporting is disabled. Call only on success arms, mirroring how
     // the HTTP handlers record on the `"ok"` metric arm.
+    /// Reads what executing an encoded Action needs beside it, in the order a
+    /// client walking its tree level by level would: the command and input
+    /// root, then each level's files followed by its directories. A blob is
+    /// included while it fits `max_input_bytes` and what is left of
+    /// `remaining`; one missing from the CAS or failing to read is left out
+    /// with its subtree. The reads' memory permits go to `permits`.
+    async fn read_action_inputs(
+        &self,
+        namespace_id: &str,
+        action: &[u8],
+        mut remaining: u64,
+        max_input_bytes: u64,
+        permits: &mut Vec<crate::memory::MemoryPermit>,
+    ) -> Vec<(reapi::Digest, Vec<u8>, Duration)> {
+        let Ok(action) = reapi::Action::decode(action) else {
+            return Vec::new();
+        };
+        let mut seen = HashSet::new();
+        let mut directories = HashSet::new();
+        let mut level = Vec::new();
+        let mut admit = |digest: Option<&reapi::Digest>, queue: &mut Vec<reapi::Digest>| {
+            let Some(digest) = digest else { return false };
+            let Ok(size) = u64::try_from(digest.size_bytes) else {
+                return false;
+            };
+            if size > max_input_bytes
+                || size > remaining
+                || digest_key(digest).is_err()
+                || !seen.insert(digest.hash.clone())
+            {
+                return false;
+            }
+            remaining -= size;
+            queue.push(digest.clone());
+            true
+        };
+        admit(action.command_digest.as_ref(), &mut level);
+        if let Some(root) = &action.input_root_digest
+            && admit(Some(root), &mut level)
+        {
+            directories.insert(root.hash.clone());
+        }
+        let mut inputs = Vec::new();
+        while !level.is_empty() {
+            let level_bytes = level.iter().map(|digest| digest.size_bytes as u64).sum();
+            let Ok(mut budget) =
+                AtomicMaterializationBudget::reserve(&self.state, level_bytes).await
+            else {
+                break;
+            };
+            let reads = batch_read_many_atomic(&self.state, namespace_id, &level, &budget).await;
+            permits.extend(budget.take_permit());
+            let mut next = Vec::new();
+            for (digest, (read, duration)) in level.into_iter().zip(reads) {
+                let Ok(Some(data)) = read else { continue };
+                if directories.contains(&digest.hash)
+                    && let Ok(directory) = reapi::Directory::decode(data.as_slice())
+                {
+                    for file in &directory.files {
+                        admit(file.digest.as_ref(), &mut next);
+                    }
+                    for child in &directory.directories {
+                        if let Some(digest) = &child.digest
+                            && admit(Some(digest), &mut next)
+                        {
+                            directories.insert(digest.hash.clone());
+                        }
+                    }
+                }
+                inputs.push((digest, data, duration));
+            }
+            level = next;
+        }
+        inputs
+    }
+
     fn record_reapi_download(
         &self,
         metadata: &tonic::metadata::MetadataMap,
@@ -2486,6 +2597,14 @@ impl ContentAddressableStorage for ReapiService {
         let compress_with_zstd = message
             .acceptable_compressors
             .contains(&(reapi::compressor::Value::Zstd as i32));
+        let action_inputs = if digests.len() == 1 && !compress_with_zstd {
+            action_inputs_limits(
+                &metadata,
+                self.state.memory.reapi_response_budget_bytes() as u64,
+            )
+        } else {
+            None
+        };
         // Reserve the whole batch's response memory once, before any blob is
         // read, waiting for a momentarily full pool. The client's digests carry
         // the sizes, so the request can be admitted as a unit; claiming per blob
@@ -2570,6 +2689,43 @@ impl ContentAddressableStorage for ReapiService {
 
             responses.push(response);
         }
+        let mut permits: Vec<_> = budget.take_permit().into_iter().collect();
+        if let Some((max_bytes, max_input_bytes)) = action_inputs
+            && let Some(action) = responses.first()
+            && action
+                .status
+                .as_ref()
+                .is_some_and(|status| status.code == 0)
+        {
+            let remaining = max_bytes.saturating_sub(action.data.len() as u64);
+            let inputs = self
+                .read_action_inputs(
+                    namespace_id,
+                    &action.data,
+                    remaining,
+                    max_input_bytes,
+                    &mut permits,
+                )
+                .await;
+            for (digest, data, duration) in inputs {
+                self.record_reapi_cache_event_with_context(
+                    analytics_context.as_ref(),
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome: "hit",
+                        digest: &digest.hash,
+                        size: data.len() as u64,
+                        duration,
+                    },
+                );
+                responses.push(reapi::batch_read_blobs_response::Response {
+                    digest: Some(digest),
+                    data,
+                    compressor: 0,
+                    status: Some(rpc_status(0, "")),
+                });
+            }
+        }
         // Sum the uncompressed bytes served so the whole batch books a single
         // download usage request, matching how ByteStream/HTTP count one
         // request per call. A successful read carries gRPC status code 0; its
@@ -2599,13 +2755,12 @@ impl ContentAddressableStorage for ReapiService {
         });
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
-        // The single up-front reservation rides with the response, so the bytes
-        // stay admitted for as long as the client is reading them.
-        let response_memory = budget.take_permit().map(|permit| {
-            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit])
-        });
-        if let Some(response_memory) = response_memory {
-            response.extensions_mut().insert(response_memory);
+        // The up-front reservations ride with the response, so the bytes stay
+        // admitted for as long as the client is reading them.
+        if !permits.is_empty() {
+            response.extensions_mut().insert(
+                crate::memory::ResponseTransportGuard::from_materialization_permits(permits),
+            );
         }
         if served_any {
             self.record_reapi_download(&metadata, namespace_id, served_bytes);
@@ -2613,11 +2768,110 @@ impl ContentAddressableStorage for ReapiService {
         Ok(response)
     }
 
+    /// Streams the directories of a tree, root first and one level after the
+    /// other. Each level is one concurrent batch of local reads, so a client
+    /// pays one round trip for the tree instead of one per level. Directories
+    /// missing from the CAS are omitted with their subtrees, as the API asks.
+    /// The tree is materialized before streaming and held to one request's
+    /// response budget; a larger tree is refused, never truncated.
     async fn get_tree(
         &self,
-        _request: Request<reapi::GetTreeRequest>,
+        request: Request<reapi::GetTreeRequest>,
     ) -> Result<Response<Self::GetTreeStream>, Status> {
-        Err(Status::unimplemented("GetTree is not supported"))
+        require_sha256(request.get_ref().digest_function)?;
+        let authorization_namespace_id = namespace_from_instance(&request.get_ref().instance_name);
+        let auth = GrpcRequestSpec {
+            operation: "artifact.read",
+            namespace_id: Some(authorization_namespace_id),
+        };
+        self.authorize_request(&request, auth).await?;
+        let (metadata, _extensions, message) = request.into_parts();
+        if !message.page_token.is_empty() {
+            return Err(Status::invalid_argument(
+                "GetTree does not issue page tokens",
+            ));
+        }
+        let namespace_id = namespace_from_instance(&message.instance_name);
+        let root = message
+            .root_digest
+            .ok_or_else(|| Status::invalid_argument("root_digest is required"))?;
+        digest_key(&root)?;
+        let page_size = usize::try_from(message.page_size)
+            .ok()
+            .filter(|size| *size > 0)
+            .unwrap_or(GET_TREE_PAGE_DIRECTORIES);
+        let limit_bytes = self.state.memory.reapi_response_budget_bytes() as u64;
+        let mut directories = Vec::new();
+        let mut seen = HashSet::from([root.hash.clone()]);
+        let mut level = vec![root];
+        let mut tree_bytes = 0_u64;
+        let mut permits = Vec::new();
+        while !level.is_empty() {
+            let level_bytes = level
+                .iter()
+                .map(|digest| u64::try_from(digest.size_bytes).unwrap_or(u64::MAX))
+                .fold(0_u64, u64::saturating_add);
+            tree_bytes = tree_bytes.saturating_add(level_bytes);
+            if tree_bytes > limit_bytes
+                || directories.len() + level.len() > GET_TREE_MAX_DIRECTORIES
+            {
+                return Err(Status::resource_exhausted(
+                    "GetTree tree exceeds one request's response budget",
+                ));
+            }
+            let mut budget = AtomicMaterializationBudget::reserve(&self.state, level_bytes).await?;
+            let reads = batch_read_many_atomic(&self.state, namespace_id, &level, &budget).await;
+            permits.extend(budget.take_permit());
+            let mut next = Vec::new();
+            for (read, _duration) in reads {
+                let Some(data) = read? else { continue };
+                let directory = reapi::Directory::decode(data.as_slice()).map_err(|_| {
+                    Status::invalid_argument("GetTree reached a blob that is not a Directory")
+                })?;
+                for child in &directory.directories {
+                    if let Some(digest) = &child.digest
+                        && seen.insert(digest.hash.clone())
+                    {
+                        digest_key(digest)?;
+                        next.push(digest.clone());
+                    }
+                }
+                directories.push(directory);
+            }
+            level = next;
+        }
+        let served_bytes: u64 = directories
+            .iter()
+            .map(|directory| directory.encoded_len() as u64)
+            .sum();
+        let mut pages = Vec::new();
+        let mut page = reapi::GetTreeResponse::default();
+        let mut page_bytes = 0;
+        for directory in directories {
+            let bytes = directory.encoded_len();
+            if !page.directories.is_empty()
+                && (page.directories.len() >= page_size || page_bytes + bytes > GET_TREE_PAGE_BYTES)
+            {
+                pages.push(Ok(std::mem::take(&mut page)));
+                page_bytes = 0;
+            }
+            page_bytes += bytes;
+            page.directories.push(directory);
+        }
+        if !page.directories.is_empty() || pages.is_empty() {
+            pages.push(Ok(page));
+        }
+        if served_bytes > 0 {
+            self.record_reapi_download(&metadata, namespace_id, served_bytes);
+        }
+        let mut response =
+            Response::new(Box::pin(tokio_stream::iter(pages)) as Self::GetTreeStream);
+        if !permits.is_empty() {
+            response.extensions_mut().insert(
+                crate::memory::ResponseTransportGuard::from_materialization_permits(permits),
+            );
+        }
+        Ok(response)
     }
 
     async fn split_blob(
@@ -2746,14 +3000,18 @@ impl ContentAddressableStorage for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let _verification_slot = SpliceVerificationSlot::try_acquire().ok_or_else(|| {
+        let Some(_verification_slot) = self
+            .splice_verifications
+            .acquire(SPLICE_VERIFICATION_WAIT)
+            .await
+        else {
             self.state
                 .metrics
                 .record_reapi_chunking_event("splice", "shed");
-            Status::resource_exhausted(
+            return Err(write_admission_rejected(
                 "server is limiting concurrent blob splice verification; retry shortly",
-            )
-        })?;
+            ));
+        };
         if let Err(status) = verify_spliced_blob(&self.state, namespace_id, &recipe).await {
             let outcome = match status.code() {
                 tonic::Code::NotFound => "chunk_missing",
@@ -4958,6 +5216,23 @@ pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
     ))
 }
 
+/// The limits a request sent in `ACTION_INPUTS_HEADER`, its total held to one
+/// response's budget.
+fn action_inputs_limits(
+    metadata: &tonic::metadata::MetadataMap,
+    response_budget: u64,
+) -> Option<(u64, u64)> {
+    let (total, input) = metadata
+        .get(ACTION_INPUTS_HEADER)?
+        .to_str()
+        .ok()?
+        .split_once(',')?;
+    Some((
+        total.trim().parse::<u64>().ok()?.min(response_budget),
+        input.trim().parse().ok()?,
+    ))
+}
+
 pub(super) fn namespace_from_instance(instance_name: &str) -> &str {
     if instance_name.is_empty() {
         DEFAULT_INSTANCE_NAME
@@ -6717,6 +6992,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let insert = |generation: u64| {
@@ -7111,6 +7387,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let insert = |cache_key: String, reconciled_at: Instant| {
@@ -7179,6 +7456,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7318,6 +7596,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7432,6 +7711,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7690,6 +7970,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7931,6 +8212,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let empty = reapi::Digest {
@@ -7974,6 +8256,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let empty = reapi::Digest {
@@ -8001,11 +8284,55 @@ mod tests {
         );
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn splice_verifications_queue_for_a_slot_and_refuse_beyond_the_bounded_queue() {
+        let slots = SpliceVerificationSlots::new(1);
+        let held = slots
+            .acquire(SPLICE_VERIFICATION_WAIT)
+            .await
+            .expect("a free slot is granted at once");
+
+        let started = tokio::time::Instant::now();
+        assert!(slots.acquire(SPLICE_VERIFICATION_WAIT).await.is_none());
+        assert_eq!(
+            started.elapsed(),
+            SPLICE_VERIFICATION_WAIT,
+            "a splice waits the whole bound for a busy slot before it is refused"
+        );
+
+        let waiters = (0..SPLICE_VERIFICATION_QUEUE_PER_SLOT)
+            .map(|_| {
+                let slots = slots.clone();
+                tokio::spawn(async move { slots.acquire(SPLICE_VERIFICATION_WAIT).await.is_some() })
+            })
+            .collect::<Vec<_>>();
+        while slots.admitted.available_permits() > 0 {
+            tokio::task::yield_now().await;
+        }
+        let started = tokio::time::Instant::now();
+        assert!(slots.acquire(SPLICE_VERIFICATION_WAIT).await.is_none());
+        assert_eq!(
+            started.elapsed(),
+            Duration::ZERO,
+            "a splice beyond the bounded queue is refused without waiting"
+        );
+
+        tokio::time::sleep(SPLICE_VERIFICATION_WAIT / 2).await;
+        drop(held);
+        for waiter in waiters {
+            assert!(
+                waiter.await.unwrap(),
+                "queued splices take the slot in turn as it frees"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn splice_keeps_a_composite_blob_recoverable_without_materializing_it_in_the_store() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let first = vec![0x11; 1024 * 1024];
@@ -8173,6 +8500,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8302,6 +8630,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8383,6 +8712,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8505,6 +8835,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let mut blob_digests: Vec<reapi::Digest> = (0..FIND_MISSING_BATCH_DIGESTS + 1)
@@ -8534,6 +8865,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let first = vec![0x31; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
@@ -8653,6 +8985,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let chunk = b"hello";
@@ -9043,6 +9376,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let blob_hash = [0x11u8; 32];
@@ -9152,6 +9486,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9271,6 +9606,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9348,6 +9684,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9430,6 +9767,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9520,6 +9858,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // Stall the build at its memory permit: with no cached index the
@@ -9910,6 +10249,7 @@ mod tests {
                 let service = ReapiService {
                     state: context.state.clone(),
                     snapshot_cache: Default::default(),
+                    splice_verifications: SpliceVerificationSlots::new(4),
                 };
                 let resource_name = resource.clone();
                 let completed = completed_admission.clone();
@@ -11131,6 +11471,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let token = jsonwebtoken::encode(
@@ -11190,6 +11531,7 @@ mod tests {
         let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -11298,6 +11640,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let action_result = reapi::ActionResult::default();
@@ -11337,11 +11680,337 @@ mod tests {
         assert!(rendered.contains("result=\"ok\""));
     }
 
+    async fn persist_directory(
+        context: &TestContext,
+        directory: &reapi::Directory,
+    ) -> reapi::Digest {
+        let bytes = directory.encode_to_vec();
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                &bytes,
+            )
+            .await
+            .expect("directory should persist");
+        digest
+    }
+
+    fn directory_node(name: &str, digest: &reapi::Digest) -> reapi::DirectoryNode {
+        reapi::DirectoryNode {
+            name: name.into(),
+            digest: Some(digest.clone()),
+        }
+    }
+
+    async fn get_tree_directories(
+        service: &ReapiService,
+        root: reapi::Digest,
+    ) -> Vec<reapi::Directory> {
+        let response = service
+            .get_tree(Request::new(reapi::GetTreeRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                root_digest: Some(root),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("get tree should succeed");
+        let pages: Vec<_> = response.into_inner().collect().await;
+        pages
+            .into_iter()
+            .flat_map(|page| page.expect("page should stream").directories)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn get_tree_streams_every_directory_of_the_tree_root_first() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
+            state: context.state.clone(),
+        };
+        let leaf = reapi::Directory {
+            files: vec![reapi::FileNode {
+                name: "input".into(),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(Sha256::digest(b"input")),
+                    size_bytes: 5,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let leaf_digest = persist_directory(&context, &leaf).await;
+        let middle = reapi::Directory {
+            directories: vec![directory_node("leaf", &leaf_digest)],
+            ..Default::default()
+        };
+        let middle_digest = persist_directory(&context, &middle).await;
+        let root = reapi::Directory {
+            directories: vec![
+                directory_node("a", &middle_digest),
+                directory_node("b", &leaf_digest),
+            ],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+
+        let directories = get_tree_directories(&service, root_digest).await;
+
+        assert_eq!(directories, vec![root, middle, leaf]);
+        let rendered = context.state.metrics.render();
+        assert!(rendered.contains("kura_artifact_reads_total"));
+    }
+
+    #[tokio::test]
+    async fn get_tree_omits_subtrees_missing_from_the_cas() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
+            state: context.state.clone(),
+        };
+        let missing = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"missing directory")),
+            size_bytes: 17,
+        };
+        let root = reapi::Directory {
+            directories: vec![directory_node("gone", &missing)],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+
+        assert_eq!(
+            get_tree_directories(&service, root_digest).await,
+            vec![root]
+        );
+        assert!(get_tree_directories(&service, missing).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_tree_refuses_a_tree_beyond_one_requests_budget() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
+            state: context.state.clone(),
+        };
+        let oversized = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"oversized directory")),
+            size_bytes: 1 << 40,
+        };
+        let root = reapi::Directory {
+            directories: vec![directory_node("big", &oversized)],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+
+        let status = service
+            .get_tree(Request::new(reapi::GetTreeRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                root_digest: Some(root_digest),
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .err()
+            .expect("an oversized tree should be refused");
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+    }
+
+    async fn persist_blob(context: &TestContext, bytes: &[u8]) -> reapi::Digest {
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("blob should persist");
+        digest
+    }
+
+    async fn batch_read_with_inputs(
+        service: &ReapiService,
+        action: &reapi::Digest,
+        limits: Option<&str>,
+    ) -> Vec<(reapi::Digest, Vec<u8>)> {
+        let mut request = Request::new(reapi::BatchReadBlobsRequest {
+            instance_name: DEFAULT_INSTANCE_NAME.into(),
+            digests: vec![action.clone()],
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        if let Some(limits) = limits {
+            request.metadata_mut().insert(
+                ACTION_INPUTS_HEADER,
+                tonic::metadata::MetadataValue::try_from(limits).expect("limits should be ASCII"),
+            );
+        }
+        service
+            .batch_read_blobs(request)
+            .await
+            .expect("batch read should succeed")
+            .into_inner()
+            .responses
+            .into_iter()
+            .map(|response| {
+                assert_eq!(response.status.expect("status").code, 0);
+                (response.digest.expect("digest"), response.data)
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn batch_read_of_an_action_returns_its_inputs_when_asked() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
+            state: context.state.clone(),
+        };
+        let input = persist_blob(&context, b"input").await;
+        let leaf = reapi::Directory {
+            files: vec![reapi::FileNode {
+                name: "input".into(),
+                digest: Some(input.clone()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let leaf_digest = persist_directory(&context, &leaf).await;
+        let root = reapi::Directory {
+            directories: vec![directory_node("leaf", &leaf_digest)],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+        let command = reapi::Command {
+            arguments: vec!["/bin/true".into()],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let command_digest = persist_blob(&context, &command).await;
+        let action = reapi::Action {
+            command_digest: Some(command_digest.clone()),
+            input_root_digest: Some(root_digest.clone()),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let action_digest = persist_blob(&context, &action).await;
+
+        let blobs = batch_read_with_inputs(&service, &action_digest, Some("262144,65536")).await;
+
+        assert_eq!(
+            blobs,
+            vec![
+                (action_digest.clone(), action.clone()),
+                (command_digest, command),
+                (root_digest, root.encode_to_vec()),
+                (leaf_digest, leaf.encode_to_vec()),
+                (input, b"input".to_vec()),
+            ]
+        );
+        assert_eq!(
+            batch_read_with_inputs(&service, &action_digest, None).await,
+            vec![(action_digest, action)]
+        );
+    }
+
+    #[tokio::test]
+    async fn batch_read_of_action_inputs_stays_within_the_requested_limits() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
+            state: context.state.clone(),
+        };
+        let small = persist_blob(&context, b"tiny").await;
+        let large = persist_blob(&context, &[7_u8; 1024]).await;
+        let missing = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"missing input")),
+            size_bytes: 13,
+        };
+        let root = reapi::Directory {
+            files: vec![
+                reapi::FileNode {
+                    name: "large".into(),
+                    digest: Some(large),
+                    ..Default::default()
+                },
+                reapi::FileNode {
+                    name: "missing".into(),
+                    digest: Some(missing),
+                    ..Default::default()
+                },
+                reapi::FileNode {
+                    name: "small".into(),
+                    digest: Some(small.clone()),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let root_digest = persist_directory(&context, &root).await;
+        let action = reapi::Action {
+            input_root_digest: Some(root_digest.clone()),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let action_digest = persist_blob(&context, &action).await;
+
+        let blobs = batch_read_with_inputs(&service, &action_digest, Some("4096,512")).await;
+        assert_eq!(
+            blobs,
+            vec![
+                (action_digest.clone(), action.clone()),
+                (root_digest.clone(), root.encode_to_vec()),
+                (small, b"tiny".to_vec()),
+            ]
+        );
+
+        let root_size = root.encoded_len();
+        let only_root = format!("{},4096", action.len() + root_size);
+        assert_eq!(
+            batch_read_with_inputs(&service, &action_digest, Some(&only_root)).await,
+            vec![
+                (action_digest.clone(), action.clone()),
+                (root_digest, root.encode_to_vec()),
+            ]
+        );
+
+        let not_an_action = persist_blob(&context, b"\x0a\x10").await;
+        assert_eq!(
+            batch_read_with_inputs(&service, &not_an_action, Some("4096,4096")).await,
+            vec![(not_an_action, b"\x0a\x10".to_vec())]
+        );
+    }
+
     #[tokio::test]
     async fn cas_batch_reads_emit_module_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -11392,6 +12061,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let oversized_bytes = vec![b'x'; 9 * 1024 * 1024];
@@ -11471,6 +12141,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = b"present-bytes";
@@ -11526,6 +12197,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let budget_bytes = context.state.memory.reapi_response_budget_bytes();
@@ -11587,14 +12259,17 @@ mod tests {
         .await;
         let first_service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let second_service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let third_service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = vec![b'b'; 8 * 1024 * 1024];
@@ -11694,6 +12369,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -11749,6 +12425,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let stdout_bytes = vec![b's'; 9 * 1024 * 1024];
@@ -11898,6 +12575,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let first_bytes = b"first output".to_vec();
@@ -11943,6 +12621,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let small = b"small".to_vec();
@@ -11998,6 +12677,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // Larger than the response budget under this memory config (the same
@@ -12056,6 +12736,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = vec![b'x'; 2 * 1024 * 1024];
@@ -12135,6 +12816,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // Larger than the response budget; listed BOTH via "*" and explicitly.
@@ -12172,6 +12854,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         context.state.enter_draining();
@@ -12263,6 +12946,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -12393,6 +13077,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -12518,6 +13203,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -12634,6 +13320,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -12958,6 +13645,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let capabilities = service
@@ -12987,6 +13675,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // A highly redundant payload so the wire size shrinks visibly; the
@@ -13552,6 +14241,7 @@ mod tests {
         let memory = context.state.memory.clone();
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let reserved_before = memory.transient_reserved_bytes();
@@ -13604,6 +14294,7 @@ mod tests {
         let memory = context.state.memory.clone();
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let reserved_before = memory.transient_reserved_bytes();
@@ -13632,6 +14323,7 @@ mod tests {
         let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let (reached, resume) = pause_after_metadata_commit(&context);

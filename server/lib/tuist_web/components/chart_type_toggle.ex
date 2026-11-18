@@ -7,7 +7,8 @@ defmodule TuistWeb.Components.ChartTypeToggle do
   alias TuistWeb.Utilities.Query
 
   attr(:id, :string, required: true, doc: "Unique ID prefix for the component elements.")
-  attr(:chart_type, :string, required: true, doc: ~s(Current chart type: "line" or "scatter".))
+  attr(:chart_type, :string, required: true, doc: "Current chart type.")
+  attr(:chart_types, :list, default: ~w(line scatter), doc: "Available chart types, in display order.")
   attr(:chart_type_event, :string, required: true, doc: "Event name for toggling the chart type.")
 
   attr(:group_by_options, :list,
@@ -50,19 +51,18 @@ defmodule TuistWeb.Components.ChartTypeToggle do
       </.dropdown>
       <.button_group size="medium">
         <.button_group_item
-          label={gettext("Line")}
+          :for={type <- @chart_types}
+          label={chart_type_label(type)}
           phx-click={@chart_type_event}
-          phx-value-type="line"
-          data-selected={@chart_type == "line"}
-        />
-        <.button_group_item
-          label={gettext("Scatter plot")}
-          phx-click={@chart_type_event}
-          phx-value-type="scatter"
-          data-selected={@chart_type == "scatter"}
+          phx-value-type={type}
+          data-selected={@chart_type == type}
         />
       </.button_group>
     </div>
     """
   end
+
+  defp chart_type_label("line"), do: gettext("Line")
+  defp chart_type_label("scatter"), do: gettext("Scatter plot")
+  defp chart_type_label("bar"), do: gettext("Bar")
 end

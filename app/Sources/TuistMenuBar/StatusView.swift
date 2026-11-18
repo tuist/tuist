@@ -42,7 +42,7 @@ struct StatusView: View {
 
     private var mainStatusText: String {
         guard let newestTaskStatus else {
-            return "Ready"
+            return String(localized: "Ready")
         }
 
         switch newestTaskStatus.state {
@@ -51,7 +51,7 @@ struct StatusView: View {
         case let .running(message: message, progress: _):
             return message
         case let .done(message: message):
-            return message ?? "Finished"
+            return message ?? String(localized: "Finished")
         }
     }
 

@@ -3,6 +3,11 @@ import Foundation
 import Path
 import TuistNooraExtension
 
+enum TestRunSelectiveTestingStrategy: String, ExpressibleByArgument, CaseIterable {
+    case coverage
+    case moduleHash = "module_hash"
+}
+
 public struct TestListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
@@ -30,6 +35,12 @@ public struct TestListCommand: AsyncParsableCommand, NooraReadyCommand {
     @Option(name: .long, help: "Filter test runs by scheme.")
     var scheme: String?
 
+    @Option(
+        name: .long,
+        help: "Filter test runs by selective testing strategy: coverage (coverage-based test selection, its fallbacks included) or module_hash (the default)."
+    )
+    var selectiveTesting: TestRunSelectiveTestingStrategy?
+
     @Option(name: .long, help: "The page number to fetch (1-indexed).")
     var page: Int?
 
@@ -48,6 +59,7 @@ public struct TestListCommand: AsyncParsableCommand, NooraReadyCommand {
             gitBranch: gitBranch,
             status: status,
             scheme: scheme,
+            selectiveTesting: selectiveTesting?.rawValue,
             page: page,
             pageSize: pageSize,
             json: json

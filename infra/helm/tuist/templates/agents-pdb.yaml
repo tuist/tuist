@@ -1,0 +1,14 @@
+{{- if and (include "tuist.agentsEnabled" .) .Values.agents.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "agents") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agents
+spec:
+  minAvailable: {{ .Values.agents.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "agents") | nindent 6 }}
+{{- end }}

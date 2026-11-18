@@ -8,6 +8,9 @@ defmodule TuistWeb.API.GradleControllerTest do
   alias Tuist.BuildEntities.Identity
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.MCP.Components.Tools.GetGradleBuild
+  alias Tuist.MCP.Components.Tools.GetGradleBuildStep
+  alias Tuist.MCP.Components.Tools.ListGradleBuildTasks
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -75,6 +78,78 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
     end
 
+    test "failure messages survive ingestion, REST and MCP", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration_ms: 400,
+        started_at: "2026-09-09T10:00:00.000Z",
+        status: "failure",
+        configuration_operations: [
+          %{phase: "settings", build_path: ":", duration_ms: 5, started_at: "2026-09-09T10:00:00.000Z"}
+        ],
+        tasks: [
+          %{
+            task_path: ":app:compileJava",
+            outcome: "failed",
+            duration_ms: 300,
+            started_at: "2026-09-09T10:00:00.100Z",
+            failure: %{
+              message: "Execution failed for task ':app:compileJava'.\n> password=hunter2 in /home/ci/app",
+              truncated: false
+            }
+          },
+          %{task_path: ":app:jar", outcome: "skipped", duration_ms: 0, started_at: "2026-09-09T10:00:00.050Z"}
+        ]
+      }
+
+      path = "/api/projects/#{user.account.name}/#{project.name}/gradle/builds"
+
+      id =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(path, JSON.encode!(body))
+        |> json_response(201)
+        |> Map.fetch!("id")
+
+      Buffer.flush()
+      Tuist.Gradle.Task.Buffer.flush()
+      Tuist.Gradle.ConfigurationOperation.Buffer.flush()
+      expected = "Execution failed for task ':app:compileJava'.\n> password=<REDACTED> in <LOCAL_PATH>"
+
+      response = conn |> get(path <> "/" <> id) |> json_response(200)
+
+      assert [%{"kind" => "task", "title" => ":app:compileJava", "message" => ^expected, "step_id" => step_id}] =
+               response["failures"]
+
+      assert Enum.find(response["tasks"], &(&1["task_path"] == ":app:compileJava"))["failure_message"] == expected
+      assert Enum.find(response["tasks"], &(&1["task_path"] == ":app:jar"))["failure_message"] == nil
+      assert [%{"phase" => "settings", "failure_message" => nil}] = response["configuration_operations"]
+
+      tasks =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{id}/tasks")
+        |> json_response(200)
+
+      assert tasks["tasks"] |> Enum.map(& &1["failure_message"]) |> Enum.sort() == Enum.sort([expected, nil])
+
+      step = conn |> get(path <> "/" <> id <> "/steps/" <> step_id) |> json_response(200)
+      assert %{"log" => ^expected, "log_truncated" => false, "status" => "failure"} = step
+
+      mcp_conn = %Plug.Conn{assigns: %{current_user: user}}
+
+      assert %{"content" => [%{"text" => build_text}]} = GetGradleBuild.call(mcp_conn, %{"build_run_id" => id})
+      assert [%{"message" => ^expected, "step_id" => ^step_id}] = JSON.decode!(build_text)["failures"]
+
+      assert %{"content" => [%{"text" => step_text}]} =
+               GetGradleBuildStep.call(mcp_conn, %{"build_run_id" => id, "step_id" => step_id})
+
+      assert JSON.decode!(step_text)["log"] == expected
+
+      assert %{"content" => [%{"text" => tasks_text}]} =
+               ListGradleBuildTasks.call(mcp_conn, %{"build_run_id" => id, "outcome" => "failed"})
+
+      assert [%{"failure_message" => ^expected}] = JSON.decode!(tasks_text)["tasks"]
+    end
+
     test "expanded metadata survives ingestion, REST and MCP without registry filtering", %{
       conn: conn,
       user: user,
@@ -96,7 +171,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert response["custom_metadata"] == %{"tags" => ["ci"], "values" => values}
       mcp = %Plug.Conn{assigns: %{current_user: user}}
       args = %{"build_run_id" => id}
-      assert %{"structuredContent" => detail} = Tuist.MCP.Components.Tools.GetGradleBuild.call(mcp, args)
+      assert %{"structuredContent" => detail} = GetGradleBuild.call(mcp, args)
       assert detail["custom_metadata"] == response["custom_metadata"]
     end
 

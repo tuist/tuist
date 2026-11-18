@@ -8,6 +8,7 @@ defmodule TuistWeb.BazelInvocationLive do
 
   import TuistWeb.Components.BuildTimeline
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
@@ -100,6 +101,9 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:available_filters, available_filters)
      |> assign(:cache_sort_by, cache_sort_by)
      |> assign(:cache_sort_order, cache_sort_order)
+     |> assign(:remote_sort_by, if(params["remote-sort-by"] == "started-at", do: "started-at", else: "duration"))
+     |> assign(:remote_sort_order, if(params["remote-sort-order"] in ~w(asc desc), do: params["remote-sort-order"]))
+     |> load_remote_actions(selected_tab, invocation, params)
      |> BuildTimelineLoader.assign_timeline(selected_tab, invocation)}
   end
 
@@ -156,7 +160,12 @@ defmodule TuistWeb.BazelInvocationLive do
 
   def render(assigns) do
     ~H"""
-    <div id="bazel-invocation" class="bazel-invocation">
+    <div
+      id="bazel-invocation"
+      class="bazel-invocation"
+      phx-hook="PageFavicon"
+      data-favicon-status={@invocation.status}
+    >
       <.button
         label={@bazel_back_label}
         data-part="back-button"
@@ -196,7 +205,144 @@ defmodule TuistWeb.BazelInvocationLive do
           patch={tab_path(assigns, "cache")}
           selected={@selected_tab == "cache"}
         />
+        <.tab_menu_horizontal_item
+          label={dgettext("dashboard_builds", "Remote execution")}
+          patch={tab_path(assigns, "remote-execution")}
+          selected={@selected_tab == "remote-execution"}
+        />
       </.tab_menu_horizontal>
+      <.card
+        :if={@selected_tab == "remote-execution"}
+        title={dgettext("dashboard_builds", "Remote actions")}
+        icon="history"
+      >
+        <:actions>
+          <div data-part="phase-legend">
+            <span :for={{phase, _field, label} <- remote_phases()} data-phase={phase}>
+              {label}
+            </span>
+          </div>
+        </:actions>
+        <.card_section
+          data-part="remote-execution-section"
+          data-state={if @remote_actions.ok? && @remote_actions.loading, do: "refreshing"}
+          aria-busy={if @remote_actions.loading, do: "true", else: "false"}
+        >
+          <div
+            :if={!(@remote_actions.ok? && @remote_actions.result.steps == [])}
+            data-part="filters"
+          >
+            <.dropdown
+              id="remote-actions-sort-by"
+              label={remote_sort_label(@remote_sort_by)}
+              secondary_text={dgettext("dashboard_builds", "Sort by:")}
+            >
+              <.dropdown_item
+                :for={sort_by <- ~w(duration started-at)}
+                value={sort_by}
+                label={remote_sort_label(sort_by)}
+                patch={remote_path(assigns, 1, sort_by)}
+                data-selected={@remote_sort_by == sort_by}
+              >
+                <:right_icon :if={@remote_sort_by == sort_by}><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <%!-- A re-sort or page change keeps the current rows until the new ones arrive. --%>
+          <.async_result :let={result} assign={@remote_actions}>
+            <:loading>
+              <div data-part="skeleton">
+                <.skeleton_box :for={_ <- 1..5} width="100%" height="44px" border_radius="8px" />
+              </div>
+            </:loading>
+            <:failed><.error_state /></:failed>
+            <.table
+              :if={result.steps != []}
+              id="remote-actions-table"
+              rows={trace_rows(result.steps)}
+              row_key={&("remote-action-" <> &1.action.id)}
+            >
+              <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
+                <div data-part="trace-action">
+                  <.text_and_description_cell
+                    label={row.action.title}
+                    description={row.action.target}
+                  />
+                </div>
+              </:col>
+              <:col
+                :let={row}
+                label={dgettext("dashboard_builds", "Started at")}
+                patch={remote_header_path(assigns, "started-at")}
+                sort_order={remote_sort_order(assigns, "started-at")}
+              >
+                <.text_cell label={remote_duration(row.action.start_ms)} />
+              </:col>
+              <:col :let={row} label={dgettext("dashboard_builds", "Phases")}>
+                <%!-- Noora's tooltip renders only a title, so this reuses its hook with
+                     the chart tooltip's card to list each phase like a chart series. --%>
+                <div
+                  id={"remote-action-phases-" <> row.action.id}
+                  class="noora-tooltip"
+                  phx-hook="NooraTooltip"
+                  data-open-delay="250"
+                  data-close-delay="150"
+                  data-positioning-placement="top"
+                >
+                  <div data-part="trigger">
+                    <span data-part="phase-bar" style={"width: #{row.width}%"}>
+                      <span
+                        :for={segment <- row.segments}
+                        data-phase={segment.phase}
+                        style={"flex-basis: #{segment.share}%"}
+                      />
+                    </span>
+                  </div>
+                  <div data-part="positioner">
+                    <div data-part="content" class="noora-chart-tooltip">
+                      <span data-part="title">{row.action.title}</span>
+                      <div class="noora-line-divider">
+                        <div data-part="line"></div>
+                      </div>
+                      <div :for={phase <- row.phases} data-part="series-item" data-phase={phase.phase}>
+                        <span data-part="dot"></span>
+                        <span data-part="label">{phase.label}</span>
+                        <span data-part="value">{remote_duration(phase.ms)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </:col>
+              <:col
+                :let={row}
+                label={dgettext("dashboard_projects", "Duration")}
+                patch={remote_header_path(assigns, "duration")}
+                sort_order={remote_sort_order(assigns, "duration")}
+              >
+                <.text_cell label={remote_duration(row.action.duration_ms)} icon="history" />
+              </:col>
+            </.table>
+            <div :if={result.steps == []} id="remote-actions-table">
+              <.table_empty_state
+                icon="history"
+                title={dgettext("dashboard_builds", "No remote action timings")}
+                subtitle={
+                  dgettext(
+                    "dashboard_builds",
+                    "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
+                  )
+                }
+              />
+            </div>
+            <.pagination_group
+              :if={result.pagination_metadata.total_pages > 1}
+              current_page={result.pagination_metadata.current_page}
+              number_of_pages={result.pagination_metadata.total_pages}
+              page_patch={fn page -> remote_path(assigns, page) end}
+            />
+          </.async_result>
+        </.card_section>
+      </.card>
       <section :if={@selected_tab == "timeline"}>
         <.build_timeline_section
           timeline={@timeline}
@@ -232,7 +378,7 @@ defmodule TuistWeb.BazelInvocationLive do
                     label={invocation_result_label(@invocation)}
                     color={invocation_result_badge_color(@invocation.status)}
                     style="fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
                 <div data-part="metadata">
@@ -1006,8 +1152,106 @@ defmodule TuistWeb.BazelInvocationLive do
   defp invocation_title(%{target_patterns: []}), do: dgettext("dashboard_projects", "Bazel invocation")
   defp invocation_title(invocation), do: target_patterns_label(invocation.target_patterns)
 
-  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache", "timeline"], do: tab
+  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache", "timeline", "remote-execution"], do: tab
   defp selected_tab(_params), do: "overview"
+
+  defp load_remote_actions(socket, "remote-execution", invocation, params) do
+    page = min(parse_page(params["remote-page"]), 100_000)
+    sort_by = if socket.assigns.remote_sort_by == "started-at", do: "start_ms", else: "duration_ms"
+    sort_order = socket.assigns.remote_sort_order
+
+    socket
+    |> cancel_async(:remote_actions)
+    |> assign_async(
+      :remote_actions,
+      fn ->
+        {:ok, result} =
+          RecordedSteps.list(invocation, %{
+            remote_execution: true,
+            page: page,
+            sort_by: sort_by,
+            sort_order: sort_order
+          })
+
+        {:ok, %{remote_actions: result}}
+      end
+    )
+  end
+
+  defp load_remote_actions(socket, _, _, _), do: cancel_async(socket, :remote_actions)
+
+  # Pages keep the current sort. Choosing a sort from the dropdown starts at its
+  # default order: earliest first for start times, longest first for durations.
+  defp remote_path(assigns, page, sort_by \\ nil, sort_order \\ nil) do
+    "#{detail_path(assigns)}?" <>
+      URI.encode_query(
+        Map.reject(
+          %{
+            "tab" => "remote-execution",
+            "remote-page" => page,
+            "remote-sort-by" => sort_by || assigns.remote_sort_by,
+            "remote-sort-order" => if(sort_by, do: sort_order, else: assigns.remote_sort_order)
+          },
+          fn {_key, value} -> is_nil(value) end
+        )
+      )
+  end
+
+  # Clicking the active column's header reverses it; another column starts at its default.
+  defp remote_header_path(assigns, sort_by) do
+    order = remote_sort_order(assigns, sort_by)
+    remote_path(assigns, 1, sort_by, order && if(order == "asc", do: "desc", else: "asc"))
+  end
+
+  defp remote_sort_order(%{remote_sort_by: sort_by, remote_sort_order: order}, sort_by),
+    do: order || if(sort_by == "started-at", do: "asc", else: "desc")
+
+  defp remote_sort_order(_assigns, _sort_by), do: nil
+
+  defp remote_sort_label("started-at"), do: dgettext("dashboard_builds", "Started at")
+  defp remote_sort_label(_duration), do: dgettext("dashboard_builds", "Duration")
+
+  defp remote_phases do
+    [
+      {"queue", :remote_queue_ms, dgettext("dashboard_builds", "Queue")},
+      {"input-fetch", :remote_input_fetch_ms, dgettext("dashboard_builds", "Input fetch")},
+      {"execution", :remote_execution_ms, dgettext("dashboard_builds", "Execution")},
+      {"output-upload", :remote_output_upload_ms, dgettext("dashboard_builds", "Output upload")}
+    ]
+  end
+
+  # Bar length is relative to the page's longest action. Segments split the
+  # action's duration; time outside recorded server phases stays neutral.
+  defp trace_rows(steps) do
+    longest = steps |> Enum.map(& &1.duration_ms) |> Enum.max(fn -> 0 end)
+
+    Enum.map(steps, fn action ->
+      # Unrecorded phases are left out of the bar and tooltip rather than shown as zero.
+      phases =
+        for {phase, field, label} <- remote_phases(),
+            ms = Map.get(action, field),
+            is_number(ms),
+            do: %{phase: phase, label: label, ms: ms}
+
+      %{
+        action: action,
+        width: if(longest > 0, do: max(Float.round((action.duration_ms || 0) / longest * 100, 2), 2), else: 2),
+        segments: phase_segments(phases, action.duration_ms || 0),
+        phases: phases
+      }
+    end)
+  end
+
+  defp phase_segments(phases, duration) do
+    total = max(duration, phases |> Enum.map(& &1.ms) |> Enum.sum())
+
+    for %{phase: phase, ms: ms} <- phases,
+        ms > 0 and total > 0,
+        do: %{phase: phase, share: Float.round(ms / total * 100, 2)}
+  end
+
+  defp remote_duration(nil), do: dgettext("dashboard_builds", "Not recorded")
+  defp remote_duration(duration), do: DateFormatter.format_duration_from_milliseconds(duration)
 
   defp remote_cache_used?(invocation) do
     invocation.cache.hits + invocation.cache.misses + invocation.cache.download_bytes + invocation.cache.upload_bytes > 0

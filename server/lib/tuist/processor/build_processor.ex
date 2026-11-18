@@ -15,7 +15,15 @@ defmodule Tuist.Processor.BuildProcessor do
 
   alias Tuist.Processor.XCActivityLogParser
 
+  require Logger
+
   @apple_reference_date_offset 978_307_200
+
+  # The CLI samples once per second and trims the file to the last hour, about
+  # 1 MB. The file comes from the uploaded archive and every decoded line is
+  # kept in memory, so a far larger file is skipped rather than read: a small,
+  # highly compressed archive could otherwise exhaust the processor's memory.
+  @max_machine_metrics_bytes 32 * 1024 * 1024
 
   # Reasons `:zip.unzip/2` returns when the archive itself is malformed, taken
   # from the atoms `stdlib`'s `zip.erl` actually throws. The download layer
@@ -127,25 +135,31 @@ defmodule Tuist.Processor.BuildProcessor do
   end
 
   defp read_machine_metrics(path, start_time, end_time) do
-    if File.exists?(path) do
-      start_unix = start_time + @apple_reference_date_offset
-      end_unix = end_time + @apple_reference_date_offset
+    case File.stat(path) do
+      {:ok, %{size: size}} when size > @max_machine_metrics_bytes ->
+        Logger.warning("Skipping machine metrics: machine_metrics.jsonl is #{size} bytes")
+        []
 
-      path
-      |> File.stream!()
-      |> Stream.map(&String.trim/1)
-      |> Stream.reject(&(&1 == ""))
-      |> Stream.map(fn line -> JSON.decode(line) end)
-      |> Stream.filter(&match?({:ok, _}, &1))
-      |> Stream.map(fn {:ok, decoded} -> decoded end)
-      |> Stream.filter(fn sample ->
-        ts = sample["timestamp"]
-        ts >= start_unix and ts <= end_unix
-      end)
-      |> Stream.map(&Map.put(&1, "offset_ms", (&1["timestamp"] - start_unix) * 1000))
-      |> Enum.to_list()
-    else
-      []
+      {:ok, _} ->
+        start_unix = start_time + @apple_reference_date_offset
+        end_unix = end_time + @apple_reference_date_offset
+
+        path
+        |> File.stream!()
+        |> Stream.map(&String.trim/1)
+        |> Stream.reject(&(&1 == ""))
+        |> Stream.map(fn line -> JSON.decode(line) end)
+        |> Stream.filter(&match?({:ok, _}, &1))
+        |> Stream.map(fn {:ok, decoded} -> decoded end)
+        |> Stream.filter(fn sample ->
+          ts = sample["timestamp"]
+          ts >= start_unix and ts <= end_unix
+        end)
+        |> Stream.map(&Map.put(&1, "offset_ms", (&1["timestamp"] - start_unix) * 1000))
+        |> Enum.to_list()
+
+      {:error, _} ->
+        []
     end
   end
 

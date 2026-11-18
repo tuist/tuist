@@ -443,7 +443,7 @@ body[data-part="poc-public-body"] {
     z-index: var(--noora-z-index-4);
     max-width: 100%;
     padding: var(--noora-spacing-4);
-    box-shadow: var(--noora-border-heavy);
+    box-shadow: var(--noora-border-large);
     border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     overflow: hidden;

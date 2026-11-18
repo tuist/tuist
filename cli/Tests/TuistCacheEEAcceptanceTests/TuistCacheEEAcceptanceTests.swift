@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistCacheCommand
@@ -19,6 +20,7 @@ import XcodeProj
 @testable import TuistCacheEE
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct TuistCacheEEAcceptanceTests {
     @Test(
         .disabled("Requires simulator and SPM install"),

@@ -213,7 +213,10 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:selective_testing_active_filters, filters)
     |> assign(:selective_testing_page, Query.bounded_page(params["selective-testing-page"]))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
-    |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "asc")
+    |> assign(
+      :selective_testing_sort_order,
+      Atom.to_string(Query.sort_order(params["selective-testing-sort-order"], :asc))
+    )
   end
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
@@ -228,7 +231,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_active_filters, filters)
     |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
-    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_sort_order, Atom.to_string(Query.sort_order(params["binary-cache-sort-order"], :asc)))
   end
 
   defp assign_selective_testing_defaults(socket) do
@@ -277,7 +280,7 @@ defmodule TuistWeb.RunDetailLive do
       page: Query.bounded_page(params["selective-testing-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
-      order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
+      order_directions: [Query.sort_order(params["selective-testing-sort-order"], :asc)]
     }
 
     {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
@@ -299,7 +302,7 @@ defmodule TuistWeb.RunDetailLive do
       page: Query.bounded_page(params["binary-cache-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
-      order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
+      order_directions: [Query.sort_order(params["binary-cache-sort-order"], :asc)]
     }
 
     {filtered_analytics, meta} = Xcode.binary_cache_analytics(run, flop_params)

@@ -3,7 +3,7 @@ import SwiftUI
 import TuistNoora
 
 struct PreviewViewMetadataRow<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     let content: () -> Content
     var body: some View {
         HStack {

@@ -61,7 +61,7 @@
     & > svg { flex-shrink: 0; width: 20px; height: 20px; color: var(--noora-surface-label-secondary); }
     &:hover { background: var(--noora-surface-background-secondary); }
     &[data-selected="true"] { background: var(--noora-surface-background-tertiary); }
-    &:focus-visible { outline: 2px solid var(--noora-surface-label-primary); outline-offset: -2px; }
+    &:focus-visible { outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color); outline-offset: calc(-1 * var(--noora-focus-ring-width)); }
   }
   & [data-part="thread-text"] {
     display: flex;
@@ -176,7 +176,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     min-width: 0;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
 
     & > button { margin: var(--noora-spacing-5) var(--noora-spacing-4); }
@@ -202,7 +202,7 @@
     &::-webkit-details-marker { display: none; }
     & > svg { flex-shrink: 0; width: 16px; height: 16px; color: var(--noora-surface-label-secondary); }
     & > span:first-of-type { flex: 1; min-width: 4ch; overflow-wrap: anywhere; }
-    &:focus-visible { outline: 2px solid var(--noora-surface-label-primary); outline-offset: -2px; border-radius: var(--noora-radius-3); }
+    &:focus-visible { outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color); outline-offset: calc(-1 * var(--noora-focus-ring-width)); border-radius: var(--noora-radius-3); }
   }
   & details[open] > summary > svg { transform: rotate(90deg); }
   & [data-part="evidence"] {
@@ -260,7 +260,7 @@
     & h2 { margin: 0; font: var(--noora-font-weight-medium) var(--noora-font-heading-medium); }
     & p { margin: 0; max-width: 420px; color: var(--noora-surface-label-secondary); }
   }
-  & [data-part="welcome-icon"] { display: flex; padding: var(--noora-spacing-6); box-shadow: var(--noora-border-light-default); border-radius: var(--noora-radius-4); }
+  & [data-part="welcome-icon"] { display: flex; padding: var(--noora-spacing-6); box-shadow: var(--noora-border-small-default); border-radius: var(--noora-radius-4); }
 
   @media (max-width: 1100px) {
     & [data-part="workspace"] { grid-template-columns: minmax(0, 1fr); }

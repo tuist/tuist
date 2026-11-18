@@ -8,7 +8,6 @@ import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
 import TuistHTTP
-import TuistOIDC
 import TuistServer
 
 public protocol CacheConfigCommandServicing {
@@ -24,8 +23,6 @@ public protocol CacheConfigCommandServicing {
 public struct CacheConfigCommandService: CacheConfigCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
-    private let ciOIDCAuthenticator: CIOIDCAuthenticating
-    private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let fullHandleService: FullHandleServicing
@@ -37,9 +34,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         cacheURLStore: CacheURLStoring = CacheURLStore(),
         getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        configLoader: ConfigLoading = ConfigLoader(),
-        ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
@@ -47,8 +42,6 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         self.getCacheTokenService = getCacheTokenService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
-        self.ciOIDCAuthenticator = ciOIDCAuthenticator
-        self.exchangeOIDCTokenService = exchangeOIDCTokenService
     }
 
     public func run(
@@ -113,33 +106,16 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         }
     }
 
+    /// A signed-out CLI with a workload identity (CI, Amp orbs) signs itself in during the token
+    /// lookup, so there is no separate OIDC step here.
     private func ensureAuthenticated(serverURL: URL, forceRefresh: Bool) async throws {
         if forceRefresh {
             try await serverAuthenticationController.refreshToken(serverURL: serverURL)
         }
 
-        if try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil {
-            return
+        if try await serverAuthenticationController.authenticationToken(serverURL: serverURL) == nil {
+            throw CacheConfigCommandServiceError.notAuthenticated
         }
-
-        if Environment.current.isCI, let _ = try? await authenticateWithOIDC(serverURL: serverURL) {
-            return
-        }
-
-        throw CacheConfigCommandServiceError.notAuthenticated
-    }
-
-    private func authenticateWithOIDC(serverURL: URL) async throws {
-        let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
-        let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
-            oidcToken: oidcToken,
-            serverURL: serverURL
-        )
-
-        try await ServerCredentialsStore.current.store(
-            credentials: ServerCredentials(accessToken: accessToken),
-            serverURL: serverURL
-        )
     }
 }
 

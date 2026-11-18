@@ -62,7 +62,7 @@ jobs:
         working-directory: infra/rack-switch-controller
         run: |
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-          echo "KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 --bin-dir /tmp/envtest -p path)" >> "$GITHUB_ENV"
+          echo "KUBEBUILDER_ASSETS=$(setup-envtest use 1.36.0 --bin-dir /tmp/envtest -p path)" >> "$GITHUB_ENV"
       - name: Test
         working-directory: infra/rack-switch-controller
         run: go test ./...

@@ -151,7 +151,6 @@ struct XcodeBuildTestCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies(), arguments: [true, false])
     func bumpsCoverageCountersAtomicallyWhenCoverageIsUploaded(uploadsCoverage: Bool) async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
         given(configLoader)
             .loadConfig(path: .any)

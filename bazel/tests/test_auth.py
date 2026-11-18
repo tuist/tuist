@@ -534,16 +534,63 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(requests, [])
         self.assertFalse(self.credentials.exists())
 
-    def test_device_login_polls_pending_then_saves_tokens(self):
+    def test_device_login_shows_user_code_and_polls_its_device_code(self):
+        polls = 0
+
+        def respond(record):
+            nonlocal polls
+            if record[0] == "POST":
+                return 200, {
+                    "device_code": "secret-device-code",
+                    "user_code": "WDJB-MJHT",
+                    "verification_uri": url + "/auth/device",
+                    "expires_in": 300,
+                    "interval": 1,
+                    "future_field": True,
+                }
+            polls += 1
+            return (202, {}) if polls == 1 else (200, self.pair)
+
+        with endpoint(respond) as (url, requests):
+            out = self.run_client(url, operation="login", env={"TEST_DEVICE": "1"})
+        self.assertEqual(
+            [(method, path) for method, path, _, _ in requests],
+            [("POST", "/api/auth/device_codes")]
+            + [("GET", "/api/auth/device_code/secret-device-code")] * 2,
+        )
+        self.assertIn("Your sign-in code is WDJB-MJHT.", out)
+        self.assertIn(f"BROWSER {url}/auth/device\n", out)
+        self.assertEqual(
+            json.loads(self.credentials.read_text())["accessToken"], self.fresh
+        )
+
+    def test_device_login_does_not_fall_back_when_the_server_fails(self):
+        def respond(record):
+            self.assertEqual(record[0], "POST")
+            return 500, {}
+
+        with endpoint(respond) as (url, requests):
+            out = self.run_client(
+                url, operation="login", success=False, env={"TEST_DEVICE": "1"}
+            )
+        self.assertEqual({path for _, path, _, _ in requests}, {"/api/auth/device_codes"})
+        self.assertNotIn("BROWSER", out)
+        self.assertFalse(self.credentials.exists())
+
+    def test_device_login_falls_back_to_link_on_servers_without_user_codes(self):
         count = 0
 
-        def respond(_):
+        def respond(record):
             nonlocal count
+            if record[0] == "POST":
+                self.assertEqual(record[1], "/api/auth/device_codes")
+                return 404, {}
             count += 1
             return (202, {}) if count == 1 else (200, self.pair)
 
         with endpoint(respond) as (url, requests):
             out = self.run_client(url, operation="login", env={"TEST_DEVICE": "1"})
+        requests = requests[1:]
         self.assertEqual(len(requests), 2)
         self.assertEqual(requests[0], requests[1])
         method, path, _, body = requests[0]

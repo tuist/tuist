@@ -146,6 +146,15 @@ spec:
                     emulators. Pods boot the KVM-enabled guest kernel,
                     land only on `tuist.dev/kata-kvm=true` hosts, and
                     request one `devices.tuist.dev/kvm`.
+                exclusiveCPUs:
+                  type: boolean
+                  description: |
+                    Gives each runner Pod whole physical cores to itself
+                    (Linux `kata-qemu` pools only). The Pod carries one
+                    Guaranteed Pod-level budget (`spec.resources`) that the
+                    runner and its sidecars share, and lands only on
+                    `tuist.dev/pod-level-resource-managers=true` hosts.
+                    podCPUMilli must be a whole, even number of CPUs.
                 provisioning:
                   type: object
                   description: |

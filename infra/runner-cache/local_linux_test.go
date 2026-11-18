@@ -3,7 +3,9 @@
 package cachevolumes
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
@@ -219,6 +221,111 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if err := firstHost.Delete(slot, mount); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// A job that deletes data from a warm volume publishes a master and archive
+// without it only when the branch is trimmed, and the trim leaves the master it
+// was cloned from intact.
+func TestLinuxLocalImagesTrimDropsDeletedDataFromPublication(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	const scratchBytes = 128 << 20
+	scratch := make([]byte, scratchBytes)
+	if _, err := rand.Read(scratch); err != nil {
+		t.Fatal(err)
+	}
+	for _, trimmed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "untrimmed", true: "trimmed"}[trimmed], func(t *testing.T) {
+			root, err := os.MkdirTemp(cache, "trim-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(root) })
+			remote := &diskTransfer{archive: filepath.Join(root, "remote.image")}
+			b := &LocalImages{Root: filepath.Join(root, "host"), SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+			if trimmed {
+				b.Trim = TrimFS
+			}
+			if err := os.MkdirAll(b.Root, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Probe(); err != nil {
+				t.Fatal(err)
+			}
+			job := func(id string, base Slot, work func(string)) Slot {
+				t.Helper()
+				slot := Slot{Identity: identity(id), PodUID: "pod-" + id}
+				if base.BaseGeneration > 0 || base.ID != "" {
+					slot.BaseGeneration, slot.ContentDigest, slot.ImageDigest = remote.generation, remote.content, strings.Repeat("a", 40)
+				}
+				mount := filepath.Join(root, "mount-"+id)
+				os.Mkdir(mount, 0700)
+				t.Cleanup(func() { b.Delete(slot, mount) })
+				if err := b.Attach(context.Background(), slot, mount); err != nil {
+					t.Fatal(err)
+				}
+				afterMarker(t, mount)
+				work(mount)
+				if err := b.Seal(slot, mount); err != nil {
+					t.Fatal(err)
+				}
+				if err := b.Delete(slot, mount); err != nil {
+					t.Fatal(err)
+				}
+				slot.BaseGeneration, slot.ContentDigest = remote.generation, remote.content
+				return slot
+			}
+			saved := job(first, Slot{}, func(mount string) {
+				if err := os.WriteFile(filepath.Join(mount, "scratch"), scratch, 0644); err != nil {
+					t.Fatal(err)
+				}
+			})
+			firstArchive := fileSize(t, remote.archive)
+			firstMaster := b.master(saved)
+			pruned := job(second, saved, func(mount string) {
+				if err := os.Remove(filepath.Join(mount, "scratch")); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(mount, "kept"), []byte("small"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			})
+			master, archive := allocatedBytes(b.master(pruned)), fileSize(t, remote.archive)
+			t.Logf("first archive=%d, pruned master allocated=%d archive=%d", firstArchive, master, archive)
+			if trimmed && (master >= scratchBytes/2 || archive >= scratchBytes/2) {
+				t.Fatal("the trimmed master or archive still carries the deleted data", master, archive)
+			}
+			if !trimmed && archive < scratchBytes {
+				t.Fatal("expected the untrimmed archive to carry the deleted data; the control no longer shows the problem", archive)
+			}
+			// The master the pruned job cloned still holds every byte it saved.
+			reader := Slot{Identity: identity(third), PodUID: "pod-reader"}
+			reader.BaseGeneration, reader.ContentDigest, reader.ImageDigest = saved.BaseGeneration, saved.ContentDigest, strings.Repeat("a", 40)
+			if _, err := os.Stat(firstMaster); err != nil {
+				t.Fatal("the first master is gone", err)
+			}
+			mount := filepath.Join(root, "mount-reader")
+			os.Mkdir(mount, 0700)
+			t.Cleanup(func() { b.Delete(reader, mount) })
+			if err := b.Attach(context.Background(), reader, mount); err != nil || b.Cold(reader) {
+				t.Fatal("could not clone the first master", err)
+			}
+			if data, err := os.ReadFile(filepath.Join(mount, "scratch")); err != nil || !bytes.Equal(data, scratch) {
+				t.Fatal("trimming a clone changed the master it was cloned from", err)
+			}
+		})
+	}
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Size()
 }
 
 func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {

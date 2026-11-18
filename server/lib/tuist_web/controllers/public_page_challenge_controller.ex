@@ -95,7 +95,7 @@ defmodule TuistWeb.PublicPageChallengeController do
   defp capture_return_to_from_query(conn, params) do
     case params["return_to"] do
       raw when is_binary(raw) and raw != "" ->
-        if local_path?(raw) do
+        if Authentication.session_return_to(raw) do
           put_session(conn, PublicPageChallengePlug.return_to_key(), raw)
         else
           conn
@@ -187,22 +187,8 @@ defmodule TuistWeb.PublicPageChallengeController do
         get_session(conn, PublicPageChallengePlug.return_to_key()) ||
         "/"
 
-    if local_path?(candidate), do: candidate, else: "/"
+    Authentication.local_return_to(candidate) || "/"
   end
-
-  # Phoenix's `redirect(to: path)` raises `Plug.Conn.InvalidHeaderError`
-  # when the path carries a control character (CR/LF/tab, NUL, or any
-  # byte < 0x20 / 0x7f), and the protocol-relative `//` and `/\` forms
-  # let a bare `Location` header point off-origin. Reject all of that
-  # here and fall back to `/` rather than blowing up mid-verify.
-  defp local_path?("//" <> _), do: false
-  defp local_path?("/\\" <> _), do: false
-
-  defp local_path?("/" <> _ = path) when is_binary(path) do
-    not Regex.match?(~r/[\x00-\x1f\x7f\\]/, path)
-  end
-
-  defp local_path?(_), do: false
 
   @doc "Freshness window used by the plug + on_mount, exposed here for tests."
   def freshness_seconds, do: Environment.public_page_challenge_freshness()

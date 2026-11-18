@@ -26,18 +26,19 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       body = conn |> get("/llms.txt") |> response(200)
 
       assert String.starts_with?(body, "# Tuist\n")
-      assert body =~ "\n> Tuist is build infrastructure for productive teams."
-      assert body =~ "embraces build-system diversity with native depth"
-      assert body =~ "one productivity platform rather than a separate product per build system"
-      assert body =~ "avoiding unnecessary project work before buying more compute"
+
+      assert body =~
+               "\n> Tuist is build infrastructure for engineering teams and coding agents."
+
+      assert body =~ "capabilities and prerequisites that vary by feature"
     end
 
-    test "qualifies selective testing and optional runner availability", %{conn: conn} do
+    test "keeps the public definition aligned with the Markdown overview", %{conn: conn} do
       body = conn |> get("/llms.txt") |> response(200)
+      [_, summary] = Regex.run(~r/^> (.+)$/m, body)
+      markdown = conn |> recycle() |> get("/marketing-markdown") |> response(200)
 
-      assert body =~ "Selective testing skips unchanged test targets in Tuist-generated Xcode projects"
-      assert body =~ "Managed runners are optional and currently invite-only"
-      refute body =~ "run only the tests a change can affect"
+      assert markdown =~ summary
     end
 
     test "indexes problem and comparison guides with their explicit Markdown URLs", %{conn: conn} do
@@ -97,8 +98,14 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert body =~ "## Product"
 
-      for path <- ["", "/cache", "/compute", "/tests", "/previews", "/pricing"] do
+      for path <- ["", "/cache", "/runners", "/tests", "/previews", "/pricing"] do
         assert body =~ "(#{Tuist.Environment.app_url(path: "/marketing-markdown" <> path)})"
+      end
+
+      assert body =~ "## Runners by CI provider"
+
+      for provider <- ["github-actions", "gitlab-ci", "buildkite"] do
+        assert body =~ "(#{Tuist.Environment.app_url(path: "/marketing-markdown/runners/" <> provider)})"
       end
 
       assert body =~ "Accept: text/markdown"
@@ -117,13 +124,13 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert String.starts_with?(
                body,
-               "# Tuist\n\n> Tuist is build infrastructure for productive teams."
+               "# Tuist\n\n> Tuist is build infrastructure for engineering teams and coding agents."
              )
     end
 
     test "includes the full Markdown source of every English documentation page", %{conn: conn} do
       body = conn |> get("/llms-full.txt") |> response(200)
-      pages = Enum.filter(Docs.pages(), &(&1.slug == "/en" or String.starts_with?(&1.slug, "/en/")))
+      pages = Docs.pages("en")
       assert pages != []
 
       for page <- pages do

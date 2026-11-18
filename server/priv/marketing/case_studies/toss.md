@@ -4,6 +4,8 @@ date: "2026-10-01"
 url: "https://toss.im/"
 founded_date: "2013"
 company: "Toss"
+# onboarded_date: "YYYY-MM-DD"  # TODO: confirm with Toss the month it started using Tuist.
+# results:  # TODO: ask Toss for the share of local builds finishing within a minute before and after the binary cache (the story only says it "more than tripled").
 excerpt: "Toss, Korea's leading financial super-app, is split into close to 1,000 modules. This is how the team used Tuist's binary cache to more than triple the share of local builds that finish within a minute."
 translations:
   ko:

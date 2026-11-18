@@ -7,6 +7,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.CrashReport
+  alias Tuist.Tests.RunSelection
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -155,6 +156,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ci_host: Keyword.get(attrs, :ci_host),
         ci_provider: Keyword.get(attrs, :ci_provider),
         shard_plan_id: Keyword.get(attrs, :shard_plan_id),
+        test_impact_run_id: Keyword.get(attrs, :test_impact_run_id),
         only_test_identifiers: Keyword.get(attrs, :only_test_identifiers, []),
         coverage_evidence: Keyword.get(attrs, :coverage_evidence),
         skip_test_identifiers: Keyword.get(attrs, :skip_test_identifiers, []),
@@ -181,6 +183,37 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
 
     result
   end
+
+  @doc """
+  A row of `test_run_selections`: how many tests a test run's selection
+  avoided out of the tests in its scope.
+  """
+  def run_selection_fixture(attrs \\ []) do
+    avoided = Keyword.get(attrs, :avoided_tests, 0)
+
+    row = %{
+      project_id: Keyword.fetch!(attrs, :project_id),
+      test_run_id: Keyword.get(attrs, :test_run_id, UUIDv7.generate()),
+      ran_at: attrs |> Keyword.get(:ran_at, NaiveDateTime.utc_now()) |> usec(),
+      build_system: Keyword.get(attrs, :build_system, "xcode"),
+      is_ci: Keyword.get(attrs, :is_ci, false),
+      scheme: Keyword.get(attrs, :scheme, "App"),
+      git_branch: Keyword.get(attrs, :git_branch, "main"),
+      strategy: Keyword.get(attrs, :strategy, "module_hash"),
+      test_impact_run_id: Keyword.get(attrs, :test_impact_run_id),
+      scope_tests: Keyword.get(attrs, :scope_tests, avoided),
+      avoided_tests: avoided,
+      estimated_tests: Keyword.get(attrs, :estimated_tests, 0),
+      avoided_by: Keyword.get(attrs, :avoided_by, if(avoided > 0, do: %{"module_hash" => avoided}, else: %{})),
+      inserted_at: attrs |> Keyword.get(:inserted_at, NaiveDateTime.utc_now()) |> usec()
+    }
+
+    IngestRepo.insert_all(RunSelection, [row])
+    row
+  end
+
+  defp usec(%NaiveDateTime{microsecond: {microsecond, _precision}} = datetime),
+    do: %{datetime | microsecond: {microsecond, 6}}
 
   def cas_output_fixture(attrs \\ []) do
     {build_run_id, project_id} =

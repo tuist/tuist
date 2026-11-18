@@ -248,7 +248,12 @@ defmodule Tuist.Billing.UsagePricing do
     |> Enum.sort_by(&{Date.to_erl(&1.date), &1.meter})
   end
 
-  defp projected_days(totals, period_start, period_end, usage_end) do
+  @doc """
+  The days the period has not reached yet, each at the daily average so
+  far of every total in `totals`. Empty once the period has closed or
+  nothing was used.
+  """
+  def projected_days(totals, period_start, period_end, usage_end) do
     days_elapsed = max(Date.diff(DateTime.to_date(usage_end), DateTime.to_date(period_start)) + 1, 1)
     first_remaining = usage_end |> DateTime.to_date() |> Date.add(1)
     last = period_end |> DateTime.add(-1, :microsecond) |> DateTime.to_date()
@@ -263,10 +268,15 @@ defmodule Tuist.Billing.UsagePricing do
     end
   end
 
-  # A period that has closed has nothing left to project: `usage_end` has
-  # reached `period_end`, so the projection would be the quantity itself and
-  # the page would tell an account it is on track for what it already spent.
-  defp project(quantity, period_start, period_end, usage_end) do
+  @doc """
+  Where an integer `quantity` lands by the end of the period at its rate so
+  far, or `nil` before a tenth of the period has passed.
+
+  A period that has closed has nothing left to project: `usage_end` has
+  reached `period_end`, so the projection would be the quantity itself and
+  the page would tell an account it is on track for what it already spent.
+  """
+  def project(quantity, period_start, period_end, usage_end) do
     elapsed = max(DateTime.diff(usage_end, period_start, :second), 1)
     total = max(DateTime.diff(period_end, period_start, :second), elapsed)
 

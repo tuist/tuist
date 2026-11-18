@@ -64,7 +64,17 @@ server:
   # key in the server-config Secret with it. Rollback is a revert; the
   # existing `dsn` field on the same item stays put.
   config:
+    # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
+    kuraVolumeRootKeys:
+      enabled: true
+    # Static key authenticating sealed volume-key responses (KURA_VOLUME_TRANSPORT_KEYS).
+    kuraVolumeTransportKeys:
+      enabled: true
     originAppKey:
+      enabled: true
+    apns:
+      enabled: true
+    fcm:
       enabled: true
     externalSecrets:
       fields:
@@ -107,9 +117,11 @@ server:
   stripe:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
-      # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
-      # millisecond costs 0.0001 cents, which is $0.06 per baseline
-      # machine-minute.
+      # on the 8 vCPU / 24 GB baseline) are free, and beyond that each
+      # millisecond costs 0.000083333333 cents, which is $0.05 per baseline
+      # machine-minute. That is 1/12,000 of a cent, which repeats, so the
+      # amount is cut at the 12 decimals Stripe accepts: a cent less per 50
+      # million minutes.
       #
       # The 100 included minutes must stay in step with the free
       # allowance: this Price decides what is charged, and
@@ -123,10 +135,14 @@ server:
       # refuses `tiers` and `transform_quantity` together, so an invoice
       # line reads in milliseconds. The dashboard renders minutes.
       #
-      # Linux stays reporting-only: its Meter exists and receives usage,
-      # but with no agreed rate there is no Price to point at, and an
-      # empty id means no subscription can carry a Linux runner item, so
-      # nothing can be charged for it.
+      # The Linux Price is graduated the same way: 150000000 compute-unit
+      # milliseconds (2,500 minutes on the 2 vCPU / 8 GB baseline, worth $6
+      # against the $5 macOS allowance) are free, and beyond that each
+      # millisecond costs 0.000004 cents, which is $0.0024 per baseline
+      # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
+      # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES,
+      # which this env leaves to the 2,500-minute default, and the rate with
+      # `@on_demand_rates` in `Tuist.Runners.Prepaid`.
       #
       # An account is only actually billed once it is off a runner trial.
       # Run `Tuist.Runners.Trials.backfill_runner_trials/0` before this id
@@ -141,8 +157,17 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: ""
-        runner_macos_compute_unit_milliseconds: "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
+        runner_linux_compute_unit_milliseconds: "price_1UXks7Q9gGM5W1agX8NDowQb"
+        runner_macos_compute_unit_milliseconds: "price_1UY5KOQ9gGM5W1agmgnBjo2I"
+        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
+        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
+        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
+        # Meter has to exist before this key does; the empty id reports without
+        # charging.
+        runner_cache_volume_megabyte_months: "price_1UZpgaQ9gGM5W1aga3yr9uh2"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
@@ -241,8 +266,9 @@ server:
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Public validation uses the existing OVH ca-east fleet. Retire the
       # Dedibox EU-West instances before the later fleet-retirement change.
-      # Preserve the Scaleway private cache beside the Mac mini fleet.
-      value: scw-fr-par-runners,ca-east
+      # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
+      # tears down its leftovers whether or not it is listed here.
+      value: ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -275,9 +301,8 @@ server:
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
       value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
-    # resolves to the node-port form (http://<node PN address>:<NodePort>
-    # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # resolves to its rack site's private gateway; this env serves no site
+    # cache, so it falls back to the public cache. linux resolves through
     # the public-region fallback — no Linux private cache region here
     # (see values-managed-production.yaml).
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
@@ -373,11 +398,13 @@ pdcAgent:
   enabled: true
   # Canary mirrors staging's sizing; production is the env that needs HA.
   replicas: 1
-  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Pin the tunnel to CNPG, ClickHouse and the private Pulse query endpoint.
   # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist-canary.svc.cluster.local:8123
+    - pulse.observability.svc.cluster.local:4000
+    - pulse.observability.svc.cluster.local:4003
 
 capi:
   ovhRunnerEgress:
@@ -432,15 +459,21 @@ kuraController:
       # flip this back to `kura-sentry` and reroll.
       item: kura-sentry-hive
 
-# Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
-# Private Network, not the 1 Gbit/s public bandwidth every budget here is
-# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
-# nothing for a tree to rate its root against. Each tenant is still ceilinged
-# on that path by the Cilium bandwidth manager (egress_burst_mbps).
+# Only the shared mesh cache pools are listed: every budget here is denominated
+# in their public bandwidth.
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
+
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
+kuraVolumesCSI:
+  # Installs only through a deploy dispatched with kura_volumes_csi_image_digest;
+  # tenant enrollment stays independent.
+  enabled: true
+  # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
+  keyServicePublicKey: nk4ZDtWdt8FCgqpqKfSEloNrVVwkLacRMEJzbt75tVY=
+  thinRegions: []
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
@@ -521,6 +554,26 @@ postgresql:
     backup:
       destinationPath: s3://tuist-can-pg-backups/
 
+agents:
+  enabled: true
+  # Two pods, as production would run, so sessions hand off between real
+  # replicas on every deploy and scale-down; a third under load.
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 3
+  podDisruptionBudget:
+    enabled: true
+  # An idle pod holds about 750Mi. Requests equal limits, as the memory
+  # autoscaler requires.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "2Gi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
 processor:
   replicaCount: 1
   podDisruptionBudget:
@@ -595,21 +648,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
-# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
-# the runner-cache PN, mints a kubelet identity, and renders a self-join
-# cloud-init that registers the Node with the runner-cache taint. The control
-# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
-# bootstraps the node itself.
-kuraFleet:
-  enabled: true
-  replicas: 1
-  machine:
-    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
-    # that still mirrors the production NVMe + 10G PN path, so canary validates
-    # the same local-NVMe + bare-metal-PN data plane prod runs on.
-    offerType: EM-B220E-NVME
-
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
 # whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
@@ -677,6 +715,11 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     replicas: 1
+    # A fresh join installs this kubelet minor; from v1.36 the Kata host also
+    # runs the pod-level resource managers. Keep it at or below the control
+    # plane's version. OnDelete: the box only moves when its Machine is deleted
+    # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    kubernetesVersion: "v1.36.6"
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -756,7 +799,7 @@ macosFleet:
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private
-  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # Network the retired kura-scw-fr-par cache node used, so
   # the CAPI operator resolves each host's VLAN and bootstrap
   # materializes the VLAN interface + VM egress pass + NAT. Dispatch
   # hands the Mac fleet the node-port endpoint because
@@ -824,10 +867,8 @@ rackFleet:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
     stackedImages: true
-    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
-    # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # The host's production sizing (16 CPU / 48 GB) fits two 8 vCPU / 24 GB
+    # guests.
     # One host, two guest slots.
     autoscaling:
       enabled: true
@@ -868,8 +909,11 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 24
-  diskGiB: 50
+  maxMemoryGiB: 48
+  # Two `linux` Orbs (38 GiB each with the 20 GiB rootfs) next to the
+  # checkout workspaces, on the runner node's ~410 GiB data disk.
+  diskGiB: 100
+  checkoutWorkspacesGiB: 10
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
   archiveAfterHours: 1
@@ -896,6 +940,12 @@ runnersController:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
+  # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet. It
+  # injects the device only into Pods the controller annotates, which it does
+  # only for exclusive-CPU pools; odd shapes keep the device plugin.
+  nestedVirtualization:
+    nri:
+      enabled: true
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`, minus the
@@ -906,6 +956,15 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
+  # Whole cores per runner Pod on the v1.36 runner host, which carries
+  # tuist.dev/pod-level-resource-managers=true. Odd shapes keep shared cores.
+  # These Pods get /dev/kvm from the kvm-nri-plugin DaemonSet above, not the
+  # device plugin, whose allocation panics kubelet next to a Pod-level budget
+  # (kubernetes/kubernetes#143490). A kubelet restart with exclusive Pods
+  # running leaks their old cores; see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
+  exclusiveCPUs:
+    defaultEnabled: true
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
@@ -918,6 +977,10 @@ runnersFleetLinux:
       enabled: true
       # Acceptance uses the default shape; qualify it before widening rollout.
       pools: [tuist-tuist-runner-pool-linux-2vcpu-8gb]
+    # Canary serves every account, as staging does; production gates accounts
+    # with the `:runner_actions_cache` flag.
+    actionsCache:
+      enabled: true
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
@@ -946,3 +1009,12 @@ redis:
 ampOrbProvider:
   enabled: true
   url: https://canary.tuist.dev
+
+# A copy of every error from the server's web instances and Kura to Pulse,
+# beside their primary DSN, to compare the two (sentryPulse in values.yaml).
+# Needs PULSE_SENTRY_WRITER/password in this vault and canary in the Pulse
+# chart's sentryWriter.environments.
+sentryPulse:
+  services:
+    server: true
+    kura: true

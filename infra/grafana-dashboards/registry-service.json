@@ -299,7 +299,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "topk(20, sum by (scope, name) (tuist_registry_swift_download_total))",
+                        "expr": "topk(20, sum by (scope, name) (increase(tuist_registry_swift_download_total{env=~\"$environment\"}[$__range])))",
                         "instant": true,
                         "legendFormat": "{{scope}}/{{name}}",
                         "queryType": "instant",
@@ -337,7 +337,7 @@
               ]
             }
           },
-          "description": "Packages with the most source-archive download redirects in the selected time range.",
+          "description": "Packages with the most source-archive download redirects in the selected time range and environments. Adaptive Metrics aggregates away pod labels, so the Pod selector does not apply to this ranking.",
           "id": 13,
           "links": [],
           "title": "Top Archive Downloads",
@@ -403,7 +403,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "topk(20, sum by (scope, name) (tuist_registry_swift_manifest_total))",
+                        "expr": "topk(20, sum by (scope, name) (tuist_registry_swift_manifest_total{env=~\"$environment\"}))",
                         "instant": true,
                         "legendFormat": "{{scope}}/{{name}}",
                         "queryType": "instant",
@@ -441,10 +441,10 @@
               ]
             }
           },
-          "description": "Packages with the most manifest responses in the selected time range.",
+          "description": "Cumulative manifest response counters in the selected environments at the end of the time range, not counts within the selected interval. Interval counts are unavailable until Adaptive Metrics preserves counter semantics for tuist_registry_swift_manifest_total. Pod labels are aggregated away, so the Pod selector does not apply to this ranking.",
           "id": 14,
           "links": [],
-          "title": "Top Manifest Reads",
+          "title": "Top Manifest Reads (Cumulative)",
           "vizConfig": {
             "group": "table",
             "kind": "VizConfig",

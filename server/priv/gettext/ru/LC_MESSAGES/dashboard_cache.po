@@ -128,12 +128,12 @@ msgstr "Среднее"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "Средний процент попаданий в кэш"
+msgstr "Ср. процент попаданий в кэш"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Avg. hit rate"
-msgstr "Средний процент попаданий в кэш"
+msgstr "Средняя доля попаданий в кэш"
 
 #: lib/tuist_web/live/bundle_live.html.heex:207
 #, elixir-autogen, elixir-format
@@ -166,17 +166,17 @@ msgstr "Ветка:"
 #: lib/tuist_web/live/bundle_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Bundle"
-msgstr "Бандл"
+msgstr "Пакет"
 
 #: lib/tuist_web/live/bundle_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "Идентификатор бандла"
+msgstr "Идентификатор пакета"
 
 #: lib/tuist_web/live/bundles_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Bundle Size"
-msgstr "Размер бандла"
+msgstr "Размер пакета"
 
 #: lib/tuist_web/live/bundle_live.html.heex:196
 #, elixir-autogen, elixir-format
@@ -219,7 +219,7 @@ msgstr "Запуски кэша"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "Загрузки кэша"
+msgstr "Загрузки из кэша"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:41
 #: lib/tuist_web/live/module_cache_live.ex:398
@@ -235,17 +235,17 @@ msgstr "Загрузки кэша"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:801
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "Процент попаданий в кэш"
+msgstr "Коэффициент попаданий в кэш"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "Процент попаданий в кэш показывает долю целей, которые были разрешены из кэша (локального или удалённого), а не пересобраны заново."
+msgstr "Коэффициент попаданий в кэш показывает долю целей, которые были разрешены из кэша (локального или удалённого), а не пересобраны заново."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "Процент попаданий в кэш показывает долю задач, которые были выполнены из кэша (локального или удалённого), а не пересобраны заново."
+msgstr "Процент попаданий в кэш показывает долю задач, которые были выполнены с использованием кэша (локального или удалённого) вместо повторной сборки."
 
 #: lib/tuist_web/live/module_cache_live.ex:380
 #, elixir-autogen, elixir-format
@@ -255,7 +255,7 @@ msgstr "Попадания в кэш"
 #: lib/tuist_web/live/module_cache_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
-msgstr "Попадания в кэш — это общее количество таргетов, выполненных из кэша (локального или удалённого) за указанный период."
+msgstr "Попадания в кэш — это общее количество целей, выполненных с использованием кэша (локального или удалённого) за указанный период."
 
 #: lib/tuist_web/live/module_cache_live.ex:389
 #, elixir-autogen, elixir-format
@@ -265,7 +265,7 @@ msgstr "Промахи кэша"
 #: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "Промахи кэша — это общее количество таргетов, которые пришлось пересобрать, потому что они не были найдены в кэше за указанный период."
+msgstr "Промахи кэша — это общее количество целей, подлежащих кэшированию, которые пришлось пересобрать, так как они не были найдены в кэше за указанный период."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:260
 #: lib/tuist_web/live/xcode_cache_live.ex:247
@@ -294,12 +294,12 @@ msgstr "SHA коммита"
 #: lib/tuist_web/live/bundles_live.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Created at"
-msgstr "Дата создания"
+msgstr "Создано"
 
 #: lib/tuist_web/live/bundle_live.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "Delete bundle"
-msgstr "Удалить пакет"
+msgstr "Удалить бандл"
 
 #: lib/tuist_web/live/bundle_live.ex:1049
 #: lib/tuist_web/live/bundle_live.html.heex:203
@@ -342,14 +342,14 @@ msgstr "Дубликаты"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:895
 #, elixir-autogen, elixir-format
 msgid "Duration"
-msgstr "Длительность"
+msgstr "Продолжительность"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:6
 #: lib/tuist_web/live/module_cache_module_live.html.heex:36
 #: lib/tuist_web/live/modules_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Environment:"
-msgstr "Среда:"
+msgstr "Окружение:"
 
 #: lib/tuist_web/live/bundles_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -361,7 +361,7 @@ msgstr "Анализ бандла"
 #: lib/tuist_web/live/xcode_cache_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "Ошибка"
+msgstr "Не удалось"
 
 #: lib/tuist_web/live/bundle_live.ex:1048
 #: lib/tuist_web/live/bundle_live.html.heex:227
@@ -399,7 +399,7 @@ msgstr "Шрифты"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "Hit Rate"
-msgstr "Коэффициент попаданий"
+msgstr "Процент попаданий"
 
 #: lib/tuist_web/live/cache_runs_live.ex:73
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
@@ -407,7 +407,7 @@ msgstr "Коэффициент попаданий"
 #: lib/tuist_web/live/cache_runs_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
-msgstr "Коэффициент попаданий"
+msgstr "Процент попаданий"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:233
 #: lib/tuist_web/live/module_cache_module_live.html.heex:119
@@ -529,7 +529,7 @@ msgstr "Файлы не найдены"
 #: lib/tuist_web/live/bundle_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "No insights yet"
-msgstr "Пока нет аналитики"
+msgstr "Аналитики пока нет"
 
 #: lib/tuist_web/live/bundle_live.html.heex:702
 #, elixir-autogen, elixir-format
@@ -558,7 +558,7 @@ msgstr "Обзор"
 #: lib/tuist_web/live/xcode_cache_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "Пройдено"
+msgstr "Успешно"
 
 #: lib/tuist_web/live/bundle_live.html.heex:520
 #: lib/tuist_web/live/bundle_live.html.heex:527
@@ -597,7 +597,7 @@ msgstr "Запущено в"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:889
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "Запущено пользователем"
+msgstr "Запущено"
 
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:213
 #: lib/tuist_web/live/xcode_cache_live.html.heex:782
@@ -618,17 +618,17 @@ msgstr "Удалить дублирующиеся файлы"
 #: lib/tuist_web/live/bundle_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
-msgstr "Отображает размер сжатого пакета приложения, который пользователь загружает по сети."
+msgstr "Определяет размер сжатого архива приложения, который пользователь скачивает по сети."
 
 #: lib/tuist_web/live/bundle_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "Показывает размер распакованного бандла приложения, который устанавливается пользователем. Это число отображается в App Store."
+msgstr "Описывает размер несжатого пакета приложения, который устанавливается пользователем. Это число отображается в App Store."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "Выполните следующую команду для анализа бандла."
+msgstr "Выполните следующую команду для анализа пакета."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:424
@@ -748,7 +748,7 @@ msgstr "Кэш Xcode"
 #: lib/tuist_web/live/bundle_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "compared to last bundle"
-msgstr "по сравнению с последним бандлом"
+msgstr "по сравнению с предыдущим бандлом"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:496
 #: lib/tuist_web/live/xcode_cache_live.html.heex:633
@@ -904,7 +904,7 @@ msgstr "с вчерашнего дня"
 #: lib/tuist_web/live/cache_runs_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "Конечная точка кэша"
+msgstr "Точка входа кэша"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -957,7 +957,7 @@ msgstr "Имя пакета"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:506
 #, elixir-autogen, elixir-format
 msgid "Environment"
-msgstr "Окружение"
+msgstr "Среда"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:513
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:201
@@ -973,7 +973,7 @@ msgstr "Достигнут лимит в 10 000 записей, данные в�
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
-msgstr "Средняя задержка операций чтения (скачивания) и записи (загрузки) при обращении к удалённому хранилищу кэша за указанный период."
+msgstr "Средняя задержка операций чтения (загрузки) и записи (выгрузки) при обращении к удалённому хранилищу кэша за указанный период."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:261
 #: lib/tuist_web/live/xcode_cache_live.ex:261
@@ -1002,12 +1002,12 @@ msgstr "Передача кэша"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
-msgstr "Передача кэша — это общий размер артефактов кэша, скачанных из удалённого хранилища и загруженных в него за указанный период."
+msgstr "Передача кэша — это общий размер артефактов кэша, скачанных из удаленного хранилища и загруженных в него за указанный период."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "Суммарная пропускная способность скачивания и загрузки по отношению к удалённому хранилищу кэша за указанный период, рассчитанная на основе объёма переданных данных за единицу времени."
+msgstr "Суммарная пропускная способность скачивания и загрузки относительно удаленного хранилища кэша за указанный период, рассчитанная на основе объема переданных данных за единицу времени."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
@@ -1106,7 +1106,7 @@ msgstr "Зависимые модули"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "How many modules this one invalidates downstream when it changes."
-msgstr "Сколько нижестоящих модулей становится недействительными при изменении этого."
+msgstr "Сколько нижестоящих модулей этот модуль делает недействительными при изменении."
 
 #: lib/tuist_web/components/module_invalidations_table.ex:28
 #, elixir-autogen, elixir-format
@@ -1128,12 +1128,12 @@ msgstr "Модули"
 #: lib/tuist_web/live/module_cache_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Most dependents"
-msgstr "Больше всего зависимых"
+msgstr "Наибольшее число зависимых модулей"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Most missed"
-msgstr "Больше всего промахов"
+msgstr "Наибольшее число промахов кэша"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #, elixir-autogen, elixir-format
@@ -1154,7 +1154,7 @@ msgstr "Пока нет промахов кэша"
 #: lib/tuist_web/live/modules_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
-msgstr "Нет модулей, соответствующих запросу"
+msgstr "Нет модулей, соответствующих вашему запросу"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:24
 #, elixir-autogen, elixir-format
@@ -1169,7 +1169,7 @@ msgstr "Поиск модулей"
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "Доля аннулирований, вызванных только изменением вышестоящей зависимости, а не кода самого модуля (вышестоящие ÷ изменённые + вышестоящие). Это та часть работы, которую можно устранить за счёт более чётких границ модулей."
+msgstr "Доля аннулирований, вызванных только изменением вышестоящей зависимости, а не кода самого модуля (вышестоящие ÷ изменённые + вышестоящие). Это та часть работы, которую можно устранить за счёт чётких границ между модулями."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
@@ -1179,7 +1179,7 @@ msgstr "Доля сборок этого модуля, обслуженных и
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
-msgstr "Модуль, чаще всего дававший промах кэша в течение периода. Снижение частоты его пересборки даёт наибольший прямой эффект."
+msgstr "Модуль, чаще всего дававший промах кэша в течение периода. Сокращение частоты его пересборки даёт наибольший прямой эффект."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:325
 #: lib/tuist_web/live/module_cache_module_live.ex:349
@@ -1200,7 +1200,7 @@ msgstr "Промахи из-за изменений зависимостей"
 #: lib/tuist_web/live/module_cache_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Upstream share"
-msgstr "Доля кэширования от зависимостей"
+msgstr "Доля попаданий в кэш для зависимостей"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:557
 #, elixir-autogen, elixir-format
@@ -1210,7 +1210,7 @@ msgstr "Показать все модули"
 #: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
-msgstr "Модуль, изменение которого приводит к наибольшему числу недействительных модулей. Это цель с наибольшим влиянием для улучшения границ."
+msgstr "Модуль, изменение которого приводит к инвалидации наибольшего числа других модулей. Это цель с наибольшим влиянием для улучшения границ."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
@@ -1232,7 +1232,7 @@ msgstr "В кэше"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "No builds match these filters"
-msgstr "Ни одна сборка не соответствует этим фильтрам"
+msgstr "Нет сборок, соответствующих этим фильтрам"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
@@ -1284,12 +1284,12 @@ msgstr "Промахи из-за изменения"
 #: lib/tuist_web/live/modules_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Module builds served from cache instead of being rebuilt."
-msgstr "Сборки модуля были обслужены из кэша вместо повторной сборки."
+msgstr "Сборки модуля, взятые из кэша вместо повторной сборки."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Builds where this module was served from the cache."
-msgstr "Сборки, в которых этот модуль был обслужен из кэша."
+msgstr "Сборки, в которых этот модуль был взят из кэша."
 
 #: lib/tuist_web/live/bundle_live.html.heex:472
 #, elixir-autogen, elixir-format
@@ -1299,17 +1299,17 @@ msgstr "и ещё %{count}"
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "Этот ключ ранее успешно находился в удалённом кэше на той же конечной точке, но теперь возникает промах. Кэшированный артефакт, скорее всего, был вытеснен."
+msgstr "Этот ключ ранее успешно попадал в удалённый кэш на той же конечной точке, но теперь возникает промах. Кэшированный артефакт, скорее всего, был вытеснен."
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "Изменились задекларированные входные данные модуля, такие как файлы, настройки сборки, конфигурация или версия компилятора."
+msgstr "Изменились входные данные модуля: файлы, настройки сборки, конфигурация или версия компилятора."
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
-msgstr "Нет данных для предыдущего сравнения, либо задекларированные входные данные и история попаданий в удалённый кэш не объясняют этот промах."
+msgstr "Нет данных для сравнения, либо входные данные и история удалённых попаданий не объясняют этот промах."
 
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
@@ -1319,12 +1319,12 @@ msgstr "Это наблюдение сообщает о попадании в л
 #: lib/tuist_web/helpers/module_cache.ex:45
 #, elixir-autogen, elixir-format
 msgid "The module's own reported inputs stayed the same, but a dependency or external package hash changed."
-msgstr "Входные данные самого модуля не изменились, но изменился хеш зависимости или внешнего пакета."
+msgstr "Входные данные самого модуля остались прежними, но изменился хеш зависимости или внешнего пакета."
 
 #: lib/tuist_web/helpers/module_cache.ex:70
 #, elixir-autogen, elixir-format
 msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
-msgstr "Изменено: входные данные модуля изменились. Вышестоящие: зависимости изменились. Холодный: недостаточно данных. Удалено: ранее доступный ключ теперь отсутствует."
+msgstr "Изменение: входные данные модуля изменились. Зависимости: изменились зависимости. Холодный старт: недостаточно данных. Вытеснение: ранее доступный ключ теперь отсутствует."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
 #: lib/tuist_web/live/module_cache_module_live.ex:351
@@ -1334,13 +1334,13 @@ msgstr "Изменено: входные данные модуля измени�
 #: lib/tuist_web/live/modules_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Evicted"
-msgstr "Удалено"
+msgstr "Вытеснение"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:339
 #: lib/tuist_web/live/modules_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Evicted misses"
-msgstr "Промахи из-за удаления"
+msgstr "Промахи из-за вытеснения"
 
 #: lib/tuist_web/live/modules_live.html.heex:109
 #, elixir-autogen, elixir-format
@@ -1350,7 +1350,7 @@ msgstr "Недоступно"
 #: lib/tuist_web/live/mix_build_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Local hit"
-msgstr "Попадание локально"
+msgstr "Локальное попадание в кэш"
 
 #: lib/tuist_web/live/mix_build_live.ex:341
 #, elixir-autogen, elixir-format
@@ -1360,7 +1360,7 @@ msgstr "Промах кэша"
 #: lib/tuist_web/live/mix_build_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "Попадание удалённо"
+msgstr "Удалённое попадание в кэш"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:383
 #, elixir-autogen, elixir-format
@@ -1373,12 +1373,12 @@ msgstr[2] "Результаты кэширования зафиксирован�
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "Средние значения и процентили индивидуального процента попаданий в кэш для каждой сборки. Попадания повторно используют закэшированные выходные данные; промахи включают неудачные поиски, холодные компиляции и повторные сборки для верификации. Предварительные загрузки исключены."
+msgstr "Средние значения и процентили индивидуального процента попаданий в кэш сборок. Попадания повторно используют закэшированные результаты; промахи включают отсутствие данных в кэше, холодные компиляции и повторные сборки для проверки. Предварительная загрузка исключена."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
-msgstr "Экспериментальные измерения кэша Cargo. Итоги передачи используют счётчики байтов для всей сборки. Задержки измеряются по операциям индексации для каждого ключа, а не по времени компиляции или передачи артефактов. Пропускная способность рассчитывается только по успешным измеренным передачам CAS; неудачные и уже присутствующие операции исключены. Записи инспекции могут быть неполными."
+msgstr "Экспериментальные измерения кэша Cargo. Итоги передачи используют счётчики байтов для всей сборки. Задержка измеряется по операциям индексации для каждого ключа, а не по времени компиляции или передачи артефактов. Пропускная способность учитывает только успешные измеренные передачи CAS; неудачные и уже выполненные операции исключены. Записи инспекции могут быть неполными."
 
 #: lib/tuist_web/live/bundles_live.ex:989
 #, elixir-autogen, elixir-format

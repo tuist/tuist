@@ -1750,11 +1750,14 @@ mod tests {
         .await;
 
         assert!(result.is_err(), "the pending body should be cancelled");
-        for _ in 0..100 {
+        // Drop cleanup unlinks the file on a blocking thread and releases the
+        // reservation only after that, so wait for both rather than the file.
+        for _ in 0..1000 {
             if std::fs::read_dir(directory.path())
                 .expect("failed to list temp dir")
                 .next()
                 .is_none()
+                && tmp_budget.reserved_bytes() == 0
             {
                 break;
             }

@@ -22,23 +22,26 @@
   }
 
   &[data-orientation="horizontal"] {
-    right: var(--noora-spacing-4);
+    inset-inline-end: var(--noora-spacing-4);
     bottom: 6px;
-    left: var(--noora-spacing-4);
+    inset-inline-start: var(--noora-spacing-4);
     height: 8px;
     & > [data-part="thumb"] {
       top: 0;
+      /* Physical on purpose: ScrollIndicator.js translates the thumb in physical pixels and
+       * maps right-to-left scroll positions itself. */
+      left: 0;
       height: 100%;
     }
   }
 
   &[data-orientation="vertical"] {
     top: var(--noora-spacing-4);
-    right: 4px;
+    inset-inline-end: 4px;
     bottom: var(--noora-spacing-4);
     width: 8px;
     & > [data-part="thumb"] {
-      left: 0;
+      inset-inline-start: 0;
       width: 100%;
     }
   }

@@ -23,6 +23,65 @@ struct CargoConfiguration: Decodable {
         return [home] + paths
     }
 
+    private struct Runners: Decodable {
+        struct Target: Decodable {
+            struct Present: Decodable {
+                init(from _: Decoder) throws {}
+            }
+
+            let runner: Present?
+        }
+
+        let target: [String: Target]?
+    }
+
+    /// Whether a Cargo configuration file, or a `--config` option, sets a target runner (`target.<triple>.runner`
+    /// or `target.'cfg(…)'.runner`). Code coverage records test processes through a runner of its own, which an
+    /// environment runner it can chain to, but a configured one would be replaced by. A file that cannot be read
+    /// counts as setting one.
+    static func definesRunner(directory: URL, arguments: [String], environment: [String: String]) -> Bool {
+        func defines(_ text: String) -> Bool {
+            guard let runners = try? TOMLDecoder().decode(Runners.self, from: text) else { return true }
+            return runners.target?.values.contains { $0.runner != nil } ?? false
+        }
+        for path in configurationDirectories(directory: directory, environment: environment) {
+            let legacy = path.appendingPathComponent("config")
+            let file = FileManager.default.fileExists(atPath: legacy.path) ? legacy : path.appendingPathComponent("config.toml")
+            guard FileManager.default.fileExists(atPath: file.path) else { continue }
+            guard let text = try? String(contentsOf: file, encoding: .utf8), !defines(text) else { return true }
+        }
+        let options = Array(arguments.prefix { $0 != "--" })
+        for (index, option) in options.enumerated() {
+            let value = option == "--config" && index + 1 < options.count ? options[index + 1]
+                : option.hasPrefix("--config=") ? String(option.dropFirst(9)) : nil
+            guard let value else { continue }
+            if value.contains("=") {
+                if value.contains("runner") { return true }
+            } else if let text = try? String(contentsOf: URL(fileURLWithPath: value, relativeTo: directory), encoding: .utf8) {
+                if defines(text) { return true }
+            } else {
+                return true
+            }
+        }
+        return false
+    }
+
+    private struct Target: Decodable {
+        struct Build: Decodable { let target: String? }
+        let build: Build?
+    }
+
+    /// `build.target` of the nearest configuration file that sets one to a single triple, which places a build's
+    /// profiles under `target/<triple>`.
+    static func buildTarget(directory: URL, environment: [String: String]) -> String? {
+        configurationDirectories(directory: directory, environment: environment).reversed().lazy.compactMap { path in
+            let legacy = path.appendingPathComponent("config")
+            let file = FileManager.default.fileExists(atPath: legacy.path) ? legacy : path.appendingPathComponent("config.toml")
+            return (try? String(contentsOf: file, encoding: .utf8))
+                .flatMap { try? TOMLDecoder().decode(Target.self, from: $0) }?.build?.target
+        }.first
+    }
+
     /// Resolve the compiler wrapper before installing an invocation-local observer.
     /// Cargo's configuration paths are relative to the directory containing .cargo.
     static func compilerWrapper(directory: URL, arguments: [String], environment: [String: String]) throws -> String? {

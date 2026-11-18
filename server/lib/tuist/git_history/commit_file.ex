@@ -9,8 +9,10 @@ defmodule Tuist.GitHistory.CommitFile do
   at the commit, so a module no test ran is reported as never measured rather
   than left out), where the tracked files come from (the project's globs
   applied to it at read time), and the blob of any path at any ancestor for
-  evidence reuse. Stored in ClickHouse, expiring with the coverage file
-  detail.
+  evidence reuse. Stored in ClickHouse for a few days
+  (`Tuist.GitHistory.listing_retention_days/0`): once a ref owns the commit
+  all of that is read from the file changes written from the listing
+  (`Tuist.GitHistory.FileChanges`).
   """
   use Ecto.Schema
 

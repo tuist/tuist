@@ -11,11 +11,11 @@ enum SelfHostedServerAlert {
         guard let presenter = topViewController() else { return }
 
         let alert = UIAlertController(
-            title: "Self-hosted",
-            message: "Use the root address of your Tuist server",
+            title: String(localized: "Self-hosted"),
+            message: String(localized: "Use the root address of your Tuist server"),
             preferredStyle: .alert
         )
-        let save = UIAlertAction(title: "Sign in", style: .default) { [weak alert] _ in
+        let save = UIAlertAction(title: String(localized: "Sign in"), style: .default) { [weak alert] _ in
             onSave(alert?.textFields?.first?.text ?? "")
         }
         save.isEnabled = isValid(serverURL)
@@ -33,7 +33,7 @@ enum SelfHostedServerAlert {
             }, for: .editingChanged)
         }
         alert.addAction(save)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel))
         alert.preferredAction = save
         alert.view.tintColor = UIColor(Noora.Colors.accent)
 

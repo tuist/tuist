@@ -1,41 +1,7 @@
 # Common values for the Tuist Grafana Kubernetes Monitoring wrapper chart.
-# Per-env overlays set `cluster.name`, the `env` label, and the pod-logs
-# namespace filter. Secrets (Grafana Cloud tokens) are synced by ESO — see
-# `templates/externalsecret.yaml`. URLs and numeric usernames below are
-# public per Grafana Cloud stack so they live in values, not in 1Password.
-
-# ExternalSecret wiring. Assumes a ClusterSecretStore named `onepassword`
-# has already been installed on the cluster — the workload-cluster
-# bootstrap (see k8s/onboarding.md §4) puts that in place before this
-# chart is ever installed.
-externalSecrets:
-  enabled: true
-  refreshInterval: "1h"
-  storeRef:
-    kind: ClusterSecretStore
-    name: onepassword
-
-# Grafana Cloud destinations. The ExternalSecret template produces one
-# Kubernetes Secret named `grafanaCloud.secretName` with six keys
-# (prometheus|loki|tempo × username|password); the k8s-monitoring
-# destination blocks below point at it via `secret.create: false`.
-grafanaCloud:
-  secretName: k8s-monitoring-grafana-cloud
-  prometheus:
-    username: "1774467"
-    token:
-      item: PROMETHEUS_TOKEN
-      field: password
-  loki:
-    username: "986520"
-    token:
-      item: LOKI_TOKEN
-      field: password
-  tempo:
-    username: "980835"
-    token:
-      item: TEMPO_TOKEN
-      field: password
+# Per-env overlays set `cluster.name`, the `env` label, the Pulse log and
+# trace destinations, and the pod-logs namespace filter. Every signal is
+# stored in the environment's own Pulse; Grafana Cloud only reads it.
 
 # Optional management-cluster exporter for Hetzner load-balancer health and
 # traffic. It runs beside Cluster API so the signal remains available when a
@@ -60,6 +26,11 @@ hcloudLoadBalancerExporter:
       cpu: 250m
       memory: 192Mi
 
+# Pulse is the independent `pulse` release in the
+# observability namespace (infra/helm/pulse). Its
+# chart owns pulse-dashboard-auth, including the write-only Basic auth keys
+# the collectors use. No backend runs in this release.
+
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
 # https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring
@@ -77,20 +48,23 @@ k8s-monitoring:
     apiServerMetricsAggregated: false
 
   # v4 schema: destinations is a map keyed by destination name. Per-env
-  # overlays merge into these entries (e.g. adding `extraLabels.env`) so
-  # existing Grafana Cloud dashboards that filter on env=… keep working
-  # after the chart swap.
+  # overlays merge into these entries (e.g. adding `extraLabels.env`) and add
+  # the Pulse log and trace destinations.
   destinations:
-    grafana-cloud-metrics:
+    # Written straight to the independently released Pulse backend. The
+    # pulse release's pulse-dashboard-auth Secret carries the write-only user.
+    pulse-metrics:
       type: prometheus
-      url: https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push
+      url: http://pulse.observability.svc.cluster.local:4000/v1/prometheus/write
+      extraHeaders:
+        X-Pulse-DB-Name: public
       auth:
         type: basic
-        usernameKey: prometheus-username
-        passwordKey: prometheus-password
+        usernameKey: ingest-username
+        passwordKey: ingest-password
       secret:
         create: false
-        name: k8s-monitoring-grafana-cloud
+        name: pulse-dashboard-auth
         namespace: observability
       extraLabels:
         # Enable only after the live public-latency alert uses the new metric
@@ -122,15 +96,7 @@ k8s-monitoring:
       #
       # The chart sets `cluster` in the first write_relabel_config of this
       # same chain, so the label is populated by the time this rule runs.
-      #
-      # `traces_service_graph_request_.*` used to be dropped here. It never
-      # matched anything: those series are produced by Grafana Cloud Tempo's
-      # own metrics generator from received spans, not by Alloy, so they enter
-      # the Prometheus instance without passing through this remote_write.
-      # They carry no `cluster` / `job` / `instance` label, only span-derived
-      # ones plus `source`. Turning them off is a stack-side setting
-      # (Tempo -> Metrics generator -> service graphs), not a chart value.
-      metricProcessingRules: |
+      metricProcessingRules: &metricProcessingRules |
         // Opt-in, two-phase migration. Old runtimes have no marker and keep
         // every route bucket even when enabled, including on rollback.
         write_relabel_config {
@@ -222,7 +188,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|lease_renew_time|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|volumes_thin_pool_.*|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state|migration_bridge_armed|migration_bridge_ready|migration_bridge_last_proof_age_seconds)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"
@@ -312,142 +278,6 @@ k8s-monitoring:
           action = "drop"
         }
 
-    grafana-cloud-logs:
-      type: loki
-      url: https://logs-prod-012.grafana.net/loki/api/v1/push
-      auth:
-        type: basic
-        usernameKey: loki-username
-        passwordKey: loki-password
-      secret:
-        create: false
-        name: k8s-monitoring-grafana-cloud
-        namespace: observability
-      extraLabels: {}
-
-    # Tempo uses OTLP gRPC and only accepts traces — metrics/logs go to
-    # their respective destinations above.
-    grafana-cloud-traces:
-      type: otlp
-      url: tempo-prod-10-prod-eu-west-2.grafana.net:443
-      protocol: grpc
-      metrics:
-        enabled: false
-      logs:
-        enabled: false
-      traces:
-        enabled: true
-      auth:
-        type: basic
-        usernameKey: tempo-username
-        passwordKey: tempo-password
-      secret:
-        create: false
-        name: k8s-monitoring-grafana-cloud
-        namespace: observability
-      extraLabels: {}
-      processors:
-        # Keep all failed and slow traces, then retain a representative sample
-        # of healthy traffic. Sampling after the trace completes preserves the
-        # diagnostic traces that head-based sampling could discard.
-        #
-        # Policies are OR'ed, so exclusions live inside `and` policies: a
-        # string_attribute sub-policy with invert_match fails the `and` when
-        # any span in the trace carries one of the listed routes.
-        tailSampling:
-          enabled: true
-          decisionWait: 15s
-          # The chart's default cache object does not validate with Alloy 1.15.
-          decisionCache: null
-          numTraces: 5000
-          expectedNewTracesPerSec: 100
-          # The upstream default (4MB) is smaller than the ingress Alloy's HTTP
-          # body cap (20MiB), so the loadbalancing exporter re-emits Kura's
-          # accepted trace batches to this sampler and they are rejected here
-          # as ResourceExhausted, dropping every batch. Match the ingress cap
-          # so the internal Alloy-to-Alloy hop stops throwing away work the
-          # front door already admitted.
-          receiver:
-            otlp:
-              grpc:
-                maxReceivedMessageSize: 20MB
-          policies:
-            - name: errors
-              type: status_code
-              status_codes:
-                - ERROR
-            # Kura's pull replication holds peer reads open by design:
-            # /_internal/sync/forward and the region listing on
-            # /_internal/backfill/entries wait up to KURA_SYNC_LONG_POLL_SECS
-            # (25s) for new rows. Nearly every one of those traces crosses 2s,
-            # so a plain latency policy retained all of them and they were
-            # most of Kura's stored traces. They still fall through to the
-            # errors policy and the healthy sample below.
-            - name: slow
-              type: and
-              and:
-                and_sub_policy:
-                  - name: slower-than-2s
-                    type: latency
-                    threshold_ms: 2000
-                  - name: not-a-long-poll
-                    type: string_attribute
-                    key: http.route
-                    values:
-                      - ^/_internal/sync/forward$
-                      - ^/_internal/backfill/entries$
-                    enabled_regex_matching: true
-                    invert_match: true
-                  # The kubelet propagates one trace context across a pod's
-                  # probes for as long as it keeps probing, so each node's
-                  # /ready spans (one a second) share a trace lasting tens of
-                  # minutes. Every decision window of that trace spans more
-                  # than 2s, which made healthy probes about half of all
-                  # stored spans. Like the long-poll exclusion, this fails the
-                  # policy when any span matches, but the kubelet's trace holds
-                  # only probe spans: application requests carry their own
-                  # trace context, so no real request shares that trace.
-                  - name: not-a-probe
-                    type: string_attribute
-                    key: http.route
-                    values:
-                      - ^/(up|ready|metrics|status/rollout)$
-                      - ^/_internal/status$
-                    enabled_regex_matching: true
-                    invert_match: true
-            # Errors and traces slower than 2s are retained above. Keep a
-            # smaller representative sample for healthy traffic to contain
-            # trace ingestion and downstream service-graph cost. Healthy probe
-            # traces (kubelet /up and /ready, metrics scrapes, rollout polls
-            # and the peer /_internal/status health check) carry no diagnostic
-            # value, so they are only kept when they fail.
-            - name: healthy-sample
-              type: and
-              and:
-                and_sub_policy:
-                  - name: sample-5-percent
-                    type: probabilistic
-                    sampling_percentage: 5
-                  - name: not-a-probe
-                    type: string_attribute
-                    key: http.route
-                    values:
-                      - ^/(up|ready|metrics|status/rollout)$
-                      - ^/_internal/status$
-                    enabled_regex_matching: true
-                    invert_match: true
-          collector:
-            alloy:
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-            controller:
-              type: statefulset
-              replicas: 1
 
   # ───── Features ─────
 
@@ -468,14 +298,15 @@ k8s-monitoring:
   #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
   #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
   #     isn't ingested on this stack.
-  #   - kube-state-metrics: 96 `kube_*` metrics ingested. `kube_lease_*`,
+  #   - kube-state-metrics: 96 `kube_*` metrics originally ingested.
   #     `kube_endpointslice_*` and `kube_mutatingwebhookconfiguration_*` are
   #     absent as expected, but the default allow list does keep both
   #     `*_metadata_resource_version` gauges, so they are excluded explicitly
   #     below. None of them are referenced by any dashboard, alert, or
   #     recording rule.
   #
-  # `includeMetrics` therefore stays empty for all three. If a future
+  # Node Lease renewal timestamps are explicitly retained for kubelet
+  # heartbeat alerting, even when Node Ready is stale. If a future
   # dashboard needs a dropped metric, add it under
   # `<component>.metricsTuning.includeMetrics` — same pattern hostMetrics
   # already uses above.
@@ -542,6 +373,12 @@ k8s-monitoring:
           action = "drop"
         }
     kube-state-metrics:
+      # One target of about 105k samples, scraped by whichever clustered
+      # alloy-metrics replica owns it, which can be a cache box in another
+      # region. At the 10s default an eu-east owner timed out mid-transfer and
+      # production lost every kube_* series for 14 minutes; half the 60s
+      # interval leaves room for that transfer.
+      scrapeTimeout: 30s
       # Do not blank the `pod` label on kube_pod_* metrics: relabeling
       # cannot aggregate duplicate samples, so that produces colliding
       # series rather than namespace-level totals. Instead, remove the
@@ -558,6 +395,26 @@ k8s-monitoring:
       # and no dashboard reads this metric, so only Running/Pending/Unknown
       # are worth keeping.
       extraMetricProcessingRules: |
+        // Keep node heartbeats, not controller leader-election Leases.
+        // KSM already watches Leases; no new collector or RBAC is needed.
+        rule {
+          source_labels = ["__name__", "namespace"]
+          separator = ";"
+          regex = "kube_lease_renew_time;kube-node-lease"
+          target_label = "__tmp_node_lease"
+          replacement = "keep"
+          action = "replace"
+        }
+        rule {
+          source_labels = ["__name__", "__tmp_node_lease"]
+          separator = ";"
+          regex = "kube_lease_renew_time;"
+          action = "drop"
+        }
+        rule {
+          regex = "__tmp_node_lease"
+          action = "labeldrop"
+        }
         rule {
           source_labels = ["__name__", "namespace"]
           separator = ";"
@@ -586,6 +443,7 @@ k8s-monitoring:
         useDefaultAllowList: true
         includeMetrics:
           - kube_pod_status_unschedulable
+          - kube_lease_renew_time
           # KuraInstance status, from the customResourceState block below.
           # Custom-resource series are not in the default allow list and are
           # not named kube_<builtin>, so without this they are collected and
@@ -666,8 +524,7 @@ k8s-monitoring:
           - node_vmstat_oom_kill
           - node_load.*
           # Per-interface network counters (dropped by the default allow-list)
-          # so we can measure the Scaleway kura runner-cache node's PN
-          # throughput against the Hetzner kura nodes.
+          # so we can measure Kura and runner host throughput per NIC.
           - node_network_receive_bytes_total
           - node_network_transmit_bytes_total
           # Join runner vRack counters to the provider's MAC/block inventory.
@@ -998,8 +855,7 @@ k8s-monitoring:
         # duration. They fan out per listener address per node and nothing
         # reads them. Scoped to `listener` rather than all of `envoy_.*`
         # because `l7Proxy` is enabled in cilium-values.yaml, so the cluster
-        # and http families stay available for L7 work. Same exclusion
-        # values-pentest.yaml already carries.
+        # and http families stay available for L7 work.
         - envoy_listener_.*
         # Go runtime metrics (GC, memstats, scheduler, threads) ship one set
         # per scraped pod across the hundreds of Go infra pods (Cilium,
@@ -1038,8 +894,10 @@ k8s-monitoring:
       # (Tuist.Kura.Regions node_pool, one pool per region), so that a node
       # counts towards its region's capacity before a cache pod lands on it.
       # The rack dashboards read a rack node's site from it.
+      # tuist.dev/kura-thin-ready marks a node whose thin pool was qualified;
+      # the "Kura thin pool metrics missing" alert joins on it.
       metricLabelsAllowlist:
-        - nodes=[node.cluster.x-k8s.io/pool,node.cluster.x-k8s.io/rack-site]
+        - nodes=[node.cluster.x-k8s.io/pool,node.cluster.x-k8s.io/rack-site,tuist.dev/kura-thin-ready]
       rbac:
         extraRules:
           - apiGroups: ["kura.tuist.dev"]
@@ -1182,7 +1040,7 @@ k8s-monitoring:
   # `kubectl apply`, `helm upgrade`, or extraConfig drift) is silent —
   # the config-reloader sidecar logs `400 Bad Request` every 5s, but
   # the pod stays Ready and serves stale config until someone restarts
-  # it. Bringing the success flag to Grafana Cloud lets us alert on
+  # it. Bringing the success flag to Pulse lets us alert on
   # it instead of finding out hours later when a fresh pod crashloops.
   #
   # Alert to create in Grafana Cloud (PromQL):
@@ -1358,35 +1216,7 @@ k8s-monitoring:
                 - prometheus_wal_watcher_current_segment
               excludeMetrics:
                 - loki_write_request_duration_seconds_bucket
-        - name: grafana-cloud-traces-sampler
-          labelSelectors:
-            app.kubernetes.io/name: k8s-monitoring-grafana-cloud-traces-sampler
-          metrics:
-            tuning:
-              useDefaultAllowList: false
-              includeMetrics:
-                - alloy_config_last_load_successful
-                - alloy_config_last_load_success_timestamp_seconds
-                # Collector self-diagnosis. See the block comment above.
-                - alloy_component_controller_running_components
-                - alloy_resources_process_resident_memory_bytes
-                - cluster_node_gossip_health_score
-                - cluster_node_peers
-                - go_goroutines
-                - go_memstats_heap_inuse_bytes
-                - prometheus_remote_storage_highest_timestamp_in_seconds
-                - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
-                - prometheus_remote_storage_samples_dropped_total
-                - prometheus_remote_storage_samples_failed_total
-                - prometheus_remote_storage_samples_pending
-                - prometheus_remote_storage_samples_retried_total
-                - prometheus_remote_storage_shards
-                - prometheus_remote_storage_shards_desired
-                - prometheus_remote_write_wal_storage_active_series
-                - prometheus_sd_discovered_targets
-                - prometheus_wal_watcher_current_segment
-              excludeMetrics:
-                - loki_write_request_duration_seconds_bucket
+
 
   # ───── Collectors (Alloy instances) ─────
   #
@@ -1401,7 +1231,7 @@ k8s-monitoring:
     # request saturation, storage latency, or lost etcd leadership.
     alloy-control-plane:
       includeDestinations:
-        - grafana-cloud-metrics
+        - pulse-metrics
       controller:
         type: daemonset
         hostNetwork: true
@@ -1470,7 +1300,7 @@ k8s-monitoring:
           }
           {{ end }}
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         prometheus.scrape "tuist_etcd" {
@@ -1491,7 +1321,7 @@ k8s-monitoring:
             action = "keep"
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
     # Clustering lets multiple alloy-metrics replicas hash-partition the
@@ -1606,22 +1436,17 @@ k8s-monitoring:
       # at least a 10% free buffer:
       #
       #   100 * (
-      #     node_filesystem_avail_bytes{job="tuist-macos-node-exporter", instance=~"tuist-tuist-runners-fleet-.*", mountpoint="/"}
+      #     node_filesystem_avail_bytes{job="tuist-macos-node-exporter", instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"}
       #     /
-      #     node_filesystem_size_bytes{job="tuist-macos-node-exporter", instance=~"tuist-tuist-runners-fleet-.*", mountpoint="/"}
+      #     node_filesystem_size_bytes{job="tuist-macos-node-exporter", instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"}
       #   ) < 10
       #
-      # Recommended config:
-      #   - For: 15m   (ride out a scrape gap; well under the fill timescale)
-      #   - Severity: warning
-      #   - Summary: "Runner host {{ $labels.instance }} root disk
-      #              {{ $value | printf \"%.0f\" }}% free (< 10% buffer) —
-      #              Tart goldens filling the disk; the golden GC should be
-      #              reclaiming. Check tart-kubelet DiskPressure + ~/.tart/vms."
-      #   - Note: node_* series carry no fleet label; the machine-name prefix
-      #     `instance=~"tuist-tuist-runners-fleet-.*"` scopes to the runners
-      #     fleet (vs -macos-fleet-/-builders-fleet-). Add env="production"
-      #     to scope by environment.
+      # The separately provisioned runner-host-disk-alert-rule.json is the
+      # live rule payload; see alerts.md#runner-host-disk-buffer. Preserve
+      # NoData/Error safety and the 15m pending period. Both rented runners
+      # and rack runners need coverage, including staging/canary loans;
+      # -macos-fleet- and -builders-fleet- are not runner hosts. node_* has no
+      # fleet label, so instance is the egress Service name used below.
       extraConfig: |
         // Discover all Services labelled tuist.dev/macmini-egress=true.
         // Materialised by infra/helm/tailscale-operator/templates/
@@ -1695,10 +1520,10 @@ k8s-monitoring:
           // rather than as missing series.
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
-          // metrics destination (matches the `destinations` key in
-          // values.yaml, dashes to underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          // scope here. Forward straight to the concrete Pulse metrics
+          // destination (matches the `destinations` key in values.yaml,
+          // dashes to underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries
@@ -1722,10 +1547,10 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_macos_tart_kubelet.output
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
-          // metrics destination (matches the `destinations` key in
-          // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          // scope here. Forward straight to the concrete Pulse metrics
+          // destination (matches the `destinations` key in values.yaml —
+          // dashes → underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-macos-tart-kubelet"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1774,10 +1599,10 @@ k8s-monitoring:
           targets = discovery.relabel.tuist_macos_pod_metrics.output
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
+          // scope here. Forward straight to the concrete Pulse
           // metrics destination (matches the `destinations` key in
           // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-macos-pod-metrics"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1878,7 +1703,7 @@ k8s-monitoring:
             replacement = ""
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         // PgBouncer pooler metrics for the processor's transaction-mode
@@ -1929,7 +1754,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_pooler" {
           targets = discovery.relabel.tuist_cnpg_pooler.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-cnpg-pooler"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1979,7 +1804,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_operator" {
           targets = discovery.relabel.tuist_cnpg_operator.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "tuist-cnpg-operator"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2053,7 +1878,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_kura_unready" {
           targets = discovery.relabel.tuist_kura_unready.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           job_name = "kura"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2140,10 +1965,79 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_kura_ingress_nginx" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           rule {
             source_labels = ["__name__"]
             regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
+            action = "keep"
+          }
+        }
+
+        // Pulse datanodes (infra/helm/pulse). Every PromQL read scans the
+        // metric region on one datanode, and a scan fails as soon as that
+        // datanode's scan budget (25% of its memory limit) runs out. These
+        // series show the budget filling and the scans it rejects, plus the
+        // flushes and write buffer behind small-file read amplification.
+        // The alerts on them read the same environment's Pulse and page on a
+        // failed query too, and "Pulse - <env> metrics unavailable to
+        // Grafana" pages when that Pulse cannot answer at all, so they do not
+        // go quiet when Pulse itself is the thing failing. The datanode
+        // exports a large metric surface, so keep only these names.
+        discovery.kubernetes "tuist_pulse_datanode" {
+          role = "pod"
+          namespaces {
+            names = ["observability"]
+          }
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/instance=pulse,app.kubernetes.io/component=datanode"
+          }
+        }
+
+        discovery.relabel "tuist_pulse_datanode" {
+          targets = discovery.kubernetes.tuist_pulse_datanode.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "http"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+        }
+
+        prometheus.scrape "tuist_pulse_datanode" {
+          targets = discovery.relabel.tuist_pulse_datanode.output
+          forward_to = [prometheus.relabel.tuist_pulse_datanode.receiver]
+          job_name = "pulse-datanode"
+          metrics_path = "/metrics"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_pulse_datanode" {
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "pulse_mito_scan_memory_usage_bytes|pulse_mito_scan_memory_exhausted_total|pulse_mito_scan_requests_rejected_total|pulse_mito_flush_requests_total|pulse_mito_write_buffer_bytes|pulse_mito_write_stall_total|up"
             action = "keep"
           }
         }
@@ -2206,11 +2100,22 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_hubble" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
           rule {
             source_labels = ["__name__"]
             regex = "hubble_drop_total|up|scrape_samples_scraped"
             action = "keep"
+          }
+          // Cilium runs IPv4-only, so every IPv6 packet reaching a node,
+          // whatever its L4 protocol, is dropped as UNSUPPORTED_L3_PROTOCOL
+          // with its raw address as `source`. Most of it is router and
+          // neighbour discovery from the hosting network. Per node, those addresses grow without bound and are
+          // most of the job's series, while saying nothing about workload
+          // traffic.
+          rule {
+            source_labels = ["__name__", "reason"]
+            regex = "hubble_drop_total;UNSUPPORTED_L3_PROTOCOL"
+            action = "drop"
           }
         }
 
@@ -2245,11 +2150,6 @@ k8s-monitoring:
           - key: tuist.dev/stable-egress
             operator: Exists
             effect: NoSchedule
-          # Scaleway Elastic Metal cache pool (kura-scw-fr-par), which
-          # registers with tuist.dev/runner-cache=true:NoSchedule.
-          - key: tuist.dev/runner-cache
-            operator: Exists
-            effect: NoSchedule
     # Pod logs and Kura metrics from a rack's Linux nodes (its edges and
     # storage nodes, see infra/rack-nodes/AGENTS.md), which alloy-logs and
     # alloy-metrics cannot collect. The Cilium agent never runs on a rack node,
@@ -2262,7 +2162,7 @@ k8s-monitoring:
     # the node translates the kubernetes Service to it. It pushes logs to the
     # receiver's loki.source.api on 3100 and metrics to its
     # prometheus.receive_http on 9009, at the receiver's tailnet name, so the
-    # Grafana Cloud credential never reaches the node. Enabled per env in
+    # Pulse credential never reaches the node. Enabled per env in
     # values-<env>.yaml where a rack is joined.
     alloy-rack:
       enabled: false
@@ -2471,6 +2371,58 @@ k8s-monitoring:
           scrape_timeout = "10s"
         }
 
+        // The node's Kura CSI plugin (kura-volumes-csi-rack), for the thin pool
+        // gauges. Same job and labels as alloy-metrics' annotation scrape of
+        // the rented plugins, so the thin pool alerts read both alike.
+        discovery.kubernetes "rack_kura_volumes_csi" {
+          role = "pod"
+          namespaces {
+            names = ["kura-volumes"]
+          }
+          selectors {
+            role  = "pod"
+            label = "app.kubernetes.io/component=kura-volumes-csi,tuist.dev/node-local-network=true"
+            field = "spec.nodeName=" + sys.env("HOSTNAME")
+          }
+        }
+
+        discovery.relabel "rack_kura_volumes_csi" {
+          targets = discovery.kubernetes.rack_kura_volumes_csi.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label = "job"
+          }
+        }
+
+        prometheus.scrape "rack_kura_volumes_csi" {
+          targets = discovery.relabel.rack_kura_volumes_csi.output
+          forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+        }
+
         // The node's host metrics, since node-exporter stays off rack nodes:
         // the job, allow-list and processing of its scrape
         // (hostMetrics.linuxHosts), with the node as instance, and
@@ -2631,7 +2583,7 @@ k8s-monitoring:
       # Tailscale-only kubelet hostnames. The xcresult-processor has therefore
       # never had readable output by any route.
       #
-      # Rather than give the application Grafana Cloud credentials, it pushes
+      # Rather than give the application Pulse credentials, it pushes
       # here over the tailnet and Alloy forwards using the credentials it
       # already holds. `loki.source.api` serves the same
       # /loki/api/v1/push contract the app's handler speaks, so no client-side
@@ -2664,7 +2616,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 3100
           }
-          forward_to = [loki.write.grafana_cloud_logs.receiver]
+          forward_to = [loki.write.pulse_logs.receiver]
         }
 
         // Prometheus remote write from collectors the cluster cannot scrape
@@ -2674,7 +2626,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 9009
           }
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.pulse_metrics.receiver]
         }
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
@@ -2698,6 +2650,34 @@ k8s-monitoring:
           }
 
           output {
-            logs = [loki.write.grafana_cloud_logs.receiver]
+            logs = [loki.write.pulse_web_logs.receiver]
           }
         }
+        {{- if hasKey .Values.destinations "pulse-logs" }}
+
+        // Browser telemetry gets its own Pulse table rather than
+        // opentelemetry_logs: the web-vitals alert rules scan it every minute,
+        // and filtering a day of every cluster log for these few thousand lines
+        // exhausted the datanode's scan memory. The table is created on first
+        // write with a 30-day TTL, since its lines carry session IDs and URLs.
+        // Same endpoint, credentials and on-disk buffer as pulse_logs.
+        loki.write "pulse_web_logs" {
+          wal {
+            enabled = true
+            max_segment_age = "1h"
+          }
+          endpoint {
+            url = "http://pulse.observability.svc.cluster.local:4000/v1/loki/api/v1/push"
+            headers = {
+              "X-Pulse-DB-Name" = "public",
+              "X-Pulse-Pipeline-Name" = "loki_otlp",
+              "X-Pulse-Log-Table-Name" = "tuist_web_logs",
+              "X-Pulse-Hints" = "ttl=30d",
+            }
+            basic_auth {
+              username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])
+              password = remote.kubernetes.secret.pulse_logs.data["ingest-password"]
+            }
+          }
+        }
+        {{- end }}

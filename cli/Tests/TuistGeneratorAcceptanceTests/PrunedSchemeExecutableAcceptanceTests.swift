@@ -1,9 +1,11 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistGenerateCommand
 import TuistTesting
 import XcodeProj
 
+@Suite(.coverageAttribution)
 struct PrunedSchemeExecutableAcceptanceTests {
     @Test(.withFixture("generated_scheme_with_pruned_executable"))
     func focused_generation_removes_pruned_executable_references() async throws {

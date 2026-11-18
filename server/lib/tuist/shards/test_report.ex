@@ -34,6 +34,7 @@ defmodule Tuist.Shards.TestReport do
     field :build_system, Ch, type: "LowCardinality(String)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
+    field :test_impact_run_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)"
     field :skip_test_identifiers, Ch, type: "Array(String)"
     field :stress_mode, Ch, type: "LowCardinality(String)"

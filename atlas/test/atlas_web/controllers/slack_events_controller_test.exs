@@ -15,7 +15,6 @@ defmodule AtlasWeb.SlackEventsControllerTest do
   alias Atlas.Slack.API
   alias Atlas.Slack.Bot
   alias Atlas.Slack.Installation
-  alias Atlas.Slack.Workers.RespondToConversation
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -193,33 +192,35 @@ defmodule AtlasWeb.SlackEventsControllerTest do
       refute Repo.get_by(Event, external_id: "slack:company:C_DISCONNECTED:1710000206.100000")
     end
 
-    test "passes authorized bot users from the Slack event envelope", %{conn: conn} do
-      event = %{
-        "type" => "message",
-        "channel" => "C_SALES",
-        "user" => "U_CUSTOMER",
-        "text" => "<@U_ATLAS> what's the state of Netflix?",
-        "ts" => "1710000201.100000"
-      }
+    test "uses authorized bot users from the Slack event envelope to skip Atlas's own messages", %{conn: conn} do
+      account = insert_account!()
+
+      {:ok, _channel} =
+        Slack.add_channel(%{
+          slack_app: :company,
+          channel_id: "C_SALES",
+          channel_name: "sales-customer",
+          account_id: account.id
+        })
 
       payload = %{
         "type" => "event_callback",
-        "event" => event,
+        "event" => %{
+          "type" => "message",
+          "channel" => "C_SALES",
+          "user" => "U_ATLAS",
+          "text" => "Here is the state of Netflix.",
+          "ts" => "1710000201.100000"
+        },
         "authorizations" => [
           %{"team_id" => "T123", "user_id" => "U_ATLAS", "is_bot" => true}
         ]
       }
 
-      expected_event =
-        event
-        |> Map.put("atlas_team_id", "T123")
-        |> Map.put("atlas_authorized_user_ids", ["U_ATLAS"])
-
-      expect(RespondToConversation, :start_or_replace, fn ^expected_event, :company, nil -> :ok end)
-
       conn = post_signed(conn, payload, "company-secret")
 
       assert json_response(conn, 200) == %{"ok" => true}
+      refute Repo.get_by(Event, external_id: "slack:company:C_SALES:1710000201.100000")
     end
 
     test "rejects a payload that does not match any Slack app signing secret", %{conn: conn} do

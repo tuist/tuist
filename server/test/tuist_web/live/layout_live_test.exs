@@ -32,13 +32,17 @@ defmodule TuistWeb.LayoutLiveTest do
         preload: [:account]
       )
 
+    # The socket loads the project from the database, which holds no legacy token.
     project =
-      ProjectsFixtures.project_fixture(
-        name: "tuist",
-        account_id: account.id,
-        visibility: :private,
-        preload: [:account]
-      )
+      %{
+        ProjectsFixtures.project_fixture(
+          name: "tuist",
+          account_id: account.id,
+          visibility: :private,
+          preload: [:account]
+        )
+        | token: nil
+      }
 
     if role = Map.get(context, :user_role, nil) do
       Accounts.add_user_to_organization(user, organization, role: role)
@@ -148,7 +152,7 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: project.id,
                      selected: true,
                      href: ~p"/#{organization.account.name}/#{project.name}",
-                     badge: %{label: "Xcode", color: "focus"}
+                     image: ~p"/images/build-systems/xcode.png"
                    }
                  ],
                  footer_items: [
@@ -161,13 +165,39 @@ defmodule TuistWeb.LayoutLiveTest do
                    }
                  ],
                  label: project.name,
-                 badge: %{label: "Xcode", color: "focus"}
+                 image: ~p"/images/build-systems/xcode.png"
                }
              ]
 
       assert socket.assigns.selected_project == project
       assert socket.assigns.selected_account.name == organization.account.name
       assert socket.assigns.selected_projects == [project]
+    end
+
+    @tag user_role: :user
+    test "sorts the project dropdown items alphabetically", %{
+      params: params,
+      session: session,
+      user: user,
+      organization: organization
+    } do
+      # Given
+      for name <- ["wikipedia", "mastodon", "cas"] do
+        ProjectsFixtures.project_fixture(name: name, account_id: organization.account.id)
+      end
+
+      # When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          connected_socket(current_user: user)
+        )
+
+      # Then
+      [_account_breadcrumb, project_breadcrumb] = socket.assigns.breadcrumbs
+      assert Enum.map(project_breadcrumb.items, & &1.label) == ["cas", "mastodon", "tuist", "wikipedia"]
     end
 
     @tag user_role: :user
@@ -222,6 +252,7 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.selected_project == project
     end
 
+    @tag :locale
     @tag user_role: :user
     test "uses the session locale for translated dashboard labels", %{
       params: params,

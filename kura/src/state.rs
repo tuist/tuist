@@ -841,6 +841,7 @@ impl AppState {
             report.writer_lock_owned,
         );
         self.metrics.update_membership_generation(report.generation);
+        self.runtime.migration.export_metrics(&self.metrics);
         self.metrics
             .set_backfill_ring_fullness_percent(self.ring_fullness_percent());
         self.metrics.update_replication_bandwidth_limits(

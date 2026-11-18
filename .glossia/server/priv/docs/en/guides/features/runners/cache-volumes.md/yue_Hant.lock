@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2acac62067855d7c882b73baa3088ad21b7101f62e444ff0d027c454469ab6c4",
+  "hash": "605489bc1cb04ce4c66bb9cf9358dcbc1224b0a5e5b3c3d1e98a32ceb68d63cd",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,13 +14,13 @@
                   "content_hash": "967fbd2921cdc62154f2bb2210154fd30fcbafcc2e73046672e69d41b8f36b19"
                 },
                 "## Capacity and retention {#capacity-and-retention}": {
-                  "content_hash": "1e2280f1ac2e30326e1defa78699f57bc01dbf7376a347bb7bc5f669863ee862"
+                  "content_hash": "136324c17707ad5a37df630f23dd957fb9e7ae0e49eff826b226ebcc19fd4bb4"
                 },
                 "## Custom volumes {#custom-volumes}": {
                   "content_hash": "7f87ab667770e60396e0b930baab45cf010e8cac73be94306877d5b417b47f18"
                 },
-                "## Inspecting and clearing volumes {#inspecting-and-clearing-volumes}": {
-                  "content_hash": "af586be1658d6d2cce08fd8a1816e3ccddbec5ec470cb60e9b5353149b232eb9"
+                "## Inspecting and deleting volumes {#inspecting-and-clearing-volumes}": {
+                  "content_hash": "203a2cee6e9b17994d6d32189bf251d3096fec5563ff4c1efe379905672f1072"
                 },
                 "## Managed caches {#managed-caches}": {
                   "content_hash": "644536231a1bc7a21ae23fc6e8a84738461f0956a61ccb895fb9805e9b0e2167"
@@ -35,13 +35,13 @@
                   "content_hash": "9fd3704f33d2f71a303cb46380cd7854fe08e4cd9ea353a96eb48b866fd00033"
                 },
                 "### How keys work {#how-keys-work}": {
-                  "content_hash": "00de72b31849c639c66bf8b14bd98f4c0b05d65ecf3055cfb0b039c0ef81ae30"
+                  "content_hash": "af497b284cfb532de0ec11dbdc5f3c2c43d47d73dba2e7e2817450a49c83d051"
                 },
                 "### Module cache {#module-cache}": {
                   "content_hash": "e466c67a8a83fa5d8654fe25de7c044fe7f9d49381270fa95f9c3a58a5180a89"
                 },
                 "### Several directories in one volume {#several-directories-in-one-volume}": {
-                  "content_hash": "f19c565c02834509b537896c59ddc7e305159a9343b22ff4fc8bd252e277dc19"
+                  "content_hash": "01627607685cbdec24e1ab672a6c0b4d661a4b6f970c64add488fc7b988e90d6"
                 },
                 "### Xcode cache {#xcode-cache}": {
                   "content_hash": "3fd6300d7dd3228c967438786f0a7bd4793b1c8ba51240279dd655257b502037"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "297524de64d45191d48097d82520e35872a4d664ac49587e4f7196163237ba64",
+          "hash": "dc05f7a1bef4c5376f3a86b08ab058ddeee2dfd61c5ce87a7c65797f9ee4d4cf",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
           "metadata": {
-            "content_hash": "d31406c9361323f8be96b3f510741b095d0428e06147dba5315196c9d068da6e"
+            "content_hash": "afaac8ae0bddf1181311ddb29096dc194084285a846fa0f2fb9ac390b6d38da8"
           }
         },
         {
@@ -118,7 +118,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -137,7 +137,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -166,11 +166,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -259,21 +259,21 @@
             }
           ],
           "details": {},
-          "hash": "4210eab8dedef61d8dfa020ea881fd7b7802bea3534f3966c22928c263778d1a",
+          "hash": "105ff8102f3d2e073a148f134ec37c8189c4b3780e683316e82bc0953667a81f",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "2acac62067855d7c882b73baa3088ad21b7101f62e444ff0d027c454469ab6c4",
+      "hash": "605489bc1cb04ce4c66bb9cf9358dcbc1224b0a5e5b3c3d1e98a32ceb68d63cd",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "40c289f6f068262d2d0aeccd319110e428e18b80e79ebd564b44e36dfea86578",
+  "output_hash": "c821ac0e26479db88e25b9ba86531a4e1c567ab3649de2de03db7b8e2db61a83",
   "output_path": "server/priv/docs/yue_Hant/guides/features/runners/cache-volumes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -295,8 +295,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "7a484041d7b5ba8b1c69eabc1dfec14c4763f258",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/runners/cache-volumes.md",
-  "translated_at": "2026-11-02T14:32:16.656820Z",
-  "translation_session_id": "01a19cab-55ad-799c-80bc-aed3e71e4bd0"
+  "translated_at": "2026-11-06T19:10:30.805085Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

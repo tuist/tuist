@@ -1,0 +1,21 @@
+# NATS has no public endpoint and accepts connections only from this release.
+# Grafana/PDC and Alloy already run in observability, so HTTP remains reachable
+# there without exposing OpenObserve's UI or API to the Internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openobserve-private
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+    - from:
+        - podSelector: {}
+      ports:
+        - {port: 5080, protocol: TCP}

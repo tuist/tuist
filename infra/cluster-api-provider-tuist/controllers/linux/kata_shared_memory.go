@@ -8,7 +8,8 @@ import (
 )
 
 // kataHostConfigAnnotation records that this boot verified the Kata host
-// configuration: the shared-memory ceiling and the virtiofsd file budget.
+// configuration: the shared-memory ceiling, the virtiofsd file budget, the
+// sandbox cgroup placement and the needrestart override.
 const kataHostConfigAnnotation = "tuist.dev/kata-host-config"
 
 // Kata's virtio-fs backend puts guest RAM in /dev/shm. Its default half-RAM
@@ -47,16 +48,17 @@ WantedBy=multi-user.target
 `
 
 func kataHostConfigRevision(node *corev1.Node) string {
-	config := kataSharedMemoryScript + kataSharedMemoryUnit + kataVirtiofsSysctl + kataVirtiofsDropIn
+	config := kataSharedMemoryScript + kataSharedMemoryUnit + kataVirtiofsSysctl + kataVirtiofsDropIn + kataSandboxCgroupDropIn + kataNeedrestartConf
 	return fmt.Sprintf("%x:%s", sha256.Sum256([]byte(config)), node.Status.NodeInfo.BootID)
 }
 
 // Runs on existing Kata hosts. Restarting the shared-memory oneshot only
-// verifies/grows the mount, and the virtiofsd settings apply to pods started
-// afterwards; it never restarts containerd, kubelet, or a VM.
+// verifies/grows the mount, the virtiofsd and sandbox cgroup settings apply to
+// pods started afterwards, and the needrestart override applies to the next
+// upgrade; it never restarts containerd, kubelet, or a VM.
 func renderKataHostConfigRepairScript(opts linuxCloudInitOptions) string {
 	sudo, _ := escalation(opts.BootstrapUser)
-	return "#!/usr/bin/env bash\nset -euo pipefail\n" + kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo)
+	return "#!/usr/bin/env bash\nset -euo pipefail\n" + kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataNeedrestartSetup(sudo)
 }
 
 func kataSharedMemorySetup(sudo string) string {

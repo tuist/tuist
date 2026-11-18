@@ -96,8 +96,12 @@ zone-global.
 
 Flux installs the chart through
 `infra/flux/mgmt/cloudflare-operator.yaml`, which points at the local
-Helm release under `infra/flux/cloudflare-operator/`. Managed values pin
-both the source commit tag and the immutable image digest. Cloudflare
+HelmRelease manifest under `infra/flux/cloudflare-operator/`. That release
+selects versioned OCI charts published by `cloudflare-operator-image.yml`;
+each chart contains the source commit image tag and immutable image digest.
+No image-bump commits or Git write-back automation are needed. Publication
+is main-only and follows image publication; PR validation has read-only
+permissions and tests the packaged chart without credentials. Cloudflare
 configuration lives under `infra/flux/cloudflare-config/` and is applied
 by a separate Flux Kustomization that depends on `cloudflare-operator`,
 so the custom resource definition and controller are ready before any

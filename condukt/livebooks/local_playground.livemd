@@ -1,0 +1,339 @@
+# Condukt Local Playground
+
+## Section
+
+Open this notebook from a local checkout of Condukt. The setup cell installs the library from the parent directory, so reevaluating it picks up local changes.
+
+## What You Will Do
+
+This notebook is a guided playground for Condukt. By the end you will:
+
+1. Load the local checkout into Livebook.
+2. Pick a ReqLLM provider and model.
+3. Start a `NotebookAgent` with a system prompt and working directory.
+4. Run one prompt synchronously.
+5. Stream one prompt and watch events arrive live.
+
+## How To Use It
+
+Work from top to bottom.
+
+* Evaluate the setup cell first.
+* When a cell renders an input, pick a value in the UI before evaluating the next cell.
+* If you change provider, model, API key, or system prompt, reevaluate the cells below that point.
+* If you edit the local Condukt checkout, reevaluate the setup cell to reload the dependency.
+
+## Setup
+
+```elixir
+repo_root = Path.expand("..", __DIR__)
+
+Mix.install([
+  {:kino, "~> 0.19"},
+  {:condukt, path: repo_root}
+])
+```
+
+## Catalog
+
+This section builds a small provider catalog from ReqLLM's supported-model registry. The notebook only shows providers that expose a straightforward API key env var, because this is meant to be a simple local playground.
+
+```elixir
+defmodule ConduktLivebook do
+  @preferred_providers ~w(anthropic openai google groq openrouter xai)
+
+  def repo_root do
+    Path.expand("..", __DIR__)
+  end
+
+  def providers do
+    passing_models()
+    |> Enum.group_by(& &1.provider)
+    |> Enum.map(fn {provider, models} ->
+      %{
+        provider: provider,
+        env_key: hd(models).env_key,
+        model_count: length(models)
+      }
+    end)
+    |> Enum.sort_by(fn %{provider: provider} ->
+      preferred_index(provider)
+    end)
+  end
+
+  def models_for(provider) do
+    passing_models()
+    |> Enum.filter(&(&1.provider == provider))
+    |> Enum.sort_by(& &1.model)
+  end
+
+  defp passing_models do
+    supported_models()
+    |> Enum.filter(fn {_spec, meta} -> meta["status"] == "pass" end)
+    |> Enum.map(fn {spec, meta} ->
+      [provider, _model_id] = String.split(spec, ":", parts: 2)
+      provider_atom = String.to_atom(provider)
+
+      %{
+        provider: provider,
+        env_key: ReqLLM.Providers.get_env_key(provider_atom),
+        model: spec,
+        last_checked: meta["last_checked"]
+      }
+    end)
+    |> Enum.filter(& &1.env_key)
+  end
+
+  defp supported_models do
+    :req_llm
+    |> :code.priv_dir()
+    |> to_string()
+    |> Path.join("supported_models.json")
+    |> File.read!()
+    |> JSON.decode!()
+  end
+
+  defp preferred_index(provider) do
+    case Enum.find_index(@preferred_providers, &(&1 == provider)) do
+      nil -> {1, provider}
+      index -> {0, index}
+    end
+  end
+end
+
+providers = ConduktLivebook.providers()
+```
+
+```elixir
+providers
+|> Enum.map_join("\n", fn provider ->
+  "- `#{provider.provider}`: #{provider.model_count} passing models, env key `#{provider.env_key}`"
+end)
+|> Kino.Markdown.new()
+```
+
+The interactive runtime form below includes the ReqLLM providers that expose a default API key env var. Providers that require a different authentication flow are intentionally left out of the picker.
+
+## Runtime
+
+Start by choosing a provider. After changing it, reevaluate the next cell so the model list and API key guidance match your selection.
+
+```elixir
+provider_options =
+  Enum.map(providers, fn provider ->
+    {provider.provider, "#{provider.provider} (#{provider.model_count} passing models, #{provider.env_key})"}
+  end)
+
+provider_input = Kino.Input.select("Provider", provider_options)
+provider_input
+```
+
+```elixir
+selected_provider = Kino.Input.read(provider_input)
+
+provider_details =
+  Enum.find(providers, fn provider ->
+    provider.provider == selected_provider
+  end)
+
+Kino.Markdown.new("""
+Selected provider: `#{selected_provider}`
+
+ReqLLM default API key env var: `#{provider_details.env_key}`
+""")
+```
+
+Now choose the concrete model and runtime settings for the session.
+
+```elixir
+models = ConduktLivebook.models_for(selected_provider)
+
+model_options =
+  Enum.map(models, fn model ->
+    {model.model, "#{model.model} (checked #{model.last_checked})"}
+  end)
+
+model_input = Kino.Input.select("Model", model_options)
+api_key_input = Kino.Input.password("API key")
+
+system_prompt_input =
+  Kino.Input.textarea(
+    "System prompt",
+    default: """
+    You are testing Condukt from a local Livebook.
+    Be explicit about which tools you use and why.
+    """
+  )
+
+cwd_input =
+  Kino.Input.text(
+    "Tool working directory",
+    default: ConduktLivebook.repo_root()
+  )
+
+Kino.Layout.grid(
+  [model_input, api_key_input, system_prompt_input, cwd_input],
+  columns: 1
+)
+```
+
+```elixir
+selected_model = Kino.Input.read(model_input)
+
+Kino.Markdown.new("""
+Selected model: `#{selected_model}`
+
+Leave the API key blank if you want ReqLLM to read `#{provider_details.env_key}` from the environment instead.
+""")
+```
+
+## Agent
+
+This defines a minimal local agent that exposes the standard coding tools. The next cell starts or restarts it with the selections you made above.
+
+```elixir
+defmodule NotebookAgent do
+  use Condukt
+
+  @impl true
+  def tools do
+    Condukt.Tools.coding_tools()
+  end
+end
+```
+
+```elixir
+if pid = Process.whereis(NotebookAgent) do
+  Process.exit(pid, :kill)
+  Process.sleep(50)
+end
+
+api_key =
+  api_key_input
+  |> Kino.Input.read()
+  |> String.trim()
+
+start_link_opts =
+  [
+    name: NotebookAgent,
+    model: selected_model,
+    system_prompt: Kino.Input.read(system_prompt_input),
+    cwd: Kino.Input.read(cwd_input)
+  ] ++
+    if(api_key == "", do: [], else: [api_key: api_key])
+
+{:ok, agent} = NotebookAgent.start_link(start_link_opts)
+
+Kino.Markdown.new("""
+Started `NotebookAgent`
+
+- model: `#{selected_model}`
+- cwd: `#{Kino.Input.read(cwd_input)}`
+- provider: `#{selected_provider}`
+""")
+
+agent
+```
+
+## Run
+
+Use this section when you want the final answer only.
+
+```elixir
+prompt_input =
+  Kino.Input.textarea(
+    "Prompt",
+    default: """
+    Read README.md and summarize Condukt's public API in 5 bullet points.
+    """
+  )
+```
+
+```elixir
+prompt = Kino.Input.read(prompt_input)
+
+case Condukt.run(NotebookAgent, prompt, timeout: 120_000) do
+  {:ok, response} -> Kino.Markdown.new(response)
+  {:error, reason} -> Kino.Markdown.new("Run failed: `#{inspect(reason)}`")
+end
+```
+
+## Stream
+
+Use this section when you want to watch the response evolve in real time, including tool calls and tool results.
+
+`````elixir
+prompt = Kino.Input.read(prompt_input)
+
+frame =
+  Kino.Frame.new()
+  |> Kino.render()
+
+render =
+  fn transcript ->
+    Kino.Frame.render(frame, Kino.Markdown.new(transcript))
+  end
+
+Condukt.stream(NotebookAgent, prompt, timeout: 120_000)
+|> Enum.reduce("", fn
+  {:text, chunk}, transcript ->
+    updated = transcript <> chunk
+    render.(updated)
+    updated
+
+  {:thinking, chunk}, transcript ->
+    updated = transcript <> "\n\n> thinking: #{chunk}\n"
+    render.(updated)
+    updated
+
+  {:tool_call, name, _id, args}, transcript ->
+    updated =
+      transcript <>
+        """
+
+        ---
+        **Tool call:** `#{name}`
+
+        ```elixir
+        #{inspect(args, pretty: true, limit: :infinity)}
+        ```
+        """
+
+    render.(updated)
+    updated
+
+  {:tool_result, _id, result}, transcript ->
+    body =
+      case result do
+        value when is_binary(value) -> value
+        value -> inspect(value, pretty: true, limit: :infinity)
+      end
+
+    updated =
+      transcript <>
+        """
+
+        **Tool result**
+
+        ````text
+        #{body}
+        ````
+        """
+
+    render.(updated)
+    updated
+
+  {:error, reason}, transcript ->
+    updated = transcript <> "\n\n**Error:** `#{inspect(reason)}`\n"
+    render.(updated)
+    updated
+
+  :done, transcript ->
+    updated = transcript <> "\n\n---\nDone.\n"
+    render.(updated)
+    updated
+
+  _event, transcript ->
+    transcript
+end)
+`````

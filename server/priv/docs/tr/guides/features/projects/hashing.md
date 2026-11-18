@@ -1,83 +1,48 @@
 ---
 {
   "title": "Hashing",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built."
+  "titleTemplate": ":title · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist hashing'in ikili önbellekleme ve seçici testi nasıl desteklediği."
 }
 ---
 # Hashing {#hashing}
 
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> veya seçici test yürütme gibi özellikler, bir hedefin
-değişip değişmediğini belirlemenin bir yolunu gerektirir. Tuist, bir hedefin
-değişip değişmediğini belirlemek için bağımlılık grafiğindeki her hedef için bir
-hash hesaplar. Hash, aşağıdaki özniteliklere göre hesaplanır:
+<.localized_link href="/guides/features/cache">Önbellekleme</.localized_link> veya seçici test yürütme gibi özellikler, bir hedefin değişip değişmediğini belirlemek için bir yol gerektirir. Tuist, bağımlılık grafiğindeki her hedef için bir karma değer hesaplayarak hedefin değişip değişmediğini belirler. Karma değer aşağıdaki özniteliklere göre hesaplanır:
 
-- Hedefin özellikleri (ör. isim, platform, ürün, vb.)
+- Hedefin öznitelikleri (örneğin ad, platform, ürün vb.)
 - Hedefin dosyaları
-- Hedefin bağımlılıklarının hash'i
+- Hedefin bağımlılıklarının karma değeri
 
-### Önbellek öznitelikleri {#cache-attributes}
+## Önbellek öznitelikleri {#cache-attributes}
 
-Ek olarak, <LocalizedLink href="/guides/features/cache">caching</LocalizedLink>
-için hash hesaplarken aşağıdaki öznitelikleri de hashleriz.
+Ek olarak, <.localized_link href="/guides/features/cache">önbellekleme</.localized_link> için karma değer hesaplarken aşağıdaki öznitelikleri de hash'leriz.
 
-#### Hızlı versiyon {#swift-version}
+### Swift sürümü {#swift-version}
 
-Hedefler ve ikili dosyalar arasındaki Swift sürüm uyuşmazlıklarından kaynaklanan
-derleme hatalarını önlemek için `/usr/bin/xcrun swift --version` komutunu
-çalıştırarak elde edilen Swift sürümünü hash ediyoruz.
+Hedefler ve ikili dosyalar arasında Swift sürümü uyumsuzluklarından kaynaklanan derleme hatalarını önlemek için `/usr/bin/xcrun swift --version` komutunu çalıştırarak elde edilen Swift sürümünü hash'leriz.
 
 > [!NOTE]
-> **Module Stability**
+> **Modül kararlılığı**
 >
-> İkili önbelleğe almanın önceki sürümleri, [modül
-> kararlılığını](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-> etkinleştirmek ve herhangi bir derleyici sürümüyle ikili dosyaları kullanmayı
-> sağlamak için `BUILD_LIBRARY_FOR_DISTRIBUTION` derleme ayarına dayanıyordu.
-> Ancak, modül kararlılığını desteklemeyen hedeflere sahip projelerde derleme
-> sorunlarına neden oldu. Oluşturulan ikili dosyalar, onları derlemek için
-> kullanılan Swift sürümüne bağlıdır ve Swift sürümü, projeyi derlemek için
-> kullanılan sürümle eşleşmelidir.
+> Binary önbellekleme özelliğinin önceki sürümleri, [modül kararlılığını](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support) etkinleştirmek ve ikili dosyaların herhangi bir derleyici sürümüyle kullanılmasını sağlamak için `BUILD_LIBRARY_FOR_DISTRIBUTION` yapılandırma ayarına güveniyordu. Ancak bu durum, modül kararlılığını desteklemeyen hedefler içeren projelerde derleme sorunlarına yol açıyordu. Oluşturulan ikili dosyalar, bunları derlemek için kullanılan Swift sürümüne bağlıdır ve Swift sürümünün projeyi derlemek için kullanılan sürümle eşleşmesi gerekir.
 
 
-#### Konfigürasyon {#configuration}
+### Yapılandırma {#configuration}
 
-`-configuration` bayrağının arkasındaki fikir, hata ayıklama ikili dosyalarının
-sürüm derlemelerinde kullanılmamasını ve bunun tersini sağlamaktı. Ancak,
-kullanılmalarını önlemek için diğer yapılandırmaları projelerden kaldırmak için
-hala bir mekanizma eksik.
+Önbellek karma değerlerini hesaplarken Tuist, her projenin ve hedefin ayarlarını çözümlenen yapı yapılandırmasına göre kapsar. Bu, `--configuration` ile adlandırılan yapılandırmadır; aksi takdirde projenin `defaultConfiguration` yapılandırması, yoksa ilk hata ayıklama yapılandırması kullanılır. Tuist, bu yapılandırmanın adını, varyantını, yapı ayarlarını ve yapılandırma dosyası içeriğini, ona uygulanan paylaşılan temel ayarlarla birlikte hash'ler. Başka bir yapılandırma eklemek, kaldırmak veya değiştirmek çözümlenen yapılandırmanın önbellek karma değerlerini etkilemez. Yalnızca çözümlenen yapılandırma önemli olduğundan, açık bir `--configuration` ile doldurulan bir önbellek, bayrağı geçmeden aynı yapılandırmaya çözümlenen bir komut tarafından okunabilir.
 
-## Hata Ayıklama {#debugging}
+## Hata ayıklama {#debugging}
 
-Ortamlar veya çağrılar arasında önbelleğe almayı kullanırken deterministik
-olmayan davranışlar fark ederseniz, bu durum ortamlar arasındaki farklılıklarla
-veya karma mantığındaki bir hatayla ilgili olabilir. Sorunu ayıklamak için
-aşağıdaki adımları izlemenizi öneririz:
+Farklı ortamlarda veya çağrılarda önbellekleme kullanırken deterministik olmayan davranışlar fark ederseniz, bu durum ortamlar arasındaki farklılıklardan veya hash mantığında bir hatadan kaynaklanıyor olabilir. Sorunu hata ayıklamak için şu adımları izlemenizi öneririz:
 
-1. `tuist hash cache` veya `tuist hash selective-testing`
-   (<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
-   veya <LocalizedLink href="/guides/features/selective-testing">seçmeli test</LocalizedLink> için hashler) komutunu çalıştırın, hashleri kopyalayın,
-   proje dizinini yeniden adlandırın ve komutu tekrar çalıştırın. Hash'ler
-   eşleşmelidir.
-2. Hash'ler eşleşmiyorsa, oluşturulmuş projele'nin ortama bağlı olması
-   muhtemeldir. Her iki durumda da `tuist graph --format json` çalıştırın ve
-   grafikleri karşılaştırın. Alternatif olarak, projeleri oluşturun ve
-   `project.pbxproj` dosyalarını [Diffchecker](https://www.diffchecker.com) gibi
-   bir fark aracı ile karşılaştırın.
-3. Karmalar aynıysa ancak ortamlar arasında farklılık gösteriyorsa (örneğin, CI
-   ve yerel), her yerde aynı [yapılandırma](#configuration) ve [Swift
-   sürümü](#swift-version) kullanıldığından emin olun. Swift sürümü Xcode
-   sürümüne bağlıdır, bu nedenle Xcode sürümlerinin eşleştiğini doğrulayın.
+1. `tuist hash cache` veya `tuist hash selective-testing` (<.localized_link href="/guides/features/cache">ikili önbellekleme</.localized_link> veya <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link> için karma değerler) komutunu çalıştırın, karma değerleri kopyalayın, proje dizinini yeniden adlandırın ve komutu tekrar çalıştırın. Karma değerler eşleşmelidir.
+2. Karmalar eşleşmiyorsa, oluşturulan projenin ortama bağlı olması muhtemeldir. Her iki durumda da `tuist graph --format json` komutunu çalıştırın ve grafikleri karşılaştırın. Alternatif olarak, projeleri oluşturun ve [Diffchecker](https://www.diffchecker.com) gibi bir fark karşılaştırma aracıyla `project.pbxproj` dosyalarını karşılaştırın.
+3. Karma değerler aynıysa ancak ortamlar arasında farklılık gösteriyorsa (örneğin CI ve yerel ortam), her yerde aynı [yapılandırma](#configuration) ve [Swift sürümü](#swift-version)nün kullanıldığından emin olun. Swift sürümü Xcode sürümüne bağlıdır, bu nedenle Xcode sürümlerinin eşleştiğini doğrulayın.
 
-Hash'ler hala deterministik değilse, bize bildirin ve hata ayıklama konusunda
-yardımcı olabiliriz.
+Karma değerler hâlâ deterministik değilse bize bildirin, hata ayıklama konusunda yardımcı olabiliriz.
 
 
 > [!NOTE]
-> **Better Debugging Experience Planned**
+> **Daha iyi hata ayıklama deneyimi planlanıyor**
 >
-> Hata ayıklama deneyimimizi iyileştirmek yol haritamızda yer alıyor. Farkları
-> anlamak için bağlamdan yoksun olan print-hashes komutu, hash'ler arasındaki
-> farkları göstermek için ağaç benzeri bir yapı kullanan daha kullanıcı dostu bir
-> komutla değiştirilecektir.
-
+> Hata ayıklama deneyimimizi iyileştirmek yol haritamızda yer alıyor. Farklılıkları anlamak için bağlamdan yoksun olan print-hashes komutunun yerine, karma değerler arasındaki farkları ağaç benzeri bir yapı kullanarak gösteren daha kullanıcı dostu bir komut gelecektir.

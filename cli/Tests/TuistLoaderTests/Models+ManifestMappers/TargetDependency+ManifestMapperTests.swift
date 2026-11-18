@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -292,5 +293,76 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         }
         XCTAssertEqual(target, "MyLibrary")
         XCTAssertEqual(path, "/Project")
+    }
+}
+
+struct ExternalDependencyStatusManifestMapperTests {
+    private let externalDependencies: [String: [XcodeGraph.TargetDependency]] = [
+        "MCP": [
+            .project(target: "MCP", path: "/Packages/MCP"),
+            .xcframework(path: "/MCPCore.xcframework", expectedSignature: nil, status: .required),
+            .sdk(name: "libc++.tbd", status: .required),
+        ],
+    ]
+
+    @Test func requiredStatusGivesThePlainExternalDependency() {
+        #expect(ProjectDescription.TargetDependency.external(name: "MCP", status: .required) == .external(name: "MCP"))
+    }
+
+    @Test(arguments: [ProjectDescription.LinkingStatus.none, .optional])
+    func otherStatusesGiveADependencyThatKeepsTheStatus(status: ProjectDescription.LinkingStatus) throws {
+        let dependency = ProjectDescription.TargetDependency.external(name: "MCP", status: status, condition: .when([.macos]))
+
+        #expect(dependency == .externalWithStatus(name: "MCP", status: status, condition: .when([.macos])))
+        #expect(dependency.typeName == "external")
+        #expect(try isCodableRoundTripable(dependency))
+    }
+
+    @Test(arguments: [ProjectDescription.LinkingStatus.none, .optional])
+    func externalWithStatusGivesEveryMappedDependencyThatStatus(status: ProjectDescription.LinkingStatus) throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.external(name: "MCP", status: status, condition: .when([.macos]))
+
+        // When
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: GeneratorPaths(manifestDirectory: "/", rootDirectory: "/"),
+            externalDependencies: externalDependencies
+        )
+
+        // Then
+        let graphStatus = XcodeGraph.LinkingStatus.from(manifest: status)
+        let condition = ProjectDescription.PlatformCondition.when([.macos])?.asGraphCondition
+        #expect(got == [
+            .project(target: "MCP", path: "/Packages/MCP", status: graphStatus, condition: condition),
+            .xcframework(path: "/MCPCore.xcframework", expectedSignature: nil, status: graphStatus, condition: condition),
+            .sdk(name: "libc++.tbd", status: graphStatus, condition: condition),
+        ])
+    }
+
+    @Test(arguments: [
+        ProjectDescription.TargetDependency.external(name: "MCP"),
+        .external(name: "MCP", status: .required),
+    ])
+    func externalWithoutAStatusKeepsTheRequiredStatus(dependency: ProjectDescription.TargetDependency) throws {
+        // When
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: GeneratorPaths(manifestDirectory: "/", rootDirectory: "/"),
+            externalDependencies: externalDependencies
+        )
+
+        // Then
+        #expect(got == externalDependencies["MCP"])
+    }
+
+    @Test func externalWithStatusThrowsForAnUnknownDependency() {
+        #expect(throws: TargetDependencyMapperError.self) {
+            try XcodeGraph.TargetDependency.from(
+                manifest: .external(name: "Unknown", status: .none),
+                generatorPaths: GeneratorPaths(manifestDirectory: "/", rootDirectory: "/"),
+                externalDependencies: externalDependencies
+            )
+        }
     }
 }

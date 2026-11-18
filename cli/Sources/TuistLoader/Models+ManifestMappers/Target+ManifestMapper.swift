@@ -77,7 +77,7 @@ extension XcodeGraph.Target {
                 throw TargetManifestMapperError.missingLocalPackageTestDependency(target: name, product: product)
             }
 
-            if case .external = manifestDependency {
+            if manifestDependency.isExternal {
                 for mappedDependency in mappedDependencies {
                     guard !mappedDependency.isXCFrameworkDependency else {
                         if externalXCFrameworkDependencies.insert(mappedDependency).inserted {

@@ -11,6 +11,8 @@ defmodule Atlas.Support.EmailTest do
                %Thread{subject: "A question"},
                %Message{
                  message_id: "reply@example.com",
+                 in_reply_to: "parent@example.com",
+                 references: ["root@example.com", "parent@example.com"],
                  sender_email: "contact@tuist.dev",
                  to_emails: ["customer@example.com"],
                  body: "# Hello\n\n**Thanks** for [writing](https://tuist.dev).\n\n- First\n- Second"
@@ -26,6 +28,9 @@ defmodule Atlas.Support.EmailTest do
 
     assert email.text_body =~ "Thanks for writing: https://tuist.dev"
     refute email.text_body =~ "**"
+
+    assert email.headers["References"] == "<root@example.com> <parent@example.com> <reply@example.com>"
+    assert email.headers["In-Reply-To"] == "<parent@example.com>"
   end
 
   test "preserves single line breaks in the HTML and text email bodies" do

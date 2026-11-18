@@ -35,12 +35,27 @@ defmodule TuistWeb.UserResetPasswordLive do
                 )}
               </span>
             </div>
-            <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
+            <.form
+              data-part="form"
+              for={@form}
+              id="reset_password_form"
+              action={~p"/users/reset_password/#{@token}"}
+              method="post"
+              phx-submit="reset_password"
+            >
+              <input
+                type="hidden"
+                id="reset-username"
+                name="user[email]"
+                value={@user.email}
+                autocomplete="username"
+              />
               <.text_input
                 field={@form[:password]}
                 type="password"
                 input_type="password"
                 label={dgettext("dashboard_auth", "New password")}
+                autocomplete="new-password"
                 show_prefix={false}
                 required
               />
@@ -49,6 +64,7 @@ defmodule TuistWeb.UserResetPasswordLive do
                 type="password"
                 input_type="password"
                 label={dgettext("dashboard_auth", "Confirm password")}
+                autocomplete="new-password"
                 show_prefix={false}
                 required
               />

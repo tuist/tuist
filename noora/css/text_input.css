@@ -10,7 +10,7 @@
     align-self: stretch;
     gap: var(--noora-spacing-4);
     cursor: text;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
@@ -115,15 +115,15 @@
     }
 
     &:has(> input:focus) {
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
     }
 
     &[data-error] {
-      box-shadow: var(--noora-border-light-error);
+      box-shadow: var(--noora-border-small-error);
     }
 
     &[data-error]:has(> input:focus) {
-      box-shadow: var(--noora-border-light-error-focus);
+      box-shadow: var(--noora-border-small-error-focus);
     }
 
     &[data-type="password"]:has(> input[type="text"]) {

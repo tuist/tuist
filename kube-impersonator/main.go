@@ -120,6 +120,10 @@ func (t *tokenStore) get() string {
 
 func main() {
 	cfg := configFromEnv()
+	orbCfg, err := orbConfigFromEnv()
+	if err != nil {
+		log.Fatalf("orb config: %v", err)
+	}
 
 	tokens := &tokenStore{file: cfg.saTokenFile}
 	if err := tokens.reload(); err != nil {
@@ -173,9 +177,24 @@ func main() {
 	log.Printf("kube-impersonator: internal=%s health=%s policy=%s apiserver=%s",
 		cfg.listenAddr, cfg.healthAddr, cfg.policyURL, cfg.apiserverURL)
 
-	errs := make(chan error, 2)
+	errs := make(chan error, 3)
 	go func() { errs <- fmt.Errorf("internal listener: %w", internalSrv.ListenAndServe()) }()
 	go func() { errs <- fmt.Errorf("health listener: %w", healthSrv.ListenAndServe()) }()
+
+	if orbCfg.listenAddr != "" {
+		orbMux := http.NewServeMux()
+		orbMux.Handle("/", orbHandler(newOrbVerifier(orbCfg, &http.Client{Timeout: 10 * time.Second}), policyClient, cfg.policyURL, proxy))
+		orbSrv := &http.Server{
+			Addr:              orbCfg.listenAddr,
+			Handler:           orbMux,
+			ReadHeaderTimeout: 10 * time.Second,
+			// In-cluster clients can hold keep-alive connections open.
+			IdleTimeout: 2 * time.Minute,
+		}
+		log.Printf("kube-impersonator: orb=%s issuer=%s audience=%s workspace=%s project=%s",
+			orbCfg.listenAddr, orbCfg.issuer, orbCfg.audience, orbCfg.workspaceID, orbCfg.projectID)
+		go func() { errs <- fmt.Errorf("orb listener: %w", orbSrv.ListenAndServe()) }()
+	}
 	log.Fatal(<-errs)
 }
 
@@ -194,7 +213,7 @@ func refreshTokenLoop(t *tokenStore, ttl time.Duration) {
 // reverse-proxy. Policy failure → 502 (fail closed).
 func impersonatingHandler(client *http.Client, policyURL string, proxy *httputil.ReverseProxy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, err := callPolicy(r.Context(), client, policyURL, r)
+		id, err := callPolicy(r.Context(), client, policyURL, r.Host, pomeriumPolicyHeaders(r))
 		if err != nil {
 			log.Printf("policy lookup failed for %s: %v", r.URL.Path, err)
 			http.Error(w, "impersonation policy unavailable", http.StatusBadGateway)
@@ -205,21 +224,35 @@ func impersonatingHandler(client *http.Client, policyURL string, proxy *httputil
 	})
 }
 
+// pomeriumPolicyHeaders picks the Pomerium-set headers the policy
+// call carries for a human request. Nothing else the client sent is
+// forwarded.
+func pomeriumPolicyHeaders(orig *http.Request) http.Header {
+	h := http.Header{}
+	for _, name := range []string{"X-Pomerium-Claim-Email", "X-Tuist-Env"} {
+		if v := orig.Header.Get(name); v != "" {
+			h.Set(name, v)
+		}
+	}
+	return h
+}
+
 // callPolicy issues an HTTP GET to tuist-ops's policy endpoint
-// with the headers PolicyController reads (Host derives env,
-// X-Pomerium-Claim-Email is the user). Response 200 + headers →
-// identity. Anything else → error.
-func callPolicy(ctx context.Context, c *http.Client, policyURL string, orig *http.Request) (identity, error) {
+// with the headers PolicyController reads (Host derives env and
+// which kind of caller this is; the headers identify the caller).
+// Response 200 + headers → identity. Anything else → error.
+func callPolicy(ctx context.Context, c *http.Client, policyURL, host string, headers http.Header) (identity, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, policyURL, nil)
 	if err != nil {
 		return identity{}, err
 	}
-	// Host is what env derives from. Pomerium leaves it as the
-	// public hostname (kube-<env>.tuist.dev) when we ask it to.
-	req.Host = orig.Host
-	for _, h := range []string{"X-Pomerium-Claim-Email", "X-Tuist-Env"} {
-		if v := orig.Header.Get(h); v != "" {
-			req.Header.Set(h, v)
+	// Host is what env derives from. Pomerium and ingress-nginx leave
+	// it as the public hostname (kube-<env>.tuist.dev,
+	// kube-orb-<env>.tuist.dev).
+	req.Host = host
+	for name, values := range headers {
+		for _, v := range values {
+			req.Header.Add(name, v)
 		}
 	}
 

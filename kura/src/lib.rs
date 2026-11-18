@@ -26,6 +26,7 @@ mod io;
 mod memory;
 mod mesh_heartbeat;
 mod metrics;
+mod migration;
 mod mmap;
 mod multipart;
 mod node_location;

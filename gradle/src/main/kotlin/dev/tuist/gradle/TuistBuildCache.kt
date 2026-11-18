@@ -19,6 +19,7 @@ import java.net.URI
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipException
 
 /**
@@ -198,6 +199,14 @@ class TuistBuildCacheService(
     private val isPushEnabled: Boolean
 ) : BuildCacheService {
 
+    /**
+     * Set once the server refuses a store with 403: the credential may read this project's
+     * cache but not write to it (a read-only token, a viewer, or an account that keeps writes
+     * to tokens). Later stores are skipped rather than thrown, because a [BuildCacheException]
+     * makes Gradle disable the remote cache for the rest of the build, loads included.
+     */
+    private val pushRefused = AtomicBoolean(false)
+
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
         return httpClient.execute { config ->
             val url = buildCacheUrl(config, key.hashCode)
@@ -256,7 +265,7 @@ class TuistBuildCacheService(
     }
 
     override fun store(key: BuildCacheKey, writer: BuildCacheEntryWriter) {
-        if (!isPushEnabled) return
+        if (!isPushEnabled || pushRefused.get()) return
 
         val checksumRefusal = storeOnce(key.hashCode, writer) ?: return
         logger.warn("Tuist: Retrying store because the server refused the cache entry body: {}", checksumRefusal.message)
@@ -318,6 +327,18 @@ class TuistBuildCacheService(
             when (responseCode) {
                 HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> null
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                HttpURLConnection.HTTP_FORBIDDEN -> {
+                    if (pushRefused.compareAndSet(false, true)) {
+                        logger.warn(
+                            "Tuist: The remote cache refused to store {} (HTTP 403{}). The credentials in use " +
+                                "can read this project's cache but not write to it, so build outputs will not be " +
+                                "pushed for the rest of this build. Set push = false to stop trying.",
+                            cacheKey,
+                            readErrorBodySnippet(connection)?.let { ": $it" } ?: ""
+                        )
+                    }
+                    null
+                }
                 else -> {
                     val failure = unexpectedStatus("store", cacheKey, url, connection, responseCode)
                     if (responseCode == HTTP_UNPROCESSABLE_ENTITY) failure else throw failure

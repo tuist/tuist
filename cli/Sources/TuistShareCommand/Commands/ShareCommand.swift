@@ -33,6 +33,9 @@ public struct ShareCommand: AsyncParsableCommand {
     @Option(help: "The executable path relative to a CLI distribution directory. Includes the entire directory in the preview.")
     var executable: String?
 
+    @Option(help: "A PNG icon to show for an executable preview, such as a Linux app.", completion: .file(extensions: ["png"]))
+    var icon: String?
+
     #if os(macOS)
         @Option(
             name: [.long, .customShort("C")],
@@ -85,7 +88,8 @@ public struct ShareCommand: AsyncParsableCommand {
                 json: json,
                 track: track,
                 releaseNotes: releaseNotes,
-                executable: executable
+                executable: executable,
+                icon: icon
             )
         #else
             try await ShareCommandService().run(
@@ -94,7 +98,8 @@ public struct ShareCommand: AsyncParsableCommand {
                 json: json,
                 track: track,
                 releaseNotes: releaseNotes,
-                executable: executable
+                executable: executable,
+                icon: icon
             )
         #endif
     }

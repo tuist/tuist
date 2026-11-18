@@ -1,15 +1,9 @@
-import FileSystem
 import Foundation
-import Path
 import TuistREAPI
-#if os(Linux)
-    import TuistCoreCache
-#else
-    import TuistCore
-#endif
 
 protocol CargoCacheAction {
     var cacheVersion: String { get }
+    var arguments: [String] { get }
     var key: REAPI.Digest { get }
     var environment: [String: String] { get }
     var output: URL { get }
@@ -19,42 +13,84 @@ protocol CargoCacheAction {
     func fingerprint() throws -> REAPI.Digest
     func validateDependencies(restoring: Bool) async throws
     func certifyOutputs(metadataOnly: Bool) throws
+    /// Certifies outputs whose dependencies and key the caller has just checked, without checking them again.
+    func certifyCheckedOutputs() throws
     func outputFiles() throws -> [String]
     func acceptsOutput(_ file: String) -> Bool
+    /// Extra compiler arguments the cached compilation runs with.
+    var remapArguments: [String] { get }
+    /// Dep-info and compiler messages, as stored (machine-specific roots replaced) and as restored.
+    func storedOutput(_ data: Data) -> Data?
+    func restoredOutput(_ data: Data) -> Data?
+    /// Machine roots an output names that its key does not; such an entry would behave differently elsewhere.
+    func unkeyedRoots(in file: URL) throws -> [String]
+    /// The one output stored and restored with its executable bit, a linked binary.
+    var executableOutput: String? { get }
 }
 
-struct CargoCompilationCache {
+extension CargoCacheAction {
+    func certifyCheckedOutputs() throws { try certifyOutputs(metadataOnly: false) }
+    var executableOutput: String? { nil }
+    var remapArguments: [String] { [] }
+    func storedOutput(_ data: Data) -> Data? { data }
+    func restoredOutput(_ data: Data) -> Data? { data }
+    func unkeyedRoots(in _: URL) throws -> [String] { [] }
+}
+
+struct CargoCompilationCache { // swiftlint:disable:this type_body_length
     let invocation: any CargoCacheAction
     let root: URL
     var remote: (any REAPICacheStoring)?
     let measurement: CargoCacheMeasurement
+    /// Where a hit's compiler messages go: this process's streams for a hook, or the hook client a session serves.
+    var replay: (_ stdout: Data, _ stderr: Data) -> Void = { stdout, stderr in
+        FileHandle.standardOutput.write(stdout)
+        FileHandle.standardError.write(stderr)
+    }
 
-    private let fileSystem: any FileSysteming
-    private let command: Data
-    private let action: Data
-    private let actionDigest: REAPI.Digest
+    /// The entry for output that reads the same at every width: no rendered diagnostics, or diagnostics rendered
+    /// without a width (a piped build), which a terminal build skips.
+    private let shared: Entry
+    /// The entry for diagnostics rendered at this compilation's terminal width, so builds at different widths each keep
+    /// theirs instead of replacing one another's. `nil` without a width.
+    private let rendered: Entry?
+
+    /// An action result's index: the key, and the width of the diagnostics it holds, if any.
+    fileprivate struct Entry {
+        let command: Data
+        let action: Data
+        let digest: REAPI.Digest
+
+        init(_ invocation: any CargoCacheAction, width: String?) throws {
+            command = try REAPI.Command.with {
+                $0.arguments = [invocation.cacheVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
+                    + (width.map { ["diagnostic-width=" + $0] } ?? [])
+            }.serializedData()
+            let commandDigest = REAPI.digest(command)
+            action = try REAPI.Action.with {
+                $0.commandDigest = commandDigest
+                $0.inputRootDigest = REAPI.emptyBlob
+            }.serializedData()
+            digest = REAPI.digest(action)
+        }
+    }
 
     init(
-        invocation: any CargoCacheAction, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement,
-        fileSystem: any FileSysteming = FileSystem()
+        invocation: any CargoCacheAction, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement
     ) throws {
         self.invocation = invocation
         self.root = root
         self.remote = remote
         self.measurement = measurement
-        self.fileSystem = fileSystem
-        command = try REAPI.Command.with {
-            $0.arguments = [invocation.cacheVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
-        }.serializedData()
-        let commandDigest = REAPI.digest(command)
-        action = try REAPI.Action.with {
-            $0.commandDigest = commandDigest
-            $0.inputRootDigest = REAPI.emptyBlob
-        }.serializedData()
-        actionDigest = REAPI.digest(action)
+        shared = try Entry(invocation, width: nil)
+        let width = Self.diagnosticWidth(invocation.arguments)
+        rendered = width.isEmpty ? nil : try Entry(invocation, width: width)
     }
 
-    private var index: URL { root.appendingPathComponent("actions/" + actionDigest.hash) }
+    /// The entries a lookup tries, in order: most output reads the same at every width.
+    private var entries: [Entry] { [shared] + (rendered.map { [$0] } ?? []) }
+
+    private func index(_ entry: Entry) -> URL { root.appendingPathComponent("actions/" + entry.digest.hash) }
 
     func restore() async throws -> Bool {
         if try await restoreLocally() { return true }
@@ -62,79 +98,195 @@ struct CargoCompilationCache {
     }
 
     func restoreLocally() async throws -> Bool {
-        try Task.checkCancellation()
-        let localStarted = Date()
-        let data = try? boundedData(index, maximum: 2_000_000)
-        measurement.timing("read", duration: Date().timeIntervalSince(localStarted))
-        if let data, let result = try? REAPI.ActionResult(serializedBytes: data),
-           (try? await materialize(result, downloadMissing: false)) == true { return true }
+        for entry in entries {
+            try Task.checkCancellation()
+            if let result = localResult(entry),
+               (try? await materialize(result, entry: entry, downloadMissing: false)) == true { return true }
+        }
         try Task.checkCancellation()
         return false
     }
 
-    func restoreRemotely() async throws -> Bool {
-        try Task.checkCancellation()
-        guard let remote else { return false }
-        let result: REAPI.ActionResult?
-        do {
-            let started = Date()
-            result = try await remote.actionResult(for: actionDigest)
-            measurement.timing("read", duration: Date().timeIntervalSince(started))
-        } catch {
-            if error is CancellationError || Task.isCancelled { throw error }
-            debug(error)
-            if !CargoRemoteCache.isOverloaded(error) { measurement.failure() }
-            return false
-        }
-        guard let result else { return false }
-        do {
-            return try await materialize(result, downloadMissing: true)
-        } catch {
-            if error is CancellationError || Task.isCancelled { throw error }
-            debug(error)
-            return false
-        }
+    /// An entry `fetch` found, with its blobs in the local store.
+    struct Fetched {
+        let result: REAPI.ActionResult
+        fileprivate let entry: Entry
+        let remote: Bool
     }
 
-    func store(stdout: Data, stderr: Data) async throws {
+    /// Finds the entry, locally first, and brings its blobs into the local store without touching the outputs, for a
+    /// compiler that is still running: `install` restores it once the compiler has stopped.
+    func fetch() async throws -> Fetched? {
+        for entry in entries {
+            try Task.checkCancellation()
+            if let result = localResult(entry), (try? await stage(result, downloadMissing: false)) == true {
+                return Fetched(result: result, entry: entry, remote: false)
+            }
+        }
+        guard let remote else { return nil }
+        for entry in entries {
+            try Task.checkCancellation()
+            let started = Date()
+            guard let result = try await remote.actionResult(for: entry.digest) else { continue }
+            measurement.timing("read", duration: Date().timeIntervalSince(started))
+            if try await stage(result, downloadMissing: true) { return Fetched(result: result, entry: entry, remote: true) }
+        }
+        return nil
+    }
+
+    private func localResult(_ entry: Entry) -> REAPI.ActionResult? {
+        let started = Date()
+        let data = try? boundedData(index(entry), maximum: 2_000_000)
+        measurement.timing("read", duration: Date().timeIntervalSince(started))
+        return data.flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
+    }
+
+    func restoreRemotely() async throws -> Bool {
+        guard let remote else { return false }
+        for entry in entries {
+            try Task.checkCancellation()
+            let result: REAPI.ActionResult?
+            do {
+                let started = Date()
+                result = try await remote.actionResult(for: entry.digest)
+                measurement.timing("read", duration: Date().timeIntervalSince(started))
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                debug(error)
+                if !CargoRemoteCache.isOverloaded(error) { measurement.failure() }
+                return false
+            }
+            guard let result else { continue }
+            do {
+                if try await materialize(result, entry: entry, downloadMissing: true) { return true }
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                debug(error)
+                return false
+            }
+        }
+        return false
+    }
+
+    /// The entry a restoration would find, locally or remotely, without restoring it: what `CargoCacheVerification`
+    /// compares a fresh compilation with. Entries are tried in the restorations' order, local ones first.
+    func entry() async -> REAPI.ActionResult? {
+        func succeeded(_ result: REAPI.ActionResult?, _ entry: Entry) -> REAPI.ActionResult? {
+            guard let result, result.exitCode == 0 else { return nil }
+            // Still in use: the next build's prefetch keeps it.
+            CargoCacheJournal.use("actions/" + entry.digest.hash, environment: invocation.environment)
+            return result
+        }
+        for entry in entries {
+            let data = try? boundedData(index(entry), maximum: 2_000_000)
+            if let found = succeeded(data.flatMap { try? REAPI.ActionResult(serializedBytes: $0) }, entry) { return found }
+        }
+        guard let remote else { return nil }
+        for entry in entries {
+            do {
+                let started = Date()
+                let result = try await remote.actionResult(for: entry.digest)
+                measurement.timing("read", duration: Date().timeIntervalSince(started))
+                if let found = succeeded(result, entry) { return found }
+            } catch {
+                // As in `restoreRemotely`: an unavailable endpoint opens the session's circuit.
+                if !(error is CancellationError || Task.isCancelled), !CargoRemoteCache.isOverloaded(error) {
+                    measurement.failure()
+                }
+                return nil
+            }
+        }
+        return nil
+    }
+
+    /// Publishes the compilation's outputs. `keyedAfterCompiling` says the key was computed from inputs read once the
+    /// compiler had finished, so only the check after copying the outputs is needed; a key taken before it ran is
+    /// checked first, since a source may have changed while it compiled.
+    func store(stdout: Data, stderr: Data, keyedAfterCompiling: Bool = false) async throws {
+        guard try await admit(keyedAfterCompiling: keyedAfterCompiling) else { return }
+        try await publish(stdout: stdout, stderr: stderr)
+    }
+
+    /// Checks the inputs the key names and certifies the outputs for strict dependents, which Cargo may start as soon
+    /// as the compiler's exit is reported. `false` when the compilation must not be published.
+    func admit(keyedAfterCompiling: Bool = false) async throws -> Bool {
         try Task.checkCancellation()
         try await invocation.validateDependencies(restoring: false)
-        guard try invocation.fingerprint() == invocation.key else { return }
-        try? invocation.certifyOutputs(metadataOnly: false)
-        guard stdout.isEmpty, stderr.count <= 1_000_000, Self.hasOnlyArtifactMessages(stderr) else { return }
+        guard try keyedAfterCompiling || invocation.fingerprint() == invocation.key else { return false }
+        try? invocation.certifyCheckedOutputs()
+        return true
+    }
+
+    /// Stores an admitted compilation's outputs, which must still match the key once copied.
+    func publish(stdout: Data, stderr: Data) async throws {
+        guard stdout.isEmpty, stderr.count <= 1_000_000, let messages = Self.messages(stderr) else {
+            return refuse("its output is not only rustc's messages")
+        }
+        // Rendered diagnostics depend on the terminal width, which keys leave out: record it beside them, and keep
+        // them under that width's own entry.
+        let widthMarker = messages.diagnostics ? Self.widthMarker(invocation.arguments) : Data()
+        let entry = messages.diagnostics ? rendered ?? shared : shared
+        guard let storedStderr = invocation.storedOutput(widthMarker + stderr) else {
+            return refuse("its messages name a path outside the known roots")
+        }
         var result = REAPI.ActionResult()
         result.stdoutRaw = stdout
-        result.stderrRaw = stderr
+        result.stderrRaw = storedStderr
+        let relocated = root.appendingPathComponent("staging/" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: relocated) }
         var blobs: [REAPI.Digest: URL] = [:]
-        var budget: Int64 = 250_000_000
+        var budget = Self.maximumBytes
         for name in try invocation.outputFiles() {
             let file = invocation.output.appendingPathComponent(name)
             let properties = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
-                  let size = properties.fileSize, size <= 100_000_000, size <= budget else { return }
+                  let size = properties.fileSize, size <= budget
+            else { return refuse("\(name) is not a regular file within the size budget") }
             budget -= Int64(size)
-            let digest = try REAPI.digest(file: file)
-            let blob = try publish(file, digest: digest)
-            blobs[digest] = blob
-            result.outputFiles.append(.with { $0.path = name; $0.digest = digest })
+            var content = file
+            if !name.hasSuffix(".d") {
+                let unkeyed = try invocation.unkeyedRoots(in: file)
+                guard unkeyed.isEmpty else {
+                    let roots = unkeyed.joined(separator: ", ")
+                    return refuse("\(name) names \(roots), which its key does not")
+                }
+            }
+            if name.hasSuffix(".d") {
+                guard let stored = invocation.storedOutput(try Data(contentsOf: file)) else {
+                    return refuse("\(name) names a path outside the known roots")
+                }
+                try FileManager.default.createDirectory(at: relocated, withIntermediateDirectories: true)
+                content = relocated.appendingPathComponent(name)
+                try stored.write(to: content)
+            }
+            let digest = try blobStore.publish(content)
+            blobs[digest] = blobStore.path(digest)
+            result.outputFiles.append(.with {
+                $0.path = name; $0.digest = digest; $0.isExecutable = name == invocation.executableOutput
+            })
             measurement.reference(digest)
         }
-        guard try invocation.fingerprint() == invocation.key else { return }
+        guard try invocation.fingerprint() == invocation.key else { return refuse("an input changed while it was stored") }
         try Task.checkCancellation()
         let localStarted = Date()
-        try write(try result.serializedData(), to: index)
+        try CargoBlobStore.write(try result.serializedData(), to: index(entry))
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
+        CargoCacheJournal.use("actions/" + entry.digest.hash, environment: invocation.environment)
         guard let remote else { return }
         if let marker = CargoCacheSetup.readOnlyMarker(environment: invocation.environment),
            FileManager.default.fileExists(atPath: marker.path) { return }
         let started = Date()
         do {
-            for data in [command, action, Data()] {
+            for data in [entry.command, entry.action, Data()] {
                 let digest = REAPI.digest(data)
-                let file = blobPath(digest)
-                try write(data, to: file)
+                let file = blobStore.path(digest)
+                try CargoBlobStore.write(data, to: file)
                 blobs[digest] = file
             }
+            // Inside a session the outer command uploads once Cargo exits, so no compilation waits on the network.
+            if CargoCacheJournal.defersPublication(invocation.environment),
+               CargoCacheJournal.deferPublication(result, for: entry.digest, blobs: blobs, environment: invocation.environment)
+            { return }
             let upload = try await remote.uploadAvailableBlobs(blobs)
             let elapsed = Date().timeIntervalSince(started)
             for digest in blobs.keys {
@@ -154,7 +306,7 @@ struct CargoCompilationCache {
                 return
             }
             let publicationStarted = Date()
-            try await remote.storeActionResult(result, for: actionDigest)
+            try await remote.storeActionResult(result, for: entry.digest)
             measurement.timing("write", duration: Date().timeIntervalSince(publicationStarted))
         } catch {
             if error is CancellationError || Task.isCancelled { throw error }
@@ -163,10 +315,58 @@ struct CargoCompilationCache {
         }
     }
 
-    private static func hasOnlyArtifactMessages(_ data: Data) -> Bool {
-        data.split(separator: 10).allSatisfy { line in
-            guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { return false }
-            return message["$message_type"] as? String == "artifact"
+    /// Whether a stream holds only rustc's JSON messages (artifact notifications, diagnostics, future-incompatibility
+    /// reports, unused-extern reports, and this cache's width marker), and whether any holds rendered diagnostics;
+    /// `nil` for anything else. Cargo 1.100 asks for unused-extern reports (`--json=unused-externs-silent`) for its
+    /// `unused_dependencies` lint; a hit replays them like diagnostics, so the lint still sees cached crates.
+    static func messages(_ data: Data) -> (diagnostics: Bool, width: String?)? {
+        var diagnostics = false
+        var width: String?
+        for line in data.split(separator: 10) {
+            guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+                  let type = message["$message_type"] as? String else { return nil }
+            switch type {
+            case "artifact", "unused_extern": continue
+            case "diagnostic": diagnostics = true
+            // A report holds the diagnostics Cargo shows for future incompatibilities, rendered like any other.
+            case "future_incompat":
+                if (message["future_incompat_report"] as? [Any])?.isEmpty != true { diagnostics = true }
+            case widthMessage:
+                guard width == nil, let value = message["width"] as? String else { return nil }
+                width = value
+            default: return nil
+            }
+        }
+        return (diagnostics, width)
+    }
+
+    static let widthMessage = "tuist-diagnostic-width"
+    /// Matches the unit cache: debug rlibs of large crates (aws-sdk-s3, mise) pass 100 MB, and blobs stream over ByteStream.
+    static let maximumBytes: Int64 = 4_000_000_000
+    /// Incremental compilations use 256 codegen units, and unpacked debug information keeps an object (and on Linux a
+    /// `.dwo`) per unit beside the rlib.
+    static let maximumOutputFiles = 1024
+
+    static func diagnosticWidth(_ arguments: [String]) -> String {
+        var width = ""
+        for (index, argument) in arguments.enumerated() {
+            if argument.hasPrefix("--diagnostic-width=") { width = String(argument.dropFirst(19)) }
+            if argument == "--diagnostic-width", index + 1 < arguments.count { width = arguments[index + 1] }
+        }
+        return width
+    }
+
+    static func widthMarker(_ arguments: [String]) -> Data {
+        let line = try? JSONSerialization.data(withJSONObject: [
+            "$message_type": widthMessage,
+            "width": diagnosticWidth(arguments),
+        ])
+        return (line ?? Data()) + Data([10])
+    }
+
+    private func refuse(_ reason: String) {
+        if invocation.environment["TUIST_DEBUG"] == "1" {
+            FileHandle.standardError.write(Data("Tuist Cargo cache: \(invocation.name) was not stored: \(reason)\n".utf8))
         }
     }
 
@@ -176,26 +376,40 @@ struct CargoCompilationCache {
         }
     }
 
-    private func materialize(_ result: REAPI.ActionResult, downloadMissing: Bool) async throws -> Bool {
+    private func materialize(_ result: REAPI.ActionResult, entry: Entry, downloadMissing: Bool) async throws -> Bool {
+        guard try await stage(result, downloadMissing: downloadMissing) else { return false }
+        return try await install(Fetched(result: result, entry: entry, remote: downloadMissing))
+    }
+
+    /// Checks an entry and brings its blobs into the local store, downloading missing ones when allowed.
+    private func stage(_ result: REAPI.ActionResult, downloadMissing: Bool) async throws -> Bool {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
-              result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, Self.hasOnlyArtifactMessages(result.stderrRaw),
-              result.outputFiles.count <= 128,
+              result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, let messages = Self.messages(result.stderrRaw),
+              // Diagnostics replay only at the width they were rendered at.
+              !messages.diagnostics || messages.width == Self.diagnosticWidth(invocation.arguments),
+              result.outputFiles.count <= Self.maximumOutputFiles,
               Set(result.outputFiles.map(\.path)).count == result.outputFiles.count,
               Set(invocation.files).isSubset(of: Set(result.outputFiles.map(\.path))),
               result.outputFiles.allSatisfy({ invocation.acceptsOutput($0.path) })
         else { return false }
         var missing: [REAPI.Digest: URL] = [:]
-        var budget: Int64 = 250_000_000
+        var budget = Self.maximumBytes
         let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: staging) }
         for file in result.outputFiles {
             try REAPI.validate(file.digest)
-            guard !file.isExecutable, file.digest.sizeBytes <= 100_000_000, file.digest.sizeBytes <= budget else { return false }
+            guard file.isExecutable == (file.path == invocation.executableOutput),
+                  file.digest.sizeBytes <= budget else { return false }
             budget -= file.digest.sizeBytes
-            if await !containsBlob(file.digest) { missing[file.digest] = staging.appendingPathComponent(file.digest.hash) }
+            // Not hashed here: materialization verifies each blob before cloning it.
+            if blobStore.contains(file.digest) {
+                blobStore.markUsed(file.digest)
+            } else {
+                missing[file.digest] = staging.appendingPathComponent(file.digest.hash)
+            }
         }
         if !missing.isEmpty {
             guard downloadMissing, let remote else { return false }
@@ -211,72 +425,102 @@ struct CargoCompilationCache {
             let elapsed = Date().timeIntervalSince(started)
             var complete = true
             for (digest, file) in missing {
-                let verified = download.available.contains(digest) && (try? REAPI.digest(file: file)) == digest
+                let verified = download.available.contains(digest) && (try? blobStore.publish(file, expecting: digest)) != nil
                 measurement.transfer(digest, operation: "download", status: verified ? "downloaded" : "failed", duration: elapsed)
-                if verified { _ = try publish(file, digest: digest) } else { complete = false }
+                if !verified { complete = false }
             }
             guard complete else { measurement.failure(endpoint: !download.remoteFailures.isEmpty); return false }
         }
+        return true
+    }
+
+    /// Moves a staged entry's outputs into place and replays its messages.
+    func install(_ fetched: Fetched) async throws -> Bool {
+        let (result, entry) = (fetched.result, fetched.entry)
+        let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
         try await invocation.validateDependencies(restoring: true)
-        guard try invocation.fingerprint() == invocation.key else { return false }
+        let replayed = result.stderrRaw.split(separator: 10, omittingEmptySubsequences: false).filter { line in
+            (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any])?["$message_type"] as? String != Self
+                .widthMessage
+        }
+        // The fingerprint is rechecked once the outputs are staged, right before they move into place: the lookup
+        // just computed it, and a change before staging is caught there too.
+        guard let restoredStderr = invocation.restoredOutput(Data(replayed.joined(separator: [10]))) else { return false }
         let properties = try invocation.output.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard properties.isDirectory == true, properties.isSymbolicLink != true else { return false }
+        // Blobs are verified through the persistent identity memo, as dependency units are, rather than by hashing
+        // each copy: an unchanged blob keeps its identity, any write to it changes it, and a clone shares its content.
+        let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
-            if FileManager.default.fileExists(atPath: destination.path) {
+            if !file.path.contains("/"), FileManager.default.fileExists(atPath: destination.path) {
                 let properties = try destination.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
                 guard properties.isRegularFile == true, properties.isSymbolicLink != true else { return false }
             }
+            let blob = blobStore.path(file.digest)
+            guard try verifier.digest(blob, shared: true) == file.digest else { return false }
             let temporary = staging.appendingPathComponent(file.path)
-            try FileManager.default.copyItem(at: blobPath(file.digest), to: temporary)
-            let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            try FileManager.default.createDirectory(
+                at: temporary.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.copyItem(at: blob, to: temporary)
+            let properties = try temporary.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
             guard properties.isRegularFile == true, properties.isSymbolicLink != true,
-                  try REAPI.digest(file: temporary) == file.digest else { return false }
+                  properties.fileSize.map(Int64.init) == file.digest.sizeBytes else { return false }
+            if file.path.hasSuffix(".d") {
+                guard let restored = invocation.restoredOutput(try Data(contentsOf: temporary)) else { return false }
+                try restored.write(to: temporary)
+            }
+            if file
+                .isExecutable { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temporary.path) }
         }
         try Task.checkCancellation()
         guard try invocation.fingerprint() == invocation.key else { return false }
+        // Dependents key these outputs next. Cargo runs nothing else that writes this crate's outputs while its
+        // compilation (this hook) runs, so the session records their digests instead of hashing them again.
+        let session = invocation.environment["TUIST_CARGO_SESSION"]
+            .map { CargoInputHasher(sessionDirectory: URL(fileURLWithPath: $0)) }
+        // A bundle such as a binary's `.dSYM` is replaced whole, so none of an earlier one's files stay beside the
+        // restored ones, and a link in its place is removed rather than written through.
+        let bundles = Set(result.outputFiles.map(\.path).filter { $0.contains("/") }.map { String($0.prefix { $0 != "/" }) })
+        for bundle in bundles {
+            let directory = invocation.output.appendingPathComponent(bundle)
+            if (try? FileManager.default.attributesOfItem(atPath: directory.path)) != nil {
+                try FileManager.default.removeItem(at: directory)
+            }
+        }
         for file in result.outputFiles {
             let destination = invocation.output.appendingPathComponent(file.path)
-            if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
+            if file.path.contains("/") {
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+            } else if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
             try FileManager.default.moveItem(at: staging.appendingPathComponent(file.path), to: destination)
             measurement.reference(file.digest)
+            if !file.path.hasSuffix(".d") {
+                session?.remember(destination, digest: file.digest) { $0.fields[2] == String(file.digest.sizeBytes) }
+            }
         }
         try invocation.certifyOutputs(metadataOnly: false)
-        try write(try result.serializedData(), to: index)
-        FileHandle.standardOutput.write(result.stdoutRaw)
-        FileHandle.standardError.write(result.stderrRaw)
+        // A remote entry is kept locally; a local one, read from the index just now, renews its use like a blob.
+        if fetched.remote {
+            try CargoBlobStore.write(try result.serializedData(), to: index(entry))
+        } else {
+            CargoBlobStore.markUsed(index(entry).path)
+        }
+        CargoCacheJournal.use("actions/" + entry.digest.hash, environment: invocation.environment)
+        replay(result.stdoutRaw, restoredStderr)
         return true
     }
 
-    private func blobPath(_ digest: REAPI.Digest) -> URL { root.appendingPathComponent("blobs/" + digest.hash) }
-
-    private func containsBlob(_ digest: REAPI.Digest) async -> Bool {
-        let file = blobPath(digest)
-        guard let path = try? AbsolutePath(validating: file.path),
-              let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
-              properties.isRegularFile == true, properties.isSymbolicLink != true,
-              properties.fileSize == Int(exactly: digest.sizeBytes),
-              (try? REAPI.digest(file: file)) == digest else { return false }
-        await fileSystem.markCacheEntryUsed(at: path)
-        return true
-    }
-
-    private func publish(_ file: URL, digest: REAPI.Digest) throws -> URL {
-        let destination = blobPath(digest)
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let temporary = destination.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try FileManager.default.copyItem(at: file, to: temporary)
-        guard try REAPI.digest(file: temporary) == digest else { throw REAPICacheError.corruptBlob }
-        if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
-        try FileManager.default.moveItem(at: temporary, to: destination)
-        return destination
-    }
-
-    private func write(_ data: Data, to file: URL) throws {
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
-    }
+    private var blobStore: CargoBlobStore { CargoBlobStore(root: root) }
 
     private func boundedData(_ file: URL, maximum: Int) throws -> Data {
         let properties = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])

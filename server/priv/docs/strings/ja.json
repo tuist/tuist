@@ -9,18 +9,24 @@
     },
     "items": {
       "agentic-coding": { "text": "エージェント型コーディング" },
+      "amp": { "text": "Amp" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazelキャッシュ" },
       "bitrise": { "text": "Bitrise" },
       "build-and-publish": { "text": "ビルドと公開" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "キャッシュボリューム" },
+      "calendar": { "text": "カレンダー" },
+      "channels": { "text": "チャンネル" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "互換性" },
       "coverage": { "text": "カバレッジ" },
       "data-retention": { "text": "データ保持" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixirキャッシュ" },
+      "entire": { "text": "全体" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -29,21 +35,28 @@
       "iphone-app": { "text": "iPhoneアプリ" },
       "macos-app": { "text": "macOSアプリ" },
       "new-project": { "text": "新規プロジェクト" },
+      "once": { "text": "Once" },
+      "once-cache": { "text": "Onceキャッシュ" },
+      "once-project": { "text": "Onceプロジェクト" },
+      "once-remote-execution": { "text": "Onceリモート実行" },
       "origin": { "text": "オリジン" },
       "profiles": { "text": "プロファイル" },
       "project-description": { "text": "プロジェクトの説明" },
-      "release-channels": { "text": "リリースチャネル" },
+      "release": { "text": "リリース" },
+      "release-calendar": { "text": "リリースカレンダー" },
+      "release-channels": { "text": "リリースチャンネル" },
       "run-previews": { "text": "プレビューの実行" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rustキャッシュ" },
       "rust-project": { "text": "Rustプロジェクト" },
+      "sandboxes": { "text": "サンドボックス" },
       "scim-provisioning": { "text": "SCIMプロビジョニング" },
       "server-api": { "text": "サーバーAPI" },
       "single-sign-on": { "text": "シングルサインオン" },
-      "supported-types": { "text": "対応タイプ" },
+      "supported-types": { "text": "サポートされるタイプ" },
       "webhooks": { "text": "Webhook" },
       "xcodegen-project": { "text": "XcodeGenプロジェクト" },
-      "xcodeproj-integration": { "text": "Xcodeproj連携" },
+      "xcodeproj-integration": { "text": "Xcodeproj統合" },
       "ufeatures-architecture": { "text": "uFeaturesアーキテクチャ" }
     }
   },
@@ -53,7 +66,7 @@
         "text": "言語 🌍"
       },
       "description": {
-        "text": "Tuistの多言語対応を支援したり、このページの言語ガイドを改善することができます。"
+        "text": "Tuistの対応言語を増やしたり、このページの言語ガイドを改善するのに協力できます。"
       },
       "cta": {
         "text": "貢献する"
@@ -121,7 +134,7 @@
           "text": "リファレンス"
         },
         "contributors": {
-          "text": "コントリビューター"
+          "text": "貢献者"
         },
         "changelog": {
           "text": "変更履歴"
@@ -187,7 +200,7 @@
       }
     },
     "contributors": {
-      "text": "コントリビューター",
+      "text": "貢献者",
       "items": {
         "code": {
           "text": "コード",
@@ -249,7 +262,7 @@
               "text": "認証"
             },
             "integrations": {
-              "text": "連携"
+              "text": "統合"
             }
           }
         },
@@ -465,7 +478,7 @@
                   "text": "生成されたプロジェクト"
                 },
                 "xcodeproj-integration": {
-                  "text": "XcodeProjベースの連携"
+                  "text": "XcodeProjベースの統合"
                 },
                 "swift-package": {
                   "text": "Swiftパッケージ"
@@ -476,7 +489,7 @@
               }
             },
             "selective-testing": {
-              "text": "選択",
+              "text": "選択的テスト",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成されたXcodeプロジェクト"
@@ -503,7 +516,7 @@
               "text": "インサイト",
               "items": {
                 "flaky-tests": {
-                  "text": "不安定性",
+                  "text": "不安定なテスト",
                   "items": {
                     "generated-xcode-project": {
                       "text": "生成されたXcodeプロジェクト"
@@ -545,7 +558,7 @@
           }
         },
         "integrations": {
-          "text": "連携",
+          "text": "統合",
           "items": {
             "continuous-integration": {
               "text": "継続的インテグレーション"

@@ -65,18 +65,19 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    # Include commits with (gradle) scope (supports multi-scope like "feat(cli,gradle)")
-    { message = "^feat\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bgradle\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bgradle\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bgradle\\b[^)]*\\)", skip = true },
-    # Skip any other scoped commits
-    { message = "^[a-z]+\\([^)]+\\)", skip = true },
+    # Commits are selected by the paths they change (--include-path, from the
+    # gradle entry in mise/tasks/release/components.json), not by their scope,
+    # so a squash-merged PR titled for another subsystem still releases the
+    # plugin changes it carries.
+    { message = "^feat[(:!]", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix[(:!]", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?[(:!]", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf[(:!]", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor[(:!]", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style[(:!]", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test[(:!]", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore[(:!]", skip = true },
+    { message = "^ci[(:!]", skip = true },
 ]
 # protect breaking changes from being skipped due to matching a skipping commit_parser
 protect_breaking_commits = false

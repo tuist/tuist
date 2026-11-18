@@ -17,7 +17,6 @@ final class AtlasBusinessPreviewData: ObservableObject {
                     "assignee_id": "user-1",
                     "status": "open",
                     "due_on": "2026-10-21",
-                    "remind_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600)),
                 ]
             ),
             AtlasBusinessPreviewData.record(
@@ -29,7 +28,6 @@ final class AtlasBusinessPreviewData: ObservableObject {
                     "account_name": "Northstar",
                     "status": "open",
                     "due_on": "2026-10-23",
-                    "remind_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
                 ]
             ),
             AtlasBusinessPreviewData.record(
@@ -110,13 +108,6 @@ final class AtlasBusinessPreviewData: ObservableObject {
     }
 
     private static func record(_ id: String, _ fields: [String: String], writable: Bool = true) -> [String: Any] {
-        var fields = fields
-        if ["open", "completed"].contains(fields["status"] ?? "") {
-            if fields["status"] == "completed" { fields["reminder_group"] = "completed" } else {
-                let reminder = fields["remind_at"].flatMap { ISO8601DateFormatter().date(from: $0) }
-                fields["reminder_group"] = reminder.map { $0 <= Date() ? "overdue" : "upcoming" } ?? "none"
-            }
-        }
         return ["id": id, "fields": fields, "can_edit": writable, "can_delete": writable]
     }
 
@@ -160,15 +151,7 @@ final class AtlasBusinessPreviewData: ObservableObject {
             }.filter { row in
                 let fields = row["fields"] as? [String: String] ?? [:]
                 return filters.allSatisfy { key, value in
-                    key == "group_by" || value.isEmpty || fields[key == "reminder" ? "reminder_group" : key] == value
-                }
-            }
-            if filters["group_by"] == "reminder" {
-                let groups = AtlasTaskReminderGroup.allCases.map(\.rawValue)
-                rows.sort {
-                    let lhs = ($0["fields"] as? [String: String])?["reminder_group"] ?? "none"
-                    let rhs = ($1["fields"] as? [String: String])?["reminder_group"] ?? "none"
-                    return (groups.firstIndex(of: lhs) ?? 2) < (groups.firstIndex(of: rhs) ?? 2)
+                    value.isEmpty || fields[key] == value
                 }
             }
             let page = action["page"] as? Int ?? 1
