@@ -73,13 +73,13 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" /opt/mix
           echo /opt/erlang/bin >> "$GITHUB_PATH"
           echo /opt/elixir/bin >> "$GITHUB_PATH"
-      - name: Install both published candidates
+      - name: Install the published candidates
         run: |
-          for candidate in 8 9; do
+          for candidate in 9 10; do
             version="0.82.6-once-re.$candidate"
             archive="once-$version-x86_64-unknown-linux-gnu.tar.gz"
             case "$candidate" in
-              8) checksum=335a74ebf150ce0d0acfc800b985c285e77e1687e2a72009a44f5dedd4b3a545 ;;
+              10) checksum=3e1d77b4d6c36ba837d58a4a704c0005685badac7c436dad6002ceef02699c38 ;;
               9) checksum=4282415f1d67107d7525d53796427d5ea3644438c7752863c5d2539ba820b92f ;;
             esac
             curl -fLsS --retry 3 "https://github.com/tuist/once/releases/download/$version/$archive" -o "$RUNNER_TEMP/$archive"
@@ -88,7 +88,7 @@ jobs:
             tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/once-bin-$candidate"
             "$RUNNER_TEMP/once-bin-$candidate/once" --version
           done
-          echo "$RUNNER_TEMP/once-bin-9" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/once-bin-10" >> "$GITHUB_PATH"
       - name: Configure production execution for tuist/atlas
         run: |
           cat >> once.toml <<'EOF'
@@ -128,14 +128,14 @@ jobs:
           # runner; modes rotate so no mode always runs first.
           for trial in 1 2 3; do
             case "$trial" in
-              1) modes="local remote-9 remote-8" ;;
-              2) modes="remote-9 remote-8 local" ;;
-              3) modes="remote-8 local remote-9" ;;
+              1) modes="local remote-10 remote-9" ;;
+              2) modes="remote-10 remote-9 local" ;;
+              3) modes="remote-9 local remote-10" ;;
             esac
             for mode in $modes; do
               candidate="${mode#remote-}"
               remote_flags=(--remote --compute production)
-              if [ "$mode" = local ]; then candidate=9; remote_flags=(); fi
+              if [ "$mode" = local ]; then candidate=10; remote_flags=(); fi
               export PATH="$RUNNER_TEMP/once-bin-$candidate:$coordinator_path"
               token="once-production-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$trial-$mode"
               evidence="$RUNNER_TEMP/once-evidence/$mode/trial-$trial"
