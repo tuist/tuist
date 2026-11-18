@@ -62,11 +62,12 @@ defmodule Tuist.Threads.Host do
     Condukt.Tools.Read,
     Condukt.Tools.Glob,
     Condukt.Tools.Grep,
+    Condukt.Tools.Ls,
     Condukt.Tools.Write,
     Condukt.Tools.Edit,
     {Condukt.Tools.Bash, replay_safe: true}
   ]
-  @logged_tools ["Read", "Glob", "Grep", "Write", "Edit", "Bash"]
+  @logged_tools ["Read", "Glob", "Grep", "Ls", "Write", "Edit", "Bash"]
 
   # A run's whole budget, then how much of it stays after the session answers,
   # to record the outcome, and after the last command it runs ends, for the

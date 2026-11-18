@@ -1,12 +1,12 @@
 defmodule Tuist.Threads.Sandbox do
   @moduledoc """
   A `Condukt.Sandbox` on a Tuist sandbox, so a thread's session runs
-  Condukt's built-in Read, Write, Edit, Glob, Grep and Bash tools in the
+  Condukt's built-in Read, Write, Edit, Glob, Grep, Ls and Bash tools in the
   thread's VM.
 
   Files and short commands go through `Sandboxes.exec/3`. File paths are
-  relative to the working directory (`:cwd`): Read, Write, Edit, Glob and
-  Grep refuse other absolute paths, `..` and `.git`, never follow a symlink
+  relative to the working directory (`:cwd`): Read, Write, Edit, Glob, Grep
+  and Ls refuse other absolute paths, `..` and `.git`, never follow a symlink
   out of it, and a
   write validates its target before truncating it (see `@files`). Bash is a
   shell in the VM and is not confined. Processes, which a
@@ -181,9 +181,20 @@ defmodule Tuist.Threads.Sandbox do
                           if len(out) >= limit: return out
       return out
 
+  def ls(base):
+      fd = os.open('.', os.O_RDONLY | os.O_DIRECTORY)
+      for part in base.split('/') if base else []:
+          nxt = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+          os.close(fd)
+          fd = nxt
+      with os.scandir(fd) as entries:
+          return [{'name': e.name, 'dir': e.is_dir(follow_symlinks=False)} for e in entries if e.name != '.git']
+
   try:
       if sys.argv[1] == 'glob':
           print(json.dumps(glob(sys.argv[2], sys.argv[3], int(sys.argv[4]))))
+      elif sys.argv[1] == 'ls':
+          print(json.dumps(ls(sys.argv[2])))
       else:
           print(json.dumps(grep(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], int(sys.argv[6]))))
   except OSError as e:
@@ -288,6 +299,15 @@ defmodule Tuist.Threads.Sandbox do
          args = [base, pattern, Keyword.get(opts, :glob, "**/*"), flags, to_string(Keyword.get(opts, :limit, 1_000))],
          {:ok, matches} <- json(state, ["grep" | args]) do
       {:ok, Enum.map(matches, &%{path: &1["path"], line_number: &1["line_number"], line: &1["line"]})}
+    end
+  end
+
+  # Opened like glob's base, so a symlink is listed as a file, never followed.
+  @impl true
+  def list_dir(state, path) do
+    with {:ok, base} <- base(state, path),
+         {:ok, entries} <- json(state, ["ls", base]) do
+      {:ok, Enum.map(entries, &%{name: &1["name"], type: if(&1["dir"], do: :directory, else: :file)})}
     end
   end
 

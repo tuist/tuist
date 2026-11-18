@@ -49,6 +49,12 @@ defmodule Tuist.Threads.SandboxTest do
 
     assert {:ok, ["a.txt", "dir/blob.bin"]} = Sandbox.glob(sandbox, "**/*.*")
 
+    assert {:ok, entries} = Sandbox.list_dir(sandbox, ".")
+    assert Enum.sort_by(entries, & &1.name) == [%{name: "a.txt", type: :file}, %{name: "dir", type: :directory}]
+    assert {:ok, [%{name: "blob.bin", type: :file}]} = Sandbox.list_dir(sandbox, "/workspace/repository/dir")
+    assert {:error, :enoent} = Sandbox.list_dir(sandbox, "missing")
+    assert {:error, :enotdir} = Sandbox.list_dir(sandbox, "a.txt")
+
     # The tools also name files absolutely, or from `./`, inside the checkout.
     assert {:ok, "one 2 two\n"} = Sandbox.read(sandbox, "/workspace/repository/a.txt")
     assert {:ok, "one 2 two\n"} = Sandbox.read(sandbox, "./a.txt")
@@ -70,6 +76,7 @@ defmodule Tuist.Threads.SandboxTest do
       assert {:error, :invalid_path} = Sandbox.edit(sandbox, path, "a", "b")
       if path != "", do: assert({:error, :invalid_path} = Sandbox.glob(sandbox, "*", cwd: path))
       if path != "", do: assert({:error, :invalid_path} = Sandbox.grep(sandbox, "x", path: path))
+      if path != "", do: assert({:error, :invalid_path} = Sandbox.list_dir(sandbox, path))
     end
 
     assert {:error, :too_large} = Sandbox.write(sandbox, "big", String.duplicate("x", 1024 * 1024 + 1))
@@ -99,6 +106,11 @@ defmodule Tuist.Threads.SandboxTest do
     assert {:ok, []} = Sandbox.grep(sandbox, "preserve")
     assert {:error, :enotdir} = Sandbox.glob(sandbox, "*", cwd: "link")
     assert {:error, :enotdir} = Sandbox.grep(sandbox, "preserve", path: "link")
+
+    # Ls lists the links as files, hides `.git`, and never lists through one.
+    assert {:ok, entries} = Sandbox.list_dir(sandbox, ".")
+    assert Enum.sort_by(entries, & &1.name) == [%{name: "file", type: :file}, %{name: "link", type: :file}]
+    assert {:error, :enotdir} = Sandbox.list_dir(sandbox, "link")
 
     assert :ok = Sandbox.write(sandbox, "normal", "old")
     assert {:ok, %{occurrences: 1}} = Sandbox.edit(sandbox, "normal", "old", "new")
