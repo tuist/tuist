@@ -75,6 +75,8 @@ struct ThreadsView: View {
     let client: AppClient
     /// Start conversation, presented by `AppWorkspace`.
     @Binding var starting: Bool
+    /// The Mac's open thread: the list is the middle column of a split view, as in Mail.
+    var selection: Binding<String?> = .constant(nil)
     /// Opens a destination from the iPhone's sidebar, which then closes.
     var open: (WorkspaceRoute) -> Void = { _ in }
     @State private var threads: [AppThread] = []
@@ -94,38 +96,7 @@ struct ThreadsView: View {
     @ScaledMetric(relativeTo: .body) private var iconWidth = 20.0
 
     var body: some View {
-        List {
-            #if os(iOS)
-                // The iPhone's sidebar: the other destinations above the threads, like Claude's.
-                Section {
-                    sidebarLink("Halls", systemImage: "number", to: .list(.halls))
-                    sidebarLink("DMs", systemImage: "bubble.left.and.text.bubble.right", to: .list(.dms))
-                }
-                if available {
-                    archivePicker
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                }
-            #endif
-            if let error {
-                Section {
-                    Text(verbatim: error).foregroundStyle(.secondary)
-                    Button("Try again") { Task { await reload() } }
-                }
-            }
-            if !showingArchived {
-                section("In progress", visible.filter { $0.section == "in_progress" })
-                section("Recent", visible.filter { $0.section == "recent" })
-                // Out of the way, still a scroll away.
-                section("Snoozed", visible.filter { $0.section == "snoozed" })
-            } else {
-                section("Archived", visible)
-            }
-            if nextCursor != nil {
-                Button("Load more threads") { Task { await loadMore() } }.disabled(loading != nil)
-            }
-        }
+        list
         #if os(macOS)
         .listStyle(.inset)
         #else
@@ -254,6 +225,47 @@ struct ThreadsView: View {
         }
     }
 
+    private var list: some View {
+        #if os(macOS)
+            List(selection: selection) { rows }
+        #else
+            List { rows }
+        #endif
+    }
+
+    @ViewBuilder private var rows: some View {
+        #if os(iOS)
+            // The iPhone's sidebar: the other destinations above the threads, like Claude's.
+            Section {
+                sidebarLink("Halls", systemImage: "number", to: .list(.halls))
+                sidebarLink("DMs", systemImage: "bubble.left.and.text.bubble.right", to: .list(.dms))
+            }
+            if available {
+                archivePicker
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            }
+        #endif
+        if let error {
+            Section {
+                Text(verbatim: error).foregroundStyle(.secondary)
+                Button("Try again") { Task { await reload() } }
+            }
+        }
+        if !showingArchived {
+            section("In progress", visible.filter { $0.section == "in_progress" })
+            section("Recent", visible.filter { $0.section == "recent" })
+            // Out of the way, still a scroll away.
+            section("Snoozed", visible.filter { $0.section == "snoozed" })
+        } else {
+            section("Archived", visible)
+        }
+        if nextCursor != nil {
+            Button("Load more threads") { Task { await loadMore() } }.disabled(loading != nil)
+        }
+    }
+
     private func startConversation() {
         client.startConversation()
     }
@@ -350,11 +362,15 @@ struct ThreadsView: View {
                 Section(title) {
                     ForEach(values) { thread in
                         snoozable(thread) {
-                            NavigationLink(value: WorkspaceRoute.thread(thread.id)) { row(thread) }
-                                .listRowBackground(Noora.backgroundTertiary)
+                            // A list of conversations, as in Mail, not a data table: no row fills
+                            // or rules, only the system's selection.
+                            row(thread)
+                                .tag(thread.id)
+                                .listRowSeparator(.hidden)
                         }
                     }
                 }
+                .listSectionSeparator(.hidden)
             #endif
         }
     }
@@ -399,7 +415,9 @@ struct ThreadsView: View {
     }
 
     private func row(_ thread: AppThread) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        let detail = [thread.repository, thread.snooze?.label ?? statusLabel(thread.state)]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · ")
+        return HStack(alignment: .top, spacing: 12) {
             Image(systemName: thread.section == "archived" ? "archivebox"
                 : thread.section == "snoozed" ? "moon.zzz"
                 : thread.section == "in_progress" ? "circle.dotted" : "bubble.left")
@@ -415,12 +433,17 @@ struct ThreadsView: View {
                     .lineLimit(2)
                     #endif
                     .foregroundStyle(Noora.labelPrimary)
-                Text(verbatim: [thread.repository, thread.snooze?.label ?? statusLabel(thread.state)]
-                    .compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(Noora.labelSecondary)
+                if !detail.isEmpty {
+                    Text(verbatim: detail).font(.caption).foregroundStyle(Noora.labelSecondary)
+                }
             }
         }
+        // The Mac's rows breathe like Mail's; the iPhone's sidebar stays dense like Claude's.
+        #if os(macOS)
+        .padding(.vertical, 6)
+        #else
         .padding(.vertical, 2)
+        #endif
     }
 
     private func statusLabel(_ state: String?) -> String? {

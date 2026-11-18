@@ -45,24 +45,27 @@ struct AppWorkspace: View {
                 LogInView(client: client)
             } else {
                 #if os(macOS)
-                    // On the Mac, a source-list sidebar takes the place of the tab bar.
-                    NavigationSplitView {
-                        List(selection: $tab) {
-                            Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
-                            Label("Halls", systemImage: "number").tag(AppNavigation.Tab.halls)
-                            Label("DMs", systemImage: "bubble.left.and.text.bubble.right").tag(AppNavigation.Tab.dms)
-                            Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
-                        }
-                        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
-                    } detail: {
-                        switch tab {
-                        case .profile:
-                            NavigationStack {
-                                ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
+                    // On the Mac, a source-list sidebar takes the place of the tab bar. Conversations
+                    // follow Mail and Messages: sidebar, list, then the selected conversation, so the
+                    // list stays in view with its selection while a conversation is open.
+                    Group {
+                        if tab == .profile {
+                            NavigationSplitView {
+                                sidebar
+                            } detail: {
+                                NavigationStack {
+                                    ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
+                                }
                             }
-                        case .halls: hallsStack(.halls)
-                        case .dms: hallsStack(.dms)
-                        case .threads: threadsStack
+                        } else {
+                            NavigationSplitView {
+                                sidebar
+                            } content: {
+                                conversationList
+                                    .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 440)
+                            } detail: {
+                                openConversation
+                            }
                         }
                     }
                     .toolbar { ToolbarItem(placement: .primaryAction) { profilesMenu } }
@@ -194,21 +197,57 @@ struct AppWorkspace: View {
     }
 
     #if os(macOS)
-        private var threadsStack: some View {
-            NavigationStack(path: Binding(
-                get: { client.view.navigation.thread_id.map { [WorkspaceRoute.thread($0)] } ?? [] },
-                set: { routes in
-                    if case let .thread(id) = routes.last, id != client.view.navigation.thread_id {
-                        Task { await client.perform("navigate", ["url": "/threads/\(id)"]) }
-                    }
-                    // Native Back/swipe changes the same core state as a URL does.
-                    if routes.isEmpty, client.view.navigation.tab == .threads, client.view.navigation.thread_id != nil {
+        private var sidebar: some View {
+            List(selection: $tab) {
+                Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
+                Label("Halls", systemImage: "number").tag(AppNavigation.Tab.halls)
+                Label("DMs", systemImage: "bubble.left.and.text.bubble.right").tag(AppNavigation.Tab.dms)
+                Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
+            }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
+        }
+
+        /// The conversation the core says is open in this tab.
+        private var openID: String? {
+            switch tab {
+            case .threads: client.view.navigation.thread_id
+            case .halls: client.view.navigation.hall_id
+            case .dms: client.view.navigation.dm_id
+            case .profile: nil
+            }
+        }
+
+        /// The list's selection is the core's open conversation: picking a row navigates
+        /// like a link does, and links and notifications select their row.
+        private var selection: Binding<String?> {
+            Binding(
+                get: { openID },
+                set: { id in
+                    if let id, id != openID {
+                        Task { await client.perform("navigate", ["url": "/\(tab.rawValue)/\(id)"]) }
+                    } else if id == nil, openID != nil {
                         Task { await client.perform("navigation_back") }
                     }
                 }
-            )) {
-                ThreadsView(client: client, starting: $startingConversation)
-                    .navigationDestination(for: WorkspaceRoute.self) { destination($0) }
+            )
+        }
+
+        @ViewBuilder private var conversationList: some View {
+            switch tab {
+            case .threads: ThreadsView(client: client, starting: $startingConversation, selection: selection)
+            case .halls, .dms: HallsView(client: client, tab: tab.rawValue, selection: selection)
+            case .profile: EmptyView()
+            }
+        }
+
+        @ViewBuilder private var openConversation: some View {
+            if let id = openID {
+                NavigationStack { destination(tab == .threads ? .thread(id) : .hall(id)) }
+            } else {
+                ContentUnavailableView(
+                    tab == .threads ? "No Thread Selected" : "No Conversation Selected",
+                    systemImage: tab == .threads ? "bubble.left.and.bubble.right" : "bubble.left.and.text.bubble.right"
+                )
             }
         }
     #else

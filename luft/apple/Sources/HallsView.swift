@@ -74,6 +74,8 @@ struct HallsView: View {
     let client: AppClient
     /// `halls` or `dms`, the tab this list is.
     let tab: String
+    /// The Mac's open conversation: the list is the middle column of a split view, as in Mail.
+    var selection: Binding<String?> = .constant(nil)
     @State private var page: HallsPage?
     @State private var error: String?
     @State private var creating = false
@@ -84,18 +86,7 @@ struct HallsView: View {
     private var rows: [AppHall] { directs ? page?.directs ?? [] : page?.halls ?? [] }
 
     var body: some View {
-        List {
-            if let error {
-                Section {
-                    Text(verbatim: error).foregroundStyle(.secondary)
-                    Button("Try Again") { Task { await load() } }
-                }
-            }
-            ForEach(rows) { hall in
-                NavigationLink(value: WorkspaceRoute.hall(hall.id)) { HallRow(hall: hall) }
-                    .listRowBackground(Noora.backgroundTertiary)
-            }
-        }
+        list
         #if os(macOS)
         .listStyle(.inset)
         #endif
@@ -181,6 +172,35 @@ struct HallsView: View {
         }
     }
 
+    private var list: some View {
+        #if os(macOS)
+            // Conversations, as in Messages: no row fills or rules, only the system's selection.
+            List(selection: selection) {
+                errorSection
+                ForEach(rows) { hall in
+                    HallRow(hall: hall).tag(hall.id).listRowSeparator(.hidden)
+                }
+            }
+        #else
+            List {
+                errorSection
+                ForEach(rows) { hall in
+                    NavigationLink(value: WorkspaceRoute.hall(hall.id)) { HallRow(hall: hall) }
+                        .listRowBackground(Noora.backgroundTertiary)
+                }
+            }
+        #endif
+    }
+
+    @ViewBuilder private var errorSection: some View {
+        if let error {
+            Section {
+                Text(verbatim: error).foregroundStyle(.secondary)
+                Button("Try Again") { Task { await load() } }
+            }
+        }
+    }
+
     private func open(_ hall: AppHall) {
         Task {
             await load()
@@ -234,7 +254,12 @@ private struct HallRow: View {
                     .background(Noora.primary, in: Capsule())
             }
         }
+        // The Mac's rows breathe like Messages'; the iPhone's stay compact.
+        #if os(macOS)
+        .padding(.vertical, 6)
+        #else
         .padding(.vertical, 2)
+        #endif
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: spoken))
     }
