@@ -8,6 +8,8 @@ defmodule Tuist.Threads.ToolCall do
     field :message_id, :binary_id
     field :fingerprint, :binary
     field :name, :string
+    # The model's id for a built-in tool call (`Tuist.Threads.ToolLog`); nil for others.
+    field :invocation_id, :string
     field :status, :string, default: "executing"
     field :checkpointed, :boolean, default: false
     field :result, Tuist.Vault.Binary, redact: true

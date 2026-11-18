@@ -38,13 +38,15 @@ struct LuftActivityAttributes: ActivityAttributes {
         }
 
         struct Progress: Codable, Hashable {
-            /// `timer`, counted on the device from `started_at`, or `steps`.
+            /// `timer`, counted on the device from `started_at`, or `steps`. A
+            /// build's timer also carries `done` of `total` planned targets.
             var kind: String
             var startedAt: TimeInterval?
             var done: Int?
+            var total: Int?
 
             enum CodingKeys: String, CodingKey {
-                case kind, done
+                case kind, done, total
                 case startedAt = "started_at"
             }
         }

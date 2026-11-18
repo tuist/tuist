@@ -820,6 +820,119 @@ defmodule Tuist.Threads do
     end)
   end
 
+  @doc """
+  Shows the build or test progress a Once run in a Bash call's command
+  reported (`Tuist.Sandboxes.Commands.read/3`) on that call's running tool
+  message: its `progress` holds the snapshot and its body says it in words,
+  for clients that don't render it. `invocation_id` is the model's id for the
+  call. The snapshot comes from the guest, so only known fields of the
+  expected shapes are kept, bounded. A snapshot that only moved the counts
+  on writes at most every few seconds, and one that changed nothing writes
+  nothing.
+  """
+  def record_build_progress(run, invocation_id, snapshot) when is_binary(invocation_id) and is_map(snapshot) do
+    # The command's watcher reads it every few hundred milliseconds while
+    # output flows, so a snapshot that is not due is dropped before any lock.
+    with {:ok, progress} <- build_progress(snapshot),
+         message_id when not is_nil(message_id) <-
+           Repo.one(
+             from(c in ToolCall,
+               where: c.run_id == ^run.id and c.invocation_id == ^invocation_id and c.status == "executing",
+               select: c.message_id,
+               limit: 1
+             )
+           ),
+         %Message{tool_state: "running"} = message <- Repo.get(Message, message_id),
+         true <- progress_due?(message, progress) do
+      # A run that lost the thread meanwhile records nothing.
+      _ =
+        with_attempt(run, fn thread, _ ->
+          with %Message{tool_state: "running"} = message <- Repo.get(Message, message_id),
+               true <- progress_due?(message, progress) do
+            Repo.update!(Changeset.change(message, progress: progress, body: build_body(progress)), log: false)
+            update_thread!(thread, %{})
+          end
+        end)
+
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  def record_build_progress(_run, _invocation_id, _snapshot), do: :ok
+
+  # Every write bumps the thread, so clients refetch and the Live Activity
+  # reschedules its push. A new run, plan or outcome shows at once; counts
+  # that only moved on show at most every few seconds.
+  @build_progress_interval_seconds 5
+
+  defp progress_due?(%Message{progress: current}, progress) when current == progress, do: false
+
+  defp progress_due?(%Message{progress: current, updated_at: updated_at}, progress) do
+    milestone = ["command", "state", "target", "planned"]
+
+    not is_map(current) or Map.take(current, milestone) != Map.take(progress, milestone) or
+      DateTime.diff(DateTime.utc_now(), updated_at) >= @build_progress_interval_seconds
+  end
+
+  defp build_progress(%{"v" => 1, "command" => command, "state" => state} = snapshot)
+       when command in ["build", "test"] and state in ["running", "succeeded", "failed"] do
+    tests = if is_map(snapshot["tests"]), do: snapshot["tests"], else: %{}
+
+    {:ok,
+     %{
+       "command" => command,
+       "state" => state,
+       "target" => bounded_text(snapshot["target"]),
+       "planned" => progress_count(snapshot["planned"]),
+       "done" => progress_count(snapshot["done"]),
+       "cached" => progress_count(snapshot["cached"]),
+       "failed" => progress_count(snapshot["failed"]),
+       "running" =>
+         if(is_list(snapshot["running"]),
+           do: snapshot["running"] |> Enum.filter(&is_binary/1) |> Enum.take(5) |> Enum.map(&bounded_text/1),
+           else: []
+         ),
+       "tests" => %{
+         "passed" => progress_count(tests["passed"]),
+         "failed" => progress_count(tests["failed"]),
+         "skipped" => progress_count(tests["skipped"])
+       }
+     }}
+  end
+
+  defp build_progress(_snapshot), do: :error
+
+  defp progress_count(value) when is_integer(value) and value >= 0, do: min(value, 1_000_000_000)
+  defp progress_count(_value), do: 0
+
+  # Control and invisible format characters, such as bidi overrides, could
+  # make a guest-written label read as something else.
+  defp bounded_text(value) when is_binary(value),
+    do: value |> String.replace(~r/[\p{Cc}\p{Cf}]/u, "") |> String.slice(0, 200)
+
+  defp bounded_text(_value), do: ""
+
+  defp build_body(%{"command" => command, "target" => target} = progress) do
+    verb = if command == "test", do: "Testing", else: "Building"
+    subject = if target == "", do: verb, else: "#{verb} #{target}"
+
+    targets =
+      if progress["planned"] > 0,
+        do: "#{progress["done"]} of #{progress["planned"]} targets (#{progress["cached"]} cached)",
+        else: "#{progress["done"]} targets"
+
+    tests = progress["tests"]
+
+    cases =
+      if tests["passed"] + tests["failed"] + tests["skipped"] > 0,
+        do: " · #{tests["passed"]} passed, #{tests["failed"]} failed, #{tests["skipped"]} skipped",
+        else: ""
+
+    "#{subject} with Once · #{targets}#{cases}"
+  end
+
   def call_external_tool(run, invocation_id, name, args, dispatch) do
     # Condukt may admit a parallel batch. Contention must fail before reserving
     # an effect, not masquerade as an interrupted command that may have run.
@@ -875,7 +988,7 @@ defmodule Tuist.Threads do
   def begin_tool_call(run, call_id, name, args, tools) do
     key = fingerprint({:session_call, call_id, name, args})
 
-    case with_attempt(run, fn thread, _ -> reserve_tool!(run, thread, key, name, {:session, tools}) end) do
+    case with_attempt(run, fn thread, _ -> reserve_tool!(run, thread, key, name, {:session, tools, call_id}) end) do
       {:ok, {:dispatch, _call}} ->
         :ok
 
@@ -956,13 +1069,28 @@ defmodule Tuist.Threads do
     executing =
       case scope do
         :thread -> executing
-        {:session, tools} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
+        {:session, tools, _call_id} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
       end
 
     if Repo.exists?(executing), do: Repo.rollback(:tool_outcome_unknown)
 
     message = append!(thread, %{kind: "tool", body: "Working…", tool_name: name, tool_state: "running"})
-    call = Repo.insert!(%ToolCall{run_id: run.id, message_id: message.id, fingerprint: key, name: name})
+
+    invocation_id =
+      case scope do
+        {:session, _tools, call_id} -> call_id
+        _ -> nil
+      end
+
+    call =
+      Repo.insert!(%ToolCall{
+        run_id: run.id,
+        message_id: message.id,
+        fingerprint: key,
+        name: name,
+        invocation_id: invocation_id
+      })
+
     {:dispatch, call}
   end
 
@@ -1249,6 +1377,15 @@ defmodule Tuist.Threads do
     |> Map.put(:kind, "notice")
     |> serialize_message(people)
     |> Map.put(:progress, message.progress)
+  end
+
+  # A Bash call's build or test progress, when a Once run in its command
+  # reported some (`record_build_progress/3`).
+  defp serialize_message(%Message{kind: "tool", progress: %{} = progress} = message, people) do
+    message
+    |> Map.put(:progress, nil)
+    |> serialize_message(people)
+    |> Map.put(:build, progress)
   end
 
   defp serialize_message(message, people) do

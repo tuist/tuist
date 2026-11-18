@@ -19,6 +19,8 @@ defmodule Tuist.Threads.Message do
     field :card_size, :string
     field :card_source, :string
     # A `progress` message's plan: `%{"steps" => [%{"title", "status"}]}`.
+    # A running `tool` message's build or test progress instead: the last
+    # snapshot of a Once run its command reported (`Threads.record_build_progress/3`).
     field :progress, :map
     timestamps(type: :utc_datetime)
   end

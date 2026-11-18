@@ -31,6 +31,33 @@ struct AppMessage: Decodable, Identifiable {
     /// The plan the agent shares with `update_progress`, counted by the Rust core;
     /// `content` is the plan as a checklist.
     var progress: AppProgress?
+    /// A Bash call's Once build or test progress, presented by the Rust core;
+    /// `content` says it in words.
+    var build: AppBuild?
+}
+
+struct AppBuild: Decodable {
+    struct Tests: Decodable {
+        let passed: Int
+        let failed: Int
+        let skipped: Int
+    }
+
+    /// `build` or `test`.
+    let command: String
+    let target: String?
+    let planned: Int
+    let done: Int
+    let cached: Int
+    let failed: Int
+    /// Case counts, once a case ran.
+    let tests: Tests?
+    /// The share of planned targets done, once Once planned them.
+    let fraction: Double?
+    /// A target or test case failed.
+    let failing: Bool
+    /// The build still runs in a working thread.
+    let active: Bool
 }
 
 struct AppProgress: Decodable {
@@ -732,19 +759,62 @@ private struct ToolCallRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 6)
         } label: {
-            HStack(spacing: 8) {
-                ToolStatusIcon(running: running)
-                Text(verbatim: tool.toolName ?? String(localized: "Tool"))
-                    .font(.subheadline.monospaced()).foregroundStyle(Noora.labelPrimary).lineLimit(1)
-                Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done")).font(.caption).foregroundStyle(Noora.labelSecondary)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    ToolStatusIcon(running: running)
+                    Text(verbatim: tool.toolName ?? String(localized: "Tool"))
+                        .font(.subheadline.monospaced()).foregroundStyle(Noora.labelPrimary).lineLimit(1)
+                    Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done")).font(.caption).foregroundStyle(Noora.labelSecondary)
+                }
+                .frame(minHeight: 44)
+                if let build = tool.build {
+                    BuildProgressView(build: build).padding(.bottom, 10)
+                }
             }
-            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .disabled(running)
         .padding(.horizontal, 12)
         .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+    }
+}
+
+/// A Once build or test a Bash call runs: what it builds, how many of its
+/// planned targets are done and, for tests, how the cases went.
+private struct BuildProgressView: View {
+    let build: AppBuild
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(build.command == "test" ? LocalizedStringKey("Testing with Once") : LocalizedStringKey("Building with Once"))
+                    .font(.caption.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                if let target = build.target, !target.isEmpty {
+                    Text(verbatim: target).font(.caption.monospaced()).foregroundStyle(Noora.labelSecondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: 4)
+                if build.planned > 0 {
+                    Text("\(build.done) of \(build.planned) targets")
+                        .font(.caption).monospacedDigit().foregroundStyle(Noora.labelSecondary)
+                        .contentTransition(.numericText())
+                }
+            }
+            if let fraction = build.fraction {
+                ProgressView(value: fraction)
+                    .tint(build.failing ? Noora.labelDestructive : Noora.primary)
+                    .animation(.default, value: fraction)
+            } else if build.active {
+                ProgressView().progressViewStyle(.linear)
+            }
+            if let tests = build.tests {
+                Text("\(tests.passed) passed, \(tests.failed) failed, \(tests.skipped) skipped")
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(tests.failed > 0 ? Noora.labelDestructive : Noora.labelSecondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
