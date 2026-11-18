@@ -5,12 +5,12 @@ defmodule TuistWeb.Plugs.AppSessionPlug do
   `TuistWeb.AuthenticationPlug`, assigns `:app_user` and `:app_session`, and marks
   responses `no-store`. Other OAuth clients, account tokens and agent credentials
   get a 403, whatever their scopes. `apps:` lists the apps an endpoint admits
-  (default `["tuist"]`); push devices also admit Luft, and Luft's telemetry
-  (`/api/luft/telemetry`) admits only Luft.
+  (default `["tuist"]`); push devices also admit Luft, and telemetry
+  (`/api/telemetry`) admits the apps that send it.
 
   Writes are limited per user, because unregistering unknown IDs and removing
   devices leave tombstones that outlive the user's devices. `limit_writes: false`
-  leaves the limit to an endpoint with its own, as Luft's telemetry has.
+  leaves the limit to an endpoint with its own, as telemetry has.
   """
   @behaviour Plug
 

@@ -1398,9 +1398,9 @@ defmodule TuistWeb.Router do
     put "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :update
     delete "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :delete
     # OTLP/HTTP's signal paths under an exporter's endpoint, and the envelope
-    # path Sentry SDKs derive from the DSN `<server>/api/luft/telemetry/1`.
-    post "/luft/telemetry/v1/:signal", LuftTelemetryController, :otlp
-    post "/luft/telemetry/api/:project_id/envelope", LuftTelemetryController, :errors
+    # path Sentry SDKs derive from the DSN `<server>/api/telemetry/1`.
+    post "/telemetry/v1/:signal", TelemetryController, :otlp
+    post "/telemetry/api/:project_id/envelope", TelemetryController, :errors
     get "/me/notification-events", NotificationRulesController, :events
 
     get "/me/notification-events/:event/projects/:account_handle/:project_handle/condition-options",

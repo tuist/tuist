@@ -1298,10 +1298,12 @@ timestamps and aggregate queries have been exercised against Pulse;
 this does not establish complete attribution for every collector or source.
 
 Luft's core sends its own telemetry through the server
-(`POST /api/luft/telemetry/v1/{traces,logs,metrics}` as OTLP/HTTP and
-`POST /api/luft/telemetry/api/1/envelope/` as Sentry envelopes, accepted only
-from a signed-in Luft session and only while the configured Pulse account is
-enrolled). The server stores it in the same tables under the service `luft`:
+(`POST /api/telemetry/v1/{traces,logs,metrics}` as OTLP/HTTP and
+`POST /api/telemetry/api/1/envelope/` as Sentry envelopes, accepted only
+from a signed-in Luft session of a user not blocked with the
+`:telemetry_blocked` flag, and only while the configured Pulse account is
+enrolled). The server stores it in the same tables under the service
+`luft-client`:
 operation and HTTP request spans (operation name, outcome, the core's fixed
 error message, method, status and the request path with every identifying
 segment replaced by `*`), the core's fixed log messages, the

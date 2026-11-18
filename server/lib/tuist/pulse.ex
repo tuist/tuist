@@ -109,16 +109,16 @@ defmodule Tuist.Pulse do
   end
 
   @doc """
-  Whether Pulse takes Luft's telemetry: Luft is Tuist's own app, so its
-  telemetry belongs to the configured Pulse account and follows that account's
+  Whether Pulse takes the telemetry of Tuist's own clients, such as Luft:
+  it belongs to the configured Pulse account and follows that account's
   enrollment (`available?/1`), read at most once a minute per node.
   """
-  def luft_telemetry? do
-    # Every running Luft asks once a minute; enrollment changes rarely, so
+  def own_telemetry? do
+    # Every running client asks once a minute; enrollment changes rarely, so
     # each node may answer from a minute-old reading.
     case Keyword.get(Environment.pulse_config(), :account_id) do
       id when is_integer(id) and id > 0 ->
-        KeyValueStore.get_or_update([__MODULE__, :luft_telemetry, id], [ttl: to_timeout(minute: 1)], fn ->
+        KeyValueStore.get_or_update([__MODULE__, :own_telemetry, id], [ttl: to_timeout(minute: 1)], fn ->
           case Accounts.get_account_by_id(id) do
             {:ok, account} -> available?(account)
             {:error, :not_found} -> false
