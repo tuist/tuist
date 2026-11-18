@@ -59,8 +59,9 @@ A submission waits up to five seconds for its result, so most actions need one
 gateway request. Longer actions continue with five-second `WaitExecution`-style
 long polls that return as soon as the state changes. Completed operations stay
 readable for one minute. Queued operations fail after 15 minutes. The queue is
-bounded to four times the account concurrency, at most 512 actions; a full queue
-returns `RESOURCE_EXHAUSTED`.
+bounded to sixteen times the account concurrency, at most 2048 actions, so
+several cold clients at `--jobs` of twice the concurrency fit at once; a full
+queue returns `RESOURCE_EXHAUSTED`.
 
 ### Leases
 
