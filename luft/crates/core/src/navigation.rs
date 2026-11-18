@@ -11,6 +11,7 @@ pub const ROUTES: &[&str] = &[
     "/threads/new",
     "/threads/new/dictation",
     "/threads/{id}",
+    "/threads/{id}/snooze",
     "/halls",
     "/halls/{id}",
     "/dms",
@@ -26,6 +27,8 @@ pub enum Destination {
     /// A tab's root (`threads`, `halls` or `dms`), or one conversation in it.
     List(&'static str),
     Conversation(&'static str, String),
+    /// A thread with its snooze choices open over it.
+    Snooze(String),
     /// Start conversation on the Threads root; `dictate` starts with dictation.
     NewThread {
         dictate: bool,
@@ -40,6 +43,7 @@ impl Destination {
         match self {
             Self::List(tab) => format!("/{tab}"),
             Self::Conversation(tab, id) => format!("/{tab}/{id}"),
+            Self::Snooze(id) => format!("/threads/{id}/snooze"),
             Self::NewThread { dictate: false } => "/threads/new".into(),
             Self::NewThread { dictate: true } => "/threads/new/dictation".into(),
             Self::Profile => "/profile".into(),
@@ -52,6 +56,15 @@ impl Destination {
             "/threads/new" => return Ok(Self::NewThread { dictate: false }),
             "/threads/new/dictation" => return Ok(Self::NewThread { dictate: true }),
             _ => {}
+        }
+        if let Some(thread) = path
+            .strip_prefix("/threads/")
+            .and_then(|p| p.strip_suffix("/snooze"))
+        {
+            return match Self::parse(&format!("/threads/{thread}"))? {
+                Self::Conversation(_, id) => Ok(Self::Snooze(id)),
+                _ => Err(INVALID),
+            };
         }
         let rest = path.strip_prefix('/').ok_or(INVALID)?;
         let (tab, id) = rest.split_once('/').unwrap_or((rest, ""));
@@ -190,6 +203,8 @@ pub struct Navigation {
     pub dm_id: Option<String>,
     /// `text` or `dictation` while Start conversation is open on the Threads root.
     pub compose: Option<&'static str>,
+    /// Whether the open thread's snooze choices show over it.
+    pub snooze: bool,
     pub path: String,
     pub revision: u64,
     #[serde(skip)]
@@ -204,6 +219,7 @@ impl Default for Navigation {
             hall_id: None,
             dm_id: None,
             compose: None,
+            snooze: false,
             path: "/threads".into(),
             revision: 0,
             pending: None,
@@ -231,6 +247,7 @@ impl Navigation {
 
     pub fn navigate(&mut self, destination: Destination) {
         self.compose = None;
+        self.snooze = false;
         match destination {
             Destination::Profile => self.tab = "profile",
             Destination::List(tab) => {
@@ -240,6 +257,11 @@ impl Navigation {
             Destination::Conversation(tab, id) => {
                 self.tab = tab;
                 *self.stack(tab) = Some(id);
+            }
+            Destination::Snooze(id) => {
+                self.tab = "threads";
+                self.thread_id = Some(id);
+                self.snooze = true;
             }
             Destination::NewThread { dictate } => {
                 self.tab = "threads";
@@ -266,6 +288,7 @@ impl Navigation {
             _ => STACKS.into_iter().find(|t| *t == tab).ok_or(INVALID)?,
         };
         self.compose = None;
+        self.snooze = false;
         self.changed();
         Ok(())
     }
@@ -294,6 +317,9 @@ impl Navigation {
                 dictate: self.compose == Some("dictation"),
             }
             .path(),
+            "threads" if self.snooze && self.thread_id.is_some() => {
+                Destination::Snooze(self.thread_id.clone().unwrap_or_default()).path()
+            }
             _ => match self.stack(tab) {
                 Some(id) => format!("/{tab}/{id}"),
                 None => format!("/{tab}"),

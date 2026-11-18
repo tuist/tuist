@@ -87,7 +87,7 @@ jobs:
           - platform: macos
             runner: tuist-macos-27-0
           - platform: cli
-            runner: ubuntu-24.04
+            runner: tuist-linux-large
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
@@ -145,13 +145,13 @@ jobs:
       matrix:
         include:
           - platform: core
-            runner: ubuntu-24.04
+            runner: tuist-linux-large
           - platform: ios
             runner: tuist-macos-27-0
           - platform: macos
             runner: tuist-macos-27-0
           - platform: cli
-            runner: ubuntu-24.04
+            runner: tuist-linux-large
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:

@@ -1,0 +1,35 @@
+name: Runners VM memory probe
+
+# Runs the runners acceptance VM memory probe once on any runner label, such
+# as a runner profile whose shape is about to get exclusive CPUs. The probe
+# fills guest RAM; a host that OOM-kills the VM fails the job as "runner lost
+# communication". Pair a pass with zero QEMU memcg kills in Pulse.
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: Runner label to probe, such as tuist-linux-xlarge
+        required: true
+        type: string
+
+run-name: VM memory probe on ${{ inputs.label }}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: VM memory (${{ inputs.label }})
+    if: github.repository == 'tuist/tuist'
+    runs-on: ${{ inputs.label }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Runner
+        run: echo "${RUNNER_NAME} on $(nproc) vCPUs, $(awk '/^MemTotal:/ {print $2}' /proc/meminfo) kB"
+      - name: VM memory
+        run: bash .github/scripts/runners-acceptance/vm-memory.sh

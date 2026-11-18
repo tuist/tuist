@@ -9,10 +9,13 @@ defmodule Tuist.Push.LiveActivities do
   from a fixed set of parts: a summary and up to three threads, each with a
   headline, a detail line, a phase with its SF Symbol and tint, progress (a timer
   the device counts from `started_at`, or a step count), a trail of its recent
-  phases and a link. The widget only draws it, so new phases and copy ship from
-  the server without an app release. Raw state never leaves the server: tool
-  calls become phases (`Read`, `Glob`, `Grep` and `Ls` are Exploring, `Edit` and
-  `Write` Editing, `Bash` Running commands), and their arguments are never read.
+  phases, a link and, while it works, a link that opens Luft's snooze choices
+  for it. Snoozed threads (`Tuist.Threads.snooze/4`) are left out, so
+  snoozing the last working one ends the activity. The widget only draws it,
+  so new phases and copy ship from the server without an app release. Raw
+  state never leaves the server: tool calls become phases (`Read`, `Glob`,
+  `Grep` and `Ls` are Exploring, `Edit` and `Write` Editing, `Bash` Running
+  commands), and their arguments are never read.
   Headlines are the thread title an agent gave it (`Tuist.Push.thread_title/1`),
   which can appear on the Lock Screen.
 
@@ -589,6 +592,8 @@ defmodule Tuist.Push.LiveActivities do
       Thread
       |> where([t], t.owner_id == ^user.id and t.status == :active)
       |> where([t], t.agent_status in @working or t.id in ^previously_working)
+      # A snoozed thread is out of the owner's way, here too.
+      |> where([t], not t.snoozed_until_needed and (is_nil(t.snoozed_until) or t.snoozed_until <= ^now()))
       |> Repo.all()
       |> readable(user)
 
@@ -717,7 +722,7 @@ defmodule Tuist.Push.LiveActivities do
         do: %{"kind" => "steps", "done" => steps},
         else: %{"kind" => "timer", "started_at" => row.started_at}
 
-    %{
+    document = %{
       "id" => thread.id,
       "headline" => headline(thread),
       "detail" => detail(phase, label, steps),
@@ -728,10 +733,13 @@ defmodule Tuist.Push.LiveActivities do
       "trail" => Enum.map(row.trail, &elem(Map.fetch!(@phases, &1), 2)),
       "link" => link(thread)
     }
+
+    if phase in @finished, do: document, else: Map.put(document, "snooze_link", link(thread, "/snooze"))
   end
 
   # Luft's own scheme: a widget opens an https link in Safari, not in the app.
-  defp link(thread), do: "luft://app/threads/#{thread.id}?" <> URI.encode_query(%{"server" => Environment.app_url()})
+  defp link(thread, suffix \\ ""),
+    do: "luft://app/threads/#{thread.id}#{suffix}?" <> URI.encode_query(%{"server" => Environment.app_url()})
 
   defp headline(thread) do
     title =

@@ -93,6 +93,24 @@ defmodule Tuist.Push.LiveActivitiesTest do
       assert [%{"phase" => "thinking"}] = document["threads"]
     end
 
+    test "leaves out snoozed threads and offers to snooze the working ones", %{user: user} do
+      working = thread!(user, "Bump Kura to 0.9", "running")
+      run!(working, "running")
+      until_needed = thread!(user, "Fix login redirect loop", "running")
+      run!(until_needed, "running")
+      Repo.update!(Ecto.Changeset.change(until_needed, snoozed_until_needed: true))
+      later = thread!(user, "Add coverage trend chart", "running")
+      run!(later, "running")
+      snoozed_until = DateTime.utc_now() |> DateTime.add(1, :hour) |> DateTime.truncate(:second)
+      Repo.update!(Ecto.Changeset.change(later, snoozed_until: snoozed_until))
+
+      {document, working_ids} = LiveActivities.content(user, [until_needed.id])
+
+      assert working_ids == [working.id]
+      assert [%{"snooze_link" => snooze_link, "link" => link}] = document["threads"]
+      assert snooze_link == String.replace(link, "/threads/#{working.id}?", "/threads/#{working.id}/snooze?")
+    end
+
     test "leaves out threads the user can no longer read", %{user: user} do
       run!(thread!(user, "Fix login redirect loop", "running"), "running")
       stub(Tuist.FeatureFlags, :luft_enabled?, fn _ -> false end)

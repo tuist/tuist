@@ -3,6 +3,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.ClaudeLinkedBilling
   alias Tuist.Accounts.OrganizationAI
   alias Tuist.Accounts.OrganizationAIConnection
   alias Tuist.FeatureFlags
@@ -295,6 +296,144 @@ defmodule Tuist.Accounts.OrganizationAITest do
       result = OrganizationAI.complete(account, [])
       assert result == expected
       refute inspect(result) =~ "private-key"
+    end
+  end
+
+  describe "Claude linked billing" do
+    setup do
+      stub(Tuist.Environment, :anthropic_linked_billing_config, fn ->
+        %{
+          client_id: "client-123",
+          client_assertion_audience: "aud-from-console",
+          organization_id: "org-tuist",
+          workspace_id: "wrkspc-1",
+          service_account_id: "svac-1",
+          federation_rule_id: "fdrl-1"
+        }
+      end)
+
+      stub(Tuist.KeyValueStore, :get, fn _key, _opts -> nil end)
+      stub(Tuist.KeyValueStore, :put, fn _key, _value, _opts -> :ok end)
+      :ok
+    end
+
+    test "links once per organization, bills the linked profile and unlinks on removal", %{
+      user: user,
+      account: account
+    } do
+      jwks = ClaudeLinkedBilling.jwks()
+
+      verify = fn assertion, audience ->
+        [key] = jwks["keys"]
+        assert {true, %JOSE.JWT{fields: claims}, _} = JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), ["ES256"], assertion)
+        assert claims["iss"] == ClaudeLinkedBilling.issuer()
+        assert claims["aud"] == audience
+      end
+
+      stub(Req, :post, fn
+        "https://api.anthropic.com/v1/oauth/token", opts ->
+          verify.(opts[:json].assertion, "https://api.anthropic.com")
+          assert opts[:json].service_account_id == "svac-1"
+          {:ok, %Req.Response{status: 200, body: %{"access_token" => "sk-ant-oat01-operator", "expires_in" => 600}}}
+
+        "https://api.anthropic.com/v1/user_profiles", opts ->
+          assert {"authorization", "Bearer sk-ant-oat01-operator"} in opts[:headers]
+          {:ok, %Req.Response{status: 201, body: %{"id" => "uprof_#{System.unique_integer([:positive])}"}}}
+
+        "https://auth.claude.com/v1/oauth/par", opts ->
+          verify.(opts[:json].client_assertion, "aud-from-console")
+          send(self(), {:par, opts[:json]})
+          {:ok, %Req.Response{status: 201, body: %{"request_uri" => "urn:request:1", "expires_in" => 600}}}
+
+        "https://auth.claude.com/v1/oauth/token", opts ->
+          assert %{grant_type: "authorization_code", code: "the-code", code_verifier: "verifier"} = opts[:json]
+          {:ok, %Req.Response{status: 200, body: %{"connection_id" => "ocon_1", "access_token" => "unused"}}}
+
+        "https://auth.claude.com/v1/oauth/revoke", opts ->
+          send(self(), {:revoked, opts[:json].user_profile_id})
+          {:ok, %Req.Response{status: 200, body: %{"revoked_connection_ids" => ["ocon_1"]}}}
+      end)
+
+      assert {:ok, %{url: url, state: state, code_verifier: verifier}} = OrganizationAI.start_claude_link(user, account)
+      assert url == "https://auth.claude.com/oauth/authorize?client_id=client-123&request_uri=urn%3Arequest%3A1"
+      assert_received {:par, par}
+      profile_id = par.user_profile_id
+      assert par.state == state
+      assert par.code_challenge == Base.url_encode64(:crypto.hash(:sha256, verifier), padding: false)
+
+      assert %{scope: "billing:attribution", connection_type: "organization_shared", connection_auth_target: "platform"} =
+               par
+
+      # A second attempt reuses the organization's profile instead of creating another.
+      assert {:ok, _} = OrganizationAI.start_claude_link(user, account)
+      assert_received {:par, %{user_profile_id: ^profile_id}}
+
+      assert {:ok, linked} = OrganizationAI.link_claude(user, account, "the-code", "verifier")
+      # Linking again replaces the stored connection rather than adding a provider.
+      assert {:ok, relinked} = OrganizationAI.link_claude(user, account, "the-code", "verifier")
+      assert relinked.id == linked.id
+
+      assert {:ok, %{connections: [%{kind: "claude_linked_billing", base_url: nil}]}} =
+               OrganizationAI.settings(user, account)
+
+      # Linked connections are never edited as keys.
+      assert {:error, :not_found} =
+               OrganizationAI.save_connection(user, account, %{
+                 "_id" => linked.id,
+                 "base_url" => "https://1.1.1.1/v1",
+                 "api_key" => "x"
+               })
+
+      selected = model(user, account, linked.id, "claude-sonnet-5-5")
+      assert {:ok, _} = OrganizationAI.set_default(user, account, selected.id)
+
+      url = "https://api.anthropic.com/v1/chat/completions"
+      stub(SSRFGuard, :pin, fn ^url -> {:ok, "https://1.1.1.1/v1/chat/completions", "api.anthropic.com"} end)
+
+      expect(PinnedHTTP, :request, fn "POST", _url, opts ->
+        assert {"authorization", "Bearer sk-ant-oat01-operator"} in opts[:headers]
+        assert {"anthropic-beta", "user-profiles-billing-2026-10-01"} in opts[:headers]
+        assert {"anthropic-user-profile-id", profile_id} in opts[:headers]
+
+        assert JSON.decode!(opts[:body]) == %{
+                 "model" => "claude-sonnet-5-5",
+                 "messages" => [],
+                 "stream" => false,
+                 "billing_policy" => %{"type" => "billing_policy", "bill_to" => "user_profile"}
+               }
+
+        {:ok, %{status: 200, body: ~s({"choices":[]})}}
+      end)
+
+      assert {:ok, %{"choices" => []}} = OrganizationAI.complete(account, [])
+
+      assert {:ok, :ok} = OrganizationAI.remove_connection(user, account, linked.id)
+      assert_received {:revoked, ^profile_id}
+      assert {:ok, %{connections: [], models: [], default_model_id: nil}} = OrganizationAI.settings(user, account)
+    end
+
+    test "keeps the link when Anthropic can't unlink it, and is unavailable until configured", %{
+      user: user,
+      account: account
+    } do
+      Repo.update_all(from(o in Tuist.Accounts.Organization, where: o.id == ^account.organization_id),
+        set: [anthropic_user_profile_id: "uprof_existing"]
+      )
+
+      stub(Req, :post, fn "https://auth.claude.com/v1/oauth/token", _ ->
+        {:ok, %Req.Response{status: 200, body: %{"connection_id" => "ocon_2"}}}
+      end)
+
+      assert {:ok, linked} = OrganizationAI.link_claude(user, account, "code", "verifier")
+
+      stub(Req, :post, fn "https://auth.claude.com/v1/oauth/revoke", _ -> {:ok, %Req.Response{status: 503, body: %{}}} end)
+
+      assert {:error, :unlink_failed} = OrganizationAI.remove_connection(user, account, linked.id)
+      assert Repo.get!(OrganizationAIConnection, linked.id)
+
+      stub(Tuist.Environment, :anthropic_linked_billing_config, fn -> %{client_id: nil} end)
+      reject(Req, :post, 2)
+      assert {:error, :not_configured} = OrganizationAI.start_claude_link(user, account)
     end
   end
 

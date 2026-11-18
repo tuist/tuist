@@ -230,20 +230,34 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
-            op @ ("threads" | "start_thread" | "thread" | "send_message") => {
-                self.threads_operation(op, args, host)
+            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread") => {
+                let mut view = self.threads_operation(op, args, host)?;
+                crate::threads::present_snoozes(&mut view, now()?);
+                Ok(view)
             }
             // Answer from the store without the network, so screens render at once.
             op @ ("cached_threads" | "cached_thread") => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
                 let store = self.store(index, host)?;
-                if op == "cached_threads" {
-                    store.inbox(&account)
+                let mut view = if op == "cached_threads" {
+                    store.inbox(&account)?
                 } else {
-                    store.conversation(text(args, "id")?)
-                }
+                    store.conversation(text(args, "id")?)?
+                };
+                crate::threads::present_snoozes(&mut view, now()?);
+                Ok(view)
             }
+            "snooze_options" => Ok(crate::threads::snooze_options(
+                now()?,
+                args.get("offset_seconds")
+                    .and_then(Value::as_i64)
+                    .filter(|o| o.abs() <= 14 * 3600)
+                    .ok_or("Invalid offset")?,
+                args.get("working")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            )),
             "flush_outbox" => self.flush_outbox(host),
             // Pure; edges may also call `tuist_app_compose` to skip the client lock.
             "compose" => Ok(crate::compose::compose(args)),

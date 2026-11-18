@@ -4,6 +4,7 @@ resources:
   - bot-management.yaml
   - browser-telemetry-bot-filter.yaml
   - custom-firewall-rules.yaml
+  - luft-work-cache-rule.yaml
   - public-pages-rate-limit.yaml
   - skip-sbfm-api-paths.yaml
   - skip-sbfm-marketing-pages.yaml

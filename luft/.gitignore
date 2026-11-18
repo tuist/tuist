@@ -3,3 +3,5 @@
 /native-dependencies/crates/
 /native-dependencies/vendor/
 /delivery/
+/web/node_modules/
+/web/dist/

@@ -40,6 +40,14 @@ defmodule TuistWeb.API.ThreadsController do
     )
   end
 
+  # `snooze` snoozes or wakes the thread (`Tuist.Threads.snooze/4`); otherwise `status` archives or restores it.
+  def update(%{body_params: %{"snooze" => snooze}} = conn, _params) do
+    thread_response(
+      conn,
+      Threads.snooze(conn.assigns.app_user, conn.assigns.thread_account, conn.path_params["id"], snooze)
+    )
+  end
+
   def update(conn, _params) do
     thread_response(
       conn,

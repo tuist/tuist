@@ -9,6 +9,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Router
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @robots_txt_header [
     "User-agent: *",
@@ -33,11 +34,13 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   def render do
     route_infos = route_infos()
+    disallow_patterns = disallow_patterns(route_infos)
 
     [
       @robots_txt_header,
       Enum.map(content_usage_entries(route_infos), &content_usage_line/1),
-      disallow_lines(disallow_patterns(route_infos)),
+      allow_lines(allow_patterns(disallow_patterns)),
+      disallow_lines(disallow_patterns),
       discovery_lines()
     ]
     |> List.flatten()
@@ -51,6 +54,27 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   def disallow_patterns do
     disallow_patterns(route_infos())
+  end
+
+  def allow_patterns do
+    allow_patterns(disallow_patterns())
+  end
+
+  # Catch-all marketing routes (`/marketing-markdown/*path`) serve pages the
+  # router cannot name, so a dashboard rule such as `Disallow: /*/runners/` also
+  # catches `/marketing-markdown/runners/buildkite`, and no narrower Disallow can
+  # keep `/:account_handle/runners` out without catching
+  # `/marketing-markdown/runners`. Crawlers apply the longest matching rule
+  # (RFC 9309), so an Allow naming each such page wins over the shorter Disallow.
+  defp allow_patterns(disallow_patterns) do
+    matchers = Enum.map(disallow_patterns, &disallow_matcher/1)
+
+    MarketingMarkdown.paths()
+    |> Enum.flat_map(&[&1, MarketingMarkdown.alternate_path(&1)])
+    |> Enum.reject(&is_nil/1)
+    |> Enum.filter(fn path -> Enum.any?(matchers, &Regex.match?(&1, path)) end)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   defp content_usage_entries(route_infos) do
@@ -331,6 +355,9 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   defp render_disallow_pattern(segments, false), do: build_path(segments)
   defp render_disallow_pattern(segments, true), do: build_path(segments) <> "/"
+
+  defp allow_lines([]), do: []
+  defp allow_lines(paths), do: [""] ++ Enum.map(paths, &"Allow: #{&1}")
 
   defp disallow_lines([]), do: []
 

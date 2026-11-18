@@ -112,6 +112,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := (&controllers.CloudflareCacheRuleReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareCacheRuleReconciler")
+		os.Exit(1)
+	}
+
 	if err := (&controllers.CloudflareBotManagementReconciler{
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),

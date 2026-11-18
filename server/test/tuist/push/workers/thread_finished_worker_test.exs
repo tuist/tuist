@@ -125,4 +125,32 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorkerTest do
     assert registration_id == iphone.id
     assert payload["aps"]["alert"]["title"] == "Your thread"
   end
+
+  test "stays quiet about a thread snoozed until later, and reminds its owner when the snooze ends" do
+    owner = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(owner)
+    register(owner, "luft", "ios")
+
+    thread =
+      Repo.insert!(%Thread{
+        account_id: account.id,
+        owner_id: owner.id,
+        request_id: Ecto.UUID.generate(),
+        request_hash: :crypto.strong_rand_bytes(32),
+        goal: "Fix the login flow",
+        provider: "chatgpt",
+        model: "gpt",
+        title: "Fix the login flow",
+        agent_status: "idle",
+        snoozed_until: DateTime.utc_now() |> DateTime.add(1, :hour) |> DateTime.truncate(:second)
+      })
+
+    assert :ok = perform_job(ThreadFinishedWorker, %{"thread_id" => thread.id, "status" => "idle"})
+    assert all_enqueued(worker: DeliveryWorker) == []
+
+    assert :ok = perform_job(ThreadFinishedWorker, %{"thread_id" => thread.id, "status" => "snooze_ended"})
+
+    assert [%{args: %{"payload" => %{"aps" => %{"alert" => %{"body" => "Your snooze is over. Tap to pick it up."}}}}}] =
+             all_enqueued(worker: DeliveryWorker)
+  end
 end

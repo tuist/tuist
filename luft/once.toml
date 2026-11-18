@@ -390,3 +390,73 @@ crate_name = "luft_runner_tests"
 cargo_package = "luft-runner"
 crate_root = "crates/runner/src/lib.rs"
 edition = "2024"
+
+# The web edge (web/, served at luft.work): the core compiled to wasm, bound
+# for the browser by wasm-bindgen, and bundled with the TypeScript edge by
+# Vite (modules/web.star).
+[[target]]
+name = "LuftOAuthWeb"
+kind = "rust_library"
+srcs = ["crates/oauth/src/**/*.rs"]
+deps = ["native-dependencies/Web"]
+[target.attrs]
+crate_name = "tuist_oauth"
+crate_root = "crates/oauth/src/lib.rs"
+cargo_package = "tuist-oauth"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+
+[[target]]
+name = "LuftJWTWeb"
+kind = "rust_library"
+srcs = ["crates/jwt/src/**/*.rs"]
+deps = ["native-dependencies/Web"]
+[target.attrs]
+crate_name = "tuist_jwt"
+crate_root = "crates/jwt/src/lib.rs"
+cargo_package = "tuist-jwt"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+
+[[target]]
+name = "LuftCoreWeb"
+kind = "rust_library"
+srcs = ["crates/core/src/**/*.rs"]
+deps = ["native-dependencies/Web", "./LuftOAuthWeb", "./LuftJWTWeb"]
+[target.attrs]
+crate_name = "tuist_app_core"
+cargo_package = "tuist-app-core"
+crate_root = "crates/core/src/lib.rs"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+
+[[target]]
+name = "LuftCoreWasm"
+kind = "rust_library"
+srcs = ["crates/web/src/**/*.rs"]
+deps = ["native-dependencies/Web", "./LuftCoreWeb"]
+[target.attrs]
+crate_name = "luft_web"
+cargo_package = "luft-web"
+crate_root = "crates/web/src/lib.rs"
+edition = "2024"
+target = "wasm32-unknown-unknown"
+crate_type = "cdylib"
+rustc_flags = ["-C", "opt-level=s"]
+# The wasm_bindgen macro reads Cargo's package identity.
+rustc_env = { CARGO_PKG_NAME = "luft-web", CARGO_PKG_VERSION = "0.1.0", CARGO_MANIFEST_DIR = "crates/web" }
+
+[[target]]
+name = "LuftCoreBindings"
+kind = "luft_wasm_bindgen"
+deps = ["./LuftCoreWasm"]
+[target.attrs]
+out_name = "luft_core"
+
+[[target]]
+name = "LuftWeb"
+kind = "luft_vite"
+srcs = ["web/index.html", "web/vite.config.ts", "web/package.json", "web/src/**/*.ts"]
+deps = ["./LuftCoreBindings"]
+[target.attrs]
+package_dir = "web"

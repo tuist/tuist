@@ -189,6 +189,24 @@ impl Store {
         tx.commit().map_err(|_| SAVE)
     }
 
+    /// Replaces a thread's row in the account's inbox, where it is, without its
+    /// messages. A thread the inbox doesn't list stays out of it.
+    pub fn update_in_inbox(&mut self, account: &str, thread: &Value) -> Result<()> {
+        let id = thread["id"].as_str().ok_or("Invalid thread")?;
+        let mut row = thread.clone();
+        if let Some(object) = row.as_object_mut() {
+            object.remove("messages");
+            object.remove("freshness");
+        }
+        self.db
+            .execute(
+                "UPDATE threads SET data = ?3 WHERE account = ?1 AND id = ?2",
+                params![account, id, row.to_string()],
+            )
+            .map_err(|_| SAVE)?;
+        Ok(())
+    }
+
     /// A conversation as last seen, with replies sent offline appended. A
     /// thread started offline exists only in the outbox until it is sent.
     pub fn conversation(&mut self, id: &str) -> Result<Value> {
@@ -463,6 +481,14 @@ pub fn record(
                 tx.commit().map_err(|_| SAVE)?;
             }
             store.save_conversation(&thread, now)?;
+            let mut thread = thread;
+            thread["freshness"] = json!({"state": "live"});
+            Ok(thread)
+        }
+        // A snooze needs the server; the stored thread and inbox follow it.
+        ("snooze_thread", Ok(thread)) => {
+            store.save_conversation(&thread, now)?;
+            store.update_in_inbox(account, &thread)?;
             let mut thread = thread;
             thread["freshness"] = json!({"state": "live"});
             Ok(thread)

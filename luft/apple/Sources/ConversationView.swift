@@ -62,6 +62,8 @@ struct AppConversation: Decodable {
     let working: Bool
     let state: String?
     let messages: [AppMessage]
+    /// Set while the person snoozed it, decided by the Rust core.
+    var snooze: AppSnooze?
     /// The current step of the answering run's plan, when it shared one.
     var activity: AppActivity?
     /// The thread's owner and the people looped into it by a mention.
@@ -253,6 +255,11 @@ struct ConversationView: View {
     @State private var showingPrompts = false
     @State private var chosenPrompt: String?
     @State private var pendingJump: String?
+    @State private var snoozeChoices = SnoozeChoices()
+    @State private var pickingSnoozeTime = false
+    /// The server answered for this thread at least once: a thread never opened here
+    /// has no cached state, so whether it works isn't known before.
+    @State private var live = false
     /// Whether the end of the conversation is on screen; new messages only scroll while it is.
     @State private var atLatest = true
     // Not observed here: only the composer redraws as dictation levels change.
@@ -330,6 +337,19 @@ struct ConversationView: View {
             }
         }
         .background(Noora.backgroundPrimary)
+        .safeAreaInset(edge: .top) {
+            if let current = thread?.snooze {
+                HStack(spacing: 8) {
+                    Image(systemName: "moon.zzz").foregroundStyle(Noora.primary).accessibilityHidden(true)
+                    Text(verbatim: current.label).font(.subheadline).foregroundStyle(Noora.labelPrimary)
+                    Spacer()
+                    Button("Wake") { Task { await snooze(until: nil) } }.font(.subheadline.weight(.medium))
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .interactiveGlass(in: Capsule())
+                .padding(.horizontal).padding(.top, 4)
+            }
+        }
         .overlay { if thread == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
             ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions) {
@@ -344,6 +364,21 @@ struct ConversationView: View {
             .toolbar(.hidden, for: .tabBar)
         #endif
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        SnoozeButtons(
+                            choices: snoozeChoices,
+                            working: thread?.working == true,
+                            snoozed: thread?.snooze != nil,
+                            snooze: { until in Task { await snooze(until: until) } },
+                            custom: { pickingSnoozeTime = true }
+                        )
+                    } label: {
+                        Label("Snooze", systemImage: thread?.snooze == nil ? "moon.zzz" : "moon.zzz.fill")
+                    }
+                    .help("Snooze")
+                    .disabled(thread == nil)
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showingPrompts = true } label: {
                         Label("Prompts", systemImage: "list.bullet")
@@ -386,6 +421,32 @@ struct ConversationView: View {
                     }
                 }
             }
+            .task { await snoozeChoices.follow(client) }
+            // The Live Activity's Snooze opens the thread with its choices over it. Dialog
+            // buttons take the presenting view's tint; the choices read as plain text.
+            .background {
+                Color.clear.confirmationDialog(
+                    "Snooze", isPresented: Binding(
+                        get: { client.view.navigation.snooze && client.view.navigation.thread_id == id && live },
+                        set: { if !$0 { leaveSnoozeChoices() } }
+                    ), titleVisibility: .visible
+                ) {
+                    SnoozeButtons(
+                        choices: snoozeChoices,
+                        working: thread?.working == true,
+                        snoozed: thread?.snooze != nil,
+                        inline: true,
+                        snooze: { until in Task { await snooze(until: until) } },
+                        custom: { pickingSnoozeTime = true }
+                    )
+                } message: {
+                    Text(verbatim: thread?.title ?? thread?.goal ?? "")
+                }
+                .tint(Noora.labelPrimary)
+            }
+            .sheet(isPresented: $pickingSnoozeTime) {
+                CustomSnoozeView { until in Task { await snooze(until: until) } }
+            }
             // The live socket: server changes and the agent's calls to this app's tools.
             .task(id: id) { await client.live(id) { await reload() } }
             // Unaccepted dictation never survives leaving the conversation or the app.
@@ -415,6 +476,7 @@ struct ConversationView: View {
         while !Task.isCancelled {
             do {
                 show(try await client.conversation("thread", ["id": id]))
+                live = true
                 error = nil
             } catch {
                 guard !Task.isCancelled else { return }
@@ -422,6 +484,24 @@ struct ConversationView: View {
             }
             try? await Task.sleep(for: thread?.working == true ? .seconds(2) : .seconds(15))
         }
+    }
+
+    /// Snoozes or wakes the thread. A snoozed thread is out of the way, so
+    /// snoozing it returns to the inbox; waking it stays here.
+    private func snooze(until: String?) async {
+        do {
+            show(try await client.snooze(id, until: until))
+            if until != nil { await client.perform("navigation_back") } else { leaveSnoozeChoices() }
+        } catch {
+            self.error = error.localizedDescription
+            leaveSnoozeChoices()
+        }
+    }
+
+    /// Closes the choices the Live Activity opened, keeping the thread open.
+    private func leaveSnoozeChoices() {
+        guard client.view.navigation.snooze else { return }
+        Task { await client.perform("navigate", ["url": "/threads/\(id)"]) }
     }
 
     /// Loads the conversation again when the server says it changed.

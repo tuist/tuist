@@ -29,6 +29,8 @@ struct AppNavigation: Decodable {
     var dm_id: String?
     /// `text` or `dictation` while Start conversation is open, decided by the Rust core.
     var compose: String?
+    /// The open thread's snooze choices show over it (`/threads/{id}/snooze`), decided by the Rust core.
+    var snooze = false
     var path: String = "/threads"
     var revision: UInt64 = 0
 }

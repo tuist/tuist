@@ -110,9 +110,9 @@ msgstr "Электронная почта для оплаты"
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:303
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:401
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:463
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:348
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:446
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:534
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -197,7 +197,7 @@ msgstr "Текущий план"
 #: lib/tuist/billing.ex:94
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:247
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:292
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -508,10 +508,10 @@ msgstr "Самое популярное"
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
 #: lib/tuist_web/live/create_organization_live.ex:66
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:31
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:356
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:54
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:308
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:401
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -628,8 +628,8 @@ msgstr "Регион"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:426
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:472
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "Удалить"
@@ -693,9 +693,9 @@ msgid "Role"
 msgstr "Роль"
 
 #: lib/tuist_web/live/members_live.ex:212
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:189
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:314
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:412
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:234
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:359
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Сохранить"
@@ -1072,11 +1072,11 @@ msgid "Okta domain"
 msgstr "Домен Okta"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:98
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:232
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:238
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:362
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:369
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:143
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:277
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:283
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:407
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:414
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "Провайдер"
@@ -3182,7 +3182,7 @@ msgid "The ChatGPT sign-in did not complete. Please try again."
 msgstr "Вход через ChatGPT не завершён. Попробуйте ещё раз."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:24
-#: lib/tuist_web/live/organization_ai_settings_live.ex:27
+#: lib/tuist_web/live/organization_ai_settings_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "Страница, которую вы ищете, не существует или была перемещена."
@@ -3460,126 +3460,121 @@ msgstr "Хранилище кэша"
 msgid "Cache volume storage:"
 msgstr "Хранилище кэша:"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:34
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:272
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:57
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "API base URL"
 msgstr "Базовый URL API"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:287
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr "Ключ API"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Add a model to make it available to organization workflows."
 msgstr "Добавьте модель, чтобы сделать её доступной для рабочих процессов организации."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:135
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Add a provider before adding a model."
 msgstr "Сначала добавьте провайдера, а затем модель."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:65
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Add a provider to get started."
 msgstr "Добавьте провайдера, чтобы начать."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:333
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:411
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:128
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:378
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "Add model"
 msgstr "Добавить модель"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:20
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:206
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:313
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:27
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:251
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Add provider"
 msgstr "Добавить провайдера"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:75
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Add the models your organization can use, then choose a default model below."
 msgstr "Добавьте модели, которые может использовать ваша организация, затем выберите модель по умолчанию ниже."
 
-#: lib/tuist_web/live/organization_ai_settings_live.ex:66
+#: lib/tuist_web/live/organization_ai_settings_live.ex:69
 #, elixir-autogen, elixir-format
 msgid "Check the provider details and enter a valid API key. Changing the provider or API base URL requires entering the key again."
 msgstr "Проверьте данные провайдера и введите действительный API-ключ. При смене провайдера или базового URL API ключ потребуется ввести заново."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:371
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Choose a provider"
 msgstr "Выберите провайдера"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:154
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Choose the model for organization AI workflows. No requests are sent until a default is selected. Personal AI subscriptions are not affected."
 msgstr "Выберите модель для AI-воркфлоу организации. Запросы не отправляются, пока не выбрана модель по умолчанию. Личные AI-подписки не затрагиваются."
-
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:12
-#, elixir-autogen, elixir-format
-msgid "Connect AI providers using your organization's API keys. Each provider can be used by multiple models."
-msgstr "Подключайте AI-провайдеров, используя API-ключи вашей организации. Каждый провайдер может использоваться несколькими моделями."
 
 #: lib/tuist_web/live/account_token_helpers.ex:198
 #, elixir-autogen, elixir-format
 msgid "Create sandboxes and run commands in them."
 msgstr "Создавайте песочницы и выполняйте в них команды."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:153
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:198
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Default model"
 msgstr "Модель по умолчанию"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:334
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:155
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Edit model"
 msgstr "Редактировать модель"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:43
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:207
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Edit provider"
 msgstr "Редактировать провайдера"
 
-#: lib/tuist_web/live/organization_ai_settings_live.ex:93
+#: lib/tuist_web/live/organization_ai_settings_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "Enter a name and model ID, and select a provider. The model ID must be unique for the provider."
 msgstr "Введите название и идентификатор модели, затем выберите провайдера. Идентификатор модели должен быть уникальным для выбранного провайдера."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:170
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Model"
 msgstr "Модель"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:101
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:383
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:146
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:428
 #, elixir-autogen, elixir-format
 msgid "Model ID"
 msgstr "ID модели"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Models"
 msgstr "Модели"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:178
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "No default model"
 msgstr "Нет модели по умолчанию"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:131
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "No models yet"
 msgstr "Пока нет моделей"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:64
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "No providers yet"
 msgstr "Пока нет провайдеров"
@@ -3589,27 +3584,27 @@ msgstr "Пока нет провайдеров"
 msgid "Providers"
 msgstr "Провайдеры"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:274
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
 msgstr "Публичная HTTPS-точка входа для API, совместимого с OpenAI. Укажите любой префикс /v1; к запросам будет добавляться /chat/completions."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:425
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}?"
 msgstr "Удалить %{name}?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:118
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Remove model"
 msgstr "Удалить модель"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:51
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Remove provider"
 msgstr "Удалить провайдера"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:454
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Requests already sent may finish."
 msgstr "Запросы, которые уже были отправлены, могут завершиться."
@@ -3619,27 +3614,27 @@ msgstr "Запросы, которые уже были отправлены, м�
 msgid "Sandboxes write"
 msgstr "Песочницы записывают"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:289
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
 msgstr "Хранится в зашифрованном виде. Оставьте поле пустым, чтобы сохранить текущий ключ, если не меняете провайдера или базовый URL API. Изменения затрагивают все модели, использующие этого провайдера."
 
-#: lib/tuist_web/live/organization_ai_settings_live.ex:117
+#: lib/tuist_web/live/organization_ai_settings_live.ex:120
 #, elixir-autogen, elixir-format
 msgid "That model is no longer available. Choose another model."
 msgstr "Эта модель больше недоступна. Выберите другую модель."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:385
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "The model ID from your provider, including any account or model prefix."
 msgstr "Идентификатор модели от вашего провайдера, включая префикс аккаунта или модели."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:443
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:510
 #, elixir-autogen, elixir-format
 msgid "This deletes the stored key and all models using this provider. If one is the default, routing stops until you select another. Revoke the key at the provider to revoke access there."
 msgstr "Это удалит сохранённый ключ и все модели, использующие этого провайдера. Если один из них был выбран по умолчанию, маршрутизация остановится до выбора другого. Отзовите ключ у провайдера, чтобы полностью запретить доступ."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:448
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "This removes the configured model, not its provider. If it is the default, routing stops until you select another."
 msgstr "Это удаляет настроенную модель, но не её провайдера. Если она была выбрана по умолчанию, маршрутизация остановится до выбора другой."
@@ -3708,3 +3703,74 @@ msgstr "Запись в Pulse"
 #, elixir-autogen, elixir-format
 msgid "Send errors to the account's Pulse with a Sentry SDK."
 msgstr "Отправляйте ошибки в Pulse аккаунта с помощью Sentry SDK."
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "Claude couldn't unlink your organization right now. Try again later."
+msgstr "Claude не смог отвязать вашу организацию прямо сейчас. Попробуйте позже."
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:36
+#, elixir-autogen, elixir-format
+msgid "Claude is unavailable right now. Try linking again later."
+msgstr "Claude сейчас недоступен. Попробуйте привязать его снова позже."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Connect AI providers using your organization's API keys, or link your Claude organization so Anthropic bills it directly. Each provider can be used by multiple models."
+msgstr "Подключайте AI-провайдеров, используя API-ключи вашей организации, или привяжите свою организацию Claude, чтобы Anthropic выставлял счета напрямую. Каждый провайдер может использоваться несколькими моделями."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Link Claude organization"
+msgstr "Привязать организацию Claude"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Linked Claude organization"
+msgstr "Привязанная организация Claude"
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:61
+#, elixir-autogen, elixir-format
+msgid "Linked your Claude organization."
+msgstr "Ваша организация Claude привязана."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Manage spend limit"
+msgstr "Управлять лимитом расходов"
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:97
+#, elixir-autogen, elixir-format
+msgid "That Claude organization is already linked to another Tuist organization. Unlink it there first."
+msgstr "Эта организация Claude уже привязана к другой организации Tuist. Сначала отвязайте её там."
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:112
+#, elixir-autogen, elixir-format
+msgid "The Claude linking request is invalid or has expired."
+msgstr "Запрос на подключение Claude недействителен или истек срок его действия."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:545
+#, elixir-autogen, elixir-format
+msgid "Unlink"
+msgstr "Отключить"
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:85
+#, elixir-autogen, elixir-format
+msgid "You no longer have permission to link a Claude organization."
+msgstr "У вас больше нет прав на подключение организации Claude."
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:104
+#, elixir-autogen, elixir-format
+msgid "Your Claude organization wasn't linked. Linking needs an Admin or Billing role in a Claude organization that pays Anthropic directly."
+msgstr "Ваша организация Claude не была подключена. Для подключения требуется роль администратора или ответственного за платежи в организации Claude, которая оплачивает услуги Anthropic напрямую."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:497
+#, elixir-autogen, elixir-format
+msgid "Anthropic stops billing your Claude organization for Tuist, and models using it are removed. If one is the default, routing stops until you select another."
+msgstr "Anthropic прекращает выставление счетов вашей организации Claude за использование Tuist, а модели, использующие её, удаляются. Если одна из них была установлена по умолчанию, маршрутизация приостанавливается до выбора другой."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Unlink your Claude organization?"
+msgstr "Отключить организацию Claude?"

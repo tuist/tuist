@@ -12,7 +12,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent
 DEST = ROOT / "native-dependencies"
-PACKAGES = ("core", "oauth", "jwt", "credentials", "runner")
+PACKAGES = ("core", "oauth", "jwt", "credentials", "runner", "web")
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     manifest = (ROOT / "Cargo.toml").read_text()
     manifest, count = re.subn(
         r"^members = .*?$",
-        'members = ["crates/core", "crates/oauth", "crates/jwt", "crates/credentials", "crates/runner"]',
+        'members = ["crates/core", "crates/oauth", "crates/jwt", "crates/credentials", "crates/runner", "crates/web"]',
         manifest,
         count=1,
         flags=re.MULTILINE,

@@ -27,12 +27,16 @@ defmodule Tuist.Threads do
   alias Tuist.Threads.Runner
   alias Tuist.Threads.Runners
   alias Tuist.Threads.Shipping
+  alias Tuist.Threads.SnoozeWorker
   alias Tuist.Threads.Thread
   alias Tuist.Threads.ToolCall
   alias Tuist.Threads.Worker
   alias Tuist.Threads.Workspace
 
   @active ["queued", "running"]
+  # Agent statuses of a thread whose run hasn't stopped yet.
+  @working ["queued", "running", "compacting", "shipping"]
+  @snooze_max_days 30
   # How long an inference run may take across every host it is handed to.
   @run_max_hours 3
 
@@ -319,6 +323,66 @@ defmodule Tuist.Threads do
   end
 
   defp cancel_archived_runs!(_thread, :active), do: :ok
+
+  @doc """
+  Snoozes thread `id`, which hides it from its owner's inbox until it matters
+  again. `snooze` is `%{"until_needed" => true}`, until the thread's run stops
+  (only a working thread can wait for that, and the owner hears from it as
+  usual); `%{"until" => iso8601}`, until that time, at most #{@snooze_max_days}
+  days ahead, when `Tuist.Threads.SnoozeWorker` wakes it and reminds the owner,
+  who meanwhile hears nothing from it; or `nil` to wake it now. Sending the
+  thread a message also wakes it.
+  """
+  def snooze(user, account, id, snooze) do
+    with {:ok, attrs} <- snooze_attrs(snooze),
+         {:ok, thread} <- owned(user, account, id) do
+      transact(fn ->
+        thread = lock_thread(thread.id)
+        require_access!(user, account, thread)
+
+        if attrs.snoozed_until_needed and thread.agent_status not in @working,
+          do: Repo.rollback(:not_working)
+
+        thread = update_thread!(thread, attrs)
+        if attrs.snoozed_until, do: SnoozeWorker.schedule!(thread)
+        history(thread)
+      end)
+    end
+  end
+
+  defp snooze_attrs(nil), do: {:ok, %{snoozed_until: nil, snoozed_until_needed: false}}
+  defp snooze_attrs(%{"until_needed" => true}), do: {:ok, %{snoozed_until: nil, snoozed_until_needed: true}}
+
+  defp snooze_attrs(%{"until" => until}) when is_binary(until) do
+    with {:ok, until, _offset} <- DateTime.from_iso8601(until),
+         until = DateTime.truncate(until, :second),
+         seconds = DateTime.diff(until, DateTime.utc_now()),
+         true <- seconds > 0 and seconds <= @snooze_max_days * 86_400 do
+      {:ok, %{snoozed_until: until, snoozed_until_needed: false}}
+    else
+      _ -> {:error, :invalid_arguments}
+    end
+  end
+
+  defp snooze_attrs(_), do: {:error, :invalid_arguments}
+
+  @doc """
+  Ends thread `thread_id`'s snooze if it is still the one that lasts `until`
+  (the owner may have woken or snoozed it again since), and reminds its owner.
+  """
+  def wake_snoozed(thread_id, %DateTime{} = until) do
+    transact(fn ->
+      case Repo.one(from t in Thread, where: t.id == ^thread_id, lock: "FOR UPDATE") do
+        %Thread{snoozed_until: ^until, status: :active} = thread ->
+          thread = update_thread!(thread, %{snoozed_until: nil})
+          if worker_access?(thread), do: Push.notify_thread_finished(thread, "snooze_ended")
+          :woken
+
+        _ ->
+          :ok
+      end
+    end)
+  end
 
   def snapshot(user, account, :inbox) do
     with :ok <- authorize_reader(user, account) do
@@ -1129,6 +1193,8 @@ defmodule Tuist.Threads do
       status: thread.agent_status,
       visibility: "private",
       archive_status: to_string(thread.status),
+      snoozed_until: thread.snoozed_until && DateTime.to_iso8601(thread.snoozed_until),
+      snoozed_until_needed: thread.snoozed_until_needed,
       revision: thread.revision,
       has_more: thread.has_more,
       next_before: thread.next_before,
@@ -1347,6 +1413,12 @@ defmodule Tuist.Threads do
   end
 
   defp update_thread!(thread, attrs) do
+    # A run that stops is what a thread snoozed until it's needed waits for.
+    attrs =
+      if Map.get(attrs, :agent_status, "running") in @working,
+        do: attrs,
+        else: Map.put(attrs, :snoozed_until_needed, false)
+
     thread =
       Repo.update!(Changeset.change(thread, Map.merge(attrs, %{revision: thread.revision + 1, updated_at: now()})),
         log: false
@@ -1401,7 +1473,8 @@ defmodule Tuist.Threads do
     # before a host claims it (`keep_alive/1`).
     Repo.insert!(%Run{thread_id: thread.id, message_id: message_id, heartbeat_at: now()})
     Lease.want(thread.id, "thread")
-    update_thread!(Repo.reload!(thread), %{agent_status: "queued"})
+    # Writing to a snoozed thread means its owner is back for it.
+    update_thread!(Repo.reload!(thread), %{agent_status: "queued", snoozed_until: nil, snoozed_until_needed: false})
   end
 
   defp wake({:ok, %Thread{id: id}} = result) do
