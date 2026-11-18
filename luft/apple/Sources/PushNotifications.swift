@@ -206,6 +206,9 @@ final class PushNotifications: NSObject, UNUserNotificationCenterDelegate {
             _: UIApplication, didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil
         ) -> Bool {
             PushNotifications.shared.configure()
+            // A background launch has no scene to boot the core, and a Live
+            // Activity the server started needs it to register its token.
+            Task { @MainActor in await AppClient.shared.start() }
             return true
         }
 

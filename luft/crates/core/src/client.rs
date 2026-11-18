@@ -401,6 +401,8 @@ impl MobileClient {
             "push_enable" => self.push_enable(args, host),
             "live_activity_register" => self.live_activity_register(args, host),
             "live_activity_unregister" => self.live_activity_unregister(args, host),
+            "live_activity_starter_register" => self.live_activity_starter_register(args, host),
+            "live_activity_starter_unregister" => self.live_activity_starter_unregister(args, host),
             "open_notification" => self.open_notification(args, host),
             "delete_account" => {
                 let index = self.active()?;
@@ -1169,6 +1171,69 @@ impl MobileClient {
         let url = endpoint(
             &server_url(&self.vault.profiles[index].server)?,
             &format!("api/me/thread-live-activities/{id}"),
+        );
+        let unregistered = matches!(
+            self.send(index, "DELETE", url, None, host),
+            Ok((200..=299 | 404, _))
+        );
+        Ok(json!({"unregistered":unregistered}))
+    }
+
+    /// Registers this device's ActivityKit push-to-start `token` for the active
+    /// profile at `/api/me/thread-live-activity-starter`, with the profile's ID,
+    /// which the server puts in the attributes of the activities it starts. The
+    /// server then starts the threads Live Activity when a thread starts working
+    /// and the sign-in has none. Returns `{registered:true}`, or
+    /// `{registered:false,reason:"unavailable"}` on a server without it (404).
+    fn live_activity_starter_register(
+        &mut self,
+        args: &Value,
+        host: &mut dyn Host,
+    ) -> Result<Value> {
+        let index = self.active()?;
+        let token = text(args, "token")?;
+        let environment = text(args, "environment")?;
+        if !matches!(environment, "sandbox" | "production")
+            || token.len() < 32
+            || token.len() % 2 != 0
+            || !token.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err("Invalid Live Activity");
+        }
+        let profile = &self.vault.profiles[index];
+        let url = endpoint(
+            &server_url(&profile.server)?,
+            "api/me/thread-live-activity-starter",
+        );
+        let body = json!({"token":token,"environment":environment,"profile_id":profile.id});
+        match self.send(index, "PUT", url, Some(body), host)? {
+            (200..=299, _) => Ok(json!({"registered":true})),
+            (404, _) => Ok(json!({"registered":false,"reason":"unavailable"})),
+            response => successful(response).map(|_| Value::Null),
+        }
+    }
+
+    /// Forgets the push-to-start token of `profile_id` (the active profile when
+    /// omitted) on its server, best effort, before it signs out or when the
+    /// device moves to another profile. Returns `{unregistered}`; a 404 counts
+    /// as done.
+    fn live_activity_starter_unregister(
+        &mut self,
+        args: &Value,
+        host: &mut dyn Host,
+    ) -> Result<Value> {
+        let index = match args.get("profile_id").and_then(Value::as_str) {
+            Some(profile) => self
+                .vault
+                .profiles
+                .iter()
+                .position(|p| p.id == profile)
+                .ok_or("Unknown profile")?,
+            None => self.active()?,
+        };
+        let url = endpoint(
+            &server_url(&self.vault.profiles[index].server)?,
+            "api/me/thread-live-activity-starter",
         );
         let unregistered = matches!(
             self.send(index, "DELETE", url, None, host),

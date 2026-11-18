@@ -288,6 +288,11 @@ private final class PresenceSocket: @unchecked Sendable {
 
 @MainActor @Observable
 final class AppClient: NSObject, ASWebAuthenticationPresentationContextProviding {
+    /// The app's one client. The app delegate boots it too, because iOS can
+    /// launch the app in the background without a scene, such as to hand it a
+    /// Live Activity the server started.
+    static let shared = AppClient()
+
     private(set) var view = AppSessionView()
     var error: String?
     private(set) var signingIn = false
