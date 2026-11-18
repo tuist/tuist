@@ -2727,6 +2727,12 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  # Fleet-wide floor of remote execution VM slots (infra/helm/remote-execution
+  # workers on shared Linux hosts) that the runners-controller's compute
+  # allocator keeps ready ahead of runner warm stock, spread over the workers
+  # and grown before any action arrives. Queued CI jobs still outrank it.
+  # 0 leaves remote execution out of the allocator.
+  remoteExecutionFloorSlots: 0
   macos:
     enabled: false
     templateName: macos

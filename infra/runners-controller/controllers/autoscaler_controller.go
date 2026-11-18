@@ -115,6 +115,15 @@ type AutoscalerReconciler struct {
 	// when the chart runs no sandboxes.
 	SandboxesNamespace string
 
+	// ExecutionFloorSlots is the remote execution pool's fleet-wide floor
+	// in VM slots (see execution_allocation.go). 0 leaves remote execution
+	// workers out of the compute allocator.
+	ExecutionFloorSlots int32
+
+	// ExecutionSlotBytes is one remote execution slot's memory. 0 uses
+	// the chart's 4160 MiB.
+	ExecutionSlotBytes int64
+
 	// ReservationsNamespace, when set, is where the manager caches macOS
 	// sandbox reservation Pods; a new one reconciles the darwin pools at
 	// once instead of on the next poll.
@@ -321,6 +330,10 @@ func (r *AutoscalerReconciler) desiredForPool(
 // allocated in. Nil when the allocator was bypassed or fell back.
 type fleetAllocation struct {
 	members map[string]fleetMember
+	// executionWarm is each remote execution worker's warm target in
+	// slots, by grant name. Nil when remote execution is not allocated.
+	executionWarm map[string]int32
+	slotBytes     int64
 }
 
 type fleetMember struct {
@@ -383,17 +396,38 @@ func (r *AutoscalerReconciler) allocate(
 			"fleetSelector", pool.Spec.FleetSelector)
 	}
 
+	var workers []executionWorker
+	if pool.Spec.OS == "linux" && r.ExecutionFloorSlots > 0 && r.SandboxesNamespace != "" {
+		workers, err = r.executionWorkers(ctx, pool)
+		if err != nil {
+			logger.Error(err, "read remote execution workers; falling back to per-pool target",
+				"fleetSelector", pool.Spec.FleetSelector)
+			return perPool, nil
+		}
+		if len(workers) > 0 {
+			demand, held := executionDemand(workers, r.ExecutionFloorSlots, r.executionSlotBytes())
+			demands = append(demands, demand)
+			capacity += held
+		}
+	}
+
 	alloc := scaling.AllocateCompute(demands, capacity, shapeCaps)
 	v, ok := alloc[pool.Name]
 	if !ok {
 		return perPool, nil
+	}
+	fleet := &fleetAllocation{members: members, slotBytes: r.executionSlotBytes()}
+	if granted, ok := alloc[executionPoolName]; ok {
+		delete(alloc, executionPoolName)
+		fleet.executionWarm = executionWarmSlots(workers, min(granted, r.ExecutionFloorSlots))
+		metrics.RecordExecutionAllocation(r.ExecutionFloorSlots, granted)
 	}
 	for name, granted := range alloc {
 		member := members[name]
 		member.allocated = granted
 		members[name] = member
 	}
-	return v, &fleetAllocation{members: members}
+	return v, fleet
 }
 
 // podShape is the placement footprint of one pool's Pod. Two pools with

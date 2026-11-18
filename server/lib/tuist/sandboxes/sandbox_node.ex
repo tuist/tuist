@@ -16,6 +16,7 @@ defmodule Tuist.Sandboxes.SandboxNode do
     field :allocation_memory_bytes, :integer
     field :allocation_free_bytes, :integer
     field :allocation_reclaim, :boolean, default: true
+    field :allocation_warm_bytes, :integer
 
     timestamps(type: :utc_datetime)
   end
@@ -30,7 +31,8 @@ defmodule Tuist.Sandboxes.SandboxNode do
       :allocation_observed_at,
       :allocation_memory_bytes,
       :allocation_free_bytes,
-      :allocation_reclaim
+      :allocation_reclaim,
+      :allocation_warm_bytes
     ])
     |> validate_required([:name, :pod_name, :memory_limit_bytes])
     |> validate_number(:memory_limit_bytes, greater_than: 0)
