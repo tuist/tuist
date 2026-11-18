@@ -1,0 +1,79 @@
+name: Shard storage comparison
+
+# Measures production shard uploads and downloads from outside Tuist's
+# infrastructure, the way customers on their own CI reach shard storage. Runs
+# on a GitHub-hosted Mac on purpose, not the tuist-macos profile. Which store
+# serves the plans follows the tuist account's public_shard_storage flag, so
+# dispatch once per flag state and compare the uploaded results.
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: Name for this run's results, such as tigris or rustfs
+        required: true
+      iterations:
+        description: Plan, upload and fresh-worker download cycles
+        default: "15"
+      cli_version:
+        description: CLI release (4.219.0-canary.21 or later splits uploads)
+        default: 4.219.0-canary.27
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  compare:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the CLI
+        env:
+          CLI_VERSION: ${{ inputs.cli_version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="$RUNNER_TEMP/tuist-cli"
+          mkdir -p "$dir"
+          gh release download "$CLI_VERSION" -R tuist/tuist -p tuist.zip -p SHASUMS256.txt -D "$dir"
+          (cd "$dir" && grep ' tuist.zip$' SHASUMS256.txt | shasum -a 256 -c - && unzip -q tuist.zip)
+          echo "TUIST_CLI=$dir/tuist" >> "$GITHUB_ENV"
+      - name: Run the cycles
+        env:
+          LABEL: ${{ inputs.label }}
+          ITERATIONS: ${{ inputs.iterations }}
+        run: |
+          set -uo pipefail
+          results="$RUNNER_TEMP/shard-storage-$LABEL.jsonl"
+          stamp() { perl -MTime::HiRes=time -ne '$|=1; printf "%.3f %s", time, $_'; }
+          # Seconds between the first lines matching two patterns.
+          span() { awk -v a="$2" -v b="$3" 'index($0,a)&&!s{s=$1} index($0,b)&&s&&!e{e=$1} END{if(s&&e) printf "%.2f", e-s; else printf "null"}' "$1"; }
+          # Only hostnames, never the signed URLs the logs can contain.
+          hosts() { grep -ohE 'https://[A-Za-z0-9.-]+' "$@" | sed 's#https://##' | grep -E 'storage\.dev|tuist\.dev' | grep -vx 'tuist.dev' | sort -u | paste -sd, -; }
+          for i in $(seq 1 "$ITERATIONS"); do
+            work="$RUNNER_TEMP/cycle-$i"
+            rm -rf "$work"; mkdir -p "$work"
+            cp -R examples/xcode/generated_ios_app_with_tests "$work/planner"
+            printf 'import ProjectDescription\nlet tuist = Tuist(fullHandle: "tuist/tuist", project: .tuist())\n' > "$work/planner/Tuist.swift"
+            cp -R "$work/planner" "$work/worker"
+            ref="shard-compare-$LABEL-$GITHUB_RUN_ID-$i"
+            "$TUIST_CLI" test MacFrameworkTests --build-only --shard-total 1 --shard-reference "$ref" \
+              --path "$work/planner" --verbose -- -testProductsPath "$work/products.xctestproducts" \
+              -destination platform=macOS 2>&1 | stamp > "$work/plan.log"
+            plan_exit=${PIPESTATUS[0]}
+            rm -rf "$work/products.xctestproducts"
+            "$TUIST_CLI" test MacFrameworkTests --without-building --shard-index 0 --shard-reference "$ref" \
+              --path "$work/worker" --verbose -- -destination platform=macOS 2>&1 | stamp > "$work/test.log"
+            test_exit=${PIPESTATUS[0]}
+            printf '{"i":%d,"label":"%s","at":"%s","plan_exit":%d,"test_exit":%d,"upload_s":%s,"download_s":%s,"hosts":"%s"}\n' \
+              "$i" "$LABEL" "$(date -u +%H:%M:%S)" "$plan_exit" "$test_exit" \
+              "$(span "$work/plan.log" 'Uploading test products artifacts' 'Upload complete')" \
+              "$(span "$work/test.log" 'Resolved shard plan' 'Downloaded ')" \
+              "$(hosts "$work/plan.log" "$work/test.log")" | tee -a "$results"
+            rm -rf "$work"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-storage-${{ inputs.label }}
+          path: ${{ runner.temp }}/shard-storage-${{ inputs.label }}.jsonl
