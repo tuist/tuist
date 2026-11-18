@@ -96,6 +96,8 @@ struct ThreadsView: View {
     @State private var snoozing: AppThread?
     /// The thread a custom time is being picked for.
     @State private var customSnooze: AppThread?
+    /// The thread waiting for the person to confirm archiving it.
+    @State private var archiving: AppThread?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var iconWidth = 20.0
 
@@ -210,6 +212,17 @@ struct ThreadsView: View {
         }
         .sheet(item: $customSnooze) { thread in
             CustomSnoozeView { snooze(thread, until: $0) }
+        }
+        .alert(
+            "Archive Thread?", isPresented: Binding(get: { archiving != nil }, set: { if !$0 { archiving = nil } }),
+            presenting: archiving
+        ) { thread in
+            Button("Cancel", role: .cancel) {}
+            Button("Archive", role: .destructive) { archive(thread) }
+        } message: { thread in
+            Text(thread.working
+                ? "Its run stops. You can find it under Archived."
+                : "You can find it under Archived.")
         }
         .task(id: client.view.active_profile_id) {
             // Render what's on the device first, then bring it up to date. Coming back
@@ -380,7 +393,8 @@ struct ThreadsView: View {
         }
     }
 
-    /// A thread's row, snoozed or woken with a swipe or from its context menu.
+    /// A thread's row, snoozed or woken with a swipe or from its context menu,
+    /// where it can also be archived once the person confirms, or restored.
     private func snoozable(_ thread: AppThread, @ViewBuilder _ row: () -> some View) -> some View {
         row()
             .swipeActions(edge: .leading) { snoozeAction(thread) }
@@ -395,6 +409,10 @@ struct ThreadsView: View {
                             custom: { customSnooze = thread }
                         )
                     }
+                    Divider()
+                    Button("Archive", systemImage: "archivebox", role: .destructive) { archiving = thread }
+                } else {
+                    Button("Restore", systemImage: "tray.and.arrow.up") { archive(thread, archived: false) }
                 }
             }
     }
@@ -412,6 +430,18 @@ struct ThreadsView: View {
         Task {
             do {
                 _ = try await client.snooze(thread.id, until: until)
+                await reload()
+            } catch {
+                client.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// Archives or restores a thread, then shows the inbox as the core sorts it now.
+    private func archive(_ thread: AppThread, archived: Bool = true) {
+        Task {
+            do {
+                _ = try await client.conversation("archive_thread", ["id": thread.id, "archived": archived])
                 await reload()
             } catch {
                 client.error = error.localizedDescription

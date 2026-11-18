@@ -232,7 +232,8 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
-            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread") => {
+            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread"
+            | "archive_thread") => {
                 let mut view = self.threads_operation(op, args, host)?;
                 crate::threads::present_snoozes(&mut view, now()?);
                 Ok(view)
