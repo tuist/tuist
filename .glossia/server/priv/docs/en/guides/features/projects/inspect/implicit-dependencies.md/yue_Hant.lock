@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "459b3b547e0a8cabbc4f8b136be90f5869d49762df29e7cec19db8d250c3cf05",
+  "hash": "67582633528afff1ce2fad5b45ce90c36fa8500c6a33a64574f9f630e1cb5fac",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Implicit imports {#implicit-imports}": {
-                  "content_hash": "dd0fd9bdeabe4d8040d5ab5ee285a1cc8e8bd991f908e03e49516d6a179694d7"
+                  "content_hash": "4ad2250dcd95d29fe3d9b4b11265ea97ec9e4080ad06cbbe3b5e8c83b6431faa"
                 },
                 "Preamble": {
                   "content_hash": "30919b9c7f2453fad213f91beb2d9a8155f4aaf709b1e7a38f98f2b4e4ec100c"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "3cd0d99497dca3e97bc6966417859e9bbbb20f657f8cad3f2c1072789c11d04d",
+          "hash": "d0ce1d1afea40611834d3c12bcab10c47261c4020773928d542552f5e358b416",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/inspect/implicit-dependencies.md",
           "metadata": {
-            "content_hash": "ee3c381d2d2c67848412358d6ff15d2dbdd574394e0410833e66a6c37791f51f"
+            "content_hash": "21d5885716c146ef2a6b29285d93fe810a23542fbf1caf25246bde60cbf5dfcd"
           }
         },
         {
@@ -85,7 +85,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -104,7 +104,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -133,11 +133,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -214,21 +214,21 @@
             }
           ],
           "details": {},
-          "hash": "6e8d735033da15c6be6f8dee85419e5fca0be9ddad6ede7065915161eb139cdb",
+          "hash": "5eff9e76c7215323aebf7533bc5419e1ef605b6b70758aaa1fe9f3fa83b84f57",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "459b3b547e0a8cabbc4f8b136be90f5869d49762df29e7cec19db8d250c3cf05",
+      "hash": "67582633528afff1ce2fad5b45ce90c36fa8500c6a33a64574f9f630e1cb5fac",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/inspect/implicit-dependencies.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2f907c4b8a380174bbf6aceaa079f8830edfc42cec31e9e5c5c35453975ace1f",
+  "output_hash": "a66ac0ccb66faa4cfb582c733a8707b4f677daa9e154f16b9b90ac8e6aac50a9",
   "output_path": "server/priv/docs/yue_Hant/guides/features/projects/inspect/implicit-dependencies.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "cac6ca96a2e17b8ced337423dcb83ffc79c208f6",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/inspect/implicit-dependencies.md",
-  "translated_at": "2026-10-30T16:47:41.411765Z",
-  "translation_session_id": "01a18db4-2d21-723a-b42b-8adfa8bce7d0"
+  "translated_at": "2026-11-06T18:52:58.540792Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

@@ -2,12 +2,12 @@
 {
   "title": "建立產生的專案",
   "titleTemplate": ":title · Xcode · 教學課程 · Tuist",
-  "description": "了解如何建立你的第一個 Tuist 產生的 Xcode 專案，並為其新增相依性"
+  "description": "了解如何建立你的第一個由 Tuist 產生的 Xcode 專案，並為其新增相依性"
 }
 ---
-# 建立產生的專案 {#create-a-generated-project}
+# 建立生成的專案 {#create-a-generated-project}
 
-在任何目錄或現有專案的目錄中開始使用 Tuist 的最簡單方式：
+在空白目錄或現有專案的目錄中執行 `tuist init`：
 
 ::: code-group
 
@@ -21,23 +21,23 @@ tuist init
 <!-- -->
 :::
 
-此指令會引導你完成<.localized_link href="/guides/features/projects">建立產生的專案</.localized_link>或整合現有 Xcode 專案或工作區的步驟。它協助你將設定連線至遠端伺服器，讓你可以使用<.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link>、<.localized_link href="/guides/features/previews">預覽</.localized_link>以及<.localized_link href="/guides/features/package-registries/swift">套件註冊中心</.localized_link>等功能。
+此指令會引導你完成<.localized_link href="/guides/features/projects">建立生成的專案</.localized_link>或整合現有 Xcode 專案或工作區的步驟。它能協助你將設定連線至遠端伺服器，讓你使用如<.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link>、<.localized_link href="/guides/features/previews">預覽</.localized_link>與<.localized_link href="/guides/features/package-registries/swift">套件註冊表</.localized_link>等功能。
 
 > [!NOTE]
 > **遷移現有專案**
 >
-> 如果你想將現有專案遷移至產生的專案以改善開發者體驗，並善用我們的<.localized_link href="/guides/features/cache">快取</.localized_link>，請參閱我們的<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">遷移指南</.localized_link>。
+> 若想將現有專案遷移至生成的專案以改善開發者體驗，並利用我們的<.localized_link href="/guides/features/cache">快取</.localized_link>功能，請參閱我們的<.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">遷移指南</.localized_link>。
 
 
 ## 新增相依性 {#add-dependencies}
 
-專案通常會依賴第三方程式庫來提供額外功能。若要這麼做，請執行以下指令以獲得最佳的專案編輯體驗：
+專案常需仰賴第三方函式庫來提供額外功能。為此，請執行以下指令以獲得最佳的專案編輯體驗：
 
 ```bash
 tuist edit
 ```
 
-系統會開啟一個包含你專案檔案的 Xcode 專案。編輯 `Package.swift` 並新增
+系統將開啟包含你專案檔案的 Xcode 專案。編輯 `Tuist/Package.swift` 並加入 Kingfisher：
 
 ```swift
 // swift-tools-version: 5.9
@@ -59,8 +59,8 @@ let package = Package(
     dependencies: [
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0")) // [!code ++]
+        // You can read more about dependencies here: https://tuist.dev/en/docs/guides/features/projects/dependencies
+        .package(url: "https://github.com/onevcat/Kingfisher", .upToNextMajor(from: "7.12.0"))
     ]
 )
 ```
@@ -88,7 +88,7 @@ let project = Project(
                 "MyApp/Resources",
             ],
             dependencies: [
-                .external(name: "Kingfisher") // [!code ++]
+                .external(name: "Kingfisher")
             ]
         ),
         .target(
@@ -108,12 +108,12 @@ let project = Project(
 然後執行 `tuist install`，透過 [Swift Package Manager](https://www.swift.org/documentation/package-manager/) 解析並拉取相依性。
 
 > [!NOTE]
-> **使用 SPM 作為相依性解析器**
+> **使用 SwiftPM 作為相依性解析器**
 >
-> Tuist 建議的相依性處理方式僅使用 Swift Package Manager (SPM) 來解析相依性。Tuist 隨後會將其轉換為 Xcode 專案與目標，以提供最大的可設定性與控制權。
+> Tuist 建議的相依性處理方式僅使用 Swift Package Manager (SPM) 來解析相依性。隨後 Tuist 會將其轉換為 Xcode 專案與目標，以提供最大的可設定性與控制力。
 
 
-## 視覺化專案 {#visualize-the-project}
+## 視覺化專案結構 {#visualize-the-project}
 
 你可以執行以下指令來視覺化專案結構：
 
@@ -123,7 +123,7 @@ tuist graph
 
 此指令會在專案目錄中輸出並開啟 `graph.png` 檔案：
 
-![專案圖表](/images/guides/quick-start/graph.png)
+![專案圖](/images/guides/quick-start/graph.png)
 
 ## 使用相依性 {#use-the-dependency}
 
@@ -131,15 +131,13 @@ tuist graph
 
 ```swift
 import SwiftUI
-import Kingfisher // [!code ++]
+import Kingfisher
 
 public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        Text("Hello, World!") // [!code --]
-            .padding() // [!code --]
-        KFImage(URL(string: "https://cloud.tuist.io/images/tuist_logo_32x32@2x.png")!) // [!code ++]
+        KFImage(URL(string: "https://tuist.dev/images/tuist_logo_32x32@2x.png")!)
     }
 }
 

@@ -1,0 +1,23 @@
+{{- /*
+From Kubernetes 1.35, kubeadm no longer puts the apiserver-kubelet-client
+certificate in the kubeadm:cluster-admins group. The API server reaches the
+kubelets (exec, logs, port-forward) through kubeadm's
+kubeadm:apiserver-kubelet-client binding instead. kubeadm creates that only in
+`kubeadm init` and `kubeadm upgrade apply`, and Cluster API runs neither when
+it upgrades a cluster. This grants the same access under a name Helm owns, so
+it never collides with kubeadm's binding on clusters that have one.
+*/ -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist:apiserver-kubelet-client
+  labels:
+    app.kubernetes.io/component: kubelet-api-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kubelet-api-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: kube-apiserver-kubelet-client

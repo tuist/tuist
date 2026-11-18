@@ -1,0 +1,161 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use common_time::Timestamp;
+use common_time::timestamp::TimeUnit;
+use datafusion_common::{Column, ScalarValue};
+use datafusion_expr::utils::conjunction;
+use datafusion_expr::{Expr, LogicalPlan, LogicalPlanBuilder, col};
+use snafu::{OptionExt, ResultExt};
+use table::TableRef;
+
+use crate::promql::error::{
+    DataFusionPlanningSnafu, Result, SystemTimeOutOfRangeSnafu, TimeIndexNotFoundSnafu,
+    TimestampOutOfRangeSnafu,
+};
+
+/// Converts a [`SystemTime`] to a millisecond [`Timestamp`].
+///
+/// `duration_since` reports an instant before the epoch as an error rather than
+/// a negative duration, and an RFC3339 query parameter can name one, so the sign
+/// is recovered here instead of unwrapping.
+fn millis_since_epoch(time: SystemTime) -> Result<Timestamp> {
+    Ok(Timestamp::new_millisecond(signed_millis_since_epoch(time)?))
+}
+
+/// Converts a [`SystemTime`] to signed milliseconds since the Unix epoch, rejecting instants
+/// outside the `i64` millisecond range.
+///
+/// Sub-millisecond parts round down, also before the epoch, like Prometheus'
+/// `timestamp.FromTime`.
+pub(crate) fn signed_millis_since_epoch(time: SystemTime) -> Result<i64> {
+    let (millis, before_epoch) = match time.duration_since(UNIX_EPOCH) {
+        Ok(duration) => (duration.as_millis(), false),
+        Err(earlier) => (earlier.duration().as_nanos().div_ceil(1_000_000), true),
+    };
+    signed_millis(millis, before_epoch).with_context(|| SystemTimeOutOfRangeSnafu { time })
+}
+
+/// Converts a millisecond magnitude and epoch direction without platform time limits.
+fn signed_millis(millis: u128, before_epoch: bool) -> Option<i64> {
+    let millis = i64::try_from(millis).ok()?;
+    Some(if before_epoch { -millis } else { millis })
+}
+
+fn build_time_filter(time_index_expr: Expr, start: Timestamp, end: Timestamp) -> Expr {
+    time_index_expr
+        .clone()
+        .gt_eq(Expr::Literal(timestamp_to_scalar_value(start), None))
+        .and(time_index_expr.lt_eq(Expr::Literal(timestamp_to_scalar_value(end), None)))
+}
+
+fn timestamp_to_scalar_value(timestamp: Timestamp) -> ScalarValue {
+    let value = timestamp.value();
+    match timestamp.unit() {
+        TimeUnit::Second => ScalarValue::TimestampSecond(Some(value), None),
+        TimeUnit::Millisecond => ScalarValue::TimestampMillisecond(Some(value), None),
+        TimeUnit::Microsecond => ScalarValue::TimestampMicrosecond(Some(value), None),
+        TimeUnit::Nanosecond => ScalarValue::TimestampNanosecond(Some(value), None),
+    }
+}
+
+/// Rewrite label values query to DataFusion logical plan.
+pub fn rewrite_label_values_query(
+    table: TableRef,
+    scan_plan: LogicalPlan,
+    mut conditions: Vec<Expr>,
+    label_name: String,
+    start: SystemTime,
+    end: SystemTime,
+) -> Result<LogicalPlan> {
+    let schema = table.schema();
+    let ts_column = schema
+        .timestamp_column()
+        .with_context(|| TimeIndexNotFoundSnafu {
+            table: table.table_info().full_table_name(),
+        })?;
+    let unit = ts_column
+        .data_type
+        .as_timestamp()
+        .map(|data_type| data_type.unit())
+        .with_context(|| TimeIndexNotFoundSnafu {
+            table: table.table_info().full_table_name(),
+        })?;
+
+    // We only support millisecond precision at most.
+    let start = millis_since_epoch(start)?;
+    let start = start.convert_to(unit).context(TimestampOutOfRangeSnafu {
+        timestamp: start.value(),
+        unit,
+    })?;
+    let end = millis_since_epoch(end)?;
+    let end = end.convert_to(unit).context(TimestampOutOfRangeSnafu {
+        timestamp: end.value(),
+        unit,
+    })?;
+    let time_index_expr = col(Column::from_name(ts_column.name.clone()));
+
+    conditions.push(build_time_filter(time_index_expr, start, end));
+    // Safety: `conditions` is not empty.
+    let filter = conjunction(conditions).unwrap();
+
+    // Builds time filter
+    let logical_plan = LogicalPlanBuilder::from(scan_plan)
+        .filter(filter)
+        .context(DataFusionPlanningSnafu)?
+        .project(vec![col(Column::from_name(label_name))])
+        .context(DataFusionPlanningSnafu)?
+        .distinct()
+        .context(DataFusionPlanningSnafu)?
+        .build()
+        .context(DataFusionPlanningSnafu)?;
+
+    Ok(logical_plan)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn millis_before_the_epoch_are_negative() {
+        // `SystemTime::duration_since` reports these as an error; unwrapping it
+        // panicked on any request whose RFC3339 start named a pre-epoch instant.
+        let time = UNIX_EPOCH - Duration::from_millis(1);
+        assert_eq!(millis_since_epoch(time).unwrap().value(), -1);
+        assert_eq!(millis_since_epoch(UNIX_EPOCH).unwrap().value(), 0);
+
+        let time = UNIX_EPOCH + Duration::from_millis(1);
+        assert_eq!(millis_since_epoch(time).unwrap().value(), 1);
+    }
+
+    #[test]
+    fn millis_beyond_i64_are_rejected() {
+        let limit = i64::MAX as u128;
+        assert_eq!(signed_millis(limit, false), Some(i64::MAX));
+        assert_eq!(signed_millis(limit, true), Some(-i64::MAX));
+        assert_eq!(signed_millis(limit + 1, false), None);
+        assert_eq!(signed_millis(limit + 1, true), None);
+
+        // Windows cannot represent this SystemTime. The conversion boundary is
+        // tested above on every platform; exercise the wrapper where possible.
+        if let Some(time) = UNIX_EPOCH.checked_add(Duration::from_millis(i64::MAX as u64 + 1)) {
+            assert!(millis_since_epoch(time).is_err());
+        }
+    }
+}

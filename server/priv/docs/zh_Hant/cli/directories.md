@@ -7,11 +7,11 @@
 ---
 # 目錄 {#directories}
 
-Tuist 依據 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，將檔案整理至系統中的多個目錄。這提供了一種乾淨且標準的方式來管理設定、快取與狀態檔案。
+Tuist 依照 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，將檔案整理在系統上的多個目錄中。這提供了一種乾淨且標準的方式來管理設定、快取與狀態檔案。
 
 ## 支援的環境變數 {#supported-environment-variables}
 
-Tuist 同時支援標準 XDG 變數與 Tuist 專屬的前綴變體。Tuist 專屬變體（以 `TUIST_` 為前綴）具有優先權，讓你能夠獨立於其他應用程式來設定 Tuist。
+Tuist 同時支援標準 XDG 變數與帶有 Tuist 專屬前綴的變體。Tuist 專屬變體（以 `TUIST_` 為前綴）具有優先權，讓你可以獨立於其他應用程式來設定 Tuist。
 
 ### 設定目錄 {#configuration-directory}
 
@@ -45,7 +45,7 @@ tuist auth login
 
 **用途：**
 - **Plugins**：已下載並編譯的外掛快取
-- **ProjectDescriptionHelpers**：已編譯的專案描述輔助程式
+- **ProjectDescriptionHelpers**：已編譯的專案描述輔助工具
 - **Manifests**：快取的資訊清單檔案
 - **Projects**：產生的自動化專案快取
 - **EditProjects**：edit 指令的快取
@@ -73,7 +73,7 @@ tuist cache
 **預設值：** `~/.local/state/tuist`
 
 **用途：**
-- **Sessions**：工作階段記錄與網路錄製（`sessions/{uuid}/`）
+- **Sessions**：工作階段記錄與網路錄製資料（`sessions/{uuid}/`）
 - **Locks**：驗證鎖定檔案（`{handle}.sock`）
 
 **範例：**
@@ -95,9 +95,9 @@ tuist generate
 2. **標準 XDG 變數**（例如 `XDG_CONFIG_HOME`）
 3. **預設位置**（例如 `~/.config/tuist`）
 
-這讓你能夠：
-- 使用標準 XDG 變數，一致地組織所有應用程式
-- 當你需要為 Tuist 使用不同位置時，以 Tuist 專屬變數覆蓋設定
+這讓你可以：
+- 使用標準 XDG 變數，以一致的方式整理所有應用程式
+- 當你需要為 Tuist 使用不同位置時，以 Tuist 專屬變數覆寫
 - 無需任何設定即可依賴合理的預設值
 
 ## 常見使用情境 {#common-use-cases}
@@ -137,9 +137,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### 使用隔離目錄進行除錯 {#debugging-with-isolated-directories}
+### 使用隔離目錄進行偵錯 {#debugging-with-isolated-directories}
 
-除錯問題時，你可能希望從乾淨的狀態開始：
+在偵錯問題時，你可能希望從乾淨的環境開始：
 
 ```bash
 # Create temporary directories for debugging

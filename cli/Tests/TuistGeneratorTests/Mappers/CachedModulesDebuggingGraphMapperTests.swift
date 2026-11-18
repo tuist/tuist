@@ -923,6 +923,33 @@ struct CachedModulesDebuggingGraphMapperTests {
         }
     }
 
+    @Test(.inTemporaryDirectory, arguments: [
+        (["CI": "true"], false),
+        (["CI": "1"], false),
+        (["JENKINS_URL": "https://jenkins.example.com"], false),
+        (["CI": "false"], true),
+        ([:], true),
+    ])
+    func generatedScript_doesNothingOnCI(ciEnvironment: [String: String], writesInitializer: Bool) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let action = try #require(mapped.projects[projectPath]?.schemes.first?.testAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(try #require(action.preActions.first?.scriptText), at: scriptPath)
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ].merging(ciEnvironment) { $1 }
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+
+        #expect(try await FileSystem().exists(try #require(action.customLLDBInitFile)) == writesInitializer)
+    }
+
     @Test(.inTemporaryDirectory)
     func generatedScript_ordersSourceMapTheWayTheCompilersResolvePrefixes() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
@@ -967,6 +994,31 @@ struct CachedModulesDebuggingGraphMapperTests {
         #expect(stride(from: 3, to: arguments.count, by: 2).map { arguments[$0] } == [
             "/^derived", "/^built", "/^intermediates", "/^products", "/^spm", "/^root", "/^workspace", "/^src",
         ])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func generatedScript_runsWhenXcodeExportsTheAutomaticSDKOfMultiplatformTargets() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let runAction = try #require(mapped.projects[projectPath]?.schemes.first?.runAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(#require(runAction.preActions.first?.scriptText), at: scriptPath)
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+
+        // `/usr/bin/python3` and `/usr/bin/xcrun` resolve tools for `SDKROOT`, and `auto` is not an SDK they can locate.
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: [
+            "PATH": "/usr/bin:/bin",
+            "SDKROOT": "auto",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ])
+
+        let initPath = try #require(runAction.customLLDBInitFile)
+        let contents = try String(contentsOf: URL(fileURLWithPath: initPath.pathString), encoding: .utf8)
+        #expect(contents.hasPrefix("settings set target.source-map \"/^root\" \"\(projectPath.pathString)\"\n"))
     }
 
     @Test(.inTemporaryDirectory)
@@ -1213,6 +1265,112 @@ struct CachedModulesDebuggingGraphMapperTests {
         let contents = try String(contentsOf: #require(action.customLLDBInitFile).url, encoding: .utf8)
         #expect(contents.contains("settings set target.source-map \"/^root\" \"\(root.pathString)\""))
         #expect(contents.contains("command source -s 0"))
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func debugPrefixMappedSourcesResolveThroughTheSourceMapWithoutSymbolPreparation(sameLayout: Bool) async throws {
+        let temporary = try #require(FileSystem.temporaryTestDirectory)
+        let root = temporary.appending(component: "checkout")
+        let link = temporary.appending(component: "link")
+        try await FileSystem().makeDirectory(at: root.appending(component: "App"))
+        try await FileSystem().createSymbolicLink(from: link, to: root)
+        let original = compilationCacheGraph(at: root, customLLDBInitFiles: false)
+        var cached = original
+        let artifactPath = root.appending(component: "Feature.xcframework")
+        let artifact = GraphDependency.testXCFramework(path: artifactPath, linking: .static)
+        cached.dependencies[.target(name: "App", path: root)] = [artifact]
+        cached.dependencies[artifact] = []
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = original
+        environment.cachedModuleSourceMappings[artifactPath] = [
+            DebuggerSourceMapping(
+                original: try AbsolutePath(validating: "/^root/Modules/Feature.swift"),
+                current: root.appending(components: "Modules", "Feature.swift")
+            ),
+            DebuggerSourceMapping(
+                original: try AbsolutePath(validating: "/^root/Modules/Other.swift"),
+                current: root.appending(components: sameLayout ? ["Modules"] : ["Moved", "Modules"])
+                    .appending(component: "Other.swift")
+            ),
+        ]
+        let (mapped, sideEffects, _) = try await subject.map(graph: cached, environment: environment)
+        let action = try #require(mapped.projects[root]?.schemes.first?.runAction)
+        for effect in sideEffects {
+            guard case let .file(file) = effect, let contents = file.contents else { continue }
+            try await FileSystem().makeDirectory(at: file.path.parentDirectory)
+            try contents.write(to: file.path.url)
+        }
+        let products = temporary.appending(component: "products")
+        let binary = products.appending(components: "App.app", "Contents", "MacOS", "App")
+        try await FileSystem().makeDirectory(at: binary.parentDirectory)
+        try await FileSystem().writeText("not a Mach-O image", at: binary)
+        let script = temporary.appending(component: "prepare.sh")
+        try await FileSystem().writeText(#require(action.preActions.first?.scriptText), at: script)
+
+        let output = try runProcess("/bin/sh", arguments: [script.pathString], environment: [
+            "PATH": "/usr/bin:/bin", "HOME": temporary.pathString, "TARGET_BUILD_DIR": products.pathString,
+            "EXECUTABLE_PATH": "App.app/Contents/MacOS/App", "FULL_PRODUCT_NAME": "App.app",
+            "PROJECT_DIR": link.appending(component: "App").pathString,
+        ], includeStandardError: true, expectedStatus: sameLayout ? 0 : 1)
+
+        let contents = try String(contentsOf: #require(action.customLLDBInitFile).url, encoding: .utf8)
+        if sameLayout {
+            let sourceMap = try #require(contents.split(separator: "\n").first)
+            let parsed = try runProcess(
+                "/usr/bin/python3",
+                arguments: ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.argv[1])))", String(sourceMap)],
+                environment: ["PATH": "/usr/bin:/bin"]
+            )
+            let arguments = try JSONDecoder().decode([String].self, from: Data(parsed.utf8))
+            // Xcode's spelling of the root first, then the generated one: LLDB matches breakpoints by spelling.
+            #expect(Array(arguments.prefix(7)) == [
+                "settings", "set", "target.source-map", "/^root", link.pathString, "/^root", root.pathString,
+            ])
+            #expect(try await !FileSystem().exists(products.appending(component: "App.app.dSYM")))
+        } else {
+            // Sources that moved within the checkout keep relying on symbol preparation.
+            #expect(!contents.contains("target.source-map"))
+            #expect(output.contains("debug companion could not be prepared"))
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func debugPrefixMapRootSurvivesAnExplicitInitializerThatReplacesTheSourceMap() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let original = compilationCacheGraph(at: root)
+        var cached = original
+        let artifactPath = root.appending(component: "Feature.xcframework")
+        let artifact = GraphDependency.testXCFramework(path: artifactPath, linking: .static)
+        cached.dependencies[.target(name: "App", path: root)] = [artifact]
+        cached.dependencies[artifact] = []
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = original
+        environment.cachedModuleSourceMappings[artifactPath] = [DebuggerSourceMapping(
+            original: try AbsolutePath(validating: "/^root/Feature.swift"), current: root.appending(component: "Feature.swift")
+        )]
+        let originalInitializer = try #require(original.projects[root]?.schemes.first?.runAction?.customLLDBInitFile)
+        let (mapped, sideEffects, _) = try await subject.map(graph: cached, environment: environment)
+        let action = try #require(mapped.projects[root]?.schemes.first?.runAction)
+        for effect in sideEffects {
+            guard case let .file(file) = effect, let contents = file.contents else { continue }
+            try await FileSystem().makeDirectory(at: file.path.parentDirectory)
+            try contents.write(to: file.path.url)
+        }
+        try await FileSystem().writeText(
+            "settings set target.source-map /custom \"\(root.pathString)\"\n", at: originalInitializer
+        )
+        let script = root.appending(component: "prepare.sh")
+        try await FileSystem().writeText(#require(action.preActions.first?.scriptText), at: script)
+        _ = try runProcess("/bin/sh", arguments: [script.pathString], environment: ["PATH": "/usr/bin:/bin"])
+
+        let output = try runProcess("/usr/bin/xcrun", arguments: [
+            "lldb", "--no-lldbinit", "--batch", "--source", #require(action.customLLDBInitFile).pathString,
+            "-o", "settings show target.source-map",
+        ], environment: ["PATH": "/usr/bin:/bin", "HOME": root.pathString], includeStandardError: true)
+        // The explicit initializer still decides first, but cached binaries keep resolving `/^root`.
+        let custom = try #require(output.range(of: "\"/custom\" -> \"\(root.pathString)\""))
+        let alias = try #require(output.range(of: "\"/^root\" -> \"\(root.pathString)\""))
+        #expect(custom.lowerBound < alias.lowerBound)
     }
 
     private func compilationCacheGraph(

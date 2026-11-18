@@ -5,6 +5,7 @@ import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
+import { registerWebMCPTools } from "../shared/js/webmcp.mjs";
 import languageDropdown from "../shared/js/hooks/language-dropdown.js";
 import { mountStaticHooks } from "./js/lib/static-hooks.js";
 // Individual Noora hooks rather than the prebuilt `noora` runtime: that
@@ -14,6 +15,9 @@ import NooraCollapsible from "noora/hooks/Collapsible.js";
 import NooraDropdown from "noora/hooks/Dropdown.js";
 import NooraIconTransition from "noora/hooks/IconTransition.js";
 import NooraModal from "noora/hooks/Modal.js";
+// Defines the <noora-spinner> and <noora-button-group-indicator> elements.
+import "noora/hooks/Spinner.js";
+import "noora/hooks/ButtonGroup.js";
 import NooraPopover from "noora/hooks/Popover.js";
 import NooraScrollArea from "noora/hooks/ScrollArea.js";
 import NooraSelect from "noora/hooks/Select.js";
@@ -32,6 +36,8 @@ const liveSocketFallbackMs = 10000;
 const NooraHooks = {
   NooraCollapsible,
   NooraDropdown: languageDropdown(NooraDropdown),
+  // Noora.Menu shares the dropdown hook, without the language picker wrapper.
+  NooraMenu: NooraDropdown,
   NooraIconTransition,
   NooraModal,
   NooraPopover,
@@ -67,6 +73,15 @@ const hooks = {
   // Dashboard components embedded in the Bazel announcement post: the chart
   // bundles ECharts and the build timeline imports the full Noora runtime.
   NooraChart: lazyHook(() => import("noora/hooks/Chart.js")),
+  // Rendered only by the Noora documentation at /noora.
+  NooraAvatar: lazyHook(() => import("noora/hooks/Avatar.js")),
+  NooraCheckbox: lazyHook(() => import("noora/hooks/Checkbox.js")),
+  NooraDatePicker: lazyHook(() => import("noora/hooks/DatePicker/index.js")),
+  NooraDigitInput: lazyHook(() => import("noora/hooks/DigitInput.js")),
+  NooraDitherWave: lazyHook(() => import("noora/hooks/DitherWave.js")),
+  PlaceCursorAtEnd: lazyHook(() =>
+    import("noora/hooks/hooks.js").then(({ PlaceCursorAtEnd }) => ({ default: PlaceCursorAtEnd })),
+  ),
   BuildTimeline: lazyHook(() => import("../app/js/BuildTimeline.js")),
   ...colocatedHooks,
 };
@@ -92,6 +107,8 @@ mountStaticHooks(hooks, liveSocket);
 
 // Faro page views, including the ones LiveView navigation produces.
 initAnalytics();
+
+registerWebMCPTools();
 
 window.liveSocket = liveSocket;
 

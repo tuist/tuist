@@ -188,7 +188,33 @@ struct BinaryCachePrunerTests {
         #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash1"))))
     }
 
-    /// `count` ~1 MB entries, staggered so entry 0 is the most recently used.
+    @Test(.inTemporaryDirectory)
+    func clean_neverEvictsEntriesUsedWithinTheRecentUseWindow() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        // hash0 was last used before the window, the other two within it.
+        let binariesDirectory = try await seedEntries(count: 1, in: temporaryDirectory)
+        for (name, minutes) in [("recent", -10), ("lessRecent", -20)] {
+            let entry = binariesDirectory.appending(component: name)
+            try await fileSystem.makeDirectory(at: entry)
+            FileManager.default.createFile(
+                atPath: entry.appending(component: "binary").pathString,
+                contents: Data(repeating: 0x41, count: 1_000_000)
+            )
+            let date = Calendar.current.date(byAdding: .minute, value: minutes, to: Date())!
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: entry.pathString)
+        }
+
+        // When: a budget that holds only one of the three entries.
+        try await subject(binariesDirectory: binariesDirectory).clean(maxBytes: 1_500_000, minimumEntries: 0)
+
+        // Then: xcodebuild or another tuist process may still be reading the recent ones.
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "recent")))
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "lessRecent")))
+        #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash0"))))
+    }
+
+    /// `count` ~1 MB entries, staggered so entry 0 is the most recently used, all used before the
+    /// recent-use window.
     private func seedEntries(count: Int, in temporaryDirectory: AbsolutePath) async throws -> AbsolutePath {
         let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
         try await fileSystem.makeDirectory(at: binariesDirectory)
@@ -200,7 +226,7 @@ struct BinaryCachePrunerTests {
                 atPath: artifact.appending(component: "binary").pathString,
                 contents: Data(repeating: 0x41, count: 1_000_000)
             )
-            let date = Calendar.current.date(byAdding: .hour, value: -index, to: Date())!
+            let date = Calendar.current.date(byAdding: .hour, value: -(index + 2), to: Date())!
             try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: entry.pathString)
         }
         return binariesDirectory

@@ -39,11 +39,37 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
     end
 
     @tag :locale
-    test "the breadcrumb links back to the changelog in the same locale", %{conn: conn, entry: entry} do
-      {:ok, _lv, html} = live(conn, "/ja/changelog/#{entry.id}")
+    test "unavailable article locales temporarily redirect to English with the query intact", %{conn: conn} do
+      for {locales, id} <- [
+            {~w(yue_Hant ka ko ja), "2026.03.10-gradle-requested-tasks"},
+            {~w(ko ja ru), "2026.07.02-test-run-errors"},
+            {["ko"], "2026.03.19-failed-tests-pr-comment"},
+            {["ko"], "2026.05.12-selective-testing-hit-filter"}
+          ],
+          locale <- locales do
+        response = get(conn, "/#{locale}/changelog/#{id}?utm_source=audit&x=a%2Fb")
+        assert redirected_to(response, 302) == "/changelog/#{id}?utm_source=audit&x=a%2Fb"
+      end
+    end
 
-      assert ["/ja/changelog"] =
-               html |> find(~s([data-part="breadcrumb"] a)) |> Floki.attribute("href")
+    test "English articles keep their self-canonical and only available language alternates", %{conn: conn} do
+      path = "/changelog/2026.03.10-gradle-requested-tasks"
+      html = conn |> get(path <> "?utm_source=audit") |> html_response(200)
+
+      assert [Tuist.Environment.app_url(path: path)] ==
+               html |> find(~s(link[rel="canonical"])) |> Floki.attribute("href")
+
+      assert ["en", "x-default"] ==
+               html |> find("link[hreflang]") |> Floki.attribute("hreflang")
+
+      assert html |> find("#changelog-entry-content") |> Floki.text() =~ "explicitly requested"
+    end
+
+    @tag :locale
+    test "unknown articles return 404 instead of redirecting to a missing English page", %{conn: conn} do
+      for path <- ["/changelog/unknown-entry", "/ko/changelog/unknown-entry"] do
+        assert_error_sent 404, fn -> get(conn, path) end
+      end
     end
   end
 

@@ -73,7 +73,13 @@ public struct FocusTargetsGraphMappers: GraphMapping {
                 }
             )
             let schemeTargets = schemeTestTargets.union(schemeBuildTargets)
-            if !schemeTargets.isEmpty {
+            let allSchemeTestTargetsWerePrunedBySelectiveTesting = schemeTestTargets.isEmpty
+                && environment.initialGraph.map {
+                    !GraphTraverser(graph: $0).testTargets(for: schemeName).isEmpty
+                } == true
+            if allSchemeTestTargetsWerePrunedBySelectiveTesting {
+                sourceTargets = []
+            } else if !schemeTargets.isEmpty {
                 sourceTargets = schemeTargets
             } else if !includedProducts.isEmpty {
                 sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }

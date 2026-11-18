@@ -123,6 +123,11 @@ defmodule Tuist.URLTest do
             "::10.0.0.5",
             "64:ff9b::a00:5",
             "64:ff9b:1::1",
+            # 6to4 wrapping loopback, RFC1918 and the metadata address.
+            "2002:7f00:1::1",
+            "2002:a00:5::1",
+            "2002:a9fe:a9fe::1",
+            "2001:0:4136:e378::1",
             "ff02::1",
             "fec0::1"
           ] do
@@ -133,13 +138,20 @@ defmodule Tuist.URLTest do
     end
 
     test "unspecified, multicast and reserved IPv4 ranges are not public" do
-      for ip <- [{0, 1, 2, 3}, {224, 0, 0, 1}, {239, 255, 255, 255}, {240, 1, 2, 3}, {255, 255, 255, 255}] do
+      for ip <- [
+            {0, 1, 2, 3},
+            {192, 0, 0, 170},
+            {224, 0, 0, 1},
+            {239, 255, 255, 255},
+            {240, 1, 2, 3},
+            {255, 255, 255, 255}
+          ] do
         refute URL.public_ip?(ip)
       end
     end
 
     test "public embedded IPv4 addresses retain their public classification" do
-      for address <- ["::ffff:8.8.8.8", "::8.8.8.8", "64:ff9b::808:808"] do
+      for address <- ["::ffff:8.8.8.8", "::8.8.8.8", "64:ff9b::808:808", "2002:808:808::1"] do
         {:ok, ip} = :inet.parse_address(String.to_charlist(address))
         assert URL.public_ip?(ip)
       end

@@ -306,6 +306,10 @@ def token(url):
         return result["access_token"]
 
 
+def positive_integer(value, default):
+    return value if type(value) is int and value > 0 else default
+
+
 def login(url, email=None, password=None):
     url = origin(url)
     if email is not None or password is not None:
@@ -354,17 +358,42 @@ def login(url, email=None, password=None):
             body["account_handle"] = os.environ["TUIST_OIDC_ACCOUNT"].strip()
         _, result = request(url + "/api/auth/oidc/token", body)
     else:
-        code = secrets.token_urlsafe(24)
-        browser = url + f"/auth/device_codes/{code}?type=cli"
+        # Servers with the standard device flow (RFC 8628) issue a short code
+        # to type in the browser; older ones answer 404 or 405, and the login
+        # falls back to a link carrying a client-chosen code.
+        try:
+            _, device = request(url + "/api/auth/device_codes", {}, retry=True)
+        except HTTPError as error:
+            if error.status not in (404, 405):
+                raise
+            device = None
+        if device is None:
+            code = secrets.token_urlsafe(24)
+            browser = url + f"/auth/device_codes/{code}?type=cli"
+            interval, attempts = 1, 300
+        elif not isinstance(device, dict) or not all(
+            isinstance(device.get(key), str)
+            for key in ("device_code", "user_code", "verification_uri")
+        ):
+            raise AuthenticationError("Unexpected device authorization response")
+        else:
+            code, browser = device["device_code"], device["verification_uri"]
+            print(
+                f"Your sign-in code is {device['user_code']}. "
+                "Enter it in the browser to approve this device.",
+                flush=True,
+            )
+            interval = positive_integer(device.get("interval"), 1)
+            attempts = max(positive_integer(device.get("expires_in"), 300) // interval, 1)
         print("Sign in in your browser: " + browser, flush=True)
         webbrowser.open(browser)
-        for _ in range(300):
+        for _ in range(attempts):
             status, result = request(url + "/api/auth/device_code/" + code, retry=True)
             if status == 200:
                 break
             if status != 202:
                 raise AuthenticationError("Unexpected device authentication response")
-            time.sleep(1)
+            time.sleep(interval)
         else:
             raise AuthenticationError("Browser authentication timed out")
     if not isinstance(result, dict) or not valid(result.get("access_token", "")):

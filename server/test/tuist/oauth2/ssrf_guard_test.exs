@@ -47,6 +47,13 @@ defmodule Tuist.OAuth2.SSRFGuardTest do
     end
   end
 
+  describe "pin/1 — public addresses" do
+    test "pins a public IPv6 address as a single bracketed literal" do
+      assert {:ok, "https://[2606:4700:4700::1111]/mcp?x=1", "2606:4700:4700::1111"} =
+               SSRFGuard.pin("https://[2606:4700:4700::1111]/mcp?x=1")
+    end
+  end
+
   describe "pin/1 — malformed URL rejection" do
     test "rejects a URL with a non-http(s) scheme" do
       assert {:error, :invalid_url} = SSRFGuard.pin("ftp://example.com/oauth2/token")

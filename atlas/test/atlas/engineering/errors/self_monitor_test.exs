@@ -84,6 +84,25 @@ defmodule Atlas.Engineering.Errors.SelfMonitorTest do
     assert {:error, {:not_found, :atlas_errors_handler}} = :logger.get_handler_config(:atlas_errors_handler)
   end
 
+  test "a Pulse-only Sentry DSN still installs native capture and the self-project" do
+    configure(
+      clickhouse_enabled: true,
+      sentry_dsn: "https://tuist_token@tuist.dev/api/accounts/tuist/pulse/sentry/atlas/1",
+      sentry_dsn_is_pulse: true
+    )
+
+    # Held open while the handler is attached; see the native capture test.
+    capture_log(fn ->
+      try do
+        assert :ok = SelfMonitor.install()
+        assert %Project{name: "Atlas"} = Repo.get(Project, SelfMonitor.self_project_id())
+        assert {:ok, %{level: :error}} = :logger.get_handler_config(:atlas_errors_handler)
+      after
+        LoggerHandler.detach()
+      end
+    end)
+  end
+
   test "installed native capture exposes sanitized personal-provider failures as Postgres issues" do
     coalescer = start_supervised!({IssueCoalescer, name: nil, flush_interval_ms: 60_000})
     Sandbox.allow(Repo, self(), coalescer)
@@ -197,6 +216,7 @@ defmodule Atlas.Engineering.Errors.SelfMonitorTest do
     overrides = %{
       {:atlas, :clickhouse_enabled} => opts[:clickhouse_enabled],
       {:sentry, :dsn} => opts[:sentry_dsn],
+      {:atlas, :sentry_dsn_is_pulse} => Keyword.get(opts, :sentry_dsn_is_pulse, false),
       {:atlas, Bufferable} => [write_through_repo: true]
     }
 

@@ -249,3 +249,17 @@ func TestSteadyStateProbesKeepDefaultFailureThreshold(t *testing.T) {
 		t.Fatalf("readiness failureThreshold = %d, want 0 so it defaults to 3", got)
 	}
 }
+
+func TestDefaultResourcesReservesLVMDisk(t *testing.T) {
+	for _, size := range []string{"50Gi", ""} {
+		instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{StorageSize: size, DiskResource: string(kuraDiskResource)}}
+		r := defaultResources(instance, false)
+		request, limit := r.Requests[kuraDiskResource], r.Limits[kuraDiskResource]
+		if request.Cmp(storageQuantity(instance)) != 0 || request.Cmp(limit) != 0 {
+			t.Fatalf("LVM disk must reserve the claim with equal request and limit: %v", r)
+		}
+		if _, ok := r.Requests[corev1.ResourceEphemeralStorage]; ok {
+			t.Fatal("LVM data must not reserve kubelet's filesystem")
+		}
+	}
+}

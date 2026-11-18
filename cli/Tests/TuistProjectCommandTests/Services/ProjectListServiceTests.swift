@@ -10,13 +10,16 @@ import TuistServer
 struct ProjectListServiceTests {
     private let listProjectsService = MockListProjectsServicing()
     private let configLoader = MockConfigLoading()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let subject: ProjectListService
 
     init() {
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
+        given(serverEnvironmentService).url(configServerURL: .value(serverURL)).willReturn(serverURL)
         subject = ProjectListService(
             listProjectsService: listProjectsService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
     }

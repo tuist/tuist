@@ -10,14 +10,17 @@ struct ProjectDeleteServiceTests {
     private let getProjectService = MockGetProjectServicing()
     private let deleteProjectService = MockDeleteProjectServicing()
     private let configLoader = MockConfigLoading()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let subject: ProjectDeleteService
 
     init() {
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
+        given(serverEnvironmentService).url(configServerURL: .value(serverURL)).willReturn(serverURL)
         subject = ProjectDeleteService(
             deleteProjectService: deleteProjectService,
             getProjectService: getProjectService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
     }

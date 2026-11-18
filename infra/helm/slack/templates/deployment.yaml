@@ -1,6 +1,9 @@
 {{- $host := .Values.host | default .Values.ingress.host -}}
 {{- $phxHost := required "host or ingress.host is required" $host -}}
 {{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- if not (has .Values.mailer.provider (list "mailgun" "ses")) -}}
+{{- fail "mailer.provider must be mailgun or ses" -}}
+{{- end -}}
 {{- $podLabels := merge (dict) (.Values.global.podLabels | default (dict)) (.Values.podLabels | default (dict)) -}}
 {{- $nodeSelector := merge (dict) (.Values.global.nodeSelector | default (dict)) (.Values.nodeSelector | default (dict)) -}}
 {{- $tolerations := concat (.Values.global.tolerations | default (list)) (.Values.tolerations | default (list)) -}}
@@ -74,6 +77,16 @@ spec:
               value: {{ .Values.mailer.fromName | quote }}
             - name: SLACK_MAILER_FROM_EMAIL
               value: {{ .Values.mailer.fromEmail | quote }}
+            - name: SLACK_MAILER_PROVIDER
+              value: {{ .Values.mailer.provider | quote }}
+            {{- if or (eq .Values.mailer.provider "ses") .Values.mailer.sesStartsAt }}
+            - name: SLACK_SES_REGION
+              value: {{ required "mailer.sesRegion is required for SES" .Values.mailer.sesRegion | quote }}
+            {{- with .Values.mailer.sesStartsAt }}
+            - name: SLACK_SES_STARTS_AT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             - name: MAILGUN_DOMAIN
               value: {{ .Values.mailer.mailgunDomain | quote }}
             - name: MAILGUN_BASE_URL

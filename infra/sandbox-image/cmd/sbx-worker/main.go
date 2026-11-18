@@ -1,6 +1,9 @@
 // sbx-worker services one already-claimed Managed Agents work item inside the
 // guest with the Anthropic SDK's EnvironmentWorker. sandboxd starts it with
-// the ANTHROPIC_* variables of the item and reads its exit code.
+// the ANTHROPIC_* variables of the item and reads its exit code. Started with
+// SBX_CLAUDE_CODE_WORK_ORDER instead, it runs a Claude Code self-hosted runner
+// for one cloud session (claude_code.go), and that runner starts it again as
+// the session wrapper (CLAUDE_RUNNER_CLAUDE_BIN set).
 package main
 
 import (
@@ -28,9 +31,20 @@ func main() {
 }
 
 func run(logger *slog.Logger) int {
+	// The Claude Code runner starts this binary as its session wrapper.
+	if claudeBin := os.Getenv("CLAUDE_RUNNER_CLAUDE_BIN"); claudeBin != "" && os.Getenv(claudeCodeWorkOrderEnv) == "" {
+		err := execSession(claudeBin, os.Args[1:])
+		logger.Error("claude code session failed to start", slog.Any("error", err))
+		return 1
+	}
 	workdir := os.Getenv("SBX_WORKDIR")
 	if workdir == "" {
 		workdir = guest.WorkspaceMount
+	}
+	if workOrder := os.Getenv(claudeCodeWorkOrderEnv); workOrder != "" {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+		defer stop()
+		return runClaudeCode(ctx, logger, workdir, workOrder)
 	}
 	maxIdle := defaultMaxIdle
 	if raw := os.Getenv("SBX_MAX_IDLE"); raw != "" {

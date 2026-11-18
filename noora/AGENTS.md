@@ -1,7 +1,6 @@
 # Noora
 
-Phoenix LiveView and Lit web component library published to Hex and npm
-(`@tuist/noora`). The server uses a local path
+Phoenix LiveView component library published to Hex. The server uses a local path
 dependency, so changes here affect `server/` directly. Component code lives in
 `lib/`, hooks in `js/`, styles in `css/`, and built assets in `priv/static/`.
 
@@ -10,17 +9,22 @@ dependency, so changes here affect `server/` directly. Component code lives in
 - Formatting: `mise run noora:lint` or `mise run noora:lint --fix`.
 - Preview components in `storybook/`. Its independent deployment is defined by
   `infra/helm/noora-storybook/` and `.github/workflows/noora-storybook-deployment.yml`.
-- Shared versions live in `mix.exs` and `package.json`; `.github/workflows/noora-release.yml`
-  validates on `tuist-linux` and publishes on a GitHub-hosted runner for npm provenance.
-  Releases use `cliff.toml` for changelogs. Never bootstrap npm publication locally;
-  initial scoped-token publication and the transition to trusted publishing belong
-  to that workflow. Verify trusted publication before revoking/removing its token.
-- `components/*.json` owns shared contracts; `aube run generate:web-components`
-  updates metadata, docs, declarations, and `js/web-components/icons.json`.
-  Run `aube run check:generated` after contract changes and regenerate after icon changes.
+- The version lives in `mix.exs`; `.github/workflows/noora-release.yml` publishes to
+  Hex, using `cliff.toml` for changelogs. `package.json` is private build tooling for
+  the JavaScript hooks and CSS bundles; it is not published.
+- Each component's `attr` and `slot` declarations (`values:`, `default:`, `doc:`) are
+  the single source of truth for its API. The documentation at `tuist.dev/noora` reads
+  them through `__components__/0` (see `server/lib/tuist_web/noora/AGENTS.md`), so keep
+  `doc:` strings accurate and written for Phoenix users.
 
 ## Component contracts
 
+- Right-to-left documents set `dir="rtl"` on `<html>`. Style the inline axis with
+  logical properties (`margin-inline-start`, `inset-inline-end`, `text-align: start`);
+  keep physical values only where JS or Zag positions in physical pixels, and say so.
+  Zag machines inherit `dir` in `js/machine.js`. Directional icons are listed in
+  `@rtl_mirrored_icons` (`lib/noora/icon.ex`) and mirror with the CSS `scale`
+  property so rotations still compose.
 - Share table/chart thumb sizing and dragging through `ScrollIndicator.js` and
   `css/scroll_indicator.css`; tables trigger updates explicitly so hidden overlays
   do not measure on scroll.
@@ -43,6 +47,10 @@ dependency, so changes here affect `server/` directly. Component code lives in
 - `Noora.Icon` uses per-SVG `@external_resource` and `__mix_recompile__?/0` for
   additions/removals, never the directory itself (Mix cannot digest directories).
   Brand SVGs use monochrome filled `currentColor` and `brand_<name>/1` helpers.
+- `Noora.Brand` (`tuist_logo/1`, `tuist_wordmark/1`) reads its shapes at compile time
+  from `lib/noora/brand`, copies of the color assets in
+  `server/priv/static/marketing/images/brand`; update both when the brand changes.
+  Colors live in `css/brand.css` and follow the color scheme; `surface` pins it.
 - Delegate date-picker navigation from the hook root so patched controls still work.
 - Charts initialize near the viewport only when `data-lazy="true"`; offscreen
   updates/destruction remain safe and resize listeners register once per lifetime.

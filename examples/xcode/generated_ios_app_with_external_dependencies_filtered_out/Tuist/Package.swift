@@ -11,7 +11,7 @@
 
 let package = Package(
     name: "Dependencies",
-    // https://docs.tuist.io/documentation/tuist/dependencies
+    // https://tuist.dev/en/docs/guides/features/projects/dependencies
     dependencies: [
         .package(url: "https://github.com/Quick/Nimble.git", .upToNextMajor(from: "9.0.0")),
     ]

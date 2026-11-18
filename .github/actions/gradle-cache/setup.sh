@@ -32,6 +32,22 @@ if [ "$status" != 0 ]; then
   exit 0
 fi
 
+# Gradle drops only entries unused for seven days, so a busy repository fills the
+# volume within hours and the job that reaches the top fails. From three quarters
+# full, drop Gradle's local build cache, and start the caches empty if that is not
+# enough. Nothing holds these files before Gradle runs.
+used=$(df -Pk "$gradle_home/caches" 2>/dev/null | awk 'NR == 2 && $3 + $4 > 0 { print int($3 * 100 / ($3 + $4)) }')
+if [ "${used:-0}" -ge 75 ]; then
+  rm -rf "$gradle_home/caches/build-cache-1"
+  used=$(df -Pk "$gradle_home/caches" 2>/dev/null | awk 'NR == 2 && $3 + $4 > 0 { print int($3 * 100 / ($3 + $4)) }')
+  if [ "${used:-0}" -ge 75 ]; then
+    find "$gradle_home/caches" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    echo "::warning::The Gradle cache was nearly full, so this job starts it empty. Raise the size input if this repeats."
+  else
+    echo "The Gradle cache was nearly full; dropped Gradle's local build cache."
+  fi
+fi
+
 mkdir -p "$gradle_home/init.d"
 cat >"$gradle_home/init.d/tuist-gradle-cache.gradle" <<'GROOVY'
 // Written by Tuist's Gradle cache step. Gradle cleans its user home only when

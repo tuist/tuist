@@ -219,7 +219,8 @@ struct ConfigGenerator: ConfigGenerating {
                 with: precompiledSwiftMacrosDerivedSettings(
                     target: target,
                     graphTraverser: graphTraverser,
-                    projectPath: project.path
+                    projectPath: project.path,
+                    toolchainFlags: settings["SWIFT_TOOLCHAIN_FLAGS"]
                 ),
                 inherit: true
             )
@@ -383,9 +384,21 @@ struct ConfigGenerator: ConfigGenerating {
     private func precompiledSwiftMacrosDerivedSettings(
         target: Target,
         graphTraverser: GraphTraversing,
-        projectPath: AbsolutePath
+        projectPath: AbsolutePath,
+        toolchainFlags: SettingValue?
     ) -> SettingsDictionary {
+        // `CachedMacroPrefixMappingGraphMapper` loads cached macros through the `-load-plugin-executable` driver flag in
+        // `SWIFT_TOOLCHAIN_FLAGS` when compilation caching needs them relocatable. A configuration whose toolchain flags
+        // shadow it falls back here.
+        let loadedThroughFlags: (String) -> Bool = { executable in
+            switch toolchainFlags {
+            case let .array(flags): flags.contains(SettingValue.quoted(executable))
+            case let .string(flags): flags.contains(SettingValue.quoted(executable))
+            case nil: false
+            }
+        }
         let macroExecutables = graphTraverser.allPrecompiledSwiftMacroExecutables(path: projectPath, name: target.name)
+            .filter { !loadedThroughFlags($0) }
         var settings: SettingsDictionary = [:]
         if macroExecutables.isEmpty { return settings }
         settings["SWIFT_LOAD_BINARY_MACROS"] = .array(macroExecutables.sorted())

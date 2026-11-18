@@ -205,6 +205,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_existing_matches_pending: false)
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
+    |> assign(create_automation_form_recovery_condition: "condition_clears")
     |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
@@ -214,6 +215,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   @comparisons ~w(gte gt lt lte)
   @window_types ~w(last_days rolling)
+  # `condition_clears` is the form's name for a recovery config without a
+  # `condition`; only `no_new_matches` is persisted.
+  @recovery_conditions ~w(condition_clears no_new_matches)
 
   # These defaults encode the metric's unhealthy direction: flakiness should
   # rise above the threshold, while reliability should fall below it.
@@ -265,6 +269,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       existing_matches_pending: Alert.apply_actions_to_existing_matches?(automation),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
+      recovery_condition: parse_recovery_condition(automation.recovery_config["condition"]),
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
       recovery_window: automation.recovery_config["window"] || "14d",
       recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
@@ -285,6 +290,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_window_type(window_type) when window_type in @window_types, do: window_type
   defp parse_window_type(_), do: "last_days"
+
+  defp parse_recovery_condition(condition) when condition in @recovery_conditions, do: condition
+  defp parse_recovery_condition(_), do: "condition_clears"
 
   defp parse_states(states) when is_list(states) do
     Enum.filter(states, &(&1 in ["enabled", "muted", "skipped"]))
@@ -327,6 +335,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_existing_matches_pending: form.existing_matches_pending)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
+        |> assign(create_automation_form_recovery_condition: form.recovery_condition)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
         |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
@@ -513,6 +522,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
        :create_automation_form_recovery_states,
        toggle_state(socket.assigns.create_automation_form_recovery_states, state)
      )}
+  end
+
+  def handle_event("update_create_automation_form_recovery_condition", %{"data" => condition}, socket)
+      when condition in @recovery_conditions do
+    {:noreply, assign(socket, create_automation_form_recovery_condition: condition)}
   end
 
   def handle_event("update_create_automation_form_recovery_window_type", %{"data" => window_type}, socket) do
@@ -739,10 +753,21 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp form_recovery_summary(assigns) do
     if assigns.create_automation_form_recovery_enabled do
-      dgettext("dashboard_projects", "After %{window} without a trigger: %{actions}.",
-        window: window_summary(recovery_config_for(assigns.create_automation_form_metric, assigns)),
-        actions: Enum.map_join(assigns.create_automation_form_recovery_actions, ", ", &form_action_summary/1)
-      )
+      recovery_config = recovery_config_for(assigns.create_automation_form_metric, assigns)
+      actions = Enum.map_join(assigns.create_automation_form_recovery_actions, ", ", &form_action_summary/1)
+
+      if recovery_config["condition"] == "no_new_matches" do
+        dgettext("dashboard_projects", "After %{window} %{without_matches}: %{actions}.",
+          window: window_summary(recovery_config),
+          without_matches: without_new_matches_summary(assigns.create_automation_form_metric),
+          actions: actions
+        )
+      else
+        dgettext("dashboard_projects", "After %{window} without a trigger: %{actions}.",
+          window: window_summary(recovery_config),
+          actions: actions
+        )
+      end
     else
       dgettext("dashboard_projects", "Recovery is disabled.")
     end
@@ -822,7 +847,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
       assigns.create_automation_form_recovery_rolling_window_size
     )
     |> maybe_put_states(assigns.create_automation_form_recovery_states)
+    |> maybe_put_recovery_condition(assigns.create_automation_form_recovery_condition)
   end
+
+  defp maybe_put_recovery_condition(config, "no_new_matches"), do: Map.put(config, "condition", "no_new_matches")
+  defp maybe_put_recovery_condition(config, _condition), do: config
+
+  @doc """
+  How `no_new_matches` recovery reads for a metric: reliability counts failing
+  runs, the flakiness metrics flaky ones.
+  """
+  def without_new_matches_summary("reliability_rate"), do: dgettext("dashboard_projects", "without a new failing run")
+  def without_new_matches_summary(_metric), do: dgettext("dashboard_projects", "without a new flaky run")
+
+  def recovery_condition_label("no_new_matches", "reliability_rate"),
+    do: dgettext("dashboard_projects", "No new failing runs")
+
+  def recovery_condition_label("no_new_matches", _metric), do: dgettext("dashboard_projects", "No new flaky runs")
+  def recovery_condition_label(_condition, _metric), do: dgettext("dashboard_projects", "Condition clears")
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
     %{

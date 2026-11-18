@@ -27,7 +27,8 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
       inserted_at: Keyword.get(attrs, :inserted_at, now),
       reporting_version: Keyword.get(attrs, :reporting_version, 0),
       storage_target: Keyword.get(attrs, :storage_target, ""),
-      assignments: Keyword.get(attrs, :assignments, "")
+      assignments: Keyword.get(attrs, :assignments, ""),
+      test_impact_run_id: Keyword.get(attrs, :test_impact_run_id)
     }
 
     {:ok, plan} =

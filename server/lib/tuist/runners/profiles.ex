@@ -31,7 +31,7 @@ defmodule Tuist.Runners.Profiles do
 
   @max_per_account 10
 
-  @resource_fields ~w(vcpus memory_gb xcode_version)
+  @resource_fields ~w(vcpus memory_gb xcode_version os_version)
 
   @doc """
   Cap on profiles per account. Surfaced so the LiveView can disable
@@ -70,6 +70,7 @@ defmodule Tuist.Runners.Profiles do
   """
   def create(%{id: account_id}, attrs) do
     attrs = Map.put(stringify_keys(attrs), "account_id", account_id)
+    attrs = if parse_platform(attrs) == :linux, do: put_default_os_version(attrs), else: attrs
 
     if count_for_account(account_id) >= @max_per_account do
       {:error, :max_profiles_reached}
@@ -119,6 +120,8 @@ defmodule Tuist.Runners.Profiles do
           "memory_gb" => default.memory_gb,
           "protected" => true
         }
+
+        attrs = put_default_os_version(attrs)
 
         %Profile{}
         |> Profile.changeset(attrs, catalog_opts_for(:linux))
@@ -183,9 +186,16 @@ defmodule Tuist.Runners.Profiles do
       |> Map.drop(["name", "account_id", "platform"])
 
     changeset =
-      if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)),
-        do: Profile.changeset(profile, attrs, catalog_opts_for(platform)),
-        else: Profile.cache_settings_changeset(profile, attrs)
+      if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)) do
+        # A Linux row an older replica wrote without an OS runs on the
+        # default; a resource edit records that rather than failing.
+        attrs =
+          if platform == :linux and is_nil(profile.os_version), do: put_default_os_version(attrs), else: attrs
+
+        Profile.changeset(profile, attrs, catalog_opts_for(platform))
+      else
+        Profile.cache_settings_changeset(profile, attrs)
+      end
 
     update_revoking_writers(changeset)
   end
@@ -232,7 +242,7 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  The runner catalog: the shapes and Xcode versions a profile can use, for API and agent clients.
+  The runner catalog: the shapes, Xcode versions and Linux OS versions a profile can use, for API and agent clients.
   """
   def catalog do
     %{
@@ -240,7 +250,8 @@ defmodule Tuist.Runners.Profiles do
         for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do
           %{platform: to_string(platform), vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
         end,
-      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?})
+      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?}),
+      os_versions: Enum.map(Catalog.os_versions(), &%{os_version: &1.os_version, label: &1.label, default: &1.default?})
     }
   end
 
@@ -268,6 +279,9 @@ defmodule Tuist.Runners.Profiles do
       opts[:validation] == :shape ->
         shapes = Enum.map_join(Catalog.shapes(platform), ", ", &"#{&1.vcpus} vCPU / #{&1.memory_gb} GB")
         "vcpus and memory_gb must match an available #{platform} shape: #{shapes}."
+
+      opts[:validation] == :os_version ->
+        "os_version must be one of: #{Enum.map_join(Catalog.os_versions(), ", ", & &1.os_version)}."
 
       opts[:validation] == :xcode_version ->
         "xcode_version must be one of: #{Enum.map_join(Catalog.xcode_versions(), ", ", & &1.xcode_version)}."
@@ -356,7 +370,16 @@ defmodule Tuist.Runners.Profiles do
   # Mirror the schema default: an unset platform attr means Linux.
   defp parse_platform(_), do: :linux
 
-  defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux)]
+  defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux), os_versions: Catalog.os_versions()]
 
   defp catalog_opts_for(:macos), do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
+
+  # A Linux profile that names no OS gets the catalog default.
+  defp put_default_os_version(attrs) do
+    case {Map.get(attrs, "os_version"), Catalog.default_os_version()} do
+      {os_version, _} when is_binary(os_version) and os_version != "" -> attrs
+      {_, nil} -> attrs
+      {_, default} -> Map.put(attrs, "os_version", default.os_version)
+    end
+  end
 end

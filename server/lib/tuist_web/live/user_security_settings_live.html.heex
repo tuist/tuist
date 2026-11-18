@@ -1,0 +1,73 @@
+<TuistWeb.SSOLinkHTML.security_settings_frame
+  title={@title}
+  subtitle={
+    if @live_action == :passkeys,
+      do: dgettext("dashboard_auth", "Sign in without a password."),
+      else:
+        dgettext(
+          "dashboard_auth",
+          "Protect your account with an authenticator app and recovery codes."
+        )
+  }
+>
+  <.alert
+    :for={kind <- [:info, :error]}
+    :if={Phoenix.Flash.get(@flash, kind)}
+    type="secondary"
+    status={if kind == :error, do: "error", else: "information"}
+    size="small"
+    title={Phoenix.Flash.get(@flash, kind)}
+  />
+  <%= if !@fresh_session? do %>
+    <TuistWeb.SSOLinkHTML.reauthentication_notice return_to={
+      if @live_action == :passkeys,
+        do: ~p"/#{@selected_account.name}/settings/passkeys",
+        else: ~p"/#{@selected_account.name}/settings/two-factor-authentication"
+    } />
+  <% else %>
+    <%= if @live_action == :passkeys do %>
+      <div data-part="section">
+        <.button
+          href={~p"/users/settings/passkeys/new"}
+          variant="primary"
+          size="large"
+          label={dgettext("dashboard_auth", "Add a passkey")}
+        />
+        <p :if={@passkeys == []}>
+          {dgettext("dashboard_auth", "You haven't added any passkeys yet.")}
+        </p>
+        <TuistWeb.Components.UserSecurity.passkeys passkeys={@passkeys} />
+      </div>
+    <% else %>
+      <div data-part="section">
+        <div data-part="section-header">
+          <h2>{dgettext("dashboard_auth", "Authenticator app")}</h2>
+          <.badge
+            label={
+              if @enabled,
+                do: dgettext("dashboard_account", "Enabled"),
+                else: dgettext("dashboard_account", "Not enabled")
+            }
+            color={if @enabled, do: "success", else: "neutral"}
+          />
+        </div>
+        <TuistWeb.Components.UserSecurity.mfa_controls :if={@enabled} />
+        <form :if={!@enabled} method="post" action={~p"/users/settings/mfa/enroll"}>
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+          <.button
+            variant="primary"
+            size="medium"
+            type="submit"
+            label={dgettext("dashboard_auth", "Set up authenticator app")}
+          />
+        </form>
+      </div>
+    <% end %>
+  <% end %>
+  <.button
+    href={~p"/#{@selected_account.name}/settings/authentication"}
+    variant="secondary"
+    size="large"
+    label={dgettext("dashboard_auth", "Back to authentication settings")}
+  />
+</TuistWeb.SSOLinkHTML.security_settings_frame>

@@ -6,14 +6,17 @@ import TuistCore
 import TuistLogging
 import TuistSupport
 
-enum ConfigManifestMapperError: FatalError {
+enum ConfigManifestMapperError: FatalError, Equatable {
     /// Thrown when the server URL is invalid.
     case invalidServerURL(String)
+
+    /// Thrown when selective testing selects tests by coverage that isn't uploaded.
+    case coverageStrategyRequiresCoverageUpload
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidServerURL: return .abort
+        case .invalidServerURL, .coverageStrategyRequiresCoverageUpload: return .abort
         }
     }
 
@@ -22,6 +25,8 @@ enum ConfigManifestMapperError: FatalError {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL '\(url)' is not a valid URL"
+        case .coverageStrategyRequiresCoverageUpload:
+            return "The coverage selective testing strategy selects tests by the coverage test runs upload. Set 'coverage: .coverage(upload: true)' in 'testInsights' or remove the strategy."
         }
     }
 }
@@ -44,9 +49,7 @@ extension TuistConfig.Tuist {
             upload: manifest.xcodeCache.upload,
             storeSizeLimit: manifest.xcodeCache.storeSizeLimit?.bytes
         )
-        let testInsights = TuistConfig.Tuist.TestInsights(
-            coverage: .init(upload: manifest.testInsights.coverage.upload)
-        )
+        let testInsights = try TuistConfig.Tuist.TestInsights.from(manifest: manifest.testInsights)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -113,6 +116,19 @@ extension TuistConfig.Tuist {
     ) throws -> TuistConfig.Tuist.Network {
         let caCertificate = try manifest.network.caCertificate.map { try generatorPaths.resolve(path: $0).pathString }
         return .init(proxy: manifest.network.proxy, caCertificate: caCertificate)
+    }
+}
+
+extension TuistConfig.Tuist.TestInsights {
+    static func from(manifest: ProjectDescription.Config.TestInsights) throws -> Self {
+        let strategy: SelectiveTesting.Strategy? = manifest.selectiveTesting?.strategy == .coverage() ? .coverage : nil
+        if strategy == .coverage, !manifest.coverage.upload {
+            throw ConfigManifestMapperError.coverageStrategyRequiresCoverageUpload
+        }
+        return Self(
+            coverage: .init(upload: manifest.coverage.upload),
+            selectiveTesting: manifest.selectiveTesting.map { _ in SelectiveTesting(strategy: strategy) }
+        )
     }
 }
 

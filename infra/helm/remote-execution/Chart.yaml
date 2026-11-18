@@ -1,0 +1,5 @@
+apiVersion: v2
+name: remote-execution
+description: Opt-in Bazel execution gateway and reserved Firecracker Linux workers
+type: application
+version: 0.1.0

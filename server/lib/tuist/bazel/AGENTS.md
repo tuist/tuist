@@ -37,6 +37,14 @@ does not expose a second Build Event Service listener.
 - `bazel_invocation_logs` stores sanitized, ordered log chunks from bounded
   Build Event Protocol progress output and conventional test logs in
   ClickHouse.
+- Test-log rows store the test result's `target_label` and attempt `status`;
+  progress rows and rows written before leave both empty, and Bazel does not
+  attribute progress output to targets. The API/MCP `source` filter relies on
+  the writers' sequence numbering (Kura's progress at `2n` stderr and `2n + 1`
+  stdout, test logs at even stdout numbers), so keep Kura and
+  `ProcessTestInvocationWorker` aligned. `errors` returns failed test-log
+  attempts plus Bazel's `ERROR:`/`FAIL:`/`TIMEOUT:` reporter lines on stderr.
+  Filter targets by the stored label; never infer attribution from text.
 - `bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries`
   durably stage bounded raw test results in PostgreSQL until processing
   succeeds; an indexed, batched daily job removes any records older than 90
@@ -80,3 +88,4 @@ does not expose a second Build Event Service listener.
 - Timeline availability follows the published profile version and existing step rows or genuine machine samples, and requires a published profile. Retained BEP summaries remain available to API/MCP clients but never expose a dashboard Timeline by themselves. Staging states alone never imply timeline availability. The processor requires write access to `bazel_profile_uploads` in both release-time grants and the CNPG fallback SQL; exercise profile success and rejection with the deployed restricted role.
 
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
+- `list_invocations/3` and `recent_invocations/2` page over narrow key, filter and sort columns, then load that page's rows by primary key. `bazel_invocations` is sorted by random invocation IDs and read with `FINAL` (no automatic `PREWHERE`), so selecting whole rows while filtering or sorting reads every column of the project's history. Keep new list filters and sorts in the first step.

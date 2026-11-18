@@ -48,10 +48,12 @@ defmodule Tuist.Runners.VolumePlacementTest do
   end
 
   describe "replicas/2" do
-    test "keeps one Node beyond the repository's peak concurrency, at least two" do
+    test "keeps half again the repository's peak concurrency, rounded up, at least two" do
       assert VolumePlacement.replicas(0, 13) == 2
       assert VolumePlacement.replicas(1, 13) == 2
-      assert VolumePlacement.replicas(3, 13) == 4
+      assert VolumePlacement.replicas(2, 13) == 3
+      assert VolumePlacement.replicas(3, 13) == 5
+      assert VolumePlacement.replicas(8, 13) == 12
     end
 
     test "never asks for more Nodes than there are" do

@@ -8,6 +8,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Tests.TestCase
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "flaky tests page" do
@@ -23,6 +24,45 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
       assert has_element?(lv, "[data-part='empty-flaky-tests']")
+    end
+
+    test "Once uses the shared analytics, test links, search, and native filter labels", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :once)
+      base = "/#{organization.account.name}/#{project.name}/tests"
+
+      {:ok, empty, _html} = live(conn, base <> "/flaky-tests")
+
+      assert has_element?(
+               empty,
+               ~s([data-part="empty-flaky-tests"] a[href="https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests/once"]),
+               "Get started"
+             )
+
+      matching = create_flaky_test_case(project, "reconnects_after_timeout", module_name: "NetworkTests")
+      create_flaky_test_case(project, "rejects_invalid_token", module_name: "AuthTests")
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, lv, _html} = live(conn, base <> "/flaky-tests")
+      render_async(lv)
+
+      for id <- ["widget-flaky-test-cases", "widget-flaky-test-case-runs", "widget-flaky-test-runs"] do
+        assert has_element?(lv, "##{id}")
+      end
+
+      assert has_element?(lv, ~s(a[href$="#{base}/test-cases/#{matching.id}"]), "reconnects_after_timeout")
+      assert has_element?(lv, ~s([data-part="last-flaky-run-link"][href^="#{base}/test-runs/"]))
+
+      render_click(lv, "add_filter", %{"value" => "module_name"})
+      assert has_element?(lv, "[data-part='active-filters']", "Target")
+      render_click(lv, "add_filter", %{"value" => "suite_name"})
+      assert has_element?(lv, "[data-part='active-filters']", "Suite")
+
+      render_change(lv, "search-flaky-tests", %{"search" => "NetworkTests"})
+      assert has_element?(lv, "#flaky-tests-table", "reconnects_after_timeout")
+      refute has_element?(lv, "#flaky-tests-table", "rejects_invalid_token")
     end
 
     test "lists flaky tests when data exists", %{

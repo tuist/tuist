@@ -103,6 +103,10 @@ defmodule TuistEx.DependencyCache do
 
                     {pending, support}
 
+                  # Mix compiles nothing for these, so there is nothing to cache.
+                  dependency.opts[:compile] == false ->
+                    {[dependency | pending], support}
+
                   selected?(dependency, options) ->
                     compile_dependencies(Enum.reverse(pending))
                     context = capture_context(options)
@@ -596,17 +600,31 @@ defmodule TuistEx.DependencyCache do
 
   defp compiler_config(config, options) do
     config = config |> Keyword.take(@compiler_config) |> Compiler.effective_config()
+    if Keyword.get(options, :portable, false), do: portable_config(config), else: config
+  end
 
-    # rebar3 installs under each user's Mix home, so portable keys name it by
-    # its file name and bytes.
-    if Keyword.get(options, :portable, false) and Keyword.has_key?(config, :rebar_toolchain),
-      do:
-        Keyword.update!(
-          config,
-          :rebar_toolchain,
-          &Enum.map(&1, fn {path, digest} -> {Path.basename(path), digest} end)
-        ),
-      else: config
+  # Toolchains install under per-user homes, so portable keys name rebar3 and
+  # declared builder tools by name and bytes rather than where they live. PATH
+  # only decides which executables run: declared tools are keyed by the bytes it
+  # resolves, and the builder's platform covers the rest. Other native variables
+  # keep their values, with the checkout path replaced.
+  defp portable_config(config) do
+    config
+    |> Keyword.replace_lazy(
+      :rebar_toolchain,
+      &Enum.map(&1, fn {path, digest} -> {Path.basename(path), digest} end)
+    )
+    |> Keyword.replace_lazy(:builder_inputs, fn inputs ->
+      %{
+        inputs
+        | environment:
+            inputs.environment
+            |> List.keydelete("PATH", 0)
+            |> relocatable(checkout_root(File.cwd!())),
+          tools:
+            Enum.map(inputs.tools, fn {tool, _path, _canonical, digest} -> {tool, digest} end)
+      }
+    end)
   end
 
   defp dependency_options(dependency) do
@@ -802,6 +820,13 @@ defmodule TuistEx.DependencyCache do
   defp model_term(term), do: term
 
   defp observation(dependency, outcome, reason, key, duration, saved) do
+    # The compile report carries these observations, but a client that cannot
+    # submit it (a read-only cache token) would otherwise never see them.
+    Report.debug(
+      "tuist cache: #{dependency.app} #{outcome}" <>
+        if(reason == "", do: "", else: " (#{reason})") <> if(key == "", do: "", else: " #{key}")
+    )
+
     %{
       dependency: Atom.to_string(dependency.app),
       outcome: outcome,

@@ -30,7 +30,7 @@ msgstr "Geçersiz yetkilendirme isteği. Lütfen tekrar deneyin."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:167
 #, elixir-autogen, elixir-format
 msgid "Slack authorization failed: %{reason}"
-msgstr "Slack yetkilendirmesi başarısız oldu: %{reason}"
+msgstr "Slack yetkilendirmesi başarısız: %{reason}"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:132
 #, elixir-autogen, elixir-format
@@ -55,4 +55,4 @@ msgstr "Yetkilendirme isteğinin süresi doldu. Lütfen Slack bağlantı süreci
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack beklenmeyen bir webhook URL'si döndürdü. Lütfen tekrar deneyin."
+msgstr "Slack beklenmedik bir webhook URL'si döndürdü. Lütfen tekrar deneyin."

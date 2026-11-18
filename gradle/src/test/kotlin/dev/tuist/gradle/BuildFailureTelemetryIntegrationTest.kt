@@ -14,6 +14,8 @@ import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.assertNotNull
 
 class BuildFailureTelemetryIntegrationTest {
@@ -59,10 +61,20 @@ class BuildFailureTelemetryIntegrationTest {
             val compile = fail("compileJava")
             assertEquals("failure", compile["status"].asString)
             assertEquals("verification", compile.getAsJsonObject("custom_metadata").getAsJsonObject("values")["tuist.detected_failure_category"].asString)
+            val failedTask = compile.getAsJsonArray("tasks").map { it.asJsonObject }.single { it["outcome"].asString == "failed" }
+            val taskFailure = failedTask.getAsJsonObject("failure")["message"].asString
+            assertTrue(taskFailure.startsWith("Execution failed for task ':compileJava'.\n> Compilation failed"), taskFailure)
+            assertFalse(taskFailure.contains(directory.path), taskFailure)
+            if (version.startsWith("9.")) assertTrue(taskFailure.contains("src/main/java/Broken.java"), taskFailure)
             File(directory, "build.gradle").appendText("\nthrow new GradleException('configuration failed')")
             val configuration = fail("help")
             assertEquals("failure", configuration["status"].asString)
             assertEquals("infrastructure_tooling", configuration.getAsJsonObject("custom_metadata").getAsJsonObject("values")["tuist.detected_failure_category"].asString)
+            val configurationFailures = configuration.getAsJsonArray("configuration_operations").map { it.asJsonObject }
+                .filter { it.has("failure") }.map { it.getAsJsonObject("failure")["message"].asString }
+            assertEquals(1, configurationFailures.size, configurationFailures.toString())
+            assertTrue(configurationFailures.single().contains("configuration failed"), configurationFailures.single())
+            assertFalse(configurationFailures.single().contains(directory.path), configurationFailures.single())
         }
     }
 }

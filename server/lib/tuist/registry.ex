@@ -162,6 +162,28 @@ defmodule Tuist.Registry do
     end
   end
 
+  @doc """
+  The credential to retry with when GitHub refuses `token` with a 403 that is
+  not throttling.
+
+  Organizations with an IP allow list refuse the App's installation token on
+  every request, including reads of their public repositories, while still
+  serving those repositories to a personal access token. Returns `nil` when
+  there is no different credential to try.
+  """
+  def swift_registry_github_fallback_token(token) do
+    github_fallback_token(token, swift_registry_github_personal_access_token())
+  end
+
+  @doc """
+  Picks the fallback for a refused token from an explicit personal access token.
+
+  Split from `swift_registry_github_fallback_token/1` for the same reason as
+  `github_token/2`.
+  """
+  def github_fallback_token(token, token), do: nil
+  def github_fallback_token(_token, personal_access_token), do: personal_access_token
+
   def swift_registry_enabled?, do: registry_bucket() != nil and swift_registry_github_credentials_configured?()
 
   def swift_registry_sync_enabled? do

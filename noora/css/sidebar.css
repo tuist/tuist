@@ -40,9 +40,9 @@
   &::after {
     content: "";
     position: absolute;
-    right: 0;
+    inset-inline-end: 0;
     bottom: 0;
-    left: 0;
+    inset-inline-start: 0;
     height: 48px;
     background: linear-gradient(
       to bottom,
@@ -62,7 +62,7 @@
     display: none;
     position: absolute;
     top: var(--noora-spacing-4);
-    right: 0;
+    inset-inline-end: 0;
     bottom: var(--noora-spacing-4);
     width: 12px;
     z-index: 1;
@@ -70,7 +70,7 @@
     & [data-part="thumb"] {
       position: absolute;
       top: 0;
-      right: 2px;
+      inset-inline-end: 2px;
       width: 3px;
       border-radius: 999px;
       background: light-dark(
@@ -124,8 +124,9 @@
         text-decoration: unset;
 
         &:focus-visible {
-          outline: 2px solid var(--noora-surface-label-primary);
-          outline-offset: -2px;
+          outline: var(--noora-focus-ring-width) solid
+            var(--noora-focus-ring-color);
+          outline-offset: calc(-1 * var(--noora-focus-ring-width));
         }
       }
 
@@ -156,8 +157,9 @@
       text-align: start;
 
       &:focus-visible {
-        outline: 2px solid var(--noora-surface-label-primary);
-        outline-offset: -2px;
+        outline: var(--noora-focus-ring-width) solid
+          var(--noora-focus-ring-color);
+        outline-offset: calc(-1 * var(--noora-focus-ring-width));
       }
 
       &:disabled {
@@ -196,10 +198,10 @@
         flex-direction: column;
         gap: var(--noora-spacing-6);
         box-sizing: border-box;
-        margin-left: 14px;
-        border-left: 1.5px solid var(--noora-surface-border-primary);
+        margin-inline-start: 14px;
+        border-inline-start: 1.5px solid var(--noora-surface-border-primary);
         padding-top: 20px;
-        padding-left: 20px;
+        padding-inline-start: 20px;
         overflow: hidden;
 
         &[data-state="open"] {
@@ -225,8 +227,9 @@
       outline: none;
 
       & .noora-tab-menu-vertical {
-        outline: 2px solid var(--noora-surface-label-primary);
-        outline-offset: -2px;
+        outline: var(--noora-focus-ring-width) solid
+          var(--noora-focus-ring-color);
+        outline-offset: calc(-1 * var(--noora-focus-ring-width));
       }
     }
   }

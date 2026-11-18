@@ -12,6 +12,124 @@ noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
 build_path = Mix.Project.build_path()
 
+blocked_account_handles = [
+  "admin",
+  "settings",
+  "docs",
+  "api",
+  "login",
+  "logout",
+  "signup",
+  "register",
+  "dashboard",
+  "profile",
+  "account",
+  "billing",
+  "payments",
+  "subscriptions",
+  "help",
+  "support",
+  "faq",
+  "terms",
+  "privacy",
+  "cookie",
+  "legal",
+  "about",
+  "contact",
+  "feedback",
+  "status",
+  "system",
+  "blog",
+  "news",
+  "newsletter",
+  "compare",
+  "solutions",
+  "build-systems",
+  "announcements",
+  "features",
+  "pricing",
+  "plan",
+  "plans",
+  "upgrade",
+  "downgrade",
+  "cancel",
+  "home",
+  "index",
+  "search",
+  "explore",
+  "discover",
+  "notifications",
+  "messages",
+  "inbox",
+  "mail",
+  "team",
+  "organization",
+  "groups",
+  "projects",
+  "tasks",
+  "reports",
+  "analytics",
+  "stats",
+  "metrics",
+  "integrations",
+  "apps",
+  "marketplace",
+  "store",
+  "shop",
+  "cart",
+  "checkout",
+  "orders",
+  "invoices",
+  "downloads",
+  "uploads",
+  "files",
+  "media",
+  "images",
+  "videos",
+  "users",
+  "members",
+  "roles",
+  "permissions",
+  "security",
+  "ssl",
+  "oauth",
+  "auth",
+  "2fa",
+  "mfa",
+  "verification",
+  "confirm",
+  "reset",
+  "recover",
+  "backup",
+  "restore",
+  "import",
+  "export",
+  "webhooks",
+  "developer",
+  "console",
+  "logs",
+  "health",
+  "maintenance",
+  "changelog",
+  "roadmap",
+  "beta",
+  "alpha",
+  "test",
+  "staging",
+  "production",
+  "www",
+  "app",
+  "web",
+  "mobile",
+  "desktop",
+  "sitemap",
+  "robots",
+  "rss",
+  "feed",
+  "careers",
+  "jobs"
+]
+
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
   cache_backend: Tuist.OAuth.AuthoritativeCache,
@@ -28,6 +146,11 @@ config :boruta, Boruta.Oauth,
     clients: Tuist.OAuth.Clients
   ],
   token_generator: Tuist.OAuth.TokenGenerator
+
+# Condukt sessions are registered cluster-wide, so a thread run's session is
+# reached by id from any node, as `Tuist.Threads.ExitWatchWorker` does when it
+# runs on another pod than the session.
+config :condukt, session_registry: Condukt.Sessions.Registry.PG
 
 config :ecto_ch,
   default_table_engine: "MergeTree"
@@ -270,6 +393,8 @@ config :logger, :console,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    # The binding a runner session had when a job's OIDC token named its job
+    :recorded_workflow_job_id,
     :repository,
     :conclusion,
     :ours,
@@ -299,6 +424,14 @@ config :logger, :console,
     :tag,
     :boot_ms,
     :restore_ms,
+    :admit_ms,
+    :node_call_ms,
+    :placement_ms,
+    # Each connected macOS host's warm VM and why it was or was not chosen
+    :shape,
+    :hosts,
+    :spawn_ms,
+    :spawn_result,
     :snapshot_ms,
     :mem_bytes,
     :disks_synced,
@@ -307,6 +440,15 @@ config :logger, :console,
     :archive_bytes,
     :stored_bytes,
     :disk_snapshot_id,
+    :disk_snapshot_copy,
+    :bytes,
+    :preferred_node,
+    :checkout_nodes,
+    :placement_path,
+    # Why each node holding a disk snapshot refused a sandbox
+    # (`Capacity.refusal_reasons/2`).
+    :refusals,
+    :amp_snapshot_id,
     :last_used_at,
     :freed_bytes,
     :memory_bytes,
@@ -350,8 +492,11 @@ config :phoenix, :filter_parameters, [
   "password",
   "secret",
   "token",
+  "api_key",
   "credential",
+  "mfa_code",
   "installation_receipt",
+  "search_query",
   "arguments"
 ]
 
@@ -378,6 +523,9 @@ config :tuist, Oban,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
+# Durable agent sessions by kind (`Tuist.Agents.Runner`).
+config :tuist, Tuist.Agents.Runner, kinds: %{"thread" => Tuist.Threads.Host}
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
@@ -397,127 +545,28 @@ config :tuist, TuistWeb.Endpoint,
   pubsub_server: Tuist.PubSub,
   live_view: [signing_salt: "laTbtzV8"]
 
-config :tuist, :blocked_handles, [
-  "admin",
-  "settings",
-  "docs",
-  "api",
-  "login",
-  "logout",
-  "signup",
-  "register",
-  "dashboard",
-  "profile",
-  "account",
-  "billing",
-  "payments",
-  "subscriptions",
-  "help",
-  "support",
-  "faq",
-  "terms",
-  "privacy",
-  "cookie",
-  "legal",
-  "about",
-  "contact",
-  "feedback",
-  "status",
-  "system",
-  "blog",
-  "news",
-  "newsletter",
-  "announcements",
-  "features",
-  "pricing",
-  "plan",
-  "plans",
-  "upgrade",
-  "downgrade",
-  "cancel",
-  "home",
-  "index",
-  "search",
-  "explore",
-  "discover",
-  "notifications",
-  "messages",
-  "inbox",
-  "mail",
-  "team",
-  "organization",
-  "groups",
-  "projects",
-  "tasks",
-  "reports",
-  "analytics",
-  "stats",
-  "metrics",
-  "integrations",
-  "apps",
-  "marketplace",
-  "store",
-  "shop",
-  "cart",
-  "checkout",
-  "orders",
-  "invoices",
-  "downloads",
-  "uploads",
-  "files",
-  "media",
-  "images",
-  "videos",
-  "users",
-  "members",
-  "roles",
-  "permissions",
-  "security",
-  "ssl",
-  "oauth",
-  "auth",
-  "2fa",
-  "mfa",
-  "verification",
-  "confirm",
-  "reset",
-  "recover",
-  "backup",
-  "restore",
-  "import",
-  "export",
-  "webhooks",
-  "developer",
-  "console",
-  "logs",
-  "health",
-  "maintenance",
-  "changelog",
-  "roadmap",
-  "beta",
-  "alpha",
-  "test",
-  "staging",
-  "production",
-  "www",
-  "app",
-  "web",
-  "mobile",
-  "desktop",
-  "sitemap",
-  "robots",
-  "rss",
-  "feed",
-  "careers",
-  "jobs"
-]
+config :tuist, :blocked_account_handles, blocked_account_handles
 
+# Retained for migrations that read the original account reservation list.
+config :tuist, :blocked_handles, blocked_account_handles
+config :tuist, :blocked_project_handles, blocked_account_handles -- ["app"]
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
-# Baseline machine-minutes every account gets free per billing period.
-# Must match the first tier of the environment's runner Stripe Price;
-# see `Tuist.Runners.Allowance`.
+# Baseline machine-minutes of each platform every account gets free per
+# billing period. Each must match the first tier of the environment's runner
+# Stripe Price for that platform; see `Tuist.Runners.Allowance`.
 config :tuist, :runner_free_monthly_minutes, 100
+config :tuist, :runner_linux_free_monthly_minutes, 2_500
+
+# Linux OS catalog: the Ubuntu releases a Linux profile can run on. Same
+# role as `:runner_macos_xcode_versions`. Managed deploys override it at
+# boot from `TUIST_RUNNER_LINUX_OS_VERSIONS`, which Helm injects from the
+# `runnersFleetLinux.osVersions` entries it renders pools for. Exactly one
+# entry should carry `default: true`; its pools keep the shape-only names.
+config :tuist, :runner_linux_os_versions, [
+  %{os_version: "ubuntu-24.04", default: true},
+  %{os_version: "ubuntu-22.04"}
+]
 
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
@@ -550,11 +599,11 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
-# environments whose fleet is M2-L only.
+# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true},
-  %{vcpus: 12, memory_gb: 28}
+  %{vcpus: 8, memory_gb: 24, default: true},
+  %{vcpus: 16, memory_gb: 48}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
@@ -575,7 +624,6 @@ config :tuist, :runner_macos_xcode_versions, [
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",
-  grafana_dashboard: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
   slack: "https://slack.tuist.dev",
   bluesky: "https://bsky.app/profile/tuist.dev",
   github: "https://github.com/tuist",
@@ -594,8 +642,7 @@ config :tuist, :urls,
   feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
   feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
-  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
-  shop: "https://shop.tuist.dev"
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights"
 
 config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 

@@ -173,7 +173,7 @@ defmodule Tuist.Docs.CLITest do
       [cli_group, commands_group] = CLI.sidebar_items(cache_opts(cache))
 
       assert cli_group.label == "CLI"
-      assert length(cli_group.items) == 4
+      assert length(cli_group.items) == 5
       assert "Compatibility" in Enum.map(cli_group.items, & &1.label)
 
       assert commands_group.label == "Commands"

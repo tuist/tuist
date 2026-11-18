@@ -45,6 +45,7 @@ func main() {
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
 	var privateReplication bool
+	var egressTreeNodePools string
 	var servingAuthority bool
 	var connectivityDiagnosticsInstances string
 	var connectivityDiagnosticsExpiresAt string
@@ -61,6 +62,7 @@ func main() {
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 	flag.BoolVar(&servingAuthority, "serving-authority", false, "Enable opt-in positively fenced serving grants; never enables timeout promotion")
 	flag.BoolVar(&privateReplication, "private-replication", false, "Derive OVH peer topology from converged private host routes")
+	flag.StringVar(&egressTreeNodePools, "egress-tree-node-pools", "", "Comma-separated node pools the egress-tree agent shapes; their Kura pods drop the Cilium egress-bandwidth annotation")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
 	flag.StringVar(&connectivityDiagnosticsExpiresAt, "connectivity-diagnostics-expires-at", "", "Absolute RFC3339 expiry, at most 24 hours ahead; missing or invalid disables diagnostics")
 	flag.BoolVar(&connectivityDiagnosticsPrepare, "connectivity-diagnostics-prepare", false, "Prepare restart-free diagnostics on new StatefulSets and normal runtime image changes; requires the compatible controller rollback floor")
@@ -138,8 +140,10 @@ func main() {
 		OTLPTracesEndpoint:               otlpTracesEndpoint,
 		Environment:                      deploymentEnvironment,
 		PrivateReplication:               privateReplication,
+		EgressTreeNodePools:              splitNames(egressTreeNodePools),
 		MetricsClient:                    metricsClient,
 		NodeLocalRuntimeStatusClient:     nodeLocalStatusClient,
+		PublicConnectionRetirer:          nodeLocalStatusClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
 		ConnectivityDiagnosticsExpiresAt: probeExpiry,
 		ConnectivityDiagnosticsPrepare:   connectivityDiagnosticsPrepare,

@@ -234,6 +234,7 @@ defmodule Tuist.Accounts.Dormancy do
     {:ok, scrubbed} =
       Repo.transaction(fn ->
         revoke_sessions(user)
+        clear_plaintext_token(user)
         Repo.delete_all(from(o in Oauth2Identity, where: o.user_id == ^user.id))
 
         {:ok, scrubbed} =
@@ -242,7 +243,7 @@ defmodule Tuist.Accounts.Dormancy do
             active: false,
             email: tombstone_email(user),
             encrypted_password: "",
-            token: tombstone_token()
+            token_hash: nil
           )
           |> Repo.update()
 
@@ -297,6 +298,7 @@ defmodule Tuist.Accounts.Dormancy do
 
         if count == 1 do
           revoke_sessions(user)
+          clear_plaintext_token(user)
           Repo.delete_all(from(o in Oauth2Identity, where: o.user_id == ^user.id))
           user
         else
@@ -315,7 +317,7 @@ defmodule Tuist.Accounts.Dormancy do
       active: false,
       email: tombstone_email(user),
       encrypted_password: "",
-      token: tombstone_token(),
+      token_hash: nil,
       updated_at: naive(now)
     ]
   end
@@ -379,11 +381,12 @@ defmodule Tuist.Accounts.Dormancy do
     end)
   end
 
-  defp tombstone_email(%User{id: id}), do: "deleted-user-#{id}@#{@tombstone_domain}"
+  # The pre-hashing plaintext column, until
+  # `Tuist.Release.clear_plaintext_legacy_tokens/0` has emptied it.
+  defp clear_plaintext_token(%User{id: id}),
+    do: Repo.update_all(from(u in "users", where: u.id == ^id), set: [token: nil])
 
-  defp tombstone_token do
-    32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
-  end
+  defp tombstone_email(%User{id: id}), do: "deleted-user-#{id}@#{@tombstone_domain}"
 
   defp log_sweep(%{disabled: [], scrubbed: [], clock_started: [], unknown_activity: []}), do: :ok
 

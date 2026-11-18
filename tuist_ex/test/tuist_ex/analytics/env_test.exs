@@ -43,12 +43,40 @@ defmodule TuistEx.Analytics.EnvTest do
       "CIRCLE_PROJECT_USERNAME" -> "acme"
       "CIRCLE_PROJECT_REPONAME" -> "widgets"
       "CIRCLE_WORKFLOW_ID" -> "abc-123"
+      "CIRCLE_BUILD_NUM" -> "42"
       _ -> nil
     end
 
     assert Env.ci_provider(environment) == "circleci"
     assert Env.ci_project_handle(environment) == "acme/widgets"
-    assert Env.ci_run_id(environment) == "abc-123"
+    # The job number, as the Swift command line tool reports it; the workflow
+    # is shared by every job and would not identify this one.
+    assert Env.ci_run_id(environment) == "42"
+  end
+
+  test "reports Buildkite and Codemagic runs under the identity the CI links use" do
+    buildkite = fn
+      "BUILDKITE" -> "true"
+      "BUILDKITE_ORGANIZATION_SLUG" -> "acme"
+      "BUILDKITE_PIPELINE_SLUG" -> "ios"
+      "BUILDKITE_BUILD_NUMBER" -> "77"
+      "BUILDKITE_BUILD_ID" -> "0190a1b2-0000-0000-0000-000000000000"
+      _ -> nil
+    end
+
+    assert {Env.ci_project_handle(buildkite), Env.ci_run_id(buildkite)} == {"acme/ios", "77"}
+
+    codemagic = fn
+      "CM_BUILD_ID" -> "5f2b9c1e8d3a4b0012c3d4e5"
+      "CM_PROJECT_ID" -> "5f2b9c1e8d3a4b0012c3d4e6"
+      "BUILD_NUMBER" -> "12"
+      _ -> nil
+    end
+
+    assert Env.ci_provider(codemagic) == "codemagic"
+
+    assert {Env.ci_project_handle(codemagic), Env.ci_run_id(codemagic)} ==
+             {"5f2b9c1e8d3a4b0012c3d4e6", "5f2b9c1e8d3a4b0012c3d4e5"}
   end
 
   test "detects the CI host for self-hosted providers" do

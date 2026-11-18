@@ -114,10 +114,7 @@ func schemes() -> [Scheme] {
                     + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)] : []),
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),
-                ],
-                // Explicit, so Tuist.swift's `coverage` option doesn't turn it on: the tests mostly
-                // exercise nested xcodebuild processes, which coverage doesn't measure.
-                options: .options(coverage: false)
+                ]
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -199,7 +196,8 @@ func schemes() -> [Scheme] {
             postActions: [
                 inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
             ],
-            // Explicit, like TuistAcceptanceTests, so Tuist.swift's `coverage` option doesn't turn it on.
+            // Explicit, so Tuist.swift's `coverage` option doesn't turn it on: this plan sits on the
+            // production promotion path, where coverage's overhead buys nothing.
             options: .options(
                 language: "en",
                 coverage: false
@@ -230,6 +228,22 @@ func schemes() -> [Scheme] {
                 options: .options(
                     language: "en"
                 )
+            ),
+            runAction: .runAction(
+                arguments: .arguments(
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
+                )
+            )
+        ))
+        // Not part of TuistAcceptanceTests or the deploy scheme yet: canary doesn't serve coverage-based
+        // test selection until the server side deploys.
+        schemes.append(.scheme(
+            name: "TuistCoverageSelectionAcceptanceTests",
+            buildAction: .buildAction(targets: [.target("TuistCoverageSelectionAcceptanceTests")]),
+            testAction: .targets(
+                [.testableTarget(target: .target("TuistCoverageSelectionAcceptanceTests"))],
+                // Explicit, so Tuist.swift's `coverage` option doesn't turn it on.
+                options: .options(language: "en", coverage: false)
             ),
             runAction: .runAction(
                 arguments: .arguments(

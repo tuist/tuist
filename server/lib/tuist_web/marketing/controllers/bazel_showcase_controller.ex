@@ -19,6 +19,12 @@ defmodule TuistWeb.Marketing.BazelShowcaseController do
 
       {:error, :not_found} ->
         raise NotFoundError, dgettext("errors", "Build not found")
+
+      {:error, :unavailable} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_resp_header("retry-after", "1")
+        |> send_resp(:service_unavailable, "")
     end
   end
 

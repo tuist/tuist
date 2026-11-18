@@ -16,7 +16,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "attempt/5" do
     test "claims a workflow_job and returns the claim" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, %Claim{} = claim} =
                Claims.attempt(1001, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -33,14 +33,14 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "returns :lost_race on a duplicate workflow_job_id" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(1002, account.id, "fleet-a", "pod-1", @linux_resources)
       assert {:error, :lost_race} = Claims.attempt(1002, account.id, "fleet-a", "pod-2", @linux_resources)
     end
 
     test "returns :pod_in_use when the same pod already has a live claim" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(1300, account.id, "fleet-a", "pod-1", @linux_resources)
 
@@ -52,8 +52,8 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "enforces pod ownership across accounts" do
-      first_account = account_fixture()
-      second_account = account_fixture()
+      first_account = pro_account_fixture()
+      second_account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(1310, first_account.id, "fleet-a", "shared-pod", @linux_resources)
 
@@ -62,7 +62,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "rejects invalid claim inputs" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:error, :invalid_resources} =
                Claims.attempt(0, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -79,8 +79,8 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "atomically rejects a shape that would exceed a platform budget" do
-      account = account_fixture()
-      macos_resources = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      macos_resources = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(1400, account.id, "fleet-macos", "pod-1", macos_resources)
       assert {:ok, _} = Claims.attempt(1401, account.id, "fleet-macos", "pod-2", macos_resources)
@@ -89,8 +89,8 @@ defmodule Tuist.Runners.ClaimsTest do
                Claims.attempt(1402, account.id, "fleet-macos", "pod-3", macos_resources)
 
       assert details.platform == :macos
-      assert details.used == %{vcpus: 12, memory_gb: 28}
-      assert details.limit == %{vcpus: 12, memory_gb: 28}
+      assert details.used == %{vcpus: 16, memory_gb: 48}
+      assert details.limit == %{vcpus: 16, memory_gb: 48}
       assert details.requested == macos_resources
       assert Claims.counts_per_account() == %{account.id => 2}
     end
@@ -100,8 +100,8 @@ defmodule Tuist.Runners.ClaimsTest do
     # the job GitHub gave it, and admitting past it would put the account
     # over the limit it pays for.
     test "still charges an account for a claim whose job was displaced" do
-      account = account_fixture()
-      macos_resources = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      macos_resources = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(1410, account.id, "fleet-macos", "pod-1", macos_resources)
       assert {:ok, _} = Claims.attempt(1411, account.id, "fleet-macos", "pod-2", macos_resources)
@@ -111,12 +111,12 @@ defmodule Tuist.Runners.ClaimsTest do
       assert {:error, {:concurrency_limit_reached, details}} =
                Claims.attempt(1412, account.id, "fleet-macos", "pod-3", macos_resources)
 
-      assert details.used == %{vcpus: 12, memory_gb: 28}
+      assert details.used == %{vcpus: 16, memory_gb: 48}
     end
 
     test "keeps Linux and macOS budgets independent" do
-      account = account_fixture()
-      macos_resources = %{platform: :macos, vcpus: 12, memory_gb: 28}
+      account = pro_account_fixture()
+      macos_resources = %{platform: :macos, vcpus: 16, memory_gb: 48}
       linux_resources = %{platform: :linux, vcpus: 2, memory_gb: 8}
 
       assert {:ok, _} = Claims.attempt(1450, account.id, "fleet-macos", "pod-macos", macos_resources)
@@ -124,7 +124,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "derives resources for live claims written by an old replica" do
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
 
       {1, _} =
@@ -146,16 +146,16 @@ defmodule Tuist.Runners.ClaimsTest do
       assert {:error, {:concurrency_limit_reached, details}} =
                Claims.attempt(1456, account.id, "macos-26-5", "new-pod", %{
                  platform: :macos,
-                 vcpus: 12,
-                 memory_gb: 28
+                 vcpus: 16,
+                 memory_gb: 48
                })
 
-      assert details.used == %{vcpus: 6, memory_gb: 14}
+      assert details.used == %{vcpus: 8, memory_gb: 24}
       refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1456))
     end
 
     test "fails closed when a platform limit row is missing" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       Repo.delete_all(
         from(limit in ConcurrencyLimit,
@@ -172,7 +172,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "mark_running/2" do
     test "promotes a claimed row to running" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(1500, account.id, "fleet-a", "pod-1", @linux_resources)
 
       assert :ok = mark_running!(1500, "runner-abc")
@@ -183,7 +183,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "is a no-op when the row is gone" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, claim} = Claims.attempt(1501, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.complete(1501)
 
@@ -196,7 +196,7 @@ defmodule Tuist.Runners.ClaimsTest do
       # the claim nor the lifecycle row may take its runner name, or the
       # following in_progress webhook (which resolves rows by
       # runner_name) would attribute the execution to the wrong job.
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         WorkflowJobs.upsert_queued(%{workflow_job_id: 1502, account_id: account.id, fleet_name: "fleet-a"})
@@ -220,7 +220,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "release/2" do
     test "deletes a claim when (workflow_job_id, claimed_at) match" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, claim} = Claims.attempt(2001, account.id, "fleet-a", "pod-1", @linux_resources)
 
       assert :ok = Claims.release(claim.workflow_job_id, claim.claimed_at)
@@ -228,7 +228,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "returns :stale_claim when claimed_at has moved on" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _claim} = Claims.attempt(2002, account.id, "fleet-a", "pod-1", @linux_resources)
 
       # Pretend the worker released and someone re-claimed with a
@@ -250,7 +250,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # CPU back in the queue — where the autoscaler would then provision
     # for it a second time.
     test "does not re-queue a job running under another Pod's handle" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2010))
       :ok = WorkflowJobs.transition_executing(2010, "runner-elsewhere", "pod-elsewhere")
 
@@ -267,8 +267,8 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "counts_per_account/0" do
     test "returns per-account inflight counts across ALL fleets" do
-      a = account_fixture()
-      b = account_fixture()
+      a = pro_account_fixture()
+      b = pro_account_fixture()
 
       {:ok, _} = Claims.attempt(3001, a.id, "fleet-cnt", "pod-a-1", @linux_resources)
       {:ok, _} = Claims.attempt(3002, a.id, "fleet-cnt", "pod-a-2", @linux_resources)
@@ -289,8 +289,8 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "counts_per_fleet/0" do
     test "returns per-fleet inflight counts across ALL accounts" do
-      a = account_fixture()
-      b = account_fixture()
+      a = pro_account_fixture()
+      b = pro_account_fixture()
 
       {:ok, _} = Claims.attempt(6001, a.id, "fleet-macos", "pod-m-1", @linux_resources)
       {:ok, _} = Claims.attempt(6002, a.id, "fleet-macos", "pod-m-2", @linux_resources)
@@ -306,7 +306,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # rather than the Pod would drop it the moment the shuffle detached
     # its job and under-provision the fleet.
     test "counts a pod whose claimed job was displaced onto another runner" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       {:ok, _} = Claims.attempt(6101, account.id, "fleet-macos", "pod-m-1", @linux_resources)
       :ok = mark_running!(6101, "runner-displaced")
@@ -322,7 +322,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "complete/1" do
     test "deletes the claim regardless of handle" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(5001, account.id, "fleet-c", "pod-1", @linux_resources)
 
       assert :ok = Claims.complete(5001)
@@ -336,7 +336,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "list_stale/1" do
     test "returns claimed rows older than the threshold without deleting" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(4001, account.id, "fleet-stale", "pod-1", @linux_resources)
       {:ok, _} = Claims.attempt(4002, account.id, "fleet-stale", "pod-2", @linux_resources)
 
@@ -352,7 +352,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "skips claims that already transitioned to running" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(4200, account.id, "fleet-running", "pod-1", @linux_resources)
       {:ok, _} = Claims.attempt(4201, account.id, "fleet-running", "pod-2", @linux_resources)
 
@@ -369,7 +369,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "leaves fresh claims alone" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(4101, account.id, "fleet-fresh", "pod-1", @linux_resources)
 
       past = DateTime.add(DateTime.utc_now(), -3600, :second)
@@ -380,7 +380,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "live_pod_names/0" do
     test "returns the pod names of every live claim, claimed and running alike" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(5001, account.id, "fleet-a", "pod-claimed", @linux_resources)
       {:ok, _} = Claims.attempt(5002, account.id, "fleet-a", "pod-running", @linux_resources)
       :ok = mark_running!(5002, "runner-x")
@@ -395,7 +395,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "complete_by_runner_name/3" do
     test "releases the claim held by the runner that actually ran the job" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(6001, "runner-x")
 
@@ -409,7 +409,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # runner is now finished — so the job it was minted for ran nowhere
     # and must not wait for OrphanedRunnersWorker to notice.
     test "re-queues a displaced job when in_progress never arrived" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6010))
       {:ok, _} = Claims.attempt(6010, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(6010, "runner-silent")
@@ -423,7 +423,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # Same collision on the release path: freeing two claims at once must
     # hand back both their jobs, not just the first.
     test "re-queues every displaced job when a runner_name frees two claims" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6030))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6031))
       {:ok, _} = Claims.attempt(6030, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -440,7 +440,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "hands nothing back when the claim was already detached at in_progress" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 6020))
       {:ok, _} = Claims.attempt(6020, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(6020, "runner-loud")
@@ -454,7 +454,7 @@ defmodule Tuist.Runners.ClaimsTest do
       # The issue's scenario: A claims J1, B claims J2, GitHub runs J1
       # on B. J2's completion must NOT release B's slot — B is live and
       # executing J1. Releasing by the completed job's id would.
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(6200, account.id, "fleet-a", "pod-a", @linux_resources)
       :ok = mark_running!(6200, "runner-a")
       {:ok, _} = Claims.attempt(6201, account.id, "fleet-a", "pod-b", @linux_resources)
@@ -474,7 +474,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "is idempotent when the runner's claim is already gone" do
-      account = account_fixture()
+      account = pro_account_fixture()
       assert %{released: 0, requeued: []} = Claims.complete_by_runner_name("ghost-runner", account.id, 6300)
     end
 
@@ -483,8 +483,8 @@ defmodule Tuist.Runners.ClaimsTest do
       # its own self-hosted runners whatever it likes, and its webhooks
       # authenticate as its own installation. A collision must not let
       # one account's delivery free another account's live claim.
-      victim = account_fixture()
-      attacker = account_fixture()
+      victim = pro_account_fixture()
+      attacker = pro_account_fixture()
       {:ok, _} = Claims.attempt(9100, victim.id, "fleet-a", "victim-pod", @linux_resources)
       :ok = mark_running!(9100, "shared-name")
 
@@ -498,7 +498,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "release_by_pod_name/1" do
     test "deletes the claim held by the pod and returns the job it freed" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(9001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(9001, "runner-x")
 
@@ -510,7 +510,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "frees a stranded running claim regardless of lifecycle state" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(9002, account.id, "fleet-a", "pod-2", @linux_resources)
       # never minted — still `claimed`; a Pod that stopped pre-mint.
       assert [9002] == Claims.release_by_pod_name("pod-2")
@@ -520,7 +520,7 @@ defmodule Tuist.Runners.ClaimsTest do
       # The Pod stopped between claim and JIT mint: nothing is running for
       # the job, and without this the row would sit `claimed` with no claim
       # behind it, invisible to dispatch and to every recovery scan.
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         WorkflowJobs.upsert_queued(%{workflow_job_id: 9003, account_id: account.id, fleet_name: "fleet-a"})
@@ -538,7 +538,7 @@ defmodule Tuist.Runners.ClaimsTest do
     test "leaves the lifecycle row of a running claim for the orphan cross-check" do
       # Once minted, the runner may have taken a sibling's job; whether to
       # re-queue is GitHub's call, made by OrphanedRunnersWorker.
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         WorkflowJobs.upsert_queued(%{workflow_job_id: 9004, account_id: account.id, fleet_name: "fleet-a"})
@@ -561,7 +561,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "executing?/1" do
     test "is true once GitHub proved the runner took the job it claimed" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(7300, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7300, "runner-a")
 
@@ -575,7 +575,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # the queue the moment GitHub reported the runner took something else,
     # so the orphan sweep has nothing to hold back from.
     test "is false for a job the claim's runner was proven not to be running" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(7302, account.id, "fleet-a", "pod-3", @linux_resources)
       :ok = mark_running!(7302, "runner-c")
 
@@ -584,7 +584,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "is false for a claim with no proven execution, or no claim at all" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(7301, account.id, "fleet-a", "pod-2", @linux_resources)
 
       refute Claims.executing?(7301)
@@ -594,7 +594,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "record_execution/2" do
     test "binds the executed job and reports :matched when it equals the claim" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7001, "runner-a")
 
@@ -609,7 +609,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # detached so another Pod can claim it right away instead of waiting
     # for this one to stop.
     test "reports :mismatch, binds the real job, and detaches the displaced one" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7002))
       {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7002, "runner-b")
@@ -629,7 +629,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # here, so no mint transitions it, and GitHub announces nothing more
     # about a job it has already placed.
     test "starts the executed job's lifecycle row on the claim's Pod" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7020))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7021))
       {:ok, _} = Claims.attempt(7020, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -648,7 +648,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # shuffle does not stop dispatch from having handed it out. GitHub has
     # just proved it runs here, so the row follows the execution.
     test "starts the executed job on this Pod when another Pod's claim holds its row" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7022))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7023))
       {:ok, _} = Claims.attempt(7022, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -667,7 +667,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # A re-queued running job is claimable again, and the Pod that takes
     # it holds capacity for a job its runner will never get.
     test "never re-queues a running job when the Pod whose claim held its row is displaced" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7024))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7025))
       {:ok, _} = Claims.attempt(7024, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -692,7 +692,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # third Pod for two jobs, and one of the three would idle until its
     # timeout while holding the account's capacity.
     test "hands the displaced job to the idle runner whose claim named the executed job" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7026))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7027))
       {:ok, _} = Claims.attempt(7026, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -725,7 +725,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # A displaced job that already finished has nothing to hand over, and
     # the idle claim keeps the job it named.
     test "hands nothing over when the displaced job's row moved on" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7034))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7035))
       {:ok, _} = Claims.attempt(7034, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -744,7 +744,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # The row can be `queued` under a stale claim when it arrived after
     # that claim was taken, so the stale claim's handle is not on it.
     test "starts the executed job when a stale claim names it but never moved its row" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7036))
       {:ok, _} = Claims.attempt(7036, account.id, "fleet-a", "pod-1", @linux_resources)
       {:ok, _} = Claims.attempt(7037, account.id, "fleet-a", "pod-2", @linux_resources)
@@ -761,7 +761,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # A runner only takes jobs carrying its own labels, and a fleet is
     # one label set.
     test "re-queues the displaced job when the idle runner belongs to another fleet" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7028))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7029))
       {:ok, _} = Claims.attempt(7028, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -779,7 +779,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # Before the mint lands, the claim's own promotion is keyed on the job
     # it names, so moving it to another job would strand it in `claimed`.
     test "re-queues the displaced job when the other claim has not minted its runner yet" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7032))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7033))
       {:ok, _} = Claims.attempt(7032, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -799,7 +799,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # back. Rolling the detach back with it keeps the job on the claim,
     # where the redelivery can still find and re-queue it.
     test "rolls the detach back when the displaced job's re-queue fails" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7005))
       {:ok, _} = Claims.attempt(7005, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7005, "runner-crash")
@@ -818,7 +818,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # The other half of the same guarantee: with the claim still naming the
     # job, GitHub's redelivery lands both halves once the write recovers.
     test "a redelivery after a failed re-queue still hands the job back" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7007))
       {:ok, _} = Claims.attempt(7007, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7007, "runner-retry")
@@ -832,7 +832,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # A job another Pod re-claimed carries a newer handle, so the re-queue
     # misses the guard and leaves the live claim's row alone.
     test "reports requeued: false when the displaced job moved on" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7006))
       {:ok, _} = Claims.attempt(7006, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7006, "runner-late")
@@ -847,7 +847,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "lets another pod claim the displaced job immediately" do
-      account = account_fixture()
+      account = pro_account_fixture()
       {:ok, _} = Claims.attempt(7003, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7003, "runner-b")
 
@@ -862,7 +862,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # This is what makes it safe for a later step in the webhook handler to
     # fail after `record_execution/3` has committed.
     test "reports no displaced job on a redelivery, which is already queued" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7004))
       {:ok, _} = Claims.attempt(7004, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = mark_running!(7004, "runner-b")
@@ -880,7 +880,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # while re-queueing only the one this call selected, stranding the
     # other detached from any claim with its lifecycle row still `running`.
     test "detaches only the claim it selected when a runner_name collides" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7010))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7011))
       {:ok, _} = Claims.attempt(7010, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -903,18 +903,18 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "reports :unknown_runner when no live claim carries the runner_name" do
-      account = account_fixture()
+      account = pro_account_fixture()
       assert :unknown_runner = Claims.record_execution("ghost-runner", 7100, account.id)
     end
 
     test "is a no-op for an empty runner_name" do
-      account = account_fixture()
+      account = pro_account_fixture()
       assert :unknown_runner = Claims.record_execution("", 7101, account.id)
     end
 
     test "never binds a colliding runner_name belonging to another account" do
-      victim = account_fixture()
-      attacker = account_fixture()
+      victim = pro_account_fixture()
+      attacker = pro_account_fixture()
       {:ok, _} = Claims.attempt(7200, victim.id, "fleet-a", "victim-pod", @linux_resources)
       :ok = mark_running!(7200, "shared-name")
 
@@ -925,7 +925,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
   describe "by_workflow_job_id/1" do
     test "resolves the live claim for a workflow_job_id" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       {:ok, _} =
         Claims.attempt(6201, account.id, "fleet-a", "pod-1", %{
@@ -986,7 +986,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # ClickHouse row has already left `status = 'running'`, so the orphan
     # worker's scan cannot see it either.
     test "releases a running claim whose job has a recorded completion" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
       assert :ok = mark_running!(7001, "runner-1")
@@ -1001,7 +1001,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # legitimately holds its slot for hours, and reaping it would push the
     # account over its cap while a runner is still working.
     test "leaves a running claim with no recorded completion" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
       assert :ok = mark_running!(7002, "runner-1")
@@ -1014,7 +1014,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # The threshold only avoids racing the webhook's own release between
     # the completion insert and the delete. It is not the staleness signal.
     test "leaves a freshly claimed row inside the grace window" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7003, account.id, "fleet-a", "pod-1", @linux_resources)
       completion_fixture(7003, account)
@@ -1024,7 +1024,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "releases every stale claim and frees the account's capacity" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       for id <- [7101, 7102, 7103] do
         assert {:ok, _} = Claims.attempt(id, account.id, "fleet-a", "pod-#{id}", @linux_resources)
@@ -1047,7 +1047,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # live runner's reservation mid-job and push the account over cap.
     # Production had two claims in exactly this shape.
     test "leaves a claim whose runner is executing an unfinished job" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7201, account.id, "fleet-a", "pod-1", @linux_resources)
       assert :ok = mark_running!(7201, "runner-busy")
@@ -1066,7 +1066,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # slot is genuinely leaked, so it must be reclaimed — the displaced job
     # the claim no longer names cannot hold it open.
     test "releases a displaced claim once the executed job is complete" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7202, account.id, "fleet-a", "pod-1", @linux_resources)
       assert :ok = mark_running!(7202, "runner-done")
@@ -1090,7 +1090,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # fresh claim. Deleting by name alone would drop that fresh claim and
     # free capacity a running job is using.
     test "does not delete a claim that was re-claimed after selection" do
-      account = account_fixture()
+      account = pro_account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
 
       assert {:ok, _} = Claims.attempt(7401, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -1112,7 +1112,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "deletes when the handle still matches" do
-      account = account_fixture()
+      account = pro_account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
 
       assert {:ok, _} = Claims.attempt(7402, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -1127,7 +1127,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "re-queues the job when the row still belongs to the vanished Pod" do
-      account = account_fixture()
+      account = pro_account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7403))
 
@@ -1143,7 +1143,7 @@ defmodule Tuist.Runners.ClaimsTest do
     # job on, so re-queueing here would send a job that is burning CPU
     # back through dispatch.
     test "does not re-queue a job running under another Pod's handle" do
-      account = account_fixture()
+      account = pro_account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7404))
       :ok = WorkflowJobs.transition_executing(7404, "runner-elsewhere", "pod-elsewhere")
@@ -1176,7 +1176,7 @@ defmodule Tuist.Runners.ClaimsTest do
     defp lifecycle_row!(workflow_job_id), do: Repo.get!(WorkflowJob, workflow_job_id)
 
     test "attempt/5 transitions the lifecycle row queued → claimed in the claim transaction" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7500))
 
       assert {:ok, claim} = Claims.attempt(7500, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -1188,14 +1188,14 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "attempt/5 still claims when no lifecycle row exists" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       assert {:ok, _} = Claims.attempt(7501, account.id, "fleet-a", "pod-1", @linux_resources)
       assert Repo.get(WorkflowJob, 7501) == nil
     end
 
     test "a rejected attempt rolls the lifecycle transition back" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7502))
 
       assert {:error, {:concurrency_limit_reached, _}} =
@@ -1209,7 +1209,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "attempt/5 leaves a terminal lifecycle row alone" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 7503), "success", DateTime.utc_now())
 
       assert {:ok, _} = Claims.attempt(7503, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -1217,7 +1217,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "mark_running/2 transitions the lifecycle row claimed → running" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7510))
       assert {:ok, _} = Claims.attempt(7510, account.id, "fleet-a", "pod-1", @linux_resources)
 
@@ -1229,7 +1229,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "release/2 re-queues the lifecycle row with the claim delete" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7520))
       assert {:ok, claim} = Claims.attempt(7520, account.id, "fleet-a", "pod-1", @linux_resources)
 
@@ -1241,7 +1241,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "a stale release/2 leaves the lifecycle row alone" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7521))
       assert {:ok, _} = Claims.attempt(7521, account.id, "fleet-a", "pod-1", @linux_resources)
 
@@ -1250,7 +1250,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "release/2 racing a completion leaves the terminal lifecycle state" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7522))
       assert {:ok, claim} = Claims.attempt(7522, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 7522), "success", DateTime.utc_now())
@@ -1260,7 +1260,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "release_pod_missing/2 re-queues the lifecycle row with the claim delete" do
-      account = account_fixture()
+      account = pro_account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7530))
       assert {:ok, _} = Claims.attempt(7530, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -1275,7 +1275,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "attempt/6 records the claiming runner's site on the claim and the lifecycle row" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7540))
 
       assert {:ok, claim} = Claims.attempt(7540, account.id, "fleet-a", "pod-1", @linux_resources, "larch")
@@ -1286,7 +1286,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "release/2 clears the site, so the next claim decides it again" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7541))
       assert {:ok, claim} = Claims.attempt(7541, account.id, "fleet-a", "pod-1", @linux_resources, "larch")
 
@@ -1298,7 +1298,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "a job GitHub places on the runner takes the runner's site" do
-      account = account_fixture()
+      account = pro_account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7542))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7543))
       assert {:ok, _} = Claims.attempt(7542, account.id, "fleet-a", "pod-1", @linux_resources, "larch")
@@ -1313,7 +1313,7 @@ defmodule Tuist.Runners.ClaimsTest do
     end
 
     test "release_pod_missing/2 frees a displaced claim without a job to re-queue" do
-      account = account_fixture()
+      account = pro_account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7531))
       assert {:ok, _} = Claims.attempt(7531, account.id, "fleet-a", "pod-1", @linux_resources)
@@ -1339,5 +1339,12 @@ defmodule Tuist.Runners.ClaimsTest do
   defp mark_running!(workflow_job_id, runner_name) do
     claim = Repo.one!(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
     Claims.mark_running(workflow_job_id, runner_name, claim.claimed_at)
+  end
+
+  # The paid plans' limits, which these tests' resource figures assume.
+  defp pro_account_fixture do
+    account = account_fixture()
+    Tuist.Runners.Concurrency.raise_to_plan_defaults(account, :pro)
+    account
   end
 end

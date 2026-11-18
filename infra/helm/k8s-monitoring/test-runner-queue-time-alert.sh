@@ -8,7 +8,7 @@ source="${directory}/runner-queue-time-alert-rules.json"
 
 jq -e 'length == 1 and all(.[];
   .condition == "D" and .for == "30m" and .labels.severity == "warning" and
-  .noDataState == "OK" and .execErrState == "Error" and
+  .noDataState == "OK" and .execErrState == "KeepLast" and
   (.data[] | select(.refId == "C") | .model.expression) == "1 - $A / $B" and
   (.data[] | select(.refId == "D") | .model.expression) == "$B - $A > 0.1 * $B && $B >= 20")' "${source}" >/dev/null
 

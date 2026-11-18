@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b0397f79957be24e849c4a49c327e5922559bddd2ae6839f252ad31523fdd2cd",
+  "hash": "8ad86ad6799c06c58688763b1fd13cf85dc2dafba1815a87e337902026bbbe42",
   "hash_tree": {
     "root": {
       "children": [
@@ -145,11 +145,11 @@
                 "### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}": {
                   "content_hash": "7dad125aee573a3c7e3d73afe89183b60bcc64736b31e16cc7ea976d15a23b79"
                 },
-                "### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}": {
-                  "content_hash": "cd78e40a463cf3922e9dafe872e503928f254b5a9c8fa3edfb0f86b7ff40ad70"
+                "### `tuist_http_request_duration_nanoseconds_bucket` (distribution) {#tuist_http_request_duration_nanoseconds_bucket-distribution}": {
+                  "content_hash": "292e7bec4cf98a5a31a0ca5556037ad44b43fd1805d462264c2b08cd3e108a25"
                 },
-                "### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}": {
-                  "content_hash": "fa6bce8c349725c706fca14324341f6c0278a781fe6fe2d8fe13194e625d7548"
+                "### `tuist_http_request_duration_nanoseconds_sum` (sum) {#tuist_http_request_duration_nanoseconds_sum-last_value}": {
+                  "content_hash": "e19d9931155638983794e9470f7ac3dc3330fdfebef55d9b0944ab1f6a0c34da"
                 },
                 "### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}": {
                   "content_hash": "5c0f62f2f61220803e8375fe18fdaea69e8166ba46fd838c828b19d2df9aa02f"
@@ -347,11 +347,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "af46fc84d4b46f8deb734aa685f5f978856e6bea99b12613f4080b8e7e7e775c",
+          "hash": "82cdddc764c6be94dd938b4222260963f67e06bb3ce6bbc6eba35d5d77f3315b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/self-host/telemetry.md",
           "metadata": {
-            "content_hash": "4ce84cdb21865df502f6e49646a45e6c84f14c4036c1aaacd7eb31d66d668b78"
+            "content_hash": "4129a74f1b0fc37c71c037f4aab9b21bbdf494196cf603e8dc9aa3e9b834d6b6"
           }
         },
         {
@@ -412,7 +412,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -431,7 +431,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -460,11 +460,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -534,21 +534,21 @@
             }
           ],
           "details": {},
-          "hash": "b7da45142a2661ee440ab5de0502f930f4bc7912f46f9065f9ea1762f93d1c15",
+          "hash": "2c5445c9ff7df97c0e1ce9fa714647aac720883351f3243f4234b0f8a3d821e6",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "b0397f79957be24e849c4a49c327e5922559bddd2ae6839f252ad31523fdd2cd",
+      "hash": "8ad86ad6799c06c58688763b1fd13cf85dc2dafba1815a87e337902026bbbe42",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/self-host/telemetry.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d10ccca0c4afc044966e11b78ac2334627feb29265422b27f39340bdaa0e025b",
+  "output_hash": "f7fb1058d9926aa89d4d53d554c32f9994ad8ff2f65a0824dac434e037ad2d33",
   "output_path": "server/priv/docs/ka/guides/server/self-host/telemetry.md",
   "protection_state": "recorded",
   "provider": "",
@@ -566,8 +566,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "54c058a5d7e3a3b42582b13028c373f04370823e",
+  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
   "source_path": "server/priv/docs/en/guides/server/self-host/telemetry.md",
-  "translated_at": "2026-11-02T18:44:25.668049Z",
-  "translation_session_id": "01a19d91-e5f0-7129-b49d-3ea55acb63fd"
+  "translated_at": "2026-11-06T23:23:21.579756Z",
+  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
 }

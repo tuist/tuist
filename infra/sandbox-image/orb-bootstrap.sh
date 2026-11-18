@@ -37,11 +37,12 @@ if [[ ! -e /home/user/workspace && ! -L /home/user/workspace ]]; then
     ln -s /workspace/amp /home/user/workspace
 fi
 
-# The read-only Tuist cache credential and endpoint reach Amp's processes
-# when dispatch supplies them. They stay out of the fingerprint: a retried
-# spawn mints a new credential but must not restart a running bootstrap.
+# The Tuist URL and cache endpoint reach Amp's processes when dispatch
+# supplies them. No Tuist credential does: Tuist clients in the guest sign in
+# with the Orb's Amp identity. They stay out of the fingerprint, so a retried
+# spawn never restarts a running bootstrap.
 tuist_env=()
-for name in TUIST_TOKEN TUIST_URL TUIST_CACHE_ENDPOINT; do
+for name in TUIST_URL TUIST_CACHE_ENDPOINT; do
     [[ -z "${!name:-}" ]] || tuist_env+=("$name=${!name}")
 done
 

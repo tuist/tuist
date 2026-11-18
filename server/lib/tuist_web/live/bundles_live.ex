@@ -51,7 +51,7 @@ defmodule TuistWeb.BundlesLive do
     params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    bundles_sort_order = params["bundles-sort-order"] || "desc"
+    bundles_sort_order = Atom.to_string(Query.sort_order(params["bundles-sort-order"], :desc))
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
     bundles_type = params["bundles-type"] || "any"
 
@@ -178,7 +178,7 @@ defmodule TuistWeb.BundlesLive do
         "download-size" -> :download_size
       end
 
-    order_direction = String.to_atom(bundles_sort_order)
+    order_direction = Query.sort_order(bundles_sort_order, :desc)
 
     options = %{
       filters: flop_filters,

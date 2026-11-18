@@ -549,11 +549,11 @@ A set of metrics related to Tuist's interactions with other services via HTTP.
 
 The number of outgoing HTTP requests.
 
-### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
+### `tuist_http_request_duration_nanoseconds_sum` (sum) {#tuist_http_request_duration_nanoseconds_sum-last_value}
 
 The sum of the duration of the outgoing requests (including the time that they spent waiting to be assigned to a connection).
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+### `tuist_http_request_duration_nanoseconds_bucket` (distribution) {#tuist_http_request_duration_nanoseconds_bucket-distribution}
 The distribution of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
 
 ### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}

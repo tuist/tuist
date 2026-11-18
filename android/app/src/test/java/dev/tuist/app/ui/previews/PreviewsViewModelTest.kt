@@ -41,6 +41,7 @@ class PreviewsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         previewsRepository = mockk()
         authRepository = mockk()
+        every { authRepository.session } returns kotlinx.coroutines.flow.MutableStateFlow(dev.tuist.app.data.auth.TokenStorage.Session("profile", 0))
         val editor = mockk<SharedPreferences.Editor>(relaxed = true)
         val prefs = mockk<SharedPreferences> {
             every { getString(any(), any()) } returns null

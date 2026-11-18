@@ -19,7 +19,9 @@ defmodule TuistWeb.UserSessionController do
   end
 
   def create(conn, params) do
-    create(conn, params, "Welcome back!")
+    conn
+    |> Authentication.restore_login_return_to(params)
+    |> create(params, "Welcome back!")
   end
 
   defp create(conn, params, info) do
@@ -28,7 +30,7 @@ defmodule TuistWeb.UserSessionController do
     else
       conn
       |> put_flash(:error, "Email and password sign-in is disabled.")
-      |> redirect(to: ~p"/users/log_in")
+      |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
       |> halt()
     end
   end
@@ -43,7 +45,7 @@ defmodule TuistWeb.UserSessionController do
 
         conn
         |> put_flash(:error, dgettext("dashboard", "You've exceeded the rate limit. Try again later."))
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
         |> halt()
     end
   end
@@ -63,7 +65,7 @@ defmodule TuistWeb.UserSessionController do
         conn
         |> put_flash(:email, extract_email(params))
         |> put_flash(:error, dgettext("dashboard_auth", "Please complete the security check and try again."))
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
         |> halt()
     end
   end
@@ -109,7 +111,7 @@ defmodule TuistWeb.UserSessionController do
         conn
         |> put_flash(:email, email)
         |> put_flash(:error, "Invalid email or password")
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
         |> halt()
 
       {:error, :not_confirmed} ->
@@ -133,29 +135,19 @@ defmodule TuistWeb.UserSessionController do
     Logger.info("authentication attempt", auth_outcome: outcome)
   end
 
-  def new(conn, %{"return_to" => "//" <> _}) do
-    redirect(conn, to: ~p"/users/log_in")
+  def new(conn, params) do
+    case Authentication.session_return_to(params["return_to"]) do
+      nil ->
+        redirect(conn, to: ~p"/users/log_in")
+
+      return_to ->
+        conn
+        |> put_session(:user_return_to, return_to)
+        |> redirect(to: ~p"/users/log_in?#{%{return_to: return_to}}")
+    end
   end
 
-  def new(conn, %{"return_to" => "/" <> _ = return_to}) do
-    conn
-    |> put_session(:user_return_to, return_to)
-    |> redirect(to: ~p"/users/log_in?#{%{return_to: return_to}}")
-  end
-
-  def new(conn, _params) do
-    redirect(conn, to: ~p"/users/log_in")
-  end
-
-  def delete(conn, %{"return_to" => "//" <> _}) do
-    Authentication.log_out_user(conn)
-  end
-
-  def delete(conn, %{"return_to" => "/" <> _ = return_to}) do
-    Authentication.log_out_user(conn, return_to: return_to)
-  end
-
-  def delete(conn, _params) do
-    Authentication.log_out_user(conn)
+  def delete(conn, params) do
+    Authentication.log_out_user(conn, return_to: params["return_to"])
   end
 end

@@ -390,7 +390,7 @@
                 }
                 color="success"
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             </div>
             <.button
@@ -440,20 +440,20 @@
                         size="small"
                       />
                     </div>
-                    <.neutral_button
+                    <.ghost_button
                       data-part="closed-collapsible-button"
                       variant="secondary"
                       size="small"
                     >
                       <.chevron_down />
-                    </.neutral_button>
-                    <.neutral_button
+                    </.ghost_button>
+                    <.ghost_button
                       data-part="open-collapsible-button"
                       variant="secondary"
                       size="small"
                     >
                       <.chevron_up />
-                    </.neutral_button>
+                    </.ghost_button>
                   </div>
                   <div data-part="content">
                     <%= for artifact <- duplicate.artifacts do %>
@@ -583,7 +583,7 @@
                 :asset -> "asset"
                 :font -> "layout_grid"
                 :file -> "file"
-                :directory -> "directory"
+                :directory -> "folder"
                 :unknown -> "stack_2"
               end
             }

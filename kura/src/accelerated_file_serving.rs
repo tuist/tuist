@@ -147,12 +147,15 @@ pub async fn serve_public_http(
                 let accepted_at = tokio::time::Instant::now();
                 let router = router.clone();
                 let state = state.clone();
+                let connection_lease = state.runtime.public_connection();
+                let retirement = connection_lease.retirement();
                 let config = config.clone();
                 let semaphore = semaphore.clone();
                 let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
-                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown).await {
+                        let _connection_lease = connection_lease;
+                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown, retirement).await {
                             log_connection_error(connection_error_log, address, peer, accepted_at.elapsed(), &error);
                         }
                     }
@@ -178,11 +181,20 @@ async fn serve_connection(
     configure_http2: Http2BuilderConfig,
     accepted_at: tokio::time::Instant,
     mut shutdown: watch::Receiver<bool>,
+    retirement: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
     // With acceleration disabled every connection goes straight to the hyper
     // path, keeping the same nodelay/aging/drain semantics without peeking.
     if !config.enabled {
-        return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+        return serve_hyper(
+            stream,
+            router,
+            configure_http2,
+            accepted_at,
+            shutdown,
+            retirement,
+        )
+        .await;
     }
     let mut header_buffer = vec![0_u8; MAX_HEADER_BYTES];
     loop {
@@ -210,12 +222,28 @@ async fn serve_connection(
         // re-evaluating access twice. The peek does not consume bytes, so Hyper
         // re-reads the request from the start.
         let Some((mut parsed, artifact)) = classified else {
-            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+            return serve_hyper(
+                stream,
+                router,
+                configure_http2,
+                accepted_at,
+                shutdown,
+                retirement,
+            )
+            .await;
         };
-        let keep_alive = request_wants_keep_alive(&parsed);
+        let keep_alive = request_wants_keep_alive(&parsed) && !state.runtime.retiring_connections();
         let request_started_at = Instant::now();
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
-            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+            return serve_hyper(
+                stream,
+                router,
+                configure_http2,
+                accepted_at,
+                shutdown,
+                retirement,
+            )
+            .await;
         };
         let request_id = request_id(parsed.headers.get(REQUEST_ID_HEADER).map(String::as_str));
         parsed
@@ -265,7 +293,15 @@ async fn serve_connection(
         if state.runtime.is_draining() {
             drop(request_guard);
             drop(permit);
-            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+            return serve_hyper(
+                stream,
+                router,
+                configure_http2,
+                accepted_at,
+                shutdown,
+                retirement,
+            )
+            .await;
         }
         let classified = scope_request(
             request_context.clone(),
@@ -342,7 +378,15 @@ async fn serve_connection(
             ClassifiedRequest::Fallback => {
                 drop(permit);
                 drop(request_guard);
-                return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+                return serve_hyper(
+                    stream,
+                    router,
+                    configure_http2,
+                    accepted_at,
+                    shutdown,
+                    retirement,
+                )
+                .await;
             }
         }
     }
@@ -398,10 +442,17 @@ async fn serve_hyper<I>(
     configure_http2: Http2BuilderConfig,
     accepted_at: tokio::time::Instant,
     mut shutdown: watch::Receiver<bool>,
+    retirement: watch::Receiver<bool>,
 ) -> std::io::Result<()>
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    let (protocol_tx, protocol) = watch::channel(None);
+    let stream = PrefaceProbe {
+        inner: stream,
+        matched: 0,
+        protocol: Some(protocol_tx),
+    };
     let mut builder = HttpBuilder::new(TokioExecutor::new());
     configure_http2(&mut builder);
     let service = service_fn(move |request: Request<Incoming>| {
@@ -416,15 +467,16 @@ where
     let connection = builder.serve_connection(TokioIo::new(stream), service);
     let mut connection = std::pin::pin!(connection);
 
-    // Serve until the connection ends on its own, ages out, or the node
-    // starts draining — the latter two recycle it gracefully: GOAWAY for
-    // HTTP/2 (gRPC channels finish in-flight streams and reconnect
-    // elsewhere), keep-alive off for HTTP/1.
+    // Serve until the connection ends on its own, ages out, the node starts
+    // draining, or an HTTP/2 connection's cohort is retired. The others recycle
+    // it gracefully: GOAWAY for HTTP/2 (gRPC channels finish in-flight streams
+    // and reconnect elsewhere), keep-alive off for HTTP/1.
     if !*shutdown.borrow() {
         tokio::select! {
             result = connection.as_mut() => return result.map_err(std::io::Error::other),
             _ = tokio::time::sleep_until(accepted_at + CONNECTION_MAX_AGE) => {}
             _ = shutdown.changed() => {}
+            _ = http2_retired(retirement, protocol) => {}
         }
     }
     connection.as_mut().graceful_shutdown();
@@ -435,6 +487,108 @@ where
             "severed with streams still open {}s after graceful shutdown",
             CONNECTION_MAX_AGE_GRACE.as_secs()
         ))),
+    }
+}
+
+// A retired HTTP/1 connection closes after its next response instead.
+async fn http2_retired(
+    mut retirement: watch::Receiver<bool>,
+    mut protocol: watch::Receiver<Option<bool>>,
+) {
+    if retirement.wait_for(|retired| *retired).await.is_ok()
+        && protocol
+            .wait_for(Option::is_some)
+            .await
+            .is_ok_and(|protocol| *protocol == Some(true))
+    {
+        return;
+    }
+    std::future::pending().await
+}
+
+const HTTP2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
+/// Reports whether the client opened with the HTTP/2 connection preface,
+/// observed from the bytes hyper reads to choose a protocol.
+struct PrefaceProbe<I> {
+    inner: I,
+    matched: usize,
+    protocol: Option<watch::Sender<Option<bool>>>,
+}
+
+impl<I> PrefaceProbe<I> {
+    fn observe(&mut self, read: &[u8]) {
+        let Some(protocol) = &self.protocol else {
+            return;
+        };
+        let decided = if read.is_empty() {
+            Some(false)
+        } else {
+            let remaining = &HTTP2_PREFACE[self.matched..];
+            let compared = read.len().min(remaining.len());
+            if read[..compared] != remaining[..compared] {
+                Some(false)
+            } else {
+                self.matched += compared;
+                (self.matched == HTTP2_PREFACE.len()).then_some(true)
+            }
+        };
+        if let Some(http2) = decided {
+            protocol.send_replace(Some(http2));
+            self.protocol = None;
+        }
+    }
+}
+
+impl<I: AsyncRead + Unpin> AsyncRead for PrefaceProbe<I> {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        let before = buf.filled().len();
+        let result = std::pin::Pin::new(&mut this.inner).poll_read(cx, buf);
+        if matches!(result, std::task::Poll::Ready(Ok(()))) {
+            this.observe(&buf.filled()[before..]);
+        }
+        result
+    }
+}
+
+impl<I: AsyncWrite + Unpin> AsyncWrite for PrefaceProbe<I> {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_write(cx, buf)
+    }
+
+    fn poll_write_vectored(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        bufs: &[std::io::IoSlice<'_>],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_write_vectored(cx, bufs)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
     }
 }
 
@@ -471,6 +625,7 @@ pub async fn serve_public_tls(
     listener: TcpListener,
     router: Router,
     tls_config: Arc<rustls::ServerConfig>,
+    runtime: Arc<crate::runtime::RuntimeState>,
     mut shutdown_rx: watch::Receiver<bool>,
     drain_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
@@ -496,10 +651,13 @@ pub async fn serve_public_tls(
                 }
                 let accepted_at = tokio::time::Instant::now();
                 let acceptor = acceptor.clone();
+                let connection_lease = runtime.public_connection();
+                let retirement = connection_lease.retirement();
                 let router = router.clone();
                 let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
+                        let _connection_lease = connection_lease;
                         let stream = match tokio::time::timeout(
                             TLS_HANDSHAKE_TIMEOUT,
                             acceptor.accept(stream),
@@ -517,7 +675,7 @@ pub async fn serve_public_tls(
                             }
                         };
                         if let Err(error) =
-                            serve_hyper(stream, router, configure_http2, accepted_at, shutdown)
+                            serve_hyper(stream, router, configure_http2, accepted_at, shutdown, retirement)
                                 .await
                         {
                             tracing::debug!("public HTTPS connection failed: {error}");
@@ -2749,6 +2907,7 @@ mod tests {
                 |_| {},
                 tokio::time::Instant::now(),
                 shutdown_rx,
+                watch::channel(false).1,
             )
             .await
         });
@@ -2898,5 +3057,28 @@ mod tests {
             ),
             "{line}"
         );
+    }
+
+    #[test]
+    fn preface_probe_classifies_split_reads() {
+        let probe = |reads: &[&[u8]]| {
+            let (protocol_tx, protocol) = tokio::sync::watch::channel(None);
+            let mut probe = super::PrefaceProbe {
+                inner: (),
+                matched: 0,
+                protocol: Some(protocol_tx),
+            };
+            for read in reads {
+                probe.observe(read);
+            }
+            *protocol.borrow()
+        };
+        assert_eq!(
+            probe(&[b"PRI * HTTP", b"/2.0\r\n\r\nSM\r\n\r\n\0\0"]),
+            Some(true)
+        );
+        assert_eq!(probe(&[b"PRI * HTTP"]), None);
+        assert_eq!(probe(&[b"GET /up HTTP/1.1\r\n"]), Some(false));
+        assert_eq!(probe(&[b"PRI", b""]), Some(false));
     }
 }

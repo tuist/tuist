@@ -66,11 +66,12 @@ type exitResume struct {
 const exitPromotionDelay = 60 * time.Second
 
 type handoverPreparation struct {
-	Intent   handoverIntent `json:"intent"`
-	Source   servingHolder  `json:"source"`
-	Epoch    uint64         `json:"epoch"`
-	Complete bool           `json:"complete"`
-	Error    string         `json:"error"`
+	Intent          handoverIntent `json:"intent"`
+	Source          servingHolder  `json:"source"`
+	Epoch           uint64         `json:"epoch"`
+	Complete        bool           `json:"complete"`
+	ContentVerified bool           `json:"content_verified"`
+	Error           string         `json:"error"`
 }
 
 type handoverFailure struct {
@@ -336,7 +337,14 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 						grant.Reason = "Standby preparation failed; primary remains serving"
 						break
 					}
-					prepared = matches && preparation.Complete && !targetReport.Valid
+					// Content left unverified would be hashed under the frozen source,
+					// which cannot finish within the barrier deadline on a large corpus.
+					if matches && preparation.Complete && !preparation.ContentVerified {
+						abandonHandoverPreparation(&grant)
+						grant.Reason = "Standby preparation did not verify retained content; primary remains serving"
+						break
+					}
+					prepared = matches && preparation.Complete && preparation.ContentVerified && !targetReport.Valid
 				} else if grant.Handover != nil {
 					abandonHandoverPreparation(&grant)
 					grant.Reason = "Standby preparation capability disappeared; primary remains serving"

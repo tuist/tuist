@@ -2,9 +2,8 @@ defmodule Atlas.SupportInbox.Workers.WeeklyDigest do
   @moduledoc """
   Posts a weekly summary of silenced support inbox activity so
   emails the classifier filed away stay visible at a glance. Each
-  Monday morning the digest lands in `#support` (or
-  `#support-filtered` when configured) with counts by category and
-  a link back to the Atlas UI to browse the underlying threads.
+  Monday morning the digest lands in `#support` with counts by
+  category and a link back to the Atlas UI to browse the underlying threads.
   """
 
   use Oban.Worker,
@@ -49,7 +48,7 @@ defmodule Atlas.SupportInbox.Workers.WeeklyDigest do
   end
 
   defp post(since, counts, total) do
-    channel_id = Config.slack_filtered_channel_id() || Config.slack_channel_id()
+    channel_id = Config.slack_channel_id()
 
     case channel_id do
       nil ->

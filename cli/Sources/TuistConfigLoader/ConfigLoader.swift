@@ -61,7 +61,8 @@ public struct ConfigLoader: ConfigLoading {
     }
 
     public func loadCargoConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist {
-        let toml = try await tomlConfigLoader.loadConfig(at: path)
+        var toml = try await tomlConfigLoader.loadConfig(at: path)
+        if toml == nil { toml = try await tomlConfigLoader.loadCargoManifestConfig(at: path) }
         let config = toml.map(configFromToml) ?? .default
         applyRuntimeSettings(from: config)
         return config
@@ -72,6 +73,7 @@ public struct ConfigLoader: ConfigLoading {
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            testInsights: .init(coverage: .init(upload: tomlConfig.testInsights?.coverage?.upload ?? false)),
             url: tomlConfig.url ?? Constants.URLs.production,
             network: .init(
                 proxy: tomlConfig.network?.proxy ?? true,

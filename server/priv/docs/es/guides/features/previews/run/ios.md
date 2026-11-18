@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Ejecutar vistas previas con la app para iPhone",
+  "title": "Ejecutar previews con la app para iPhone",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Encuentra, filtra y accede a las vistas previas de Apple con la app de Tuist para iOS."
+  "description": "Encuentra, filtra y accede a previews de Apple con la app de Tuist para iOS."
 }
 ---
-# Ejecuta previews con la app de iPhone
+# Ejecuta previews con la app para iPhone
 
 Instala la [app de Tuist para iOS desde la App Store](https://apps.apple.com/us/app/tuist/id6748460335) para encontrar y acceder a tus previews de Apple. Siguen aplicándose los requisitos de firma y elegibilidad de dispositivos del flujo de publicación.
 
@@ -21,11 +21,11 @@ Busca por nombre de la app o notas de la versión, luego selecciona un track par
 
 ## Compatibilidad entre cliente y servidor {#client-and-server-compatibility}
 
-Mantén la app de Tuist actualizada. Si alojas Tuist tú mismo, actualiza tu servidor para usar el filtrado por track y las notas de la versión. Aún puedes navegar por las previews sin filtrar en servidores antiguos.
+Mantén la app de Tuist actualizada. Si alojas Tuist tú mismo, actualiza tu servidor para usar el filtrado por track y las notas de la versión. Aún puedes navegar por las previews sin filtrado en servidores antiguos.
 
 ## Notificaciones de actualización en la app {#in-app-update-notifications}
 
-El [Tuist SDK](https://github.com/tuist/sdk) permite que tu app de Apple detecte una preview más reciente y notifique a los testers. Comprueba actualizaciones dentro del mismo **track de preview**. Para las previews publicadas con `tuist share --track`, usa ese track explícito. Sin un track explícito, se usa la rama de git, por lo que una preview compilada desde `main` solo notifica sobre previews más recientes de `main`.
+El [Tuist SDK](https://github.com/tuist/sdk) permite que tu app de Apple detecte una preview más reciente y notifique a los testers. Comprueba si hay actualizaciones dentro del mismo **track de preview**. Para las previews publicadas con `tuist share --track`, usa ese track explícito. Sin un track explícito, se usa la rama de git, por lo que una preview compilada desde `main` solo notifica sobre previews más recientes de `main`.
 
 ### Instalación {#sdk-installation}
 
@@ -37,7 +37,7 @@ Añade el Tuist SDK como dependencia de Swift Package:
 
 ### Monitorizar actualizaciones {#sdk-monitor-updates}
 
-Usa `monitorPreviewUpdates` para comprobar periódicamente nuevas versiones de preview:
+Usa `monitorPreviewUpdates` para comprobar periódicamente si hay nuevas versiones de preview:
 
 ```swift
 import TuistSDK
@@ -87,4 +87,4 @@ task.cancel()
 ```
 
 > [!NOTE]
-> La comprobación de actualizaciones se desactiva automáticamente en simuladores y builds de la App Store.
+> La comprobación de actualizaciones se desactiva automáticamente en simuladores y compilaciones de la App Store.

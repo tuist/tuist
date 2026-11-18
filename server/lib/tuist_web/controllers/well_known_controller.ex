@@ -4,11 +4,18 @@ defmodule TuistWeb.WellKnownController do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.MCP.Server
+  alias Tuist.OAuth.Clients
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
 
   @openai_apps_challenge_token "YoBqoSMoA-RuEX8RMuCKrLnPCXDYUsYtKg-yjFBHmDQ"
+  # Proves to Context7 that we own its library crawled from https://tuist.dev/en/docs/.
+  # The key is public by design: Context7 asks owners to publish it.
+  @context7_ownership %{
+    url: "https://context7.com/websites/tuist_dev_en",
+    public_key: "pk_j1C6JsIPmcYwdZliFNUp7"
+  }
   @mcp_path "/mcp"
   @oauth_token_path "/oauth2/token"
   @oauth_authorize_path "/oauth2/authorize"
@@ -35,7 +42,10 @@ defmodule TuistWeb.WellKnownController do
     |> put_resp_header("cache-control", "no-store")
     |> json(%{
       network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?(),
-      network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?()
+      network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?(),
+      # Tuist Guild checks for its public client before it opens the browser,
+      # so a server without it can say so instead of failing mid sign-in.
+      guild_oauth_client_id: Clients.guild_client_id()
     })
   end
 
@@ -116,6 +126,14 @@ defmodule TuistWeb.WellKnownController do
     scheme = if uri.scheme == "https", do: "grpcs", else: "grpc"
     host = uri.host || "localhost"
     "#{scheme}://events.#{host}"
+  end
+
+  def context7_ownership(conn, _params) do
+    if Environment.tuist_hosted?() do
+      json(conn, @context7_ownership)
+    else
+      send_resp(conn, :not_found, "")
+    end
   end
 
   def openai_apps_challenge(conn, _params) do
@@ -267,7 +285,7 @@ defmodule TuistWeb.WellKnownController do
         details: [
           %{
             appID: app_id,
-            paths: ["/*/*/previews/*"]
+            paths: ["NOT /*/*/previews/latest", "NOT /*/*/previews/*/*", "/*/*/previews/*"]
           }
         ]
       }

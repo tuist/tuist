@@ -269,6 +269,41 @@ defmodule Tuist.Processor.XCResultProcessorTest do
     end
 
     @tag :tmp_dir
+    test "matches a nested suite by its innermost name, as older CLIs write it", %{tmp_dir: tmp_dir} do
+      quarantined_tests = [%{"target" => "AppTests", "class" => "Inner", "method" => "testA()"}]
+
+      {:ok, fixture_zip} =
+        :zip.create(
+          ~c"#{Path.join(tmp_dir, "fixture.zip")}",
+          [
+            {~c"Test.xcresult/Info.plist", "fake"},
+            {~c"Test.xcresult/quarantined_tests.json", JSON.encode!(quarantined_tests)}
+          ]
+        )
+
+      parsed_data = %{
+        "test_modules" => [
+          %{
+            "name" => "AppTests",
+            "test_cases" => [
+              %{"name" => "testA()", "test_suite_name" => "Outer/Inner", "status" => "failed"},
+              %{"name" => "testA()", "test_suite_name" => "Inner/Deeper", "status" => "failed"}
+            ]
+          }
+        ]
+      }
+
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
+
+      {:ok, result} = XCResultProcessor.process_local(to_string(fixture_zip))
+      [module] = result["test_modules"]
+      [nested, deeper] = module["test_cases"]
+
+      assert nested["is_quarantined"] == true
+      assert deeper["is_quarantined"] == false
+    end
+
+    @tag :tmp_dir
     test "demotes run status to success when every failing test is quarantined", %{
       tmp_dir: tmp_dir
     } do

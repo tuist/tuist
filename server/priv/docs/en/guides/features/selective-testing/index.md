@@ -7,7 +7,7 @@
 ---
 # Selective testing {#selective-testing}
 
-As projects grow, running every test on every push stops being viable. Tuist Selective Testing drastically reduces test time by running only the tests affected by what changed since the last successful run, using our <.localized_link href="/guides/features/projects/hashing">hashing algorithm</.localized_link>.
+As projects grow, running every test on every push stops being viable. Tuist Selective Testing drastically reduces test time by running only the tests affected by what changed since the last successful run, using our <.localized_link href="/guides/features/projects/hashing">hashing algorithm</.localized_link>. For other ways to cut test time, such as sharding and fixing slow tests, see [Slow tests](https://tuist.dev/solutions/slow-tests).
 
 ## Supported build systems {#supported-build-systems}
 

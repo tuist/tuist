@@ -11,13 +11,9 @@ import TuistSupport
 private enum TuistCLI {
     static func main() async throws {
         if let arguments = CargoCommand.delegatedArguments(in: CommandLine.arguments),
-           arguments.first == "__compiler" || arguments.first == "__native"
+           ["__compiler", "__native", "__script"].contains(arguments.first ?? "")
         {
-            do {
-                let command = try CargoCommand.parse(arguments)
-                try await command.run()
-            } catch { CargoCommand.exit(withError: error) }
-            return
+            exit(await CargoCommand.runHook(arguments))
         }
         try await SwifterPM.withWarningHandler({ AlertController.current.warning(.alert("\($0)")) }) {
             let statusReporter = ProgramStatusReporter()

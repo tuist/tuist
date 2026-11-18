@@ -59,6 +59,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunDailyStatsPerCase
 
   @comparisons ~w(gte gt lt lte)
@@ -193,6 +194,82 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     alert.project_id
     |> rolling_measurements(:default_branch, matching_flag(alert.monitor_type), size, test_case_ids)
     |> Enum.map(&elem(&1, 0))
+  end
+
+  @doc """
+  Maps each test case in `since_by_test_case_id` to its latest run after the
+  given timestamp that counts against the alert: a flaky run for flakiness
+  monitors, a non-passing one for reliability, read over the alert's own
+  branch scope. Test cases without such a run are absent.
+
+  Backs `no_new_matches` recovery, where a new matching run restarts the quiet
+  period, and the rule that after such a recovery only a matching run newer
+  than it can trigger the test again.
+  """
+  def latest_matching_run_at(_alert, since_by_test_case_id) when map_size(since_by_test_case_id) == 0, do: %{}
+
+  def latest_matching_run_at(alert, since_by_test_case_id) do
+    alert
+    |> runs_after(since_by_test_case_id)
+    |> where_matching_run(matching_flag(alert.monitor_type))
+    |> group_by([run], run.test_case_id)
+    |> select([run], {run.test_case_id, max(run.ran_at)})
+    |> ClickHouseRepo.all(multipart: true)
+    |> Map.new()
+  end
+
+  @doc """
+  Maps each test case in `since_by_test_case_id` to how many of its runs, in
+  the alert's branch scope, followed the given timestamp.
+  """
+  def run_counts_since(_alert, since_by_test_case_id) when map_size(since_by_test_case_id) == 0, do: %{}
+
+  def run_counts_since(alert, since_by_test_case_id) do
+    alert
+    |> runs_after(since_by_test_case_id)
+    |> group_by([run], run.test_case_id)
+    |> select([run], {run.test_case_id, fragment("count(*)")})
+    |> ClickHouseRepo.all(multipart: true)
+    |> Map.new()
+  end
+
+  # `cutoffs` is positionally aligned with `test_case_ids`, so each run is
+  # compared with its own test case's timestamp; the plain `ran_at` bound
+  # narrows the primary-key scan to the earliest of them.
+  defp runs_after(alert, since_by_test_case_id) do
+    {test_case_ids, cutoffs} = Enum.unzip(since_by_test_case_id)
+    min_since = Enum.min(cutoffs, NaiveDateTime)
+
+    where_in_branch_scope(
+      from(run in TestCaseRun,
+        where: run.project_id == ^alert.project_id,
+        where: run.submission_auth != "network_trusted",
+        where: run.is_flakiness_excluded == false,
+        where: fragment("? IN (?)", run.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})),
+        where: run.ran_at > ^min_since,
+        where:
+          fragment(
+            "toUnixTimestamp64Micro(?) > arrayElement(?, indexOf(?, ?))",
+            run.ran_at,
+            type(^Enum.map(cutoffs, &unix_micros/1), {:array, :integer}),
+            type(^test_case_ids, {:array, Ecto.UUID}),
+            run.test_case_id
+          )
+      ),
+      branch_scope(alert)
+    )
+  end
+
+  defp where_matching_run(query, :flaky), do: where(query, [run], run.is_flaky == true)
+  defp where_matching_run(query, :success), do: where(query, [run], fragment("? != 'success'", run.status))
+
+  defp where_in_branch_scope(query, :all_branches), do: query
+  defp where_in_branch_scope(query, :default_branch), do: where(query, [run], run.is_default_branch == true)
+
+  defp unix_micros(%NaiveDateTime{} = timestamp) do
+    timestamp
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix(:microsecond)
   end
 
   defp apply_sample_floor(query, :all_branches), do: query

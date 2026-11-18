@@ -19,7 +19,7 @@
     }
 
     & [data-part="filters"] {
-      margin-left: auto;
+      margin-inline-start: auto;
     }
   }
 

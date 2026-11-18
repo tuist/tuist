@@ -7,7 +7,7 @@
 ---
 # Xcode test sharding {#xcode-test-sharding}
 
-> [!WARNING]
+> [!IMPORTANT]
 > **Requirements**
 >
 > - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured. Sharding uses the last 30 days of test-insight timings to balance shards, and without insights every shard runs as if the suite were unknown.
@@ -21,7 +21,7 @@ Test sharding follows a two-phase workflow:
 1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
 2. **Test phase:** Each continuous integration runner receives a **shard index** and the exact **shard plan identifier**, then executes that plan's test selection.
 
-With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it unions the suites of the last few CI runs on the branch being built, falling back to the project's default branch for modules without branch history. Reading several runs rather than the latest one matters because a sharded run uploads one test run per shard as each shard finishes, so the most recent run holds only the fraction of the module that has been ingested so far, and because it keeps selective testing runs from hiding suites that were skipped in the latest branch run.
+With suite granularity, the server uses the suites that recent CI runs on your branch reported for each module in the current `.xctestrun`, falling back to the project's default branch for modules without branch history. Combining several runs keeps suites that a sharded or selective run left out of the latest report.
 
 When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites missing from historical inventory. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
@@ -42,17 +42,7 @@ This command:
 3. Uploads the `.xctestproducts` bundle or writes a shard archive for use by shard runners
 4. Outputs a shard matrix for your CI system
 
-### Build options {#build-options}
-
-| Flag | Environment variable | Description |
-|------|---------------------|-------------|
-| `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | Maximum number of shards. Used with `--shard-max-duration` to cap the shard count |
-| `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | Minimum number of shards |
-| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | Exact number of shards (mutually exclusive with `--shard-min`/`--shard-max`). With suite granularity, the final shard is the catch-all |
-| `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | Target maximum duration per shard in milliseconds |
-| `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module` (default) distributes entire test modules across shards; `suite` distributes individual test classes for finer-grained balancing |
-| `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path where Tuist writes the optimized shard archive instead of uploading test products to remote storage |
+<!-- @snippet: ./_xcode-build-options -->
 
 ## Test phase {#test-phase}
 
@@ -64,29 +54,11 @@ tuist xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-### Test options {#test-options}
-
-| Flag | Environment variable | Description |
-|------|---------------------|-------------|
-| `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
-| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value automatically |
-| `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
-
-Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
+<!-- @snippet: ./_xcode-test-options -->
 
 ## Continuous integration {#continuous-integration}
 
-Tuist automatically detects the following CI providers:
-
-- [GitHub Actions](#github-actions)
-- [GitLab CI](#gitlab-ci)
-- [CircleCI](#circleci)
-- [Buildkite](#buildkite)
-- [Codemagic](#codemagic)
-- [Bitrise](#bitrise)
-
-For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs.
+<!-- @snippet: ./_ci-providers -->
 
 ### GitHub Actions {#github-actions}
 
@@ -135,7 +107,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
+Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
 
 ```yaml
 # .gitlab-ci.yml

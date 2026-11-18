@@ -15,8 +15,11 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.Billing.UsagePricing
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.CacheVolumeBilling
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
@@ -119,7 +122,8 @@ defmodule Tuist.Billing do
   job without recalculating usage when that job retries.
 
   Reports the cache egress, cache request, and passing test case meters
-  that exist in Stripe, plus the language model and runner meters.
+  that exist in Stripe, plus the language model, runner compute, and
+  cache volume storage meters.
   """
   def customer_meter_values(
         %Account{customer_id: customer_id, id: account_id} = account,
@@ -149,17 +153,34 @@ defmodule Tuist.Billing do
     # so neither Meter exists yet, and reporting to an unprovisioned meter
     # just errors the job and adds Sentry noise. Each platform turns on
     # independently, the moment its key lands in config.
+    # Remote execution rides on the Linux meter, so its time is part of
+    # that platform's value rather than a meter of its own.
     runner_values =
       account_id
-      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
+      |> RemoteExecutionUsage.metered_units_by_platform(period_start, period_end)
       |> Enum.map(fn usage ->
         %{event_name: RunnerBilling.meter_event_name(usage.platform), value: usage.total_units}
       end)
       |> Enum.filter(&runner_meter_provisioned?(&1.event_name))
 
+    # Cache volume storage is a runner Price, so a runner trial leaves it
+    # off the subscription like the compute Prices, and it turns on the
+    # same way once its key is in `stripe.prices.runners`.
+    storage_values =
+      if runner_meter_provisioned?(CacheVolumeBilling.meter_event_name()) do
+        [
+          %{
+            event_name: CacheVolumeBilling.meter_event_name(),
+            value: CacheVolumeBilling.meter_value(account_id, period_start, period_end)
+          }
+        ]
+      else
+        []
+      end
+
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
-    Enum.reject(usage_values ++ language_model_values ++ runner_values, &(&1.value == 0))
+    Enum.reject(usage_values ++ language_model_values ++ runner_values ++ storage_values, &(&1.value == 0))
   end
 
   # A platform reports as soon as its Meter exists in Stripe, which the
@@ -621,6 +642,27 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Whether a Stripe customer already has the name, email and address an
+  invoice-billed Enterprise subscription needs, so `upgrade_to_enterprise/2`
+  can run with `%{}` instead of asking for them.
+  """
+  def billing_details_complete?(%{address: %{} = address} = customer) do
+    Enum.all?(
+      [
+        Map.get(customer, :name),
+        Map.get(customer, :email),
+        address.line1,
+        address.city,
+        address.postal_code,
+        address.country
+      ],
+      &(is_binary(&1) and &1 != "")
+    )
+  end
+
+  def billing_details_complete?(_customer), do: false
+
+  @doc """
   Puts an account with no live subscription on the open source plan.
 
   The subscription carries only the open source Prices, both $0. It carries
@@ -1078,7 +1120,8 @@ defmodule Tuist.Billing do
         lookback = DateTime.add(now, -@runner_price_swap_lookback_days, :day)
         since = Enum.min([DateTime.from_unix!(period_start), lookback], DateTime)
 
-        RunnerBilling.compute_milliseconds(account_id, since, now) > 0
+        RunnerBilling.compute_milliseconds(account_id, since, now) > 0 or
+          RemoteExecutionUsage.compute_units(account_id, since, now) > 0
 
       _ ->
         true
@@ -1086,6 +1129,89 @@ defmodule Tuist.Billing do
   end
 
   defp swap_runner_prices(subscription_id, items) do
+    subscription_id
+    |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
+    |> cleanup_result()
+  end
+
+  @doc """
+  Adds the runner items a live subscription is missing because their
+  platform's Price went live after the subscription last picked runner
+  items up.
+
+  A new subscription, a plan change and the end of a runner trial all
+  carry every configured runner Price, but nothing revisits a
+  subscription that already has its runner items when another
+  platform's Price is configured. Only subscriptions already billed for
+  runners are changed: those carrying a runner item, current or retired.
+  That leaves out every subscription carrying none on purpose, an
+  account on a runner trial and plans whose terms do not bill runners.
+
+  Items are added with `proration_behavior: "none"`, and a metered item
+  only bills usage reported after it exists, so nothing the platform ran
+  before is invoiced. A subscription with a subscription schedule is
+  skipped and reported, since the schedule's next phase would replace
+  its items.
+
+  Dry run by default. Run it from a remote console:
+
+      Tuist.Billing.add_missing_runner_items()
+      Tuist.Billing.add_missing_runner_items(dry_run: false)
+
+  Returns one entry per subscription missing a runner item, with its
+  `action` and its `result`.
+  """
+  def add_missing_runner_items(opts \\ []) do
+    dry_run = Keyword.get(opts, :dry_run, true)
+    meters = runner_price_meters()
+    configured = configured_runner_prices(Tuist.Environment.stripe_prices() || %{})
+
+    from(s in Subscription,
+      where: s.status in ^@live_subscription_statuses,
+      order_by: [asc: s.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn %Subscription{subscription_id: subscription_id} = subscription ->
+      case missing_runner_items_action(subscription_id, meters, configured) do
+        :up_to_date ->
+          []
+
+        action ->
+          result =
+            case action do
+              {:add, _items} when dry_run -> :dry_run
+              {:add, items} -> add_runner_items(subscription_id, items)
+              _skip -> :skipped
+            end
+
+          [%{subscription_id: subscription_id, account_id: subscription.account_id, action: action, result: result}]
+      end
+    end)
+  end
+
+  defp missing_runner_items_action(subscription_id, meters, configured) do
+    case Stripe.Subscription.retrieve(subscription_id) do
+      {:ok, stripe_subscription} ->
+        present_meters =
+          stripe_subscription.items.data
+          |> Enum.map(&Map.get(meters, subscription_item_price_id(&1)))
+          |> Enum.reject(&is_nil/1)
+          |> MapSet.new()
+
+        missing = Enum.reject(configured, &MapSet.member?(present_meters, Map.get(meters, &1.price)))
+
+        cond do
+          MapSet.size(present_meters) == 0 or missing == [] -> :up_to_date
+          not is_nil(Map.get(stripe_subscription, :schedule)) -> {:skip, :scheduled}
+          true -> {:add, missing}
+        end
+
+      {:error, error} ->
+        {:skip, {:error, error}}
+    end
+  end
+
+  defp add_runner_items(subscription_id, items) do
     subscription_id
     |> Stripe.Subscription.update(%{items: items, proration_behavior: "none"})
     |> cleanup_result()
@@ -1143,37 +1269,45 @@ defmodule Tuist.Billing do
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
-    cond do
-      plan == :none ->
-        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
+    stored =
+      cond do
+        plan == :none ->
+          raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
-      is_nil(current_subscription) ->
-        %Subscription{}
-        |> Subscription.create_changeset(%{
-          plan: plan,
-          subscription_id: subscription.id,
-          status: subscription.status,
-          account_id: account.id,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.insert!()
+        is_nil(current_subscription) ->
+          %Subscription{}
+          |> Subscription.create_changeset(%{
+            plan: plan,
+            subscription_id: subscription.id,
+            status: subscription.status,
+            account_id: account.id,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.insert!()
 
-      true ->
-        current_subscription
-        |> Subscription.update_changeset(%{
-          plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.update!()
+        true ->
+          current_subscription
+          |> Subscription.update_changeset(%{
+            plan: plan,
+            status: subscription.status,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.update!()
+      end
+
+    # Air starts with lower runner limits than the paid plans; a live paid
+    # subscription brings the account up to its plan's. `plan` is
+    # `get_plan/1`'s string, the stored row's is the atom.
+    if stored.status in @live_subscription_statuses do
+      RunnerConcurrency.raise_to_plan_defaults(account, stored.plan)
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)

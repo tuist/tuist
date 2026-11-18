@@ -17,7 +17,7 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsController do
   defp respond(conn, {:error, reason}) do
     status =
       case reason do
-        reason when reason in [:unknown_flag, :resource_not_found] -> :not_found
+        :resource_not_found -> :not_found
         reason when reason in [:stale_revision, :change_id_conflict] -> :conflict
         :persistence_failed -> :service_unavailable
         _ -> :unprocessable_entity

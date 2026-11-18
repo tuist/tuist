@@ -1,7 +1,7 @@
 #email {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-9);
+  gap: var(--noora-spacing-6);
 
   & > [data-part="header"] {
     display: flex;

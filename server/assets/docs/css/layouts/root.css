@@ -155,9 +155,9 @@
     flex-direction: column;
     gap: var(--noora-spacing-2);
     margin-top: var(--noora-spacing-3);
-    margin-left: 17px;
-    border-left: 1.5px solid var(--noora-surface-border-primary);
-    padding-left: var(--noora-spacing-5);
+    margin-inline-start: 17px;
+    border-inline-start: 1.5px solid var(--noora-surface-border-primary);
+    padding-inline-start: var(--noora-spacing-5);
   }
 
   /* Main content area */
@@ -196,9 +196,9 @@
       position: fixed;
       top: 0;
       bottom: 0;
-      left: 0;
       z-index: var(--noora-z-index-5);
-      border-right: 1px solid var(--noora-content-divider-line);
+      inset-inline-start: 0;
+      border-inline-end: 1px solid var(--noora-content-divider-line);
       background: var(--noora-surface-background-primary);
       width: 280px;
       max-height: 100vh;

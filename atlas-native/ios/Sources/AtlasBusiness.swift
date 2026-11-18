@@ -112,19 +112,6 @@ struct AtlasBusinessPage: Decodable {
 
 private struct AtlasBusinessMutation: Decodable { let item: AtlasBusinessRecord }
 
-enum AtlasTaskReminderGroup: String, CaseIterable, Identifiable {
-    case overdue, upcoming, none, completed
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .overdue: "Overdue reminders"
-        case .upcoming: "Upcoming reminders"
-        case .none: "No reminder"
-        case .completed: "Completed"
-        }
-    }
-}
-
 @MainActor
 final class AtlasBusiness: ObservableObject {
     let resource: AtlasBusinessResource

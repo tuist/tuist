@@ -337,7 +337,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   test "refreshes an active private endpoint while its image deployment is still running" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
-    server = server |> Ecto.Changeset.change(region: "scw-fr-par-runners") |> Repo.update!()
+    server = server |> Ecto.Changeset.change(region: "ber1-runners") |> Repo.update!()
     stub(Provisioner, :current_image_tag, fn _ -> {:ok, "older-image"} end)
     stub(Provisioner, :rollout, fn _, _ -> :ok end)
     reject(&Kura.activate_server/2)
@@ -351,26 +351,26 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert Repo.get!(Server, server.id).status == :active
   end
 
-  test "refreshes a converged node-port server instead of re-activating it every tick" do
+  test "refreshes a converged private server instead of re-activating it every tick" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
     mark_deployment_succeeded(deployment)
 
-    # Move the converged server into a node-port private region with its
-    # node-published dispatch URL. `public_url/2` renders the cluster-DNS
-    # template, which this never matches, so the pre-fix `endpoint_in_sync?/1`
-    # reported drift on every tick and re-activated the node (DB write +
-    # broadcast) instead of letting the node-port refresh path own the endpoint.
+    # Move the converged server into a private region with its gateway-published
+    # dispatch URL. `public_url/2` renders the cluster-DNS template, which this
+    # never matches, so the pre-fix `endpoint_in_sync?/1` reported drift on every
+    # tick and re-activated the node (DB write + broadcast) instead of letting
+    # the private endpoint refresh path own the endpoint.
     server =
       server
-      |> Ecto.Changeset.change(region: "scw-fr-par-runners", url: "http://172.16.0.5:32000")
+      |> Ecto.Changeset.change(region: "ber1-runners", url: "http://10.10.0.5:32000")
       |> Repo.update!()
 
     stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
     stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
     stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, "rev"} end)
 
-    # The fix routes a converged node-port server through the endpoint refresh,
+    # The fix routes a converged private server through the endpoint refresh,
     # not back through activation.
     reject(&Kura.activate_server/2)
 
@@ -381,7 +381,7 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert :ok = Reconciler.reconcile()
 
-    assert %Server{status: :active, url: "http://172.16.0.5:32000"} = Repo.get!(Server, server.id)
+    assert %Server{status: :active, url: "http://10.10.0.5:32000"} = Repo.get!(Server, server.id)
   end
 
   test "re-applies the manifest when only the instance's claim moved" do
@@ -896,21 +896,23 @@ defmodule Tuist.Kura.ReconcilerTest do
   end
 
   test "schedules destruction for servers stranded in a retired region" do
-    {_account, server, _deployment} = create_server()
+    for region <- ["hetzner-staging-runners", "scw-fr-par-runners"] do
+      {_account, server, _deployment} = create_server()
 
-    {:ok, server} =
-      server
-      |> Ecto.Changeset.change(region: "hetzner-staging-runners")
-      |> Repo.update()
+      {:ok, server} =
+        server
+        |> Ecto.Changeset.change(region: region)
+        |> Repo.update()
 
-    stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
 
-    Reconciler.reconcile()
+      Reconciler.reconcile()
 
-    # A retired region only stays in the catalog so its leftovers can be torn
-    # down. Without this the row keeps its status forever and its pod sits
-    # unschedulable against a node pool that was deleted with the region.
-    assert %Server{status: :destroyed} = Repo.reload!(server)
+      # A retired region only stays in the catalog so its leftovers can be torn
+      # down. Without this the row keeps its status forever and its pod sits
+      # unschedulable against a node pool that was deleted with the region.
+      assert %Server{status: :destroyed} = Repo.reload!(server)
+    end
   end
 
   test "leaves servers in live regions alone" do

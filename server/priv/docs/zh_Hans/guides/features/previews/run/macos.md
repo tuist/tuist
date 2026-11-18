@@ -1,8 +1,8 @@
 ---
 {
-  "title": "使用 macOS 应用运行预览",
+  "title": "使用 macOS App 运行预览",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "使用 Tuist macOS 菜单栏应用在设备和模拟器上运行兼容的 Apple 预览。"
+  "description": "使用 Tuist macOS 菜单栏 App，在设备和模拟器上运行兼容的 Apple 预览。"
 }
 ---
 # 使用 macOS 应用运行预览
@@ -21,8 +21,8 @@
 
 ## 运行构建 {#run-a-build}
 
-在菜单栏应用中选择兼容的设备或模拟器，然后在预览页面点击**运行**。
+在菜单栏应用中选择一个兼容的设备或模拟器，然后在预览页面上点击**运行**。
 
-macOS 应用首先请求每个应用的最新兼容预览。在较旧的服务器上，如果它们在应用平台过滤器之前选择不同的应用，则会回退到分页历史记录，而不会设置可能隐藏可用构建的截止点。
+macOS 应用首先为每个应用请求最新的兼容预览。在那些先选择不同应用再应用平台过滤器的较旧服务器上，它会回退到分页历史记录，而不会设置可能隐藏可用构建的截止点。
 
-有关访问和组织方式，请参阅<.localized_link href="/guides/features/previews#visibility">可见性和轨道</.localized_link>。
+有关访问和组织，请参阅<.localized_link href="/guides/features/previews#visibility">可见性和轨道</.localized_link>。

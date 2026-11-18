@@ -86,7 +86,8 @@ class GetCacheEndpointsServiceTest {
     @Test
     fun `waiting for a token lock held by another process does not outlast the call timeout`() {
         val credentialStore = CredentialStore(File(tempDir, "credentials"))
-        credentialStore.write(serverURL, Credentials(jwt(expiresInSeconds = 3600)))
+        // Expired, so the provider must refresh, which takes the lock.
+        credentialStore.write(serverURL, Credentials(jwt(expiresInSeconds = -3600), "refresh-token"))
         val lockFile = File(tempDir, "token.lock")
         val holder = FileLockHolder.start(lockFile)
 

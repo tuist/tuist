@@ -6,6 +6,9 @@ on:
       version:
         type: string
         default: "0.0.0"
+      source-sha:
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -19,11 +22,15 @@ jobs:
       ATLAS_SCREENSHOT_DIR: ${{ github.workspace }}/atlas-deployment-screenshots
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source-sha || github.sha }}
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm yq jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Test manual release recovery guard
+        run: bash .github/scripts/atlas-patch-release.test.sh
       - name: Validate deployment configuration and agent execution boundary
         run: |
           bash infra/helm/atlas/test-agent-boundary.sh

@@ -54,22 +54,8 @@ connector:
   advertiseRoutes:
     - "100.64.0.0/10"
     - "10.128.0.0/12"
-  # Pin the router to the Scaleway fr-par kura pool: the only
-  # consumer of the Service-CIDR route is the Mac mini fleet (also
-  # in fr-par), and their hot path is Mac -> router -> kura Pod on
-  # this same pool. On a Hetzner node the router would hairpin that
-  # path across the WAN twice.
-  proxyClass:
-    enabled: true
-    nodeSelector:
-      node.cluster.x-k8s.io/pool: kura-scw-fr-par
-    # The pool's nodes register with `tuist.dev/runner-cache=true:NoSchedule`
-    # (infra/helm/tuist/templates/kura-fleet.yaml). Without this the router
-    # has no schedulable node.
-    tolerations:
-      - key: tuist.dev/runner-cache
-        operator: Exists
-        effect: NoSchedule
+  # No node pin: the router used to sit on the Scaleway fr-par kura pool
+  # beside the Mac minis' runner cache, which is retired with that pool.
 
 # A ProxyGroup with static UDP endpoints on md-0's public IPs, so the macOS
 # xcresult VMs reach the Services it serves over a direct path instead of a

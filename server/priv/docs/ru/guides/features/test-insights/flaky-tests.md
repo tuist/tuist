@@ -27,7 +27,7 @@
 />
   <.home_card
     title="Bazel"
-    details="Обнаруживайте, игнорируйте сбои и пропускайте нестабильные тестовые кейсы Bazel через tuist bazel test."
+    details="Обнаруживайте, игнорируйте сбои и пропускайте нестабильные тест-кейсы Bazel через tuist bazel test."
     link="/guides/features/test-insights/flaky-tests/bazel"
 />
   <.home_card
@@ -37,7 +37,12 @@
 />
   <.home_card
     title="Rust"
-    details="Обнаруживайте и исследуйте нестабильные тесты Cargo, используя результаты из нескольких запусков CI."
+    details="Обнаруживайте и исследуйте нестабильные тесты Cargo, используя результаты across CI runs."
     link="/guides/features/test-insights/flaky-tests/rust"
+/>
+  <.home_card
+    title="Once"
+    details="Исследуйте противоречивые результаты тестов через зарегистрированные попытки повторного запуска и историю CI."
+    link="/guides/features/test-insights/flaky-tests/once"
 />
 </.home_cards>

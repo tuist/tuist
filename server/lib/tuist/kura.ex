@@ -1340,6 +1340,19 @@ defmodule Tuist.Kura do
   def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
 
   @doc """
+  The public alias of an account's selected internal cache, or nil when that
+  instance has no public endpoint. Other mesh regions are not interchangeable:
+  replication does not guarantee immediate reads of newly uploaded inputs.
+  """
+  def public_cache_endpoint_url(%Account{} = account, internal_url) when is_binary(internal_url) do
+    account
+    |> managed_cli_endpoint_servers()
+    |> Enum.find_value(fn server ->
+      if in_cluster_url(server, account) == internal_url, do: server.url
+    end)
+  end
+
+  @doc """
   The accounts among `account_ids` whose runner cache is warm at another rack
   site than `site`: an active node in an available private region at another
   site, and none at `site`. A runner at `site` lets such an account's jobs wait

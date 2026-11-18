@@ -213,4 +213,45 @@ defmodule Atlas.Finance.Providers.QontoTest do
     assert transaction.affects_cash_balance
     assert transaction.affects_runway
   end
+
+  test "uploads a transaction attachment as a multipart file with a stable idempotency key" do
+    test_pid = self()
+
+    stub(Req, :post, fn %Req.Request{} = request, options ->
+      plug = fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        send(
+          test_pid,
+          {:upload, conn.request_path, Plug.Conn.get_req_header(conn, "x-qonto-idempotency-key"),
+           Plug.Conn.get_req_header(conn, "content-type"), body}
+        )
+
+        Plug.Conn.send_resp(conn, 200, "")
+      end
+
+      request
+      |> Req.merge(options)
+      |> Req.merge(method: :post, plug: plug, retry: false)
+      |> Req.request()
+    end)
+
+    source = [sign_in: "tuist-gmbh-5271", secret_key: "secret"]
+
+    assert {:ok, %{}} = Qonto.add_attachment(source, "txn_123", "%PDF receipt", "receipt.pdf", "application/pdf")
+    assert {:ok, %{}} = Qonto.add_attachment(source, "txn_123", "%PDF receipt", "receipt.pdf", "application/pdf")
+    assert {:ok, %{}} = Qonto.add_attachment(source, "txn_123", "%PDF invoice", "invoice.pdf", "application/pdf")
+
+    assert_received {:upload, "/v2/transactions/txn_123/attachments", [key], ["multipart/form-data; boundary=" <> _],
+                     body}
+
+    assert body =~ ~s(content-disposition: form-data; name="file"; filename="receipt.pdf")
+    assert body =~ "content-type: application/pdf"
+    assert body =~ "%PDF receipt"
+    assert key =~ ~r/\A[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\z/
+
+    assert_received {:upload, _path, [^key], _content_type, _body}
+    assert_received {:upload, _path, [other_key], _content_type, _body}
+    refute other_key == key
+  end
 end

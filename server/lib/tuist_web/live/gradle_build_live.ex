@@ -204,14 +204,14 @@ defmodule TuistWeb.GradleBuildLive do
     text_filters = build_text_flop_filters(params["tasks-filter"])
     dropdown_filters = build_task_flop_filters(filters)
     sort_by = ensure_allowed_sort_by(params["tasks-sort-by"])
-    sort_order = params["tasks-sort-order"] || "asc"
+    sort_order = Atom.to_string(Query.sort_order(params["tasks-sort-order"], :asc))
 
     flop_params = %{
       filters: text_filters ++ dropdown_filters,
       page: Query.bounded_page(params["tasks-page"]),
       page_size: @table_page_size,
       order_by: [sort_by],
-      order_directions: [String.to_atom(sort_order)]
+      order_directions: [Query.sort_order(sort_order, :asc)]
     }
 
     {tasks, meta} = Gradle.list_tasks(build_id, flop_params, socket.assigns.selected_project.id)
@@ -236,7 +236,7 @@ defmodule TuistWeb.GradleBuildLive do
     text_filters = build_text_flop_filters(params["cacheable-tasks-filter"])
     dropdown_filters = build_cacheable_task_flop_filters(filters)
     sort_by = ensure_allowed_cacheable_sort_by(params["cacheable-tasks-sort-by"])
-    sort_order = params["cacheable-tasks-sort-order"] || "desc"
+    sort_order = Atom.to_string(Query.sort_order(params["cacheable-tasks-sort-order"], :desc))
 
     flop_params = %{
       filters:
@@ -247,7 +247,7 @@ defmodule TuistWeb.GradleBuildLive do
       page: Query.bounded_page(params["cacheable-tasks-page"]),
       page_size: @table_page_size,
       order_by: [sort_by],
-      order_directions: [String.to_atom(sort_order)]
+      order_directions: [Query.sort_order(sort_order, :desc)]
     }
 
     {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params, socket.assigns.selected_project.id)

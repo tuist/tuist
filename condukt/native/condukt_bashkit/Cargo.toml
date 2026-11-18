@@ -1,0 +1,34 @@
+[package]
+name = "condukt_bashkit"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Rustler NIF wrapping bashkit's virtual sandbox for Condukt"
+publish = false
+
+[lib]
+name = "condukt_bashkit"
+crate-type = ["cdylib"]
+
+[dependencies]
+# `default-features = false` so we can manage NIF-version features ourselves
+# below. rustler_precompiled (>= 0.30) requires the crate to declare the
+# nif_version_X_Y features and have one active per build.
+rustler = { version = "0.36", default-features = false, features = ["derive"] }
+bashkit = { version = "0.3", features = ["git", "realfs"] }
+tokio = { version = "1", features = ["rt", "macros", "time", "fs", "io-util"] }
+
+# NIF-version feature flags surfaced to the rustler_precompiled build pipeline.
+# `build.sh` activates exactly one of these per build target via the
+# RUSTLER_NIF_VERSION env var. We also gate `default` on the lowest supported
+# version so a plain `cargo build` works locally.
+[features]
+default = ["nif_version_2_16"]
+nif_version_2_15 = ["rustler/nif_version_2_15"]
+nif_version_2_16 = ["rustler/nif_version_2_16"]
+nif_version_2_17 = ["rustler/nif_version_2_17"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

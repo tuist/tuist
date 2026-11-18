@@ -6,7 +6,6 @@ defmodule Atlas.Slack.EventsTest do
   alias Atlas.Accounts.Event
   alias Atlas.Slack
   alias Atlas.Slack.API
-  alias Atlas.Slack.Bot
   alias Atlas.Slack.Events, as: SlackEvents
   alias Atlas.Slack.Message, as: SlackMessage
   alias Atlas.Slack.User, as: SlackUser
@@ -73,8 +72,11 @@ defmodule Atlas.Slack.EventsTest do
       assert :ignored = SlackEvents.handle_event(payload, :company)
     end
 
-    test "responds to regular message events that mention the authorized bot user", %{channel: channel} do
-      payload = %{
+    test "does not respond to bot mentions, app mentions, or replies in Atlas threads" do
+      reject(&RespondToConversation.start_or_replace/3)
+      reject(&API.list_thread_messages/3)
+
+      mention = %{
         "type" => "message",
         "channel" => "C123",
         "user" => "U123",
@@ -83,44 +85,7 @@ defmodule Atlas.Slack.EventsTest do
         "atlas_authorized_user_ids" => ["U_ATLAS"]
       }
 
-      expect(RespondToConversation, :start_or_replace, fn ^payload, :company, ^channel -> :ok end)
-
-      assert :ok = SlackEvents.handle_event(payload, :company)
-      assert Slack.get_message_by_ts(channel, "1710000001.100000") == nil
-    end
-
-    test "ignores regular message mentions for other users" do
-      payload = %{
-        "type" => "message",
-        "channel" => "C123",
-        "user" => "U123",
-        "text" => "<@U_OTHER> what's the state of Netflix?",
-        "ts" => "1710000002.100000",
-        "atlas_authorized_user_ids" => ["U_ATLAS"]
-      }
-
-      reject(&RespondToConversation.start_or_replace/3)
-
-      assert :ignored = SlackEvents.handle_event(payload, :company)
-    end
-
-    test "responds to authorized bot mentions from untracked channels" do
-      payload = %{
-        "type" => "message",
-        "channel" => "C_UNKNOWN",
-        "user" => "U123",
-        "text" => "<@U_ATLAS> what's the state of Netflix?",
-        "ts" => "1710000003.100000",
-        "atlas_authorized_user_ids" => ["U_ATLAS"]
-      }
-
-      expect(RespondToConversation, :start_or_replace, fn ^payload, :company, nil -> :ok end)
-
-      assert :ok = SlackEvents.handle_event(payload, :company)
-    end
-
-    test "responds to app mentions from untracked channels" do
-      payload = %{
+      app_mention = %{
         "type" => "app_mention",
         "channel" => "C_UNKNOWN",
         "user" => "U123",
@@ -128,13 +93,7 @@ defmodule Atlas.Slack.EventsTest do
         "ts" => "1710000004.100000"
       }
 
-      expect(RespondToConversation, :start_or_replace, fn ^payload, :company, nil -> :ok end)
-
-      assert :ok = SlackEvents.handle_event(payload, :company)
-    end
-
-    test "responds to thread replies after Atlas was mentioned earlier in the same thread", %{channel: channel} do
-      payload = %{
+      thread_reply = %{
         "type" => "message",
         "channel" => "C123",
         "user" => "U123",
@@ -144,145 +103,9 @@ defmodule Atlas.Slack.EventsTest do
         "atlas_authorized_user_ids" => ["U_ATLAS"]
       }
 
-      thread_messages = [
-        %{
-          user_id: "U123",
-          text: "<@U_ATLAS> can you create an account for this one?",
-          ts: "1710000001.100000",
-          thread_ts: "1710000001.100000"
-        },
-        %{
-          bot_id: "B_ATLAS",
-          username: "Atlas",
-          text: "I'd be happy to help.",
-          ts: "1710000002.100000",
-          thread_ts: "1710000001.100000"
-        }
-      ]
-
-      stub(API, :list_thread_messages, fn :company, "C123", "1710000001.100000" ->
-        {:ok, thread_messages}
-      end)
-
-      expect(RespondToConversation, :start_or_replace, fn event, :company, ^channel ->
-        assert event["atlas_thread_messages"] == thread_messages
-        assert event["ts"] == payload["ts"]
-        :ok
-      end)
-
-      assert :ok = SlackEvents.handle_event(payload, :company)
-    end
-
-    test "ignores thread replies when Atlas has not been looped into the thread yet" do
-      payload = %{
-        "type" => "message",
-        "channel" => "C123",
-        "user" => "U123",
-        "thread_ts" => "1710000001.100000",
-        "ts" => "1710000004.100000",
-        "text" => "The company is Toss and the domain is toss.im",
-        "atlas_authorized_user_ids" => ["U_ATLAS"]
-      }
-
-      stub(API, :list_thread_messages, fn :company, "C123", "1710000001.100000" ->
-        {:ok,
-         [
-           %{
-             user_id: "U123",
-             text: "Can someone help with this account?",
-             ts: "1710000001.100000",
-             thread_ts: "1710000001.100000"
-           }
-         ]}
-      end)
-
-      reject(&RespondToConversation.start_or_replace/3)
-
-      assert :ignored = SlackEvents.handle_event(payload, :company)
-    end
-
-    test "responds to thread replies after an earlier Atlas bot reply from a configured app", %{channel: channel} do
-      payload = %{
-        "type" => "message",
-        "channel" => "C123",
-        "user" => "U123",
-        "thread_ts" => "1710000001.100000",
-        "ts" => "1710000005.100000",
-        "text" => "Can you confirm the account name too?",
-        "atlas_authorized_user_ids" => ["U_ATLAS"]
-      }
-
-      stub(Bot, :apps, fn ->
-        [
-          %{name: "Tuist Atlas Company"}
-        ]
-      end)
-
-      thread_messages = [
-        %{
-          user_id: "U123",
-          text: "Can someone help with this account?",
-          ts: "1710000001.100000",
-          thread_ts: "1710000001.100000"
-        },
-        %{
-          bot_id: "B_ATLAS",
-          username: "Tuist Atlas Company",
-          subtype: "bot_message",
-          text: "Checking Atlas context",
-          ts: "1710000002.100000",
-          thread_ts: "1710000001.100000"
-        }
-      ]
-
-      stub(API, :list_thread_messages, fn :company, "C123", "1710000001.100000" ->
-        {:ok, thread_messages}
-      end)
-
-      expect(RespondToConversation, :start_or_replace, fn event, :company, ^channel ->
-        assert event["atlas_thread_messages"] == thread_messages
-        assert event["ts"] == payload["ts"]
-        :ok
-      end)
-
-      assert :ok = SlackEvents.handle_event(payload, :company)
-    end
-
-    test "responds to thread replies on Atlas-authored outcome review messages without a mention", %{channel: channel} do
-      payload = %{
-        "type" => "message",
-        "channel" => "C123",
-        "user" => "U123",
-        "thread_ts" => "1710000100.100000",
-        "ts" => "1710000101.100000",
-        "text" => "We've been chatting with them quite actively. How is the outcome looking?",
-        "atlas_authorized_user_ids" => ["U_ATLAS"]
-      }
-
-      thread_messages = [
-        %{
-          user_id: "U_ATLAS",
-          bot_id: "B_ATLAS",
-          username: "Tuist Atlas",
-          subtype: "bot_message",
-          text:
-            "Outcome review: Qonto - Dedicated Slack channel and cache infrastructure\nAccount ID: account-123\nOutcome ID: outcome-123",
-          ts: "1710000100.100000",
-          thread_ts: "1710000100.100000"
-        }
-      ]
-
-      stub(API, :list_thread_messages, fn :company, "C123", "1710000100.100000" ->
-        {:ok, thread_messages}
-      end)
-
-      expect(RespondToConversation, :start_or_replace, fn event, :company, ^channel ->
-        assert event["atlas_thread_messages"] == thread_messages
-        assert event["ts"] == payload["ts"]
-        :ok
-      end)
-
-      assert :ok = SlackEvents.handle_event(payload, :company)
+      assert :ignored = SlackEvents.handle_event(mention, :company)
+      assert :ignored = SlackEvents.handle_event(app_mention, :company)
+      assert :ignored = SlackEvents.handle_event(thread_reply, :company)
     end
   end
 
@@ -443,7 +266,7 @@ defmodule Atlas.Slack.EventsTest do
       assert event.metadata["author_slack_user_id"] == nil
     end
 
-    test "captures app mentions and starts a threaded conversation responder", %{
+    test "captures app mentions without starting a conversation responder", %{
       account: account,
       channel: channel
     } do
@@ -455,9 +278,9 @@ defmodule Atlas.Slack.EventsTest do
         "ts" => "1710000600.100000"
       }
 
-      expect(RespondToConversation, :start_or_replace, fn ^payload, :company, ^channel -> :ok end)
+      reject(&RespondToConversation.start_or_replace/3)
 
-      assert :ok = SlackEvents.handle_event(payload, :company)
+      assert {:ok, %SlackMessage{}} = SlackEvents.handle_event(payload, :company)
 
       message = Slack.get_message_by_ts(channel, "1710000600.100000")
       assert message.text == "<@U_ATLAS> What is the renewal status?"

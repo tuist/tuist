@@ -41,6 +41,11 @@
 
                 let cpuUsage = calculateCPUUsage(previous: previousCPUTicks, current: currentCPUTicks)
                 let memory = memoryInfo()
+                // The daemon has no build-specific paths. Measure the writable system Data
+                // volume, not the read-only system volume or a sum of shared APFS volumes.
+                let diskSpace = try? URL(fileURLWithPath: "/System/Volumes/Data").resourceValues(
+                    forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]
+                )
 
                 let sample = MachineMetricSample(
                     timestamp: Date().timeIntervalSince1970,
@@ -50,7 +55,9 @@
                     networkBytesIn: max(0, currentNetworkBytes.bytesIn - previousNetworkBytes.bytesIn),
                     networkBytesOut: max(0, currentNetworkBytes.bytesOut - previousNetworkBytes.bytesOut),
                     diskBytesRead: max(0, currentDiskBytes.bytesRead - previousDiskBytes.bytesRead),
-                    diskBytesWritten: max(0, currentDiskBytes.bytesWritten - previousDiskBytes.bytesWritten)
+                    diskBytesWritten: max(0, currentDiskBytes.bytesWritten - previousDiskBytes.bytesWritten),
+                    diskTotalBytes: diskSpace?.volumeTotalCapacity,
+                    diskAvailableBytes: diskSpace?.volumeAvailableCapacity
                 )
 
                 previousCPUTicks = currentCPUTicks

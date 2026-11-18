@@ -69,10 +69,17 @@ struct TestShowCommandService: TestShowCommandServicing {
 
         let info = formatRunInfo(run)
         Noora.current.passthrough("\(info)")
-        Noora.current
-            .passthrough(
-                "\nNext steps:\n ▸ Run \(.command("tuist test case run list --test-run-id \(run.id)")) to see the test case runs\n"
+        var nextSteps: [TerminalText] = [
+            "\nNext steps:\n ▸ Run \(.command("tuist test case run list --test-run-id \(run.id)")) to see the test case runs\n",
+        ]
+        if run.selective_testing?.strategy == "coverage" {
+            nextSteps.append(
+                " ▸ Run \(.command("tuist test selective-testing list \(run.id)")) to see the tests coverage-based selection selected or skipped, and why\n"
             )
+        }
+        for step in nextSteps {
+            Noora.current.passthrough(step)
+        }
     }
 
     private func formatRunInfo(_ run: ServerTestRun) -> String {
@@ -81,16 +88,17 @@ struct TestShowCommandService: TestShowCommandServicing {
         // Status header
         let statusLabel: String
         switch run.status {
-        case .success: statusLabel = "passed"
-        case .failure: statusLabel = "failed"
-        case .skipped: statusLabel = "skipped"
+        case "success": statusLabel = "passed"
+        case "failure": statusLabel = "failed"
+        case "in_progress": statusLabel = "in progress"
+        default: statusLabel = run.status.replacingOccurrences(of: "_", with: " ")
         }
         info.append("Test Run (\(statusLabel))".bold())
 
         // Result
         info.append("")
         info.append("Result".bold())
-        info.append("  Status:       \(run.status.rawValue)")
+        info.append("  Status:       \(run.status)")
         info.append("  Duration:     \(Formatters.formatDuration(run.duration))")
         info.append("  Flaky:        \(run.is_flaky ? "Yes" : "No")")
 
@@ -132,6 +140,40 @@ struct TestShowCommandService: TestShowCommandServicing {
         }
         if let ranAt = run.ran_at {
             info.append("  Ran At:       \(Formatters.formatDate(ranAt))")
+        }
+
+        // Coverage
+        if let coverage = run.coverage, coverage.measured {
+            info.append("")
+            info.append("Coverage".bold())
+            if let percentage = coverage.coverage, let covered = coverage.covered_lines,
+               let executable = coverage.executable_lines
+            {
+                info.append("  Coverage:     \(String(format: "%.1f%%", percentage)) (\(covered) of \(executable) lines)")
+            }
+            if coverage.partial {
+                info.append("  Partial:      Yes, it skipped tests on purpose, so it measured only what it ran")
+            }
+            if coverage.git_dirty {
+                info.append("  Discarded:    Yes, it ran from a dirty checkout, so its coverage doesn't join its commit's")
+            }
+        }
+
+        // Selective testing
+        if let selectiveTesting = run.selective_testing {
+            info.append("")
+            info.append("Selective Testing".bold())
+            info.append("  Strategy:     \(selectiveTesting.strategy)")
+            if let baselineSHA = selectiveTesting.baseline_sha {
+                info.append("  Baseline:     \(baselineSHA)")
+            }
+            info.append("  Requested:    \(selectiveTesting.requested)")
+            info.append("  Selected:     \(selectiveTesting.selected)")
+            info.append(
+                selectiveTesting.estimated > 0
+                    ? "  Skipped:      \(selectiveTesting.skipped) (\(selectiveTesting.estimated) estimated)"
+                    : "  Skipped:      \(selectiveTesting.skipped)"
+            )
         }
 
         // IDs

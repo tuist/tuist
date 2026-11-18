@@ -121,6 +121,7 @@ Tuist/Dependencies/graph.json
 !.claude/settings.json
 .agents/*
 !.agents/setup
+!.agents/setup-macos
 !.agents/resume
 .amp/portals/
 mise.local.toml

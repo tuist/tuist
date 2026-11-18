@@ -97,9 +97,29 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache
           cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache,mode=max
 
+      # Every other Ubuntu release a Runner Profile can pick, tagged
+      # `<semver>-<os-tag>` from the same commit, so one release version
+      # names all of them and the deploy resolves each by suffix. Keep the
+      # list in step with `runnersFleetLinux.osVersions` and the
+      # Dockerfile's base stages. `latest` stays on the default release.
+      - name: Build and push Ubuntu 22.04
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
+          platforms: linux/amd64
+          push: true
+          build-args: OS_VERSION=ubuntu-22.04
+          tags: ghcr.io/tuist/tuist-linux-runner:${{ needs.plan.outputs.version }}-ubuntu-22-04
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-ubuntu-22.04
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-ubuntu-22.04,mode=max
+
       # The chart pulls anonymously from GHCR, so only tag what it can read.
-      - name: Verify the image is published
-        run: .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}"
+      - name: Verify the images are published
+        run: |
+          .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}"
+          .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}-ubuntu-22-04"
 
       - name: Prepare release
         id: notes
@@ -118,7 +138,7 @@ jobs:
           )
           {
             echo "body<<EOF"
-            echo "Docker image: \`ghcr.io/tuist/tuist-linux-runner:${VERSION}\`"
+            echo "Docker images: \`ghcr.io/tuist/tuist-linux-runner:${VERSION}\` (Ubuntu 24.04), \`ghcr.io/tuist/tuist-linux-runner:${VERSION}-ubuntu-22-04\` (Ubuntu 22.04)"
             echo
             git cliff "${include_paths[@]}" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null "${range[@]}" \
               | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2
@@ -190,10 +210,14 @@ jobs:
           exec 2> >(sed 's/^::error::/::warning::/' >&2)
           digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$VERSION")" || exit 0
           image="ghcr.io/tuist/tuist-linux-runner@${digest}"
-          if bash .github/scripts/linux-runner-image-stage.sh "$image" tuist "$NAMESPACE"; then
-            echo "Linux hosts in ${{ matrix.environment }} hold $image."
+          os_images=()
+          if jammy="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$VERSION-ubuntu-22-04")"; then
+            os_images+=("ubuntu-22.04=ghcr.io/tuist/tuist-linux-runner@${jammy}")
+          fi
+          if bash .github/scripts/linux-runner-image-stage.sh "$image" tuist "$NAMESPACE" "${os_images[@]}"; then
+            echo "Linux hosts in ${{ matrix.environment }} hold $image ${os_images[*]}."
           else
-            echo "::warning::Linux hosts in ${{ matrix.environment }} have not staged $image; deploying."
+            echo "::warning::Linux hosts in ${{ matrix.environment }} have not staged $image ${os_images[*]}; deploying."
           fi
 
   deploy:

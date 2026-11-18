@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -104,7 +105,11 @@ func (l *listing) once(ctx context.Context) {
 			continue
 		}
 		identity := master.identity()
-		if master.Kind != "custom" || identity.BaseGeneration <= 0 || l.local(identity) {
+		if master.Kind != "custom" || identity.BaseGeneration <= 0 {
+			continue
+		}
+		if l.local(identity) {
+			l.decided(master, "held", nil)
 			continue
 		}
 		if ctx.Err() != nil {
@@ -116,10 +121,27 @@ func (l *listing) once(ctx context.Context) {
 		err := l.restore(attempt, slot)
 		done(err)
 		cancel()
-		if err == nil {
+		switch {
+		case err == nil:
 			l.installed(listingReason(master.Reason), identity.HeadSizeBytes)
+			l.decided(master, "restored", nil)
+		case errors.Is(err, cachevolumes.ErrCapacity):
+			l.decided(master, "no_space", err)
+		default:
+			l.decided(master, "failed", err)
 		}
 	}
+}
+
+// decided logs what the host did with one listed custom master, so a cold
+// attach can be traced to a host that held it, had no room for it, or failed
+// to restore it.
+func (l *listing) decided(master listedMaster, decision string, err error) {
+	attrs := []any{"decision", decision, "scope", master.Scope, "generation", master.Generation, "reason", listingReason(master.Reason), "head_size_bytes", master.HeadSizeBytes}
+	if err != nil {
+		attrs = append(attrs, "error", signedURL.ReplaceAllString(err.Error(), "<url>"))
+	}
+	l.logger.Info("prefetch listed master", attrs...)
 }
 
 func (l *listing) masters(ctx context.Context) ([]listedMaster, error) {

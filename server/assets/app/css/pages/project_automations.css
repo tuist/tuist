@@ -186,7 +186,7 @@
         }
 
         & > [data-part="form-section-header-action"] {
-          margin-left: auto;
+          margin-inline-start: auto;
         }
 
         & [data-part="title"] {
@@ -217,13 +217,8 @@
         display: flex;
         flex-direction: row;
         align-items: flex-start;
-        gap: var(--noora-spacing-3);
+        gap: var(--noora-spacing-4);
         cursor: pointer;
-
-        & > .noora-checkbox-control {
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
 
         & > [data-part="body"] {
           display: flex;
@@ -274,7 +269,7 @@
       }
 
       & > .noora-button[data-variant="secondary"] {
-        margin-left: auto;
+        margin-inline-start: auto;
       }
     }
 
@@ -388,14 +383,14 @@
   button {
     display: flex;
     align-items: center;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-4);
     cursor: pointer;
     border: 0;
     background: none;
     padding: var(--noora-spacing-5) 0 0;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    text-align: left;
+    text-align: start;
   }
 
   [data-part="body"] {
@@ -427,7 +422,7 @@
     padding: 0;
     width: 100%;
     color: var(--noora-surface-label-primary);
-    text-align: left;
+    text-align: start;
   }
 
   [data-part="section-heading"] {
@@ -642,7 +637,7 @@
         flex-direction: column;
         gap: var(--noora-spacing-5);
         margin-bottom: var(--noora-spacing-6);
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-4);
         background: var(--noora-surface-background-primary);
         padding: var(--noora-spacing-5) var(--noora-spacing-6);

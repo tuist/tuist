@@ -46,12 +46,17 @@ struct RunnerVolumeCommandTests {
         #expect(throws: (any Error).self) { try RunnerVolumeListCommand.parse(["--page", "0"]) }
     }
 
-    @Test func clearingRequiresExplicitConfirmationAndValidID() throws {
-        #expect(throws: (any Error).self) { try RunnerVolumeClearCommand.parse([id]) }
-        #expect(throws: (any Error).self) { try RunnerVolumeClearCommand.parse(["invalid", "--yes"]) }
-        let command = try RunnerVolumeClearCommand.parse([id, "--yes", "--account", "acme"])
+    @Test func deletingRequiresExplicitConfirmationAndValidID() throws {
+        #expect(throws: (any Error).self) { try RunnerVolumeDeleteCommand.parse([id]) }
+        #expect(throws: (any Error).self) { try RunnerVolumeDeleteCommand.parse(["invalid", "--yes"]) }
+        let command = try RunnerVolumeDeleteCommand.parse([id, "--yes", "--account", "acme"])
         #expect(command.volumeID == id)
         #expect(command.yes)
+    }
+
+    @Test func keepsClearAsAnAliasOfDelete() throws {
+        let command = try RunnerVolumeCommand.parseAsRoot(["clear", id, "--yes"])
+        #expect((command as? RunnerVolumeDeleteCommand)?.volumeID == id)
     }
 
     @Test func validatesAnalyticsRange() throws {

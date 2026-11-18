@@ -1,0 +1,698 @@
+package macosandbox
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/server"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+)
+
+const (
+	Namespace        = "tuist-sandboxes"
+	ServiceAccount   = "tuist-macos-sandboxd"
+	ConfigAnnotation = "tuist.dev/macos-sandbox-config"
+)
+
+type Config struct {
+	URL string `json:"url"`
+	// Image and Template are the default template, which a kubelet without
+	// Templates serves alone.
+	Image    string `json:"image"`
+	Template string `json:"template"`
+	// Templates lists every template the host serves, the default first:
+	// `macos-xcode-<version>` for each Xcode, plus Template naming the
+	// default Xcode's Image. Empty serves only Image as Template.
+	Templates []TemplateConfig `json:"templates,omitempty"`
+}
+
+// templates lists the configured templates, the default first.
+func (c Config) templates() []TemplateConfig {
+	if len(c.Templates) > 0 {
+		return c.Templates
+	}
+	return []TemplateConfig{{Template: c.Template, Image: c.Image}}
+}
+
+// Service runs on the host, not in a guest. The control Pod provides a
+// revocable, Pod-bound identity and declarative configuration only.
+type Service struct {
+	Kube              kubernetes.Interface
+	Node, Root, Tools string
+	// CIStore is the TART_HOME of the kubelet's CI VMs, whose cached template
+	// image preparation clones instead of pulling it again.
+	CIStore string
+	// Checkouts is the runner cache's checkout masters, nil without it.
+	Checkouts Checkouts
+	mu        sync.Mutex
+	manager   *Manager
+	capacity  *KubeCapacity
+	ready     bool
+	err       error
+}
+
+func (s *Service) NeedLeaderElection() bool { return false }
+func (s *Service) Start(ctx context.Context) error {
+	if err := os.MkdirAll(s.Root, 0700); err != nil {
+		return err
+	}
+	// Kubernetes operations and VM transitions run here, independently of the
+	// single CI Pod reconcile worker.
+	lock, err := os.OpenFile(filepath.Join(s.Root, "owner.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return errors.New("another sandbox host service owns this store")
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	// Image preparation and control reconnection may take minutes. Keep recovery
+	// and CI-driven eviction independent, and finish them before releasing the
+	// exclusive store lock during shutdown.
+	reconcileCtx, stopReconcile := context.WithCancel(ctx)
+	reconcileDone := make(chan struct{})
+	go func() {
+		defer close(reconcileDone)
+		s.reconcile(reconcileCtx)
+	}()
+	sampleDone := make(chan struct{})
+	go func() {
+		defer close(sampleDone)
+		s.sampleCPU(reconcileCtx)
+	}()
+	warmDone := make(chan struct{})
+	go func() {
+		defer close(warmDone)
+		s.reconcileWarm(reconcileCtx)
+	}()
+	defer func() { stopReconcile(); <-reconcileDone; <-sampleDone; <-warmDone }()
+	var cancel context.CancelFunc
+	var controlUID string
+	defer func() {
+		if cancel != nil {
+			cancel()
+		}
+	}()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		opCtx, done := context.WithTimeout(ctx, 30*time.Minute)
+		err := s.tick(opCtx, ctx, &controlUID, &cancel)
+		done()
+		if err != nil {
+			slog.Warn("macOS sandbox reconcile", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+// Guest CPU feeds the server's idle backstop for Amp Orbs. Probing is a guest
+// exec per VM, so it has its own loop and never delays CI-driven eviction.
+const cpuSampleInterval = 30 * time.Second
+
+func (s *Service) sampleCPU(ctx context.Context) {
+	ticker := time.NewTicker(cpuSampleInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		s.mu.Lock()
+		m := s.manager
+		s.mu.Unlock()
+		if m != nil {
+			m.SampleCPU(ctx)
+		}
+	}
+}
+
+func (s *Service) reconcile(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		s.mu.Lock()
+		m := s.manager
+		s.mu.Unlock()
+		if m != nil {
+			opCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			err := m.Reconcile(opCtx)
+			cancel()
+			if err != nil {
+				slog.Warn("macOS sandbox ownership reconcile", "error", err)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *context.CancelFunc) error {
+	node, err := s.Kube.CoreV1().Nodes().Get(ctx, s.Node, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	pods, err := s.Kube.CoreV1().Pods(Namespace).List(ctx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + s.Node})
+	if err != nil {
+		return err
+	}
+	var control *corev1.Pod
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		if p.Spec.NodeName != s.Node {
+			continue
+		}
+		if p.Labels[RoleLabel] == "control" && p.Spec.ServiceAccountName == ServiceAccount {
+			if !p.DeletionTimestamp.IsZero() {
+				if *controlUID == string(p.UID) {
+					if *cancel != nil {
+						(*cancel)()
+						*cancel = nil
+					}
+					*controlUID = ""
+				}
+				// A control Pod owns only its connection, never a guest. Complete
+				// deletion even when runtime/image preparation never succeeded.
+				zero := int64(0)
+				if err := s.Kube.CoreV1().Pods(Namespace).Delete(ctx, p.Name, metav1.DeleteOptions{GracePeriodSeconds: &zero, Preconditions: &metav1.Preconditions{UID: &p.UID}}); err != nil && !apierrors.IsNotFound(err) {
+					return err
+				}
+				continue
+			}
+			if control != nil {
+				return errors.New("multiple sandbox control Pods")
+			}
+			control = p
+		}
+	}
+	// A control Pod is Ready once the host accepts its configuration. Template
+	// preparation can take an hour or wait for disk, and the server learns a
+	// host can place sandboxes from its connection, not from this Pod, so
+	// readiness must not hold a chart rollout on that background work.
+	if control != nil {
+		var cfg Config
+		if err = json.Unmarshal([]byte(control.Annotations[ConfigAnnotation]), &cfg); err != nil {
+			return err
+		}
+		if err = validateConfig(cfg); err != nil {
+			return err
+		}
+		if err = s.markRunning(ctx, control); err != nil {
+			return err
+		}
+	}
+	s.mu.Lock()
+	m := s.manager
+	s.mu.Unlock()
+	if m == nil {
+		// With no control Pod and no durable records, this host keeps its existing
+		// CI-only behavior. Existing records always require recovery before launches.
+		s.mu.Lock()
+		s.ready = false
+		s.mu.Unlock()
+		entries, readErr := os.ReadDir(filepath.Join(s.Root, "records"))
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return readErr
+		}
+		if len(entries) == 0 {
+			vms, err := os.ReadDir(filepath.Join(s.Root, "tart", "vms"))
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			warmLeft := false
+			for _, vm := range vms {
+				if strings.HasPrefix(vm.Name(), sandboxVMPrefix) {
+					return errors.New("orphan sandbox VM requires ownership reconciliation")
+				}
+				warmLeft = warmLeft || strings.HasPrefix(vm.Name(), warmVMPrefix)
+			}
+			// An unclaimed warm VM still runs and takes a VM slot: stay closed
+			// until the full preparation below has deleted it.
+			if !warmLeft {
+				s.mu.Lock()
+				s.ready = true
+				s.mu.Unlock()
+				if control == nil {
+					return nil
+				}
+			}
+		}
+		var cfg Config
+		configData, configErr := os.ReadFile(filepath.Join(s.Root, "config.json"))
+		if control != nil {
+			configData, configErr = []byte(control.Annotations[ConfigAnnotation]), nil
+		}
+		if configErr != nil {
+			return configErr
+		}
+		if err = json.Unmarshal(configData, &cfg); err != nil {
+			return err
+		}
+		if err = validateConfig(cfg); err != nil {
+			return err
+		}
+		if err = atomicFile(filepath.Join(s.Root, "config.json"), configData); err != nil {
+			return err
+		}
+		binary, err := BuildRuntime(ctx, filepath.Join(s.Root, "runtimes"))
+		if err != nil {
+			return err
+		}
+		if s.Tools == "" {
+			s.Tools, err = installTools(filepath.Join(s.Root, "guest-tools"))
+			if err != nil {
+				return err
+			}
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "amp", provisionAmpCLI)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "claude-code", provisionClaudeCode)
+		}
+		for _, name := range []string{"sbx-macos", "sbx-worker"} {
+			info, err := os.Stat(filepath.Join(s.Tools, name))
+			if err != nil {
+				return err
+			}
+			if info.Mode()&0111 == 0 {
+				return errors.New("guest bridge is not executable")
+			}
+		}
+		c := &tart.Client{Binary: binary, HomeDir: filepath.Join(s.Root, "tart"), UserDataDir: filepath.Join(s.Root, "env"), LogDir: filepath.Join(s.Root, "logs"), EnsureGUISession: tart.EnsureRealGUISession, ExtraEnv: []string{"TART_NO_AUTO_PRUNE=1"}, BackgroundPull: []string{"/usr/sbin/taskpolicy", "-b"}}
+		if err = os.MkdirAll(c.HomeDir, 0700); err != nil {
+			return err
+		}
+		if err = os.MkdirAll(c.UserDataDir, 0700); err != nil {
+			return err
+		}
+		controlID := ""
+		if control != nil {
+			controlID = string(control.UID)
+		}
+		cap := &KubeCapacity{Kube: s.Kube, Node: s.Node, NodeUID: string(node.UID), Namespace: Namespace, ControlUID: controlID}
+		// No template is prepared until a control Pod's preparation below.
+		templates := NewTemplates(nil)
+		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), Templates: templates, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Templates: templates, Tools: s.Tools, CIStore: s.CIStore, Checkouts: s.Checkouts}}
+		if err = m.Load(ctx); err != nil {
+			return err
+		}
+		vms, err := c.List(ctx)
+		if err != nil {
+			return err
+		}
+		owned := map[string]bool{}
+		for _, r := range m.records {
+			owned[r.VMName()] = true
+		}
+		for _, vm := range vms {
+			if owned[vm.Name] {
+				continue
+			}
+			if strings.HasPrefix(vm.Name, sandboxVMPrefix) {
+				return errors.New("orphan sandbox VM requires ownership reconciliation")
+			}
+			// Warm VMs live in memory only; one no record claimed is disposable.
+			if strings.HasPrefix(vm.Name, warmVMPrefix) {
+				if err = m.Runtime.Delete(ctx, &Record{VM: vm.Name}); err != nil {
+					return err
+				}
+			}
+		}
+		if tartRuntime, ok := m.Runtime.(*TartRuntime); ok {
+			if err = tartRuntime.clearSnapshotStaging(); err != nil {
+				return err
+			}
+		}
+		// Recreate reservations from durable local ownership before admitting CI,
+		// including errors whose runtime state remains uncertain.
+		for _, r := range m.records {
+			if r.Resident || r.Operation != "" {
+				if err = cap.Hold(ctx, r); err != nil {
+					return err
+				}
+			}
+		}
+		s.mu.Lock()
+		s.manager = m
+		s.capacity = cap
+		s.ready = true
+		s.mu.Unlock()
+	}
+	if control == nil || *controlUID != string(control.UID) {
+		if *cancel != nil {
+			(*cancel)()
+			*cancel = nil
+		}
+		*controlUID = ""
+	}
+	if control != nil && *cancel == nil {
+		var cfg Config
+		if err = json.Unmarshal([]byte(control.Annotations[ConfigAnnotation]), &cfg); err != nil {
+			return err
+		}
+		// A new control Pod revokes old grants, while VM ownership stays bound to
+		// the Node UID and its journal. No process is stopped for a socket restart.
+		if err = validateConfig(cfg); err != nil {
+			return err
+		}
+		// The default template is prepared before the host connects, so a
+		// connected host always places the default. The others are prepared
+		// after it connects (prepareTemplates) and reported as not ready
+		// until then, so one template whose image cannot be had yet never
+		// keeps the host from serving the rest.
+		configured := cfg.templates()
+		tartRuntime, _ := m.Runtime.(*TartRuntime)
+		if tartRuntime != nil {
+			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
+				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, configured[0].Image)
+			}); err != nil {
+				return err
+			}
+		}
+		if err = atomicFile(filepath.Join(s.Root, "config.json"), []byte(control.Annotations[ConfigAnnotation])); err != nil {
+			return err
+		}
+		m.Gate.Lock()
+		s.capacity.ControlUID = string(control.UID)
+		// Every name of the default image is ready with it; a runtime
+		// without a store has nothing to prepare.
+		prepared := map[string]string{}
+		var pending []TemplateConfig
+		for _, t := range configured {
+			if tartRuntime == nil || t.Image == configured[0].Image {
+				prepared[t.Template] = t.Image
+			} else {
+				pending = append(pending, t)
+			}
+		}
+		m.Templates.replace(prepared)
+		m.Gate.Unlock()
+		// After the default is prepared: the cached image's size is looked up
+		// by name. Until a size is known the server reserves no root disk
+		// here, and checkDisk learns it on the next create, resume or save.
+		if tartRuntime != nil {
+			if err = tartRuntime.learnRootDisk(parent); err != nil {
+				slog.Warn("macOS sandbox root disk size unknown", "image", configured[0].Image, "error", err)
+			}
+		}
+		// A runtime without a store reports no disk budget, which the server does not budget.
+		disk := func(snapshots []protocol.DiskSnapshotInfo) protocol.DiskReport {
+			if tartRuntime == nil {
+				return protocol.DiskReport{}
+			}
+			report := diskReport(tartRuntime.Client.HomeDir)
+			report.SnapshotsBytes = snapshotBytes(snapshots)
+			return report
+		}
+		rootfs := func() int64 {
+			if tartRuntime == nil {
+				return 0
+			}
+			return tartRuntime.rootfs.Load()
+		}
+		clientCtx, stop := context.WithCancel(parent)
+		*cancel = stop
+		*controlUID = string(control.UID)
+		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
+		templates := func() []protocol.TemplateInfo {
+			infos := make([]protocol.TemplateInfo, 0, len(configured))
+			for _, t := range configured {
+				image, ok := m.Templates.Image(t.Template)
+				infos = append(infos, protocol.TemplateInfo{Name: t.Template, Tag: t.Image, Ready: ok && image == t.Image, RootfsBytes: rootfs(), Warm: m.warmShapes(t.Template)})
+			}
+			return infos
+		}
+		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
+		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
+			Hello: func() protocol.Hello {
+				snapshots := m.DiskSnapshots()
+				return protocol.Hello{Platform: "darwin", Archives: true, Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(snapshots), Templates: templates(), Sandboxes: m.Snapshot(), DiskSnapshots: snapshots}
+			},
+			Report: func() protocol.Report {
+				snapshots := m.DiskSnapshots()
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(snapshots), Sandboxes: m.Snapshot(), Templates: templates(), DiskSnapshots: snapshots}
+			},
+			Handler: m.Dispatch})
+		m.Gate.Lock()
+		m.Emit = client.Emit
+		m.Gate.Unlock()
+		go client.Run(clientCtx)
+		if len(pending) > 0 {
+			go s.prepareTemplates(clientCtx, control, tartRuntime, m.Templates, pending)
+		}
+	}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Labels[RoleLabel] == "execution" {
+			id := pod.Labels[IDLabel]
+			if pod.Annotations[NodeUIDAnnotation] != m.NodeUID {
+				return errors.New("reservation belongs to another Node incarnation")
+			}
+			if !pod.DeletionTimestamp.IsZero() {
+				if err = m.Delete(ctx, id); err != nil {
+					return err
+				}
+				continue
+			}
+			// A forged/stranded Pod does not become a VM. Only a journal owns a VM.
+			m.Gate.Lock()
+			r := m.records[id]
+			ready := r != nil && r.Resident && r.Operation == "" && (r.State == "running" || r.State == "paused")
+			m.Gate.Unlock()
+			if r == nil {
+				return errors.New("reservation missing its durable journal")
+			}
+			if !ready {
+				continue
+			}
+		}
+		if pod.Labels[RoleLabel] == "execution" {
+			if err = s.markRunning(ctx, pod); err != nil {
+				return err
+			}
+		}
+	}
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	return s.repairReservations(ctx, m)
+}
+
+// markRunning also restores Ready: the node lifecycle controller marks every
+// Pod on a node NotReady when its lease lapses and leaves the phase Running.
+func (s *Service) markRunning(ctx context.Context, pod *corev1.Pod) error {
+	if !pod.DeletionTimestamp.IsZero() {
+		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning {
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				return nil
+			}
+		}
+	}
+	copy := pod.DeepCopy()
+	copy.Status.Phase = corev1.PodRunning
+	copy.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now()}}
+	_, err := s.Kube.CoreV1().Pods(Namespace).UpdateStatus(ctx, copy, metav1.UpdateOptions{})
+	return err
+}
+
+// repairReservations runs under the launch gate, including immediately before
+// every CI launch. A force-deleted Pod cannot erase a live VM's charge.
+func (s *Service) repairReservations(ctx context.Context, m *Manager) error {
+	for _, r := range m.records {
+		if r.Resident || r.Operation != "" {
+			if err := s.capacity.Hold(ctx, r); err != nil {
+				return err
+			}
+		}
+	}
+	// A warm VM is charged by its Pod alone. Until the warm loop deletes the VM
+	// of a force-deleted Pod, that VM still takes a slot.
+	for _, w := range m.warm {
+		pod, err := s.Kube.CoreV1().Pods(w.namespace).Get(ctx, w.name, metav1.GetOptions{})
+		if err != nil || pod.UID != w.pod {
+			return errors.Join(errors.New("warm VM without its Pod"), err)
+		}
+	}
+	return nil
+}
+
+// LaunchGuard is installed on the CI Tart client. It never checkpoints inline.
+func (s *Service) LaunchGuard(ctx context.Context, _ string) (func(), error) {
+	s.mu.Lock()
+	ready, m, cap := s.ready, s.manager, s.capacity
+	s.mu.Unlock()
+	if !ready {
+		return nil, errors.New("sandbox ownership recovery pending")
+	}
+	if m == nil {
+		return func() {}, nil
+	}
+	if !m.Gate.TryLock() {
+		return nil, ErrCapacity
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := s.repairReservations(ctx, m); err != nil {
+		m.Gate.Unlock()
+		return nil, err
+	}
+	if err := cap.Fits(ctx); err != nil {
+		m.Gate.Unlock()
+		return nil, err
+	}
+	return m.Gate.Unlock, nil
+}
+func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(protocol.Stream)) protocol.Result {
+	var args struct {
+		protocol.CreateArgs
+		Env        map[string]string       `json:"env"`
+		Cmd        []string                `json:"cmd"`
+		Cwd        string                  `json:"cwd"`
+		TimeoutMs  int64                   `json:"timeout_ms"`
+		NodeUID    string                  `json:"node_uid"`
+		WorkID     string                  `json:"work_id"`
+		HoldMs     int64                   `json:"hold_ms"`
+		Checkout   *protocol.CheckoutGrant `json:"checkout"`
+		SnapshotID string                  `json:"snapshot_id"`
+		PartSize   int64                   `json:"part_size"`
+		PartURLs   []string                `json:"part_urls"`
+		Bytes      int64                   `json:"bytes"`
+	}
+	if err := json.Unmarshal(cmd.Args, &args); err != nil {
+		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
+	}
+	if args.NodeUID != m.NodeUID {
+		return protocol.ErrorResult(cmd.ID, errors.New("sandbox owner generation changed"))
+	}
+	timeout := 2 * time.Minute
+	if cmd.Op == protocol.OpArchive || cmd.Op == protocol.OpArchiveDisks || cmd.Op == protocol.OpCopyDisks || (cmd.Op == protocol.OpCreate && args.FromArchive != nil) {
+		timeout = archiveTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	started := time.Now()
+	var err error
+	var data any
+	switch cmd.Op {
+	case protocol.OpCreate:
+		err = m.Create(ctx, args.CreateArgs)
+		data = map[string]any{"boot_ms": time.Since(started).Milliseconds()}
+		for _, info := range m.Snapshot() {
+			if info.ID == args.SandboxID {
+				data = map[string]any{"boot_ms": time.Since(started).Milliseconds(), "template_tag": info.TemplateTag, "warm": m.onWarmVM(args.SandboxID)}
+			}
+		}
+	case protocol.OpResume:
+		err = m.Resume(ctx, args.SandboxID)
+		data = protocol.ResumeResult{RestoreMs: time.Since(started).Milliseconds()}
+	case protocol.OpPause:
+		err = m.Pause(ctx, args.SandboxID)
+		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds(), "disks_synced": m.disksSynced(args.SandboxID)}
+	case protocol.OpSaveDisks:
+		var snapshot protocol.DiskSnapshotInfo
+		snapshot, err = m.SaveDisks(ctx, args.SandboxID, args.SnapshotID)
+		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
+	case protocol.OpDeleteDisks:
+		err = m.DeleteDisks(ctx, args.SnapshotID)
+	case protocol.OpArchiveDisks:
+		var res protocol.ArchiveResult
+		res, err = m.ArchiveDisks(ctx, protocol.ArchiveDisksArgs{SnapshotID: args.SnapshotID, PartSize: args.PartSize, PartURLs: args.PartURLs})
+		res.DurationMs = time.Since(started).Milliseconds()
+		data = res
+	case protocol.OpCopyDisks:
+		var snapshot protocol.DiskSnapshotInfo
+		snapshot, err = m.CopyDisks(ctx, protocol.CopyDisksArgs{SnapshotID: args.SnapshotID, Template: args.Template, WorkspaceGB: args.WorkspaceGB, FromArchive: args.FromArchive, TemplateTag: args.TemplateTag, Bytes: args.Bytes})
+		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
+	case protocol.OpDelete:
+		err = m.Delete(ctx, args.SandboxID)
+	case protocol.OpArchive:
+		var a protocol.ArchiveArgs
+		if err = json.Unmarshal(cmd.Args, &a); err == nil {
+			data, err = m.Archive(ctx, a)
+		}
+	case protocol.OpExec:
+		data, err = m.Exec(ctx, protocol.ExecArgs{SandboxID: args.SandboxID, Cmd: args.Cmd, Env: args.Env, Cwd: args.Cwd, TimeoutMs: args.TimeoutMs}, out)
+	case protocol.OpStartWorker:
+		var status WorkerStatus
+		status, err = m.StartWorker(ctx, args.SandboxID, args.Env, args.Checkout)
+		data = protocol.StartWorkerResult{ExecID: status.ID}
+	case protocol.OpStopWorker:
+		_, err = m.Worker(ctx, args.SandboxID, "stop", nil)
+	case protocol.OpHoldResidency:
+		err = m.Hold(ctx, args.SandboxID, args.WorkID, time.Duration(args.HoldMs)*time.Millisecond)
+	case protocol.OpReleaseResidency:
+		err = m.Release(args.SandboxID, args.WorkID)
+	case protocol.OpStatus:
+		for _, info := range m.Snapshot() {
+			if info.ID == args.SandboxID {
+				data = info
+				break
+			}
+		}
+		if data == nil {
+			err = errors.New("sandbox not found")
+		}
+	default:
+		err = fmt.Errorf("unsupported macOS sandbox operation %q", cmd.Op)
+	}
+	if err != nil {
+		return protocol.ErrorResult(cmd.ID, err)
+	}
+	return protocol.OKResult(cmd.ID, data)
+}
+func (s *Service) grant() Grant {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	node, err := s.Kube.CoreV1().Nodes().Get(ctx, s.Node, metav1.GetOptions{})
+	if err != nil {
+		return Grant{}
+	}
+	var grant Grant
+	if json.Unmarshal([]byte(node.Annotations[GrantAnnotation]), &grant) != nil {
+		return Grant{}
+	}
+	return grant
+}
+
+func validateConfig(cfg Config) error {
+	parsed, err := url.Parse(cfg.URL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return errors.New("sandbox server requires HTTPS")
+	}
+	seen := map[string]bool{}
+	for _, t := range cfg.templates() {
+		if t.Template == "" || seen[t.Template] || (!strings.Contains(t.Image, "@sha256:") && (!strings.Contains(t.Image, ":") || strings.HasSuffix(t.Image, ":latest"))) {
+			return errors.New("sandbox requires uniquely named templates and versioned images")
+		}
+		seen[t.Template] = true
+	}
+	// A kubelet that only reads Image and Template serves the default.
+	if len(cfg.Templates) > 0 && (cfg.Templates[0].Template != cfg.Template || cfg.Templates[0].Image != cfg.Image) {
+		return errors.New("the first sandbox template must be the default image and template")
+	}
+	return nil
+}

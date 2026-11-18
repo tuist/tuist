@@ -180,24 +180,6 @@ func TestOVHDedicatedReconcileDeleteWaitsForRunnerJobs(t *testing.T) {
 	}
 }
 
-func TestElasticMetalReconcileDeleteWaitsForRunnerJobs(t *testing.T) {
-	machine := &infrav1.ScalewayElasticMetalMachine{
-		ObjectMeta: metav1.ObjectMeta{Name: runnerBox, Namespace: "tuist", Finalizers: []string{ElasticMetalMachineFinalizer}},
-	}
-	cl := fake.NewClientBuilder().WithScheme(vultrScheme(t)).
-		WithObjects(machine, runnerBoxNode(corev1.ConditionTrue), runnerPod("job", runnerBox, corev1.PodRunning)).Build()
-	r := &ScalewayElasticMetalMachineReconciler{
-		Client:             cl,
-		CredentialsManager: &credentials.Manager{Client: cl, Namespace: "tuist"},
-	}
-
-	res, err := r.reconcileDelete(context.Background(), machine)
-	if err != nil {
-		t.Fatalf("reconcileDelete: %v", err)
-	}
-	assertReleaseHeld(t, cl, res.RequeueAfter, controllerutil.ContainsFinalizer(machine, ElasticMetalMachineFinalizer))
-}
-
 func TestVultrReconcileDeleteWaitsForRunnerJobs(t *testing.T) {
 	machine := vultrMachine("tuist", runnerBox, "box-1")
 	machine.Finalizers = []string{VultrMachineFinalizer}

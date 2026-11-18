@@ -20,7 +20,7 @@ defmodule TuistEx.Cache.Compiler do
       if not valid_builder?(builder),
         do:
           Mix.raise(
-            "Invalid tuist cache builder for #{inspect(app)}: expected platform and outputs, with optional generated, env, inputs and tools"
+            "Invalid tuist cache builder for #{inspect(app)}: expected platform and outputs, with optional generated, env, inputs and tools, or native: false and outputs, with optional generated, env and inputs"
           )
     end)
   end
@@ -53,8 +53,14 @@ defmodule TuistEx.Cache.Compiler do
       if builder do
         builder = normalize_builder(builder)
 
+        mix_exs = String.to_charlist(Path.expand("mix.exs", dependency.opts[:dest]))
+
+        # rebar3 already enters the key as :rebar_toolchain, which portable keys
+        # name by file name instead of its per-user install path.
         configuration =
           config
+          |> Keyword.delete(:rebar_toolchain)
+          |> project_functions(mix_exs)
           |> Enum.map(fn {key, value} ->
             if key in [
                  :deps_path,
@@ -83,10 +89,14 @@ defmodule TuistEx.Cache.Compiler do
           |> Keyword.put(:cache_builder, builder)
           |> Keyword.put(:builder_configuration, configuration)
 
+        # An audited non-native step runs no native toolchain, so its key leaves
+        # out the native build environment that differs between machines.
+        native_environment = if builder[:native] == false, do: [], else: @native_environment
+
         if toolchain? do
           Keyword.put(config, :builder_inputs, %{
             environment:
-              (@native_environment ++ builder[:env])
+              (native_environment ++ builder[:env])
               |> Enum.uniq()
               |> Enum.sort()
               |> Enum.map(&{&1, System.get_env(&1)}),
@@ -318,6 +328,9 @@ defmodule TuistEx.Cache.Compiler do
   defp project_config(%{manager: :make} = dependency, _toolchain?),
     do: application_config(dependency)
 
+  # Without a manager (`compile: false`) nothing is compiled or cached.
+  defp project_config(dependency, _toolchain?), do: [app: dependency.app]
+
   defp application_config(dependency) do
     app = dependency.app
     root = dependency.opts[:dest]
@@ -341,9 +354,14 @@ defmodule TuistEx.Cache.Compiler do
     Keyword.keyword?(builder) and
       Enum.all?(
         Keyword.keys(builder),
-        &(&1 in [:platform, :outputs, :generated, :env, :inputs, :tools])
+        &(&1 in [:native, :platform, :outputs, :generated, :env, :inputs, :tools])
       ) and
-      is_binary(builder[:platform]) and String.trim(builder[:platform]) != "" and
+      if(builder[:native] == false,
+        do: is_nil(builder[:platform]) and (builder[:tools] || []) == [],
+        else:
+          builder[:native] in [nil, true] and is_binary(builder[:platform]) and
+            String.trim(builder[:platform]) != ""
+      ) and
       is_list(builder[:outputs]) and is_list(builder[:generated] || []) and
       Enum.all?(builder[:outputs] ++ (builder[:generated] || []), fn path ->
         is_binary(path) and source_path?(path) and Path.join(Path.split(path)) == path and
@@ -362,7 +380,7 @@ defmodule TuistEx.Cache.Compiler do
   defp normalize_builder(builder) do
     if not valid_builder?(builder), do: throw(:unmodeled_input)
 
-    [platform: builder[:platform]] ++
+    if(builder[:native] == false, do: [native: false], else: [platform: builder[:platform]]) ++
       Enum.map([:outputs, :generated, :env, :inputs, :tools], fn key ->
         {key, (builder[key] || []) |> Enum.uniq() |> Enum.sort()}
       end)
@@ -382,6 +400,30 @@ defmodule TuistEx.Cache.Compiler do
     if is_nil(executable), do: throw(:unmodeled_input)
     {tool, executable, Key.canonical_path(executable), Key.digest(File.read!(executable))}
   end
+
+  # Aliases often capture functions from the dependency's own mix.exs, whose
+  # bytes are already a source input. Name those so the audited configuration
+  # can be keyed; any other function stays opaque and bypasses caching.
+  defp project_functions(term, mix_exs) when is_function(term) do
+    info = Function.info(term)
+
+    if info[:type] == :local and info[:module].module_info(:compile)[:source] == mix_exs,
+      do:
+        {:project_function, info[:module], info[:name], info[:arity],
+         project_functions(info[:env], mix_exs)},
+      else: term
+  end
+
+  defp project_functions(term, mix_exs) when is_list(term),
+    do: Enum.map(term, &project_functions(&1, mix_exs))
+
+  defp project_functions(term, mix_exs) when is_tuple(term),
+    do: term |> Tuple.to_list() |> project_functions(mix_exs) |> List.to_tuple()
+
+  defp project_functions(term, mix_exs) when is_map(term),
+    do: :maps.map(fn _key, value -> project_functions(value, mix_exs) end, term)
+
+  defp project_functions(term, _mix_exs), do: term
 
   defp generated(config),
     do: ((config[:cache_builder] || [])[:generated] || []) ++ (config[:generated_sources] || [])

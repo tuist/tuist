@@ -1,0 +1,11 @@
+# Placeholder pins so CI renders every template; never deployed.
+enabled: true
+serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
+gateway:
+  tag: sha-000000000000
+  ingress:
+    enabled: true
+    host: execution.example.com
+workers:
+  tag: sha-000000000000
+  templateTag: sha-000000000000

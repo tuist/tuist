@@ -24,13 +24,15 @@ defmodule TuistWeb.API.Spec do
     "test_case.created" => Webhook.TestCaseCreatedEvent,
     "test_case.updated" => Webhook.TestCaseUpdatedEvent,
     "preview.created" => Webhook.PreviewCreatedEvent,
-    "preview.deleted" => Webhook.PreviewDeletedEvent
+    "preview.deleted" => Webhook.PreviewDeletedEvent,
+    "runner_job.started" => Webhook.RunnerJobStartedEvent,
+    "runner_job.completed" => Webhook.RunnerJobCompletedEvent
   }
 
   # Supporting types referenced from the event envelopes via `object:`.
   # Listed explicitly so `add_schemas/2` registers them alongside the
   # events — they aren't reachable from any HTTP route either.
-  @webhook_supporting_schemas [Webhook.TestCase, Webhook.Preview]
+  @webhook_supporting_schemas [Webhook.TestCase, Webhook.Preview, Webhook.RunnerJob]
 
   @catalog_event_types WebhookEndpoint.event_groups()
                        |> Enum.flat_map(& &1.events)

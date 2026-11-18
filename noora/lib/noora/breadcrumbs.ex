@@ -15,9 +15,8 @@ defmodule Noora.Breadcrumbs do
   use Phoenix.Component
 
   import Noora.Avatar
-  import Noora.Badge
-  import Noora.Dropdown
   import Noora.Icon
+  import Noora.Menu, only: [menu_item: 1, menu_separator: 1]
   import Noora.Utils
 
   attr(:style, :string, values: ~w(slash arrow), default: "slash", doc: "The separator style between breadcrumbs")
@@ -65,20 +64,18 @@ defmodule Noora.Breadcrumbs do
     doc: "Function called when an interaction happens outside the component"
   )
 
+  attr(:image, :string,
+    default: nil,
+    doc:
+      "URL of a 20px logo shown before the label, such as a project's build system. A breadcrumb shows one of an image, an avatar, or an icon; the image takes their place."
+  )
+
   attr(:show_avatar, :boolean, default: false, doc: "Whether to show the avatar")
 
   attr(:avatar_color, :string,
     values: ~w(gray red orange yellow azure blue purple pink),
     default: "pink",
     doc: "Color of the avatar when avatar is shown"
-  )
-
-  attr(:badge_label, :string, default: nil, doc: "Label for the badge displayed next to the breadcrumb label")
-
-  attr(:badge_color, :string,
-    values: ~w(neutral destructive warning attention success information focus primary secondary),
-    default: "neutral",
-    doc: "Color of the badge"
   )
 
   slot(:icon, doc: "Breadcrumb icon")
@@ -107,19 +104,22 @@ defmodule Noora.Breadcrumbs do
       {@rest}
     >
       <a href={@href} data-part="link">
+        <img :if={@image} src={@image} alt="" width="20" height="20" data-part="image" />
         <.avatar
-          :if={@show_avatar}
+          :if={@show_avatar and is_nil(@image)}
           id={@id <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"
           data-part="avatar"
         />
-        <div :if={has_slot_content?(@icon, assigns) and not @show_avatar} data-part="icon">
+        <div
+          :if={has_slot_content?(@icon, assigns) and not @show_avatar and is_nil(@image)}
+          data-part="icon"
+        >
           {render_slot(@icon)}
         </div>
         <span data-part="label">{@label}</span>
-        <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
       </a>
       <button
         :if={has_slot_content?(@inner_block, assigns)}
@@ -135,10 +135,11 @@ defmodule Noora.Breadcrumbs do
         />
       </button>
       <div :if={has_slot_content?(@inner_block, assigns)} data-part="positioner">
-        <div class="noora-dropdown-content" data-part="content">
+        <div class="noora-menu-panel" data-part="content">
           <div data-part="items">
             {render_slot(@inner_block)}
           </div>
+          <.menu_separator :if={has_slot_content?(@footer, assigns)} />
           <div :if={has_slot_content?(@footer, assigns)} data-part="footer">
             {render_slot(@footer)}
           </div>
@@ -151,7 +152,7 @@ defmodule Noora.Breadcrumbs do
     """
   end
 
-  attr(:id, :string, required: false)
+  attr(:id, :string, default: nil)
   attr(:label, :string, required: true, doc: "Text displayed as the main content of the item")
   attr(:value, :string, required: true, doc: "Value associated with the breadcrumb item")
   attr(:selected, :boolean, default: false, doc: "Whether the item is selected")
@@ -159,46 +160,45 @@ defmodule Noora.Breadcrumbs do
   attr(:show_avatar, :boolean, default: false, doc: "Whether to show the avatar")
   attr(:icon, :string, default: nil, doc: "Icon to display. Overrides `show_avatar`.")
 
+  attr(:image, :string,
+    default: nil,
+    doc:
+      "URL of a 20px logo shown before the label, such as a project's build system. It takes the place of the avatar and the icon."
+  )
+
   attr(:avatar_color, :string,
     values: ~w(gray red orange yellow azure blue purple pink),
     default: "pink",
     doc: "Color of the avatar when avatar is shown"
   )
 
-  attr(:badge_label, :string, default: nil, doc: "Label for the badge displayed next to the item label")
-
-  attr(:badge_color, :string,
-    values: ~w(neutral destructive warning attention success information focus primary secondary),
-    default: "neutral",
-    doc: "Color of the badge"
-  )
-
+  # A breadcrumb's menu lists Noora.Menu items, so it looks like every other
+  # menu. The breadcrumb's own keyboard handling moves focus between them.
+  # Labels are account and project names, so they middle-truncate.
   def breadcrumb_item(assigns) do
     ~H"""
-    <.dropdown_item
+    <.menu_item
+      id={@id}
       value={@value}
       label={@label}
       href={@href}
-      data-selected={@selected}
+      selected={@selected}
+      truncate="middle"
       role="menuitem"
       tabindex="-1"
     >
-      <:left_icon :if={@show_avatar or not is_nil(@icon)}>
+      <:image :if={@image}><img src={@image} alt="" width="20" height="20" /></:image>
+      <:image :if={@show_avatar and is_nil(@icon) and is_nil(@image)}>
         <.avatar
-          :if={@show_avatar and is_nil(@icon)}
           id={(@id || @label) <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"
           data-part="avatar"
         />
-        <.icon :if={not is_nil(@icon)} name={@icon} />
-      </:left_icon>
-      <:right_icon :if={@badge_label || @selected}>
-        <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
-        <div data-part="check"><.icon name="check" /></div>
-      </:right_icon>
-    </.dropdown_item>
+      </:image>
+      <:icon :if={not is_nil(@icon) and is_nil(@image)}><.icon name={@icon} /></:icon>
+    </.menu_item>
     """
   end
 end

@@ -178,7 +178,7 @@ defmodule AtlasWeb.SpecLive.Index do
                     label={domain.name}
                     color="neutral"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
               </div>
@@ -188,7 +188,7 @@ defmodule AtlasWeb.SpecLive.Index do
                 label={status_label(spec.status)}
                 color={status_color(spec.status)}
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             </:col>
             <:col :let={spec} label={dgettext("specs", "Updated")}>

@@ -1,27 +1,35 @@
 .noora-alert {
+  --noora-alert-default-icon: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-200)
+  );
+  --noora-alert-default-secondary-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-gray-50)
+  );
   --noora-alert-error-icon: light-dark(
     var(--noora-red-500),
     var(--noora-red-400)
   );
   --noora-alert-error-secondary-background: light-dark(
     var(--noora-red-50),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-alert-success-icon: light-dark(
-    var(--noora-green-600),
+    var(--noora-green-500),
     var(--noora-green-400)
   );
   --noora-alert-success-secondary-background: light-dark(
     var(--noora-green-50),
-    var(--noora-alpha-green)
+    var(--noora-alpha-green-24)
   );
   --noora-alert-warning-icon: light-dark(
-    var(--noora-orange-600),
+    var(--noora-orange-500),
     var(--noora-orange-400)
   );
   --noora-alert-warning-secondary-background: light-dark(
     var(--noora-orange-50),
-    var(--noora-alpha-orange)
+    var(--noora-alpha-orange-24)
   );
   --noora-alert-information-icon: light-dark(
     var(--noora-azure-500),
@@ -29,13 +37,21 @@
   );
   --noora-alert-information-secondary-background: light-dark(
     var(--noora-azure-50),
-    var(--noora-alpha-azure)
+    var(--noora-alpha-azure-24)
   );
   display: flex;
+  /* Everything lines up with the title's first line, so a wrapping title
+     doesn't leave the icon, actions, and dismiss button at odd heights. The
+     icon, dismiss button, and title line share a height at each size. */
+  align-items: flex-start;
 
   border-radius: var(--noora-radius-4);
 
+  /* In single-line alerts the title fills the row, so actions sit at the
+     end next to the dismiss button. */
   & > [data-part="title"] {
+    flex: 1;
+    min-width: 0;
     color: var(--noora-surface-label-primary);
   }
 
@@ -45,16 +61,61 @@
     font: var(--noora-font-body-medium);
   }
 
+  /* The dismiss button always sits at the end of the alert, whatever the
+     length of the title and actions before it. */
   & [data-part="dismiss-icon"] {
     flex-shrink: 0;
+    margin-inline-start: auto;
+  }
+
+  & [data-part="actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="action"] {
+      display: flex;
+    }
+
+    /* A single action, and every action after the first, renders without an
+       underline regardless of the link button's `underline` attribute. Only
+       the first of several actions is underlined. */
+    & .noora-link-button:not(:disabled) {
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    &
+      > [data-part="action"]:first-child:not(:last-child)
+      .noora-link-button:not(:disabled) {
+      text-decoration: underline;
+
+      &:hover {
+        text-decoration-style: dotted;
+      }
+    }
+
+    & > [data-part="action-separator"] {
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--noora-surface-label-tertiary);
+      width: 3px;
+      height: 3px;
+    }
   }
 
   &[data-type="primary"] {
-    box-shadow: var(--noora-border-medium);
+    box-shadow: var(--noora-border-small-default);
     background: var(--noora-surface-background-primary);
   }
 
   &[data-type="secondary"] {
+    &[data-status="default"] {
+      background: var(--noora-alert-default-secondary-background);
+    }
     &[data-status="information"] {
       background: var(--noora-alert-information-secondary-background);
     }
@@ -66,13 +127,6 @@
     }
     &[data-status="error"] {
       background: var(--noora-alert-error-secondary-background);
-    }
-  }
-
-  &[data-size="small"],
-  &[data-size="medium"] {
-    & > [data-part="actions"] {
-      display: flex;
     }
   }
 
@@ -91,14 +145,20 @@
       }
     }
 
-    & [data-part="title"] {
+    /* Actions match the title's size, whatever button size is passed. */
+    & [data-part="title"],
+    & [data-part="actions"] .noora-link-button {
       font: var(--noora-font-body-small);
+    }
+
+    & [data-part="actions"] .noora-link-button {
+      font-weight: var(--noora-font-weight-medium);
     }
   }
 
   &[data-size="medium"] {
     gap: var(--noora-spacing-5);
-    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+    padding: var(--noora-spacing-5);
 
     & > [data-part="icon"] {
       display: flex;
@@ -112,14 +172,20 @@
       }
     }
 
-    & [data-part="title"] {
+    & [data-part="title"],
+    & [data-part="actions"] .noora-link-button {
       font: var(--noora-font-body-medium);
+    }
+
+    & [data-part="actions"] .noora-link-button {
+      font-weight: var(--noora-font-weight-medium);
     }
   }
 
   &[data-size="large"] {
-    gap: var(--noora-spacing-6);
-    padding: var(--noora-spacing-6);
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-5) var(--noora-spacing-5)
+      var(--noora-spacing-6);
 
     & > [data-part="icon"] {
       display: flex;
@@ -143,10 +209,19 @@
 
       & > [data-part="actions"] {
         margin-top: var(--noora-spacing-4);
+
+        & .noora-link-button {
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
       }
     }
   }
 
+  &[data-status="default"] {
+    & [data-part="icon"] {
+      color: var(--noora-alert-default-icon);
+    }
+  }
   &[data-status="information"] {
     & [data-part="icon"] {
       color: var(--noora-alert-information-icon);

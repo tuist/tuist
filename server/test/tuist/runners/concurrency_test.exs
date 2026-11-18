@@ -9,6 +9,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.ConcurrencyHistory
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.ConcurrencySession
   alias Tuist.Runners.RunnerSession
@@ -21,15 +22,15 @@ defmodule Tuist.Runners.ConcurrencyTest do
                platform: :linux,
                used_vcpus: 0,
                used_memory_gb: 0,
-               limit_vcpus: 32,
+               limit_vcpus: 16,
                limit_memory_gb: 64
              },
              %{
                platform: :macos,
                used_vcpus: 0,
                used_memory_gb: 0,
-               limit_vcpus: 12,
-               limit_memory_gb: 28
+               limit_vcpus: 8,
+               limit_memory_gb: 24
              }
            ]
   end
@@ -37,8 +38,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
   test "creates default platform limits for organization accounts" do
     organization = organization_fixture()
 
-    assert Concurrency.limits_for(organization.account, :linux) == %{vcpus: 32, memory_gb: 64}
-    assert Concurrency.limits_for(organization.account, :macos) == %{vcpus: 12, memory_gb: 28}
+    assert Concurrency.limits_for(organization.account, :linux) == %{vcpus: 16, memory_gb: 64}
+    assert Concurrency.limits_for(organization.account, :macos) == %{vcpus: 8, memory_gb: 24}
   end
 
   test "database creates default limits for accounts inserted by an old replica" do
@@ -54,8 +55,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
       })
       |> Repo.insert()
 
-    assert Concurrency.limits_for(account, :linux) == %{vcpus: 32, memory_gb: 64}
-    assert Concurrency.limits_for(account, :macos) == %{vcpus: 12, memory_gb: 28}
+    assert Concurrency.limits_for(account, :linux) == %{vcpus: 16, memory_gb: 64}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 8, memory_gb: 24}
   end
 
   test "updates each platform's limits independently" do
@@ -105,6 +106,32 @@ defmodule Tuist.Runners.ConcurrencyTest do
              Concurrency.update_limits(account, %{"runner_macos_vcpus_limit" => "0"})
 
     assert "must be greater than 0" in errors_on(changeset).runner_macos_vcpus_limit
+  end
+
+  test "records every actual manual change atomically, without inventing older limits" do
+    account = account_fixture()
+    before_creation = DateTime.add(DateTime.utc_now(), -1, :hour)
+    {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 24, runner_macos_memory_gb_limit: 72})
+    {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 24})
+
+    {:error, :test_rollback} =
+      Repo.transaction(fn ->
+        {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 32})
+        Repo.rollback(:test_rollback)
+      end)
+
+    history = ConcurrencyHistory.between(account.id, before_creation, DateTime.utc_now())
+    macos = Enum.filter(history, &(&1.platform == :macos))
+    assert [%{source: "initial", vcpus: 8}, %{source: "manual", vcpus: 24}] = macos
+    refute ConcurrencyHistory.at(history, :macos, before_creation)
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 24, memory_gb: 72}
+
+    initial = hd(macos)
+    change = List.last(macos)
+    series = ConcurrencyHistory.series(history, [before_creation, initial.recorded_at, change.recorded_at])
+    assert series.macos.vcpus == [nil, 8, 24]
+    assert series.macos.memory_gb == [nil, 24, 72]
+    assert series.linux.vcpus == [nil, 16, 16]
   end
 
   test "checks capacity using a pure resource comparison" do
@@ -300,16 +327,16 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
   describe "headroom_jobs/2" do
     test "returns how many more jobs of the shape fit under the limit" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
-      # Default macOS limit is 12 vCPU / 28 GB; a 6/14 shape fits twice.
-      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 6, memory_gb: 14}) ==
+      # Default macOS limit is 16 vCPU / 48 GB; an 8/24 shape fits twice.
+      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 8, memory_gb: 24}) ==
                2
     end
 
     test "shrinks as claims consume the limit and reaches 0 at the cap" do
-      account = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} =
                Claims.attempt(11_001, account.id, "macos-pool", "macos-pod-1", shape)
@@ -326,8 +353,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
     # `fits?/3` would admit, or the autoscaler sizes for jobs dispatch
     # then refuses (or starves a pool that could have been served).
     test "agrees with fits?/3 at the boundary" do
-      account = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} =
                Claims.attempt(11_101, account.id, "macos-pool", "macos-pod-1", shape)
@@ -350,17 +377,17 @@ defmodule Tuist.Runners.ConcurrencyTest do
     end
 
     test "is bounded by whichever resource runs out first" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
-      # Default macOS limit 12 vCPU / 28 GB. This shape is cheap on CPU
-      # (12 fit) but memory-heavy (2 fit), so memory decides.
-      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 1, memory_gb: 14}) ==
+      # Default macOS limit 16 vCPU / 48 GB. This shape is cheap on CPU
+      # (16 fit) but memory-heavy (2 fit), so memory decides.
+      assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 1, memory_gb: 24}) ==
                2
     end
 
     test "never returns negative when usage already exceeds the limit" do
-      account = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(11_201, account.id, "macos-pool", "p1", shape)
       assert {:ok, _} = Claims.attempt(11_202, account.id, "macos-pool", "p2", shape)
@@ -373,9 +400,9 @@ defmodule Tuist.Runners.ConcurrencyTest do
     # Runs on the autoscaler poll path: one bad account must not raise
     # and take the whole fleet's demand signal down with it.
     test "returns 0 for unknown accounts and malformed shapes" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
-      assert Concurrency.headroom_jobs(-1, %{platform: :macos, vcpus: 6, memory_gb: 14}) == 0
+      assert Concurrency.headroom_jobs(-1, %{platform: :macos, vcpus: 8, memory_gb: 24}) == 0
       assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 0, memory_gb: 14}) == 0
       assert Concurrency.headroom_jobs(account.id, %{platform: :bsd, vcpus: 1, memory_gb: 1}) == 0
       assert Concurrency.headroom_jobs(account.id, %{}) == 0
@@ -384,9 +411,9 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
   describe "usage_snapshot/2 and headroom_from_snapshot/3" do
     test "separates a missing limit row from a genuinely exhausted one" do
-      capped = account_fixture()
-      unlimited = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      capped = pro_account_fixture()
+      unlimited = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(11_401, capped.id, "macos-pool", "p1", shape)
       assert {:ok, _} = Claims.attempt(11_402, capped.id, "macos-pool", "p2", shape)
@@ -399,25 +426,25 @@ defmodule Tuist.Runners.ConcurrencyTest do
     end
 
     test "one snapshot serves several shapes without re-reading" do
-      account = account_fixture()
+      account = pro_account_fixture()
       snapshot = Concurrency.usage_snapshot([account.id], :macos)
 
-      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 6, memory_gb: 14}) ==
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 8, memory_gb: 24}) ==
                {:ok, 2}
 
-      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 1, memory_gb: 14}) ==
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 1, memory_gb: 24}) ==
                {:ok, 2}
 
-      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 12, memory_gb: 28}) ==
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 16, memory_gb: 48}) ==
                {:ok, 1}
     end
   end
 
   describe "headroom_jobs_by_account/2" do
     test "agrees with headroom_jobs/2 for every account" do
-      first = account_fixture()
-      second = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      first = pro_account_fixture()
+      second = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert {:ok, _} = Claims.attempt(11_301, first.id, "macos-pool", "p1", shape)
 
@@ -428,8 +455,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
     end
 
     test "reports 0 for an account with no limit row rather than omitting it" do
-      account = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
 
       assert Concurrency.headroom_jobs_by_account([account.id, -1], shape) == %{
                account.id => 2,
@@ -442,22 +469,22 @@ defmodule Tuist.Runners.ConcurrencyTest do
     # callers that need to tell that apart from a real cap must not read
     # the 0 this returns as "at the limit".
     test "flattens a missing limit row to 0 so the autoscaler still fails closed" do
-      account = account_fixture()
-      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      shape = %{platform: :macos, vcpus: 8, memory_gb: 24}
       Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id))
 
       assert Concurrency.headroom_jobs_by_account([account.id], shape) == %{account.id => 0}
     end
 
     test "returns an empty map for no accounts and 0s for a malformed shape" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
-      assert Concurrency.headroom_jobs_by_account([], %{platform: :macos, vcpus: 6, memory_gb: 14}) == %{}
+      assert Concurrency.headroom_jobs_by_account([], %{platform: :macos, vcpus: 8, memory_gb: 24}) == %{}
       assert Concurrency.headroom_jobs_by_account([account.id], %{}) == %{account.id => 0}
     end
   end
 
-  describe "limit_held?/4" do
+  describe "limit_held?/5" do
     defp open_session!(account, attrs) do
       Repo.insert!(
         struct(
@@ -471,23 +498,57 @@ defmodule Tuist.Runners.ConcurrencyTest do
     end
 
     test "holds a job whose shape no longer fits next to the sessions open at an instant" do
-      account = account_fixture()
-      at = ~U[2026-10-28 12:00:00.000000Z]
-      shape = %{vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      at = DateTime.utc_now()
+      shape = %{vcpus: 8, memory_gb: 24}
 
-      open_session!(account, %{platform: :macos, vcpus: 6, memory_gb: 14, started_at: DateTime.add(at, -60, :second)})
+      open_session!(account, %{platform: :macos, vcpus: 8, memory_gb: 24, started_at: DateTime.add(at, -60, :second)})
 
-      refute Concurrency.limit_held?(account.id, :macos, shape, [at])
+      refute Concurrency.limit_held?(account.id, :macos, shape, at, at)
 
-      open_session!(account, %{platform: :macos, vcpus: 6, memory_gb: 14, started_at: DateTime.add(at, -30, :second)})
+      open_session!(account, %{platform: :macos, vcpus: 8, memory_gb: 24, started_at: DateTime.add(at, -30, :second)})
 
-      assert Concurrency.limit_held?(account.id, :macos, shape, [at])
+      assert Concurrency.limit_held?(account.id, :macos, shape, at, at)
+    end
+
+    test "holds a job the limit blocked only between the ends of its wait" do
+      account = pro_account_fixture()
+      enqueued_at = DateTime.utc_now()
+      shape = %{vcpus: 8, memory_gb: 24}
+
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        started_at: DateTime.add(enqueued_at, -60, :second)
+      })
+
+      # Fills the limit from 60 s to 120 s into a 300 s wait; both ends
+      # have room for the job.
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        started_at: DateTime.add(enqueued_at, 60, :second),
+        ended_at: DateTime.add(enqueued_at, 120, :second)
+      })
+
+      refute Concurrency.limit_held?(account.id, :macos, shape, enqueued_at, DateTime.add(enqueued_at, 50, :second))
+      assert Concurrency.limit_held?(account.id, :macos, shape, enqueued_at, DateTime.add(enqueued_at, 300, :second))
+
+      refute Concurrency.limit_held?(
+               account.id,
+               :macos,
+               shape,
+               DateTime.add(enqueued_at, 120, :second),
+               DateTime.add(enqueued_at, 300, :second)
+             )
     end
 
     test "counts only sessions open at the instant, on the job's platform" do
-      account = account_fixture()
-      at = ~U[2026-10-28 12:00:00.000000Z]
-      shape = %{vcpus: 6, memory_gb: 14}
+      account = pro_account_fixture()
+      at = DateTime.utc_now()
+      shape = %{vcpus: 8, memory_gb: 24}
 
       open_session!(account, %{
         platform: :macos,
@@ -497,22 +558,56 @@ defmodule Tuist.Runners.ConcurrencyTest do
         ended_at: DateTime.add(at, -60, :second)
       })
 
-      open_session!(account, %{platform: :macos, vcpus: 12, memory_gb: 28, started_at: DateTime.add(at, 60, :second)})
+      open_session!(account, %{platform: :macos, vcpus: 16, memory_gb: 48, started_at: DateTime.add(at, 60, :second)})
       open_session!(account, %{platform: :linux, vcpus: 32, memory_gb: 64, started_at: DateTime.add(at, -60, :second)})
 
-      refute Concurrency.limit_held?(account.id, :macos, shape, [at])
-      assert Concurrency.limit_held?(account.id, :macos, shape, [at, DateTime.add(at, 120, :second)])
+      refute Concurrency.limit_held?(account.id, :macos, shape, at, DateTime.add(at, 30, :second))
+      assert Concurrency.limit_held?(account.id, :macos, shape, at, DateTime.add(at, 120, :second))
+    end
+
+    test "a later increase does not erase a historical limit hold" do
+      account = pro_account_fixture()
+      held_at = DateTime.utc_now()
+      shape = %{vcpus: 8, memory_gb: 24}
+
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 16,
+        memory_gb: 48,
+        started_at: DateTime.add(held_at, -30, :second)
+      })
+
+      {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 32, runner_macos_memory_gb_limit: 96})
+      assert Concurrency.limit_held?(account.id, :macos, shape, held_at, held_at)
+      refute Concurrency.limit_held?(account.id, :macos, shape, DateTime.utc_now(), DateTime.utc_now())
+
+      refute Concurrency.limit_held?(
+               account.id,
+               :macos,
+               shape,
+               DateTime.add(held_at, -1, :day),
+               DateTime.add(held_at, -1, :day)
+             )
     end
 
     test "never holds a job without a shape or an account without a limit" do
-      account = account_fixture()
+      account = pro_account_fixture()
 
       Repo.delete_all(
         from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id and limit.platform == :macos)
       )
 
-      refute Concurrency.limit_held?(account.id, :macos, %{vcpus: 6, memory_gb: 14}, [DateTime.utc_now()])
-      refute Concurrency.limit_held?(account.id, :linux, %{vcpus: 0, memory_gb: 0}, [DateTime.utc_now()])
+      now = DateTime.utc_now()
+
+      refute Concurrency.limit_held?(account.id, :macos, %{vcpus: 8, memory_gb: 24}, now, now)
+      refute Concurrency.limit_held?(account.id, :linux, %{vcpus: 0, memory_gb: 0}, now, now)
     end
+  end
+
+  # Two baseline macOS jobs and 32 Linux vCPUs, the paid plans' limits.
+  defp pro_account_fixture do
+    account = account_fixture()
+    Concurrency.raise_to_plan_defaults(account, :pro)
+    account
   end
 end

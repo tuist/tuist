@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistConfig
 import TuistEnvironment
 import TuistTesting
 import XCResultParser
@@ -10,6 +11,9 @@ import XCResultParser
 
 struct TestExecutionModeResolverTests {
     private let subject = TestExecutionModeResolver()
+    private let uploadsCoverage = TuistConfig.Tuist.test(
+        testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: true))
+    )
 
     @Test func theCommandLineDecidesForEveryTarget() {
         let targets = ["AppTests": "parallel", "CoreTests": "serial"]
@@ -84,12 +88,12 @@ struct TestExecutionModeResolverTests {
         let bundle = directory.appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let modes = await subject.record(
             resultBundlePath: bundle,
             xcodebuildArguments: ["test"],
             derivedDataPath: derivedData,
-            schemeTargets: [:]
+            schemeTargets: [:],
+            config: uploadsCoverage
         )
 
         #expect(modes == TestExecutionModes(run: "parallel", targets: ["AppTests": "parallel"]))
@@ -97,7 +101,7 @@ struct TestExecutionModeResolverTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func recordsNothingWithoutTheClientFlag() async throws {
+    func recordsNothingWithoutCoverageUploads() async throws {
         let bundle = try #require(FileSystem.temporaryTestDirectory).appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
@@ -105,7 +109,8 @@ struct TestExecutionModeResolverTests {
             resultBundlePath: bundle,
             xcodebuildArguments: ["test", "-parallel-testing-enabled", "NO"],
             derivedDataPath: nil,
-            schemeTargets: [:]
+            schemeTargets: [:],
+            config: .test()
         )
 
         #expect(modes == nil)
@@ -118,12 +123,12 @@ struct TestExecutionModeResolverTests {
         let bundle = directory.appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let modes = await subject.record(
             resultBundlePath: bundle,
             xcodebuildArguments: ["test"],
             derivedDataPath: nil,
-            schemeTargets: [:]
+            schemeTargets: [:],
+            config: uploadsCoverage
         )
 
         #expect(modes == nil)
@@ -182,12 +187,12 @@ struct TestExecutionModeResolverTests {
         let bundle = directory.appending(component: "Run.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
 
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let modes = await subject.record(
             resultBundlePath: bundle,
             xcodebuildArguments: ["-workspace", workspace.pathString, "-scheme", "App", "test"],
             derivedDataPath: nil,
-            schemeTargets: ["AppTests": "parallel", "OtherTests": "parallel"]
+            schemeTargets: ["AppTests": "parallel", "OtherTests": "parallel"],
+            config: uploadsCoverage
         )
 
         // The scheme file refines what the caller knew.

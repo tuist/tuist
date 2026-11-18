@@ -18,7 +18,13 @@
   <.card title="Versions" icon="versions">
     <.card_section>
       <div data-part="filters">
-        <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
+        <.form
+          for={%{}}
+          id="ops-registry-version-search-form"
+          phx-change="search"
+          phx-submit="search"
+          phx-debounce="300"
+        >
           <.text_input
             type="search"
             id="ops-registry-version-search"

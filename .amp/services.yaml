@@ -1,8 +1,9 @@
 services:
   server:
     # .agents/setup pins this checkout to dev instance 100, so the server listens
-    # on TUIST_SERVER_PORT=8180 from mise's environment.
-    command: mise run dev
+    # on TUIST_SERVER_PORT=8180 from mise's environment. Orbs start with the
+    # databases stopped, so start them first.
+    command: (pg_isready -q -h localhost || sudo pg_ctlcluster 16 main start) && mise run --no-deps clickhouse:start && mise run dev
     cwd: server
     port: 8180
     platforms: [linux]

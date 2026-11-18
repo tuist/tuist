@@ -680,7 +680,11 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
              History.file_points(project, "Sources/New.swift", [%{git_commit_sha: "a"}, %{git_commit_sha: "b"}])
 
     {:messages, messages} = Process.info(self(), :messages)
-    refute Enum.any?(messages, &match?({:clickhouse, "#Ecto.Query<from c0 in Tuist.Tests.CoverageFile," <> _}, &1))
+
+    refute Enum.any?(messages, fn
+             {:clickhouse, query} -> String.contains?(query, "Tuist.Tests.CoverageRunFile")
+             _ -> false
+           end)
   end
 
   test "a version whose runs' rows don't add up to its totals is not written, and reads stay raw", %{

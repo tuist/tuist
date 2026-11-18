@@ -50,7 +50,7 @@ msgstr "알림 규칙을 찾을 수 없습니다. 다시 시도해 주세요."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "인증 요청이 만료되었습니다. Slack 연결 과정을 다시 시작해 주세요."
+msgstr "인증 요청이 만료되었습니다. Slack 연결 절차를 다시 시작해 주세요."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format

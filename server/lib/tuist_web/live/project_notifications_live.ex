@@ -5,13 +5,16 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   alias Tuist.Alerts
   alias Tuist.Authorization
+  alias Tuist.Bundles
   alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Installation
   alias Tuist.Slack.Reports
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.SlackOAuthController
 
@@ -23,7 +26,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
           socket
       ) do
     if Authorization.authorize(:project_update, current_user, selected_project) != :ok do
-      raise TuistWeb.Errors.UnauthorizedError,
+      raise UnauthorizedError,
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
@@ -42,6 +45,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
         SlackOAuthController.channel_selection_url(selected_project.id, selected_account.id)
       )
       |> assign_schedule_form_defaults(selected_project)
+      |> assign(:report_bundle_form, to_form(Project.update_changeset(selected_project, %{}), as: :report))
+      |> assign(:report_bundle_tags, [])
+      |> assign(:report_bundle_tag_search, "")
       |> assign_alert_defaults(selected_project)
 
     {:ok, socket}
@@ -114,6 +120,87 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   @impl true
+  def handle_event("validate_report_bundle_filter", %{"report" => params}, socket) do
+    changeset =
+      socket.assigns.selected_project
+      |> Project.update_changeset(Map.take(params, ["report_bundle_tag"]))
+      |> Map.put(:action, :validate)
+
+    {:noreply,
+     socket
+     |> assign(:report_bundle_form, to_form(changeset, as: :report))
+     |> push_event("close-dropdown", %{id: "report-bundle-tag-dropdown"})}
+  end
+
+  def handle_event("save_report_bundle_filter", %{"report" => params}, socket) do
+    %{selected_project: project, current_user: user} = socket.assigns
+
+    if Authorization.authorize(:project_update, user, project) != :ok do
+      raise UnauthorizedError,
+            dgettext("dashboard_projects", "You are not authorized to perform this action.")
+    end
+
+    case Projects.update_project(project, Map.take(params, ["report_bundle_tag"])) do
+      {:ok, updated_project} ->
+        {:noreply,
+         socket
+         |> assign(:selected_project, updated_project)
+         |> assign(:report_bundle_form, to_form(Project.update_changeset(updated_project, %{}), as: :report))
+         |> push_event("close-modal", %{id: "report-bundle-filter-modal"})}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :report_bundle_form, to_form(changeset, as: :report))}
+    end
+  end
+
+  def handle_event("close_report_bundle_filter", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:report_bundle_form, to_form(Project.update_changeset(socket.assigns.selected_project, %{}), as: :report))
+     |> push_event("close-modal", %{id: "report-bundle-filter-modal"})}
+  end
+
+  def handle_event("reset_report_bundle_filter", params, socket) do
+    project = socket.assigns.selected_project
+
+    socket =
+      if params["open"] do
+        tags =
+          (Bundles.project_bundle_tags(project) ++ [project.report_bundle_tag])
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq()
+          |> Enum.sort()
+
+        socket
+        |> assign(:report_bundle_tags, tags)
+        |> assign(:report_bundle_tag_search, "")
+      else
+        socket
+      end
+
+    {:noreply,
+     assign(
+       socket,
+       :report_bundle_form,
+       to_form(Project.update_changeset(project, %{}), as: :report)
+     )}
+  end
+
+  def handle_event("search_report_bundle_tags", %{"tag_search" => search}, socket) do
+    project = socket.assigns.selected_project
+
+    tags =
+      (Bundles.project_bundle_tags(project, search) ++ [project.report_bundle_tag])
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    {:noreply,
+     socket
+     |> assign(:report_bundle_tag_search, search)
+     |> assign(:report_bundle_tags, tags)}
+  end
+
   def handle_event(
         "send_test_slack_report",
         _params,
@@ -597,13 +684,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> Enum.map_join(", ", &Timex.day_shortname/1)
   end
 
+  defp format_schedule_summary(%{
+         selected_project: %{report_frequency: frequency, report_days_of_week: days, report_schedule_time: time}
+       })
+       when frequency == :never or days == [] or is_nil(time), do: dgettext("dashboard_projects", "Not scheduled")
+
   defp format_schedule_summary(%{selected_project: project, user_timezone: user_timezone}) do
     days = project.report_days_of_week
     hour = get_local_hour(project.report_schedule_time, user_timezone)
     time_str = if hour, do: format_hour(hour), else: ""
     day_str = format_days_range(days)
 
-    "#{dgettext("dashboard_projects", "Daily")} • #{day_str} • #{time_str}"
+    "#{dgettext("dashboard_projects", "Daily")} • #{day_str} • #{time_str} (#{user_timezone || "Etc/UTC"})"
   end
 
   defp local_hour_to_utc(local_hour, timezone) do

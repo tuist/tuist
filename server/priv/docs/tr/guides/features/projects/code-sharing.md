@@ -1,47 +1,32 @@
 ---
 {
-  "title": "Code sharing",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
+  "title": "Kod paylaşımı",
+  "titleTemplate": ":title · Projeler · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tekrarları azaltmak ve tutarlılığı sağlamak için kodu bildirim dosyaları arasında nasıl paylaşacağınızı öğrenin"
 }
 ---
 # Kod paylaşımı {#code-sharing}
 
-Xcode'u büyük projelerle kullandığımızda karşılaştığımız sorunlardan biri,
-`.xcconfig` dosyaları aracılığıyla derleme ayarları dışında projelerin
-öğelerinin yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden
-kullanabilmek aşağıdaki nedenlerden dolayı yararlıdır:
+Büyük projelerde Xcode kullanırken karşılaşılan zorluklardan biri, derleme ayarları dışında proje öğelerinin `.xcconfig` dosyaları aracılığıyla yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden kullanabilmek aşağıdaki nedenlerle faydalıdır:
 
-- Değişiklikler tek bir yerde uygulanabildiği ve tüm projeler değişiklikleri
-  otomatik olarak aldığı için **bakımını** kolaylaştırır.
-- Yeni projelerin uyabileceği **sözleşmelerinin** tanımlanmasını mümkün kılar.
-- Projeler daha **tutarlı** ve bu nedenle tutarsızlıklar nedeniyle bozuk derleme
-  olasılığı önemli ölçüde daha az.
-- Mevcut mantığı yeniden kullanabildiğimiz için yeni bir proje eklemek kolay bir
-  iş haline gelir.
+- Değişiklikler tek bir yerde uygulanabilir ve tüm projeler bu değişiklikleri otomatik olarak aldığı için **bakım** kolaylaşır.
+- Yeni projelerin uyabileceği **kurallar** tanımlamayı mümkün kılar.
+- Projeler daha **tutarlı** hale gelir ve bu nedenle tutarsızlıklardan kaynaklanan başarısız derlemelerin olasılığı önemli ölçüde azalır.
+- Mevcut mantığı yeniden kullanabildiğimiz için yeni projeler eklemek kolay bir iş haline gelir.
 
-Tuist'te **proje açıklama yardımcıları** kavramı sayesinde manifesto dosyaları
-arasında kodun yeniden kullanılması mümkündür.
+Manifest dosyaları arasında kodun yeniden kullanılması, Tuist'te **proje açıklama yardımcıları** kavramı sayesinde mümkündür.
 
 > [!TIP]
-> **A Tuist Unique Asset**
+> **Tuist'e özgü bir avantaj**
 >
-> Birçok kuruluş Tuist'i seviyor çünkü proje tanımlama yardımcılarında, platform
-> ekiplerinin kendi kurallarını kodlamaları ve projelerini tanımlamak için kendi
-> dillerini bulmaları için bir platform görüyorlar. Örneğin, YAML tabanlı proje
-> oluşturucuların kendi YAML tabanlı özel şablonlama çözümlerini bulmaları ya da
-> kuruluşları araçlarını bunun üzerine inşa etmeye zorlamaları gerekiyor.
+> Birçok kuruluş, proje açıklama yardımcılarında platform ekiplerinin kendi kurallarını kodlayıp projelerini tanımlamak için kendi dillerini geliştirebilecekleri bir platform gördükleri için Tuist'i tercih eder. Örneğin, YAML tabanlı proje oluşturucular kendi YAML tabanlı özel şablonlama çözümlerini geliştirmek zorunda kalır veya kuruluşları araçlarını bunun üzerine inşa etmeye zorlar.
 
 
 ## Proje açıklama yardımcıları {#project-description-helpers}
 
-Proje açıklama yardımcıları, manifesto dosyalarının içe aktarabileceği bir modül
-olan `ProjectDescriptionHelpers` içinde derlenen Swift dosyalarıdır. Modül,
-`Tuist/ProjectDescriptionHelpers` dizinindeki tüm dosyalar bir araya getirilerek
-derlenir.
+Proje açıklama yardımcıları, manifest dosyalarının içe aktarabileceği `ProjectDescriptionHelpers` adlı bir modüle derlenen Swift dosyalarıdır. Modül, `Tuist/ProjectDescriptionHelpers` dizinindeki tüm dosyalar toplanarak derlenir.
 
-Dosyanın üst kısmına bir içe aktarma ifadesi ekleyerek bunları manifesto
-dosyanıza aktarabilirsiniz:
+Dosyanın başına bir import ifadesi ekleyerek bunları manifest dosyanıza içe aktarabilirsiniz:
 
 ```swift
 // Project.swift
@@ -49,16 +34,14 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` aşağıdaki manifestolarda mevcuttur:
-- `Proje.swift`
-- `Package.swift` (sadece `#TUIST` derleyici bayrağının arkasında)
-- `Çalışma Alanı.swift`
+`ProjectDescriptionHelpers` aşağıdaki manifestlerde kullanılabilir:
+- `Project.swift`
+- `Package.swift` (yalnızca `#TUIST` derleyici bayrağı etkinleştirildiğinde)
+- `Workspace.swift`
 
 ## Örnek {#example}
 
-Aşağıdaki parçacıklar, statik kurucular eklemek için `Project` modelini nasıl
-genişlettiğimizi ve bunları bir `Project.swift` dosyasından nasıl kullandığımızı
-gösteren bir örnek içerir:
+Aşağıdaki kod parçacıkları, statik yapıcılar eklemek için `Project` modelini nasıl genişlettiğimizi ve bunları bir `Project.swift` dosyasından nasıl kullandığımızı gösteren bir örnek içerir:
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -105,8 +88,6 @@ let project = Project.featureFramework(name: "MyFeature")
 :::
 
 > [!TIP]
-> **A Tool To Establish Conventions**
+> **Kuralları belirlemek için bir araç**
 >
-> İşlev aracılığıyla hedeflerin adı, paket tanımlayıcısı ve klasör yapısı hakkında
-> nasıl kurallar tanımladığımıza dikkat edin.
-
+> Fonksiyon aracılığıyla hedeflerin adı, paket kimliği ve klasör yapısı hakkında kurallar tanımladığımıza dikkat edin.

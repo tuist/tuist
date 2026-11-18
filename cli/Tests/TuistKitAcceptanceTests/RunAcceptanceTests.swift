@@ -1,3 +1,4 @@
+import TestCoverageAttribution
 import Testing
 import TuistRunCommand
 import TuistSupport
@@ -5,6 +6,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct RunAcceptanceTests {
     @Test(.withFixture("generated_command_line_tool_basic"))
     func command_line_tool_basic() async throws {

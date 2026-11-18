@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0e5a7541a48d264e15a65940b036de29e711d4fdc967688997d4432aef301965",
+  "hash": "954f765d4b07ccfe1b4ad112ca521e8ab04564bd28e3d4f04193e307195374a4",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,13 +14,13 @@
                   "content_hash": "7ef5d2cd69885451f20ff5fe3de4fd1f85c95f90ad5454c958b3297143f65295"
                 },
                 "## GitHub Actions job summary {#github-actions-job-summary}": {
-                  "content_hash": "4172055bd9d86719b55656db6128ef6570747689bf68c18ad3b30bbac1e43e44"
+                  "content_hash": "5ecc1a96c0f414762e81b5596df27f9bca496490df46aefe11799582c91d0e1f"
                 },
                 "## Pull/merge request comments {#pull-merge-request-comments}": {
-                  "content_hash": "7427021ed21f21c57c58edc6b31014c1a85c794a0d01e4f67809b49505b36a23"
+                  "content_hash": "77b3f5951a22cddd8a9e936196911906697956f6c253214931293b2ec9273b37"
                 },
                 "## Setup {#setup}": {
-                  "content_hash": "3e1204aee5d5860200c82da24806165798eabee82b525b7ac7beda9e226bca60"
+                  "content_hash": "f1f99881bb53d135aeda2dcc2ca19f5518651357a34bec90082a8eabc7930dd8"
                 },
                 "### GitHub Enterprise Server {#github-enterprise-server}": {
                   "content_hash": "3be761f999b3f6140607059efe126216c53457212f3d7f861e16796be8438175"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "6e15ae2b07234edc1261192893815ce37f995c6b190bc1e897657af4e0a8a9c4",
+          "hash": "7ee3c29b77b7b19f70e3a96e99dda0f30274255522898968d3e4c4d74cdfadae",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/gitforge/github.md",
           "metadata": {
-            "content_hash": "4a3988c2ded3eff9e96eb67573709c27659cf2cc137b363efc54434d7e9b9b45"
+            "content_hash": "45256e9d1d6ad9292a554808b3a94093a162484c0a4135287e22e12e91b52b02"
           }
         },
         {
@@ -103,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -122,7 +122,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +151,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -244,21 +244,21 @@
             }
           ],
           "details": {},
-          "hash": "2ddc69e1d40197df61d1bcde97226f8727d703b5b966b7cfd571e8531cda245a",
+          "hash": "effba779457ec66e2e6f071f1212e6868607f3a9311269c8c501a15692191a60",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "0e5a7541a48d264e15a65940b036de29e711d4fdc967688997d4432aef301965",
+      "hash": "954f765d4b07ccfe1b4ad112ca521e8ab04564bd28e3d4f04193e307195374a4",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/gitforge/github.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b3ae59d7dcd963269dbc8496a634e1e8b7d95a284edf55fafbc7486c1739ae1e",
+  "output_hash": "48e1379d02161a65fb1ec75ef613578fa6f2211d7c9040f501e583f85b20e072",
   "output_path": "server/priv/docs/ka/guides/integrations/gitforge/github.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +280,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
+  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
   "source_path": "server/priv/docs/en/guides/integrations/gitforge/github.md",
-  "translated_at": "2026-11-02T15:51:07.373434Z",
-  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
+  "translated_at": "2026-11-06T22:19:03.283521Z",
+  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
 }

@@ -212,9 +212,14 @@ defmodule AtlasWeb.TimeOffLive do
           >
             {gettext("View upcoming holidays")}
           </.link>
-          <.link :if={@live_action == :settings} navigate={~p"/people/time-off"}>
-            {gettext("Back to time off")}
-          </.link>
+          <.button
+            :if={@live_action == :settings}
+            id="time-off-back"
+            navigate={~p"/people/time-off"}
+            label={gettext("Back to time off")}
+            variant="secondary"
+            size="medium"
+          />
           <.request_modal
             :if={@live_action != :settings}
             form={@booking_form}
@@ -269,6 +274,7 @@ defmodule AtlasWeb.TimeOffLive do
                 />
                 <.button
                   type="submit"
+                  size="medium"
                   phx-disable-with={gettext("Importing…")}
                   label={gettext("Import public holidays")}
                 />
@@ -296,7 +302,7 @@ defmodule AtlasWeb.TimeOffLive do
                   label={gettext("Date")}
                   required
                 />
-                <.button type="submit" label={gettext("Add public holiday")} />
+                <.button type="submit" size="medium" label={gettext("Add public holiday")} />
               </.form>
             </.card_section>
           </.card>
@@ -312,6 +318,7 @@ defmodule AtlasWeb.TimeOffLive do
                   id={"remove-public-holiday-#{holiday.id}"}
                   type="button"
                   variant="secondary"
+                  size="small"
                   label={gettext("Remove")}
                   phx-click="remove_holiday"
                   phx-value-id={holiday.id}

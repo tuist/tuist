@@ -1,31 +1,17 @@
 ---
 {
-  "title": "From v3 to v4",
-  "titleTemplate": ":title · Migrations · References · Tuist",
-  "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
+  "title": "v3'ten v4'e",
+  "titleTemplate": ":title · Geçişler · Referanslar · Tuist",
+  "description": "Bu sayfa, Tuist CLI'nin 3. sürümden 4. sürüme nasıl geçileceğini belgeler."
 }
 ---
 # Tuist v3'ten v4'e {#from-tuist-v3-to-v4}
 
-Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0) sürümüyle birlikte,
-projenin uzun vadede kullanımını ve bakımını daha kolay hale getireceğine
-inandığımız bazı değişiklikleri projeye ekleme fırsatını yakaladık. Bu belge,
-Tuist 3'ten Tuist 4'e yükseltmek için projenizde yapmanız gereken değişiklikleri
-özetlemektedir.
+[Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0) sürümünün yayınlanmasıyla, projeyi uzun vadede daha kolay kullanılabilir ve bakımı yapılabilir hale getireceğine inandığımız bazı kırıcı değişiklikler yapma fırsatını değerlendirdik. Bu belge, Tuist 3'ten Tuist 4'e yükseltmek için projenizde yapmanız gereken değişiklikleri özetlemektedir.
 
-### `tuistenv aracılığıyla sürüm yönetimi bırakıldı` {#dropped-version-management-through-tuistenv}
+## `tuistenv` aracılığıyla sürüm yönetimi kaldırıldı {#dropped-version-management-through-tuistenv}
 
-Tuist 4'ten önce, kurulum betiği, kurulum sırasında `tuist` olarak yeniden
-adlandırılacak olan `tuistenv` adlı bir araç yüklüyordu. Bu araç, Tuist'in
-sürümlerinin yüklenmesi ve etkinleştirilmesiyle ilgilenerek ortamlar arasında
-determinizm sağlıyordu. Tuist'in özellik yüzeyini azaltmak amacıyla, aynı işi
-yapan ancak daha esnek olan ve farklı araçlar arasında kullanılabilen bir araç
-olan [Mise](https://mise.jdx.dev/) lehine `tuistenv` adresini bırakmaya karar
-verdik. Eğer `tuistenv` kullanıyorsanız, `curl -Ls https://uninstall.tuist.io |
-bash` çalıştırarak Tuist'in mevcut sürümünü kaldırmanız ve ardından seçtiğiniz
-kurulum yöntemini kullanarak yüklemeniz gerekecektir. Mise kullanımını şiddetle
-tavsiye ediyoruz çünkü sürümleri ortamlar arasında kararlı bir şekilde
-yükleyebilir ve etkinleştirebilir.
+Tuist 4 öncesinde, kurulum betiği `tuistenv` adlı bir aracı kurar ve bu araç kurulum sırasında `tuist` olarak yeniden adlandırılırdı. Bu araç, Tuist sürümlerini kurup etkinleştirerek ortamlar arasında determinizm sağlardı. Tuist'in özellik yüzeyini küçültme amacıyla, `tuistenv` kullanımını bırakıp aynı işi yapan ancak daha esnek olan ve farklı araçlarla kullanılabilen [Mise](https://mise.jdx.dev/) aracını tercih ettik. `tuistenv` kullanıyorsanız, `curl -Ls https://uninstall.tuist.io | bash` komutunu çalıştırarak mevcut Tuist sürümünü kaldırmalı ve ardından tercih ettiğiniz kurulum yöntemiyle yeniden kurmalısınız. Ortamlar arasında sürümleri deterministik olarak kurup etkinleştirebildiği için Mise kullanımını şiddetle öneriyoruz.
 
 ::: code-group
 
@@ -36,105 +22,55 @@ curl -Ls https://uninstall.tuist.io | bash
 :::
 
 > [!WARNING]
-> **Mise In Ci Environments And Xcode Projects**
+> **CI ortamlarında ve Xcode projelerinde Mise**
 >
-> Mise'ın getirdiği determinizmi benimsemeye karar verirseniz, Mise'ın [CI
-> ortamlarında](https://mise.jdx.dev/continuous-integration.html) ve [Xcode
-> projelerinde](https://mise.jdx.dev/ide-integration.html#xcode) nasıl
-> kullanılacağına ilişkin belgelere göz atmanızı öneririz.
+> Mise'in sunduğu determinizmi benimsemeye karar verirseniz, Mise'i [CI ortamlarında](https://mise.jdx.dev/continuous-integration.html) ve [Xcode projelerinde](https://mise.jdx.dev/ide-integration.html#xcode) nasıl kullanacağınıza ilişkin belgelere göz atmanızı öneririz.
 
 
 > [!NOTE]
-> **Homebrew Is Supported**
+> **Homebrew desteklenmektedir**
 >
-> Tuist'i macOS için popüler bir paket yöneticisi olan Homebrew kullanarak da
-> yükleyebileceğinizi unutmayın. Tuist'in Homebrew kullanılarak nasıl kurulacağına
-> ilişkin talimatları
-> <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum kılavuzunda</LocalizedLink> bulabilirsiniz.
+> Tuist'i, macOS için popüler bir paket yöneticisi olan Homebrew kullanarak kurmaya devam edebileceğinizi unutmayın. Homebrew kullanarak Tuist'i nasıl kuracağınıza ilişkin talimatları <.localized_link href="/guides/install-tuist#recommended-homebrew">kurulum kılavuzunda</.localized_link> bulabilirsiniz.
 
 
-### `init` kurucuları `ProjectDescription` modellerinden çıkarıldı {#dropped-init-constructors-from-projectdescription-models}
+## `init` oluşturucuları `ProjectDescription` modellerinden kaldırıldı {#dropped-init-constructors-from-projectdescription-models}
 
-API'lerin okunabilirliğini ve ifade gücünü artırmak amacıyla, `init`
-yapıcılarını tüm `ProjectDescription` modellerinden kaldırmaya karar verdik.
-Artık her model, modellerin örneklerini oluşturmak için kullanabileceğiniz
-statik bir kurucu sağlamaktadır. Eğer `init` kurucularını kullanıyorsanız, bunun
-yerine statik kurucuları kullanmak için projenizi güncellemeniz gerekecektir.
+API'lerin okunabilirliğini ve ifade gücünü artırmak amacıyla, tüm `ProjectDescription` modellerinden `init` oluşturucularını kaldırmaya karar verdik. Her model artık modellerin örneklerini oluşturmak için kullanabileceğiniz statik bir oluşturucu sunar. `init` oluşturucularını kullanıyorsanız, projenizi bunun yerine statik oluşturucuları kullanacak şekilde güncellemeniz gerekecektir.
 
 > [!TIP]
-> **Naming Convention**
+> **Adlandırma kuralı**
 >
-> İzlediğimiz adlandırma kuralı, modelin adını statik kurucunun adı olarak
-> kullanmaktır. Örneğin, `Target` modeli için statik kurucu `Target.target`
-> şeklindedir.
+> Uyguladığımız adlandırma kuralı, statik oluşturucunun adı olarak modelin adını kullanmaktır. Örneğin, `Target` modeli için statik oluşturucu `Target.target` şeklindedir.
 
 
-### `--no-cache` adresi `--no-binary-cache olarak değiştirildi` {#renamed-nocache-to-nobinarycache}
+## `--no-cache`, `--no-binary-cache` olarak yeniden adlandırıldı {#renamed-nocache-to-nobinarycache}
 
-`--no-cache` bayrağı belirsiz olduğundan, ikili önbelleğe atıfta bulunduğunu
-açıkça belirtmek için `--no-binary-cache` olarak yeniden adlandırmaya karar
-verdik. Eğer `--no-cache` bayrağını kullanıyorsanız, bunun yerine
-`--no-binary-cache` bayrağını kullanmak için projenizi güncellemeniz
-gerekecektir.
+`--no-cache` bayrağı belirsiz olduğu için, ikili önbelleği kastettiğini netleştirmek adına bunu `--no-binary-cache` olarak yeniden adlandırmaya karar verdik. `--no-cache` bayrağını kullanıyorsanız, projenizi bunun yerine `--no-binary-cache` bayrağını kullanacak şekilde güncellemeniz gerekecektir.
 
-### `tuist fetch` adresinin adı `tuist install olarak değiştirildi` {#renamed-tuist-fetch-to-tuist-install}
+## `tuist fetch`, `tuist install` olarak yeniden adlandırıldı {#renamed-tuist-fetch-to-tuist-install}
 
-`tuist fetch` komutunu endüstri kurallarına uygun hale getirmek için `tuist
-install` olarak yeniden adlandırdık. Eğer `tuist fetch` komutunu
-kullanıyorsanız, bunun yerine `tuist install` komutunu kullanmak için projenizi
-güncellemeniz gerekecektir.
+Sektör standardıyla uyum sağlamak için `tuist fetch` komutunu `tuist install` olarak yeniden adlandırdık. `tuist fetch` komutunu kullanıyorsanız, projenizi bunun yerine `tuist install` komutunu kullanacak şekilde güncellemeniz gerekecektir.
 
-### [Bağımlılıklar için DSL olarak `Package.swift` adresini benimseyin](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+## [Bağımlılıklar için DSL olarak `Package.swift` kabul edin](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Tuist 4'ten önce, bağımlılıkları bir `Dependencies.swift` dosyasında
-tanımlayabilirdiniz. Bu tescilli format,
-[Dependabot](https://github.com/dependabot) veya
-[Renovatebot](https://github.com/renovatebot/renovate) gibi araçların
-bağımlılıkları otomatik olarak güncelleme desteğini bozuyordu. Dahası,
-kullanıcılar için gereksiz dolaylamalar getiriyordu. Bu nedenle, Tuist'te
-bağımlılıkları tanımlamanın tek yolu olarak `Package.swift` adresini benimsemeye
-karar verdik. Eğer `Dependencies.swift` dosyasını kullanıyorsanız, içeriği
-`Tuist/Dependencies.swift` dosyanızdan kök dizindeki `Package.swift` dosyasına
-taşımanız ve entegrasyonu yapılandırmak için `#if TUIST` yönergesini kullanmanız
-gerekir. Swift paketi bağımlılıklarının nasıl entegre edileceği hakkında daha
-fazla bilgiyi
-<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">buradan okuyabilirsiniz</LocalizedLink>
+Tuist 4 öncesinde, bağımlılıkları bir `Dependencies.swift` dosyasında tanımlayabiliyordunuz. Bu tescilli format, bağımlılıkları otomatik olarak güncellemek için [Dependabot](https://github.com/dependabot) veya [Renovatebot](https://github.com/renovatebot/renovate) gibi araçlardaki desteği bozuyordu. Ayrıca, kullanıcılar için gereksiz dolaylılıklar getiriyordu. Bu nedenle, Tuist'te bağımlılıkları tanımlamanın tek yolu olarak `Package.swift` kullanımını benimsedik. `Dependencies.swift` dosyasını kullanıyorsanız, içeriğinizi `Tuist/Dependencies.swift` konumundan kök dizindeki bir `Package.swift` dosyasına taşımalı ve entegrasyonu yapılandırmak için `#if TUIST` yönergesini kullanmalısınız. Swift Package bağımlılıklarını nasıl entegre edeceğiniz hakkında daha fazla bilgiyi <.localized_link href="/guides/features/projects/dependencies#swift-packages">buradan</.localized_link> okuyabilirsiniz.
 
-### `tuist önbelleği sıcak` olarak `tuist önbelleği olarak yeniden adlandırıldı` {#renamed-tuist-cache-warm-to-tuist-cache}
+## `tuist cache warm`, `tuist cache` olarak yeniden adlandırıldı {#renamed-tuist-cache-warm-to-tuist-cache}
 
-Kısalık için, `tuist cache warm` komutunu `tuist cache` olarak yeniden
-adlandırmaya karar verdik. Eğer `tuist cache warm` komutunu kullanıyorsanız,
-bunun yerine `tuist cache` komutunu kullanmak için projenizi güncellemeniz
-gerekecektir.
+Kısalık amacıyla, `tuist cache warm` komutunu `tuist cache` olarak yeniden adlandırmaya karar verdik. `tuist cache warm` komutunu kullanıyorsanız, projenizi bunun yerine `tuist cache` komutunu kullanacak şekilde güncellemeniz gerekecektir.
 
 
-### `tuist cache print-hashes` adresini `tuist cache --print-hashes olarak değiştirdi` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
+## `tuist cache print-hashes`, `tuist cache --print-hashes` olarak yeniden adlandırıldı {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-`tuist cache print-hashes` komutunu, `tuist cache` komutunun bir bayrağı
-olduğunu açıkça belirtmek için `tuist cache --print-hashes` olarak yeniden
-adlandırmaya karar verdik. Eğer `tuist cache print-hashes` komutunu
-kullanıyorsanız, bunun yerine `tuist cache --print-hashes` bayrağını kullanmak
-için projenizi güncellemeniz gerekecektir.
+`tuist cache print-hashes` komutunu `tuist cache --print-hashes` olarak yeniden adlandırmaya karar verdik; böylece bunun bir `tuist cache` komutu bayrağı olduğu netleşti. `tuist cache print-hashes` komutunu kullanıyorsanız, projenizi bunun yerine `tuist cache --print-hashes` bayrağını kullanacak şekilde güncellemeniz gerekecektir.
 
-### Önbelleğe alma profilleri kaldırıldı {#removed-caching-profiles}
+## Önbellekleme profilleri kaldırıldı {#removed-caching-profiles}
 
-Tuist 4'ten önce, önbellek için bir yapılandırma içeren `Tuist/Config.swift`
-adresinde önbellek profillerini tanımlayabiliyordunuz. Bu özelliği kaldırmaya
-karar verdik çünkü projeyi oluşturmak için kullanılandan başka bir profille
-oluşturma sürecinde kullanıldığında karışıklığa yol açabilirdi. Ayrıca,
-kullanıcıların uygulamanın yayın sürümünü oluşturmak için bir hata ayıklama
-profili kullanmasına neden olabilir ve bu da beklenmedik sonuçlara yol açabilir.
-Bunun yerine, projeyi oluştururken kullanmak istediğiniz yapılandırmayı
-belirtmek için kullanabileceğiniz `--configuration` seçeneğini getirdik.
-Önbelleğe alma profilleri kullanıyorsanız, bunun yerine `--configuration`
-seçeneğini kullanmak için projenizi güncellemeniz gerekecektir.
+Tuist 4 öncesinde, önbellek yapılandırması içeren önbellekleme profillerini `Tuist/Config.swift` içinde tanımlayabiliyordunuz. Projeyi oluşturmak için kullanılan profil dışındaki bir profili oluşturma sürecinde kullanmanın kafa karışıklığına yol açabileceği gerekçesiyle bu özelliği kaldırmaya karar verdik. Ayrıca, bu durum kullanıcıların uygulamanın release sürümünü oluşturmak için debug profili kullanmasına ve beklenmeyen sonuçlara yol açmasına neden olabiliyordu. Bunun yerine, projeyi oluştururken kullanmak istediğiniz yapılandırmayı belirtmenize olanak tanıyan `--configuration` seçeneğini ekledik. Önbellekleme profillerini kullanıyorsanız, projenizi bunun yerine `--configuration` seçeneğini kullanacak şekilde güncellemeniz gerekecektir.
 
-### `--skip-cache` argümanları lehine kaldırıldı {#removed-skipcache-in-favor-of-arguments}
+## Argümanlar lehine `--skip-cache` kaldırıldı {#removed-skipcache-in-favor-of-arguments}
 
-`--skip-cache` bayrağını, argümanları kullanarak ikili önbelleğin hangi hedefler
-için atlanacağını kontrol etmek için `generate` komutundan kaldırdık. Eğer
-`--skip-cache` bayrağını kullanıyorsanız, bunun yerine argümanları kullanmak
-için projenizi güncellemeniz gerekecektir.
+İkili önbelleğin hangi hedefler için atlanacağını argümanlar kullanarak kontrol etmek amacıyla `--skip-cache` bayrağını `generate` komutundan kaldırdık. `--skip-cache` bayrağını kullanıyorsanız, projenizi bunun yerine argümanları kullanacak şekilde güncellemeniz gerekecektir.
 
 ::: code-group
 
@@ -148,67 +84,32 @@ tuist generate Foo
 <!-- -->
 :::
 
-### [İmzalama yetenekleri düştü](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+## [İmzalama yetenekleri kaldırıldı](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
-İmzalama, [Fastlane](https://fastlane.tools/) ve Xcode'un kendisi gibi topluluk
-araçları tarafından zaten çözülmüştür ve bu konuda çok daha iyi bir iş
-çıkarmaktadır. İmzalamanın Tuist için uzun vadeli bir hedef olduğunu ve projenin
-temel özelliklerine odaklanmanın daha iyi olacağını düşündük. Depodaki
-sertifikaları ve profilleri şifrelemek ve bunları oluşturma sırasında doğru
-yerlere yüklemekten oluşan Tuist imzalama yeteneklerini kullanıyorsanız, bu
-mantığı proje oluşturmadan önce çalışan kendi komut dosyalarınızda çoğaltmak
-isteyebilirsiniz. Özellikle:
-  - Dosya sisteminde veya bir ortam değişkeninde depolanan bir anahtarı
-    kullanarak sertifikaların ve profillerin şifresini çözen ve sertifikaları
-    anahtar zincirine ve provizyon profillerini
-    `~/Library/MobileDevice/Provisioning\ Profiles` dizinine yükleyen bir komut
-    dosyası.
-  - Mevcut profilleri ve sertifikaları alıp şifreleyebilen bir betik.
+İmzalama işlemi, bu konuda çok daha iyi iş çıkaran [Fastlane](https://fastlane.tools/) gibi topluluk araçları ve Xcode'un kendisi tarafından zaten çözülmüştür. İmzalamanın Tuist için zorlayıcı bir hedef olduğunu ve projenin çekirdek özelliklerine odaklanmanın daha iyi olacağını düşündük. Depodaki sertifikaları ve profilleri şifreleyip oluşturma zamanında doğru konumlara yüklemekten oluşan Tuist imzalama yeteneklerini kullanıyorsanız, bu mantığı proje oluşturmaktan önce çalışan kendi betiklerinizde çoğaltmak isteyebilirsiniz. Özellikle:
+  - Dosya sisteminde veya bir ortam değişkeninde saklanan bir anahtar kullanarak sertifikaların ve profillerin şifresini çözen, sertifikaları anahtar zincirine ve sağlama profillerini `~/Library/MobileDevice/Provisioning\ Profiles` dizinine yükleyen bir betik.
+  - Mevcut profilleri ve sertifikaları alıp bunları şifreleyebilen bir betik.
 
 > [!TIP]
-> **Signing Requirements**
+> **İmzalama gereksinimleri**
 >
-> İmzalama için anahtar zincirinde doğru sertifikaların bulunması ve provizyon
-> profillerinin `~/Library/MobileDevice/Provisioning\ Profiles` dizininde
-> bulunması gerekir. Anahtar zincirine sertifika yüklemek için `security` komut
-> satırı aracını ve provizyon profillerini doğru dizine kopyalamak için `cp`
-> komutunu kullanabilirsiniz.
+> İmzalama işlemi için doğru sertifikaların anahtar zincirinde ve sağlama profillerinin `~/Library/MobileDevice/Provisioning\ Profiles` dizininde bulunması gerekir. Sertifikaları anahtar zincirine yüklemek için `security` komut satırı aracını ve sağlama profillerini doğru dizine kopyalamak için `cp` komutunu kullanabilirsiniz.
 
 
-### `Dependencies.swift aracılığıyla Carthage entegrasyonu bırakıldı` {#dropped-carthage-integration-via-dependenciesswift}
+## `Dependencies.swift` aracılığıyla Carthage entegrasyonu kaldırıldı {#dropped-carthage-integration-via-dependenciesswift}
 
-Tuist 4'ten önce, Carthage bağımlılıkları bir `Dependencies.swift` dosyasında
-tanımlanabiliyordu ve kullanıcılar bu dosyayı `tuist fetch` çalıştırarak
-getirebiliyordu. Ayrıca, özellikle Swift paketi Paket Yöneticisinin
-bağımlılıkları yönetmek için tercih edilen yol olacağı bir geleceği göz önünde
-bulundurarak, bunun Tuist için zorlayıcı bir hedef olduğunu düşündük. Carthage
-bağımlılıklarını kullanıyorsanız, önceden derlenmiş çerçeveleri ve
-XCFrameworks'ü Carthage'ın standart dizinine çekmek için doğrudan `Carthage`
-kullanmanız ve ardından `TargetDependency.xcframework` ve
-`TargetDependency.framework` durumlarını kullanarak etiketlerinizden bu ikili
-dosyalara başvurmanız gerekir.
+Tuist 4 öncesinde, Carthage bağımlılıkları bir `Dependencies.swift` dosyasında tanımlanabiliyordu ve kullanıcılar bunları `tuist fetch` komutunu çalıştırarak indirebiliyordu. Ayrıca bunun Tuist için zorlayıcı bir hedef olduğunu düşündük; özellikle Swift Package Manager'ın bağımlılık yönetimi için tercih edilen yöntem olacağı bir geleceği göz önünde bulundurduğumuzda. Carthage bağımlılıklarını kullanıyorsanız, önceden derlenmiş framework'leri ve XCFramework'leri Carthage'in standart dizinine çekmek için doğrudan `Carthage` kullanmanız ve ardından bu ikili dosyalara hedeflerinizden `TargetDependency.xcframework` ve `TargetDependency.framework` seçeneklerini kullanarak başvurmanız gerekecektir.
 
 > [!NOTE]
-> **Carthage Is Still Supported**
+> **Carthage hâlâ destekleniyor**
 >
-> Bazı kullanıcılar Carthage desteğini bıraktığımızı anladı. Biz bırakmadık. Tuist
-> ve Carthage'ın çıktısı arasındaki sözleşme, sistemde depolanan çerçevelere ve
-> XCFrameworks'e yöneliktir. Değişen tek şey bağımlılıkların getirilmesinden kimin
-> sorumlu olduğudur. Eskiden Carthage aracılığıyla Tuist'ti, şimdi Carthage.
+> Bazı kullanıcılar Carthage desteğini kaldırdığımızı düşündü. Böyle bir şey yapmadık. Tuist ile Carthage çıktısı arasındaki sözleşme, sistemde depolanan framework'lere ve XCFramework'lere yöneliktir. Değişen tek şey, bağımlılıkları indirmekten kimin sorumlu olduğu. Eskiden bu sorumluluk Carthage aracılığıyla Tuist'e aitti, şimdi ise Carthage'e ait.
 
 
-### `TargetDependency.packagePlugin` API'sini bıraktı {#dropped-the-targetdependencypackageplugin-api}
+## `TargetDependency.packagePlugin` API'si kaldırıldı {#dropped-the-targetdependencypackageplugin-api}
 
-Tuist 4'ten önce, `TargetDependency.packagePlugin` durumunu kullanarak bir paket
-eklentisi bağımlılığı tanımlayabiliyordunuz. Swift paketi Paket Yöneticisinin
-yeni paket türlerini tanıttığını gördükten sonra, API'yi daha esnek ve geleceğe
-dönük olacak şekilde yinelemeye karar verdik. Eğer
-`TargetDependency.packagePlugin` kullanıyorsanız, bunun yerine
-`TargetDependency.package` kullanmanız ve kullanmak istediğiniz paket türünü bir
-argüman olarak iletmeniz gerekecektir.
+Tuist 4 öncesinde, bir paket eklentisi bağımlılığını `TargetDependency.packagePlugin` seçeneğini kullanarak tanımlayabiliyordunuz. Swift Package Manager'ın yeni paket türlerini sunduğunu gördükten sonra, API'yi daha esnek ve geleceğe hazır hale getirmek üzere yineledik. `TargetDependency.packagePlugin` kullanıyorsanız, bunun yerine `TargetDependency.package` kullanmanız ve kullanmak istediğiniz paket türünü bir argüman olarak iletmeniz gerekecektir.
 
-### [Kullanımdan kaldırılan API'ler](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
+## [Kullanımdan kaldırılmış API'ler kaldırıldı](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
-Tuist 3'te kullanımdan kaldırılmış olarak işaretlenen API'leri kaldırdık.
-Kullanımdan kaldırılmış API'lerden herhangi birini kullanıyorsanız, yeni
-API'leri kullanmak için projenizi güncellemeniz gerekecektir.
+Tuist 3'te kullanımdan kaldırılmış olarak işaretlenen API'leri kaldırdık. Kullanımdan kaldırılmış API'lerden herhangi birini kullanıyorsanız, projenizi yeni API'leri kullanacak şekilde güncellemeniz gerekecektir.

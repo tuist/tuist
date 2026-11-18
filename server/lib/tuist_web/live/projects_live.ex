@@ -187,7 +187,7 @@ defmodule TuistWeb.ProjectsLive do
                 :if={build_system_badge(project.build_system)}
                 label={build_system_badge(project.build_system).label}
                 color={build_system_badge(project.build_system).color}
-                size="large"
+                size="medium"
               />
             </div>
             <div
@@ -236,7 +236,7 @@ defmodule TuistWeb.ProjectsLive do
                   :if={build_system_badge(project.build_system)}
                   label={build_system_badge(project.build_system).label}
                   color={build_system_badge(project.build_system).color}
-                  size="large"
+                  size="medium"
                 />
               </div>
               <div
@@ -311,7 +311,7 @@ defmodule TuistWeb.ProjectsLive do
                   :if={build_system_badge(project.build_system)}
                   label={build_system_badge(project.build_system).label}
                   color={build_system_badge(project.build_system).color}
-                  size="large"
+                  size="medium"
                 />
               </div>
               <div

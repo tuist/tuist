@@ -116,10 +116,10 @@ let project = Project(
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
-            resources: [
+            resources: .resources([
                 .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
                 .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
-            ],
+            ]),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -129,9 +129,11 @@ let project = Project(
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
                 .external(name: "Sparkle", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
+                .target(name: "TuistNavigation", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
+                .target(name: "TuistNotifications", condition: .when([.ios])),
                 // Imported directly only by the iOS sources, but reached on
                 // every platform through TuistSupport -> SwifterPMCore. An
                 // iOS condition here overrides that transitive requirement
@@ -148,7 +150,12 @@ let project = Project(
                         "Resources/TuistApp/TuistApp.entitlements",
                     "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
                 ],
+                debug: [
+                    // Expanded into the `aps-environment` entitlement.
+                    "APS_ENVIRONMENT": "development",
+                ],
                 release: [
+                    "APS_ENVIRONMENT": "production",
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
@@ -167,6 +174,7 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistSimulator", path: "../"),
+                .target(name: "TuistNavigation"),
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
@@ -190,6 +198,25 @@ let project = Project(
                 .project(target: "TuistSimulator", path: "../"),
                 .external(name: "Mockable"),
             ]
+        ),
+        .target(
+            name: "TuistNavigation",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "dev.tuist.navigation",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            sources: ["Sources/TuistNavigation/**"]
+        ),
+        .target(
+            name: "TuistNavigationTests",
+            destinations: [.mac, .iPhone],
+            product: .unitTests,
+            bundleId: "dev.tuist.navigation-tests",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistNavigationTests/**"],
+            resources: ["Fixtures/Navigation/routes.json"],
+            dependencies: [.target(name: "TuistNavigation")]
         ),
         .target(
             name: "TuistNoora",
@@ -226,9 +253,42 @@ let project = Project(
             sources: ["Sources/TuistProfile/**"],
             dependencies: [
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNotifications"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistErrorHandling"),
                 .project(target: "TuistServer", path: "../"),
+            ]
+        ),
+        .target(
+            name: "TuistNotifications",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.notifications",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistNotifications/**"],
+            dependencies: [
+                .target(name: "TuistAuthentication"),
+                .target(name: "TuistAppStorage"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
+                .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
+            ]
+        ),
+        .target(
+            name: "TuistNotificationsTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.notifications-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistNotificationsTests/**"],
+            dependencies: [
+                .target(name: "TuistNotifications"),
+                .target(name: "TuistAuthentication"),
+                .target(name: "TuistAppStorage"),
+                .project(target: "TuistServer", path: "../"),
+                .external(name: "Mockable"),
             ]
         ),
         .target(
@@ -265,6 +325,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
+                .external(name: "OpenAPIRuntime"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -295,14 +356,26 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "FileSystemTesting"),
+                .external(name: "TestCoverageAttribution"),
             ]
         ),
     ],
     schemes: [
         .scheme(
+            name: "TuistNavigation",
+            buildAction: .buildAction(targets: [.target("TuistNavigation")]),
+            testAction: .targets([.testableTarget(target: "TuistNavigationTests")])
+        ),
+        .scheme(
             name: "TuistPreviews",
             buildAction: .buildAction(targets: [.target("TuistPreviews")]),
             testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
+        .scheme(
+            name: "TuistNotifications",
+            buildAction: .buildAction(targets: [.target("TuistNotifications")]),
+            testAction: .targets([.testableTarget(target: "TuistNotificationsTests")])
         ),
         .scheme(
             name: "TuistApp",
@@ -337,5 +410,7 @@ let project = Project(
                 )
             )
         ),
-    ]
+    ],
+    // Strings are looked up by English key; generated accessors collide on case-only differences.
+    resourceSynthesizers: [.assets(), .plists(), .fonts()]
 )

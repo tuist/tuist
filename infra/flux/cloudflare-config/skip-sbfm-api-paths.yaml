@@ -40,6 +40,10 @@
 # Path list justification (see server/lib/tuist_web/router.ex):
 #   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
 #                      previews, runners) — every managed-CI call.
+#   GET /threads/socket/websocket  Native iOS/Android Thread updates.
+#   GET /jams/socket/websocket  Compatibility for older native clients.
+#                      Phoenix authenticates the bearer subprotocol and
+#                      authorizes each account/private-Thread subscription.
 #   /open-graph-images/* Signed social-preview images; crawlers cannot
 #                      solve JavaScript challenges. The application
 #                      verifies signatures and current project visibility.
@@ -57,6 +61,9 @@
 #   /.well-known/*     Protocol discovery (Apple app-site-association
 #                      fetched by Apple's CDN, MCP server card,
 #                      OAuth authorization-server metadata).
+#   GET /oidc/accounts/*  Per-account OpenID Connect issuer discovery and
+#                      JWKS, fetched by Anthropic to verify the tokens
+#                      Tuist signs for workload identity federation.
 #   /mcp (exact)       Model Context Protocol
 #                      (https://modelcontextprotocol.io/) server
 #                      endpoint reached by AI-assistant clients.
@@ -103,6 +110,7 @@ spec:
   expression: |-
     (http.host ne "tuist.dev") or
     starts_with(http.request.uri.path, "/api/") or
+    (http.request.method eq "GET" and http.request.uri.path in {"/jams/socket/websocket" "/threads/socket/websocket"}) or
     starts_with(http.request.uri.path, "/open-graph-images/") or
     (
       http.request.method in {"GET" "HEAD"} and
@@ -124,6 +132,8 @@ spec:
         http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml" "/geofeed.csv"} or
         starts_with(http.request.uri.path, "/docs/") or
         starts_with(http.request.uri.path, "/marketing-markdown/") or
+        starts_with(http.request.uri.path, "/ar/docs/") or
+        starts_with(http.request.uri.path, "/ar/docs-markdown/") or
         starts_with(http.request.uri.path, "/en/docs/") or
         starts_with(http.request.uri.path, "/en/docs-markdown/") or
         starts_with(http.request.uri.path, "/es/docs/") or
@@ -136,6 +146,8 @@ spec:
         starts_with(http.request.uri.path, "/ko/docs-markdown/") or
         starts_with(http.request.uri.path, "/ru/docs/") or
         starts_with(http.request.uri.path, "/ru/docs-markdown/") or
+        starts_with(http.request.uri.path, "/tr/docs/") or
+        starts_with(http.request.uri.path, "/tr/docs-markdown/") or
         starts_with(http.request.uri.path, "/yue_Hant/docs/") or
         starts_with(http.request.uri.path, "/yue_Hant/docs-markdown/") or
         starts_with(http.request.uri.path, "/zh_Hans/docs/") or
@@ -150,6 +162,7 @@ spec:
     starts_with(http.request.uri.path, "/agent/") or
     starts_with(http.request.uri.path, "/_internal/") or
     starts_with(http.request.uri.path, "/.well-known/") or
+    (http.request.method in {"GET" "HEAD"} and starts_with(http.request.uri.path, "/oidc/accounts/")) or
     http.request.uri.path eq "/mcp" or
     http.request.uri.path eq "/auth.md" or
     http.request.uri.path eq "/ready" or

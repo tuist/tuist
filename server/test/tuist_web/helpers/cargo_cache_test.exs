@@ -13,7 +13,7 @@ defmodule TuistWeb.Helpers.CargoCacheTest do
       assert CargoCache.result(status) == "miss"
     end
 
-    assert CargoCache.status_description("unconsulted") =~ "learn the task inputs"
+    assert CargoCache.status_description("unconsulted") =~ "could not be cached"
     assert CargoCache.status_description("verification") =~ "verify cache correctness"
   end
 

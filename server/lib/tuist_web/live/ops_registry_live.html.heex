@@ -5,7 +5,13 @@
   <.card title="Swift packages" icon="package">
     <.card_section>
       <div data-part="filters">
-        <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
+        <.form
+          for={%{}}
+          id="ops-registry-search-form"
+          phx-change="search"
+          phx-submit="search"
+          phx-debounce="300"
+        >
           <.text_input
             type="search"
             id="ops-registry-search"

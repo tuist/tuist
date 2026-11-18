@@ -28,7 +28,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/cache-volumes ./cmd/cache-volumes && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/kvm-device-plugin ./cmd/kvm-device-plugin
+    go build -trimpath -ldflags="-s -w" -o /out/kvm-device-plugin ./cmd/kvm-device-plugin && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/kvm-nri-plugin ./cmd/kvm-nri-plugin
 
 
 # The git-lfs the checkout populator runs, pinned and verified before it is
@@ -42,7 +44,12 @@ RUN set -eu; \
       arm64) sum=ac9c8efac980bb0505ead384d087e2acb6486fd8498691a2165fa174ec6118c2 ;; \
       *) echo "no pinned git-lfs for $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    wget -q -O /tmp/git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/git-lfs-linux-${TARGETARCH}-v${GIT_LFS_VERSION}.tar.gz"; \
+    # busybox wget has no retry option, and a single GitHub 5xx would fail the release.
+    for attempt in 1 2 3 4 5; do \
+      wget -q -O /tmp/git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/git-lfs-linux-${TARGETARCH}-v${GIT_LFS_VERSION}.tar.gz" && break; \
+      [ "$attempt" -lt 5 ] || exit 1; \
+      sleep $((attempt * 5)); \
+    done; \
     echo "$sum  /tmp/git-lfs.tar.gz" | sha256sum -c -; \
     tar -xzf /tmp/git-lfs.tar.gz -C /tmp; \
     install -D -m 0755 "/tmp/git-lfs-${GIT_LFS_VERSION}/git-lfs" /out/git-lfs
@@ -67,6 +74,9 @@ COPY --from=builder /out/manager /usr/local/bin/manager
 # Run by the kvm-device-plugin DaemonSet as root, which kubelet's
 # device-plugin directory requires; see cmd/kvm-device-plugin.
 COPY --from=builder /out/kvm-device-plugin /usr/local/bin/kvm-device-plugin
+# Run by the kvm-nri-plugin DaemonSet as root, which containerd's NRI socket
+# requires; see cmd/kvm-nri-plugin.
+COPY --from=builder /out/kvm-nri-plugin /usr/local/bin/kvm-nri-plugin
 
 USER nonroot:nonroot
 
