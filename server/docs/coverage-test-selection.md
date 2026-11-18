@@ -4,7 +4,7 @@ How Tuist skips the tests a change can't affect, using the per-test coverage evi
 
 **The invariant.** Coverage evidence only ever removes tests from what default selective testing would run, never adds to it, so off the default branch a coverage run never runs more than a default run. Within that, anything Tuist can't prove unaffected runs: new tests, tests without evidence, and every test whenever selection can't be computed. When coverage can't decide, the run is a plain selective testing run.
 
-The document has two parts. The [shared model](#strategy) (baselines, the rules, impact runs and their shards, storage, the API, the UI and the flag) holds for every build system and is written in build-system terms; a build system plugs in through the [hooks](#what-each-build-system-supplies), though some shared code still reads Xcode's names (listed under the hooks). The [Xcode](#xcode) part describes what only the Xcode client and its evidence do. Only Xcode selects today; Gradle, Mix and Cargo get a part like it when their selection lands. Gradle already uploads the test-scoped evidence selection reads, from JUnit Platform tests (see [Code coverage](code-coverage.md#gradle)), reports its runs' platform as none, and has its own tracked files (`gradle:` in `@tracked_file_globs`); it still lacks module hashing, a build context block and a client for the runs endpoint.
+The document has two parts. The [shared model](#strategy) (baselines, the rules, impact runs and their shards, storage, the API, the UI and the flag) holds for every build system and is written in build-system terms; a build system plugs in through the [hooks](#what-each-build-system-supplies), though some shared code still reads Xcode's names (listed under the hooks). The [Xcode](#xcode) and [Mix](#mix) parts describe what only each client and its evidence do. Xcode and Mix select; Gradle and Cargo get a part like them when their selection lands. Gradle already uploads the test-scoped evidence selection reads, from JUnit Platform tests (see [Code coverage](code-coverage.md#gradle)), reports its runs' platform as none, and has its own tracked files (`gradle:` in `@tracked_file_globs`); it still lacks module hashing, a build context block and a client for the runs endpoint.
 
 ## Strategy
 
@@ -36,17 +36,20 @@ When the project isn't enabled, the baseline request answers `not_enabled`, the 
 | **Platform key** | What a baseline must match, recorded on every coverage upload (`coverage_runs.platform`) and sent in the baseline request. | [The destination's platform](#schemes-and-destinations) |
 | **Build context** | The generic `scope` in both selection requests, matching `scheme` on the test reports. It picks which baselines qualify. Legacy clients can still send their build-system block. | [`xcode`: scheme, test plan, destination](#schemes-and-destinations) |
 | **Tracked files** | Files whose change stops coverage from narrowing the run, shared with coverage carry. A list per `build_system` in `Tuist.GitHistory` (`@tracked_file_globs`); one without its own list uses Xcode's. | [Xcode's list](#rule-inputs-on-xcode) |
+| **`affected_modules`** | Which test modules a changed file can affect, from a build graph. | [The generated graph or XcodeGraphMapper](#rule-inputs-on-xcode) |
+| **Applying a skip list** | How whole modules and single tests are kept from running. | [Pruning, `-skip-testing` and a skip file](#applying-the-selection-on-xcode) |
 
 **Cargo** supplies test-scoped evidence, the platform key and its tracked files so far. `tuist cargo nextest run` records `test` and `target` evidence, since nextest runs each test in its own process. Plain `cargo test` records only `target` evidence and reports its tests as overlapped, since a binary's tests share one process. Every coverage upload records the target triple as `platform` (see [Cargo](code-coverage.md#cargo)). Cargo has no selection configuration, module hashing, build-context block or `affected_modules` yet, so Rust projects get coverage and evidence but never select.
 
-**Not every hook is pluggable yet.** The shared code reads Xcode's names directly:
+**Mix** supplies every hook but module hashing, which it doesn't have: `mix.exs` configuration, `test` and `target` evidence from ExUnit tests that run alone, no platform, the `mix` block (scheme, OTP application), its tracked files, `affected_modules` from the project's layout, and ExUnit filters. See [Mix](#mix).
 
-- **Build context storage.** Both endpoints accept `scope`, a nonempty string of at most 1,024 characters, without an `xcode` block. It takes precedence over `xcode.scheme` and must match `scheme` on the client's test reports. The server uses it for the baseline and branch overlay and stores it under the existing `build_context.scheme` key, so the run reads, baseline links and coverage carry keep the same scope. The optional legacy `xcode` block still supplies `test_plan` and `destination`. Clients omitting both scope forms retain their existing unscoped baseline lookup; clients needing isolated test groups must send a scope.
-- **Module hashing.** The run tab's module-level hash data is Xcode's `xcode_targets` (see [UI](#ui)).
+**The server-side hooks live in `Tuist.TestImpactAnalysis.BuildSystem`**: which build systems select (`selects?/1`, which the sidebar reads), each one's request block and the keys an impact run stores from it (`context/1`, `context_keys/0`), the key that scopes baselines (`scheme/1`), and how a shard plan distributes a selection (`shard_granularity/1`). Adding a build system adds an entry there.
 
-A second build system needs these turned into hooks first.
-| **`affected_modules`** | Which test modules a changed file can affect, from a build graph. | [The generated graph or XcodeGraphMapper](#rule-inputs-on-xcode) |
-| **Applying a skip list** | How whole modules and single tests are kept from running. | [Pruning, `-skip-testing` and a skip file](#applying-the-selection-on-xcode) |
+**Scope.** Both endpoints accept `scope`, a nonempty string of at most 1,024 characters, without a build-system block. It takes precedence over the block's `scheme` (`xcode.scheme`, `mix.scheme`) and must match `scheme` on the client's test reports. The server uses it for the baseline and branch overlay and stores it under the existing `build_context.scheme` key, with the runs request's `coverage_policy`, so the run reads, baseline links and coverage carry keep the same scope. The optional legacy blocks still supply the rest of the context (Xcode's `test_plan` and `destination`, Mix's `app`). Clients omitting both scope forms retain their existing unscoped baseline lookup, so any commit whose measured set lists a scheme can be its baseline; clients needing isolated test groups must send a scope.
+
+One hook still reads Xcode's names directly:
+
+- **Module hashing.** The run tab's module-level hash data is Xcode's `xcode_targets` (see [UI](#ui)). A build system without hashing skips no modules, so its runs show the impact run's own module table.
 
 ### Once / Struo
 
@@ -105,7 +108,7 @@ The Xcode client's names are under [Configuration](#names-in-the-xcode-client).
 
 A commit is a baseline when it has a live **checkpoint** (`test_impact_snapshots`, kind `checkpoint`, not expired) of the requested scope:
 
-- of the requested scheme (`xcode.scheme`); a request without a scheme accepts any;
+- of the requested scheme (the build-system block's `scheme`, `BuildSystem.scheme/1`); a request without a scheme accepts any;
 - on the requested platform (see [Scope and platform](#scope-and-platform)); a request without a platform matches only runs that recorded none.
 
 The fold writes a checkpoint for every scope a commit's **full runs** measured, once their results are processed: runs at the commit whose `coverage_runs` row isn't `partial` (no filter narrowed them and every shard reported). A checkpoint holds every test those runs ran, so the run needn't have uploaded test-scoped evidence: a test without any is in the map as `no_evidence` and is selected. A commit whose runs are still being processed has no checkpoint yet, so it isn't a baseline, and no request waits for one.
@@ -196,16 +199,16 @@ Both endpoints are in `TuistWeb.API.SelectiveTestingCoverageController`, under `
 
 | Operation | Request | Response |
 | --- | --- | --- |
-| `POST …/baseline` (`resolveTestImpactBaseline`) | `build_system`, `commit_sha` (required); `parent_shas` (the checked-out commit's parents; on a merge checkout, the base-branch tip and the pull request head), `ancestor_shas` (at most 200, the rest ignored), `platform`, the build system's block (`xcode`) | `TestImpactBaseline`: `baseline_sha` (nullable), `reason` (`history_unknown` asks the client to deepen and repeat the request with `ancestor_shas`), `diff_cached` |
+| `POST …/baseline` (`resolveTestImpactBaseline`) | `build_system`, `commit_sha` (required); `parent_shas` (the checked-out commit's parents; on a merge checkout, the base-branch tip and the pull request head), `ancestor_shas` (at most 200, the rest ignored), `platform`, the build system's block (`xcode` or `mix`) | `TestImpactBaseline`: `baseline_sha` (nullable), `reason` (`history_unknown` asks the client to deepen and repeat the request with `ancestor_shas`), `diff_cached` |
 | `POST …/runs` (`createTestImpactRun`) | `build_system`, `head_sha`, `modules [{name, skipped?}]` (required); `commit_sha` (defaults to `head_sha`, keys the diff), `parent_shas` and `ancestor_shas` (as in the baseline request), `baseline_sha` or `fallback_reason`, `changed_files [{path, status, blob?, affected_modules?}]` with `changed_files_count`, `dirty`, `platform`, `git_branch`, the build system's block | `TestImpactRun`: `id`, `outcome`; `reason` and `matched_path` on a fallback; `counts {requested, selected, skipped}` and `skipped_tests [SkippedTest]` on `selected` |
 | `POST …/tests/shards` (`createShardPlan`) | gains optional `test_impact_run_id` | unchanged |
-| `GET …/tests/shards/{reference}/{index}` (`getShard`) | unchanged | gains `skipped_tests [SkippedTest]` for a plan that points to an impact run |
+| `GET …/tests/shards/{reference}/{index}` (`getShard`) | unchanged | gains `skipped_tests [SkippedTest]` for a plan that points to an impact run, and `test_impact_run_id` for one that distributes it by module (Mix) |
 | `POST …/tests` (`createTest`) | gains optional `test_impact_run_id` | unchanged |
 
 `SkippedTest` is `{module, suite?, name?}`, named the same way for every build system. Both responses call the list `skipped_tests`, since a shard read doesn't depend on which selection produced it; the shard read's existing `skip` (the catch-all's identifiers as strings) is unchanged. The runs response includes `skipped_tests` on every `selected` outcome; sharded clients ignore it and read their shard's list.
 
 - **Required stays minimal.** Only what every build system has is required. A required field can't become optional without breaking generated clients.
-- **One block per build system.** Xcode's build context goes in `xcode`, the only block the server reads today; Gradle, Mix and Cargo get their own blocks when they need fields. A field moves to the top level only once a second build system needs it.
+- **One block per build system.** Xcode's build context goes in `xcode` and Mix's in `mix`; the server reads only the block of the request's `build_system`. Gradle and Cargo get their own blocks when they need fields. A field moves to the top level only once a second build system needs it.
 - **`build_system` is recorded, not used.** It's stored on the impact run and shown on its Configuration sub-tab.
 - **New fields are optional**, with a default that keeps today's behaviour. **Values that will grow are strings, not enums**: the CLI's generated client turns enums into frozen Swift enums, so an unknown value would fail decoding.
 
@@ -216,6 +219,7 @@ Both endpoints are in `TuistWeb.API.SelectiveTestingCoverageController`, under `
 - **Shards are balanced on what will run**: each suite is priced at its selected tests' `test_cases.avg_duration`, a test without one counting as the median of those with one. Skipped work can lower the shard count.
 - **Each shard's skip list is narrowed to its work.** A regular shard runs only its suites and skips the unselected tests inside them. The catch-all shard keeps its role of running every suite no other shard owns, so new suites still run; its list adds the modules with nothing selected, the other shards' suites, and the unselected tests everywhere else.
 - **Shards can't disagree.** The decision is fixed before planning, and a shard reads the same plan and stored decision. Re-running failed shards gets the same run; re-running the whole workflow gets a new plan and impact run.
+- **Mix plans per module.** A Mix shard runs test files, which can't be narrowed to suites, so `BuildSystem.shard_granularity/1` is `module` for Mix: `Runs.shard_units/2` returns no suites, the plan job sends only the test modules with something selected, and the plan balances them as without a selection, keeping `test_impact_run_id`. Each shard read carries the run's whole skip list (`Runs.skipped_tests/2`) and the run, and the shard keeps the entries of its own files. A selection of nothing still plans every module, so each shard reports the run.
 - Immutable shard plans (reporting version 1) drop coverage at ingest, so sharded runs on them never become baselines.
 
 ## Applying the selection
@@ -239,7 +243,7 @@ Impact runs live in ClickHouse next to `shard_plans`, written and read back the 
 | Table | What it holds | Retention |
 | --- | --- | --- |
 | `test_impact_diffs` (`Tuist.TestImpactAnalysis.Diff`) | One row per project, checked-out commit and baseline (`ReplacingMergeTree`, so identical concurrent writes collapse): `changed_files` as `(path, status, blob, affected_modules)`, at most 5,000, and `changed_files_count`. | `TUIST_COVERAGE_FILE_RETENTION_DAYS` (31) |
-| `test_impact_runs` (`Tuist.TestImpactAnalysis.Run`) | One row per invocation, runs with a reason included: `head_sha`, `commit_sha`, `baseline_sha`, `baseline_run_ids`, `git_branch`, `dirty`, `strategy`, `build_system`, `platform`, `build_context` (the `xcode` block's `scheme`, `test_plan` and `destination`, each capped at 1,024 characters), `outcome`, `reason`, `matched_path`, `rules_version`, `rule_trace` as `(rule, selected, skipped, verdict)`, `requested_modules` (the modules left to decide; the skip lists and the run page derive skipped tests from them), `skipped_modules` (each module the client skipped because its hash matched, with its number of tests in the baseline, 0 until the baseline is confirmed), and the counts. Once the baseline is confirmed, `requested_count` and `skipped_count` include the baseline's tests in the modules hashing skipped, so `requested = selected + skipped`; a run with a reason then counts the modules left as selected, since all of them run. Runs that end before the server confirms the baseline record zeros, no `baseline_sha` (even when the client sent one), and the reason there's none, a selection of nothing included. Ordered `(project_id, inserted_at, id)` for the overview's range read, with a bloom filter on `id` for the run page. | `TUIST_COVERAGE_RUN_RETENTION_DAYS` (365) |
+| `test_impact_runs` (`Tuist.TestImpactAnalysis.Run`) | One row per invocation, runs with a reason included: `head_sha`, `commit_sha`, `baseline_sha`, `baseline_run_ids`, `git_branch`, `dirty`, `strategy`, `build_system`, `platform`, `build_context` (the build system's block: Xcode's `scheme`, `test_plan` and `destination`, Mix's `scheme` and `app`, each capped at 1,024 characters), `outcome`, `reason`, `matched_path`, `rules_version`, `rule_trace` as `(rule, selected, skipped, verdict)`, `requested_modules` (the modules left to decide; the skip lists and the run page derive skipped tests from them), `skipped_modules` (each module the client skipped because its hash matched, with its number of tests in the baseline, 0 until the baseline is confirmed), and the counts. Once the baseline is confirmed, `requested_count` and `skipped_count` include the baseline's tests in the modules hashing skipped, so `requested = selected + skipped`; a run with a reason then counts the modules left as selected, since all of them run. Runs that end before the server confirms the baseline record zeros, no `baseline_sha` (even when the client sent one), and the reason there's none, a selection of nothing included. Ordered `(project_id, inserted_at, id)` for the overview's range read, with a bloom filter on `id` for the run page. | `TUIST_COVERAGE_RUN_RETENTION_DAYS` (365) |
 | `coverage_runs.platform` | The platform each coverage run tested, for baseline matching. | With `coverage_runs` |
 | `shard_plans.test_impact_run_id` | The impact run a coverage plan distributes. | With `shard_plans` |
 | `test_runs.test_impact_run_id` | The impact run of the invocation, set at ingest like `shard_plan_id` (also on `shard_test_reports` and the summary views built over them). | With `test_runs` |
@@ -312,7 +316,7 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 
 | Where | What it shows | Data |
 | --- | --- | --- |
-| Sidebar | "Test Selection" under Tests, for Xcode projects when `test_impact_analysis_enabled?/3` (`TestSelectionsLive.enabled?/2`) | |
+| Sidebar | "Test Selection" under Tests, for projects whose build system selects (`BuildSystem.selects?/1`: Xcode and Mix) when `test_impact_analysis_enabled?/3` (`TestSelectionsLive.enabled?/2`). The runs list names each run by its test plan, scheme or, for Mix, OTP application | |
 | Test Selection page (`TuistWeb.TestSelectionsLive`, `/tests/test-selection`) | The period's selected and skipped tests, skip rate and runs, with trends. A run's `skipped_count` includes the tests in the modules selective testing skipped by hash, so a run's skip rate is `skipped / requested` (the share of modules hashing skipped for a run without a baseline). The period's skip rate and its trend are the dashboards' test selection effectiveness over the period's impact runs: their test runs' avoided tests over their tests in scope, pooled, as `test_run_selections` recorded them (`Tuist.Tests.RunSelections`), the avoided tests of an impact run several test runs share counted once; then the period's impact runs (one row per impact run, its tests run out of requested, opening the Selective Testing tab of the latest test run that points to it). A run with a reason decides no test but still skips modules by hash: one with a baseline stored the tests in those modules as skipped and reads like any selection, and one without a baseline has no tests to count, so it reads the test modules hashing left out of all requested and the share hashing skipped, with its reason. Only impact runs some test run points to count, so a run whose client timed out stays out of the figures and the list | `test_impact_runs` in the range, joined to the range's `test_runs` (from its start to a day past its end) grouped by `test_impact_run_id`, and to their rows in `test_run_selections` |
 | Test run page, Selective Testing tab (`TuistWeb.TestSelection.RunTab`) | Outcome, counts and baseline, then the Tests, Modules, Changed files and Debug sub-tabs. A sharded run's shards are on the Overview tab, and the Tests tab shows each test's shard. The rest of the invocation (scheme, destination, commit) is on the run's Overview tab. The counts are the selected tests out of requested and the skipped tests; the skip rate as on the Test Selection page; the skipped modules (the keys of `skipped_modules`) out of all requested modules; and the estimated time saved, from the baseline durations of every skipped test, in skipped modules too. The test run's overview card, Selective Testing, shows the selected tests out of requested and the skipped tests for a run with a baseline, the skip rate as on the Test Selection page, and the modules hashing skipped out of all requested modules. Whether a run shows as a selection depends only on its baseline (`Selections.has_baseline?/1`): a run with a reason and a baseline (`tracked_file_changed`, for one) shows its counts, baseline and sub-tabs, its Tests the tests that ran under its reason. A run without a baseline shows the reason, titled Coverage not applied, followed by the run page's existing selective testing table when the run has default selective testing data. The tab shows for a run with a `test_impact_run_id`, or when the run has default selective testing data, which alone shows only that table. A run without a baseline also shows only that table when it has one: coverage decided nothing to show. Once the impact run expired, the tab says so instead of hiding. | The run's impact run |
 | &nbsp;&nbsp;Tests | Every requested test, its decision and the rule, and its shard, filterable by decision, reason and shard; the outcome is on the Overview tab | The stored decision's bitmaps (`test_impact_run_decisions`), expanded only for the page shown and named through the checkpoint's tests (`test_impact_snapshot_tests`); a decision that's incomplete or expired lists none. The baseline's tests in the keys of `skipped_modules` follow, with reason `module_skipped`. For a run with a reason that found its baseline, nothing is stored: the baseline's tests in `requested_modules` are selected under the run's reason. The rows name the rule, not the file that triggered it; a test case run's tab shows the file |
@@ -344,7 +348,7 @@ The strategy is the run's latest `test_run_selections` row (`RunSelections.strat
 - **No excluded paths, so monorepos fall back on unrelated changes.** The diff spans the whole repository and the default tracked globs match anywhere in it (`**/Project.swift`, `**/Package.resolved`, `**/*.xcconfig`, …). In a monorepo such as tuist/tuist, editing a fixture's `Project.swift`, or anything under another product's folder, makes the CLI project's selection fall back with `tracked_file_changed`. Unrelated files also count toward the 5,000-file cap and inflate the stored diff. Unrelated sources are already harmless, since no test's evidence includes them.
   - **The addition:** repository-relative globs a project ignores, such as `cli/Tests/Fixtures/**`, `server/**` or `app/**`. They apply to both the tracked-file check and the diff, so carry and selection keep one rule set. They'd be configured under `coverage`, next to custom tracked files.
   - **The CLI drops excluded paths before sending the diff**, so they never count toward the cap or reach the server. The server applies the same globs to tracked files when it carries coverage.
-- Only Xcode selects. Another build system would send the same requests with its own block and supply the [hooks](#what-each-build-system-supplies), once the shared code stops reading Xcode's names.
+- Xcode and Mix select. Another build system sends the same requests with its own block, supplies the [hooks](#what-each-build-system-supplies), and adds its entry to `Tuist.TestImpactAnalysis.BuildSystem`.
 
 ## Decided against
 
@@ -489,3 +493,72 @@ TEST_RUNNER_TUIST_URL=http://127.0.0.1:8080 xcodebuild test -workspace Tuist.xcw
 - **Use the dev server's own port.** A worktree's server listens on `$TUIST_SERVER_PORT`, not always 8080. The suite logs in as the seeded `tuistrocks@tuist.dev`, which `mise run db:seed` creates.
 - **`xcode-select` must point at the Xcode the build uses** (`.xcode-version`). The fixture's manifests compile with `/usr/bin/xcrun swift`, and the test harness's mocked environment hands manifest loading no `DEVELOPER_DIR`, so setting it doesn't help: a `ProjectDescription` built by a newer Xcode then fails to parse ("expected '{' in struct").
 - **The suite logs in once per run.** A dev server allows 10 logins per IP plus one a minute, so a second run soon after the first fails with `tooManyRequests`: start the server with `TUIST_AUTH_RATE_LIMIT_BUCKET_SIZE=1000`.
+
+## Mix
+
+What only the Mix client (`tuist_ex`) and its evidence do. The client is `TuistEx.Analytics.TestSelection`, called by `mix tuist.test` and `mix tuist.test.build`; the diff is `TuistEx.Git.changed_files/4`, a port of the CLI's `GitController+TestImpact.swift` that must stay in step with it.
+
+### Configuration
+
+```elixir
+def project do
+  [
+    tuist: [project: "account/project", selective_testing: [strategy: :coverage]]
+  ]
+end
+```
+
+- **A run selects only with `--cover`.** Evidence comes from the run's coverage, and a run that skips tests without measuring would leave the next run no fresher evidence. A run without `--cover`, such as a local `mix test` through the `tuist.test` alias, runs every test and asks nothing.
+- **Turning it off** is `--no-selective-testing`, on `mix tuist.test` and `mix tuist.test.build`: nothing is skipped and no impact run is created. The run still records evidence, so default-branch runs that pass it are baselines.
+- **Not from an umbrella's root**, where each application runs a suite of its own: run inside the application, as for sharding.
+
+### No hashing step
+
+Mix has no module hashing: compiled modules carry no input hash a run can compare, and a test module's dependencies on the project's code are runtime calls Mix doesn't record. So coverage decides every test: the unit is the ExUnit test module, as runs report it; the runs request lists every test module of the suite (each test file parsed without loading it, `TestSelection.index/1`) with `skipped: false`; `skipped_modules` stays empty; and a run with a reason runs everything. The run's skip rate is coverage's alone.
+
+### Evidence
+
+ExUnit tests that ran alone record `test` evidence and every test module a `target` scope; tests of `async: true` modules mostly overlap and are reported as overlapped, so they always run (`no_evidence`). See [Code coverage](code-coverage.md#mix). A project whose suite is mostly `async: true` therefore selects little: making the modules that test code paths with many callers serial trades parallelism for selection.
+
+### Scope, platform and build context
+
+- **The `mix` block** holds `scheme` (`mix tuist.test --scheme`, an execution variant such as a database version), which scopes baselines as Xcode's scheme does, and `app`, the OTP application, for display. Both are stored in `build_context`.
+- **No platform.** Mix runs record none, so baselines match runs that recorded none.
+
+### Rule inputs on Mix
+
+- **Tracked files.** Mix's `tracked_file_globs` in `GitHistory`: `mix.exs`, `mix.lock`, everything under `config/`, `test_helper.exs`, and the toolchain pins `.tool-versions`, `mise.toml` and `.mise.toml`, at any depth.
+- **`affected_modules`** (`TestSelection.owner/4`): a test file lists the modules it defines. Test files are compiled without counters, so they're never in evidence, and `owned_without_evidence` then selects every test of the modules a changed test file defines, which is what `test_file_changed` does on Xcode; a test added to the file isn't in any map and runs. A file under the project's `elixirc_paths` (test support files included), `priv` or test paths, and a path dependency inside the repository (umbrella siblings included), lists every test module of the suite: no evidence includes a file no test executed at runtime, such as a module only used at compile time, a new module, or a migration, so they select everything. Any other file, a README in the project or another project's files in a monorepo, lists none.
+- **The diff and deepening** are the CLI's ([Rule inputs on Xcode](#rule-inputs-on-xcode)), with the same 5,000-file cap, the one deepen by 100 commits through the pull request ref and the base branch, and `TUIST_GIT_UNSHALLOW_ENABLED=false`. The run's Git history goes up before the baseline request (`GitHistory.publish/2`), when the run collects it (on CI or with coverage).
+- **Timeouts.** The baseline request has 5 s, since the client's HTTP stack may start with it, and the runs request 30 s; each maps every failure to running everything, with a warning. A run without a project or credentials only logs it with `TUIST_DEBUG=1`, as the quarantine read does.
+
+### Applying the selection on Mix
+
+`SelectionFilter` leaves the skip list out by the identity the formatter reports, `{module, describe or "", name}`, or a whole module. The skip list stays a skip list: a test the server hasn't seen, such as one the change adds, runs because nothing names it.
+
+- **Why not `mix test` filters.** ExUnit's filters each match one tag. `--exclude test:NAME`, which quarantine uses, also matches a same-named test in another module, and `--exclude location:path:line` matches the closest test before the line in every module of the file. Neither can name a test whose name is built at compile time, such as one generated in a `for`.
+- **Why not `only_test_ids`.** It's a run list: Mix starts ExUnit's runner, which reads it, before it loads the test files, so a run list has to be known before the tests are, and tests it doesn't name are dropped without being reported. `--failed` also overwrites it.
+- **How.** The runner calls `ExUnit.Filters.eval/4` for every test, with its module and name among the tags. `SelectionFilter.install/0` replaces that module for the VM (`ExUnitPatch`, as `Evidence` replaces `ExUnit.OnExitHandler`): ExUnit's own code is compiled from its debug info under another name, and the replacement calls it, then answers `{:excluded, "due to tuist_unselected filter"}` for a listed test ExUnit would have run. A test ExUnit excludes or skips keeps its answer, and one an include filter picks (`--only`, `file:line`, `--include`) runs, as with any exclusion. A whole module's tests are excluded, so its `setup_all` doesn't run.
+- **When it can't be installed.** The task installs it before asking the server. An ExUnit whose `ExUnit.Filters` lacks `eval/4` or debug info gets no selection: the run warns and runs every test, without an impact run. Nothing falls back to filters.
+- **Excluded, not skipped.** ExUnit reports the tests as excluded, the formatter doesn't record them, and they aren't in `skip_test_identifiers`: the impact run names them. Quarantine keeps its own filters beside them. Tests the project skips in code (`@tag :skip`) or its test helper excludes aren't selection either.
+- **The run's coverage is partial** when the skip list holds anything, so the fold writes an overlay rather than a checkpoint.
+- **Retries** apply the same skip list: it's written to a file the retry process reads (`TUIST_EX_RETRY_SELECTION`), and the retry installs the filter too. ExUnit keeps a failure on record until the test passes, so `--failed` would otherwise rerun a test that failed in an earlier run and is skipped now.
+- **Shards** apply the run's whole list from the shard read (see [Sharding](#sharding)), which only matches the tests of their files, and report `test_impact_run_id` from it.
+- `test_impact_run_id` goes on every run of the invocation, a run with a reason included; an unsigned report strips it, as it strips shard references.
+
+**Output.** `Tuist: coverage-based test selection: N of R tests selected, S skipped`, then the modules with nothing selected, or `Tuist: coverage-based test selection not applied:` with the reason and matched path.
+
+### Tests
+
+- `tuist_ex/test/tuist_ex/analytics/test_selection_test.exs`: the requests and the outcome against a stub server over a real repository (a selection with each changed file's `affected_modules`, a cached diff, a dirty checkout, every reason the client sends and those the server returns, `not_enabled`, failed requests, an outcome the client doesn't know), and the test index.
+- `evidence_test.exs`: attribution in a VM of its own (serial tests, overlapping `async: true` modules, `setup_all`, what ran before any test) and the evidence payload.
+- `selection_filter_test.exs`: in a VM of its own, the filter leaves out exactly the listed tests and modules (a same-named test in another describe or another module of the file, a generated name, and a new test still run; a skipped module's `setup_all` doesn't), keeps ExUnit's reason for `@tag :skip` and other filters, lets an include filter win, and a module that doesn't look as expected isn't replaced.
+- `tuist.test_test.exs`: the task applies the selection beside quarantine, reports the impact run, makes coverage partial, runs everything on a fallback, a failure, without `--cover` and with `--no-selective-testing`, and hands the skip list to retries.
+- `git_test.exs`: the diff against the working tree, a revert dropping out, untracked files, deepening a shallow clone once.
+- Server: the Mix cases in `runs_test.exs` (a selection from Mix evidence with an overlapped test selected as `no_evidence`, the `mix` block as `build_context`, scheme scoping, another build system's block ignored, a module-granular shard plan), the controller and the Test Selection page.
+
+### Known limits on Mix
+
+- **Compile-time dependencies.** A changed macro's expansion runs in its callers' lines, so a test that exercises it executes the caller's file, not the macro's. The macro's file selects every test only when no test executed it at runtime.
+- **`async: true` suites select little**, since overlapping tests have no evidence.
+- **Collection costs a read of every counted module twice per serial test** (about 8 ms per 2,000 modules), so only projects that select collect.

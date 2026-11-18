@@ -197,6 +197,7 @@ defmodule Tuist do
       Tests.TestRunStressCandidate,
       TestImpactAnalysis,
       TestImpactAnalysis.Baselines,
+      TestImpactAnalysis.BuildSystem,
       TestImpactAnalysis.Runs,
       TestImpactAnalysis.Storage,
       Shards,

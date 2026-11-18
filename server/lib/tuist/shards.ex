@@ -126,19 +126,32 @@ defmodule Tuist.Shards do
   # A plan for an impact run that selected tests distributes the suites with
   # selected tests, priced by those tests' durations, at suite granularity. An
   # impact run that fell back, or that doesn't exist, plans as without one.
+  #
+  # A build system whose plans distribute a selection by module (Mix) sends
+  # only the modules with something to run, so its plan balances them as
+  # without one and keeps the run, and each shard reads the run's skip list.
   defp plan_inputs(project, params) do
     with run_id when is_binary(run_id) <- Map.get(params, :test_impact_run_id),
          {:ok, selection} <- TestImpactAnalysis.Runs.shard_units(project.id, run_id) do
-      units = selection.durations |> Map.keys() |> Enum.sort() |> reject_skipped_suites(project, params)
-      {"suite", units, nil, selection.durations, run_id}
+      case selection do
+        %{granularity: "module"} ->
+          project |> default_plan_inputs(params) |> put_elem(4, run_id)
+
+        %{durations: durations} ->
+          units = durations |> Map.keys() |> Enum.sort() |> reject_skipped_suites(project, params)
+          {"suite", units, nil, durations, run_id}
+      end
     else
-      _ ->
-        granularity = Map.get(params, :granularity, "module")
-        units = resolve_units(project, params, granularity)
-        concurrency = module_concurrency(project, params, granularity, units)
-        timing_data = fetch_timing_data(project, granularity, units, timing_estimate(concurrency))
-        {granularity, units, concurrency, timing_data, nil}
+      _ -> default_plan_inputs(project, params)
     end
+  end
+
+  defp default_plan_inputs(project, params) do
+    granularity = Map.get(params, :granularity, "module")
+    units = resolve_units(project, params, granularity)
+    concurrency = module_concurrency(project, params, granularity, units)
+    timing_data = fetch_timing_data(project, granularity, units, timing_estimate(concurrency))
+    {granularity, units, concurrency, timing_data, nil}
   end
 
   def get_shard_plan(id) do
@@ -579,7 +592,18 @@ defmodule Tuist.Shards do
   # A shard of a plan for an impact run carries the tests selection skipped
   # within what the shard runs. The catch-all shard runs every suite the
   # other shards don't own, so its list also covers those suites.
+  # A plan that distributes it by module gives every shard the run's whole
+  # skip list, and the run, which the shard reports with its tests.
   defp put_skipped_tests(shard, _project, %ShardPlan{test_impact_run_id: nil}, _shard_index, _opts), do: shard
+
+  defp put_skipped_tests(shard, project, %ShardPlan{granularity: "module"} = plan, _shard_index, _opts) do
+    shard = Map.put(shard, :test_impact_run_id, plan.test_impact_run_id)
+
+    case TestImpactAnalysis.Runs.skipped_tests(project.id, plan.test_impact_run_id) do
+      nil -> shard
+      skipped_tests -> Map.put(shard, :skipped_tests, skipped_tests)
+    end
+  end
 
   defp put_skipped_tests(shard, project, plan, shard_index, opts) do
     plan = preload_assignments(plan, [:test_suites, :modules])

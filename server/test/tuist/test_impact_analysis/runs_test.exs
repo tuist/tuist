@@ -427,6 +427,133 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
   end
 
+  describe "Mix" do
+    # The baseline c1 ran MyApp.MathTest (`adds` and `subtracts` outside any
+    # describe, `upcase/1 upcases` in one, and `doubles`, which overlapped a
+    # test of another module and has no evidence of its own) and
+    # MyApp.CoreTest (`boots`), as `mix tuist.test --cover` reports them.
+    @mix_sources ~w(lib/my_app/math.ex lib/my_app/strings.ex lib/my_app/core.ex)
+
+    setup %{project: project} do
+      account = Tuist.Repo.preload(project, :account).account
+      test_case = &%{name: &1, test_suite_name: &2, status: "success", duration: 20}
+      scope = &%{kind: "test", module: &1, suite: &2, name: &3, files: [&4], lines: [[1, 1]]}
+
+      CoverageFixtures.run_with_coverage(project, account, [], %{
+        build_system: "mix",
+        scheme: nil,
+        git_commit_sha: "c1",
+        xcode_coverage: nil,
+        coverage: %{tool: "cover", partial: false, files: Enum.map(@mix_sources, &CoverageFixtures.file(&1, [1]))},
+        test_modules: [
+          %{
+            name: "MyApp.MathTest",
+            status: "success",
+            duration: 1,
+            test_cases: [
+              test_case.("adds", nil),
+              test_case.("subtracts", nil),
+              test_case.("upcases", "upcase/1"),
+              test_case.("doubles", nil)
+            ]
+          },
+          %{name: "MyApp.CoreTest", status: "success", duration: 1, test_cases: [test_case.("boots", nil)]}
+        ],
+        coverage_evidence: %{
+          paths: @mix_sources,
+          scopes: [
+            scope.("MyApp.MathTest", "", "adds", 0),
+            scope.("MyApp.MathTest", "", "subtracts", 0),
+            scope.("MyApp.MathTest", "upcase/1", "upcases", 1),
+            scope.("MyApp.CoreTest", "", "boots", 2),
+            %{kind: "target", module: "MyApp.MathTest", suite: "", files: [0, 1]},
+            %{kind: "target", module: "MyApp.CoreTest", suite: "", files: [2]}
+          ],
+          overlapped_tests: [%{module: "MyApp.MathTest", suite: "", name: "doubles"}]
+        }
+      })
+
+      :ok
+    end
+
+    defp mix_params(attrs \\ %{}) do
+      Map.merge(
+        %{
+          build_system: "mix",
+          head_sha: "c2",
+          baseline_sha: "c1",
+          git_branch: "feature",
+          modules: [%{name: "MyApp.CoreTest"}, %{name: "MyApp.MathTest"}],
+          changed_files: [
+            %{path: "lib/my_app/strings.ex", status: "M", blob: "new", affected_modules: ["MyApp.MathTest"]}
+          ],
+          mix: %{app: "my_app"}
+        },
+        attrs
+      )
+    end
+
+    test "selects from a Mix run's evidence and stores the mix block as the build context", %{project: project} do
+      assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, mix_params())
+
+      assert run.outcome == "selected"
+      assert run.build_system == "mix"
+      assert run.build_context == %{"app" => "my_app"}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
+
+      assert selected(project, run) == [
+               {"MyApp.MathTest", "", "doubles", "no_evidence", nil},
+               {"MyApp.MathTest", "upcase/1", "upcases", "impacted", "lib/my_app/strings.ex"}
+             ]
+
+      assert skip == [
+               %{module: "MyApp.CoreTest"},
+               %{module: "MyApp.MathTest", suite: "", name: "adds"},
+               %{module: "MyApp.MathTest", suite: "", name: "subtracts"}
+             ]
+    end
+
+    test "scopes the baseline to the mix block's scheme", %{project: project} do
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, mix_params(%{mix: %{scheme: "postgres-16", app: "my_app"}}))
+
+      assert {run.outcome, run.reason} == {"fallback", "no_baseline"}
+      assert run.build_context == %{"scheme" => "postgres-16", "app" => "my_app"}
+    end
+
+    test "ignores another build system's block", %{project: project} do
+      assert {:ok, %{run: run}} = Runs.create(project, mix_params(%{mix: nil, xcode: %{scheme: "postgres-16"}}))
+
+      assert run.outcome == "selected"
+      assert run.build_context == %{}
+    end
+
+    test "a shard plan balances the modules sent, and each shard reads the whole skip list and the run", %{
+      project: project
+    } do
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      {:ok, %{run: run}} = Runs.create(project, mix_params())
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{
+          reference: "mix-ref",
+          granularity: "module",
+          modules: ["MyApp.MathTest"],
+          shard_total: 1,
+          test_impact_run_id: run.id
+        })
+
+      assert {plan.granularity, plan.test_impact_run_id} == {"module", run.id}
+      assert {:ok, shard} = Shards.get_shard(project, project.account, "mix-ref", 0)
+      assert shard.modules == ["MyApp.MathTest"]
+      assert shard.test_impact_run_id == run.id
+      assert shard.skipped_tests == skip_list_of(project, run)
+      assert length(shard.skipped_tests) == 3
+    end
+  end
+
+  defp skip_list_of(project, run), do: Runs.skipped_tests(project.id, run.id)
+
   describe "skip_entries/2" do
     test "skips a module whole only when none of its tests is selected" do
       tests = [

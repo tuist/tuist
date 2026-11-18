@@ -23,6 +23,7 @@ defmodule Tuist.Tests.Selections do
   alias Tuist.GitHistory
   alias Tuist.Repo
   alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.TestImpactAnalysis.Run
   alias Tuist.TestImpactAnalysis.Snapshot
@@ -732,6 +733,15 @@ defmodule Tuist.Tests.Selections do
   defp join_shards(query, nil),
     do: select(query, [t, o], %{test: t, status: o.status, test_case_run_id: o.test_case_run_id, shard_index: nil})
 
+  # A plan that distributes modules (Mix's) puts a test on its module's shard.
+  defp join_shards(query, %ShardPlan{granularity: "module"} = plan) do
+    from([t, o] in query,
+      left_join: s in subquery(shard_modules_query(plan)),
+      on: s.module_name == t.module_name,
+      select: %{test: t, status: o.status, test_case_run_id: o.test_case_run_id, shard_index: s.shard_index}
+    )
+  end
+
   defp join_shards(query, plan) do
     from([t, o] in query,
       left_join: s in subquery(shard_suites_query(plan)),
@@ -807,6 +817,13 @@ defmodule Tuist.Tests.Selections do
         order_by: [desc: p.inserted_at],
         limit: 1
       )
+    )
+  end
+
+  defp shard_modules_query(%ShardPlan{id: id, project_id: project_id}) do
+    from(s in ShardPlanModule,
+      where: s.project_id == ^project_id and s.shard_plan_id == ^id,
+      select: %{module_name: s.module_name, shard_index: s.shard_index}
     )
   end
 

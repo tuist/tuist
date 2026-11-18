@@ -4,8 +4,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
 
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
-  alias Tuist.TestImpactAnalysis
   alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.BuildSystem
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Storage
   alias TuistWeb.API.Responses
@@ -53,7 +53,20 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     minLength: 1,
     maxLength: 1_024,
     description:
-      "The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline."
+      "The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme` and `mix.scheme`. Omitted for clients that use an unscoped baseline."
+  }
+
+  @mix_schema %Schema{
+    type: :object,
+    description: "Mix only: the scope the invocation tests.",
+    properties: %{
+      scheme: %Schema{
+        type: :string,
+        description:
+          "The execution variant `mix tuist.test --scheme` names, such as a database version. Only a baseline of the same scheme is picked; absent, any."
+      },
+      app: %Schema{type: :string, description: "The OTP application whose suite runs, for display."}
+    }
   }
 
   operation(:baseline,
@@ -95,7 +108,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
                "The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none."
            },
            scope: @scope_schema,
-           xcode: @xcode_schema
+           xcode: @xcode_schema,
+           mix: @mix_schema
          },
          required: [:build_system, :commit_sha]
        }},
@@ -125,7 +139,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
       parent_shas: Map.get(params, :parent_shas) || [],
       ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
-      scheme: TestImpactAnalysis.scope(params)
+      scheme: BuildSystem.scheme(params)
     }
 
     case Baselines.resolve(project, scope) do
@@ -248,7 +262,8 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs."
            },
-           xcode: @xcode_schema
+           xcode: @xcode_schema,
+           mix: @mix_schema
          },
          required: [:build_system, :head_sha, :modules]
        }},

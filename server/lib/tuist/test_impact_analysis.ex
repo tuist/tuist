@@ -35,9 +35,6 @@ defmodule Tuist.TestImpactAnalysis do
   @doc "Why a test is decided, in the rules' order."
   def reasons, do: @reasons
 
-  @doc "The invocation's coverage scope, with the legacy Xcode scheme as a fallback."
-  def scope(params), do: Map.get(params, :scope) || get_in(params, [:xcode, :scheme])
-
   @doc """
   The trace of a decision (`Decision.decide/4`): one `%{rule:, selected:,
   skipped:, verdict:}` per rule in order, the last one `done`.
