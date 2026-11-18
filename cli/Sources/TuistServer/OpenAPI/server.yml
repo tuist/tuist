@@ -16599,7 +16599,7 @@ components:
     FeatureFlags:
       properties:
         enabled:
-          description: 'The names of the enabled flags. Known values: `guild`.'
+          description: 'The names of the enabled flags. Known values: `luft`.'
           items:
             type: string
             x-struct:
@@ -63124,7 +63124,7 @@ paths:
   /api/me/feature-flags:
     get:
       callbacks: {}
-      description: Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Tuist Guild) can read them.
+      description: Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
       operationId: listFeatureFlags
       parameters: []
       responses:
@@ -63134,7 +63134,7 @@ paths:
               schema:
                 properties:
                   enabled:
-                    description: 'The names of the enabled flags. Known values: `guild`.'
+                    description: 'The names of the enabled flags. Known values: `luft`.'
                     items:
                       type: string
                       x-struct:

@@ -40016,7 +40016,7 @@ public struct Client: APIProtocol {
     }
     /// Lists the feature flags enabled for the signed-in user
     ///
-    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Tuist Guild) can read them.
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
     ///
     /// - Remark: HTTP `GET /api/me/feature-flags`.
     /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.

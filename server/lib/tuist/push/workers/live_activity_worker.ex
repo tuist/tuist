@@ -1,6 +1,6 @@
 defmodule Tuist.Push.Workers.LiveActivityWorker do
   @moduledoc """
-  Pushes one Tuist Guild Live Activity registration its current document
+  Pushes one Luft Live Activity registration its current document
   (`Tuist.Push.LiveActivities.deliver/1`) and, while threads are working,
   schedules the next heartbeat. Jobs carry only the registration ID; at most one
   is pending per registration, and thread changes pull it forward.

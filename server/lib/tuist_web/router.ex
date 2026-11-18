@@ -975,7 +975,7 @@ defmodule TuistWeb.Router do
     post "/:id/read", HallsController, :read, log: false
   end
 
-  # A person's runners, which Tuist Guild registers for threads to run on.
+  # A person's runners, which Luft registers for threads to run on.
   scope "/api/me/thread-runners", TuistWeb.API do
     pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
 
@@ -1557,7 +1557,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
-    # Consent for Tuist Guild (see `TuistWeb.Oauth.AuthorizeController`).
+    # Consent for Luft (see `TuistWeb.Oauth.AuthorizeController`).
     post "/authorize", AuthorizeController, :authorize
   end
 

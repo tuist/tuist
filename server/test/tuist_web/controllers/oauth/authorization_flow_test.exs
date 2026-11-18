@@ -636,11 +636,11 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     end
   end
 
-  test "Tuist Guild signs in as a first-party app without a secret and keeps its access through refresh", %{
+  test "Luft signs in as a first-party app without a secret and keeps its access through refresh", %{
     conn: conn,
     user: user
   } do
-    client_id = Clients.guild_client_id()
+    client_id = Clients.luft_client_id()
     verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
     query = fn redirect_uri ->
@@ -648,15 +648,15 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
         "response_type" => "code",
         "client_id" => client_id,
         "redirect_uri" => redirect_uri,
-        "state" => "guild-state",
+        "state" => "luft-state",
         "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
         "code_challenge_method" => "S256"
       })
     end
 
-    # The request alone never issues a code: anyone can use Guild's public client ID.
-    consent = get(conn, "/oauth2/authorize?" <> query.("tuist-guild://oauth-callback"))
-    assert html_response(consent, 200) =~ "Sign in to Tuist Guild?"
+    # The request alone never issues a code: anyone can use Luft's public client ID.
+    consent = get(conn, "/oauth2/authorize?" <> query.("luft://oauth-callback"))
+    assert html_response(consent, 200) =~ "Sign in to Luft?"
     assert get_resp_header(consent, "cache-control") == ["no-store"]
 
     approve = fn redirect_uri, consent ->
@@ -666,13 +666,13 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     redirect_query = fn conn -> conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() end
 
     # Cancelling returns to the app without a code.
-    denied = "tuist-guild://oauth-callback" |> approve.("deny") |> redirect_query.()
-    assert %{"error" => "access_denied", "state" => "guild-state"} = denied
+    denied = "luft://oauth-callback" |> approve.("deny") |> redirect_query.()
+    assert %{"error" => "access_denied", "state" => "luft-state"} = denied
     refute Map.has_key?(denied, "code")
 
     # Boruta reads the query, so a client ID in the body can't route around consent.
     for body <- [%{"client_id" => "other"}, %{"client_id" => "other", "consent" => "deny"}] do
-      bypass = post(conn, "/oauth2/authorize?" <> query.("tuist-guild://oauth-callback"), body)
+      bypass = post(conn, "/oauth2/authorize?" <> query.("luft://oauth-callback"), body)
       refute Map.has_key?(redirect_query.(bypass), "code")
     end
 
@@ -680,7 +680,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
       conn
       |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
-      |> post("/oauth2/authorize?" <> query.("tuist-guild://oauth-callback"), %{"consent" => "allow"})
+      |> post("/oauth2/authorize?" <> query.("luft://oauth-callback"), %{"consent" => "allow"})
     end
 
     # The desktop app's loopback callback may use any port; other redirects are refused.
@@ -693,7 +693,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute approve.("https://example.com/callback", "allow").status == 302
 
     code_for = fn ->
-      "tuist-guild://oauth-callback"
+      "luft://oauth-callback"
       |> approve.("allow")
       |> redirected_to()
       |> URI.parse()
@@ -707,7 +707,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
            |> post(~p"/oauth2/token", %{
              "grant_type" => "authorization_code",
              "client_id" => client_id,
-             "redirect_uri" => "tuist-guild://oauth-callback",
+             "redirect_uri" => "luft://oauth-callback",
              "code" => code_for.()
            })
            |> json_response(400)
@@ -719,7 +719,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       |> post(~p"/oauth2/token", %{
         "grant_type" => "authorization_code",
         "client_id" => client_id,
-        "redirect_uri" => "tuist-guild://oauth-callback",
+        "redirect_uri" => "luft://oauth-callback",
         "code" => code,
         "code_verifier" => verifier
       })
@@ -745,7 +745,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     end
   end
 
-  test "Tuist Guild can't request scopes, so openid fails cleanly instead of at the token endpoint", %{conn: conn} do
+  test "Luft can't request scopes, so openid fails cleanly instead of at the token endpoint", %{conn: conn} do
     verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
     for scope <- ["openid", "mcp", "openid mcp"] do
@@ -753,17 +753,17 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
         "/oauth2/authorize?" <>
           URI.encode_query(%{
             "response_type" => "code",
-            "client_id" => Clients.guild_client_id(),
-            "redirect_uri" => "tuist-guild://oauth-callback",
+            "client_id" => Clients.luft_client_id(),
+            "redirect_uri" => "luft://oauth-callback",
             "scope" => scope,
-            "state" => "guild-state",
+            "state" => "luft-state",
             "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
             "code_challenge_method" => "S256"
           })
 
       for response <- [get(conn, path), post(conn, path, %{"consent" => "allow"})] do
         query = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
-        assert %{"error" => "invalid_scope", "state" => "guild-state"} = query
+        assert %{"error" => "invalid_scope", "state" => "luft-state"} = query
         refute Map.has_key?(query, "code")
       end
     end

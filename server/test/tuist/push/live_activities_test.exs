@@ -25,7 +25,7 @@ defmodule Tuist.Push.LiveActivitiesTest do
     stub(Environment, :apns_private_key, fn -> pem end)
 
     user = AccountsFixtures.user_fixture()
-    %{user: user, session: guild_session(user)}
+    %{user: user, session: luft_session(user)}
   end
 
   describe "content/2" do
@@ -60,7 +60,7 @@ defmodule Tuist.Push.LiveActivitiesTest do
                  "symbol" => "pencil",
                  "progress" => %{"kind" => "timer"},
                  "trail" => ["blue", "orange", "purple"],
-                 "link" => "tuist-guild://app/threads/" <> _
+                 "link" => "luft://app/threads/" <> _
                },
                %{"headline" => "Add coverage trend chart", "phase" => "waiting", "detail" => "Queued"},
                %{"headline" => "Your thread", "phase" => "thinking"}
@@ -93,7 +93,7 @@ defmodule Tuist.Push.LiveActivitiesTest do
 
     test "leaves out threads the user can no longer read", %{user: user} do
       run!(thread!(user, "Fix login redirect loop", "running"), "running")
-      stub(Tuist.FeatureFlags, :guild_enabled?, fn _ -> false end)
+      stub(Tuist.FeatureFlags, :luft_enabled?, fn _ -> false end)
 
       assert {%{"threads" => []}, []} = LiveActivities.content(user)
     end
@@ -110,7 +110,7 @@ defmodule Tuist.Push.LiveActivitiesTest do
       assert {:error, :retired} = LiveActivities.register(user, session, first, params())
 
       stranger = AccountsFixtures.user_fixture()
-      assert {:error, :conflict} = LiveActivities.register(stranger, guild_session(stranger), second, params())
+      assert {:error, :conflict} = LiveActivities.register(stranger, luft_session(stranger), second, params())
 
       assert :ok = LiveActivities.unregister(user, second)
       assert {:error, :retired} = LiveActivities.register(user, session, second, params())
@@ -191,19 +191,19 @@ defmodule Tuist.Push.LiveActivitiesTest do
     assert [%Oban.Job{args: %{"registration_id" => ^id}}] = all_enqueued(worker: LiveActivityWorker)
   end
 
-  defp guild_session(user) do
-    bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: Clients.guild_client_id()})
+  defp luft_session(user) do
+    bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: Clients.luft_client_id()})
 
     Repo.insert!(%Token{
       type: "access_token",
       value: bearer,
       refresh_token: Ecto.UUID.generate(),
-      client_id: Clients.guild_client_id(),
+      client_id: Clients.luft_client_id(),
       sub: to_string(user.id),
       scope: ""
     })
 
-    {:ok, session} = Push.oauth_session(bearer, user, ["guild"])
+    {:ok, session} = Push.oauth_session(bearer, user, ["luft"])
     session
   end
 

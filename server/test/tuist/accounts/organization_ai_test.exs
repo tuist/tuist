@@ -14,7 +14,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
   setup do
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: user)
-    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
     %{user: user, organization: organization, account: organization.account}
   end
 
@@ -209,7 +209,7 @@ defmodule Tuist.Accounts.OrganizationAITest do
     assert {:ok, _} = Accounts.update_user_role_in_organization(user, org, :user)
     for operation <- operations.(user), do: assert(operation.() == {:error, :forbidden})
 
-    stub(FeatureFlags, :organization_guild_enabled?, fn actor ->
+    stub(FeatureFlags, :organization_luft_enabled?, fn actor ->
       assert actor.id == account.id
       false
     end)

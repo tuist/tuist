@@ -2,9 +2,9 @@ defmodule TuistWeb.API.AISubscriptionsController do
   @moduledoc """
   The signed-in user's personal AI subscriptions (`Tuist.Accounts.AISubscriptions`)
   over the API. Only a user can manage them: a user session or a signed-in
-  first-party app (the Tuist app or Tuist Guild). Account and project tokens,
+  first-party app (the Tuist app or Luft). Account and project tokens,
   and other OAuth clients, get a 403,
-  and users without the guild flag (`Tuist.FeatureFlags.guild_enabled?/1`) a 404.
+  and users without the luft flag (`Tuist.FeatureFlags.luft_enabled?/1`) a 404.
   Responses are metadata only and never cached; no credential is returned.
   """
   use OpenApiSpex.ControllerSpecs
@@ -228,7 +228,7 @@ defmodule TuistWeb.API.AISubscriptionsController do
 
     case Authentication.app_user(conn) do
       %User{} = user ->
-        if FeatureFlags.guild_enabled?(user),
+        if FeatureFlags.luft_enabled?(user),
           do: assign(conn, :ai_subscriptions_user, user),
           else: conn |> error(:not_found) |> halt()
 

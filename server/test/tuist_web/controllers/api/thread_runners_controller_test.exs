@@ -15,7 +15,7 @@ defmodule TuistWeb.API.ThreadRunnersControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     app_client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> app_client_id end)
-    %{user: user, bearer: sign_in(user, Clients.guild_client_id())}
+    %{user: user, bearer: sign_in(user, Clients.luft_client_id())}
   end
 
   defp sign_in(user, client_id) do
@@ -39,7 +39,7 @@ defmodule TuistWeb.API.ThreadRunnersControllerTest do
     |> put_req_header("content-type", "application/json")
   end
 
-  test "Guild registers a runner whose secret connects it", %{conn: conn, bearer: bearer} do
+  test "Luft registers a runner whose secret connects it", %{conn: conn, bearer: bearer} do
     created =
       conn
       |> authorized(bearer)
@@ -63,7 +63,7 @@ defmodule TuistWeb.API.ThreadRunnersControllerTest do
     assert build_conn() |> authorized(token) |> post("/api/thread-runner/poll?wait_ms=0", %{}) |> json_response(401)
   end
 
-  test "a thread on an offline runner is refused with a reason Guild recognizes", %{
+  test "a thread on an offline runner is refused with a reason Luft recognizes", %{
     conn: conn,
     user: user,
     bearer: bearer
@@ -84,7 +84,7 @@ defmodule TuistWeb.API.ThreadRunnersControllerTest do
              |> json_response(409)
   end
 
-  test "only Guild manages runners, and only a runner's secret polls", %{conn: conn, user: user, bearer: bearer} do
+  test "only Luft manages runners, and only a runner's secret polls", %{conn: conn, user: user, bearer: bearer} do
     app_bearer = sign_in(user, Clients.public!().id)
     assert conn |> authorized(app_bearer) |> get("/api/me/thread-runners") |> json_response(403)
 

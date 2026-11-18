@@ -123,7 +123,7 @@ defmodule TuistWeb.Authentication do
 
   @doc """
   Returns the signed-in user for a user session or a signed-in first-party app (the
-  Tuist app or Tuist Guild), or `nil`.
+  Tuist app or Luft), or `nil`.
 
   The apps' OAuth access tokens authenticate as the user's account with the user as
   issuer. Other OAuth clients have the same token shape, so the grant's client is

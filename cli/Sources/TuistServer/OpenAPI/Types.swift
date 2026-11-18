@@ -1453,7 +1453,7 @@ public protocol APIProtocol: Sendable {
     func pollChatGPTSubscriptionLogin(_ input: Operations.pollChatGPTSubscriptionLogin.Input) async throws -> Operations.pollChatGPTSubscriptionLogin.Output
     /// Lists the feature flags enabled for the signed-in user
     ///
-    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Tuist Guild) can read them.
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
     ///
     /// - Remark: HTTP `GET /api/me/feature-flags`.
     /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
@@ -5189,7 +5189,7 @@ extension APIProtocol {
     }
     /// Lists the feature flags enabled for the signed-in user
     ///
-    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Tuist Guild) can read them.
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
     ///
     /// - Remark: HTTP `GET /api/me/feature-flags`.
     /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
@@ -30459,14 +30459,14 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/FeatureFlags`.
         public struct FeatureFlags: Codable, Hashable, Sendable {
-            /// The names of the enabled flags. Known values: `guild`.
+            /// The names of the enabled flags. Known values: `luft`.
             ///
             /// - Remark: Generated from `#/components/schemas/FeatureFlags/enabled`.
             public var enabled: [Swift.String]
             /// Creates a new `FeatureFlags`.
             ///
             /// - Parameters:
-            ///   - enabled: The names of the enabled flags. Known values: `guild`.
+            ///   - enabled: The names of the enabled flags. Known values: `luft`.
             public init(enabled: [Swift.String]) {
                 self.enabled = enabled
             }
@@ -157112,7 +157112,7 @@ public enum Operations {
     }
     /// Lists the feature flags enabled for the signed-in user
     ///
-    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Tuist Guild) can read them.
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
     ///
     /// - Remark: HTTP `GET /api/me/feature-flags`.
     /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
@@ -157145,14 +157145,14 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The names of the enabled flags. Known values: `guild`.
+                        /// The names of the enabled flags. Known values: `luft`.
                         ///
                         /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json/enabled`.
                         public var enabled: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - enabled: The names of the enabled flags. Known values: `guild`.
+                        ///   - enabled: The names of the enabled flags. Known values: `luft`.
                         public init(enabled: [Swift.String]) {
                             self.enabled = enabled
                         }

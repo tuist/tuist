@@ -43,9 +43,9 @@ defmodule TuistWeb.WellKnownController do
     |> json(%{
       network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?(),
       network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?(),
-      # Tuist Guild checks for its public client before it opens the browser,
+      # Luft checks for its public client before it opens the browser,
       # so a server without it can say so instead of failing mid sign-in.
-      guild_oauth_client_id: Clients.guild_client_id()
+      luft_oauth_client_id: Clients.luft_client_id()
     })
   end
 

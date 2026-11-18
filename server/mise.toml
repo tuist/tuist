@@ -41,7 +41,7 @@ linux-arm64 = { asset_pattern = "minio.linux-arm64.RELEASE.*Z" }
 
 # NSH's command line, which builds and checks the cards a Thread's model
 # writes (`Tuist.Threads.Cards`). Keep the version with the Dockerfile's
-# `nsh` stage and Tuist Guild's NSH SDK (guild/modules/nsh.star). NSH
+# `nsh` stage and Luft's NSH SDK (luft/modules/nsh.star). NSH
 # releases are unsigned and mutable, so mise.lock's checksums are the only
 # check: install refuses any other archive. When upgrading, take the digests
 # from the release's own `.sha256` files and GitHub's asset digests, and keep

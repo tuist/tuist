@@ -1,5 +1,5 @@
 defmodule Tuist.Threads.Runner do
-  @moduledoc "A person's own machine, registered from Tuist Guild, that their threads can run on."
+  @moduledoc "A person's own machine, registered from Luft, that their threads can run on."
   use Ecto.Schema
 
   @primary_key {:id, :binary_id, autogenerate: true}

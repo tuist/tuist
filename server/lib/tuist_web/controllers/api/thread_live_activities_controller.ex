@@ -1,7 +1,7 @@
 defmodule TuistWeb.API.ThreadLiveActivitiesController do
   @moduledoc """
-  Registers Tuist Guild's thread Live Activity (`Tuist.Push.LiveActivities`).
-  Only Guild calls it, so it stays out of the OpenAPI spec the CLI's client is
+  Registers Luft's thread Live Activity (`Tuist.Push.LiveActivities`).
+  Only Luft calls it, so it stays out of the OpenAPI spec the CLI's client is
   generated from.
 
   `PUT /api/me/thread-live-activities/:id` takes `{"token", "environment"}` and
@@ -13,7 +13,7 @@ defmodule TuistWeb.API.ThreadLiveActivitiesController do
 
   alias Tuist.Push.LiveActivities
 
-  plug TuistWeb.Plugs.AppSessionPlug, apps: ["guild"]
+  plug TuistWeb.Plugs.AppSessionPlug, apps: ["luft"]
 
   def update(conn, %{"id" => id} = params) do
     case LiveActivities.register(conn.assigns.app_user, conn.assigns.app_session, id, params) do

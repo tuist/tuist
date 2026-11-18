@@ -8,8 +8,8 @@ defmodule Tuist.HallsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
-    stub(FeatureFlags, :guild_enabled?, fn _ -> true end)
-    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :luft_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
 
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
@@ -97,13 +97,13 @@ defmodule Tuist.HallsTest do
     assert {:error, :invalid_arguments} = request.(["1"])
   end
 
-  test "halls need membership, both guild flags and an organization", %{account: account, ana: ana} do
+  test "halls need membership, both luft flags and an organization", %{account: account, ana: ana} do
     {:ok, hall} = Halls.create(ana, account, %{"request_id" => uuid(), "name" => "general"})
     stranger = AccountsFixtures.user_fixture()
     assert {:error, :forbidden} = Halls.get(stranger, account, hall.id)
     assert {:error, :forbidden} = Halls.list(ana, ana.account)
 
-    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> false end)
     assert {:error, :forbidden} = Halls.list(ana, account)
   end
 

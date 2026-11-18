@@ -12,10 +12,10 @@ defmodule Tuist.Push do
 
   Two first-party apps register, each through its own fixed OAuth client: the
   Tuist app (`app: "tuist"`, `Tuist.Environment.oauth_client_id/0`) and Tuist
-  Guild (`app: "guild"`, `Tuist.OAuth.Clients.guild_client_id/0`), so a row's
+  Luft (`app: "luft"`, `Tuist.OAuth.Clients.luft_client_id/0`), so a row's
   app also says which client its grant belongs to. Each app only receives its own
-  notifications (previews for the Tuist app, finished threads for Guild), on its
-  own APNs topic; Guild's macOS app registers as the `macos` platform.
+  notifications (previews for the Tuist app, finished threads for Luft), on its
+  own APNs topic; Luft's macOS app registers as the `macos` platform.
 
   - `push_installations` is keyed by the client-generated `installation_id`
     (lowercase UUID). Tokens are encrypted with `Tuist.Vault`; `token_hash`
@@ -68,8 +68,8 @@ defmodule Tuist.Push do
   Resolves the OAuth grant behind `bearer` for `user`, as a sign-in of one of
   `apps`. Only unrevoked sign-ins with a refresh token qualify: through the
   Tuist app client (`Tuist.Environment.oauth_client_id/0`) for `"tuist"`, and
-  through Tuist Guild's first-party client (`Tuist.OAuth.Clients.guild_client_id/0`)
-  for `"guild"`. Other OAuth clients, account tokens and other
+  through Luft's first-party client (`Tuist.OAuth.Clients.luft_client_id/0`)
+  for `"luft"`. Other OAuth clients, account tokens and other
   credentials return `{:error, :oauth_session_required}`. `bearer` must already
   be authenticated as `user` (`TuistWeb.AuthenticationPlug` verifies its
   signature and expiry).
@@ -88,10 +88,10 @@ defmodule Tuist.Push do
     end
   end
 
-  defp app_session("guild", bearer, %User{id: user_id}) do
-    with %Token{} = grant <- OAuthGrants.find_bearer(bearer, Clients.guild_client_id(), user_id),
+  defp app_session("luft", bearer, %User{id: user_id}) do
+    with %Token{} = grant <- OAuthGrants.find_bearer(bearer, Clients.luft_client_id(), user_id),
          {:ok, grant_id} <- OAuthGrants.root_id(grant) do
-      {:ok, %{app: "guild", oauth_grant_id: grant_id}}
+      {:ok, %{app: "luft", oauth_grant_id: grant_id}}
     else
       _ -> nil
     end
@@ -99,11 +99,11 @@ defmodule Tuist.Push do
 
   @doc """
   Whether `bearer` belongs to an unrevoked sign-in through a first-party app:
-  the Tuist app or Tuist Guild (`oauth_session/3`). The server trusts those as
+  the Tuist app or Luft (`oauth_session/3`). The server trusts those as
   the signed-in user rather than through scopes.
   """
   def first_party_session?(bearer, %User{} = user) when is_binary(bearer) do
-    match?({:ok, _session}, oauth_session(bearer, user, ["tuist", "guild"]))
+    match?({:ok, _session}, oauth_session(bearer, user, ["tuist", "luft"]))
   end
 
   @doc """
@@ -214,10 +214,10 @@ defmodule Tuist.Push do
   end
 
   @doc """
-  Queues a notification to the owner's Tuist Guild devices that `thread` stopped
+  Queues a notification to the owner's Luft devices that `thread` stopped
   working with `status` (see `Tuist.Push.Workers.ThreadFinishedWorker`). Call it
   in the transaction that sets the status, so the notification is queued only
-  when the status is. Does nothing on servers without an APNs key, since Guild
+  when the status is. Does nothing on servers without an APNs key, since Luft
   registers only Apple devices.
   """
   def notify_thread_finished(%{id: thread_id}, status) do
@@ -244,7 +244,7 @@ defmodule Tuist.Push do
   end
 
   @doc "The APNs topic, the bundle ID, of the app `installation` belongs to."
-  def apns_topic(%Installation{app: "guild"}), do: "dev.tuist.code"
+  def apns_topic(%Installation{app: "luft"}), do: "dev.tuist.code"
   def apns_topic(%Installation{}), do: Environment.apns_topic()
 
   @doc """
@@ -302,7 +302,7 @@ defmodule Tuist.Push do
   never retires a live registration.
   """
   def grant_active?(app, grant_id, user_id) do
-    client_id = if app == "guild", do: Clients.guild_client_id(), else: Environment.oauth_client_id()
+    client_id = if app == "luft", do: Clients.luft_client_id(), else: Environment.oauth_client_id()
 
     case Clients.get_client(client_id) do
       %Client{refresh_token_ttl: ttl} ->
@@ -451,10 +451,10 @@ defmodule Tuist.Push do
 
   defp validate_installation_id(_value), do: {:error, :invalid}
 
-  # Every app shares the server's one FCM project, so an Android "Guild"
+  # Every app shares the server's one FCM project, so an Android "Luft"
   # registration could carry the Tuist app's token and deliver thread
-  # notifications to it. Guild Android has no push support yet either.
-  defp validate_app_platform("guild", "android"), do: {:error, :invalid}
+  # notifications to it. Luft Android has no push support yet either.
+  defp validate_app_platform("luft", "android"), do: {:error, :invalid}
   defp validate_app_platform(_app, _platform), do: :ok
 
   defp validate_device(%{platform: platform, token: token, environment: environment} = device)

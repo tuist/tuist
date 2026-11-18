@@ -31,7 +31,7 @@ defmodule TuistWeb.WellKnownControllerTest do
         assert json_response(response, 200) == %{
                  "network_trusted_report_publishing" => reporting,
                  "network_trusted_cache_access" => cache,
-                 "guild_oauth_client_id" => Clients.guild_client_id()
+                 "luft_oauth_client_id" => Clients.luft_client_id()
                }
 
         assert get_resp_header(response, "cache-control") == ["no-store"]

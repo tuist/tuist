@@ -91,24 +91,24 @@ defmodule TuistWeb.API.ThreadsControllerTest do
   } do
     client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> client_id end)
-    {:ok, other} = Clients.create_client(%{redirect_uris: ["tuist-guild://oauth-callback"], name: "Tuist Guild"})
+    {:ok, other} = Clients.create_client(%{redirect_uris: ["luft://oauth-callback"], name: "Luft"})
     native = oauth_token(user, Clients.public!())
-    guild = oauth_token(user, Clients.get_client(Clients.guild_client_id()))
+    luft = oauth_token(user, Clients.get_client(Clients.luft_client_id()))
     impostor = oauth_token(user, other, "threads")
 
     assert native |> request(path) |> json_response(200)
-    assert guild |> request(path) |> json_response(200)
+    assert luft |> request(path) |> json_response(200)
     assert impostor |> request(path) |> json_response(403)
 
     Repo.update_all(Token, set: [revoked_at: DateTime.utc_now()])
-    assert guild |> request(path) |> json_response(403)
+    assert luft |> request(path) |> json_response(403)
   end
 
   test "other administrators cannot read a conversation or its inbox entry", %{user: user, token: token} do
     organization = AccountsFixtures.organization_fixture(creator: user)
     other = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(other, organization, role: :admin)
-    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
 
     thread =
       Repo.insert!(%Thread{
@@ -147,8 +147,8 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     assert token |> request(path <> "/not-a-uuid") |> json_response(404)
   end
 
-  test "a disabled guild flag hides the entire API", %{token: token, path: path} do
-    stub(FeatureFlags, :guild_enabled?, fn _user -> false end)
+  test "a disabled luft flag hides the entire API", %{token: token, path: path} do
+    stub(FeatureFlags, :luft_enabled?, fn _user -> false end)
     id = Ecto.UUID.generate()
 
     for collection <- ["threads", "jams"],

@@ -99,7 +99,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   defp parse_scopes(nil), do: @default_user_scopes
   defp parse_scopes(""), do: @default_user_scopes
-  # Tuist Guild asked for `threads` before it became a first-party client; those
+  # Luft asked for `threads` before it became a first-party client; those
   # sessions keep their default access until they sign in again.
   defp parse_scopes("threads"), do: @default_user_scopes
 

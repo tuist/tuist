@@ -76,8 +76,8 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
     assert :ok = perform(installation)
   end
 
-  test "delivers to Tuist Guild on its own APNs topic", %{user: user} do
-    client = %{id: Clients.guild_client_id()}
+  test "delivers to Luft on its own APNs topic", %{user: user} do
+    client = %{id: Clients.luft_client_id()}
     bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
 
     Repo.insert!(%Token{
@@ -89,7 +89,7 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
       scope: ""
     })
 
-    {:ok, session} = Push.oauth_session(bearer, user, ["guild"])
+    {:ok, session} = Push.oauth_session(bearer, user, ["luft"])
     token = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
 
     {:ok, mac} =

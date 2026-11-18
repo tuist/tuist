@@ -1,6 +1,6 @@
 defmodule Tuist.Push.LiveActivities do
   @moduledoc """
-  Tuist Guild's aggregate Live Activity: one ActivityKit activity per signed-in
+  Luft's aggregate Live Activity: one ActivityKit activity per signed-in
   app that shows the user's working threads on the Lock Screen and in the
   Dynamic Island.
 
@@ -17,7 +17,7 @@ defmodule Tuist.Push.LiveActivities do
   which can appear on the Lock Screen.
 
   Registrations (`Tuist.Push.LiveActivity`) are keyed by the app's UUID for the
-  activity, bound to the user and the Guild sign-in that registered it, and
+  activity, bound to the user and the Luft sign-in that registered it, and
   delivered to only while that sign-in is active. They last eight hours, as
   ActivityKit activities do. Retired rows are tombstones whose ID can never be
   registered again; a new local activity retires the previous one of the same
@@ -89,7 +89,7 @@ defmodule Tuist.Push.LiveActivities do
   def prune_batch_size, do: @prune_batch_size
 
   @doc """
-  Registers or refreshes Live Activity `id` for `user` under the Guild `session`
+  Registers or refreshes Live Activity `id` for `user` under the Luft `session`
   (`Tuist.Push.oauth_session/3`). `params` has `"token"`, the activity's hex
   ActivityKit push token, and `"environment"`, `sandbox` or `production`.
 
@@ -97,7 +97,7 @@ defmodule Tuist.Push.LiveActivities do
   `:invalid`, `:retired` (the app must use a new UUID) or `:conflict` (another
   user's registration).
   """
-  def register(%User{} = user, %{app: "guild", oauth_grant_id: grant_id}, id, params) do
+  def register(%User{} = user, %{app: "luft", oauth_grant_id: grant_id}, id, params) do
     with {:ok, id} <- validate_id(id),
          {:ok, token, environment} <- validate_params(params) do
       hash = LiveActivity.token_hash(token)
@@ -244,7 +244,7 @@ defmodule Tuist.Push.LiveActivities do
   defp check_live(registration, now) do
     cond do
       DateTime.compare(registration.expires_at, now) != :gt -> {:retired, "expired"}
-      not Push.grant_active?("guild", registration.oauth_grant_id, registration.user_id) -> {:retired, "session_ended"}
+      not Push.grant_active?("luft", registration.oauth_grant_id, registration.user_id) -> {:retired, "session_ended"}
       true -> :ok
     end
   end
@@ -446,9 +446,8 @@ defmodule Tuist.Push.LiveActivities do
     }
   end
 
-  # Guild's own scheme: a widget opens an https link in Safari, not in the app.
-  defp link(thread),
-    do: "tuist-guild://app/threads/#{thread.id}?" <> URI.encode_query(%{"server" => Environment.app_url()})
+  # Luft's own scheme: a widget opens an https link in Safari, not in the app.
+  defp link(thread), do: "luft://app/threads/#{thread.id}?" <> URI.encode_query(%{"server" => Environment.app_url()})
 
   defp headline(thread) do
     title =
