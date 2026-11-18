@@ -559,7 +559,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       |> json_response(:ok)
 
       assert Tuist.ClickHouseRepo.all(
-               from(f in Tuist.Tests.CoverageFile, where: f.test_run_id == ^run_id, select: f.path)
+               from(f in Tuist.Tests.CoverageRunFile, where: f.test_run_id == ^run_id, select: f.path)
              ) == []
     end
 

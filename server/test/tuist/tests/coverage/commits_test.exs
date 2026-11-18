@@ -13,7 +13,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
-  alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.CoverageRunFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -711,23 +711,23 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     # A report of the run three days old: its evidence is past the two days
     # `coverage_files` keeps it, so merges may have deleted any of it.
     defp report_days_ago(run, days) do
-      IngestRepo.insert_all(CoverageFile, [
+      inserted_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
+
+      IngestRepo.insert_all(CoverageRunFile, [
         %{
-          id: UUIDv7.generate(),
           test_run_id: run.id,
           project_id: run.project_id,
           build_system: "xcode",
-          scope_kind: "run",
-          scope_id: "",
           path: "Sources/Old.swift",
-          git_blob_id: "blob-old",
+          layout_id: 1,
           git_commit_sha: run.git_commit_sha,
           targets: ["App"],
           covered_lines: 0,
           executable_lines: 1,
-          line_numbers: [1],
-          execution_counts: [0],
-          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
+          execution_counts: [],
+          function_execution_counts: [],
+          function_covered_lines: [],
+          inserted_at: inserted_at
         }
       ])
     end

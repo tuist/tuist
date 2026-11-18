@@ -20,9 +20,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     from it decides them. No overlay is written without the impact run's
     whole diff, or when it changed a tracked file.
 
-  Both are built inside ClickHouse from the run's `coverage_files`: the
-  repository files of its report (its `run` scope), and its `test`, `suite`
-  and `target` evidence over them. A test without evidence of its own in
+  Both are built inside ClickHouse from the run's coverage: the repository
+  files of its report (`coverage_run_files`), and its `test`, `suite` and
+  `target` evidence over them (`coverage_files`). A test without evidence of its own in
   any of those files is `no_evidence`, which always selects it. A map is
   written under an id derived from what it's built from, so a fold that
   repeats writes nothing, and it's indexed in PostgreSQL only once its rows
@@ -46,8 +46,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.CoverageCommit
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.CoverageRunFile
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
@@ -120,9 +120,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # `coverage_files` time-to-live), deleted part by part as merges reach it,
   # so a run past that age may have lost any of it, and a snapshot built from
   # what's left would read its tests as without evidence or with fewer files.
-  # A report's rows share one `inserted_at` and its `run` scope outlives the
-  # evidence, so a run's oldest report is read there; a run without such
-  # rows counts from when it ran. The margin covers a write's minutes and
+  # A report's rows share one `inserted_at` and its run rows
+  # (`coverage_run_files`) outlive the evidence, so a run's oldest report is
+  # read there; a run without such rows counts from when it ran. The margin covers a write's minutes and
   # the clocks.
   defp whole_evidence(project_id, runs) do
     cutoff = DateTime.add(DateTime.utc_now(), @evidence_margin_seconds - Evidence.retention_days() * 86_400, :second)
@@ -133,8 +133,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       |> Coverage.id_chunks(1)
       |> Enum.flat_map(fn ids ->
         ClickHouseRepo.all(
-          from(f in CoverageFile,
-            where: f.project_id == ^project_id and f.test_run_id in ^ids and f.scope_kind == "run",
+          from(f in CoverageRunFile,
+            where: f.project_id == ^project_id and f.test_run_id in ^ids,
             group_by: f.test_run_id,
             select: {f.test_run_id, min(f.inserted_at)}
           ),
@@ -583,8 +583,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   defp evidence_sql do
     """
     report AS (
-      SELECT path, max(is_test) AS is_test FROM coverage_files
-      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)} AND scope_kind = 'run'
+      SELECT path, max(is_test) AS is_test FROM coverage_run_files
+      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
       GROUP BY path
     ),
     evidence AS (
@@ -703,8 +703,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     SELECT {project_id:Int64}, {epoch:Date}, path,
       toUInt32((SELECT max(path_id) FROM known) + row_number() OVER (ORDER BY path)), {sets_expire_at:DateTime}
     FROM (
-      SELECT DISTINCT path FROM coverage_files
-      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)} AND scope_kind = 'run'
+      SELECT DISTINCT path FROM coverage_run_files
+      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
         AND path NOT IN (SELECT path FROM known)
     )
     """
@@ -800,8 +800,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     #{scope_keys_sql()},
     #{scope_ids_sql(scopes)}
     report AS (
-      SELECT path FROM coverage_files
-      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)} AND scope_kind = 'run'
+      SELECT path FROM coverage_run_files
+      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
       GROUP BY path
     ),
     scope_lines AS (

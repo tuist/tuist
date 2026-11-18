@@ -7,8 +7,8 @@ defmodule Tuist.Tests.Coverage.Evidence do
   The client's coverage observer records the coverage counters each test
   moved and reduces them to source files; the run reports them as
   `coverage_evidence` (`paths` once, and scopes referring to them by index).
-  They are stored in `coverage_files` beside the run's own coverage, told
-  apart by the scope:
+  They are stored in `coverage_files`, apart from the run's own coverage
+  (`coverage_run_files`), told apart by the scope:
 
   - `test`: what one test executed, `scope_id` the module, the suite (empty
     for a test outside any) and the name: the fields a test case's stable id
@@ -25,7 +25,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   the scope ran in it (`line_numbers`, with `covered_lines` their count; an
   empty list means only the file is known). They hold no execution counts and
   no blob, which is read off the run's own row for the path or
-  the commit's listing. Every reader of coverage filters on the `run` scope, so these rows
+  the commit's listing. No reader of coverage reads them, so these rows
   never reach a total. Like the run's coverage, a report replaces the shard's
   earlier one: readers use each shard's latest.
 

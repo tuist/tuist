@@ -6,6 +6,7 @@ defmodule Tuist.Tests.Coverage.Workers.RunFilesBackfillWorkerTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Workers.RunFilesBackfillWorker
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRunFile
@@ -41,11 +42,6 @@ defmodule Tuist.Tests.Coverage.Workers.RunFilesBackfillWorkerTest do
     }
   end
 
-  # What the new tables give back for a path, as readers will read it.
-  defp read_back(project, run_id, path) do
-    ClickHouseRepo.all(from(f in Coverage.run_files_for_runs(project.id, [run_id]), where: f.path == ^path))
-  end
-
   defp copied_rows(run_id) do
     ClickHouseRepo.one(from(f in CoverageRunFile, where: f.test_run_id == ^run_id, select: count()))
   end
@@ -77,7 +73,7 @@ defmodule Tuist.Tests.Coverage.Workers.RunFilesBackfillWorkerTest do
     assert :ok = perform_job(RunFilesBackfillWorker, %{pass: 2})
     assert copied_rows(run_id) == 3
 
-    rows = read_back(project, run_id, "Sources/A.swift")
+    rows = Commits.file_rows(project.id, [run_id], "Sources/A.swift")
 
     # Read back as the rows they were, but for what the copy doesn't keep.
     dropped = [
@@ -96,7 +92,7 @@ defmodule Tuist.Tests.Coverage.Workers.RunFilesBackfillWorkerTest do
     assert rows |> Enum.map(&Map.take(&1, Map.keys(hd(expected)))) |> Enum.sort_by(& &1.shard_index) == expected
 
     assert [%{git_blob_id: "blob-Sources/B.swift", line_numbers: [], execution_counts: []}] =
-             read_back(project, run_id, "Sources/B.swift")
+             Commits.file_rows(project.id, [run_id], "Sources/B.swift")
 
     # Each path's week starts on its own weekday, as a report written then names it.
     reported_on = NaiveDateTime.to_date(reported_at)

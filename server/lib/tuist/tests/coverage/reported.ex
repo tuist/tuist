@@ -629,7 +629,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp test_files(project_id, run_ids, modules) do
     modules = MapSet.new(modules)
 
-    from(f in Coverage.report_files_for_runs(project_id, Enum.uniq(run_ids)),
+    from(f in Coverage.report_files_for_runs(project_id, Enum.uniq(run_ids), lines: false),
       where: f.is_test,
       distinct: true,
       select: {fragment("toString(?)", f.test_run_id), f.path, f.targets}
