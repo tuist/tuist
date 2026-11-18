@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Análisis de tests en Elixir",
+  "title": "Análisis de tests de Elixir",
   "titleTemplate": ":title · Análisis de tests · Funcionalidades · Guías · Tuist",
-  "description": "Sigue los tests de tu proyecto Elixir en el panel de Tuist para monitorizar su rendimiento."
+  "description": "Realiza un seguimiento de los tests de tu proyecto de Elixir en el panel de control de Tuist para monitorizar su rendimiento."
 }
 ---
 # Análisis de tests de Elixir {#elixir-test-insights}
 
-El paquete Hex de Tuist sube los resultados de los tests de tu proyecto de Elixir después de cada ejecución de tests, lo que te da visibilidad sobre el rendimiento de los tests y los tests inestables directamente en el dashboard de Tuist.
+El paquete Hex de Tuist sube los resultados de los tests de tu proyecto de Elixir después de cada ejecución de tests, lo que te da visibilidad sobre el rendimiento de los tests y los tests inestables directamente en el panel de control de Tuist.
 
 > [!IMPORTANT]
 > **Requisitos**
 >
-> - Completa <.localized_link href="/guides/get-started/elixir-project">Comienza con Elixir</.localized_link>
+> - Completa <.localized_link href="/guides/get-started/elixir-project">Primeros pasos con Elixir</.localized_link>
 
 ## Informa tus ejecuciones de tests {#report-your-test-runs}
 
@@ -22,13 +22,13 @@ La configuración compartida instala la integración de tests. Sigue usando `mix
 mix test test/my_app_test.exs:12 --trace
 ```
 
-Tuist informa la ejecución cuando finaliza; no se necesita ningún alias de test adicional.
+Tuist informa la ejecución cuando termina; no se necesita ningún alias de test adicional.
 
-Puedes acceder a tus análisis de tests en el dashboard de Tuist y ver cómo evolucionan con el tiempo:
+Puedes acceder a tus análisis de tests en el panel de control de Tuist y ver cómo evolucionan con el tiempo:
 
-![Dashboard de tests de una aplicación Phoenix](/images/guides/features/elixir/tests-dashboard.png)
+![Panel de tests de una aplicación Phoenix](/images/guides/features/elixir/tests-dashboard.png)
 
-## Qué se registra {#what-is-tracked}
+## Qué se rastrea {#what-is-tracked}
 
 El paquete recopila resultados de ExUnit, incluyendo:
 - Estado de aprobado/fallido y duración de cada test individual
@@ -41,11 +41,11 @@ El paquete recopila resultados de ExUnit, incluyendo:
 Los doctests se informan como cualquier otro test. Con `--cover`, también se sube la cobertura de líneas de la ejecución: consulta <.localized_link href="/guides/features/test-code-coverage/elixir">Cobertura de código en Elixir</.localized_link>.
 
 > [!NOTE]
-> El paquete informa a través de un formateador de ExUnit que añade junto a los que ya uses. Si pasas `--formatter` en la línea de comandos, Mix reemplaza toda la lista, por lo que la ejecución no se informa y la tarea te avisa de ello.
+> El paquete informa a través de un formateador de ExUnit que añade junto a los que ya usas. Si pasas `--formatter` en la línea de comandos, Mix reemplaza toda la lista, por lo que la ejecución no se informa y la tarea te advierte sobre ello.
 
 ### Historial de Git {#git-history}
 
-En integración continua, el paquete también sube el historial de commits del checkout: los SHA de los commits, sus padres, las fechas de los commits y la rama en la que estaban la ejecución y la rama base de su pull request. No se suben contenidos de archivos, mensajes de commit ni autores. Esto es lo que le indica a Tuist qué commits llegaron a tu rama predeterminada, por ejemplo, los que probó una cola de merge. El paquete lee el historial que ya tiene el checkout y, cuando el checkout no tiene la rama base, solicita al remoto su último commit (`git ls-remote`). Fuera de la cobertura de código (`--cover`), no obtiene el historial.
+En integración continua, el paquete también sube el historial de commits del checkout: SHAs de los commits, sus padres, fechas de los commits y la rama en la que estaban la ejecución y la rama base de su pull request. No se suben contenidos de archivos, mensajes de commit ni autores. Esto es lo que le indica a Tuist qué commits llegaron a tu rama predeterminada, por ejemplo, los que probó una cola de merge. El paquete lee el historial que ya tiene el checkout y, cuando el checkout no tiene la rama base, solicita al remoto su último commit (`git ls-remote`). Fuera de la cobertura de código (`--cover`), no obtiene el historial. Con cobertura de código, un checkout superficial se profundiza, sin contenidos de archivo, para encontrar dónde se ramificó un pull request y, en integración continua, para alcanzar los commits que Tuist ya tiene, de modo que nunca se sube un commit sin el padre sobre el que se asienta.
 
 | Variable | Efecto |
 | --- | --- |

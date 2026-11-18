@@ -2,12 +2,12 @@
 {
   "title": "Gradleキャッシュ",
   "titleTemplate": ":title · キャッシュ · 機能 · ガイド · Tuist",
-  "description": "Tuistを使用して、チームやCI間でGradleビルドキャッシュの成果物を共有します。"
+  "description": "Tuistを使用して、チームやCIでGradleビルドキャッシュの成果物を共有します。"
 }
 ---
 # Gradleキャッシュ {#gradle-cache}
 
-Tuistは、[Gradleの組み込みビルドキャッシュ](https://docs.gradle.org/current/userguide/build_cache.html)と連携してビルド成果物をリモートで共有するGradleプラグインを提供します。タスクの出力がすでにキャッシュされている場合、Gradleは実行をスキップし、Tuistのリモートキャッシュから結果を取得するため、チーム全体やCI環境でのビルド時間を短縮できます。
+Tuistは、[Gradleの組み込みビルドキャッシュ](https://docs.gradle.org/current/userguide/build_cache.html)と連携してビルド成果物をリモートで共有するGradleプラグインを提供します。タスクの出力がすでにキャッシュされている場合、Gradleは実行をスキップし、Tuistのリモートキャッシュから結果を取得するため、チーム全体およびCI環境でのビルド時間を短縮できます。Gradleのローカルおよびリモートビルドキャッシュが最新状態チェックや設定キャッシュとどのように異なるかについては、<.localized_link href="/references/concepts/build-cache#gradle">ビルドキャッシュとは何ですか？</.localized_link>をご覧ください。遅いビルドのどの部分をキャッシュが削減するか、またプロジェクトで最初に修正すべき点については、[遅いビルド](https://tuist.dev/solutions/slow-builds)をご覧ください。
 
 <.localized_link href="/guides/install-gradle-plugin">Tuist Gradleプラグイン</.localized_link>をインストールしたら、`gradle.properties`ファイルでGradleのビルドキャッシュを有効にする必要があります。
 
@@ -15,11 +15,11 @@ Tuistは、[Gradleの組み込みビルドキャッシュ](https://docs.gradle.o
 org.gradle.caching=true
 ```
 
-これを設定しないと、リモートキャッシュを設定していてもGradleはビルドキャッシュサブシステムを活性化せず、すべてのタスクがキャッシュのヒットや登録なしに実行されます。有効にすると、GradleはTuistをリモートビルドキャッシュとして使用し、キャッシュヒット時にキャッシュされたタスク出力をダウンロードし、タスク実行後にアップロードします。
+これを設定しないと、リモートキャッシュを設定していてもGradleはビルドキャッシュサブシステムを活性化せず、すべてのタスクがキャッシュヒットやキャッシュへの登録なしに実行されます。有効にすると、GradleはTuistをリモートビルドキャッシュとして使用し、キャッシュヒット時にキャッシュされたタスク出力をダウンロードし、タスク実行後にアップロードします。
 
 ## キャッシュアップロードポリシー {#cache-upload-policy}
 
-デフォルトでは、このプラグインはリモートキャッシュへのアーティファクトのダウンロードとアップロードの両方を行います。`buildCache`ブロック内の`push`オプションでアップロードを制御できます。
+デフォルトでは、プラグインはリモートキャッシュに対して成果物のダウンロードとアップロードの両方を行います。`buildCache`ブロック内の`push`オプションでアップロードを制御できます。
 
 ```kotlin
 tuist {
@@ -29,7 +29,7 @@ tuist {
 }
 ```
 
-一般的なパターンは、ビルドが再現可能なCIからのみアーティファクトをプッシュし、ローカル環境は読み取り専用のままにすることです。
+一般的なパターンは、ビルドが再現可能なCIからのみ成果物をプッシュし、ローカル環境は読み取り専用のままにすることです。
 
 ```kotlin
 tuist {
@@ -39,17 +39,17 @@ tuist {
 }
 ```
 
-この設定により、ローカルビルドはアップロードなしでキャッシュされたアーティファクトの恩恵を受け、CIビルドはチームの他のメンバーのためにキャッシュに登録します。
+この設定により、ローカルビルドはアップロードなしでキャッシュされた成果物の恩恵を受け、CIビルドはチームの他のメンバーのためにキャッシュに登録します。
 
 ## 継続的インテグレーション {#continuous-integration}
 
-CI環境では、<.localized_link href="/guides/server/authentication#continuous-integration">認証ガイド</.localized_link>に記載された方法のいずれかを使用して認証してください。プロバイダー固有のCI例については、<.localized_link href="/guides/integrations/continuous-integration">継続的インテグレーションガイド</.localized_link>を参照してください。
+CI環境では、<.localized_link href="/guides/server/authentication#continuous-integration">認証ガイド</.localized_link>に記載された方法のいずれかを使用して認証してください。プロバイダー固有のCI例については、<.localized_link href="/guides/integrations/continuous-integration">継続的インテグレーションガイド</.localized_link>をご覧ください。
 
 ### ローカルビルドキャッシュの無効化 {#disabling-the-local-build-cache}
 
-Gradleはローカルビルドキャッシュとリモートビルドキャッシュの両方を維持します。ローカルビルドキャッシュは、`~/.gradle/caches/build-cache-1`以下のディスクにタスク出力を保存します。
+Gradleはローカルビルドキャッシュとリモートビルドキャッシュの両方を維持します。ローカルビルドキャッシュは、`~/.gradle/caches/build-cache-1`の下にディスク上にタスク出力を保存します。
 
-Tuistをリモートビルドキャッシュとして構成する場合、CIではローカルビルドキャッシュを無効にすることを推奨します。これにより、CIランナーに冗長なアーティファクトを保存することを避け、ビルドが常にチームの他のメンバーのために新しいエントリでリモートキャッシュに登録されることを保証します。
+Tuistをリモートビルドキャッシュとして構成する場合、CIでローカルビルドキャッシュを無効にすることを推奨します。これにより、CIランナー上に冗長な成果物を保存することを避け、ビルドが常にチームの他のメンバーのために新しいエントリでリモートキャッシュに登録されることを保証します。
 
 `settings.gradle.kts`でCI上のGradleローカルビルドキャッシュを無効にします。
 
@@ -61,7 +61,7 @@ buildCache {
 }
 ```
 
-これにより、ローカル開発ではローカルビルドキャッシュを利用可能にしつつ、Tuistのリモートキャッシュがアーティファクト共有を処理するCI上ではこれを無効にします。
+これにより、ローカル開発ではローカルビルドキャッシュを利用可能にしつつ、Tuistのリモートキャッシュが成果物の共有を処理するCI上では無効にします。
 
 ## 設定リファレンス {#configuration-reference}
 

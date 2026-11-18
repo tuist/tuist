@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3f406633a83eb5104e53c160e595c908b40777367f2d8809a5c3f0758918b2a3",
+  "hash": "93880327f05895956b5da6ececacd6c07b8bd8d6baa3b7012a61c74334284635",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,7 +29,7 @@
                   "content_hash": "141b05957bfee8f6b92861b4c0705804d9149130f07145606e3215f399e9aed0"
                 },
                 "### XcodeGen {#xcodegen}": {
-                  "content_hash": "7b1187bc83333ea16b797cf57d35481733b22c355506bb45976bafd748bcddfc"
+                  "content_hash": "02b56eb0d3bf79637aca12ee1ddf563a0040017dd03cff724644b5c125c521bf"
                 },
                 "Preamble": {
                   "content_hash": "05b225f9133c9de6baf8cb0621097d195e38678220ed38e207f1d43031534a6f"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8a892a4735591eb43063c30c4b5530205034704e7420f012e4c0dca035f7ff62",
+          "hash": "5c3c136dd1fc3a365db45d999a03aa3dd2034aa87eb9e79f3fcc542025f93149",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects.md",
           "metadata": {
-            "content_hash": "3c9dea4c95b681070fa7629929a9937d48bfa85449ac428c425c263ea93ce843"
+            "content_hash": "26e7fc7ad0f60e67883fa3c45f01e3bd9ea735d11d452147c869cdb9af4e004c"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "3f406633a83eb5104e53c160e595c908b40777367f2d8809a5c3f0758918b2a3",
+      "hash": "93880327f05895956b5da6ececacd6c07b8bd8d6baa3b7012a61c74334284635",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a862c6654ae6378d6a4951e83c41b33dd625943f9f4c38156fd4114c577ea873",
+  "output_hash": "133aff2461351b7e9bf6e7d7682daacb2914ed9d7c39b92f8236f3d1f2173257",
   "output_path": "server/priv/docs/yue_Hant/guides/features/projects.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ba528f094f03e8fddd877e509764e5c7c91f3c05",
+  "source_commit_sha": "dcb02e10972686faa1931ae79ce7c5d67ec2ace7",
   "source_path": "server/priv/docs/en/guides/features/projects.md",
-  "translated_at": "2026-11-06T18:20:15.393334Z",
-  "translation_session_id": "01a1b214-c56b-7cfd-8a46-24ae6822bd5a"
+  "translated_at": "2026-11-13T15:06:49.109466Z",
+  "translation_session_id": "01a1d570-b6b3-785a-85d5-7847a337c4c0"
 }

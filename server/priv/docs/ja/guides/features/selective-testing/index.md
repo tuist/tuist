@@ -7,7 +7,7 @@
 ---
 # 選択的テスト {#selective-testing}
 
-プロジェクトが大きくなると、すべてのプッシュで全テストを実行することが現実的でなくなります。Tuist の選択的テストは、<.localized_link href="/guides/features/projects/hashing">ハッシュアルゴリズム</.localized_link> を使用して、最後の正常な実行以降に変更された部分に影響を受けるテストのみを実行することで、テスト時間を大幅に短縮します。
+プロジェクトが大きくなるにつれて、すべてのプッシュで全テストを実行することが現実的ではなくなります。Tuist の選択的テストは、<.localized_link href="/guides/features/projects/hashing">ハッシュアルゴリズム</.localized_link> を使用して、最後の成功した実行以降に変更された部分に影響を受けるテストのみを実行することで、テスト時間を大幅に短縮します。シャーディングや低速なテストの修正など、テスト時間を削減する他の方法については、[低速なテスト](https://tuist.dev/solutions/slow-tests) を参照してください。
 
 ## 対応しているビルドシステム {#supported-build-systems}
 

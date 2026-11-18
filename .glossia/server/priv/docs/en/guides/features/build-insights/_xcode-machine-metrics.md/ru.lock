@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "276222376d7dfbbfd5a2dc65c2d0e6b5a046b4307a76ef4309183fbb7e95092e",
+  "hash": "5820a542b378f57964ebe10c81aea9a0b9f3e790750dd805de9a5a0a2725e879",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "## Machine metrics {#machine-metrics}": {
-                  "content_hash": "5e7537f3d39729629769b584c55ab4b8200512c9448ebc0499162576403f15f8"
+                  "content_hash": "15b85afe362c4e6acaff298554e9a62ae922aa4e89c844adcfc53d42376d7e24"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "7f17e36f08d45ca52ce0bb26df74ea208e5104a39f63865b9b5e711cbda62a51",
+          "hash": "fe15fc91acf29d8e60cdbbfd33a02d732b791477d1c6356745dc18536eb18529",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/build-insights/_xcode-machine-metrics.md",
           "metadata": {
-            "content_hash": "7b07758d604e17318ecbbc583dfbaba309bf391eae9bb8fdf6f40d9e7e393782"
+            "content_hash": "81f18ba180dcab543cd1225d662cdb35f304435da6cedd3d7708c73a060cf1bf"
           }
         },
         {
@@ -211,14 +211,14 @@
         }
       ],
       "details": {},
-      "hash": "276222376d7dfbbfd5a2dc65c2d0e6b5a046b4307a76ef4309183fbb7e95092e",
+      "hash": "5820a542b378f57964ebe10c81aea9a0b9f3e790750dd805de9a5a0a2725e879",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/build-insights/_xcode-machine-metrics.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "7ee73da4443fd8a4fb8312dfd4fe143ad2fb53393148e5d548c07b90ea26fc2f",
+  "output_hash": "e4f0bd73146216ce1b1a212fb5990d66e2c65f4d7acd8dbeb16cc72b693312e2",
   "output_path": "server/priv/docs/ru/guides/features/build-insights/_xcode-machine-metrics.md",
   "protection_state": "recorded",
   "provider": "",
@@ -236,8 +236,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
+  "source_commit_sha": "4f898204f78a918142651ad3d36e1bc912cb6c1f",
   "source_path": "server/priv/docs/en/guides/features/build-insights/_xcode-machine-metrics.md",
-  "translated_at": "2026-11-06T16:42:11.949824Z",
-  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
+  "translated_at": "2026-11-13T14:44:39.266195Z",
+  "translation_session_id": "01a1d55c-6b9e-78c1-b839-7703cf151f90"
 }

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3ad7f5725dd266e625e7a86b54be83c1bfca034522bada19cda231f5902f8720",
+  "hash": "5559897d05aeb4b3b999e9697c38a96484c9e18adeaa7e95180cf0bab2e50558",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "4750649c655aeaa7a86e3ce417cc97a863bcbbe4352de1180a4a11c9c84d5b51"
+                  "content_hash": "45d0c1e34c51087403dddd79138035f977298906c41ba146f45b77f228399603"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "2698eb4a151212915c8c1b7446b25ab198b191a08ea23c2361a079bcb9264906",
+          "hash": "942f2d393abe20639e7783c10ff50807e90da2844660b6d073e0ddc2fe7b264e",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/_rust-experimental.md",
           "metadata": {
-            "content_hash": "801e4905cf3b19e39e9b3b26eeb6b18e3d839698cbd4074f50e811bff0adfbfe"
+            "content_hash": "275b9e5c793f6e31ee01254ea645d14bbb50c47cfd96022074b1f0c71f115f79"
           }
         },
         {
@@ -214,14 +214,14 @@
         }
       ],
       "details": {},
-      "hash": "3ad7f5725dd266e625e7a86b54be83c1bfca034522bada19cda231f5902f8720",
+      "hash": "5559897d05aeb4b3b999e9697c38a96484c9e18adeaa7e95180cf0bab2e50558",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/_rust-experimental.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b29dbc7f058ba00101d76aba1a79f377cd883762333c4a9d0f645c828f06816e",
+  "output_hash": "e146f02946dfd08c45d950c300591c671ab19079d3c91dd6440b5c0632603435",
   "output_path": "server/priv/docs/es/guides/features/cache/_rust-experimental.md",
   "protection_state": "recorded",
   "provider": "",
@@ -239,8 +239,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
+  "source_commit_sha": "d585d934fe7db06d55ee13c7ac7baca64afc9cd0",
   "source_path": "server/priv/docs/en/guides/features/cache/_rust-experimental.md",
-  "translated_at": "2026-11-06T16:47:35.094235Z",
-  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
+  "translated_at": "2026-11-16T13:37:04.301995Z",
+  "translation_session_id": "01a1e491-e33c-7e49-95e6-d56baa079cc2"
 }

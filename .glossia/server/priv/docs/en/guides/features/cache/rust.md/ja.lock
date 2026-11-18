@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b739f318842713a7bf5bb18c1d6f526da1612646fb5d9addf4aa796fa9b8fb5b",
+  "hash": "564aad82998a90c11c87458575ef8951d6d62a516495ce6cb0bb8b2deda74f38",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "9c6a6331a94cbd464ce12df19a703fc662bc0cbb29941128ebce816d596e8baf"
                 },
                 "## How it works {#how-it-works}": {
-                  "content_hash": "a93dc765050467850a7ed1608dfe8944d668c8f03bd038931d08e50c4b75515e"
+                  "content_hash": "167b0813a967f2ccc1e99031a1278c934f06e5a8ea21e4e72bbee02bc18ab576"
                 },
                 "## Inspect cache activity {#inspect-cache-activity}": {
                   "content_hash": "4515e623764ad725403538f9d2317ca2976cbd55be8ecc83bfddf8bf7775df4b"
@@ -26,10 +26,10 @@
                   "content_hash": "171ee6cbf2266f4436fa714104a5e408062110cd348dc2878b409cfebdb6d8ab"
                 },
                 "## Verify reuse {#verify-reuse}": {
-                  "content_hash": "47e78f266efa3b3a2ed256340264d9482c804088c6268080acf443b6d8ba3d0c"
+                  "content_hash": "4b6d2cb4df5a296f16141f5db23379eda17c069ddf4638742cc53bc1f4aea2e1"
                 },
                 "## What can be cached {#what-can-be-cached}": {
-                  "content_hash": "8672894bb4a785c7d1235d48c09a3860a37460e682d5bef3de0f3b713e515787"
+                  "content_hash": "a68b2371fd0c6e9b73fbf46cedc1cb978a39b5b60db21ed03ca5918d817d6b84"
                 },
                 "Preamble": {
                   "content_hash": "3e34cb1c09f6da9094362aa29426c50ea8d2bae9447c10c911e66b7f3063b9d2"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "e7622774cb64a440086ed91e2f8c9d837f9908b080d044875468d10e120a7d33",
+          "hash": "4f0d8613496721de04947ca24a3fb23a64293ab1592c0c12b9f7ee7edd60393b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/rust.md",
           "metadata": {
-            "content_hash": "a318caf4cbeb460facc3a81c172695042c5c54bc30cdca4d67ffc6ea6ba42e8d"
+            "content_hash": "14d91abddd24c667c0f76919837846e1d0471a7593cd254f130dcad1ded796cb"
           }
         },
         {
@@ -251,14 +251,14 @@
         }
       ],
       "details": {},
-      "hash": "b739f318842713a7bf5bb18c1d6f526da1612646fb5d9addf4aa796fa9b8fb5b",
+      "hash": "564aad82998a90c11c87458575ef8951d6d62a516495ce6cb0bb8b2deda74f38",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a5e92018631544f878f77bfeaad9f915aaf88b50ce6ada0c83a57c81ec35542a",
+  "output_hash": "e7986377ad0f75362e35efa03005121ab04176a4375bb7378ce1ae33229b261e",
   "output_path": "server/priv/docs/ja/guides/features/cache/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +280,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b48d81c0c4ebe4a20312119ccc340ae7a1c02395",
+  "source_commit_sha": "301f0eac08465a755e28c0ae1157b6bce60848d8",
   "source_path": "server/priv/docs/en/guides/features/cache/rust.md",
-  "translated_at": "2026-11-06T17:29:09.421988Z",
-  "translation_session_id": "01a1b1e5-b447-7721-bcdd-7d2c849d668f"
+  "translated_at": "2026-11-16T14:24:16.169971Z",
+  "translation_session_id": "01a1e4bd-00c0-719a-825f-90061fd9d609"
 }

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "0370a005563c5d5ff1e5ca9525c1960fb6699dae07e81d7576ea53841832e0d3",
+  "hash": "42d49e6de0735e8a5e7f435efef440ebd524dd7c8552a561a9590e43d4929b57",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Bazel project {#bazel-project}": {
-                  "content_hash": "f4b7ca2fecbc13a0fd8e3636783b0871d81a442570c09da2e5c792e293fe729a"
+                  "content_hash": "0920e66f8851237e659de1ea625b45218ce412618d9752dd5792bb871b248705"
                 },
                 "## Bring the team along": {
                   "content_hash": "de3676031b7ad8cf15a002fe62dbc770e06606d4062428c56b12571e93e19041"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "d92b151d5ce5bbaef8c5e1aafe44492d7d63d51946788ccc88182cabc9fa71f2",
+          "hash": "acbb3f63f6b100ded9753ab979c267d129832f1e87fd1e32fe388882ff35477a",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started/bazel-project.md",
           "metadata": {
-            "content_hash": "2898a9cc307885b283667e74883c9b8beea91f05fd3e135cfde2e0cffabadd50"
+            "content_hash": "ab5bea1ea74c4521a60a6bd03acd883d8521389f2a625e1cbc47dcb45672be4d"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "0370a005563c5d5ff1e5ca9525c1960fb6699dae07e81d7576ea53841832e0d3",
+      "hash": "42d49e6de0735e8a5e7f435efef440ebd524dd7c8552a561a9590e43d4929b57",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/bazel-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9dac7d976d8013240f11c085bc81cbde593687140db6da38f83f26ca4f448d62",
+  "output_hash": "10ee257ab6a49b2437e46a73175043c9b2aff778a74474eaf280d64cf8a2c9c2",
   "output_path": "server/priv/docs/zh_Hans/guides/get-started/bazel-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "d585d934fe7db06d55ee13c7ac7baca64afc9cd0",
   "source_path": "server/priv/docs/en/guides/get-started/bazel-project.md",
-  "translated_at": "2026-11-06T21:25:58.739241Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-16T13:37:05.205438Z",
+  "translation_session_id": "01a1e491-e33c-7e49-95e6-d56baa079cc2"
 }

@@ -2,17 +2,17 @@
 {
   "title": "Cobertura de código en Xcode",
   "titleTemplate": ":title · Cobertura de código · Funcionalidades · Guías · Tuist",
-  "description": "Sube la cobertura de código de proyectos de Xcode a Tuist y consúltala por archivo y por commit."
+  "description": "Sube la cobertura de código de proyectos de Xcode a Tuist y haz un seguimiento por archivo y por commit."
 }
 ---
-# Cobertura de código en Xcode {#xcode-code-coverage}
+# Cobertura de código de Xcode {#xcode-code-coverage}
 
-<!-- @snippet: ./_xcode-early-access -->
+La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist sube la cobertura por línea de cada ejecución de tests y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada target y cada archivo. La página **Cobertura de código** del dashboard la muestra por commit y como tendencia para cada rama.
 
-La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist sube la cobertura por línea de cada ejecución de tests y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada target y cada archivo. La página **Cobertura de código** del panel la muestra por commit y como tendencia para cada rama.
+<!-- @snippet: ./_xcode-requirements -->
 
 > [!TIP]
-> Si generas tu proyecto con Tuist, sigue la <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">guía de proyectos generados</.localized_link>: mide el código que proviene de la caché binaria y mantiene la cobertura de los targets de test que los tests selectivos omiten.
+> Si generas tu proyecto con Tuist, sigue la <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">guía de proyectos generados</.localized_link> en su lugar: mide el código que proviene de la caché binaria y arrastra la cobertura de los targets de test que los tests selectivos omiten.
 
 ## Configuración {#setup}
 
@@ -40,7 +40,7 @@ tuist xcodebuild test \
   -enableCodeCoverage YES
 ```
 
-Tuist sube la cobertura recopilada por la ejecución junto con sus resultados de test.
+Tuist sube la cobertura recopilada por la ejecución junto con sus resultados de tests.
 
 ### Completar cada commit en CI {#complete-each-commit}
 
@@ -60,11 +60,11 @@ Los tests que la cuarentena omite no forman parte de la cobertura en absoluto, p
 
 ## Impacto en el rendimiento {#performance-impact}
 
-Recopilar cobertura añade sobrecarga, principalmente después de que finalicen los tests, mientras Xcode escribe su informe de cobertura y Tuist exporta la cobertura. Compilar y ejecutar los tests lleva aproximadamente el mismo tiempo que sin ella.
+Recopilar la cobertura añade sobrecarga, principalmente después de que finalicen los tests, mientras Xcode escribe su informe de cobertura y Tuist exporta la cobertura. Compilar y ejecutar los tests lleva aproximadamente el mismo tiempo que sin ella.
 
 ## Consultar cobertura {#querying}
 
-Los comandos `tuist coverage` leen lo que muestra el panel. Sin `--commit`, leen el último commit completo de `--branch`, o de tu rama predeterminada:
+Los comandos `tuist coverage` leen lo que muestra el dashboard. Sin `--commit`, leen el último commit completo de `--branch`, o de tu rama predeterminada:
 
 ```sh
 tuist coverage show                          # the project's coverage and its targets
@@ -72,4 +72,4 @@ tuist coverage files --commit <sha>          # files, least covered first
 tuist coverage file Sources/Cart.swift --lines  # a file's functions, with per-line counts
 ```
 
-Todos aceptan `--json` para scripting.
+Todos ellos aceptan `--json` para scripting.

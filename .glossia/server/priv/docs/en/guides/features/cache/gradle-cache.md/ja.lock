@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e29dff97f263a55018b61a94016a584d222fb2a31b30ce071c6476633d6da974",
+  "hash": "530a72beafe42bf024714c440789dcfcfa2f446f1cc6dd7e3134a7edf7d9da43",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Gradle cache {#gradle-cache}": {
-                  "content_hash": "8d9f7eb4dd0abf92bff95ac970343a8d6d0c5f6f8a94279b06d4c5cdfbf2f3ef"
+                  "content_hash": "3a1d518905d311e2ae2ddc52cb826a7905d46138dc66c2ccc176b9eb4aa3747f"
                 },
                 "## Cache upload policy {#cache-upload-policy}": {
                   "content_hash": "7de3351f124a5dfb5e3b269247204fa7169a70d84e1265ec1766ee15c45f264d"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "478c832416a2013a976a7a685d7d6633f7a09a0aab03de0134b01ef173cafe27",
+          "hash": "3b081b9663f9a210e41c78539b06d8231482493485a87b49d7f983699875befe",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
           "metadata": {
-            "content_hash": "59fcc9a98692df45f9762ef1a1fadac34b9f99fbb8b70cddfda829c20036e7b7"
+            "content_hash": "6c10672d48b7af9743dca24456b16e73171335e32dd020c09c746eef6d015db6"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "e29dff97f263a55018b61a94016a584d222fb2a31b30ce071c6476633d6da974",
+      "hash": "530a72beafe42bf024714c440789dcfcfa2f446f1cc6dd7e3134a7edf7d9da43",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ca2b2dd7844971032db180c1e789d5bdb1a9b2542228c1c15819f1a93b122bbf",
+  "output_hash": "c1420155ebb1e346b8d854fbe5239fe40682aa84388c1068a55235f25d487c43",
   "output_path": "server/priv/docs/ja/guides/features/cache/gradle-cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4475f59fba435414f37ddb64cd4abcc80e0d0305",
+  "source_commit_sha": "e6e69c78e1b277a1eb37d251803817309fe518ce",
   "source_path": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
-  "translated_at": "2026-11-06T17:09:01.104027Z",
-  "translation_session_id": "01a1b1d3-9432-7324-98ac-cc1718a8deee"
+  "translated_at": "2026-11-16T17:33:22.517974Z",
+  "translation_session_id": "01a1e568-d296-7896-8fbf-c91631de7b64"
 }

@@ -1,15 +1,15 @@
 ---
 {
-  "title": "入门指南",
-  "titleTemplate": ":title · 入门指南 · 指南 · Tuist",
-  "description": "选择与你的应用当前构建方式相匹配的 Tuist 路径：Xcode、生成的 Xcode 项目、Gradle、Elixir、Rust、Bazel 或 Once。"
+  "title": "快速入门",
+  "titleTemplate": ":title · 指南 · Tuist",
+  "description": "选择与当前应用构建方式相匹配的 Tuist 路径：Xcode、生成的 Xcode 项目、Gradle、Elixir、Rust、Bazel 或 Once。"
 }
 ---
 # 开始使用 {#get-started}
 
-选择与当前应用构建方式匹配的路径。每种路径都会引导你完成安装内容、如何启用缓存、洞察和测试功能，以及如何端到端验证设置。你可以独立采用这些路径，如果在多个平台上交付软件，也可以组合使用。
+选择与当前应用构建方式相匹配的路径。每种路径都会逐步介绍需要安装的内容、如何启用缓存、洞察和测试功能，以及如何端到端验证设置。你可以单独采用这些路径，如果需要在多个平台上交付软件，也可以组合使用。
 
-大多数路径使用 <.localized_link href="/guides/install-tuist">Tuist 命令行界面</.localized_link>。Elixir 使用 Hex 包，Once 通过其原生 Tuist 提供程序连接；两者在集成时都不需要 Tuist CLI。
+大多数路径使用 <.localized_link href="/guides/install-tuist">Tuist 命令行界面</.localized_link>。Elixir 使用 Hex 包，Once 则通过其原生的 Tuist 提供程序进行连接；两者在集成时都不需要 Tuist CLI。
 
 ## Xcode 项目 {#existing-xcode-project}
 
@@ -19,7 +19,7 @@
 
 ## 生成的 Xcode 项目 {#generated-xcode-project}
 
-让 Tuist 从 Swift 清单定义并生成你的 Xcode 项目。生成的项目将模块化 Xcode 项目的复杂性压缩为简洁的声明式图描述，并且是 <.localized_link href="/guides/features/cache/module-cache">模块缓存</.localized_link> 和 <.localized_link href="/guides/features/selective-testing/generated-xcode-project">选择性测试</.localized_link> 的严格要求。
+让 Tuist 根据 Swift 清单定义并生成你的 Xcode 项目。生成的项目将模块化 Xcode 项目的复杂性压缩为简洁、声明式的图描述，并且是 <.localized_link href="/guides/features/cache/module-cache">模块缓存</.localized_link> 和 <.localized_link href="/guides/features/selective-testing/generated-xcode-project">选择性测试</.localized_link> 的严格要求。
 
 <.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
@@ -37,7 +37,7 @@
 
 ## Rust 项目 {#rust-project}
 
-通过 Tuist CLI 运行 Cargo 以报告构建和单个测试结果（包括文档测试），并调查不稳定测试。
+通过 Tuist CLI 运行 Cargo 以报告构建和单独的测试结果（包括文档测试），并调查不稳定测试。
 
 <.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
 

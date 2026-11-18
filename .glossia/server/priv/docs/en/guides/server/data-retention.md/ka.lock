@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "85ac785ad53c83516c100203c8f006a1c812f79aa7d61a35955b72fef15c62e2",
+  "hash": "7d09e2103e540df8997234a21dbcc84f38ed024d9dbbf7439504a822488c9c11",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "56a79e4ed32463aa569db00fe81e801bf4fa6d8ebbb41951d0593ac400325461"
                 },
                 "### Other dashboard and activity data {#other-dashboard-and-activity-data}": {
-                  "content_hash": "3b96a29fc425fd19d622f9b54973505535328b619f9e5bb8c356554a4fa94a2d"
+                  "content_hash": "5116b514471b16f43a08063eeda35e1ac5daa3ea9a9078fdf6227ad45af34df1"
                 },
                 "### Self-hosted instances {#self-hosted-artifact-files}": {
                   "content_hash": "cd537d12a18d5e9963843dfda1f17d0d5c18a23f4c3e182cb55d49ca6b5d9537"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "b9f42c842f63bafe55fb0a9dbec8ae0eadfe4d424a4a6cb1dbd123a24e4e0de7",
+          "hash": "db73bfbf18c917f528fd6f46a5a89c96f147e5bcbb3306b411d0a765581ffe4c",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/data-retention.md",
           "metadata": {
-            "content_hash": "bd08a902ebb996f0fb540231da25bd8aa793014c8144ab28741b6de3c0e5f7ac"
+            "content_hash": "3a896e0c3cc3329b6a38240be7bffad0378b095aced836bd69e27015053dd163"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "85ac785ad53c83516c100203c8f006a1c812f79aa7d61a35955b72fef15c62e2",
+      "hash": "7d09e2103e540df8997234a21dbcc84f38ed024d9dbbf7439504a822488c9c11",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/data-retention.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "0b1bffbb2f6b35461be8cedb85b92641b3d03174e83d5bf1541d7d6198a063cc",
+  "output_hash": "747d1795b11b0cea76c9007d31640cbebec8efe15aeda66c82312e2633722f64",
   "output_path": "server/priv/docs/ka/guides/server/data-retention.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/server/data-retention.md",
-  "translated_at": "2026-11-06T22:40:19.925533Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-13T16:38:15.690958Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

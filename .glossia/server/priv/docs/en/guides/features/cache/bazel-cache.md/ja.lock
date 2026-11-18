@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b5ddbdf8cdcfeb83fc913aefdc7e081f01174a2c1935981dcf5f82b8daf34bcb",
+  "hash": "47aeb695b1621a13d77ceabf7900823606cd6c496da3c6b153dc0f8ce72ae978",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Bazel cache {#bazel-cache}": {
-                  "content_hash": "ff1baa957a3b3dd71055850beac24698627c3f3e5bb422fc9abd5945447bcf91"
+                  "content_hash": "7ae802d612ddc793a5176692ad4dbc5657b6b8afc60b0b58a841d22c937bbce9"
                 },
                 "## Build insights {#build-insights}": {
                   "content_hash": "5ea1fd26e31c299bfc84910107e6ca756357bc9c9a9e7c46c0cc12175df7a1f8"
@@ -21,6 +21,9 @@
                 },
                 "## Data retention {#data-retention}": {
                   "content_hash": "549022c03747c7ab5dffe4837ea1c26d567cee09022138aaa54c7f9f68851aca"
+                },
+                "## Remote execution {#remote-execution}": {
+                  "content_hash": "d6c0913ce7fa8af2d25695e372b0e2407d96ed39c7e406851970b1f12bcc9ee9"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "bd4682cd22d14e73be3793fad3e2396b64dc9baf8b1b2a17968b06431b7c5439"
@@ -32,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8663d649443a731528f511377f16c3761d7cacf92828fac1c1b6aa4f4aeb6848",
+          "hash": "c66a6dc6aef2fb7df04424b49b2aeb9e4ef0115810d07a8792cba6b4a09596e0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/bazel-cache.md",
           "metadata": {
-            "content_hash": "4f2b33c603e36153f6c94509b08a9983e66ffb77da040228588b3d6bbbc65070"
+            "content_hash": "2674abcd0bdde4459767385b8245b96a934ef06c3af2bbbcb9531aab845c4573"
           }
         },
         {
@@ -239,14 +242,14 @@
         }
       ],
       "details": {},
-      "hash": "b5ddbdf8cdcfeb83fc913aefdc7e081f01174a2c1935981dcf5f82b8daf34bcb",
+      "hash": "47aeb695b1621a13d77ceabf7900823606cd6c496da3c6b153dc0f8ce72ae978",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/bazel-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "693e0513e6d8ed6bc95cc8bda6e247e37ccd84f8f220ff3a056d21b63a4d0f41",
+  "output_hash": "b4e30a4fe46ebc546d4632745258f494171c8b336df6cc32e8ed1f8c9cc99610",
   "output_path": "server/priv/docs/ja/guides/features/cache/bazel-cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -267,8 +270,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "f1ce584455958a660efa05f5c27639680906b4cb",
+  "source_commit_sha": "d585d934fe7db06d55ee13c7ac7baca64afc9cd0",
   "source_path": "server/priv/docs/en/guides/features/cache/bazel-cache.md",
-  "translated_at": "2026-11-04T19:01:00.639961Z",
-  "translation_session_id": "01a1a7ed-d243-722d-98cf-76a508145cdd"
+  "translated_at": "2026-11-16T13:37:04.465643Z",
+  "translation_session_id": "01a1e491-e33c-7e49-95e6-d56baa079cc2"
 }

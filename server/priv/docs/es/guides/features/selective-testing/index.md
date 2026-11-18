@@ -2,15 +2,15 @@
 {
   "title": "Tests selectivos",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Ejecuta solo los tests afectados por tus últimos cambios con Tuist Selective Testing, para que la integración continua entregue feedback en segundos."
+  "description": "Ejecuta solo los tests afectados por tus últimos cambios con los tests selectivos de Tuist, para que la integración continua entregue feedback en segundos."
 }
 ---
 # Tests selectivos {#selective-testing}
 
-A medida que los proyectos crecen, ejecutar todos los tests en cada push deja de ser viable. Los tests selectivos de Tuist reducen drásticamente el tiempo de prueba ejecutando solo los tests afectados por lo que ha cambiado desde la última ejecución exitosa, utilizando nuestro <.localized_link href="/guides/features/projects/hashing">algoritmo de hashing</.localized_link>.
+A medida que los proyectos crecen, ejecutar todos los tests en cada push deja de ser viable. Los tests selectivos de Tuist reducen drásticamente el tiempo de ejecución al lanzar solo los tests afectados por los cambios desde la última ejecución exitosa, utilizando nuestro <.localized_link href="/guides/features/projects/hashing">algoritmo de hashing</.localized_link>. Para otras formas de reducir el tiempo de los tests, como el sharding y la optimización de tests lentos, consulta [Slow tests](https://tuist.dev/solutions/slow-tests).
 
 ## Sistemas de compilación compatibles {#supported-build-systems}
 
 - <.localized_link href="/guides/features/selective-testing/generated-xcode-project">Generated Xcode project</.localized_link>
 
-El soporte para otros sistemas de compilación está previsto.
+Está previsto añadir compatibilidad con otros sistemas de compilación.

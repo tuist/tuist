@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f4cd3877affab65584f223f8fbaebf83505ed86e1db8989219ba1dd31eb3d04d",
+  "hash": "9c829e71c620ddc57813b8e52dccaa3f6ceff0a2ca88a1a0266af25bf4ae360a",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,10 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# A build platform for teams and their coding agents": {
-                  "content_hash": "7eb0e0363fd31e10e8b42ed754c672c36b92d26926568877991153699c4ead47"
+                  "content_hash": "7e1b736795c6999c597462b4c0cc71edc7cc769ecc9e743f1d7e3b2c036136c3"
                 },
                 "## Trusted by teams shipping at scale": {
-                  "content_hash": "d0858235af8c9f04c7ee6ff612492e23df54041c7e13f7843c8ac80bab1bebb6"
+                  "content_hash": "e2789d5f81f660e1c7d2acd9991d4c1f3646877306ec89c9241c338da9b5896f"
                 },
                 "Preamble": {
                   "content_hash": "926146e789562547515b77c6d8e209c743f78c922485a790199aab9582052777"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8467e7bddb2200c8bdc8f0f8096dd320b189685903293c7e6919acc8bae164d0",
+          "hash": "be39a12a32d36d7d10d841d314e289dd86fdc387cf8518f1bc23cd8b5dbddb23",
           "kind": "source",
           "label": "server/priv/docs/en/index.md",
           "metadata": {
-            "content_hash": "57ec6af2cb2d36981f49c7b83a6480e3708f44781aebb62b6c3d34cdfead94e8"
+            "content_hash": "e88c3271538050aa084df8da1b9eec0e2cafebbb94042eb410e3a07510891323"
           }
         },
         {
@@ -190,12 +190,6 @@
                   "children": [],
                   "details": {
                     "content_hash": {
-                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
-                        "case_sensitive": false,
-                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
-                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
-                        "translation_hash": "cefc8f720ca2e7c42bb4de2ebd8a95ad94de89aff7eb55a6b9b32b429fd72589"
-                      },
                       "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
                         "case_sensitive": false,
                         "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
@@ -210,16 +204,16 @@
                       }
                     }
                   },
-                  "hash": "dbd489edc48e8f107dea8c6416a58bef406449a76b3e5bd08d95c4dc337df26b",
+                  "hash": "4755f87dc845cc5033fca3db3bed502841bb2c715a15313dc91a3cefb5b0107e",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "336dc49858ef04b7ffb989d96136577c2b6b2dd8ab4e5142cd3ce731260999ae"
+                    "content_hash": "2e07295b3d7fcb66b8f438521b15c122e76a9cf066c626f2656b81fbce2dfa94"
                   }
                 }
               ],
               "details": {},
-              "hash": "8a084682be6bd030508f4beb4ce96f6d403d0654603df1f48c13b51f0d7f0795",
+              "hash": "4c058c5affa0dae1b028be73c2311fa774706f08fb6895b4549c7c7623457659",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -229,21 +223,21 @@
             }
           ],
           "details": {},
-          "hash": "c2cbb8ebdfd29111bd5d0cbc4c51d2326414c7ee8370b5cadedeb9b2ebe00427",
+          "hash": "1f3ad84c99c70bc0c3079c5a6d88053e40cf0cc72fe6826ee4141a93a3ddd008",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "f4cd3877affab65584f223f8fbaebf83505ed86e1db8989219ba1dd31eb3d04d",
+      "hash": "9c829e71c620ddc57813b8e52dccaa3f6ceff0a2ca88a1a0266af25bf4ae360a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/index.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5341ed61af059400d8a25ef7aa762cab5d9606a37d7cb1c5617ed1afd0f578d6",
+  "output_hash": "74524b2509941c6560f996fc099186d49157fdddc9cd783d5db0a61948e20a7e",
   "output_path": "server/priv/docs/ja/index.md",
   "protection_state": "recorded",
   "provider": "",
@@ -252,10 +246,9 @@
     "glossary": {
       "applied": [
         "repo:features",
-        "repo:selective-testing",
-        "repo:tests"
+        "repo:selective-testing"
       ],
-      "content_hash": "336dc49858ef04b7ffb989d96136577c2b6b2dd8ab4e5142cd3ce731260999ae",
+      "content_hash": "2e07295b3d7fcb66b8f438521b15c122e76a9cf066c626f2656b81fbce2dfa94",
       "shadowed": [],
       "version": null
     },
@@ -265,8 +258,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "133ae1d670c385ba3eda13ab57c35702bdebcade",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/index.md",
-  "translated_at": "2026-11-07T12:27:34.406668Z",
-  "translation_session_id": "01a1b5f8-218e-71c9-b4de-6428417a21dd"
+  "translated_at": "2026-11-13T16:44:22.616332Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

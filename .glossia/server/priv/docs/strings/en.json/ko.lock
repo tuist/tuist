@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "433b5d25cd6b9af4b2e0f0242ee989855cd8d8451990751e2a57c1da28fba5cd",
+  "hash": "4080d46c6010c71864cbf21b16e955a8acde92b996a5eabfc7a69a63cc7695b2",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "4407eb5b3b67302324dac4ad7d541e548de990fd0e97507b269e2f8e06a74795"
+                  "content_hash": "b171d88b59a9cb765ce1d2b0ae46ab10046749ed1e261b89ffb6d818e7ce7d88"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "4fe566f1c561a038d1329396dd41d16593ca1d1f56aad1eb5ac99dddd153cba5",
+          "hash": "afe8a6b52c150e76cbffe32971c3839b617cf383720badf25ea1accd7751e70b",
           "kind": "source",
           "label": "server/priv/docs/strings/en.json",
           "metadata": {
-            "content_hash": "8b7dede57a2f2bc45b65df0c962dffa9223a78538f356d4651a0f3239bbc5b23"
+            "content_hash": "0e504ef34c9636d4b40c4b3b2db5756e9b77ce7248cbddac9e7aeac8479b79e4"
           }
         },
         {
@@ -196,6 +196,12 @@
                         "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
                         "translation_hash": "1fe6ff166a50bcb70c5ba123dfcab89dbcf4ae1c383c607d0e0ee290415fef9a"
                       },
+                      "entry:3b51d63ccbd9cb0f30f7122a3b6e4e2de542eb64f8c66c336eeb30a2a5e68ee6": {
+                        "case_sensitive": false,
+                        "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
+                        "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
+                        "translation_hash": "2bd19e83708edc1cba405f83edc8c90da3500603b478377312924f3e63fb1002"
+                      },
                       "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
                         "case_sensitive": false,
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
@@ -204,16 +210,16 @@
                       }
                     }
                   },
-                  "hash": "079756dbb153a9721613f70a415ee53f1360bc4327483206941cbfe82c248d2a",
+                  "hash": "8f5f4dee2c175235d2240c84d27c4b4b8fa6322cb5e2cbc9a863b951c9206d15",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "b03b209d959f09cc773df20c6e8bd5621347e7dd079e28e23a8a07f567efee99"
+                    "content_hash": "10dad07d01bee1df2978cea218d28535983dacf75e8ed224db2b06ac0ba7876f"
                   }
                 }
               ],
               "details": {},
-              "hash": "9954d7fa91bef10a679027c9af048ed2cb3bf6cdd1a73b9db6b2d66ab35db476",
+              "hash": "bde003fcc0bbe6103ba508a60f4cc5746b1423ebb891c6fc312b0907cea0a7dc",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -223,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "0f8766704616d15fa722e87b72aa92cd7cb9b0388c54351976a12b8e7b324d51",
+          "hash": "1c7c46cb832ab89a5d88e6e37bc07eef9857ee365753f46533da3a27e3603974",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "433b5d25cd6b9af4b2e0f0242ee989855cd8d8451990751e2a57c1da28fba5cd",
+      "hash": "4080d46c6010c71864cbf21b16e955a8acde92b996a5eabfc7a69a63cc7695b2",
       "kind": "translation_input",
       "label": "server/priv/docs/strings/en.json",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f6b7520acb3b40a6f2be49662a24a4384dbe40fdddbb6d31268304753f944892",
+  "output_hash": "7cedd322f0592730294df2564d4061cb016dfe822164d0ddb90c9669c913599a",
   "output_path": "server/priv/docs/strings/ko.json",
   "protection_state": "recorded",
   "provider": "",
@@ -246,9 +252,10 @@
     "glossary": {
       "applied": [
         "repo:features",
+        "repo:flaky-tests",
         "repo:tests"
       ],
-      "content_hash": "b03b209d959f09cc773df20c6e8bd5621347e7dd079e28e23a8a07f567efee99",
+      "content_hash": "10dad07d01bee1df2978cea218d28535983dacf75e8ed224db2b06ac0ba7876f",
       "shadowed": [],
       "version": null
     },
@@ -258,8 +265,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
+  "source_commit_sha": "e34c2b2e666a4bef3d175496607e23bf42df9303",
   "source_path": "server/priv/docs/strings/en.json",
-  "translated_at": "2026-11-06T23:30:43.840814Z",
-  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
+  "translated_at": "2026-11-16T17:55:35.083236Z",
+  "translation_session_id": "01a1e574-d38e-783c-a1b1-0830804a21e3"
 }

@@ -18,8 +18,10 @@ msgstr "Language: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "Add new project connection"
 msgstr "Dodaj nowe połączenie projektu"
 
-#: lib/tuist_web/components/amp_integration.ex:233
-#: lib/tuist_web/components/amp_integration.ex:274
+#: lib/tuist_web/components/amp_integration.ex:228
+#: lib/tuist_web/components/amp_integration.ex:269
+#: lib/tuist_web/components/amp_workspaces.ex:214
+#: lib/tuist_web/components/claude_integration.ex:593
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -191,8 +193,11 @@ msgstr "Buildkite"
 msgid "Cluster agent token"
 msgstr "Token agenta klastra"
 
-#: lib/tuist_web/components/amp_integration.ex:129
-#: lib/tuist_web/components/amp_integration.ex:240
+#: lib/tuist_web/components/amp_integration.ex:124
+#: lib/tuist_web/components/amp_integration.ex:235
+#: lib/tuist_web/components/amp_workspaces.ex:221
+#: lib/tuist_web/components/claude_integration.ex:344
+#: lib/tuist_web/components/claude_integration.ex:600
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -213,9 +218,10 @@ msgstr "Połącz z Buildkite"
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr "Utwórz token agenta w sekcji Agent Tokens swojego klastra w Buildkite. Zadania są pobierane z kolejek self-hosted nazwanych zgodnie z profilami runnerów."
 
-#: lib/tuist_web/components/amp_integration.ex:121
-#: lib/tuist_web/components/amp_integration.ex:249
-#: lib/tuist_web/components/amp_integration.ex:281
+#: lib/tuist_web/components/amp_integration.ex:116
+#: lib/tuist_web/components/amp_integration.ex:244
+#: lib/tuist_web/components/amp_integration.ex:276
+#: lib/tuist_web/components/amp_workspaces.ex:133
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #: lib/tuist_web/live/integrations_live.html.heex:997
@@ -233,7 +239,7 @@ msgstr "Slug organizacji"
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr "Uruchamiaj zadania Buildkite na runnerach Tuist. Tuist monitoruje kolejki self-hosted w Twoim klastrze i wykonuje znalezione tam zadania."
 
-#: lib/tuist_web/components/amp_integration.ex:224
+#: lib/tuist_web/components/amp_integration.ex:219
 #: lib/tuist_web/live/integrations_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
@@ -249,7 +255,7 @@ msgstr "Organizacja"
 msgid "Buildkite connection saved."
 msgstr "Połączenie z Buildkite zostało zapisane."
 
-#: lib/tuist_web/components/amp_integration.ex:169
+#: lib/tuist_web/components/amp_integration.ex:164
 #: lib/tuist_web/live/integrations_live.html.heex:656
 #: lib/tuist_web/live/integrations_live.html.heex:722
 #, elixir-autogen, elixir-format
@@ -424,12 +430,12 @@ msgstr "Token dostępu API"
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
 msgstr "Pozwól potokom żądań merge zapisywać wolumeny cache. Wymaga zakresu read_api."
 
-#: lib/tuist_web/components/amp_integration.ex:178
+#: lib/tuist_web/components/amp_integration.ex:173
 #, elixir-autogen, elixir-format
 msgid "Connect Amp"
 msgstr "Połącz Amp"
 
-#: lib/tuist_web/components/amp_integration.ex:207
+#: lib/tuist_web/components/amp_integration.ex:202
 #, elixir-autogen, elixir-format
 msgid "Copy the provider token and paste it below. Tuist will run the provider for this account."
 msgstr "Skopiuj token dostawcy i wklej go poniżej. Tuist uruchomi tego dostawcę dla tego konta."
@@ -439,13 +445,13 @@ msgstr "Skopiuj token dostawcy i wklej go poniżej. Tuist uruchomi tego dostawc�
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
 msgstr "Nie udało się zapisać połączenia. Sprawdź token dostawcy, uprawnienia konta oraz czy ten dostawca nie jest już połączony z innym kontem."
 
-#: lib/tuist_web/components/amp_integration.ex:201
+#: lib/tuist_web/components/amp_integration.ex:196
 #, elixir-autogen, elixir-format
 msgid "In Amp, open Workspace Settings → Orbs and add an Orb provider."
 msgstr "W Amp otwórz Ustawienia obszaru roboczego → Orbs i dodaj dostawcę Orbów."
 
-#: lib/tuist_web/components/amp_integration.ex:161
-#: lib/tuist_web/components/amp_integration.ex:218
+#: lib/tuist_web/components/amp_integration.ex:156
+#: lib/tuist_web/components/amp_integration.ex:213
 #, elixir-autogen, elixir-format
 msgid "Orb provider token"
 msgstr "Token dostawcy Orbów"
@@ -455,17 +461,17 @@ msgstr "Token dostawcy Orbów"
 msgid "You no longer have permission to disconnect this integration."
 msgstr "Nie masz już uprawnień do odłączenia tej integracji."
 
-#: lib/tuist_web/components/amp_integration.ex:114
+#: lib/tuist_web/components/amp_integration.ex:109
 #, elixir-autogen, elixir-format
 msgid "Run your Amp workspace’s Orbs on Tuist sandboxes."
 msgstr "Uruchamiaj Orby swojego obszaru roboczego Amp na piaskownicach Tuist."
 
-#: lib/tuist_web/components/amp_integration.ex:149
+#: lib/tuist_web/components/amp_integration.ex:144
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically."
 msgstr "Tuist nie mógł przygotować ani zatrzymać dostawcy. Ponowna próba zostanie podjęta automatycznie."
 
-#: lib/tuist_web/components/amp_integration.ex:251
+#: lib/tuist_web/components/amp_integration.ex:246
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
 msgstr "To zatrzymuje nowe zadania i wstrzymuje działające Orby tej integracji. Zapisane dyski pozostaną, dopóki ich nie usuniesz. Token przechowywany w Tuist zostanie usunięty."
@@ -675,3 +681,308 @@ msgstr "Ładowanie całych repozytoriów…"
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your Entire and Tuist integration setup."
 msgstr "Twój dostęp do repozytoriów zależy od konfiguracji integracji Entire i Tuist."
+
+#: lib/tuist_web/components/amp_workspaces.ex:143
+#, elixir-autogen, elixir-format
+msgid "Connect an Amp workspace"
+msgstr "Połącz obszar roboczy Amp"
+
+#: lib/tuist_web/components/amp_workspaces.ex:104
+#, elixir-autogen, elixir-format
+msgid "Connect workspace"
+msgstr "Połącz obszar roboczy"
+
+#: lib/tuist_web/components/amp_workspaces.ex:126
+#, elixir-autogen, elixir-format
+msgid "Connected %{time}"
+msgstr "Połączono %{time}"
+
+#: lib/tuist_web/components/amp_workspaces.ex:174
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr "Skopiuj polecenie"
+
+#: lib/tuist_web/components/amp_workspaces.ex:59
+#, elixir-autogen, elixir-format
+msgid "This Amp workspace is already connected."
+msgstr "Ten obszar roboczy Amp jest już połączony."
+
+#: lib/tuist_web/components/amp_workspaces.ex:118
+#, elixir-autogen, elixir-format
+msgid "Workspace %{id}"
+msgstr "Obszar roboczy %{id}"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1201
+#, elixir-autogen, elixir-format
+msgid "Connect your Amp workspaces to Tuist."
+msgstr "Połącz swoje obszary robocze Amp z Tuist."
+
+#: lib/tuist_web/components/amp_workspaces.ex:95
+#, elixir-autogen, elixir-format
+msgid "Let Orbs in your Amp workspaces sign in to Tuist without a stored token. They get CI access, including cache uploads, to every project in this account."
+msgstr "Umożliw Orbs w swoich obszarach roboczych Amp logowanie się do Tuist bez przechowywanego tokenu. Otrzymują dostęp do CI, w tym przesyłanie do cache’u, do każdego projektu na tym koncie."
+
+#: lib/tuist_web/components/amp_integration.ex:107
+#, elixir-autogen, elixir-format
+msgid "Orb provider"
+msgstr "Dostawca Orbs"
+
+#: lib/tuist_web/components/amp_workspaces.ex:93
+#, elixir-autogen, elixir-format
+msgid "Workspace sign-in"
+msgstr "Logowanie do obszaru roboczego"
+
+#: lib/tuist_web/components/amp_workspaces.ex:62
+#, elixir-autogen, elixir-format
+msgid "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-426614174000."
+msgstr "Wprowadź identyfikator obszaru roboczego w formacie UUID, np. 123e4567-e89b-12d3-a456-426614174000."
+
+#: lib/tuist_web/components/amp_workspaces.ex:191
+#: lib/tuist_web/components/claude_integration.ex:497
+#, elixir-autogen, elixir-format
+msgid "Workspace ID"
+msgstr "ID obszaru roboczego"
+
+#: lib/tuist_web/components/amp_workspaces.ex:124
+#, elixir-autogen, elixir-format
+msgid "All projects"
+msgstr "Wszystkie projekty"
+
+#: lib/tuist_web/components/amp_workspaces.ex:65
+#, elixir-autogen, elixir-format
+msgid "Enter the project ID as a UUID, or leave it empty for the whole workspace."
+msgstr "Wprowadź ID projektu jako UUID lub pozostaw puste dla całego obszaru roboczego."
+
+#: lib/tuist_web/components/amp_workspaces.ex:160
+#, elixir-autogen, elixir-format
+msgid "In a thread of the workspace that runs in an Orb, print its workspace and project IDs:"
+msgstr "W wątku obszaru roboczego działającego w Orb wydrukuj jego ID obszaru roboczego i projektu:"
+
+#: lib/tuist_web/components/amp_workspaces.ex:203
+#, elixir-autogen, elixir-format
+msgid "Optional. Leave empty for every project in the workspace."
+msgstr "Opcjonalne. Pozostaw puste dla każdego projektu w obszarze roboczym."
+
+#: lib/tuist_web/components/amp_workspaces.ex:181
+#, elixir-autogen, elixir-format
+msgid "Paste the workspace ID below. Add the project ID to limit access to that Amp project's Orbs. Those Orbs get CI access, including cache uploads, to every project in this account."
+msgstr "Wklej poniżej identyfikator obszaru roboczego. Dodaj identyfikator projektu, aby ograniczyć dostęp do Orbs tego projektu Amp. Te Orbs otrzymują dostęp CI, w tym przesyłanie do pamięci podręcznej, do każdego projektu na tym koncie."
+
+#: lib/tuist_web/components/amp_workspaces.ex:122
+#, elixir-autogen, elixir-format
+msgid "Project %{id}"
+msgstr "Projekt %{id}"
+
+#: lib/tuist_web/components/amp_workspaces.ex:201
+#, elixir-autogen, elixir-format
+msgid "Project ID"
+msgstr "Identyfikator projektu"
+
+#: lib/tuist_web/components/claude_integration.ex:251
+#: lib/tuist_web/components/claude_integration.ex:384
+#, elixir-autogen, elixir-format
+msgid "API key"
+msgstr "Klucz API"
+
+#: lib/tuist_web/components/claude_integration.ex:222
+#, elixir-autogen, elixir-format
+msgid "Anthropic answered %{status}: %{message}"
+msgstr "Anthropic odpowiedział: %{status}: %{message}"
+
+#: lib/tuist_web/components/claude_integration.ex:186
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the request: %{message}"
+msgstr "Anthropic odrzucił żądanie: %{message}"
+
+#: lib/tuist_web/components/claude_integration.ex:469
+#, elixir-autogen, elixir-format
+msgid "Audience"
+msgstr "Odbiorcy"
+
+#: lib/tuist_web/components/claude_integration.ex:374
+#, elixir-autogen, elixir-format
+msgid "Connect Claude Managed Agents"
+msgstr "Połącz Claude Managed Agents"
+
+#: lib/tuist_web/components/claude_integration.ex:345
+#, elixir-autogen, elixir-format
+msgid "Connect environment"
+msgstr "Połącz środowisko"
+
+#: lib/tuist_web/components/claude_integration.ex:601
+#, elixir-autogen, elixir-format
+msgid "Connecting…"
+msgstr "Łączenie…"
+
+#: lib/tuist_web/components/claude_integration.ex:302
+#, elixir-autogen, elixir-format
+msgid "Copy %{label}"
+msgstr "Skopiuj %{label}"
+
+#: lib/tuist_web/components/claude_integration.ex:88
+#, elixir-autogen, elixir-format
+msgid "Could not connect the environment. It may already be connected."
+msgstr "Nie udało się połączyć środowiska. Może być już połączone."
+
+#: lib/tuist_web/components/claude_integration.ex:226
+#, elixir-autogen, elixir-format
+msgid "Could not reach Anthropic. Try again."
+msgstr "Nie udało się połączyć z Anthropic. Spróbuj ponownie."
+
+#: lib/tuist_web/components/claude_integration.ex:558
+#, elixir-autogen, elixir-format
+msgid "Environment ID"
+msgstr "ID środowiska"
+
+#: lib/tuist_web/components/claude_integration.ex:568
+#, elixir-autogen, elixir-format
+msgid "Environment key"
+msgstr "Klucz środowiska"
+
+#: lib/tuist_web/components/claude_integration.ex:525
+#, elixir-autogen, elixir-format
+msgid "Federation rule ID"
+msgstr "ID reguły federacji"
+
+#: lib/tuist_web/components/claude_integration.ex:459
+#, elixir-autogen, elixir-format
+msgid "Issuer URL"
+msgstr "URL wystawcy"
+
+#: lib/tuist_web/components/claude_integration.ex:252
+#, elixir-autogen, elixir-format
+msgid "No credentials"
+msgstr "Brak poświadczeń"
+
+#: lib/tuist_web/components/claude_integration.ex:419
+#, elixir-autogen, elixir-format
+msgid "Open the authentication history"
+msgstr "Otwórz historię uwierzytelniania"
+
+#: lib/tuist_web/components/claude_integration.ex:483
+#, elixir-autogen, elixir-format
+msgid "Organization ID"
+msgstr "ID organizacji"
+
+#: lib/tuist_web/components/claude_integration.ex:576
+#: lib/tuist_web/components/claude_integration.ex:581
+#, elixir-autogen, elixir-format
+msgid "Sandbox shape"
+msgstr "Kształt piaskownicy"
+
+#: lib/tuist_web/components/claude_integration.ex:474
+#, elixir-autogen, elixir-format
+msgid "Scope"
+msgstr "Zakres"
+
+#: lib/tuist_web/components/claude_integration.ex:511
+#, elixir-autogen, elixir-format
+msgid "Service account ID"
+msgstr "ID konta usługi"
+
+#: lib/tuist_web/components/claude_integration.ex:464
+#, elixir-autogen, elixir-format
+msgid "Subject prefix"
+msgstr "Prefiks podmiotu"
+
+#: lib/tuist_web/components/claude_integration.ex:430
+#, elixir-autogen, elixir-format
+msgid "Anthropic API key"
+msgstr "Klucz API Anthropic"
+
+#: lib/tuist_web/components/claude_integration.ex:197
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the API key. Check that you copied all of it."
+msgstr "Anthropic odrzucił klucz API. Sprawdź, czy skopiowano go w całości."
+
+#: lib/tuist_web/components/claude_integration.ex:331
+#, elixir-autogen, elixir-format
+msgid "Run Claude Managed Agents sessions on Tuist sandboxes."
+msgstr "Uruchamiaj sesje Claude Managed Agents w piaskownicach Tuist."
+
+#: lib/tuist_web/components/claude_integration.ex:391
+#, elixir-autogen, elixir-format
+msgid "Federated identity"
+msgstr "Tożsamość federacyjna"
+
+#: lib/tuist_web/components/claude_integration.ex:215
+#, elixir-autogen, elixir-format
+msgid "Anthropic has no environment with this ID in the credential's workspace. Check the ID, and that the credential belongs to the environment's workspace."
+msgstr "Anthropic nie znalazł środowiska o tym identyfikatorze w obszarze roboczym poświadczenia. Sprawdź identyfikator oraz to, czy poświadczenie należy do obszaru roboczego tego środowiska."
+
+#: lib/tuist_web/components/claude_integration.ex:208
+#, elixir-autogen, elixir-format
+msgid "Anthropic refused the federated token. Set the federation rule's scope to workspace:developer."
+msgstr "Anthropic odrzucił token federacyjny. Ustaw zakres reguły federacji na workspace:developer."
+
+#: lib/tuist_web/components/claude_integration.ex:179
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the token. Check that the rule uses the issuer URL and subject prefix above and names this service account. The authentication history in the Claude Console shows the reason."
+msgstr "Anthropic odrzucił token. Sprawdź, czy reguła używa powyższego adresu URL wystawcy i przedrostka tematu oraz wskazuje to konto usługi. Historia uwierzytelniania w konsoli Claude pokazuje przyczynę."
+
+#: lib/tuist_web/components/claude_integration.ex:89
+#, elixir-autogen, elixir-format
+msgid "Could not connect the environment."
+msgstr "Nie można połączyć środowiska."
+
+#: lib/tuist_web/components/claude_integration.ex:436
+#, elixir-autogen, elixir-format
+msgid "Needs the developer role in the environment's workspace. Stored encrypted. Use a federated identity for environments you rely on."
+msgstr "Wymaga roli developera w przestrzeni roboczej środowiska. Przechowywane w zaszyfrowanej formie. Użyj tożsamości federacyjnej dla środowisk, na których polegasz."
+
+#: lib/tuist_web/components/claude_integration.ex:540
+#, elixir-autogen, elixir-format
+msgid "Self-hosted environment"
+msgstr "Środowisko self-hosted"
+
+#: lib/tuist_web/components/claude_integration.ex:201
+#, elixir-autogen, elixir-format
+msgid "This API key cannot read the environment. Use a key with the developer role in the environment's workspace."
+msgstr "Ten klucz API nie ma uprawnień do odczytu środowiska. Użyj klucza z rolą developera w przestrzeni roboczej środowiska."
+
+#: lib/tuist_web/components/claude_integration.ex:190
+#, elixir-autogen, elixir-format
+msgid "This environment is not self-hosted. Create a self-hosted environment in the Claude Console."
+msgstr "To środowisko nie jest self-hosted. Utwórz środowisko self-hosted w Claude Console."
+
+#: lib/tuist_web/components/claude_integration.ex:109
+#: lib/tuist_web/components/claude_integration.ex:121
+#, elixir-autogen, elixir-format
+msgid "can't be blank"
+msgstr "nie może być puste"
+
+#: lib/tuist_web/components/claude_integration.ex:551
+#, elixir-autogen, elixir-format
+msgid "Claude Console"
+msgstr "Claude Console"
+
+#: lib/tuist_web/components/claude_integration.ex:544
+#, elixir-autogen, elixir-format
+msgid "Create one in the %{link}, open it and click Generate environment key."
+msgstr "Utwórz go w %{link}, otwórz i kliknij Generate environment key."
+
+#: lib/tuist_web/components/claude_integration.ex:447
+#, elixir-autogen, elixir-format
+msgid "In %{link}, connect a Custom OIDC workload with these values and add its service account to the environment's workspace."
+msgstr "W %{link} połącz niestandardowe obciążenie OIDC z tymi wartościami i dodaj jego konto usługi do przestrzeni roboczej środowiska."
+
+#: lib/tuist_web/components/claude_integration.ex:454
+#, elixir-autogen, elixir-format
+msgid "Workload identity"
+msgstr "Tożsamość obciążenia"
+
+#: lib/tuist_web/components/claude_integration.ex:485
+#, elixir-autogen, elixir-format
+msgid "Settings → Organization in the Claude Console."
+msgstr "Ustawienia → Organizacja w konsoli Claude."
+
+#: lib/tuist_web/components/claude_integration.ex:499
+#, elixir-autogen, elixir-format
+msgid "Settings → Workspaces in the Claude Console. Use the workspace that runs the environment."
+msgstr "Ustawienia → Obszary robocze w konsoli Claude. Użyj obszaru roboczego, który uruchamia środowisko."
+
+#: lib/tuist_web/components/claude_integration.ex:513
+#: lib/tuist_web/components/claude_integration.ex:527
+#, elixir-autogen, elixir-format
+msgid "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
+msgstr "Wyświetlane po zakończeniu zadania Connect oraz na stronie reguły federacji w sekcji Tożsamość obciążenia."

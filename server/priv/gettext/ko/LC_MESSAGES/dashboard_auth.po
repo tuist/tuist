@@ -100,7 +100,7 @@ msgstr "프로젝트를 대시보드에 연결"
 msgid "Connection successful"
 msgstr "연결 성공"
 
-#: lib/tuist_web/live/sso_login_live.ex:112
+#: lib/tuist_web/live/sso_login_live.ex:116
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "문의하기"
@@ -118,15 +118,15 @@ msgstr "계속"
 msgid "Dashboard"
 msgstr "대시보드"
 
-#: lib/tuist_web/live/user_login_live.ex:256
+#: lib/tuist_web/live/user_login_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr "계정이 없으신가요?"
 
-#: lib/tuist_web/live/sso_login_live.ex:95
+#: lib/tuist_web/live/sso_login_live.ex:99
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
 #: lib/tuist_web/live/user_forgot_password_live.ex:53
-#: lib/tuist_web/live/user_login_live.ex:144
+#: lib/tuist_web/live/user_login_live.ex:177
 #: lib/tuist_web/live/user_registration_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -142,7 +142,7 @@ msgstr "이미 사용 중인 이메일입니다."
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
 msgstr "바이너리 캐싱과 선택적 테스팅 같은 Tuist 기능을 탐색하여 개발 속도를 높이세요."
 
-#: lib/tuist_web/live/user_login_live.ex:178
+#: lib/tuist_web/live/user_login_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr "비밀번호를 잊으셨나요?"
@@ -168,31 +168,31 @@ msgstr "Tuist CLI 설치"
 msgid "Instantly share your app using a URL."
 msgstr "URL을 통해 앱을 즉시 공유하세요."
 
-#: lib/tuist_web/live/sso_login_live.ex:107
+#: lib/tuist_web/live/sso_login_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "SSO에 관심이 있으신가요?"
 
-#: lib/tuist_web/live/user_login_live.ex:171
+#: lib/tuist_web/live/user_login_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr "로그인 상태 유지"
 
-#: lib/tuist_web/live/sso_login_live.ex:103
-#: lib/tuist_web/live/user_login_live.ex:20
-#: lib/tuist_web/live/user_login_live.ex:194
+#: lib/tuist_web/live/sso_login_live.ex:107
+#: lib/tuist_web/live/user_login_live.ex:21
+#: lib/tuist_web/live/user_login_live.ex:227
 #: lib/tuist_web/live/user_registration_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "로그인"
 
-#: lib/tuist_web/live/sso_login_live.ex:78
-#: lib/tuist_web/live/user_login_live.ex:52
+#: lib/tuist_web/live/sso_login_live.ex:82
+#: lib/tuist_web/live/user_login_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr "Tuist에 로그인"
 
-#: lib/tuist_web/live/sso_login_live.ex:80
+#: lib/tuist_web/live/sso_login_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr "SSO를 통해 엔터프라이즈 계정에 로그인"
@@ -213,7 +213,7 @@ msgstr "다음 단계"
 msgid "OR"
 msgstr "또는"
 
-#: lib/tuist_web/live/user_login_live.ex:156
+#: lib/tuist_web/live/user_login_live.ex:189
 #: lib/tuist_web/live/user_registration_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Password"
@@ -256,7 +256,7 @@ msgstr "이 명령어를 실행하여 프로젝트를 대시보드에 연결하�
 msgid "Selective testing"
 msgstr "선택적 테스팅"
 
-#: lib/tuist_web/live/user_login_live.ex:261
+#: lib/tuist_web/live/user_login_live.ex:265
 #: lib/tuist_web/live/user_registration_live.ex:233
 #: lib/tuist_web/live/user_registration_live.ex:315
 #, elixir-autogen, elixir-format
@@ -281,11 +281,11 @@ msgstr "Tuist CLI가 연결되었습니다!"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:20
-#: lib/tuist_web/live/sso_login_live.ex:72
+#: lib/tuist_web/live/sso_login_live.ex:76
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
 #: lib/tuist_web/live/user_forgot_password_live.ex:24
-#: lib/tuist_web/live/user_login_live.ex:46
+#: lib/tuist_web/live/user_login_live.ex:48
 #: lib/tuist_web/live/user_registration_live.ex:102
 #: lib/tuist_web/live/user_registration_live.ex:260
 #: lib/tuist_web/live/user_reset_password_live.ex:24
@@ -342,7 +342,7 @@ msgstr "연결 대기 중"
 msgid "We'll send a password reset link to your inbox"
 msgstr "비밀번호 재설정 링크를 이메일로 보내드립니다"
 
-#: lib/tuist_web/live/user_login_live.ex:54
+#: lib/tuist_web/live/user_login_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please log in to continue"
 msgstr "돌아오신 것을 환영합니다! 계속하려면 로그인하세요"
@@ -424,7 +424,7 @@ msgstr "서비스 약관"
 msgid "and"
 msgstr "및"
 
-#: lib/tuist_web/live/user_login_live.ex:251
+#: lib/tuist_web/live/user_login_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr "테스트 사용자로 로그인"
@@ -434,17 +434,17 @@ msgstr "테스트 사용자로 로그인"
 msgid "Choose a username for your account"
 msgstr "계정용 사용자 이름 선택"
 
-#: lib/tuist_web/live/user_login_live.ex:108
+#: lib/tuist_web/live/user_login_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Log in with SSO"
 msgstr "SSO로 로그인"
 
-#: lib/tuist_web/live/sso_login_live.ex:57
+#: lib/tuist_web/live/sso_login_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr "이 이메일에 대해 구성된 SSO 조직이 없습니다. 주소를 확인하고 조직 관리자에게 SSO 도메인 설정을 검증해 달라고 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:709
+#: lib/tuist_web/controllers/auth_controller.ex:776
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr "이 이메일을 사용하는 계정이 이미 존재합니다. 대신 로그인하세요."
@@ -480,7 +480,7 @@ msgstr "%{email}로 새 확인 링크를 보냅니다."
 msgid "Your email isn't confirmed yet"
 msgstr "이메일이 아직 확인되지 않았습니다"
 
-#: lib/tuist_web/controllers/user_session_controller.ex:65
+#: lib/tuist_web/controllers/user_session_controller.ex:67
 #: lib/tuist_web/live/choose_username_live.ex:162
 #: lib/tuist_web/live/user_registration_live.ex:391
 #, elixir-autogen, elixir-format
@@ -511,6 +511,9 @@ msgstr "가입 시도가 너무 많습니다. 나중에 다시 시도하세요."
 msgid "Your session has expired. Please reload the page and try again."
 msgstr "세션이 만료되었습니다. 페이지를 새로 고침하고 다시 시도하세요."
 
+#: lib/tuist_web/components/user_security.ex:206
+#: lib/tuist_web/components/user_security.ex:253
+#: lib/tuist_web/live/authentication_settings_live.html.heex:154
 #: lib/tuist_web/live/choose_username_live.ex:251
 #: lib/tuist_web/live/choose_username_live.ex:279
 #: lib/tuist_web/live/choose_username_live.ex:290
@@ -554,7 +557,7 @@ msgstr "인증에 실패했습니다. 다시 시도해 주세요."
 msgid "Verify you're human"
 msgstr "사람인지 확인하세요"
 
-#: lib/tuist_web/controllers/auth_controller.ex:80
+#: lib/tuist_web/controllers/auth_controller.ex:104
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
 msgstr "Google 로그인을 완료할 수 없습니다. 다시 로그인해 보세요."
@@ -564,15 +567,17 @@ msgstr "Google 로그인을 완료할 수 없습니다. 다시 로그인해 보�
 msgid "Already linked"
 msgstr "이미 연결됨"
 
+#: lib/tuist_web/components/user_security.ex:86
+#: lib/tuist_web/components/user_security.ex:144
+#: lib/tuist_web/components/user_security.ex:225
+#: lib/tuist_web/components/user_security.ex:278
 #: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:189
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:58
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:72
-#: lib/tuist_web/live/user_security_settings_live.html.heex:106
-#: lib/tuist_web/live/user_security_settings_live.html.heex:198
-#: lib/tuist_web/live/user_security_settings_live.html.heex:264
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:61
+#: lib/tuist_web/live/authentication_settings_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "취소"
@@ -602,7 +607,7 @@ msgstr "단일 로그인 연결 · Tuist"
 msgid "Link single sign-on?"
 msgstr "단일 로그인을 연결하시겠습니까?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:515
+#: lib/tuist_web/controllers/auth_controller.ex:582
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr "조직의 단일 로그인과 연동하려면 Tuist 계정에 로그인하세요."
@@ -722,7 +727,7 @@ msgstr "%{provider}에 연결할 Tuist 조직을 선택하세요."
 msgid "You need administrator access to connect an integration."
 msgstr "연결을 설정하려면 관리자 권한이 필요합니다."
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
 msgstr "여러 조직에서 이 로그인 도메인을 사용합니다. 조직의 SSO 로그인 링크를 사용하거나 관리자에게 문의하여 DNS로 도메인을 검증하세요."
@@ -763,14 +768,15 @@ msgid "Speed up CI by testing only what changed."
 msgstr "변경된 부분만 테스트하여 CI 속도를 높이세요."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:121
+#: lib/tuist_web/live/authentication_settings_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Authentication code"
 msgstr "인증 코드"
 
+#: lib/tuist_web/components/user_security.ex:213
+#: lib/tuist_web/components/user_security.ex:266
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:42
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:36
-#: lib/tuist_web/live/user_security_settings_live.html.heex:187
-#: lib/tuist_web/live/user_security_settings_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Authentication or recovery code"
 msgstr "인증 또는 복구 코드"
@@ -785,10 +791,9 @@ msgstr "로그인으로 돌아가기"
 msgid "Cancel setup"
 msgstr "설정 취소"
 
+#: lib/tuist_web/components/user_security.ex:241
+#: lib/tuist_web/components/user_security.ex:286
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:166
-#: lib/tuist_web/live/user_security_settings_live.html.heex:231
-#: lib/tuist_web/live/user_security_settings_live.html.heex:237
-#: lib/tuist_web/live/user_security_settings_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Disable two-factor authentication"
 msgstr "2단계 인증 비활성화"
@@ -809,18 +814,19 @@ msgid "I saved my recovery codes"
 msgstr "복구 코드를 저장했습니다"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:4
-#: lib/tuist_web/live/user_security_settings_live.html.heex:11
+#: lib/tuist_web/live/user_security_settings_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Protect your account with an authenticator app and recovery codes."
 msgstr "인증 앱과 복구 코드로 계정을 보호하세요."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:2
+#: lib/tuist_web/live/authentication_settings_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Save your recovery codes"
 msgstr "복구 코드 저장"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:172
-#: lib/tuist_web/live/user_security_settings_live.html.heex:222
+#: lib/tuist_web/live/user_security_settings_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Set up authenticator app"
 msgstr "인증 앱 설정"
@@ -857,53 +863,52 @@ msgstr "패스키가 추가되었습니다."
 msgid "Passkey removed."
 msgstr "패스키가 제거되었습니다."
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:178
+#: lib/tuist_web/controllers/user_passkey_controller.ex:179
 #, elixir-autogen, elixir-format
 msgid "Remove a passkey before adding another one."
 msgstr "다른 패스키를 추가하려면 기존 패스키를 먼저 제거하세요."
 
 #: lib/tuist_web/controllers/user_mfa_controller.ex:199
-#: lib/tuist_web/controllers/user_passkey_controller.ex:145
-#: lib/tuist_web/controllers/user_passkey_controller.ex:182
+#: lib/tuist_web/controllers/user_passkey_controller.ex:146
+#: lib/tuist_web/controllers/user_passkey_controller.ex:183
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be verified. Try again."
 msgstr "패스키를 확인할 수 없습니다. 다시 시도하세요."
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:180
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:47
+#: lib/tuist_web/controllers/user_passkey_controller.ex:181
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:37
+#: lib/tuist_web/live/authentication_settings_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
 msgstr "이 패스키는 이미 등록되어 있습니다."
 
-#: lib/tuist_web/authentication.ex:789
+#: lib/tuist_web/authentication.ex:837
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr "각 조직마다 자체 단일 사인온(SSO)이 필요하므로, 이 세션으로는 Tuist CLI, 앱 또는 MCP 클라이언트에 로그인할 수 없습니다. 조직 관리자에게 도움을 요청하세요."
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:2
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:61
-#: lib/tuist_web/live/user_security_settings_live.html.heex:38
+#: lib/tuist_web/live/user_security_settings_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Add a passkey"
 msgstr "패스키 추가"
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:44
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:34
+#: lib/tuist_web/live/authentication_settings_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Adding the passkey was cancelled."
 msgstr "패스키 추가가 취소되었습니다."
 
-#: lib/tuist_web/live/user_login_live.ex:222
+#: lib/tuist_web/live/user_login_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Log in with a passkey"
 msgstr "패스키로 로그인"
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:34
-#: lib/tuist_web/live/user_security_settings_live.html.heex:89
+#: lib/tuist_web/components/user_security.ex:75
 #, elixir-autogen, elixir-format
 msgid "Passkey name"
 msgstr "패스키 이름"
 
-#: lib/tuist_web/live/user_login_live.ex:231
+#: lib/tuist_web/live/user_login_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "Passkey sign-in was cancelled."
 msgstr "패스키 로그인이 취소되었습니다."
@@ -918,29 +923,26 @@ msgstr "패스키 인증이 취소되었습니다."
 msgid "Passkeys"
 msgstr "패스키"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:126
+#: lib/tuist_web/components/user_security.ex:48
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "제거"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:127
-#, elixir-autogen, elixir-format
-msgid "Remove %{name}"
-msgstr "%{name} 제거"
-
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:45
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:35
+#: lib/tuist_web/live/authentication_settings_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be added. Try again."
 msgstr "패스키를 추가할 수 없습니다. 다시 시도하세요."
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:32
-#: lib/tuist_web/live/user_login_live.ex:232
+#: lib/tuist_web/live/user_login_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The passkey could not be used. Try again."
 msgstr "패스키를 사용할 수 없습니다. 다시 시도하세요."
 
 #: lib/tuist_web/controllers/user_mfa_html/challenge.html.heex:33
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:49
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:39
+#: lib/tuist_web/live/authentication_settings_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "This browser does not support passkeys."
 msgstr "이 브라우저는 패스키를 지원하지 않습니다."
@@ -950,7 +952,7 @@ msgstr "이 브라우저는 패스키를 지원하지 않습니다."
 msgid "Use a passkey"
 msgstr "패스키 사용"
 
-#: lib/tuist_web/controllers/auth_controller.ex:420
+#: lib/tuist_web/controllers/auth_controller.ex:489
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Log in with its email and password instead."
 msgstr "해당 이메일로 등록된 계정이 이미 존재합니다. 대신 해당 이메일과 비밀번호로 로그인하세요."
@@ -976,7 +978,7 @@ msgstr "사용 중인 터미널의 코드만 입력하세요. 다른 사람이 �
 msgid "Sign in"
 msgstr "로그인"
 
-#: lib/tuist_web/controllers/auth_controller.ex:602
+#: lib/tuist_web/controllers/auth_controller.ex:669
 #: lib/tuist_web/live/device_authorization_live.ex:19
 #, elixir-autogen, elixir-format
 msgid "Sign in to Tuist"
@@ -997,7 +999,7 @@ msgstr "Tuist CLI에 로그인하시겠습니까?"
 msgid "Sign in to the Tuist app?"
 msgstr "Tuist 앱에 로그인하시겠습니까?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:650
+#: lib/tuist_web/controllers/auth_controller.ex:717
 #: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Sign-in link expired"
@@ -1008,7 +1010,7 @@ msgstr "로그인 링크가 만료되었습니다"
 msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
 msgstr "로그인을 시작하면 해당 사용자가 귀하의 Tuist 계정에 접근할 수 있습니다. 직접 시작한 것이 아니라면 취소하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:632
+#: lib/tuist_web/controllers/auth_controller.ex:699
 #, elixir-autogen, elixir-format
 msgid "That code is incorrect or has expired. Check it and try again."
 msgstr "코드가 올바르지 않거나 만료되었습니다. 확인 후 다시 시도하세요."
@@ -1018,23 +1020,19 @@ msgstr "코드가 올바르지 않거나 만료되었습니다. 확인 후 다�
 msgid "This sign-in link has expired or was already used. Start the sign-in again."
 msgstr "이 로그인 링크는 만료되었거나 이미 사용되었습니다. 로그인을 다시 시작하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:638
+#: lib/tuist_web/controllers/auth_controller.ex:705
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Wait a few minutes and try again."
 msgstr "시도 횟수가 너무 많습니다. 몇 분 후 다시 시도하세요."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:151
-#, elixir-autogen, elixir-format
-msgid "%{count} recovery code remaining."
-msgid_plural "%{count} recovery codes remaining."
-msgstr[0] "남은 복구 코드 %{count}개"
-
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:56
+#: lib/tuist_web/live/authentication_settings_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Authenticator setup QR code"
 msgstr "인증 앱 설정 QR 코드"
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:59
+#: lib/tuist_web/live/authentication_settings_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Can't scan the QR code?"
 msgstr "QR 코드를 스캔할 수 없나요?"
@@ -1070,17 +1068,17 @@ msgid "Enter this setup key in your authenticator app."
 msgstr "인증 앱에 이 설정 키를 입력하세요."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:163
-#: lib/tuist_web/live/user_security_settings_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Generate new recovery codes"
 msgstr "새 복구 코드 생성"
 
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:51
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:41
+#: lib/tuist_web/live/authentication_settings_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "JavaScript is required to use passkeys."
 msgstr "패스키를 사용하려면 JavaScript가 필요합니다."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:58
+#: lib/tuist_web/components/user_security.ex:23
 #, elixir-autogen, elixir-format
 msgid "Never used"
 msgstr "사용 기록 없음"
@@ -1095,17 +1093,18 @@ msgstr "패스키 이름이 변경되었습니다."
 msgid "Recovery codes copied"
 msgstr "복구 코드 복사됨"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:161
-#: lib/tuist_web/live/user_security_settings_live.html.heex:167
+#: lib/tuist_web/components/user_security.ex:188
 #, elixir-autogen, elixir-format
 msgid "Regenerate recovery codes"
 msgstr "복구 코드 다시 생성"
 
+#: lib/tuist_web/components/user_security.ex:104
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Remove %{name} from your Tuist account."
 msgstr "Tuist 계정에서 %{name} 제거."
 
+#: lib/tuist_web/components/user_security.ex:152
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Remove passkey"
@@ -1116,20 +1115,16 @@ msgstr "패스키 제거"
 msgid "Remove passkey · Tuist"
 msgstr "패스키 제거 · Tuist"
 
+#: lib/tuist_web/components/user_security.ex:102
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Remove passkey?"
 msgstr "패스키를 제거하시겠습니까?"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:70
+#: lib/tuist_web/components/user_security.ex:40
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "이름 변경"
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:71
-#, elixir-autogen, elixir-format
-msgid "Rename %{name}"
-msgstr "%{name} 이름 변경"
 
 #: lib/tuist_web/controllers/user_reset_password_controller.ex:23
 #, elixir-autogen, elixir-format
@@ -1137,6 +1132,7 @@ msgid "Reset password link is invalid or it has expired."
 msgstr "비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:65
+#: lib/tuist_web/live/authentication_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Setup key"
 msgstr "설정 키"
@@ -1146,11 +1142,12 @@ msgstr "설정 키"
 msgid "Setup key copied"
 msgstr "설정 키가 복사되었습니다."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:41
+#: lib/tuist_web/live/user_security_settings_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "You haven't added any passkeys yet."
 msgstr "아직 패스키를 추가하지 않았습니다."
 
+#: lib/tuist_web/components/user_security.ex:121
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Your other sessions will be signed out"
@@ -1161,12 +1158,7 @@ msgstr "다른 세션에서 로그아웃됩니다."
 msgid "Add a passkey · Tuist"
 msgstr "패스키 추가 · Tuist"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:48
-#, elixir-autogen, elixir-format
-msgid "Added"
-msgstr "추가됨"
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:136
+#: lib/tuist_web/live/user_security_settings_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Authenticator app"
 msgstr "인증 앱"
@@ -1176,35 +1168,25 @@ msgstr "인증 앱"
 msgid "Enter an authentication or recovery code to confirm this change."
 msgstr "변경 사항을 확인하려면 인증 코드 또는 복구 코드를 입력하세요."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:56
+#: lib/tuist_web/components/user_security.ex:18
 #, elixir-autogen, elixir-format
 msgid "Last used"
 msgstr "마지막 사용"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:149
-#, elixir-autogen, elixir-format
-msgid "Recovery codes"
-msgstr "복구 코드"
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:64
+#: lib/tuist_web/components/user_security.ex:59
 #, elixir-autogen, elixir-format
 msgid "Rename passkey"
 msgstr "패스키 이름 변경"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:116
+#: lib/tuist_web/components/user_security.ex:94
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "저장"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:244
+#: lib/tuist_web/components/user_security.ex:257
 #, elixir-autogen, elixir-format
 msgid "Your account will no longer require an authenticator code at sign-in."
 msgstr "로그인 시 더 이상 인증기 코드가 필요하지 않습니다."
-
-#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:35
-#, elixir-autogen, elixir-format
-msgid "For example, 1Password"
-msgstr "예: 1Password"
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:14
 #, elixir-autogen, elixir-format
@@ -1217,39 +1199,39 @@ msgid "Open the browser extension, select your Tuist login, then choose Scan 2FA
 msgstr "브라우저 확장 프로그램을 열고 Tuist 로그인 정보를 선택한 다음, 점 세 개 메뉴에서 2FA QR 코드 스캔을 선택하세요. 저장한 후 생성된 코드를 입력하세요."
 
 #: lib/tuist_web/controllers/user_mfa_html/recovery.html.heex:4
+#: lib/tuist_web/live/authentication_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Save these codes somewhere safe. You won't see them again."
 msgstr "이 코드들은 안전한 곳에 보관하세요. 다시 볼 수 없습니다."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:46
+#: lib/tuist_web/live/authentication_settings_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Scan the QR code, then enter the six-digit code."
 msgstr "QR 코드를 스캔한 후 여섯 자리 코드를 입력하세요."
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:6
+#: lib/tuist_web/live/user_security_settings_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Sign in without a password."
 msgstr "비밀번호 없이 로그인하세요."
 
+#: lib/tuist_web/components/user_security.ex:127
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "The saved credential will remain in your password manager or on your security key."
 msgstr "저장된 자격 증명은 비밀번호 관리자 또는 보안 키에 남아 있습니다."
 
+#: lib/tuist_web/components/user_security.ex:121
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "This browser stays signed in."
 msgstr "이 브라우저는 로그인 상태를 유지합니다."
 
+#: lib/tuist_web/components/user_security.ex:133
 #: lib/tuist_web/controllers/user_passkey_html/confirm_delete.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "This is your last passkey. Make sure you can sign in another way, or set a password using password reset first."
 msgstr "마지막 패스키입니다. 다른 방법으로 로그인할 수 있는지 확인하거나, 먼저 비밀번호 재설정을 통해 비밀번호를 설정하세요."
-
-#: lib/tuist_web/live/user_security_settings_live.html.heex:95
-#, elixir-autogen, elixir-format
-msgid "This name is only used in Tuist."
-msgstr "이 이름은 Tuist에서만 사용됩니다."
 
 #: lib/tuist_web/controllers/user_mfa_html/settings.html.heex:103
 #, elixir-autogen, elixir-format
@@ -1266,17 +1248,17 @@ msgstr "비밀번호 관리자나 보안 키를 사용하세요."
 msgid "Using 1Password?"
 msgstr "1Password를 사용하시나요?"
 
-#: lib/tuist_web/live/user_security_settings_live.html.heex:178
+#: lib/tuist_web/components/user_security.ex:190
 #, elixir-autogen, elixir-format
 msgid "Your old codes will stop working and other sessions will be signed out."
 msgstr "이전 코드는 더 이상 작동하지 않으며 다른 세션은 로그아웃됩니다."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:78
+#: lib/tuist_web/controllers/sso_link_html.ex:80
 #, elixir-autogen, elixir-format
 msgid "Sign in again"
 msgstr "다시 로그인"
 
-#: lib/tuist_web/controllers/user_passkey_controller.ex:176
+#: lib/tuist_web/controllers/user_passkey_controller.ex:177
 #, elixir-autogen, elixir-format
 msgid "Sign in again to continue changing passkeys."
 msgstr "패스키 변경을 계속하려면 다시 로그인하세요."
@@ -1286,7 +1268,76 @@ msgstr "패스키 변경을 계속하려면 다시 로그인하세요."
 msgid "Sign in again to continue changing two-factor authentication."
 msgstr "2단계 인증 변경을 계속하려면 다시 로그인하세요."
 
-#: lib/tuist_web/controllers/sso_link_html.ex:63
+#: lib/tuist_web/controllers/sso_link_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "To protect your account, confirm your identity before changing security settings. You'll return here after signing in."
 msgstr "계정을 보호하기 위해 보안 설정을 변경하기 전에 신원을 확인하세요. 로그인 후 이 페이지로 돌아옵니다."
+
+#: lib/tuist_web/live/user_security_settings_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Back to authentication settings"
+msgstr "인증 설정으로 돌아가기"
+
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:2
+#: lib/tuist_web/controllers/user_passkey_html/settings.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Create a passkey"
+msgstr "패스키 생성"
+
+#: lib/tuist_web/components/user_security.ex:36
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "작업"
+
+#: lib/tuist_web/components/user_security.ex:15
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr "생성일"
+
+#: lib/tuist_web/components/user_security.ex:12
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "이름"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:48
+#: lib/tuist_web/live/authentication_settings_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Add passkey"
+msgstr "패스키 추가"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "XXXXXX"
+msgstr "XXXXXX"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr "활성화"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:103
+#: lib/tuist_web/live/authentication_settings_live.html.heex:111
+#: lib/tuist_web/live/authentication_settings_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Enable 2FA"
+msgstr "2FA 활성화"
+
+#: lib/tuist_web/components/user_security.ex:180
+#, elixir-autogen, elixir-format
+msgid "Disable"
+msgstr "비활성화"
+
+#: lib/tuist_web/components/user_security.ex:233
+#, elixir-autogen, elixir-format
+msgid "Generate"
+msgstr "생성"
+
+#: lib/tuist_web/components/user_security.ex:173
+#, elixir-autogen, elixir-format
+msgid "Regenerate"
+msgstr "재생성"
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Manage 2FA"
+msgstr "2FA 관리"

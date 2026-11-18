@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3ebb8f8a1d672ed6c5e4f36e61fa6f8e535acad260e39b5fb8cc7b7ad9cf08d2",
+  "hash": "6e6d443e70dbc3f91a72025e577622d8569d7d68e6a740ec5836a21c30711de0",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Runners {#runners}": {
-                  "content_hash": "0087a89d312a6055136512462044e75c27dc727e5af8491e0e8113d6557078d6"
+                  "content_hash": "8a1c476309105464bcad39d3c64728ceac589261fff1de6f7536db77929caabb"
                 },
                 "## Android emulators on Linux {#android-emulators}": {
                   "content_hash": "c5b3f0c44f3ae89ad3017cd5e8879236d42c2fdb555fd5809c538e1347b2d530"
                 },
                 "## Concurrency limits {#concurrency-limits}": {
-                  "content_hash": "4d8483ac9ba28468a47f3a8dcf8ff7a078b65b55bf925e0ba5ba185d0de5d5b1"
+                  "content_hash": "2b786f231d3dd332dc592ba9c7fd19056e9780e50c7a10e140cf0fed68207cb6"
                 },
                 "## Network access {#network-access}": {
                   "content_hash": "a3f2fe175b1ade9247b332af8c968ceff1e8aa764ba714f603cd971c205b0108"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1cfaa4ab9b634b506e9e7a58a3ebb94aee941e81c8257fda69e978f1c3092136",
+          "hash": "2311699f6555f8ed1b7c256157492e647cba234166506f6d1c5a0cd4fae16f65",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners.md",
           "metadata": {
-            "content_hash": "87e8647a65c53d542eb49d7ab2f5cd496b3d8fdd0cd064bc971af2947ebd082b"
+            "content_hash": "8c09c4393bf04e7bfad130ed5dbb90aea475dabc59808791c22223df01b6be19"
           }
         },
         {
@@ -242,14 +242,14 @@
         }
       ],
       "details": {},
-      "hash": "3ebb8f8a1d672ed6c5e4f36e61fa6f8e535acad260e39b5fb8cc7b7ad9cf08d2",
+      "hash": "6e6d443e70dbc3f91a72025e577622d8569d7d68e6a740ec5836a21c30711de0",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f8d27abca556de5971576ee0b22805382f3cf85e82135e0636899d3a62bb974d",
+  "output_hash": "737c0fc1860f407cd3ee8defe353118eeb2335c4bf04ba7aeb4c894c7a2ef4ba",
   "output_path": "server/priv/docs/ru/guides/features/runners.md",
   "protection_state": "recorded",
   "provider": "",
@@ -270,8 +270,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "f4372862fbe5b1120597032774ba41e23dbe9371",
   "source_path": "server/priv/docs/en/guides/features/runners.md",
-  "translated_at": "2026-11-06T19:06:05.134601Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-16T15:46:17.309163Z",
+  "translation_session_id": "01a1e507-1753-7bab-8bc4-faf5170d401b"
 }

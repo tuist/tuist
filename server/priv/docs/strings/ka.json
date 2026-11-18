@@ -4,7 +4,7 @@
       "builds": { "text": "ბილდები" },
       "tests": { "text": "ტესტები" },
       "compute": { "text": "გამოთვლები" },
-      "bundles": { "text": "პაკეტები" },
+      "bundles": { "text": "ბანდლები" },
       "other-features": { "text": "სხვა ფუნქციები" }
     },
     "items": {
@@ -14,7 +14,7 @@
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel ქეში" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "აწყობა და გამოქვეყნება" },
+      "build-and-publish": { "text": "ბილდი და გამოქვეყნება" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "ქეშის ტომები" },
       "calendar": { "text": "კალენდარი" },
@@ -22,7 +22,7 @@
       "claude": { "text": "Claude" },
       "compatibility": { "text": "თავსებადობა" },
       "coverage": { "text": "დაფარვა" },
-      "data-retention": { "text": "მონაცემთა შენახვა" },
+      "data-retention": { "text": "მონაცემების შენახვა" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir ქეში" },
@@ -31,26 +31,26 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "implicit-dependencies": { "text": "იარლიყებული დამოკიდებულებები" },
+      "implicit-dependencies": { "text": "იმპლიციტური დამოკიდებულებები" },
       "iphone-app": { "text": "iPhone აპლიკაცია" },
       "macos-app": { "text": "macOS აპლიკაცია" },
       "new-project": { "text": "ახალი პროექტი" },
       "once": { "text": "Once" },
       "once-cache": { "text": "Once ქეში" },
       "once-project": { "text": "Once პროექტი" },
-      "once-remote-execution": { "text": "Once დაშორებული შესრულება" },
+      "once-remote-execution": { "text": "Once დისტანციური შესრულება" },
       "origin": { "text": "Origin" },
       "profiles": { "text": "პროფილები" },
       "project-description": { "text": "პროექტის აღწერა" },
       "release": { "text": "რელიზი" },
       "release-calendar": { "text": "რელიზების კალენდარი" },
-      "release-channels": { "text": "რელიზების არხები" },
-      "run-previews": { "text": "პრევიუს გაშვება" },
+      "release-channels": { "text": "რელიზის არხები" },
+      "run-previews": { "text": "პრივიუების გაშვება" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust ქეში" },
       "rust-project": { "text": "Rust პროექტი" },
       "sandboxes": { "text": "სენდბოქსები" },
-      "scim-provisioning": { "text": "SCIM მომარაგება" },
+      "scim-provisioning": { "text": "SCIM პროვიზინგი" },
       "server-api": { "text": "სერვერის API" },
       "single-sign-on": { "text": "ერთჯერადი შესვლა (SSO)" },
       "supported-types": { "text": "მხარდაჭერილი ტიპები" },
@@ -66,7 +66,7 @@
         "text": "ენები 🌍"
       },
       "description": {
-        "text": "შეგიძლიათ დაეხმაროთ Tuist-ს მეტი ენის მხარდაჭერაში ან გააუმჯობესოთ ამ გვერდის ენობრივი სახელმძღვანელო."
+        "text": "შეგიძლიათ დაეხმაროთ Tuist-ს მეტი ენის მხარდაჭერაში ან გააუმჯობესოთ ენის სახელმძღვანელო ამ გვერდისთვის."
       },
       "cta": {
         "text": "შეიტანეთ წვლილი"
@@ -74,11 +74,11 @@
     }
   },
   "search": {
-    "placeholder": "ძიება",
+    "placeholder": "ძებნა",
     "translations": {
       "button": {
-        "button-text": "დოკუმენტაციის ძიება",
-        "button-aria-label": "დოკუმენტაციის ძიება"
+        "button-text": "დოკუმენტაციის ძებნა",
+        "button-aria-label": "დოკუმენტაციის ძებნა"
       },
       "modal": {
         "search-box": {
@@ -88,22 +88,22 @@
           "cancel-button-aria-label": "გაუქმება"
         },
         "start-screen": {
-          "recent-searches-title": "ძიების ისტორია",
-          "no-recent-searches-text": "ძიების ისტორია არ არის",
-          "save-recent-search-button-title": "შეინახეთ ძიების ისტორიაში",
-          "remove-recent-search-button-title": "წაშალეთ ძიების ისტორიიდან",
+          "recent-searches-title": "ძებნის ისტორია",
+          "no-recent-searches-text": "ძებნის ისტორია არ არის",
+          "save-recent-search-button-title": "შეინახეთ ძებნის ისტორიაში",
+          "remove-recent-search-button-title": "წაშალეთ ძებნის ისტორიიდან",
           "favorite-searches-title": "რჩეულები",
           "remove-favorite-search-button-title": "წაშალეთ რჩეულებიდან"
         },
         "error-screen": {
           "title-text": "შედეგების მიღება ვერ ხერხდება",
-          "help-text": "შეიძლება დაგჭირდეთ ქსელის კავშირის შემოწმება"
+          "help-text": "შეიძლება საჭირო იყოს ქსელთან კავშირის შემოწმება"
         },
         "footer": {
           "select-text": "არჩევა",
           "navigate-text": "ნავიგაცია",
           "close-text": "დახურვა",
-          "search-by-text": "ძიების პროვაიდერი"
+          "search-by-text": "ძებნის პროვაიდერი"
         },
         "no-results-screen": {
           "no-results-text": "შესაბამისი შედეგები ვერ მოიძებნა",
@@ -125,7 +125,7 @@
       "text": "სერვერი"
     },
     "tutorials": {
-      "text": "გაკვეთილები"
+      "text": "ტუტორიალები"
     },
     "resources": {
       "text": "რესურსები",
@@ -149,7 +149,7 @@
         "cli": {
           "items": {
             "debugging": {
-              "text": "დიბაგინგი"
+              "text": "დაფიქსირება"
             },
             "directories": {
               "text": "დირექტორიები"
@@ -177,6 +177,17 @@
         },
         "examples": {
           "text": "მაგალითები"
+        },
+        "concepts": {
+          "text": "კონცეფციები",
+          "items": {
+            "flaky-test": {
+              "text": "არასტაბილური ტესტები"
+            },
+            "build-cache": {
+              "text": "ბილდის ქეში"
+            }
+          }
         },
         "libraries": {
           "text": "ბიბლიოთეკები"
@@ -223,13 +234,13 @@
           "text": "შეცდომების შეტყობინება"
         },
         "code-reviews": {
-          "text": "კოდის რევიუ"
+          "text": "კოდის გადახედვა"
         },
         "principles": {
           "text": "პრინციპები"
         },
         "debugging": {
-          "text": "დიბაგინგი"
+          "text": "დაფიქსირება"
         },
         "translate": {
           "text": "ენები"
@@ -284,12 +295,12 @@
           "text": "სტატუსი"
         },
         "metrics-dashboard": {
-          "text": "მეტრიკების დაფა"
+          "text": "მეტრიკების პანელი"
         }
       }
     },
     "tutorials": {
-      "text": "გაკვეთილები",
+      "text": "ტუტორიალები",
       "items": {
         "xcode": {
           "text": "Xcode",
@@ -373,7 +384,7 @@
                       "text": "ახალი პროექტის შექმნა"
                     },
                     "swift-package": {
-                      "text": "Swift Package-ით ცდა"
+                      "text": "ცდა Swift Package-ით"
                     },
                     "migrate": {
                       "text": "მიგრაცია",
@@ -428,7 +439,7 @@
                   "text": "ინსპექცია",
                   "items": {
                     "implicit-imports": {
-                      "text": "იარლიყებული იმპორტები"
+                      "text": "იმპლიციტური იმპორტები"
                     }
                   }
                 },
@@ -439,7 +450,7 @@
                   "text": "მოდულური არქიტექტურა"
                 },
                 "metadata-tags": {
-                  "text": "მეტამონაცემთა ტეგები"
+                  "text": "მეტამონაცემების ტეგები"
                 },
                 "best-practices": {
                   "text": "საუკეთესო პრაქტიკა"
@@ -573,7 +584,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git პლატფორმები",
+              "text": "Git ფორჯები",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -614,7 +625,7 @@
           "text": "გაზიარება",
           "items": {
             "previews": {
-              "text": "პრევიუები"
+              "text": "პრივიუები"
             }
           }
         }
