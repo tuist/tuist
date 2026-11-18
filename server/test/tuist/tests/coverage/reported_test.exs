@@ -273,7 +273,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     # Carry reads the base's snapshot, not its runs' evidence, which expires first.
     expire_evidence(project)
 
-    assert project |> Reported.compute("head") |> Map.drop([:files, :carried_lines]) == %{
+    assert project |> Reported.compute("head") |> Map.drop([:files, :carry]) == %{
              kind: "reported",
              covered_lines: 5,
              executable_lines: 7,

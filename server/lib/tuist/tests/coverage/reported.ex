@@ -84,6 +84,8 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   @listing_read_paths 900
 
+  @carry_timeout to_timeout(minute: 2)
+
   @doc """
   The commit's reported coverage, or nil when no run measured it.
 
@@ -200,30 +202,30 @@ defmodule Tuist.Tests.Coverage.Reported do
       impact_run_ids: skipping.impact_run_ids
     }
 
-    {units, reasons, {carried_lines, sources}} = carry_units(context, skipped)
+    {units, reasons, plan} = carry_units(context, skipped)
     carried_tests = units |> Enum.flat_map(& &1.tests) |> Enum.uniq_by(& &1.test_case_id)
+    carry = %{plan: plan, excluded: excluded}
+    {observed, sources} = add_carried_lines(observed, context, run_ids, carry)
 
-    {files, gap_files, file_reasons} =
-      observed
-      |> add_carried_lines(context, carried_lines, sources)
-      |> add_unbuilt_files(context, schemes)
+    {files, gap_files, file_reasons} = add_unbuilt_files(observed, context, schemes)
 
     kept = MapSet.new(carried_tests, & &1.test_case_id)
     gaps = Enum.reject(skipped, &MapSet.member?(kept, &1.test_case_id))
     test_reasons = test_gap_reasons(context, gaps, reasons)
 
     kind = if gaps == [] and gap_files == 0 and run_gaps == [], do: "reported", else: "partial"
-    shas = sources |> Map.values() |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
+    shas = sources |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
 
     files
     |> result(kind, skipped, carried_tests, {gap_files, test_reasons ++ file_reasons ++ run_gaps}, shas)
-    |> Map.put(:carried_lines, carried_lines)
+    |> Map.put(:carry, carry)
   end
 
-  # The units carried and their lines per file, as ranges
-  # (`Evidence.line_ranges/1`), from snapshots (`Tuist.TestImpactAnalysis.Carry`).
-  # Ranges keep a whole project's carried lines small; a file's are expanded
-  # only while it's counted.
+  # The units carried, from snapshots (`Tuist.TestImpactAnalysis.Carry`), and
+  # where their lines are read from (`Carry.plan/1`). The lines themselves
+  # stay in ClickHouse: the fold reads only what they change in each file
+  # (`add_carried_lines/4`), and a file's page reads that file's
+  # (`carried_lines/3`).
   defp carry_units(context, skipped) do
     context =
       Map.merge(context, %{
@@ -233,7 +235,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       })
 
     {units, reasons} = Carry.units(context, skipped)
-    {units, reasons, Carry.lines(context, units)}
+    {units, reasons, Carry.plan(units)}
   end
 
   # A commit whose tracked files differ from every parent's carries nothing:
@@ -420,10 +422,15 @@ defmodule Tuist.Tests.Coverage.Reported do
   def file(%Project{} = project, sha, path, opts \\ []) do
     case settled(project, sha, opts) do
       %{kind: "reported", files: %{^path => file}} = reported ->
-        %{
-          carried_lines: reported.carried_lines |> Map.get(path, []) |> Evidence.range_lines(),
-          source_run_ids: Map.get(file, :source_run_ids, [])
-        }
+        # Cached like the figure: a page reads the file more than once.
+        key = [:coverage_carried_lines, project.id, sha, path, :erlang.phash2(reported.carry, 4_294_967_296)]
+
+        ranges =
+          KeyValueStore.get_or_update(key, [ttl: @cache_ttl, locking: false], fn ->
+            project |> carried_lines(reported, [path]) |> Map.get(path, [])
+          end)
+
+        %{carried_lines: Evidence.range_lines(ranges), source_run_ids: Map.get(file, :source_run_ids, [])}
 
       _ ->
         nil
@@ -433,7 +440,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp result(files, kind, skipped, carried_tests, {gap_files, gap_reasons}, shas) do
     %{
       files: files,
-      carried_lines: %{},
+      carry: nil,
       kind: kind,
       covered_lines: files |> Map.values() |> Enum.map(& &1.covered_lines) |> Enum.sum(),
       executable_lines: files |> Map.values() |> Enum.map(& &1.executable_lines) |> Enum.sum(),
@@ -868,64 +875,107 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
-  defp add_carried_lines(files, _context, carried_lines, _sources) when carried_lines == %{}, do: files
+  @doc """
+  The lines carried into the given files of a commit's reported coverage
+  (`compute/3`), or into all of them when `paths` is nil, as ranges
+  (`Evidence.line_ranges/1`) by path: those its skipped tests covered, read
+  from the snapshots its fold carried from.
+  """
+  def carried_lines(project, reported, paths \\ nil)
 
-  defp add_carried_lines(files, context, carried_lines, sources) do
-    {observed_paths, unbuilt_paths} = carried_lines |> Map.keys() |> Enum.split_with(&Map.has_key?(files, &1))
-    line_counts = Commits.line_counts(context.project.id, context.sha, observed_paths, excluded: nil)
+  def carried_lines(_project, %{carry: %{plan: []}}, _paths), do: %{}
+  def carried_lines(_project, %{carry: nil}, _paths), do: %{}
+  def carried_lines(_project, _reported, []), do: %{}
 
-    files =
-      Enum.reduce(observed_paths, files, fn path, files ->
-        counts = Map.get(line_counts, path, [])
-        executable = MapSet.new(counts, &elem(&1, 0))
-        covered = for {line, count} <- counts, count > 0, into: MapSet.new(), do: line
-        carried = carried_lines[path] |> Evidence.range_lines() |> MapSet.new() |> MapSet.intersection(executable)
+  def carried_lines(%Project{} = project, %{carry: %{plan: plan, excluded: excluded}}, paths) do
+    {carried, params} = Carry.lines_sql(project.id, plan, paths: paths, excluded: excluded)
 
-        if counts == [] do
-          files
-        else
-          Map.update!(files, path, &%{&1 | covered_lines: MapSet.size(MapSet.union(covered, carried))})
-        end
-      end)
-
-    unbuilt_paths
-    |> Enum.group_by(&sources[&1].run_id)
-    |> Enum.reduce(files, fn {run_id, paths}, files ->
-      context.project.id
-      |> unbuilt_carried_files(run_id, paths, carried_lines)
-      |> Enum.into(files)
-    end)
+    """
+    SELECT path, arraySort(arrayDistinct(groupArrayArray(lines))) FROM (#{carried}) GROUP BY path
+    """
+    |> ClickHouseRepo.query!(params, settings: [select_sequential_consistency: 1], timeout: @carry_timeout)
+    |> Map.fetch!(:rows)
+    |> Map.new(fn [path, lines] -> {path, Evidence.line_ranges(lines)} end)
   end
 
-  # The carried files no run at the commit compiled, as their source run
-  # reported them. These are usually most of the project, so their
-  # executable lines are merged per file in ClickHouse and reduced to counts a
-  # chunk of paths at a time instead of all being held at once.
-  defp unbuilt_carried_files(project_id, run_id, paths, carried_lines) do
-    paths
-    |> Coverage.id_chunks(2)
-    |> Enum.flat_map(fn chunk ->
-      from(f in Coverage.report_files_for_runs(project_id, [run_id]),
-        where: f.path in ^chunk,
-        group_by: f.path,
-        select:
-          {f.path, fragment("anyIf(?, ? != '')", f.git_blob_id, f.git_blob_id),
-           fragment("groupUniqArrayArray(?)", f.targets), fragment("groupUniqArrayArray(?)", f.line_numbers)}
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.map(fn {path, git_blob_id, targets, executable} ->
-        carried = MapSet.new(Evidence.range_lines(carried_lines[path]))
+  # What the carried lines add to the files. One query merges each file's
+  # carried lines (`Carry.lines_sql/3`) with what the commit's runs executed
+  # in it, or, for a file no run at the commit compiled, with the lines its
+  # source run reported, and returns counts only: no file's lines reach
+  # Elixir. A file's lines come from every source that carried any, and the
+  # file from the nearest of them. Returns the files and the sources that
+  # were nearest for any file.
+  defp add_carried_lines(files, _context, _run_ids, %{plan: []}), do: {files, []}
 
-        {path,
-         %{
-           git_blob_id: git_blob_id,
-           targets: targets,
-           source_run_ids: [run_id],
-           covered_lines: Enum.count(executable, &MapSet.member?(carried, &1)),
-           executable_lines: length(executable)
-         }}
+  defp add_carried_lines(files, context, run_ids, %{plan: plan, excluded: excluded}) do
+    project_id = context.project.id
+    {carried, params} = Carry.lines_sql(project_id, plan, excluded: excluded)
+    source_runs = plan |> Enum.map(& &1.source.run_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    observed = Coverage.inline_sql(Coverage.report_files_for_runs(project_id, run_ids))
+    sources = Coverage.inline_sql(Coverage.report_files_for_runs(project_id, source_runs))
+
+    # The carried lines are read once, as the joins' left side: ClickHouse
+    # runs a CTE again wherever it is named, and they are the costly part.
+    # The source runs' rows are aggregated only for the files no run at the
+    # commit observed, whose paths are read without their lines.
+    rows =
+      """
+      SELECT c.path, c.nearest,
+        o.path != '', length(o.executable),
+        length(arrayDistinct(arrayConcat(o.covered, arrayIntersect(c.carried_lines, o.executable)))),
+        u.path != '', u.git_blob_id, u.targets, length(u.executable),
+        length(arrayIntersect(c.carried_lines, u.executable))
+      FROM (
+        SELECT path, min(rank) AS nearest, argMin(source_run, rank) AS nearest_run,
+          arrayDistinct(groupArrayArray(lines)) AS carried_lines
+        FROM (#{carried}) GROUP BY path
+      ) AS c
+      LEFT JOIN (
+        SELECT path, groupUniqArrayArray(line_numbers) AS executable,
+          groupUniqArrayArray(arrayFilter((l, c) -> c > 0, line_numbers, execution_counts)) AS covered
+        FROM (#{observed}) WHERE NOT is_test
+        GROUP BY path
+      ) AS o ON o.path = c.path
+      LEFT JOIN (
+        SELECT toString(test_run_id) AS run, path, anyIf(git_blob_id, git_blob_id != '') AS git_blob_id,
+          groupUniqArrayArray(targets) AS targets, groupUniqArrayArray(line_numbers) AS executable
+        FROM (#{sources})
+        WHERE path NOT IN (SELECT path FROM (#{observed}) WHERE NOT is_test)
+        GROUP BY test_run_id, path
+      ) AS u ON u.path = c.path AND u.run = c.nearest_run
+      SETTINGS join_use_nulls = 0
+      """
+      |> ClickHouseRepo.query!(params, settings: [select_sequential_consistency: 1], timeout: @carry_timeout)
+      |> Map.fetch!(:rows)
+
+    files =
+      Enum.reduce(rows, files, fn
+        [path, rank, observed?, executable, covered, unbuilt?, git_blob_id, targets, unbuilt_executable, carried],
+        files ->
+          cond do
+            Map.has_key?(files, path) ->
+              # A file whose rows hold no lines keeps the counts its report gave it.
+              if observed? in [true, 1] and executable > 0,
+                do: Map.update!(files, path, &%{&1 | covered_lines: covered}),
+                else: files
+
+            unbuilt? in [true, 1] ->
+              Map.put(files, path, %{
+                git_blob_id: git_blob_id,
+                targets: targets,
+                source_run_ids: [Enum.at(plan, rank).source.run_id],
+                covered_lines: carried,
+                executable_lines: unbuilt_executable
+              })
+
+            true ->
+              files
+          end
       end)
-    end)
+
+    nearest = rows |> Enum.map(&Enum.at(&1, 1)) |> Enum.uniq() |> Enum.map(&Enum.at(plan, &1).source)
+    {files, nearest}
   end
 
   # The files the nearest ancestor that measured one of the schemes measured
