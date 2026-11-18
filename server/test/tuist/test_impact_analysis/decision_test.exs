@@ -524,7 +524,7 @@ defmodule Tuist.TestImpactAnalysis.DecisionTest do
     assert %{kind: "reported", skipped_tests_count: 2, carried_tests_count: 2, carried_from: ["c1", "c2"]} =
              reported
 
-    assert reported.carried_lines == %{
+    assert Reported.carried_lines(project, reported) == %{
              "Sources/Core.swift" => [[1, 1]],
              "Sources/Math.swift" => [[1, 2]]
            }
