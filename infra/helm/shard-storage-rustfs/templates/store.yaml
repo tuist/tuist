@@ -1,6 +1,6 @@
 {{- if .Values.enabled }}
-{{- if ne .Release.Namespace "rustfs-staging" }}
-{{- fail "This qualification chart requires the isolated rustfs-staging namespace" }}
+{{- if ne .Release.Namespace .Values.namespace }}
+{{- fail (printf "This chart requires its isolated namespace %s" .Values.namespace) }}
 {{- end }}
 {{- if and .Values.unsafeSharedDisks (ne (int .Values.members) 1) }}
 {{- fail "unsafeSharedDisks is only allowed for a single-member performance test" }}
@@ -82,7 +82,9 @@ spec:
           image: {{ .Values.image | quote }}
           env:
             - name: RUSTFS_VOLUMES
-              {{- if eq (int .Values.members) 1 }}
+              {{- if and (eq (int .Values.members) 1) (eq (int .Values.drivesPerMember) 1) }}
+              value: "/data0"
+              {{- else if eq (int .Values.members) 1 }}
               value: "/data{0...{{ sub (int .Values.drivesPerMember) 1 }}}"
               {{- else }}
               value: "http://{{ .Release.Name }}-{0...{{ sub (int .Values.members) 1 }}}.{{ .Release.Name }}-peers.{{ .Release.Namespace }}.svc.cluster.local:9000/data{0...{{ sub (int .Values.drivesPerMember) 1 }}}"
@@ -93,8 +95,10 @@ spec:
               value: "us-east-1"
             - name: RUSTFS_CONSOLE_ENABLE
               value: "false"
+            {{- with .Values.parity }}
             - name: RUSTFS_STORAGE_CLASS_STANDARD
-              value: "EC:4"
+              value: {{ . | quote }}
+            {{- end }}
             {{- if .Values.unsafeSharedDisks }}
             - name: RUSTFS_UNSAFE_BYPASS_DISK_CHECK
               value: "true"

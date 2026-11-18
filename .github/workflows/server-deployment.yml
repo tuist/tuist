@@ -2078,6 +2078,16 @@ jobs:
               fi
               ;;
           esac
+          # Public RustFS store (s3.tuist.dev) for plans from runners other than
+          # ours. Nothing waits on it either: until it serves, the server keeps
+          # those plans on default storage.
+          if [ "$TARGET_ENVIRONMENT" = production ]; then
+            helm upgrade --install rustfs infra/helm/shard-storage-rustfs \
+              --namespace rustfs-production --create-namespace \
+              -f infra/helm/shard-storage-rustfs/values-production-gra.yaml \
+              --wait=hookOnly ||
+              echo "::warning::Could not upgrade the public RustFS store; the server keeps default shard storage."
+          fi
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \

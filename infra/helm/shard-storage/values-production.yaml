@@ -14,7 +14,11 @@ target:
   enabled: true
   privateNetworkReady: true
 storage:
+  # The PVC (and the XFS quota the provisioner set from it) was created at
+  # 3Ti and cannot be resized. The host quota is lowered to 2Ti by hand so the
+  # RustFS pilot on this host gets 1 TB; reservation follows that quota.
   size: 3Ti
+  reservation: 2Ti
 lifecycle:
   expirationDays: 3
 archiveBucket: sandbox-archives

@@ -18,11 +18,49 @@ This tests S3 integration and logical member failure, **not OVH vRack routing,
 physical disk independence, site resilience or production NVMe throughput**.
 The initial pool starts all four members together. Never scale it to three and
 later add the fourth, change its endpoint list, or reuse an existing Garage PVC.
-Production needs its own reviewed topology/storage class, immutable target ID
-and independent data devices; this staging-only chart deliberately refuses other
-namespaces. There is no production overlay or purchase approval here.
+Every release must be installed in the namespace its overlay names
+(`namespace`, `rustfs-staging` by default).
 
-Two gateway pods expose only path-style bucket `/shards`. Public TLS terminates
+## Production pilot on the Gravelines shard host
+
+`values-production-gra.yaml` runs one member with one drive in
+`rustfs-production` on the `shard-storage` host, beside Garage, as
+`s3.tuist.dev`: a general store whose first bucket is `shards`. RustFS keeps one
+copy (`parity: ""`) on the host's RAID10 `/data`; the RAID handles disk failures,
+and a host outage fails plans already stored here while the server sends new
+plans to Tigris. The single 1000G PVC gets one XFS project quota of that size.
+
+It needs Garage's quota on the same filesystem lowered from 3Ti to 2Ti first.
+The `scw-local-nvme` provisioner sets a volume's quota only when it creates it,
+and the class does not allow expansion, so this is a host step: lower the hard
+limit of Garage's project with `xfs_quota` (from the host mount namespace, under
+a production elevation), confirm `prjquota` enforcement on `/data`, then deploy
+`shard-storage` with `storage.reservation: 2Ti` and recreate its pod (OnDelete).
+Until then the RustFS pod stays Pending: Garage's 3Ti request leaves the node
+less ephemeral storage than RustFS requests.
+
+The server deployment installs this release in production after Garage.
+Nobody handles credentials: with `generateCredentials`, External Secrets
+generates the root Secret (`existingSecret`) and `<release>-service` once
+(`CreatedOnce`, orphaned from the release), and the hourly `<release>-setup`
+CronJob idempotently creates the `shards` bucket, its `setup.expirationDays`
+expiry (a 31-day backstop: server cleanup applies the plan's 7/14/30 days), the `shards-policy.json` policy and the service user. Run
+`kubectl -n rustfs-production create job --from=cronjob/rustfs-setup` to apply
+it without waiting. `target.id` publishes the bucket as a public target in
+Secret `<release>-targets` (key `targets.json`) in `serverNamespace`, copied
+through a SecretStore that may only `get` the service Secret, never root. The
+main chart reads it with `server.externalSecrets.shardStorage.publicSecret` into
+`TUIST_PUBLIC_SHARD_STORAGE_TARGETS`, merged with the runner-local targets; a
+public ID never replaces a runner-local one. Accounts still need the public
+shard storage flag, and the server skips the target while it does not answer.
+
+Public requests enter through the host-network `kura-eu-west` controller on
+the EU-West Kura nodes and cross the vRack to the gateway, so
+`ingress.hostNetworkController` adds a Cilium rule admitting node identities
+on the gateway port.
+
+Gateway pods expose only the path-style buckets in `gateway.buckets` (`shards`
+by default; every other path is 404). Public TLS terminates
 at an explicitly configured Ingress; backend services remain ClusterIP-only.
 The gateway preserves the signed Host/path/query and streams both directions.
 It does not replay requests after partial uploads. Root credentials are only in

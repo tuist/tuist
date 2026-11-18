@@ -45,4 +45,23 @@ spec:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: kube-system}
       ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+{{- if .Values.ingress.hostNetworkController }}
+---
+# Host-network nginx proxying from another node arrives as a node identity.
+# Admit only the gateway port; the gateway still exposes only bucket /shards
+# and RustFS authenticates every request.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-gateway-host-ingress
+spec:
+  endpointSelector:
+    matchLabels: {app: {{ .Release.Name }}, component: gateway}
+  ingress:
+    - fromEntities: [host, remote-node]
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+{{- end }}
 {{- end }}

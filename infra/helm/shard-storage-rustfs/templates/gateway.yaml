@@ -1,4 +1,12 @@
 {{- if .Values.enabled }}
+{{- range .Values.gateway.buckets }}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$" .) }}
+{{- fail (printf "gateway.buckets entry %q must be a lowercase bucket name without dots" .) }}
+{{- end }}
+{{- end }}
+{{- if not .Values.gateway.buckets }}
+{{- fail "gateway.buckets must name at least one bucket" }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,8 +25,8 @@ data:
       client_max_body_size 0;
       client_body_timeout 120s;
       location = /ready { return 200; }
-      # Only this disposable bucket. No console, admin, metrics or peer APIs.
-      location ~ ^/shards(?:/|$) {
+      # Only the listed buckets. No console, admin, metrics or peer APIs.
+      location ~ ^/({{ join "|" .Values.gateway.buckets }})(?:/|$) {
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;
         proxy_set_header Connection "";
@@ -142,11 +150,13 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          - path: /shards
+          {{- range .Values.gateway.buckets }}
+          - path: /{{ . }}
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-gateway
+                name: {{ $.Release.Name }}-gateway
                 port: {number: 8080}
+          {{- end }}
 {{- end }}
 {{- end }}
