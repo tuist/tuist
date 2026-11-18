@@ -38,6 +38,8 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       public_patterns =
         Regex.scan(~r/^Content-Usage: (\S+) train-ai=y, search=y, ai-input=y$/m, body, capture: :all_but_first)
 
+      landing_pages = ["/runners", MarketingMarkdown.alternate_path("/runners")]
+
       for page <- MarketingMarkdown.decision_guides(),
           path <- [page.path, MarketingMarkdown.alternate_path(page.path)] do
         assert Enum.any?(public_patterns, fn [pattern] ->
@@ -47,12 +49,15 @@ defmodule TuistWeb.RobotsTxtControllerTest do
                    String.starts_with?(path, pattern)
                  end
                end)
-
-        refute Enum.any?(RobotsTxt.disallow_patterns(), fn pattern ->
-                 regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
-                 Regex.match?(Regex.compile!("^" <> regex), path)
-               end)
       end
+
+      for page <- MarketingMarkdown.decision_guides(),
+          path <- [page.path, MarketingMarkdown.alternate_path(page.path)] ++ landing_pages do
+        assert crawlable?(body, path), "robots.txt blocks #{path}"
+      end
+
+      refute crawlable?(body, "/tuist/runners")
+      refute crawlable?(body, "/tuist/runners/jobs")
     end
 
     test "advertises the marketing sitemap but not the challenged project sitemap", %{conn: conn} do
@@ -137,6 +142,22 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       assert body =~ "Content-Usage: /llms.txt$ train-ai=y, search=y, ai-input=y"
       assert body =~ "Content-Usage: /llms-full.txt$ train-ai=y, search=y, ai-input=y"
       refute body =~ "Disallow: /llms-full.txt"
+    end
+  end
+
+  # RFC 9309: the longest matching rule wins, and Allow wins a tie.
+  defp crawlable?(body, path) do
+    rules =
+      ~r/^(Allow|Disallow): (\S+)$/m
+      |> Regex.scan(body, capture: :all_but_first)
+      |> Enum.filter(fn [_, pattern] ->
+        regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
+        Regex.match?(Regex.compile!("^" <> regex), path)
+      end)
+
+    case Enum.max_by(rules, fn [kind, pattern] -> {String.length(pattern), kind == "Allow"} end, fn -> nil end) do
+      nil -> true
+      [kind, _] -> kind == "Allow"
     end
   end
 end
