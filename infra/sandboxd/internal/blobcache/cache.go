@@ -94,6 +94,7 @@ type Metrics struct {
 	Requests     *prometheus.CounterVec
 	FetchedBytes prometheus.Counter
 	Bytes        prometheus.Gauge
+	Trees        *prometheus.CounterVec
 }
 
 func NewMetrics(registry prometheus.Registerer) *Metrics {
@@ -107,9 +108,12 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		Bytes: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "sandboxd_blob_cache_bytes", Help: "Bytes held or reserved by the blob cache.",
 		}),
+		Trees: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "sandboxd_blob_cache_tree_images_total", Help: "Input tree images by outcome: built, full (no room) or error when building; attached when a guest mounts one.",
+		}, []string{"result"}),
 	}
 	if registry != nil {
-		registry.MustRegister(m.Requests, m.FetchedBytes, m.Bytes)
+		registry.MustRegister(m.Requests, m.FetchedBytes, m.Bytes, m.Trees)
 	}
 	return m
 }
@@ -125,6 +129,7 @@ type Cache struct {
 	// replace it.
 	Filesystem func(path string) (total, available uint64, err error)
 	stall      time.Duration // stallTimeout; tests shorten it
+	treeMin    int64         // TreeMinBytes; tests lower it
 
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -133,6 +138,12 @@ type Cache struct {
 	pending int64     // reserved bytes not yet on disk
 	conns   map[string]*grpc.ClientConn
 	tmp     int
+	// Input tree images (trees.go): directories asked about but not imaged
+	// yet, and images being built.
+	sightings map[string]int
+	building  map[string]bool
+	// MakeFS formats an input tree image; tests replace it.
+	MakeFS func(dir, image string, size int64) error
 }
 
 // New empties dir and returns a cache bounded to budget bytes. Nothing in it
@@ -147,7 +158,8 @@ func New(dir string, budget int64, log *slog.Logger, metrics *Metrics) (*Cache, 
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
+	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, treeMin: TreeMinBytes,
+		entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}, sightings: map[string]int{}, building: map[string]bool{}, MakeFS: MakeExt4}, nil
 }
 
 // Dir is where the cache keeps its files, for disk accounting.
@@ -231,13 +243,7 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 			c.gauge()
 			return nil, ErrFull
 		}
-		victim := oldest.Value.(*entry)
-		c.lru.Remove(oldest)
-		delete(c.entries, victim.key)
-		c.used -= victim.size
-		if err := os.Remove(victim.path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			c.log.Warn("evicting cached blob", "error", err)
-		}
+		c.evict(oldest)
 	}
 	e := &entry{key: key, path: path, size: size, ready: make(chan struct{})}
 	c.entries[key] = e
@@ -245,6 +251,17 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 	c.pending += size
 	c.gauge()
 	return e, nil
+}
+
+// evict removes a ready entry and its file. c.mu is held.
+func (c *Cache) evict(elem *list.Element) {
+	victim := elem.Value.(*entry)
+	c.lru.Remove(elem)
+	delete(c.entries, victim.key)
+	c.used -= victim.size
+	if err := os.Remove(victim.path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		c.log.Warn("evicting cached blob", "error", err)
+	}
 }
 
 // shortOfDisk reports whether writing size more bytes, beside the downloads

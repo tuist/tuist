@@ -370,6 +370,12 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if err := vm.Chown(workspace, uid, uid); err != nil {
 		return res, err
 	}
+	if err := template.InputPlaceholders(root, artifacts.Meta.InputDrives, uid); err != nil {
+		return res, err
+	}
+	sb.mu.Lock()
+	sb.meta.InputDrives = artifacts.Meta.InputDrives
+	sb.mu.Unlock()
 
 	bootStart := time.Now()
 	inst, agent, err := m.restore(ctx, sb, log, func(api *firecracker.Client, inst vm.Instance) error {

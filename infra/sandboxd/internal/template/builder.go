@@ -185,6 +185,16 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	if err := vm.Chown(workspace, uid, uid); err != nil {
 		return err
 	}
+	// REAPI guests always start from an empty workspace, and their snapshot
+	// carries read-only drives for input tree images (see InputPlaceholders).
+	preparedWorkspace := t.Name == "bazel"
+	inputDrives := 0
+	if preparedWorkspace {
+		inputDrives = firecracker.InputDrives
+		if err := InputPlaceholders(root, inputDrives, uid); err != nil {
+			return err
+		}
+	}
 
 	if err := b.Network.Setup(ctx, ns, slot); err != nil {
 		return fmt.Errorf("network setup: %w", err)
@@ -227,6 +237,14 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		{"workspace drive", func() error {
 			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
 		}},
+		{"input drives", func() error {
+			for i := range inputDrives {
+				if err := api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.InputDriveID(i), PathOnHost: inst.GuestPath(firecracker.InputPath(i)), IsReadOnly: true}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}},
 		{"network-interface", func() error {
 			return api.PutNetworkInterface(ctx, firecracker.NetworkInterface{IfaceID: firecracker.IfaceID, GuestMAC: firecracker.GuestMAC, HostDevName: firecracker.TapName})
 		}},
@@ -251,7 +269,6 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	// REAPI guests always start from an empty workspace. Format it once in
 	// the trusted template, then unmount it before snapshotting. Every action
 	// receives a private reflink of these pristine bytes, never a used disk.
-	preparedWorkspace := t.Name == "bazel"
 	if preparedWorkspace {
 		if err := agent.Configure(ctx, vsock.ConfigureRequest{FormatWorkspace: true}); err != nil {
 			return fmt.Errorf("prepare template workspace: %w", err)
@@ -324,7 +341,7 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	meta := Metadata{
 		Name: t.Name, Tag: t.Tag, Kernel: t.seedKernel(), VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
 		WorkspaceGB: workspaceGB, FirecrackerVersion: b.FirecrackerVersion, BuiltAt: time.Now().UTC(),
-		WorkspacePrepared: preparedWorkspace,
+		WorkspacePrepared: preparedWorkspace, InputDrives: inputDrives,
 	}
 	if err := writeJSON(filepath.Join(staging, MetadataFile), meta); err != nil {
 		return err

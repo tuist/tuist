@@ -31,6 +31,7 @@ import (
 type fakeCAS struct {
 	bs.UnimplementedByteStreamServer
 	repb.UnimplementedCapabilitiesServer
+	repb.UnimplementedContentAddressableStorageServer
 	mu       sync.Mutex
 	blobs    map[string][]byte
 	tokens   map[string]string // instance -> accepted token
@@ -103,6 +104,25 @@ func (f *fakeCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 	return status.Error(trailer, "response trailer")
 }
 
+func (f *fakeCAS) BatchReadBlobs(ctx context.Context, r *repb.BatchReadBlobsRequest) (*repb.BatchReadBlobsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(md.Get("authorization")) != 1 || md.Get("authorization")[0] != "Bearer "+f.tokens[r.InstanceName] {
+		return nil, status.Error(codes.PermissionDenied, "denied")
+	}
+	resp := &repb.BatchReadBlobsResponse{}
+	for _, d := range r.Digests {
+		data, ok := f.blobs[d.Hash]
+		code := codes.OK
+		if !ok {
+			code = codes.NotFound
+		}
+		resp.Responses = append(resp.Responses, &repb.BatchReadBlobsResponse_Response{Digest: d, Data: data, Status: status.New(code, "").Proto()})
+	}
+	return resp, nil
+}
+
 func (f *fakeCAS) put(data string) (string, int64) {
 	h := sha256.Sum256([]byte(data))
 	hash := hex.EncodeToString(h[:])
@@ -128,6 +148,7 @@ func setup(t *testing.T, budget int64) (*Cache, *fakeCAS, string) {
 	server := grpc.NewServer()
 	bs.RegisterByteStreamServer(server, cas)
 	repb.RegisterCapabilitiesServer(server, cas)
+	repb.RegisterContentAddressableStorageServer(server, cas)
 	go server.Serve(l)
 	t.Cleanup(server.Stop)
 	c, err := New(filepath.Join(t.TempDir(), "blobs"), budget, nil, NewMetrics(nil))
@@ -174,6 +195,11 @@ func guestRead(socket string, r Request) (string, error) {
 
 func serve(t *testing.T, c *Cache, s Scope) (string, <-chan struct{}) {
 	t.Helper()
+	return serveWith(t, c, s, nil)
+}
+
+func serveWith(t *testing.T, c *Cache, s Scope, attach Attach) (string, <-chan struct{}) {
+	t.Helper()
 	socket := filepath.Join(t.TempDir(), "v.sock_5001")
 	l, err := net.Listen("unix", socket)
 	if err != nil {
@@ -183,7 +209,7 @@ func serve(t *testing.T, c *Cache, s Scope) (string, <-chan struct{}) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		c.Serve(ctx, l, s)
+		c.Serve(ctx, l, s, attach)
 	}()
 	t.Cleanup(func() {
 		cancel()

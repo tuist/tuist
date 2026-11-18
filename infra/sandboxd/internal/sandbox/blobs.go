@@ -6,11 +6,15 @@ import (
 	"errors"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
+	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
@@ -49,7 +53,7 @@ func (m *Manager) serveBlobs(sb *Sandbox, args protocol.ExecArgs) func() {
 		return func() {}
 	}
 	sb.mu.Lock()
-	inst, tag := sb.inst, sb.meta.Tag
+	inst, tag, drives := sb.inst, sb.meta.Tag, sb.meta.InputDrives
 	sb.mu.Unlock()
 	// Only the template deployed with this daemon is known to seal before
 	// the command runs; older tags kept ready for a rollout read the CAS.
@@ -66,12 +70,43 @@ func (m *Manager) serveBlobs(sb *Sandbox, args protocol.ExecArgs) func() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		m.blobs.Serve(ctx, listener, scope)
+		m.blobs.Serve(ctx, listener, scope, attachInputs(inst, drives))
 	}()
 	return func() {
 		cancel()
 		<-done
 		os.Remove(path)
+	}
+}
+
+// attachInputs attaches input tree images to the VM's input drives in order.
+// The image is hard-linked over the drive's placeholder in the jail, where it
+// stays read-only to the jailed Firecracker (root-owned, mode 0444, and a
+// read-only drive), and the patch makes Firecracker reopen the drive and the
+// guest re-read its capacity. A VM runs one action and is never reused, so a
+// drive is never detached.
+func attachInputs(inst vm.Instance, drives int) blobcache.Attach {
+	if drives == 0 {
+		return nil
+	}
+	var mu sync.Mutex
+	next := 0
+	return func(ctx context.Context, image string) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if next >= drives {
+			return 0, blobcache.ErrNoDrive
+		}
+		i := next
+		// A failed attach still spends the drive: its placeholder is gone.
+		next++
+		if err := vm.HardLink(image, filepath.Join(inst.Root(), firecracker.InputPath(i))); err != nil {
+			return 0, err
+		}
+		if err := inst.API().PatchDrive(ctx, firecracker.DrivePatch{DriveID: firecracker.InputDriveID(i), PathOnHost: inst.GuestPath(firecracker.InputPath(i))}); err != nil {
+			return 0, err
+		}
+		return i, nil
 	}
 }
 

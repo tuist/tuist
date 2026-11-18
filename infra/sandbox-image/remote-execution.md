@@ -268,6 +268,13 @@ without adding connections or changing the account's egress ceiling. Stored
 bytes, `sandboxd_blob_cache_fetched_bytes_total` and the action's `host` read
 totals still count uncompressed content, not network bytes.
 
+A directory of at least 64 MiB that recurs across a project's actions, such as
+a Rust toolchain, is not copied into each workspace at all once the node has
+seen it twice: sandboxd builds a read-only ext4 image of it from the project's
+CAS, attaches it to later actions' VMs as a drive, and the executor mounts it
+under an overlay at the directory's path. The `cas_reads` summary counts those
+directories under `tree`. Any failure materializes the directory as before.
+
 The host serves only while the action exec runs, only VMs of the template the
 worker is configured with, and only until the executor seals the channel
 before the command starts, so the build cannot read the project's CAS through

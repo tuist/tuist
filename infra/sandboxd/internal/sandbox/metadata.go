@@ -29,6 +29,9 @@ type Metadata struct {
 	Slot        int    `json:"slot"`
 	Generation  int    `json:"generation"`
 	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	// InputDrives is how many input image drives its template snapshot
+	// carries; serveBlobs attaches input tree images to them.
+	InputDrives int `json:"input_drives,omitempty"`
 	// FirecrackerVersion wrote the memory image beside the disks; another
 	// version cannot load it, so recovery turns a mismatch into a cold boot.
 	FirecrackerVersion string `json:"firecracker_version,omitempty"`

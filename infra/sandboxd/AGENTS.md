@@ -355,6 +355,32 @@ with runner cache volumes, containerd and kubelet (kubelet evicts Pods below
 action's command starts, so the build cannot read the project's CAS through
 the host.
 
+Input tree images (`internal/blobcache/trees.go`) remove the per-action copy
+of large input directories that recur, such as toolchains:
+
+```
+{"op":"trees","trees":[{"hash":"<sha256>","size":N,"bytes":B}]}
+{"op":"tree","hash":"<sha256>","size":N}
+```
+
+`trees` reports directories of at least 64 MiB of files that the guest
+materialized itself. The second time a scope reports one, the daemon builds,
+in the background and at most two at a time, a journal-less ext4 image of
+exactly that directory: read from the scope's CAS with the exec's credential
+(large files through the blob cache, reflinked), entries owned by UID 1000
+with the executor's modes, symlinks refused unless they stay inside it. The
+image is a cache entry of that scope like a blob, under the same budget and
+LRU. `tree` asks for a directory's image: with one, the daemon hard-links it
+over the jail's next input drive placeholder, `PATCH /drives/input<i>`, and
+answers `{"ok":true,"drive":i,"bytes":B}`; otherwise `{"error":...}`. The
+`bazel` template's snapshot carries `InputDrives` (4) read-only drives,
+`/input<i>.ext4` in the jail, each a 4 KiB placeholder until attached
+(`input_drives` in the shape and sandbox metadata). The guest waits for
+`/dev/vd<c+i>` to show the image's size, flushes its buffers, mounts it
+read-only and puts an overlay over the input directory whose upper layer is on
+the workspace disk, so the action can still write there. A VM runs one action,
+so a drive is never detached. Both ops end with `seal`.
+
 ## Guest to host: checkout
 
 With `CHECKOUT_AGENT_URL` set, a worker whose `start_worker` carries a
@@ -795,7 +821,7 @@ inside an error.
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
-`sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
+`sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total`, `sandboxd_blob_cache_bytes` and `sandboxd_blob_cache_tree_images_total{result}` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.
 
 ### Development

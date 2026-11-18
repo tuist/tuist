@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 )
@@ -88,15 +89,34 @@ func ParseShapes(csv string) ([]Shape, error) {
 
 // Metadata describes a built shape snapshot.
 type Metadata struct {
-	Name               string    `json:"name"`
-	Tag                string    `json:"tag"`
-	Kernel             string    `json:"kernel"`
-	VCPUs              int       `json:"vcpus"`
-	MemoryMB           int       `json:"memory_mb"`
-	WorkspaceGB        int       `json:"workspace_gb"`
-	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
+	Name              string `json:"name"`
+	Tag               string `json:"tag"`
+	Kernel            string `json:"kernel"`
+	VCPUs             int    `json:"vcpus"`
+	MemoryMB          int    `json:"memory_mb"`
+	WorkspaceGB       int    `json:"workspace_gb"`
+	WorkspacePrepared bool   `json:"workspace_prepared,omitempty"`
+	// InputDrives is how many read-only input image drives the snapshot
+	// carries; every sandbox restored from it needs their placeholders.
+	InputDrives        int       `json:"input_drives,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
+}
+
+// InputPlaceholders creates the files that back a jail's n input image drives
+// until an image is attached: one empty 4 KiB block each, which the guest
+// sees as a tiny disk and never mounts.
+func InputPlaceholders(root string, n, uid int) error {
+	for i := range n {
+		path := filepath.Join(root, firecracker.InputPath(i))
+		if err := vm.Sparse(path, 4096); err != nil {
+			return err
+		}
+		if err := vm.Chown(path, uid, uid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Template is one seeded <name>/<tag> directory.

@@ -38,7 +38,12 @@ type Worker struct {
 	// their invoking user, against a temporary directory and an in-memory CAS.
 	Credential *syscall.Credential
 	// Start launches the action's command; nil uses exec.Cmd.Start.
-	Start   func(*exec.Cmd) error
+	Start func(*exec.Cmd) error
+	// Trees, when set, mounts the node's images of large input directories
+	// instead of materializing them; see mountTrees.
+	Trees InputTrees
+	// treeMin is TreeMinBytes; tests lower it.
+	treeMin int64
 	entries int
 	// Streamed inputs by digest: the first path downloads a blob, later paths
 	// with the same digest copy that file instead of reading it again.
@@ -437,6 +442,17 @@ type inputFile struct {
 type inputDirectory struct {
 	path string
 	dir  *re.Directory
+	// index in the walk's list of directories (treeDirectory)
+	index int
+}
+
+// treeDirectory is one directory of the input tree as the walk saw it, with
+// the file bytes below it once the walk is done.
+type treeDirectory struct {
+	path   string
+	digest *re.Digest
+	parent int
+	bytes  int64
 }
 
 // materialize lays out the input tree in two passes. The walk reads the tree a
@@ -447,6 +463,7 @@ type inputDirectory struct {
 func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Directory) error {
 	var files []inputFile
 	var links [][2]string
+	directories := []treeDirectory{{path: ".", parent: -1}}
 	level := []inputDirectory{{path: ".", dir: input}}
 	for depth := 0; len(level) > 0; depth++ {
 		if depth > 128 {
@@ -473,6 +490,7 @@ func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Direc
 					return err
 				}
 				files = append(files, inputFile{path: path.Join(n.path, f.Name), node: f})
+				directories[n.index].bytes += f.GetDigest().GetSizeBytes()
 			}
 			for _, d := range n.dir.Directories {
 				if err := check(d.Name); err != nil {
@@ -489,7 +507,8 @@ func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Direc
 					unique[key] = i
 					digests = append(digests, d.Digest)
 				}
-				children = append(children, inputDirectory{path: child})
+				children = append(children, inputDirectory{path: child, index: len(directories)})
+				directories = append(directories, treeDirectory{path: child, digest: d.Digest, parent: n.index})
 				childDigest = append(childDigest, i)
 			}
 			for _, s := range n.dir.Symlinks {
@@ -511,6 +530,10 @@ func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Direc
 			children[i].dir = dirs[childDigest[i]]
 		}
 		level = children
+	}
+	if mounted := w.mountTrees(ctx, directories); len(mounted) > 0 {
+		files = slices.DeleteFunc(files, func(f inputFile) bool { return below(f.path, mounted) })
+		links = slices.DeleteFunc(links, func(l [2]string) bool { return below(l[0], mounted) })
 	}
 	if err := w.materializeFiles(ctx, root, files); err != nil {
 		return err

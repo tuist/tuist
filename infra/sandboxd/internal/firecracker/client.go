@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -35,7 +36,17 @@ const (
 	GuestMAC         = "06:00:AC:10:00:02"
 	GuestCID         = 3
 	AgentPort        = 5000
+
+	// InputDrives is how many read-only input image drives a remote-execution
+	// template carries after its rootfs and workspace (the guest's /dev/vdc
+	// onwards), each backed by a placeholder until an action's input tree
+	// image is attached to it.
+	InputDrives = 4
 )
+
+// InputDriveID and InputPath name input image drive i.
+func InputDriveID(i int) string { return "input" + strconv.Itoa(i) }
+func InputPath(i int) string    { return "/input" + strconv.Itoa(i) + ".ext4" }
 
 // BootArgs builds the kernel command line for a template boot. The serial
 // console stays on (loglevel 4) so boot problems show up in firecracker.log.

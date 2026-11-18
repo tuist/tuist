@@ -716,3 +716,70 @@ func TestOccupiedRootIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// fakeTrees stands in for the node's input tree images: it "mounts" the
+// directories it has images of by writing their files itself.
+type fakeTrees struct {
+	images map[string]map[string][]byte // digest hash -> relative path -> content
+	asked  []string
+	notes  []InputTree
+}
+
+func (f *fakeTrees) Mount(_ context.Context, d *re.Digest, dir, scratch string) bool {
+	f.asked = append(f.asked, d.Hash)
+	files, ok := f.images[d.Hash]
+	if !ok {
+		return false
+	}
+	for p, b := range files {
+		if os.MkdirAll(filepath.Dir(filepath.Join(dir, p)), 0o755) != nil || os.WriteFile(filepath.Join(dir, p), b, 0o644) != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func (f *fakeTrees) Note(_ context.Context, trees []InputTree) { f.notes = append(f.notes, trees...) }
+
+func TestLargeInputDirectoriesComeFromNodeImages(t *testing.T) {
+	w, m := harness(t)
+	w.treeMin = 100_000
+	libstd := m.put(bytes.Repeat([]byte("libstd"), 50_000))
+	vendored := m.put(bytes.Repeat([]byte("vendor"), 40_000))
+	var reads sync.Map
+	m.beforeRead = func(_ context.Context, hash string) error {
+		reads.Store(hash, true)
+		return nil
+	}
+	lib := m.message(t, &re.Directory{Files: []*re.FileNode{{Name: "libstd.so", Digest: libstd}}})
+	toolchain := m.message(t, &re.Directory{Directories: []*re.DirectoryNode{{Name: "lib", Digest: lib}}})
+	other := m.message(t, &re.Directory{Files: []*re.FileNode{{Name: "blob", Digest: vendored}}})
+	inputs := &re.Directory{
+		Files:       []*re.FileNode{{Name: "main.rs", Digest: m.put([]byte("fn main() {}\n"))}},
+		Directories: []*re.DirectoryNode{{Name: "other", Digest: other}, {Name: "toolchain", Digest: toolchain}},
+	}
+	trees := &fakeTrees{images: map[string]map[string][]byte{toolchain.Hash: {"lib/libstd.so": m.blobs[libstd.Hash]}}}
+	w.Trees = trees
+	response, _ := w.Execute(context.Background(), action(t, m, "cat toolchain/lib/libstd.so other/blob main.rs > output", inputs, []string{"output"}))
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execution: %v", response)
+	}
+	want := string(m.blobs[libstd.Hash]) + string(m.blobs[vendored.Hash]) + "fn main() {}\n"
+	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != want {
+		t.Fatal("output differs from the inputs")
+	}
+	if _, read := reads.Load(libstd.Hash); read {
+		t.Fatal("read a file of a mounted directory from the CAS")
+	}
+	if _, read := reads.Load(vendored.Hash); !read {
+		t.Fatal("did not materialize the directory without an image")
+	}
+	// Top down: the toolchain's own lib is never asked for once the
+	// toolchain is mounted, nor is the input root, which differs per action.
+	if len(trees.asked) != 2 || trees.asked[0] != other.Hash || trees.asked[1] != toolchain.Hash {
+		t.Fatalf("asked for %v, want other then toolchain", trees.asked)
+	}
+	if len(trees.notes) != 1 || trees.notes[0].Digest.Hash != other.Hash || trees.notes[0].Bytes != vendored.SizeBytes {
+		t.Fatalf("noted %v, want only the materialized directory", trees.notes)
+	}
+}
