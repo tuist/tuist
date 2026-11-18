@@ -14,6 +14,10 @@ defmodule Tuist.Tests.Coverage.History do
   branch whose ref owns nothing (a run that sent a commit but no history, or
   a branch the default one already contains) falls back to the measured
   commits labelled with it, in time order, and says so (`ordered_by: :time`).
+  A pull request's job on a merge checkout (`refs/pull/N/merge`) measures a
+  merge commit the graph keeps on `pull/<number>`, never on the branch; on
+  the branch's page each such merge commit stands at the commit it merged
+  (its second parent) when no run measured that commit.
 
   A commit **chains** into the trend when it is complete (the client
   signalled its pipeline finished) and so is its figure
@@ -25,6 +29,7 @@ defmodule Tuist.Tests.Coverage.History do
   import Ecto.Query
 
   alias Tuist.GitHistory
+  alias Tuist.GitHistory.CommitParent
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
@@ -294,52 +299,80 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   # The branch's graph commits narrowed by `search` and `status`: a commit
-  # is measured when it has a published figure a list shows (`Commits.listed/1`).
-  defp graph_filter(project_id, opts) do
+  # stands with its own published figure a list shows (`Commits.listed/1`),
+  # or, as `measured_on_ref/3` settles it, when it has none, with its newest
+  # merge checkout's. Both are looked up per commit the page reads (the
+  # commit's key, then its child edges), so a page stops at its size.
+  defp graph_filter(project_id, ref, opts) do
     {search, status} = commit_filter(opts)
 
     if search == "" and status == "" do
       nil
     else
-      measured =
-        from(m in CoverageCommit, where: m.project_id == ^project_id)
-        |> Commits.listed()
-        |> select([m], %{sha: m.git_commit_sha, complete: m.complete, reported_kind: m.reported_kind})
-
       fn query ->
         query = if search == "", do: query, else: where(query, [c], like(c.sha, ^sha_prefix(search)))
-        by_status(query, status, measured)
+        if status == "", do: query, else: query |> stand_in(project_id, ref) |> by_status(status)
       end
     end
   end
 
-  defp by_status(query, "", _measured), do: query
-
-  defp by_status(query, "measured", measured), do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha)
-
-  defp by_status(query, "not-measured", measured),
-    do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
-
-  defp by_status(query, "complete", measured),
-    do:
-      from(c in query,
-        join: m in subquery(measured),
-        on: m.sha == c.sha,
-        where: m.complete and m.reported_kind != "partial"
+  defp stand_in(query, project_id, ref) do
+    own =
+      Commits.listed(
+        from(o in CoverageCommit,
+          where: o.project_id == ^project_id and o.git_commit_sha == parent_as(:ref_commit).sha,
+          select: %{complete: o.complete, reported_kind: o.reported_kind}
+        )
       )
 
-  defp by_status(query, "incomplete", measured),
-    do:
-      from(c in query,
-        join: m in subquery(measured),
-        on: m.sha == c.sha,
-        where: m.complete and m.reported_kind == "partial"
+    merge =
+      Commits.listed(
+        from(m in CoverageCommit,
+          join: p in CommitParent,
+          on: p.repository_id == ^ref.repository_id and p.child_sha == m.git_commit_sha and p.position == 1,
+          where: is_nil(parent_as(:own).reported_kind) and p.parent_sha == parent_as(:ref_commit).sha,
+          where: m.project_id == ^project_id and m.git_branch == ^ref.name and m.pull_request_number > 0,
+          order_by: [desc: m.ran_at],
+          limit: 1,
+          select: %{complete: m.complete, reported_kind: m.reported_kind}
+        )
       )
 
-  defp by_status(query, "in-progress", measured),
-    do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: not m.complete)
+    from(c in query,
+      left_lateral_join: o in subquery(own),
+      as: :own,
+      on: true,
+      left_lateral_join: m in subquery(merge),
+      as: :merge,
+      on: true
+    )
+  end
 
-  defp by_status(query, _unknown, _measured), do: where(query, false)
+  defp by_status(query, "measured"),
+    do: where(query, [own: o, merge: m], not is_nil(o.reported_kind) or not is_nil(m.reported_kind))
+
+  defp by_status(query, "not-measured"),
+    do: where(query, [own: o, merge: m], is_nil(o.reported_kind) and is_nil(m.reported_kind))
+
+  defp by_status(query, "complete"),
+    do:
+      where(
+        query,
+        [own: o, merge: m],
+        coalesce(o.complete, m.complete) and coalesce(o.reported_kind, m.reported_kind) != "partial"
+      )
+
+  defp by_status(query, "incomplete"),
+    do:
+      where(
+        query,
+        [own: o, merge: m],
+        coalesce(o.complete, m.complete) and coalesce(o.reported_kind, m.reported_kind) == "partial"
+      )
+
+  defp by_status(query, "in-progress"), do: where(query, [own: o, merge: m], not coalesce(o.complete, m.complete))
+
+  defp by_status(query, _unknown), do: where(query, false)
 
   # A labelled branch lists measured commits only, so "not measured" matches
   # none of them.
@@ -375,7 +408,7 @@ defmodule Tuist.Tests.Coverage.History do
     period = [
       since: second(Keyword.get(opts, :since)),
       until: second(Keyword.get(opts, :until)),
-      refine: graph_filter(project.id, opts)
+      refine: graph_filter(project.id, ref, opts)
     ]
 
     cursor = cursor_position(cursor)
@@ -401,10 +434,10 @@ defmodule Tuist.Tests.Coverage.History do
 
     {newest, oldest} = bounds(commits, & &1.position)
     lookback = graph_lookback(project, ref, oldest)
+    measured = measured_on_ref(project, ref, Enum.map(commits, & &1.git_commit_sha))
 
     %{
-      commits:
-        settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha), listed: true), lookback),
+      commits: settle(commits, measured, lookback),
       ordered_by: :graph,
       has_next_page?:
         older_page?(cursor, more?, fn ->
@@ -632,11 +665,47 @@ defmodule Tuist.Tests.Coverage.History do
 
         ref ->
           shas = ref.id |> GitHistory.ref_commits(limit: @head_lookback) |> Enum.map(&elem(&1, 0))
-          measured = Commits.by_shas(project.id, shas, listed: true)
+          measured = measured_on_ref(project, ref, shas)
           Enum.find_value(shas, &Map.get(measured, &1))
       end
 
     row && with_coverage(row)
+  end
+
+  # The listed commits among the ref's `shas`, keyed by the SHA they stand
+  # at. A commit no run measured stands with its newest merge checkout: the
+  # merge commit a pull request's job checked out (`refs/pull/N/merge`, the
+  # base branch's tip first and the commit second) and measured, labelled
+  # with the branch. The graph keeps that merge commit on `pull/<number>`,
+  # never on the branch, and a job of each push makes a new one, so this is
+  # how a branch whose pull request jobs ran merge checkouts shows what each
+  # push measured. One read of the parent edges by `(repository_id,
+  # parent_sha)` and one of the merge commits' figures.
+  defp measured_on_ref(project, ref, shas) do
+    measured = Commits.by_shas(project.id, shas, listed: true)
+
+    case Enum.reject(shas, &Map.has_key?(measured, &1)) do
+      [] ->
+        measured
+
+      unmeasured ->
+        merges =
+          Repo.all(
+            from(p in CommitParent,
+              where: p.repository_id == ^ref.repository_id and p.parent_sha in ^unmeasured and p.position == 1,
+              select: {p.child_sha, p.parent_sha}
+            )
+          )
+
+        project.id
+        |> Commits.by_shas(Enum.map(merges, &elem(&1, 0)), listed: true)
+        |> Map.values()
+        |> Enum.filter(&(&1.git_branch == ref.name and &1.pull_request_number > 0))
+        |> Enum.sort_by(& &1.ran_at, DateTime)
+        |> Enum.reduce(measured, fn row, acc ->
+          merges |> Enum.filter(&(elem(&1, 0) == row.git_commit_sha)) |> Enum.reduce(acc, &Map.put(&2, elem(&1, 1), row))
+        end)
+    end
   end
 
   # A commit whose runs skipped tests stands with its reported coverage and
