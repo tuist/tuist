@@ -276,6 +276,12 @@ type CreateArgs struct {
 	// FromArchive downloads the sandbox's archived disks and kernel from
 	// object storage instead. The sandbox cold boots on them.
 	FromArchive *ArchiveSource `json:"from_archive,omitempty"`
+	// CacheImage names an ext4 image in the daemon's cache image directory.
+	// A private writable clone of it is attached as the guest's third drive
+	// (/dev/vdc) and discarded with the sandbox; disk snapshots and archives
+	// never include it. Only cold-boot creates (FromDiskSnapshot) take it,
+	// because Firecracker cannot add a drive to a restored memory snapshot.
+	CacheImage string `json:"cache_image,omitempty"`
 }
 
 type SandboxArgs struct {

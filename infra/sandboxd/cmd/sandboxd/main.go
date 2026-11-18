@@ -288,6 +288,8 @@ func main() {
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
 		AllowedShapes: allowedShapes,
 		SnapshotDir:   snapshotDir, FirecrackerVersion: fcVersion, SnapshotCompat: snapshotCompat,
+		// Cache images must share the data filesystem so attaching one is a reflink.
+		CacheImageDir: os.Getenv("CACHE_IMAGE_DIR"),
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,

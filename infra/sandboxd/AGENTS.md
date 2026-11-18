@@ -51,6 +51,7 @@ reflink, so rootfs clones are instant copy-on-write):
   vmlinux             hard link to the template kernel
   rootfs.ext4         reflink clone of rootfs.boot.ext4
   workspace.ext4      sparse raw ext4 mounted at /workspace in the guest
+  cache.ext4          optional private reflink clone of a CACHE_IMAGE_DIR image, the guest's /dev/vdc
   mem                 hard link to the template memfile, replaced by the sandbox's own memory file on the first pause
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
@@ -684,6 +685,7 @@ agent so the manager runs end to end without KVM).
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
+| `CACHE_IMAGE_DIR` | | ext4 cache images a `create {..., from_disk_snapshot, cache_image}` may attach as a writable `cache` drive (`/dev/vdc`). Each sandbox gets a reflink clone in its jail, deleted with it and never saved by `save_disks` or archives; the master is never written. Must be on the `DATA_DIR` filesystem. Empty refuses `cache_image`. Template creates refuse it too: Firecracker cannot add a drive to a restored memory snapshot. A cold reboot keeps the drive. |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
 | `CHECKOUT_AGENT_URL` | | The node's runner-cache agent, e.g. `http://<runner-cache-volumes Service>.tuist-runners.svc.cluster.local:8090`; see "Guest to host: checkout". Needs `POD_NAME`. Empty ignores checkout grants. The chart sets it, and lists 8090 in `DAEMON_ONLY_TCP_PORTS`, when Linux cache volumes are enabled. |
@@ -703,8 +705,10 @@ interactive terminal session on the same path.
 
 ### Admin API
 
-`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname}`
-returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`;
+`POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname,from_disk_snapshot?,cache_image?}`
+returns `{id, boot_ms}`; `POST /v1/sandboxes/{id}/{pause,resume,delete}`
+(`pause` takes an optional `{sync_disks}`); `POST
+/v1/sandboxes/{id}/save_disks {snapshot_id}`;
 `POST /v1/sandboxes/{id}/exec {cmd,env,cwd,timeout_ms}` returns
 `{stdout,stderr,exit_code,duration_ms}`; `POST
 /v1/sandboxes/{id}/worker/{start,stop}`; `GET /v1/sandboxes`, `GET
