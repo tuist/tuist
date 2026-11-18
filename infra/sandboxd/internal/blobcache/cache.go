@@ -87,7 +87,8 @@ type entry struct {
 	size  int64
 	ready chan struct{}
 	err   error
-	elem  *list.Element // in lru once ready
+	elem  *list.Element // in lru, or trees for an image, once ready
+	tree  bool          // an input tree image (trees.go)
 }
 
 type Metrics struct {
@@ -109,7 +110,7 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 			Name: "sandboxd_blob_cache_bytes", Help: "Bytes held or reserved by the blob cache.",
 		}),
 		Trees: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "sandboxd_blob_cache_tree_images_total", Help: "Input tree images by outcome: built, full (no room) or error when building; attached when a guest mounts one.",
+			Name: "sandboxd_blob_cache_tree_images_total", Help: "Input tree images by outcome: built, full (no room) or error when building; attached when a guest mounts one; evicted when another entry needs its room.",
 		}, []string{"result"}),
 	}
 	if registry != nil {
@@ -133,11 +134,19 @@ type Cache struct {
 
 	mu      sync.Mutex
 	entries map[string]*entry
-	lru     list.List // ready entries, least recently used first
-	used    int64     // ready and reserved bytes
+	lru     list.List // ready blobs, least recently used first
+	used    int64     // ready and reserved bytes, images included
 	pending int64     // reserved bytes not yet on disk
 	conns   map[string]*grpc.ClientConn
 	tmp     int
+	// Ready input tree images, least recently used first, and their bytes.
+	// They hold at most treeBudget, half the budget, and make room only by
+	// evicting each other: an image is a copy of blobs in one directory, and
+	// without the cap a build's varying directories fill the budget with
+	// images and evict the blobs every action reads.
+	trees      list.List
+	treeUsed   int64
+	treeBudget int64
 	// Input tree images (trees.go): directories asked about but not imaged
 	// yet, and images being built.
 	sightings map[string]int
@@ -158,7 +167,7 @@ func New(dir string, budget int64, log *slog.Logger, metrics *Metrics) (*Cache, 
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, treeMin: TreeMinBytes,
+	return &Cache{dir: dir, budget: budget, treeBudget: budget / 2, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, treeMin: TreeMinBytes,
 		entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}, sightings: map[string]int{}, building: map[string]bool{}, MakeFS: MakeExt4}, nil
 }
 
@@ -233,12 +242,15 @@ func (c *Cache) count(result string) {
 	}
 }
 
-// reserve evicts least recently used blobs until size fits within the budget
-// and the filesystem keeps its free share, and records a download in flight.
-// c.mu is held.
+// reserve evicts least recently used blobs, then images once no blob is left,
+// until size fits within the budget and the filesystem keeps its free share,
+// and records a download in flight. c.mu is held.
 func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 	for c.used+size > c.budget || c.shortOfDisk(size) {
 		oldest := c.lru.Front()
+		if oldest == nil {
+			oldest = c.trees.Front()
+		}
 		if oldest == nil {
 			c.gauge()
 			return nil, ErrFull
@@ -256,7 +268,15 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 // evict removes a ready entry and its file. c.mu is held.
 func (c *Cache) evict(elem *list.Element) {
 	victim := elem.Value.(*entry)
-	c.lru.Remove(elem)
+	if victim.tree {
+		c.trees.Remove(elem)
+		c.treeUsed -= victim.size
+		if c.metrics != nil {
+			c.metrics.Trees.WithLabelValues("evicted").Inc()
+		}
+	} else {
+		c.lru.Remove(elem)
+	}
 	delete(c.entries, victim.key)
 	c.used -= victim.size
 	if err := os.Remove(victim.path); err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -180,5 +182,70 @@ func TestTreesThatEscapeOrAreSmallGetNoImage(t *testing.T) {
 	c.mu.Unlock()
 	if building != 0 {
 		t.Fatal("started a build for a small directory")
+	}
+}
+
+func TestImagesKeepToTheirShareOfTheBudget(t *testing.T) {
+	c, cas, endpoint := setup(t, 100)
+	s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+	var blobs []string
+	for i := range 3 {
+		hash, size := cas.put(fmt.Sprintf("blob-%05d", i)) // 10 bytes
+		blobs = append(blobs, hash)
+		if _, err := readAll(t, c, s, hash, size); err != nil {
+			t.Fatal(err)
+		}
+	}
+	image := func(name string, size int64) (string, error) {
+		path := filepath.Join(c.Dir(), name)
+		if err := os.WriteFile(path, make([]byte, size), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return path, c.keepTree(name, path, size)
+	}
+	cached := func(path string) bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}
+	blobPath := func(hash string) string { return filepath.Join(c.Dir(), s.key(), hash+"-10") }
+
+	// Two 30-byte images exceed the images' half of the 100-byte budget,
+	// though not the budget: the second evicts the first, not the older blobs.
+	first, err := image("tree-first", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := image("tree-second", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cached(first) || !cached(second) {
+		t.Fatalf("images cached: first %v, second %v", cached(first), cached(second))
+	}
+	for _, hash := range blobs {
+		if !cached(blobPath(hash)) {
+			t.Fatal("an image evicted a blob")
+		}
+	}
+	if _, err := image("tree-huge", 51); !errors.Is(err, ErrFull) {
+		t.Fatalf("image over the images' share: %v", err)
+	}
+
+	// Blobs evict blobs first, and images only once no blob is left.
+	hash, size := cas.put(strings.Repeat("y", 50))
+	if _, err := readAll(t, c, s, hash, size); err != nil {
+		t.Fatal(err)
+	}
+	if cached(blobPath(blobs[0])) || !cached(blobPath(blobs[2])) || !cached(second) {
+		t.Fatalf("after a 50-byte blob: oldest blob %v, newest blob %v, image %v", cached(blobPath(blobs[0])), cached(blobPath(blobs[2])), cached(second))
+	}
+	hash, size = cas.put(strings.Repeat("x", 71))
+	if _, err := readAll(t, c, s, hash, size); err != nil {
+		t.Fatal(err)
+	}
+	if cached(second) {
+		t.Fatal("image kept though blobs need the whole budget")
 	}
 }

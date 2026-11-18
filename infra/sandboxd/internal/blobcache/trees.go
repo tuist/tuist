@@ -75,7 +75,7 @@ func (c *Cache) TreeImage(s Scope, t Tree) (string, bool) {
 	if !ok || e.elem == nil {
 		return "", false
 	}
-	c.lru.MoveToBack(e.elem)
+	c.trees.MoveToBack(e.elem)
 	return e.path, true
 }
 
@@ -85,7 +85,7 @@ func (c *Cache) TreeImage(s Scope, t Tree) (string, bool) {
 func (c *Cache) NoteTrees(s Scope, trees []Tree) {
 	ns := s.key()
 	for _, t := range trees {
-		if !validHash(t.Hash) || t.Size <= 0 || t.Bytes < c.treeMin || t.Bytes > treeMaxBytes {
+		if !validHash(t.Hash) || t.Size <= 0 || t.Bytes < c.treeMin || t.Bytes > treeMaxBytes || t.Bytes > c.treeBudget {
 			continue
 		}
 		key := ns + "/" + t.name()
@@ -125,44 +125,46 @@ func (c *Cache) buildTree(s Scope, key string, t Tree) {
 		c.log.Warn("input tree image", "error", err)
 		return
 	}
-	size := diskBytes(image)
-	if _, exists := c.entries[key]; exists || size > c.budget {
+	if _, exists := c.entries[key]; exists {
 		os.Remove(image)
 		return
 	}
-	// The image is on disk already: reserve evicts others to make room in
-	// the budget, and its free-space check must not count the image twice.
-	e, err := c.reserveWritten(key, image, size)
-	if err != nil {
+	if err := c.keepTree(key, image, diskBytes(image)); err != nil {
 		os.Remove(image)
 		if c.metrics != nil {
 			c.metrics.Trees.WithLabelValues("full").Inc()
 		}
 		return
 	}
-	e.elem = c.lru.PushBack(e)
-	close(e.ready)
 	if c.metrics != nil {
 		c.metrics.Trees.WithLabelValues("built").Inc()
 	}
 }
 
-// reserveWritten accounts for a file already on disk, evicting the least
-// recently used entries until the budget holds it. c.mu is held.
-func (c *Cache) reserveWritten(key, path string, size int64) (*entry, error) {
-	for c.used+size > c.budget {
-		oldest := c.lru.Front()
+// keepTree adds an image already on disk, evicting the least recently used
+// images, never blobs, until it fits both the images' share and the budget.
+// Its free-space check is the build's: the image must not count twice.
+// c.mu is held.
+func (c *Cache) keepTree(key, path string, size int64) error {
+	if size > c.treeBudget {
+		return ErrFull
+	}
+	for c.treeUsed+size > c.treeBudget || c.used+size > c.budget {
+		oldest := c.trees.Front()
 		if oldest == nil {
 			c.gauge()
-			return nil, ErrFull
+			return ErrFull
 		}
 		c.evict(oldest)
 	}
-	e := &entry{key: key, path: path, size: size, ready: make(chan struct{})}
+	e := &entry{key: key, path: path, size: size, ready: make(chan struct{}), tree: true}
+	e.elem = c.trees.PushBack(e)
+	close(e.ready)
 	c.entries[key] = e
 	c.used += size
+	c.treeUsed += size
 	c.gauge()
-	return e, nil
+	return nil
 }
 
 func diskBytes(path string) int64 {

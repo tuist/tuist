@@ -273,7 +273,9 @@ a Rust toolchain, is not copied into each workspace at all once the node has
 seen it twice: sandboxd builds a read-only ext4 image of it from the project's
 CAS, attaches it to later actions' VMs as a drive, and the executor mounts it
 under an overlay at the directory's path. The `cas_reads` summary counts those
-directories under `tree`. Any failure materializes the directory as before.
+directories under `tree`. Images take at most half of the node's blob cache
+and never evict blobs, so warm blob reads survive builds whose large
+directories vary. Any failure materializes the directory as before.
 
 The host serves only while the action exec runs, only VMs of the template the
 worker is configured with, and only until the executor seals the channel

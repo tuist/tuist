@@ -369,8 +369,12 @@ in the background and at most two at a time, a journal-less ext4 image of
 exactly that directory: read from the scope's CAS with the exec's credential
 (large files through the blob cache, reflinked), entries owned by UID 1000
 with the executor's modes, symlinks refused unless they stay inside it. The
-image is a cache entry of that scope like a blob, under the same budget and
-LRU. `tree` asks for a directory's image: with one, the daemon hard-links it
+image is a cache entry of that scope like a blob, in the same budget but its
+own LRU: images hold at most half of `BLOB_CACHE_GIB` and make room only by
+evicting other images, while blobs evict images only once no blob is left.
+Without the split, a build's mixed parent directories (`bazel-out/k8-opt`,
+subsets of `external/`), whose digests change between groups of actions, were
+imaged at about 1 GB each and evicted nearly every blob. `tree` asks for a directory's image: with one, the daemon hard-links it
 over the jail's next input drive placeholder, `PATCH /drives/input<i>`, and
 answers `{"ok":true,"drive":i,"bytes":B}`; otherwise `{"error":...}`. The
 `bazel` template's snapshot carries `InputDrives` (4) read-only drives,
