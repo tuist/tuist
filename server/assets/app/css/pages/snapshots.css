@@ -120,7 +120,7 @@
     & > [data-part="image-name"] {
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      font-family: var(--noora-font-family-mono, monospace);
+      font-family: "Geist Mono", monospace;
       overflow-wrap: anywhere;
     }
 
@@ -257,7 +257,7 @@
     & > [data-part="image-file"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      font-family: var(--noora-font-family-mono, monospace);
+      font-family: "Geist Mono", monospace;
       overflow-wrap: anywhere;
     }
   }
@@ -301,7 +301,7 @@
         bottom: 0;
         left: calc(var(--snapshot-compare-position) * 1%);
         margin-left: -1px;
-        background: var(--noora-surface-label-destructive, #e5484d);
+        background: var(--noora-surface-label-destructive);
         width: 2px;
         pointer-events: none;
 
@@ -311,9 +311,9 @@
           left: 50%;
           transform: translate(-50%, -50%);
           box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
-          border: 2px solid var(--noora-surface-label-destructive, #e5484d);
+          border: 2px solid var(--noora-surface-label-destructive);
           border-radius: 50%;
-          background: var(--noora-surface-background-primary, #fff);
+          background: var(--noora-surface-background-primary);
           width: 20px;
           height: 20px;
         }
@@ -869,7 +869,7 @@ body:has(#snapshot-fullscreen) {
       overflow: hidden;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      font-family: var(--noora-font-family-mono, monospace);
+      font-family: "Geist Mono", monospace;
       text-overflow: ellipsis;
       white-space: nowrap;
     }

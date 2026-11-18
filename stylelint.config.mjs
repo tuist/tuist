@@ -57,6 +57,9 @@ const runtimeProperties = {
     // server/lib/tuist_web/marketing/components/marketing_home_components.ex.
     "--panel-x": "",
     "--panel-w": "",
+    // Set inline per snapshot image by server/lib/tuist_web/live/snapshot_build_live.ex
+    // from the image's width and height.
+    "--snapshot-aspect": "",
   },
 };
 
