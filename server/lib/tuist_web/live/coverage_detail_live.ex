@@ -1,13 +1,15 @@
 defmodule TuistWeb.CoverageDetailLive do
   @moduledoc """
-  One subject's coverage in detail: a commit or a branch. The two read the
-  same because a branch is a series of commits with a head, and every
-  figure on the page describes that head: what its runs measured, pooled
-  over the schemes that measured it.
+  One subject's coverage in detail: a commit, a branch or a pull request.
+  They read the same because a branch or a pull request is a series of
+  commits with a head, and every figure on the page describes that head:
+  what its runs measured, pooled over the schemes that measured it.
 
-  Overview holds the totals (a branch's also its coverage over the period); Commits lists the series (a commit has
+  Overview holds the totals (a series' also its coverage over the period); Commits lists the series (a commit has
   none); Targets and Files list everything the head measured; Test Runs the
-  runs behind the subject. The project's Code Coverage page
+  runs behind the subject. A pull request's page opens on its Commits tab
+  while its head commit is in progress, since there is no figure to show
+  yet, and on its Overview otherwise. The project's Code Coverage page
   (`TuistWeb.CoverageLive`) is the glance that sends readers here.
   """
   use TuistWeb, :live_view
@@ -36,6 +38,9 @@ defmodule TuistWeb.CoverageDetailLive do
   # (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads once
   # after a burst of runs rather than once per run, before the fold.
   @reload_delay to_timeout(second: 15)
+
+  # A branch and a pull request are both series of commits.
+  defguardp series?(kind) when kind in [:branch, :pull_request]
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !Coverage.supported?(project) do
@@ -77,13 +82,13 @@ defmodule TuistWeb.CoverageDetailLive do
     if connected?(socket) do
       {:noreply, socket |> assign(:loading, false) |> assign_tab(query)}
     else
-      {:noreply, socket |> assign(:loading, true) |> assign(:tab, tab(socket.assigns.subject, query["tab"]))}
+      {:noreply, socket |> assign(:loading, true) |> assign(:tab, tab(socket.assigns, query["tab"]))}
     end
   end
 
   @doc """
   A file's own page: a branch's over the branch and the period shown here,
-  a commit's at that commit, each leading back here.
+  a commit's or a pull request's at its head commit, each leading back here.
   """
   def file_href(%{subject: %{kind: :branch, branch: branch}} = assigns, path),
     do:
@@ -96,7 +101,7 @@ defmodule TuistWeb.CoverageDetailLive do
         here(assigns)
       )
 
-  def file_href(%{subject: %{kind: :commit, sha: sha}} = assigns, path),
+  def file_href(%{subject: %{sha: sha}} = assigns, path),
     do:
       coverage_file_href(
         assigns.selected_account.name,
@@ -212,12 +217,13 @@ defmodule TuistWeb.CoverageDetailLive do
     socket = assign(socket, :reload_scheduled, false)
 
     # A commit whose coverage is gone (past its retention) keeps the page it
-    # had rather than crashing it.
+    # had rather than crashing it. The tab shown stays, even when it was the
+    # default one and the head's status has changed what that is.
     if Commits.measured?(project.id, subject.sha) do
       {:noreply,
        socket
        |> assign_subject(socket.assigns.params)
-       |> assign_tab(socket.assigns.current_params)}
+       |> assign_tab(Map.put_new(socket.assigns.current_params, "tab", socket.assigns.tab))}
     else
       {:noreply, socket}
     end
@@ -227,6 +233,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp concerns?(%{kind: :commit, sha: sha}, %{git_commit_sha: sha}), do: true
   defp concerns?(%{kind: :branch, branch: branch}, %{git_branch: branch}), do: true
+  defp concerns?(%{kind: :pull_request, number: number}, %{pull_request_number: number}), do: true
   defp concerns?(_subject, _test_run), do: false
 
   defp schedule_reload(%{assigns: %{reload_scheduled: true}} = socket), do: socket
@@ -270,11 +277,35 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign_summary(Commits.summary(project.id, head.git_commit_sha))
   end
 
+  defp assign_subject(%{assigns: %{live_action: :pull_request, selected_project: project}} = socket, params) do
+    number =
+      case Integer.parse(params["number"] || "") do
+        {number, ""} when number > 0 -> number
+        _ -> raise NotFoundError, dgettext("dashboard_tests", "Pull request not found.")
+      end
+
+    head =
+      History.head_commit(project, {:pull_request, number}) ||
+        raise NotFoundError,
+              dgettext("dashboard_tests", "No run of pull request #%{number} gathered coverage.", number: number)
+
+    socket
+    |> assign(:params, params)
+    |> assign(:subject, %{
+      kind: :pull_request,
+      name: "##{number}",
+      number: number,
+      sha: head.git_commit_sha,
+      branch: {:pull_request, number}
+    })
+    |> assign_summary(Commits.summary(project.id, head.git_commit_sha))
+  end
+
   defp assign_summary(socket, summary),
     do: assign(socket, :summary, Map.put(summary, :reported, Commits.reported_figure(summary)))
 
-  defp assign_tab(%{assigns: %{subject: subject}} = socket, query) do
-    socket = assign(socket, :tab, tab(subject, query["tab"]))
+  defp assign_tab(socket, query) do
+    socket = assign(socket, :tab, tab(socket.assigns, query["tab"]))
 
     case socket.assigns.tab do
       "overview" -> assign_overview(socket)
@@ -285,13 +316,19 @@ defmodule TuistWeb.CoverageDetailLive do
     end
   end
 
-  defp tab(subject, value), do: if(value in tabs(subject), do: value, else: "overview")
+  defp tab(%{subject: subject} = assigns, value), do: if(value in tabs(subject), do: value, else: default_tab(assigns))
+
+  defp default_tab(%{subject: %{kind: :pull_request}, summary: summary}),
+    do: if(Commits.status(summary) == :in_progress, do: "commits", else: "overview")
+
+  defp default_tab(_assigns), do: "overview"
 
   defp assign_overview(socket), do: assign_analytics(socket)
 
-  # A branch leads with its coverage over the period, as the Code Coverage
-  # page does for the default branch.
-  defp assign_analytics(%{assigns: %{selected_project: project, subject: %{kind: :branch, branch: branch}}} = socket) do
+  # A branch or a pull request leads with its coverage over the period, as
+  # the Code Coverage page does for the default branch.
+  defp assign_analytics(%{assigns: %{selected_project: project, subject: %{kind: kind, branch: branch}}} = socket)
+       when series?(kind) do
     %{grouping: grouping, points: points} = History.trend_points(project, branch, period_opts(socket))
 
     socket
@@ -307,9 +344,9 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp assign_analytics(socket), do: socket
 
-  # A branch's commits are read a page at a time from a cursor, however long
-  # its history.
-  defp assign_commits(%{assigns: %{subject: %{kind: :branch}}} = socket, query) do
+  # A branch's or a pull request's commits are read a page at a time from a
+  # cursor, however long its history.
+  defp assign_commits(%{assigns: %{subject: %{kind: kind}}} = socket, query) when series?(kind) do
     {search, status} = commits_filter(query)
     page = branch_commit_page(socket, query, search: search, status: if(status == "any", do: "", else: status))
 
@@ -502,9 +539,10 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp run_scope(%{kind: :commit, sha: sha}), do: {:commit, sha}
   defp run_scope(%{kind: :branch, branch: branch}), do: {:branch, branch}
+  defp run_scope(%{kind: :pull_request, number: number}), do: {:pull_request, number}
 
-  defp run_schemes(%{assigns: %{selected_project: project, subject: %{kind: :branch, branch: branch}}} = socket),
-    do: History.branch_schemes(project, branch, period_opts(socket))
+  defp run_schemes(%{assigns: %{selected_project: project, subject: %{kind: kind, branch: branch}}} = socket)
+       when series?(kind), do: History.branch_schemes(project, branch, period_opts(socket))
 
   defp run_schemes(%{assigns: %{summary: summary}}),
     do: (summary.schemes ++ summary.partial_schemes) |> Enum.uniq() |> Enum.sort()
@@ -573,6 +611,15 @@ defmodule TuistWeb.CoverageDetailLive do
   def subject_title(%{kind: :commit, name: name}), do: dgettext("dashboard_tests", "Commit %{name}", name: name)
 
   def subject_title(%{kind: :branch, name: name}), do: dgettext("dashboard_tests", "Branch %{name}", name: name)
+
+  def subject_title(%{kind: :pull_request, number: number}),
+    do: dgettext("dashboard_tests", "Pull request #%{number}", number: number)
+
+  @doc "What the analytics' descriptions call a series: a branch by its name."
+  def series_label(%{kind: :pull_request, number: number}),
+    do: dgettext("dashboard_tests", "pull request #%{number}", number: number)
+
+  def series_label(%{name: name}), do: name
 
   @doc "The tabs the subject has: a commit is not a series, so it has no commits of its own."
   def tabs(%{kind: :commit}), do: ~w(overview targets files runs)

@@ -1410,12 +1410,21 @@ defmodule Tuist.VCS do
     |> Enum.uniq_by(fn build -> {build.root_project_name, Enum.sort(build.requested_tasks)} end)
   end
 
+  # The view reads `test_runs` with `FINAL`, under which ClickHouse uses skip
+  # indexes only when `use_skip_indexes_if_final` is on; it's off at the
+  # 24.12 compatibility level the server's profile pins, so it's set here.
+  # Its exact mode expands the granules the ref and commit SHA indexes select
+  # back to whole key ranges, reading the project's whole run history. Exact
+  # mode only matters when a run's newest version could stop matching while
+  # an older one still does; a run's ref and SHA are only ever filled in,
+  # never changed (a shard's report fills a placeholder's blanks), so the
+  # version the filter finds is the newest.
   defp get_latest_test_runs(params) do
     from(t in Tests.Test.query())
     |> filter_run_report_query(params)
     |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
-    |> ClickHouseRepo.all()
+    |> ClickHouseRepo.all(settings: [use_skip_indexes_if_final: 1, use_skip_indexes_if_final_exact_mode: 0])
     |> Enum.group_by(& &1.build_system)
     |> Enum.flat_map(fn
       {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)

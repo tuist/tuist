@@ -1,7 +1,9 @@
 defmodule Tuist.Tests.Coverage.History do
   @moduledoc """
-  Coverage over the project's history: a branch commit by commit, and every
-  branch's head.
+  Coverage over the project's history: a branch or a pull request commit by
+  commit, and every branch's head. Wherever a branch is taken, a pull request
+  is too, as `{:pull_request, number}`: its ref is `pull/<number>`, and, when
+  that owns nothing, its commits are the ones whose runs named it.
 
   Branch membership comes from the repository's commit graph
   (`Tuist.GitHistory`), not from the branch a run was labelled with: a
@@ -48,16 +50,25 @@ defmodule Tuist.Tests.Coverage.History do
     )
   end
 
-  # The branch's ref, when it owns commits.
+  # The branch's ref, when it owns commits. A pull request's
+  # (`{:pull_request, number}`) is `pull/<number>`.
   defp branch_ref(project, branch) do
     with repository_id when not is_nil(repository_id) <- repository_id(project.id),
-         %{} = ref <- GitHistory.ref(repository_id, branch),
+         %{} = ref <- GitHistory.ref(repository_id, ref_name(branch)),
          [_ | _] <- GitHistory.ref_commits(ref.id, limit: 1) do
       ref
     else
       _ -> nil
     end
   end
+
+  defp ref_name({:pull_request, number}), do: GitHistory.pull_request_ref(number)
+  defp ref_name(branch), do: branch
+
+  # The commits labelled with the branch, or, for a pull request, whose runs
+  # named it.
+  defp labelled(query, {:pull_request, number}), do: where(query, [c], c.pull_request_number == ^number)
+  defp labelled(query, branch), do: where(query, [c], c.git_branch == ^branch)
 
   @max_trend_points 40
 
@@ -131,7 +142,7 @@ defmodule Tuist.Tests.Coverage.History do
 
     {query, at} =
       case branch_ref(project, branch) do
-        nil -> {base |> where([c], c.git_branch == ^branch) |> ran_in(opts), :ran_at}
+        nil -> {base |> labelled(branch) |> ran_in(opts), :ran_at}
         ref -> {base |> where([c], c.ref_id == ^ref.id) |> in_period(opts), :committed_at}
       end
 
@@ -459,7 +470,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp fork_lookback(_project, _ref, _found), do: []
 
   defp labelled_cursor_page(project, branch, opts, size, cursor) do
-    labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) |> labelled_filter(opts) end
+    labelled = fn query -> query |> labelled(branch) |> ran_in(opts) |> labelled_filter(opts) end
     cursor = cursor_time(cursor)
     read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.()), listed: true) end
 
@@ -580,7 +591,8 @@ defmodule Tuist.Tests.Coverage.History do
   """
   def branch_schemes(%Project{} = project, branch, opts \\ []) do
     CoverageCommit
-    |> where([c], c.project_id == ^project.id and c.git_branch == ^branch)
+    |> where([c], c.project_id == ^project.id)
+    |> labelled(branch)
     |> ran_in(opts)
     |> select([c], fragment("unnest(? || ?)", c.schemes, c.partial_schemes))
     |> distinct(true)
@@ -624,7 +636,7 @@ defmodule Tuist.Tests.Coverage.History do
           project.id
           |> Commits.all(
             fn query ->
-              query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
+              query |> labelled(branch) |> order_by([c], desc: c.ran_at) |> limit(1)
             end,
             listed: true
           )
@@ -639,13 +651,16 @@ defmodule Tuist.Tests.Coverage.History do
     row && with_coverage(row)
   end
 
-  # A commit whose runs skipped tests stands with its reported coverage and
-  # lines (`Tuist.Tests.Coverage.Reported`): what a full run would have
-  # measured when every skipped test was carried forward, in which case it
-  # compares as a fully measured commit does, and otherwise the part of it
-  # that is confirmed, the lines known to be covered among those that could
-  # be counted.
-  defp with_coverage(%{reported_kind: kind} = row) when kind in ~w(reported partial) do
+  @doc """
+  The commit's row with the figure it stands with. A commit whose runs
+  skipped tests stands with its reported coverage and lines
+  (`Tuist.Tests.Coverage.Reported`): what a full run would have measured
+  when every skipped test was carried forward, in which case it compares as
+  a fully measured commit does, and otherwise the part of it that is
+  confirmed, the lines known to be covered among those that could be
+  counted.
+  """
+  def with_coverage(%{reported_kind: kind} = row) when kind in ~w(reported partial) do
     Map.merge(row, %{
       coverage: Coverage.percentage(row.reported_covered_lines, row.reported_executable_lines),
       covered_lines: row.reported_covered_lines,
@@ -653,5 +668,5 @@ defmodule Tuist.Tests.Coverage.History do
     })
   end
 
-  defp with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+  def with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
 end
