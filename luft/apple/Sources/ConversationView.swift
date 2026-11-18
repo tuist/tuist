@@ -369,7 +369,7 @@ struct ConversationView: View {
                     }
                     if thread?.working == true {
                         HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
+                            WorkingIndicator()
                             if let activity = thread?.activity {
                                 Text(verbatim: activity.title).foregroundStyle(Noora.labelPrimary).lineLimit(1)
                                 Text("Step \(activity.step) of \(activity.total)")
