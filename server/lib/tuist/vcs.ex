@@ -14,6 +14,7 @@ defmodule Tuist.VCS do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Cargo
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
@@ -1424,7 +1425,7 @@ defmodule Tuist.VCS do
     |> filter_run_report_query(params)
     |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
-    |> ClickHouseRepo.all(settings: [use_skip_indexes_if_final: 1, use_skip_indexes_if_final_exact_mode: 0])
+    |> ClickHouseRepo.all(settings: ClickHouseCapabilities.skip_indexes_if_final_settings(ClickHouseRepo))
     |> Enum.group_by(& &1.build_system)
     |> Enum.flat_map(fn
       {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)
