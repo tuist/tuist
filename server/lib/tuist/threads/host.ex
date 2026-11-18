@@ -411,7 +411,8 @@ defmodule Tuist.Threads.Host do
          account_id: thread.account_id,
          residency: context.residency,
          cwd: cwd,
-         commands_end_by: System.os_time(:millisecond) + left(deadline, @finish_ms + @answer_ms)}
+         commands_end_by: System.os_time(:millisecond) + left(deadline, @finish_ms + @answer_ms),
+         run: %{id: context.run_id, thread_id: thread.id, attempt: context.attempt}}
     ]
   end
 

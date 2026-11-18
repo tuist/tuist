@@ -15,7 +15,9 @@ defmodule Tuist.Push.LiveActivities do
   so new phases and copy ship from the server without an app release. Raw
   state never leaves the server: tool calls become phases (`Read`, `Glob`,
   `Grep` and `Ls` are Exploring, `Edit` and `Write` Editing, `Bash` Running
-  commands), and their arguments are never read.
+  commands, or Building and Testing while a Once run in its command reports
+  progress, shown as the `done` of `total` planned targets its timer
+  carries), and their arguments are never read.
   Headlines are the thread title an agent gave it (`Tuist.Push.thread_title/1`),
   which can appear on the Lock Screen.
 
@@ -107,6 +109,8 @@ defmodule Tuist.Push.LiveActivities do
     "exploring" => {"Exploring", "magnifyingglass", "blue"},
     "editing" => {"Editing", "pencil", "purple"},
     "running" => {"Running commands", "terminal", "orange"},
+    "building" => {"Building", "hammer", "orange"},
+    "testing" => {"Testing", "checklist", "teal"},
     "working" => {"Using tools", "wrench.and.screwdriver", "blue"},
     "shipping" => {"Shipping", "paperplane", "teal"},
     "needs_you" => {"Needs you", "bell.badge", "yellow"},
@@ -663,7 +667,8 @@ defmodule Tuist.Push.LiveActivities do
     |> Map.new(&{&1.thread_id, &1})
   end
 
-  # Names and states only: a call's arguments and result never leave the server.
+  # Names, states and a Bash call's build progress counts only: a call's
+  # arguments and result never leave the server.
   defp tool_calls([]), do: %{}
 
   defp tool_calls(run_ids) do
@@ -671,9 +676,9 @@ defmodule Tuist.Push.LiveActivities do
     |> join(:inner, [c], m in Message, on: m.id == c.message_id)
     |> where([c], c.run_id in ^run_ids)
     |> order_by([_c, m], asc: m.position)
-    |> select([c], {c.run_id, c.name, c.status})
+    |> select([c, m], {c.run_id, c.name, c.status, m.progress})
     |> Repo.all()
-    |> Enum.group_by(&elem(&1, 0), &{elem(&1, 1), elem(&1, 2)})
+    |> Enum.group_by(&elem(&1, 0), &{elem(&1, 1), elem(&1, 2), elem(&1, 3)})
   end
 
   defp row(thread, run, calls) do
@@ -683,7 +688,7 @@ defmodule Tuist.Push.LiveActivities do
 
     trail =
       calls
-      |> Enum.map(&tool_phase(elem(&1, 0)))
+      |> Enum.map(&tool_phase/1)
       |> Kernel.++([phase])
       |> Enum.dedup()
       |> Enum.take(-@max_trail)
@@ -692,6 +697,7 @@ defmodule Tuist.Push.LiveActivities do
       thread: thread,
       phase: phase,
       steps: steps,
+      build: if(phase in ["building", "testing"], do: elem(executing, 2)),
       trail: trail,
       started_at: DateTime.to_unix((run && run.inserted_at) || thread.updated_at)
     }
@@ -699,16 +705,21 @@ defmodule Tuist.Push.LiveActivities do
 
   defp phase("queued", _run, _executing), do: "waiting"
   defp phase("shipping", _run, _executing), do: "shipping"
-  defp phase("running", %Run{status: "running"}, {name, _}), do: tool_phase(name)
+  defp phase("running", %Run{status: "running"}, {_name, _status, _progress} = call), do: tool_phase(call)
   defp phase("running", _run, _executing), do: "thinking"
   defp phase("idle", _run, _executing), do: "done"
   defp phase("outcome_unknown", _run, _executing), do: "needs_you"
   defp phase(_status, _run, _executing), do: "failed"
 
-  defp tool_phase(name) when name in ["Read", "Glob", "Grep", "Ls"], do: "exploring"
-  defp tool_phase(name) when name in ["Edit", "Write"], do: "editing"
-  defp tool_phase("Bash"), do: "running"
-  defp tool_phase(_name), do: "working"
+  # A Bash call whose command runs a Once build or test reports its
+  # progress (`Tuist.Threads.record_build_progress/3`).
+  # Once that run ended, the command may still run something else.
+  defp tool_phase({"Bash", _status, %{"command" => "test", "state" => "running"}}), do: "testing"
+  defp tool_phase({"Bash", _status, %{"command" => "build", "state" => "running"}}), do: "building"
+  defp tool_phase({name, _status, _progress}) when name in ["Read", "Glob", "Grep", "Ls"], do: "exploring"
+  defp tool_phase({name, _status, _progress}) when name in ["Edit", "Write"], do: "editing"
+  defp tool_phase({"Bash", _status, _progress}), do: "running"
+  defp tool_phase(_call), do: "working"
 
   defp rank("needs_you"), do: 0
   defp rank(phase) when phase in ["done", "failed"], do: 1
@@ -718,14 +729,16 @@ defmodule Tuist.Push.LiveActivities do
     {label, symbol, tint} = Map.fetch!(@phases, phase)
 
     progress =
-      if phase in @finished,
-        do: %{"kind" => "steps", "done" => steps},
-        else: %{"kind" => "timer", "started_at" => row.started_at}
+      cond do
+        phase in @finished -> %{"kind" => "steps", "done" => steps}
+        build_total(row.build) > 0 -> build_fraction(row)
+        true -> %{"kind" => "timer", "started_at" => row.started_at}
+      end
 
     document = %{
       "id" => thread.id,
       "headline" => headline(thread),
-      "detail" => detail(phase, label, steps),
+      "detail" => if(row.build, do: build_detail(label, row.build), else: detail(phase, label, steps)),
       "phase" => phase,
       "symbol" => symbol,
       "tint" => tint,
@@ -752,6 +765,30 @@ defmodule Tuist.Push.LiveActivities do
 
     if title == "", do: "Your thread", else: title
   end
+
+  # A build's progress stays a `timer`, which widgets that predate `total`
+  # keep drawing; newer widgets draw `done` of `total` instead.
+  defp build_fraction(row) do
+    %{
+      "kind" => "timer",
+      "started_at" => row.started_at,
+      "done" => min(row.build["done"], row.build["planned"]),
+      "total" => row.build["planned"]
+    }
+  end
+
+  defp build_total(%{"planned" => planned}) when is_integer(planned), do: planned
+  defp build_total(_build), do: 0
+
+  defp build_detail(label, %{"tests" => %{"passed" => passed, "failed" => failed}})
+       when is_integer(passed) and is_integer(failed) and passed + failed > 0,
+       do: "#{label} · #{passed} passed, #{failed} failed"
+
+  defp build_detail(label, %{"done" => done, "planned" => planned})
+       when is_integer(done) and is_integer(planned) and planned > 0,
+       do: "#{label} · #{min(done, planned)} of #{planned} targets"
+
+  defp build_detail(label, _build), do: label
 
   defp detail("waiting", _label, _steps), do: "Queued"
   defp detail("needs_you", _label, _steps), do: "Check it before continuing"

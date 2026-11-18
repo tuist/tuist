@@ -94,6 +94,10 @@
 "Plan" = "Plan";
 "%lld of %lld done" = "%lld of %lld done";
 "Step %lld of %lld" = "Step %lld of %lld";
+"Building with Once" = "Building with Once";
+"Testing with Once" = "Testing with Once";
+"%lld of %lld targets" = "%lld of %lld targets";
+"%lld passed, %lld failed, %lld skipped" = "%lld passed, %lld failed, %lld skipped";
 "Completed" = "Completed";
 "In progress" = "In progress";
 "Not started" = "Not started";

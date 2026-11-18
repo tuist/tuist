@@ -429,6 +429,68 @@ defmodule Tuist.ThreadsTest do
     assert second.progress == %{"steps" => [%{"title" => "Answer", "status" => "in_progress"}]}
   end
 
+  test "a Bash call shows the build progress its command reported while it runs", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    assert :ok = Threads.begin_tool_call(run, "call_1", "Bash", %{"command" => "once build"}, @tools)
+    assert :ok = Threads.begin_tool_call(run, "call_2", "Bash", %{"command" => "once test"}, @tools)
+
+    snapshot = %{
+      "v" => 1,
+      "command" => "build",
+      "state" => "running",
+      "target" => "//app\e[31m\u202E",
+      "planned" => 40,
+      "done" => 12,
+      "cached" => 9,
+      "failed" => "many",
+      "running" => ["//lib:a", 7],
+      "tests" => %{"passed" => 0, "failed" => 0, "skipped" => 0},
+      "elapsed_ms" => 1200,
+      "secret" => "dropped"
+    }
+
+    revision = Repo.reload!(thread).revision
+    assert :ok = Threads.record_build_progress(run, "call_2", snapshot)
+    # Unchanged progress, apart from the clock, writes nothing, and counts
+    # that only moved on wait a few seconds.
+    assert :ok = Threads.record_build_progress(run, "call_2", Map.put(snapshot, "elapsed_ms", 2400))
+    assert :ok = Threads.record_build_progress(run, "call_2", Map.put(snapshot, "done", 13))
+    assert Repo.reload!(thread).revision == revision + 1
+
+    # Not Once's snapshot shape: ignored.
+    assert :ok = Threads.record_build_progress(run, "call_1", %{"v" => 2, "command" => "build"})
+
+    messages = Threads.serialize(Threads.history(Repo.reload!(thread))).messages
+    assert [%{content: "Working…"} = first, second] = Enum.filter(messages, &(&1.role == "tool"))
+    refute Map.has_key?(first, :build)
+    assert second.content == "Building //app[31m with Once · 12 of 40 targets (9 cached)"
+
+    assert second.build == %{
+             "command" => "build",
+             "state" => "running",
+             "target" => "//app[31m",
+             "planned" => 40,
+             "done" => 12,
+             "cached" => 9,
+             "failed" => 0,
+             "running" => ["//lib:a"],
+             "tests" => %{"passed" => 0, "failed" => 0, "skipped" => 0}
+           }
+
+    # The call's result replaces the summary; its last progress stays as evidence.
+    assert :ok = Threads.complete_tool_call(run, "call_2", "Bash", %{"command" => "once test"}, {:ok, "built"})
+    assert :ok = Threads.record_build_progress(run, "call_2", Map.put(snapshot, "done", 40))
+    messages = Threads.serialize(Threads.history(Repo.reload!(thread))).messages
+    assert %{content: "built", build: %{"done" => 12}} = messages |> Enum.filter(&(&1.role == "tool")) |> List.last()
+
+    # A new outcome shows at once.
+    assert :ok = Threads.record_build_progress(run, "call_1", snapshot)
+    revision = Repo.reload!(thread).revision
+    assert :ok = Threads.record_build_progress(run, "call_1", Map.merge(snapshot, %{"state" => "failed", "done" => 13}))
+    assert Repo.reload!(thread).revision == revision + 1
+  end
+
   # A host whose lease lapsed still receives the thread's wakes until it is
   # drained; it must not start the work the new host starts.
   test "a host whose lease lapsed cannot claim the thread's next run", %{user: user, account: account} do

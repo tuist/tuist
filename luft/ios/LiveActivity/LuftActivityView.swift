@@ -47,7 +47,19 @@ struct LuftActivityProgress: View {
     let stale: Bool
 
     var body: some View {
-        if let progress, progress.kind == "timer", let start = progress.startedAt, !stale {
+        // A build's timer also carries `done` of `total` targets, which
+        // widgets that predate it ignore and keep counting time.
+        if let progress, progress.kind == "timer", let done = progress.done, let total = progress.total, total > 0, !stale {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(done)/\(total)")
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(done)))
+                ProgressView(value: Double(min(done, total)), total: Double(total))
+                    .frame(width: 48)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(done) of \(total) targets")
+        } else if let progress, progress.kind == "timer", let start = progress.startedAt, !stale {
             Text(timerInterval: Date(timeIntervalSince1970: start)...Date.distantFuture, countsDown: false)
                 .monospacedDigit()
                 .multilineTextAlignment(.trailing)

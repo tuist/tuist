@@ -25,9 +25,13 @@ defmodule Tuist.Threads.Sandbox do
 
   Options: `:sandbox_id` and `:account_id` (both required: the row must
   belong to the account), `:residency` (the run's residency work id),
-  `:cwd` (default `/workspace/repository`), and `:commands_end_by`, a time in
+  `:cwd` (default `/workspace/repository`), `:commands_end_by`, a time in
   Unix milliseconds that every process's timeout is cut to end by, so that
-  a command ends within the run that started it.
+  a command ends within the run that started it, and `:run` (`id`,
+  `thread_id` and `attempt`), the run whose Bash calls' build and test
+  progress reading a command records (`Threads.record_build_progress/3`):
+  every command sets `ONCE_PROGRESS`, so a Once build or test in it reports
+  as it goes.
 
   Not implemented, because the sandbox node has nothing for them yet:
   `snapshot/2` (project snapshots keyed for threads) and `expose_port/3`
@@ -44,7 +48,10 @@ defmodule Tuist.Threads.Sandbox do
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
+  alias Tuist.Threads
   alias Tuist.Threads.ExitWatchWorker
+
+  require Logger
 
   @default_cwd "/workspace/repository"
   @exec_timeout_ms 120_000
@@ -213,7 +220,8 @@ defmodule Tuist.Threads.Sandbox do
          account_id: account_id,
          residency: Keyword.get(opts, :residency),
          cwd: Keyword.get(opts, :cwd, @default_cwd),
-         commands_end_by: Keyword.get(opts, :commands_end_by)
+         commands_end_by: Keyword.get(opts, :commands_end_by),
+         run: Keyword.get(opts, :run)
        }}
     else
       _ -> {:error, :sandbox_not_found}
@@ -366,9 +374,28 @@ defmodule Tuist.Threads.Sandbox do
 
     with {:ok, sandbox} <- fetch(state),
          {:ok, read} <- Commands.read(sandbox, command_id(id), read_opts) do
+      report_progress(state, id, read)
       {:ok, %{output: read.stdout, offset: read.stdout_offset, size: read.stdout_size, status: status(read)}}
     end
   end
+
+  # A Bash call's process id ends in the model's id for the call
+  # (`Condukt.Tools.Bash.process_id/2`, with the run's session id), which is
+  # how the build progress a Once run in it reported finds the call.
+  # Progress is best effort: failing to record it must not fail reading the
+  # command, which the Bash tool and its watcher depend on.
+  defp report_progress(%{run: %{thread_id: thread_id, id: run_id} = run}, id, %{progress: %{} = snapshot}) do
+    case String.split(id, "condukt-bash:#{thread_id}:#{run_id}:", parts: 2) do
+      ["", invocation_id] -> Threads.record_build_progress(run, invocation_id, snapshot)
+      _ -> :ok
+    end
+  rescue
+    error ->
+      Logger.warning("Could not record build progress: #{Exception.message(error)}")
+      :ok
+  end
+
+  defp report_progress(_state, _id, _read), do: :ok
 
   # Kills the command and forgets it, so its id starts afresh, as stopping
   # does on every Condukt sandbox. Its guest log goes with the sandbox.

@@ -39,6 +39,10 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # release's SHASUMS256.txt.
 ARG TUIST_VERSION=4.219.0-canary.12
 ARG TUIST_SHA256=51476eeb54fba068a2e47dee79e033c0dbfc7d9fc02d5e6488ed49959637e56d
+# Once, which thread agents build and test with first; SHA-256 of
+# once-<version>-x86_64-unknown-linux-gnu.tar.gz from the release's .sha256.
+ARG ONCE_VERSION=0.83.0
+ARG ONCE_SHA256=f05a096d8cd5b60208b4477376fe18684671790d703547986f0b73c7032a1619
 ARG VERSION=dev
 
 FROM ubuntu:24.04 AS elixir-toolchain
@@ -217,6 +221,19 @@ RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
     && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
     && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
     && test "$(tuist version)" = "${TUIST_VERSION}"
+# Once for builds and tests (`Tuist.Threads.Agent`). It reports a build's
+# progress to the file `ONCE_PROGRESS` names, which every sandbox command sets
+# (`Tuist.Sandboxes.Commands`). Its binary links libasound for `--sound`.
+ARG ONCE_VERSION
+ARG ONCE_SHA256
+RUN apt-get update && apt-get install -y --no-install-recommends libasound2t64 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL --retry 3 -o /tmp/once.tar.gz \
+        "https://github.com/tuist/once/releases/download/${ONCE_VERSION}/once-${ONCE_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+    && echo "${ONCE_SHA256}  /tmp/once.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/once.tar.gz -C /usr/local/bin once \
+    && chown root:root /usr/local/bin/once && chmod 0755 /usr/local/bin/once && rm /tmp/once.tar.gz \
+    && test "$(once --version)" = "once ${ONCE_VERSION}"
 COPY agent-home/skills/ /home/user/.claude/skills/
 RUN chown -R user:user /home/user/.claude
 

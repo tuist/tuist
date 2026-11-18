@@ -1784,6 +1784,58 @@ fn cards_get_the_height_of_their_size_class_and_unshowable_ones_fall_back_to_tex
 }
 
 #[test]
+fn a_bash_calls_once_build_shows_its_share_of_planned_targets_while_it_runs() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let build = |state: &str, planned: u64, done: u64| {
+        json!({"command":"build","state":state,"target":"//app","planned":planned,"done":done,
+               "cached":1,"failed":0,"running":[],"tests":{"passed":0,"failed":0,"skipped":0}})
+    };
+    let messages = json!([
+        {"role":"user","content":"Build it"},
+        {"role":"tool","content":"Building //app with Once · 3 of 4 targets (1 cached)","toolName":"Bash",
+         "toolStatus":"running","build":build("running", 4, 3)},
+        {"role":"tool","content":"Building","toolName":"Bash","toolStatus":"running","build":build("running", 0, 2)},
+        {"role":"tool","content":"done","toolName":"Bash","toolStatus":"complete","build":build("succeeded", 4, 4)},
+        {"role":"tool","content":"Building","toolName":"Bash","toolStatus":"running",
+         "build":{"command":"deploy","state":"running"}},
+        {"role":"tool","content":"Testing","toolName":"Bash","toolStatus":"running",
+         "build":{"command":"test","state":"running","planned":2,"done":3,"cached":0,"failed":0,
+                  "tests":{"passed":5,"failed":1,"skipped":0}}},
+    ]);
+    h.responses
+        .push_back((200, server_thread(messages.clone())));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    let shown = &thread["data"]["messages"];
+    assert_eq!(shown[1]["build"]["fraction"], json!(0.75), "{thread}");
+    assert_eq!(shown[1]["build"]["active"], true);
+    // No plan yet: the share is unknown, not zero.
+    assert_eq!(shown[2]["build"]["fraction"], Value::Null);
+    // A finished call's build stays as evidence but no longer animates.
+    assert_eq!(shown[3]["build"]["active"], false);
+    assert_eq!(shown[3]["build"]["fraction"], json!(1.0));
+    // A build this core can't show falls back to the message's content.
+    assert_eq!(shown[4].get("build"), None);
+    // Edges draw what the core decided: no tests until a case ran, counts
+    // within the plan, and a failing case marks the build failing.
+    assert_eq!(shown[1]["build"]["tests"], Value::Null);
+    assert_eq!(shown[1]["build"]["failing"], false);
+    assert_eq!(shown[5]["build"]["done"], 2);
+    assert_eq!(shown[5]["build"]["fraction"], json!(1.0));
+    assert_eq!(shown[5]["build"]["failing"], true);
+    assert_eq!(
+        shown[5]["build"]["tests"],
+        json!({"passed":5,"failed":1,"skipped":0})
+    );
+
+    let mut ended = server_thread(messages);
+    ended["status"] = json!("interrupted");
+    h.responses.push_back((200, ended));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(thread["data"]["messages"][1]["build"]["active"], false);
+}
+
+#[test]
 fn only_the_answering_runs_plan_is_active_and_says_what_the_thread_does_now() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
