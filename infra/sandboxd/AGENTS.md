@@ -369,11 +369,18 @@ of large input directories that recur, such as toolchains:
 ```
 
 `trees` reports directories of at least 64 MiB of files that the guest
-materialized itself. The second time a scope reports one, the daemon builds,
-in the background and at most two at a time, a journal-less ext4 image of
+materialized itself. The second action of a scope to report one (an action
+counts once however often it repeats a directory) has the daemon build, in
+the background, at most two at a time on the node and one per scope, a
+journal-less ext4 image of
 exactly that directory: read from the scope's CAS with the exec's credential
 (large files through the blob cache, reflinked), entries owned by UID 1000
-with the executor's modes, symlinks refused unless they stay inside it. The
+with the executor's modes, symlinks refused unless they stay inside it. A
+build writes small files a batch at a time, refuses a directory larger than
+the images' share, and reserves twice the directory's bytes against the
+data filesystem's free share until the image replaces the reservation. A
+scope keeps at most 1024 directories seen once, forgetting its own beyond
+that. The
 image is a cache entry of that scope like a blob, in the same budget but its
 own LRU: images hold at most half of `BLOB_CACHE_GIB` and make room only by
 evicting other images, while blobs evict images only once no blob is left.

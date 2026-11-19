@@ -38,10 +38,14 @@ const (
 	// treeSightings is how many actions must ask for a directory before it
 	// gets an image: one sighting is no evidence that it recurs.
 	treeSightings = 2
-	// treeBuilds bounds concurrent image builds on the node.
+	// treeBuilds bounds concurrent image builds on the node; a scope builds
+	// one image at a time, so one project cannot hold every build.
 	treeBuilds = 2
-	// maxSightings bounds the memory spent counting directories.
-	maxSightings = 8192
+	// maxSightings bounds the memory spent counting directories, and
+	// maxScopeSightings one scope's share of it: a scope over its share
+	// forgets its own sightings, never another scope's.
+	maxSightings      = 8192
+	maxScopeSightings = 1024
 	// GuestBuildUID owns the image's entries, like the files the executor
 	// writes for the action's unprivileged user.
 	GuestBuildUID = 1000
@@ -81,8 +85,14 @@ func (c *Cache) TreeImage(s Scope, t Tree) (string, bool) {
 
 // NoteTrees records that an action materialized these directories itself and
 // builds an image, in the background, of each one that recurs. A build reads
-// the CAS with the scope's credential, as a blob download does.
-func (c *Cache) NoteTrees(s Scope, trees []Tree) {
+// the CAS with the scope's credential, as a blob download does. reported
+// holds the directories this action already reported, so an action counts
+// once per directory however often it repeats it; nil counts each request on
+// its own.
+func (c *Cache) NoteTrees(s Scope, trees []Tree, reported map[string]bool) {
+	if reported == nil {
+		reported = map[string]bool{}
+	}
 	ns := s.key()
 	for _, t := range trees {
 		if !validHash(t.Hash) || t.Size <= 0 || t.Bytes < c.treeMin || t.Bytes > treeMaxBytes || t.Bytes > c.treeBudget {
@@ -91,17 +101,26 @@ func (c *Cache) NoteTrees(s Scope, trees []Tree) {
 		key := ns + "/" + t.name()
 		c.mu.Lock()
 		_, cached := c.entries[key]
-		if cached || c.building[key] {
+		if cached || c.building[key] || reported[key] {
 			c.mu.Unlock()
 			continue
 		}
+		reported[key] = true
+		if c.scopeSightings[ns] >= maxScopeSightings {
+			c.forgetSightings(ns)
+		}
 		if len(c.sightings) >= maxSightings {
 			clear(c.sightings)
+			clear(c.scopeSightings)
+		}
+		if c.sightings[key] == 0 {
+			c.scopeSightings[ns]++
 		}
 		c.sightings[key]++
-		start := c.sightings[key] >= treeSightings && len(c.building) < treeBuilds
+		start := c.sightings[key] >= treeSightings && len(c.building) < treeBuilds && !c.scopeBuilding(ns)
 		if start {
 			delete(c.sightings, key)
+			c.scopeSightings[ns]--
 			c.building[key] = true
 		}
 		c.mu.Unlock()
@@ -111,13 +130,38 @@ func (c *Cache) NoteTrees(s Scope, trees []Tree) {
 	}
 }
 
+// forgetSightings drops the scope's sightings. c.mu is held.
+func (c *Cache) forgetSightings(ns string) {
+	for key := range c.sightings {
+		if strings.HasPrefix(key, ns+"/") {
+			delete(c.sightings, key)
+		}
+	}
+	delete(c.scopeSightings, ns)
+}
+
+// scopeBuilding reports whether the scope has an image build running. c.mu
+// is held.
+func (c *Cache) scopeBuilding(ns string) bool {
+	for key := range c.building {
+		if strings.HasPrefix(key, ns+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Cache) buildTree(s Scope, key string, t Tree) {
 	ctx, cancel := context.WithTimeout(context.Background(), fillTimeout)
 	defer cancel()
-	image, err := c.makeTree(ctx, s, t)
+	image, reserved, err := c.makeTree(ctx, s, t)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.building, key)
+	// The image moves from the build's reservation into the budget in this
+	// same critical section, so no free-space check sees it twice or not
+	// at all.
+	c.pending -= reserved
 	if err != nil {
 		if c.metrics != nil {
 			c.metrics.Trees.WithLabelValues("error").Inc()
@@ -182,32 +226,54 @@ type treeNode struct {
 	target string // symlinks
 }
 
-// makeTree builds the directory's image and returns its path in the cache.
-func (c *Cache) makeTree(ctx context.Context, s Scope, t Tree) (string, error) {
+// makeTree builds the directory's image and returns its path in the cache
+// and the bytes it reserved in c.pending for the build, which the caller
+// releases. A build writes the directory and then its image, so it reserves
+// twice the directory's bytes, checked against the free share with the
+// downloads and builds in flight.
+func (c *Cache) makeTree(ctx context.Context, s Scope, t Tree) (string, int64, error) {
 	conn, err := c.conn(s.Endpoint)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+s.Token, "x-tuist-account-handle", s.Account))
 	cas := repb.NewContentAddressableStorageClient(conn)
 	dirs, files, links, total, err := readTree(ctx, cas, s.Instance, &repb.Digest{Hash: t.Hash, SizeBytes: t.Size})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if total < c.treeMin {
-		return "", fmt.Errorf("directory holds %d bytes, under the image minimum", total)
+		return "", 0, fmt.Errorf("directory holds %d bytes, under the image minimum", total)
 	}
-	if c.shortOfDisk(2 * total) {
-		return "", ErrFull
+	// The guest's byte count was only a hint; the image could never be kept.
+	if total > c.treeBudget {
+		return "", 0, ErrFull
 	}
+	reserved := 2 * total
+	c.mu.Lock()
+	if c.shortOfDisk(reserved) {
+		c.mu.Unlock()
+		return "", 0, ErrFull
+	}
+	c.pending += reserved
+	c.tmp++
+	n := strconv.Itoa(c.tmp)
+	c.mu.Unlock()
+	image, err := c.writeImage(ctx, s, cas, t, n, total, dirs, files, links)
+	if err != nil {
+		c.mu.Lock()
+		c.pending -= reserved
+		c.mu.Unlock()
+		return "", 0, err
+	}
+	return image, reserved, nil
+}
+
+func (c *Cache) writeImage(ctx context.Context, s Scope, cas repb.ContentAddressableStorageClient, t Tree, n string, total int64, dirs []string, files, links []treeNode) (string, error) {
 	ns := filepath.Join(c.dir, s.key())
 	if err := os.MkdirAll(ns, 0o700); err != nil {
 		return "", err
 	}
-	c.mu.Lock()
-	c.tmp++
-	n := strconv.Itoa(c.tmp)
-	c.mu.Unlock()
 	tmp := filepath.Join(ns, ".tree-"+n)
 	image := filepath.Join(ns, ".tree-"+n+".ext4")
 	defer os.RemoveAll(tmp)
@@ -222,7 +288,8 @@ func (c *Cache) makeTree(ctx context.Context, s Scope, t Tree) (string, error) {
 	}
 	final := filepath.Join(ns, t.name()+".ext4")
 	// Jails hard-link the image and their Firecracker opens it read-only.
-	if err := os.Chmod(image, 0o444); err == nil {
+	err := os.Chmod(image, 0o444)
+	if err == nil {
 		err = os.Rename(image, final)
 	}
 	if err != nil {
@@ -270,8 +337,11 @@ func readTree(ctx context.Context, cas repb.ContentAddressableStorageClient, ins
 		for i, p := range level {
 			digests[i] = p.digest
 		}
-		blobs, err := readBatches(ctx, cas, instance, digests)
-		if err != nil {
+		blobs := make([][]byte, len(digests))
+		if err := readBatches(ctx, cas, instance, digests, func(i int, data []byte) error {
+			blobs[i] = data
+			return nil
+		}); err != nil {
 			return nil, nil, nil, 0, err
 		}
 		var next []pending
@@ -337,9 +407,10 @@ func readTree(ctx context.Context, cas repb.ContentAddressableStorageClient, ins
 	return dirs, files, links, total, nil
 }
 
-// readBatches reads small blobs with BatchReadBlobs and verifies each one.
-func readBatches(ctx context.Context, cas repb.ContentAddressableStorageClient, instance string, digests []*repb.Digest) ([][]byte, error) {
-	out := make([][]byte, len(digests))
+// readBatches reads small blobs with BatchReadBlobs, verifies each one and
+// hands it to each with its index in digests, one response at a time, so at
+// most one response is held in memory unless each keeps the data.
+func readBatches(ctx context.Context, cas repb.ContentAddressableStorageClient, instance string, digests []*repb.Digest, each func(i int, data []byte) error) error {
 	for start := 0; start < len(digests); {
 		end, bytes := start, int64(0)
 		for end < len(digests) && end-start < treeBatchEntries && (end == start || bytes+digests[end].SizeBytes <= treeBatchBytes) {
@@ -348,7 +419,7 @@ func readBatches(ctx context.Context, cas repb.ContentAddressableStorageClient, 
 		}
 		resp, err := cas.BatchReadBlobs(ctx, &repb.BatchReadBlobsRequest{InstanceName: instance, Digests: digests[start:end]})
 		if err != nil {
-			return nil, err
+			return err
 		}
 		got := map[string][]byte{}
 		for _, r := range resp.Responses {
@@ -361,13 +432,15 @@ func readBatches(ctx context.Context, cas repb.ContentAddressableStorageClient, 
 			data, ok := got[d.Hash+"/"+strconv.FormatInt(d.SizeBytes, 10)]
 			sum := sha256.Sum256(data)
 			if !ok || int64(len(data)) != d.SizeBytes || hex.EncodeToString(sum[:]) != d.Hash {
-				return nil, errors.New("input tree blob missing or corrupt")
+				return errors.New("input tree blob missing or corrupt")
 			}
-			out[i] = data
+			if err := each(i, data); err != nil {
+				return err
+			}
 		}
 		start = end
 	}
-	return out, nil
+	return nil
 }
 
 // writeTree lays the directory out under tmp, owned by the guest's build user
@@ -408,28 +481,27 @@ func (c *Cache) writeTree(ctx context.Context, s Scope, cas repb.ContentAddressa
 			return err
 		}
 	}
-	unique := map[string]bool{}
+	// Small files are written as each batch arrives, so a build holds one
+	// batch response in memory, not the directory's small files.
+	paths := map[string][]treeNode{} // digest key -> files with that content
 	var digests []*repb.Digest
 	for _, f := range small {
 		key := f.file.Digest.Hash + "/" + strconv.FormatInt(f.file.Digest.SizeBytes, 10)
-		if !unique[key] {
-			unique[key] = true
+		if _, ok := paths[key]; !ok {
 			digests = append(digests, f.file.Digest)
 		}
+		paths[key] = append(paths[key], f)
 	}
-	data, err := readBatches(ctx, cas, s.Instance, digests)
-	if err != nil {
-		return err
-	}
-	content := map[string][]byte{}
-	for i, d := range digests {
-		content[d.Hash+"/"+strconv.FormatInt(d.SizeBytes, 10)] = data[i]
-	}
-	for _, f := range small {
-		b := content[f.file.Digest.Hash+"/"+strconv.FormatInt(f.file.Digest.SizeBytes, 10)]
-		if err := writeFile(filepath.Join(tmp, f.path), f.file, func(out *os.File) error { _, err := out.Write(b); return err }); err != nil {
-			return err
+	if err := readBatches(ctx, cas, s.Instance, digests, func(i int, data []byte) error {
+		d := digests[i]
+		for _, f := range paths[d.Hash+"/"+strconv.FormatInt(d.SizeBytes, 10)] {
+			if err := writeFile(filepath.Join(tmp, f.path), f.file, func(out *os.File) error { _, err := out.Write(data); return err }); err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	for _, l := range links {
 		p := filepath.Join(tmp, l.path)

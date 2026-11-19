@@ -71,6 +71,10 @@ func (c *Cache) Serve(ctx context.Context, l net.Listener, s Scope, attach Attac
 	}()
 	var wg sync.WaitGroup
 	defer wg.Wait()
+	// The directories this action reported, so it counts once per directory
+	// toward an image however many requests repeat it. NoteTrees guards it
+	// with c.mu.
+	reported := map[string]bool{}
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -78,7 +82,7 @@ func (c *Cache) Serve(ctx context.Context, l net.Listener, s Scope, attach Attac
 		}
 		wg.Go(func() {
 			defer conn.Close()
-			if c.handle(ctx, conn, s, attach) {
+			if c.handle(ctx, conn, s, attach, reported) {
 				cancel()
 			}
 		})
@@ -86,7 +90,7 @@ func (c *Cache) Serve(ctx context.Context, l net.Listener, s Scope, attach Attac
 }
 
 // handle answers one request and reports whether it sealed the channel.
-func (c *Cache) handle(ctx context.Context, conn net.Conn, s Scope, attach Attach) (sealed bool) {
+func (c *Cache) handle(ctx context.Context, conn net.Conn, s Scope, attach Attach, reported map[string]bool) (sealed bool) {
 	conn.SetDeadline(time.Now().Add(requestTimeout))
 	line, err := bufio.NewReaderSize(io.LimitReader(conn, maxRequestLine), maxRequestLine).ReadSlice('\n')
 	if err != nil {
@@ -108,7 +112,7 @@ func (c *Cache) handle(ctx context.Context, conn net.Conn, s Scope, attach Attac
 		if len(r.Trees) > maxReportedTrees {
 			r.Trees = r.Trees[:maxReportedTrees]
 		}
-		c.NoteTrees(s, r.Trees)
+		c.NoteTrees(s, r.Trees, reported)
 		reply(conn, Response{OK: true})
 		return false
 	case "read":

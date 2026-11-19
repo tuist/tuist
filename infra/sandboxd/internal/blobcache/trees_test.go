@@ -100,15 +100,19 @@ func TestRecurringInputTreesAreImagedPerScope(t *testing.T) {
 	}
 	socket, _ := serveWith(t, c, a, attach)
 
-	// One action materializing the directory is no evidence it recurs.
-	if r := guestTree(t, socket, Request{Op: "trees", Trees: []Tree{tree}}); !r.OK {
+	// One action materializing the directory is no evidence it recurs, however
+	// often it reports it.
+	if r := guestTree(t, socket, Request{Op: "trees", Trees: []Tree{tree, tree}}); !r.OK {
 		t.Fatalf("trees: %+v", r)
 	}
+	guestTree(t, socket, Request{Op: "trees", Trees: []Tree{tree}})
 	time.Sleep(100 * time.Millisecond)
 	if r := guestTree(t, socket, Request{Op: "tree", Hash: tree.Hash, Size: tree.Size}); r.OK {
-		t.Fatalf("image after one sighting: %+v", r)
+		t.Fatalf("image after one action's sightings: %+v", r)
 	}
-	guestTree(t, socket, Request{Op: "trees", Trees: []Tree{tree}})
+	// A second action reporting it is.
+	second, _ := serveWith(t, c, a, nil)
+	guestTree(t, second, Request{Op: "trees", Trees: []Tree{tree}})
 	var image string
 	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
 		var ok bool
@@ -166,16 +170,16 @@ func TestTreesThatEscapeOrAreSmallGetNoImage(t *testing.T) {
 	s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
 	ctx := context.Background()
 	escaping := cas.putDir(t, &repb.Directory{Symlinks: []*repb.SymlinkNode{{Name: "up", Target: "../outside"}}})
-	if _, err := c.makeTree(ctx, s, Tree{Hash: escaping.Hash, Size: escaping.SizeBytes}); err == nil || !strings.Contains(err.Error(), "leaves") {
+	if _, _, err := c.makeTree(ctx, s, Tree{Hash: escaping.Hash, Size: escaping.SizeBytes}); err == nil || !strings.Contains(err.Error(), "leaves") {
 		t.Fatalf("escaping symlink: %v", err)
 	}
 	small := cas.putDir(t, &repb.Directory{Files: []*repb.FileNode{cas.file("a", "tiny", false)}})
-	if _, err := c.makeTree(ctx, s, Tree{Hash: small.Hash, Size: small.SizeBytes}); err == nil {
+	if _, _, err := c.makeTree(ctx, s, Tree{Hash: small.Hash, Size: small.SizeBytes}); err == nil {
 		t.Fatal("imaged a directory under the minimum")
 	}
 	// A guest's byte count is only a hint: under the minimum it starts nothing.
 	for range 3 {
-		c.NoteTrees(s, []Tree{{Hash: small.Hash, Size: small.SizeBytes, Bytes: 10}})
+		c.NoteTrees(s, []Tree{{Hash: small.Hash, Size: small.SizeBytes, Bytes: 10}}, nil)
 	}
 	c.mu.Lock()
 	building := len(c.building)
@@ -247,5 +251,99 @@ func TestImagesKeepToTheirShareOfTheBudget(t *testing.T) {
 	}
 	if cached(second) {
 		t.Fatal("image kept though blobs need the whole budget")
+	}
+}
+
+func TestBuildWritesSmallFilesBatchByBatchAndReservesDisk(t *testing.T) {
+	c, cas, endpoint := setup(t, 1<<30)
+	c.treeMin = 1
+	s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+	// More files than one batch takes, with one content at both ends.
+	want := map[string]string{}
+	var files []*repb.FileNode
+	for i := range treeBatchEntries + 500 {
+		name, data := fmt.Sprintf("f%05d", i), fmt.Sprintf("content-%05d", i)
+		if i == treeBatchEntries+499 {
+			data = "content-00000"
+		}
+		want[name] = data
+		files = append(files, cas.file(name, data, false))
+	}
+	dir := cas.putDir(t, &repb.Directory{Files: files})
+	var total int64
+	for _, data := range want {
+		total += int64(len(data))
+	}
+	var pending int64
+	c.MakeFS = func(tmp, image string, _ int64) error {
+		c.mu.Lock()
+		pending = c.pending
+		c.mu.Unlock()
+		for name, data := range want {
+			got, err := os.ReadFile(filepath.Join(tmp, name))
+			if err != nil || string(got) != data {
+				return fmt.Errorf("%s holds %q (%v), want %q", name, got, err, data)
+			}
+		}
+		return os.WriteFile(image, nil, 0o600)
+	}
+	image, reserved, err := c.makeTree(context.Background(), s, Tree{Hash: dir.Hash, Size: dir.SizeBytes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(image)
+	c.mu.Lock()
+	c.pending -= reserved // as buildTree does
+	c.mu.Unlock()
+	// The directory and its image were reserved while the build wrote them.
+	if pending != 2*total || reserved != 2*total {
+		t.Fatalf("reserved %d, pending during the build %d, want %d", reserved, pending, 2*total)
+	}
+
+	// A directory over the images' share is refused before anything is
+	// written, whatever the guest said it holds.
+	c.treeBudget = total - 1
+	c.MakeFS = func(string, string, int64) error { t.Fatal("built a directory over the images' share"); return nil }
+	if _, _, err := c.makeTree(context.Background(), s, Tree{Hash: dir.Hash, Size: dir.SizeBytes, Bytes: 1}); !errors.Is(err, ErrFull) {
+		t.Fatalf("directory over the images' share: %v", err)
+	}
+	if c.pending != 0 {
+		t.Fatalf("a refused build left %d bytes pending", c.pending)
+	}
+}
+
+func TestOneScopeCannotForceOrHoldImageBuilds(t *testing.T) {
+	c, _, endpoint := setup(t, 1<<30)
+	c.treeMin = 1
+	a := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+	b := Scope{Endpoint: endpoint, Instance: "b", Token: "token-b"}
+	tree := func(i int) Tree { return Tree{Hash: fmt.Sprintf("%064x", i), Size: 10, Bytes: 100} }
+	sightings := func(s Scope, t Tree) int {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.sightings[s.key()+"/"+t.name()]
+	}
+
+	// A scope with a build running starts no other, however often its
+	// directories recur.
+	c.mu.Lock()
+	c.building[a.key()+"/"+tree(0).name()] = true
+	c.mu.Unlock()
+	c.NoteTrees(a, []Tree{tree(1)}, nil)
+	c.NoteTrees(a, []Tree{tree(1)}, nil)
+	if got := sightings(a, tree(1)); got != 2 {
+		t.Fatalf("a's second directory: %d sightings, want 2 and no build", got)
+	}
+
+	// A scope over its share of sightings forgets its own, not others'.
+	c.NoteTrees(b, []Tree{tree(1)}, nil)
+	for i := range maxScopeSightings + 1 {
+		c.NoteTrees(a, []Tree{tree(100 + i)}, nil)
+	}
+	if sightings(b, tree(1)) != 1 {
+		t.Fatal("another scope's sightings dropped b's")
+	}
+	if sightings(a, tree(1)) != 0 {
+		t.Fatal("a scope over its share kept its sightings")
 	}
 }

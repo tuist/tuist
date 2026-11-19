@@ -149,8 +149,9 @@ type Cache struct {
 	treeBudget int64
 	// Input tree images (trees.go): directories asked about but not imaged
 	// yet, and images being built.
-	sightings map[string]int
-	building  map[string]bool
+	sightings      map[string]int
+	scopeSightings map[string]int // sightings per scope key
+	building       map[string]bool
 	// MakeFS formats an input tree image; tests replace it.
 	MakeFS func(dir, image string, size int64) error
 }
@@ -168,7 +169,7 @@ func New(dir string, budget int64, log *slog.Logger, metrics *Metrics) (*Cache, 
 		log = slog.Default()
 	}
 	return &Cache{dir: dir, budget: budget, treeBudget: budget / 2, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, treeMin: TreeMinBytes,
-		entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}, sightings: map[string]int{}, building: map[string]bool{}, MakeFS: MakeExt4}, nil
+		entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}, sightings: map[string]int{}, scopeSightings: map[string]int{}, building: map[string]bool{}, MakeFS: MakeExt4}, nil
 }
 
 // Dir is where the cache keeps its files, for disk accounting.
