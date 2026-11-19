@@ -1,7 +1,7 @@
 ---
 {
   "title": "Cuentas y proyectos",
-  "titleTemplate": ":title | Server | Guides | Tuist",
+  "titleTemplate": ":title | Server | Guías | Tuist",
   "description": "Aprende a crear y gestionar cuentas y proyectos en Tuist."
 }
 ---
@@ -13,7 +13,7 @@ Algunas funcionalidades de Tuist requieren un servidor que añade persistencia d
 
 Para usar el servidor, necesitarás una cuenta. Hay dos tipos de cuentas:
 
-- **Cuenta personal:** Estas cuentas se crean automáticamente cuando te registras y se identifican mediante un identificador obtenido del proveedor de identidad (por ejemplo, GitHub) o de la primera parte de la dirección de correo electrónico.
+- **Cuenta personal:** Estas cuentas se crean automáticamente cuando te registras y se identifican mediante un identificador que se obtiene del proveedor de identidad (por ejemplo, GitHub) o de la primera parte de la dirección de correo electrónico.
 - **Cuenta de organización:** Estas cuentas se crean manualmente y se identifican mediante un identificador definido por el desarrollador. Las organizaciones permiten invitar a otros miembros para colaborar en proyectos.
 
 Si estás familiarizado con [GitHub](https://github.com), el concepto es similar al suyo, donde puedes tener cuentas personales y de organización, y se identifican mediante un *identificador* que se usa al construir URLs.
@@ -25,9 +25,9 @@ tuist organization create {account-handle}
 
 ### Membresía de la organización {#organization-membership}
 
-Los usuarios pueden convertirse en miembros de una organización mediante una invitación, inscripción automática de inicio de sesión único (SSO) o <.localized_link href="/guides/integrations/authentication/scim">aprovisionamiento del sistema de gestión de identidades entre dominios (SCIM)</.localized_link>.
+Los usuarios pueden convertirse en miembros de la organización mediante una invitación, inscripción automática de inicio de sesión único (SSO) o <.localized_link href="/guides/integrations/authentication/scim">aprovisionamiento del Sistema de Gestión de Identidades entre Dominios (SCIM)</.localized_link>.
 
-Autenticarse con el proveedor de identidad de una organización no otorga la membresía por sí solo. La <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">política de inscripción de inicio de sesión único (SSO)</.localized_link> de la organización determina si un usuario de su dominio de confianza necesita una invitación o puede unirse automáticamente.
+Autenticarse con el proveedor de identidad de una organización no otorga la membresía por sí mismo. La <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">política de inscripción de inicio de sesión único (SSO)</.localized_link> de la organización determina si un usuario de su dominio de confianza necesita una invitación o puede unirse automáticamente.
 
 Los administradores pueden invitar a un miembro desde el panel de control o con <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link>. Pasa `--role admin` o `--role viewer` para asignar al invitado un rol distinto de `user` cuando acepte.
 
@@ -35,13 +35,13 @@ Los administradores pueden invitar a un miembro desde el panel de control o con 
 
 Cada miembro de la organización tiene uno de tres roles:
 
-| Rol | Qué permite |
+| Rol | Qué concede |
 | --- | --- |
 | **Administrador** | Todo lo que puede hacer un usuario, más la gestión de la organización: miembros e invitaciones, proyectos, facturación, tokens, webhooks y configuración. |
-| **Usuario** | Lee y actúa sobre el trabajo de la organización: ejecutar compilaciones y tests, escribir en la caché, crear y eliminar vistas previas, y cambiar el estado de un caso de test. |
-| **Visualizador** | Lee el trabajo de la organización sin modificarlo. Los paneles de control, las compilaciones, las ejecuciones de tests, los tests inestables y en cuarentena, las vistas previas, los bundles y la actividad de los runners son legibles. Adjuntar una shell interactiva o una sesión VNC a un runner no lo es, porque ejecuta comandos en la máquina. |
+| **Usuario** | Lee y actúa sobre el trabajo de la organización: ejecutar compilaciones y tests, escribir en la caché, crear y eliminar previews, y cambiar el estado de un caso de test. |
+| **Visualizador** | Lee el trabajo de la organización y no cambia nada. Los paneles de control, las compilaciones, las ejecuciones de tests, los tests inestables y en cuarentena, las previews, los bundles y la actividad de los runners son legibles. Adjuntar una shell interactiva o una sesión VNC a un runner no lo es, porque ejecuta comandos en la máquina. |
 
-Elige un rol al invitar a alguien y cámbialo después desde **Miembros** en el panel de control. Un rol establecido de esta manera nunca se sobrescribe por un inicio de sesión posterior.
+Elige un rol cuando invites a alguien y cámbialo después desde **Miembros** en el panel de control. Un rol establecido de esta manera nunca se sobrescribe por un inicio de sesión posterior.
 
 ## Proyectos {#projects}
 
@@ -58,7 +58,7 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 > [!WARNING]
 > **Funcionalidades exclusivas de proyectos de Tuist**
 >
-> Ten en cuenta que algunas funcionalidades, como la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link>, requieren un proyecto gestionado por Tuist. Si no usas Tuist para gestionar tu proyecto, no podrás usar esas funcionalidades.
+> Ten en cuenta que algunas funcionalidades como <.localized_link href="/guides/features/cache/module-cache">la caché de módulos</.localized_link> requieren un proyecto gestionado por Tuist. Si no usas Tuist para gestionar tu proyecto, no podrás usar esas funcionalidades.
 
 
 La URL de tu proyecto se construye usando el identificador completo. Por ejemplo, el panel de control de Tuist, que es público, es accesible en [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), donde `tuist/tuist` es el identificador completo del proyecto.
