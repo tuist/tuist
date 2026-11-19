@@ -2728,6 +2728,7 @@ extension ProjectDescription.Settings {
             "Testing", // https://github.com/apple/swift-testing
             "Cuckoo", // https://github.com/Brightify/Cuckoo
             "SnapshottingTests", // https://github.com/EmergeTools/SnapshotPreviews
+            "TuistSnapshotsTesting", // https://github.com/tuist/snapshots
             "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
             "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
         ]

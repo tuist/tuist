@@ -5819,6 +5819,7 @@ struct PackageInfoMapperTests {
             "TSCTestSupport",
             "ViewInspector",
             "XCTVapor",
+            "TuistSnapshotsTesting",
         ]
         let allTargets = ["RxSwift"] + testTargets
         let targetPaths = try allTargets
