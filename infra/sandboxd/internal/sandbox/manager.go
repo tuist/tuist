@@ -273,8 +273,8 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		if m.cfg.CacheImageDir == "" {
 			return res, fmt.Errorf("%w: this daemon has no cache image directory", ErrCacheImage)
 		}
-		if !fromSnapshot {
-			return res, fmt.Errorf("%w: only a create from a disk snapshot cold boots and can attach one", ErrCacheImage)
+		if fromArchive {
+			return res, fmt.Errorf("%w: a create from an archive cannot attach one", ErrCacheImage)
 		}
 		if err := vm.ValidateID(args.CacheImage); err != nil {
 			return res, fmt.Errorf("%w: %v", ErrCacheImage, err)
@@ -339,6 +339,9 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if err != nil {
 		return res, fmt.Errorf("template %s/%s %s: %w", tmpl.Name, tmpl.Tag, shape, err)
 	}
+	if args.CacheImage != "" && !artifacts.Meta.CacheDrive {
+		return res, fmt.Errorf("%w: template %s/%s %s has no cache drive to swap one into", ErrCacheImage, tmpl.Name, tmpl.Tag, shape)
+	}
 	slot, err := m.slots.Allocate()
 	if err != nil {
 		return res, err
@@ -384,15 +387,36 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if err := vm.Chown(workspace, uid, uid); err != nil {
 		return res, err
 	}
+	// The snapshot opens its placeholder cache drive on restore, so the jail
+	// needs one; a requested cache image takes its place.
+	if artifacts.Meta.CacheDrive {
+		if args.CacheImage != "" {
+			err = m.attachCacheImage(args.CacheImage, root, uid)
+		} else {
+			cache := filepath.Join(root, firecracker.CachePath)
+			if err = vm.Sparse(cache, template.CachePlaceholderBytes); err == nil {
+				err = vm.Chown(cache, uid, uid)
+			}
+		}
+		if err != nil {
+			return res, err
+		}
+	}
 
 	bootStart := time.Now()
 	inst, agent, err := m.restore(ctx, sb, log, func(api *firecracker.Client, inst vm.Instance) error {
+		// The guest cached each drive's capacity at template boot; a drive
+		// patch makes Firecracker re-read the file size and notify the
+		// guest. The guest must drop its buffers for /dev/vdc before it
+		// mounts a cache, since it may have read the placeholder's blocks.
+		if args.CacheImage != "" {
+			if err := api.PatchDrive(ctx, firecracker.DrivePatch{DriveID: firecracker.CacheDriveID, PathOnHost: inst.GuestPath(firecracker.CachePath)}); err != nil {
+				return fmt.Errorf("swapping in cache drive: %w", err)
+			}
+		}
 		if args.WorkspaceGB == artifacts.Meta.WorkspaceGB {
 			return nil
 		}
-		// The guest cached the template's workspace capacity at boot; a
-		// drive patch makes Firecracker re-read the file size and notify
-		// the guest before the agent formats it.
 		return api.PatchDrive(ctx, firecracker.DrivePatch{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
 	}, !preparedWorkspace)
 	if err != nil {

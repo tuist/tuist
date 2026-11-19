@@ -247,6 +247,9 @@ func main() {
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, FirecrackerVersion: fcVersion, WorkspaceGB: templateWorkspaceGB,
 		BootTimeout: templateBootTimeout, Log: logger, Events: events,
+		// Experimental: only meaningful with CACHE_IMAGE_DIR. Shape snapshots
+		// built before it was set keep cold-booting cache creates.
+		CacheDrive: os.Getenv("CACHE_IMAGE_DIR") != "" && os.Getenv("CACHE_DRIVE_IN_TEMPLATE") == "true",
 		Observe: func(shape template.Shape, elapsed time.Duration, err error) {
 			if err == nil {
 				metrics.TemplateBuild.WithLabelValues(shape.String()).Observe(elapsed.Seconds())
