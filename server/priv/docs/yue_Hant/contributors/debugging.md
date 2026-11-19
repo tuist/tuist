@@ -7,13 +7,13 @@
 ---
 # 除錯 {#debugging}
 
-開源帶來實際優勢：代碼公開可用，你可以在本機運行，並利用編碼代理更快解答疑問、除錯代碼庫中的潛在錯誤。
+開源係一個實際優勢：代碼公開，你可以喺本地運行，亦都可以用編碼代理更快咁解答問題，同埋除錯代碼庫入面潛在嘅 bug。
 
-如果在除錯時發現文件遺漏或不完整，請更新 `server/priv/docs/en` 下的英文文件並提交 PR。
+如果你喺除錯期間發現文件遺漏或者不完整，請更新 `server/priv/docs/en` 底下嘅英文文件，並開啟一個 PR。
 
-## 在 CI 上擷取執行緒傾印 {#thread-dump-ci}
+## 喺 CI 上擷取執行緒傾印 {#thread-dump-ci}
 
-當 CLI 間歇性卡住時，你可以無需停止程序就擷取執行緒傾印。啟用信號處理程序，並向正在運行的 `tuist` 程序發送 `SIGUSR1`。
+當 CLI 間歇性卡住嗰陣，你可以喺唔停止程序嘅情況下擷取執行緒傾印。啟用信號處理程式，並向正在運行嘅 `tuist` 程序發送 `SIGUSR1`。
 
 ```bash
 export TUIST_THREAD_DUMP_SIGNAL=1
@@ -25,24 +25,24 @@ kill -USR1 "$TUIST_PID"
 wait "$TUIST_PID"
 ```
 
-如果未設定 `TUIST_THREAD_DUMP_SAMPLE`，處理程序會列印當前執行緒堆疊。輸出會寫入 stderr，因此會出現在 CI 日誌中。
+如果無設定 `TUIST_THREAD_DUMP_SAMPLE`，處理程式會打印當前執行緒堆疊。輸出會寫入 stderr，所以會顯示喺 CI 日誌入面。
 
 ## 使用編碼代理 {#use-coding-agents}
 
 編碼代理有助於：
 
-- 掃描代碼庫，找出實現特定行為的位置。
-- 在本機重現問題並快速迭代。
-- 追蹤輸入如何流經 Tuist，以找出根本原因。
+- 掃描代碼庫，搵出某個行為係喺邊度實現。
+- 喺本地重現問題並快速迭代。
+- 追蹤輸入點樣流經 Tuist，以搵出根本原因。
 
-盡可能分享最小的重現案例，並將代理指向特定組件（CLI、伺服器、快取、文件或手冊）。範圍越聚焦，除錯過程就越快速準確。
+分享你能做到最細嘅重現案例，並指引代理針對特定組件（CLI、伺服器、快取、文件或手冊）。範圍越集中，除錯過程就越快同準確。
 
-### 常用提示詞 (FNP) {#frequently-needed-prompts}
+### 經常需要嘅提示 (FNP) {#frequently-needed-prompts}
 
-#### 專案生成結果不符合預期 {#unexpected-project-generation}
+#### 意外嘅項目生成 {#unexpected-project-generation}
 
-專案生成給出的結果不符合我的預期。針對位於 `/path/to/project` 的專案運行 Tuist CLI，以了解發生此情況的原因。追蹤生成器管線，並指出負責產生該輸出的代碼路徑。
+項目生成產生咗我預期之外嘅結果。針對位於 `/path/to/project` 嘅項目運行 Tuist CLI，以了解發生呢種情況嘅原因。追蹤生成器管道，並指出負責該輸出嘅代碼路徑。
 
-#### 已生成專案中的可重現錯誤 {#reproducible-bug-in-generated-projects}
+#### 已生成項目中可重現嘅 bug {#reproducible-bug-in-generated-projects}
 
-這看起來像是已生成專案中的錯誤。在 `examples/` 下建立一個可重現的專案，參考現有範例。新增一個會失敗的驗收測試，僅選取該測試並透過 `xcodebuild` 運行，修復問題後重新運行測試以確認通過，然後提交 PR。
+這似乎係已生成項目中嘅一個 bug。喺 `examples/` 底下建立一個可重現嘅項目，參考現有示例。添加一個失敗嘅驗收測試，透過 `xcodebuild` 只選擇該測試來運行它，修復問題，重新運行測試以確認通過，然後開啟一個 PR。

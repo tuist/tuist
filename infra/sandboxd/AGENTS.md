@@ -719,7 +719,8 @@ agent so the manager runs end to end without KVM).
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
-| `CACHE_IMAGE_DIR` | | ext4 cache images a `create {..., from_disk_snapshot, cache_image}` may attach as a writable `cache` drive (`/dev/vdc`). Each sandbox gets a reflink clone in its jail, deleted with it and never saved by `save_disks` or archives; the master is never written. Must be on the `DATA_DIR` filesystem. Empty refuses `cache_image`. Template creates refuse it too: Firecracker cannot add a drive to a restored memory snapshot. A cold reboot keeps the drive. `validation/validate-cache-drive.sh` measures it on a KVM runner. |
+| `CACHE_IMAGE_DIR` | | ext4 cache images a `create {..., from_disk_snapshot, cache_image}` may attach as a writable `cache` drive (`/dev/vdc`). Each sandbox gets a reflink clone in its jail, deleted with it and never saved by `save_disks` or archives; the master is never written. Must be on the `DATA_DIR` filesystem. Empty refuses `cache_image`. Template creates refuse it too unless the shape snapshot has a cache placeholder (`CACHE_DRIVE_IN_TEMPLATE`): Firecracker cannot add a drive to a restored memory snapshot. A cold reboot keeps the drive. A sandbox with a cache attached archives without its memory, since the clone does not travel and its guest has it mounted. `validation/validate-cache-drive.sh` measures it on a KVM runner. |
+| `CACHE_DRIVE_IN_TEMPLATE` | `false` | Experimental, needs `CACHE_IMAGE_DIR`. Shape snapshots carry an empty 1 MiB `cache` drive (`cache_drive` in their metadata), and every template create puts one in its jail. A template create with `cache_image` clones the image there instead and `PATCH /drives/cache` makes the guest see its size, so it restores from memory (about 166 ms) instead of cold booting (about 1.2 s). Nothing in the guest mounts it yet; whatever does should run `blockdev --flushbufs /dev/vdc` first, since the guest may hold the placeholder's blocks. Startup removes shapes built the other way. Archives with memory record `cache_placeholder`, and a warm restore recreates the placeholder; daemons older than that field cannot warm restore such archives, so enable it only after every node runs a daemon that reads it. `validation/validate-cache-snapshot.sh` measures it. |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
 | `CHECKOUT_AGENT_URL` | | The node's runner-cache agent, e.g. `http://<runner-cache-volumes Service>.tuist-runners.svc.cluster.local:8090`; see "Guest to host: checkout". Needs `POD_NAME`. Empty ignores checkout grants. The chart sets it, and lists 8090 in `DAEMON_ONLY_TCP_PORTS`, when Linux cache volumes are enabled. |
@@ -742,7 +743,9 @@ in a CI-shaped container and measures it attached to a sandbox.
 `validate-runner-cache-master.sh` (`runner_cache_master` input) instead
 makes a master with runner-cache's `LocalImages` (`validation/cachemaster`),
 fills it with the Linux runner image, and attaches it at the sandbox's own
-paths and at the runner's.
+paths and at the runner's. `validate-cache-snapshot.sh` (`cache_snapshot` input)
+compares template creates with and without the cache placeholder, with a
+cache swapped in, and today's disk-snapshot cold boot.
 
 ### Admin API
 

@@ -118,6 +118,11 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 	// the one the disks belong to, written by this Firecracker; otherwise
 	// the restore cold boots anyway.
 	withMemory := args.Memory && !meta.ColdBoot && meta.FirecrackerVersion == m.cfg.FirecrackerVersion && m.cfg.SnapshotCompat != ""
+	// A cache clone never travels, and a guest that had it mounted cannot
+	// resume without it; its disks cold boot elsewhere instead.
+	if meta.CacheImage != "" {
+		withMemory = false
+	}
 	// After a pause that did not sync, writes still in the guest's page
 	// cache are only in the memory image: without it they would restore as
 	// zeroed blocks, and with it the archive restores warm only
@@ -143,6 +148,7 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 		defer memory.close()
 		memory.lazyDisks = args.LazyDisks
 		header.Memory = &archive.MemoryHeader{Size: memory.size, Compat: m.cfg.SnapshotCompat}
+		header.CachePlaceholder = vm.Exists(filepath.Join(sb.root, firecracker.CachePath))
 	}
 	res, err = m.upload(ctx, args.PartURLs, args.PartSize, header, sources, memory, start)
 	if err != nil {
@@ -393,6 +399,11 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	log = log.With("slot", slot, "from_archive", true)
 	if header.Memory != nil {
 		if header.Memory.Compat == m.cfg.SnapshotCompat && header.Memory.Size == int64(args.MemoryMB)<<20 {
+			if header.CachePlaceholder {
+				if err := m.cachePlaceholder(sb.root, uid); err != nil {
+					return res, err
+				}
+			}
 			res, err = m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
 			// A guest that never answers after its memory loaded would
 			// fail every restore the same way; synced disks hold its files
@@ -596,7 +607,8 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 // keep arriving as after a warm restore, so the archive stays until they are
 // all on the node.
 func (m *Manager) coldCreateAfterWarm(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
-	for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName, memSocket} {
+	// The placeholder only stood in for the VM state's drive.
+	for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName, memSocket, firecracker.CachePath} {
 		_ = os.Remove(filepath.Join(sb.root, name))
 	}
 	sb.mu.Lock()

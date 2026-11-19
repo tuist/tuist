@@ -23,8 +23,8 @@ CLI, Tuist’in kalbidir. Proje oluşturma, otomasyon iş akışlarını (test, 
 ### Yerel kurulum {#set-up-locally}
 
 - Depoyu klonlayın: `git clone git@github.com:tuist/tuist.git`
-- Mise’yi [resmi kurulum betiğini](https://mise.jdx.dev/getting-started.html) kullanarak (Homebrew değil) kurun ve `mise install` komutunu çalıştırın
-- Tuist bağımlılıklarını yükleyin: `tuist install`
+- Mise’yi [resmi kurulum betiği](https://mise.jdx.dev/getting-started.html) ile (Homebrew değil) kurun ve `mise install` komutunu çalıştırın
+- Tuist bağımlılıklarını kurun: `tuist install`
 - Çalışma alanını oluşturun: `tuist generate`
 
 Oluşturulan proje otomatik olarak açılır. Daha sonra yeniden açmanız gerekirse `open Tuist.xcworkspace` komutunu çalıştırın.
@@ -32,7 +32,7 @@ Oluşturulan proje otomatik olarak açılır. Daha sonra yeniden açmanız gerek
 > [!NOTE]
 > **`xed .`**
 >
-> Projeyi `xed .` kullanarak açmaya çalışırsanız, Tuist tarafından oluşturulan çalışma alanı yerine paketi açar. `Tuist.xcworkspace` kullanın.
+> Projeyi `xed .` kullanarak açmaya çalışırsanız, paket açılır; Tuist tarafından oluşturulan çalışma alanı değil. `Tuist.xcworkspace` kullanın.
 
 
 ### Tuist’i çalıştırma {#run-tuist}
@@ -44,7 +44,7 @@ Oluşturulan proje otomatik olarak açılır. Daha sonra yeniden açmanız gerek
 > [!WARNING]
 > **ProjectDescription derlemesi**
 >
-> CLI, `ProjectDescription` öğesinin derlenmiş olmasına bağlıdır. Çalıştırma başarısız olursa önce `Tuist-Workspace` şemasını derleyin.
+> CLI, `ProjectDescription` derlenmesine bağlıdır. Çalıştırma başarısız olursa önce `Tuist-Workspace` şemasını derleyin.
 
 
 #### Terminalden {#from-the-terminal}

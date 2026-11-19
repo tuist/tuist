@@ -7,23 +7,23 @@
 ---
 # 版本發布
 
-當變更合併至 main 分支時，Tuist 會自動發布新版本。CLI、伺服器與 Kura 快取伺服器都透過發布管道（canary、候選版本、穩定版）交付，讓建議的安裝方式保持穩定且變動緩慢；切出候選版本並將其提升為穩定版是每週刻意執行的步驟。應用程式持續發布（iOS 應用程式僅持續部署至 TestFlight，詳情請見[此處](#app-store-release)）。
+當變更合併至主分支時，Tuist 會自動發布新版本。CLI、伺服器與 Kura 快取伺服器皆透過發布管道（canary、候選版本、穩定版）交付，以確保建議安裝版本保持穩定且更新節奏較慢；釋出候選版本並將其提升為穩定版是每週刻意執行的步驟。App 持續發布（iOS App 僅持續部署至 TestFlight，詳情請見[此處](#app-store-release)）。
 
 ## 概覽
 
 我們發布以下主要元件：
-- **Tuist CLI** - 命令列工具，透過 canary、候選版本與穩定版[管道](#release-channels)交付
+- **Tuist CLI** - 命令列工具，透過 canary、候選版本與穩定[管道](#release-channels)交付
 - **Tuist Server** - 後端服務，採用與 CLI 相同的管道模型交付
 - **Kura** - 快取伺服器，採用與 CLI 相同的管道模型交付
-- **Tuist App** - macOS 與 iOS 應用程式，持續發布（iOS 應用程式僅持續部署至 TestFlight，詳情請見[此處](#app-store-release)）
+- **Tuist App** - macOS 與 iOS App，持續發布（iOS App 僅持續部署至 TestFlight，詳情請見[此處](#app-store-release)）
 
-每次推送到 `main` 都會為 CLI、伺服器與 Kura 發布 canary 預先發布版本。這些元件的穩定版本僅在維護者將經過充分測試的候選版本提升時才會切出，而每週排程會讓三條發布列車同步執行（請參閱[發布管道](#release-channels)）。應用程式會在每次推送到 `main` 時發布穩定版。
+每次推送到 `main` 都會為 CLI、伺服器與 Kura 發布 canary 預發布版本。這些元件的穩定版本僅在維護者將經過充分驗證的候選版本提升時才會釋出，且每週排程會讓三條發布列車同步執行（參見[發布管道](#release-channels)）。App 會在每次推送到 `main` 時發布穩定版。
 
 ## 運作方式
 
 ### 1. 提交規範
 
-我們使用[Conventional Commits](https://www.conventionalcommits.org/)來組織提交訊息。這讓我們的工具能夠理解變更的性質、決定版本遞增，並產生適當的變更記錄。
+我們使用[Conventional Commits](https://www.conventionalcommits.org/)來結構化提交訊息。這讓我們的工具能夠理解變更性質、決定版本遞增，並產生適當的變更記錄。
 
 格式：`type(scope): description`
 
@@ -41,7 +41,7 @@
 | `chore` | 維護工作 | 不發布 | `chore: update dependencies` |
 | `ci` | CI/CD 變更 | 不發布 | `ci: add workflow for releases` |
 
-對 CLI 而言，這些遞增決定 canary 版本與變更記錄的分組。穩定的 CLI 版本為手動切出的次版本線（`X.Y.0`），而穩定修補版本（`X.Y.Z`）僅來自回溯移植，因此`feat`或`fix`會透過下方的管道流程送達 CLI 使用者，而非立即成為穩定版本。
+對 CLI 而言，這些遞增決定 canary 版本與變更記錄的分組。穩定的 CLI 版本為手動釋出的次版本線（`X.Y.0`），而穩定修補版本（`X.Y.Z`）僅來自回溯移植，因此`feat`或`fix`會透過下方的管道流程觸達 CLI 使用者，而非立即作為穩定版本發布。
 
 #### 破壞性變更
 
@@ -58,7 +58,7 @@ Users will need to clear their old cache directory.
 
 每個元件使用 [git cliff](https://git-cliff.org/) 來：
 - 分析自上次發布以來的提交
-- 依範圍過濾提交（cli、app、server）
+- 依範圍篩選提交（cli、app、server）
 - 判斷是否有可發布的變更
 - 自動產生變更記錄
 
@@ -66,16 +66,16 @@ Users will need to clear their old cache directory.
 
 當偵測到可發布的變更時：
 
-1. **版本計算**：流程決定下一個版本號碼
-2. **產生變更記錄**：git cliff 從提交訊息建立變更記錄
+1. **版本計算**：流程決定下一個版本號
+2. **變更記錄產生**：git cliff 從提交訊息建立變更記錄
 3. **建置流程**：建置並測試元件
-4. **產出構件**：產生發布專屬資產，例如 CLI 套件、檢查碼，以及由 `tuist --experimental-dump-help` 產生的 `tuist.spec.json` CLI 規格
-5. **建立發布**：建立包含構件的 GitHub 發布
-6. **分發**：將更新推送到套件管理器（例如 CLI 的 Homebrew）
+4. **產物產生**：產生發布專屬資產，例如 CLI 套件、校驗和，以及由 `tuist --experimental-dump-help` 產生的 `tuist.spec.json` CLI 規格
+5. **建立發布**：建立包含產物的 GitHub 發布
+6. **分發**：將更新推送至套件管理器（例如 CLI 的 Homebrew）
 
-對應用程式而言，這會在每次合併時產生穩定版本。對 CLI、伺服器與 Kura 而言，此自動化流程僅產生 **canary** 預先發布版本；候選版本與穩定版本則在每週發布列車上切出（請參閱[發布管道](#release-channels)）。
+對 App 而言，這會在每次合併時產生穩定版本。對 CLI、伺服器與 Kura 而言，此自動化流程僅產生 **canary** 預發布版本；候選版本與穩定版本則於每週發布列車上釋出（參見[發布管道](#release-channels)）。
 
-### 4. 範圍過濾
+### 4. 範圍篩選
 
 每個元件僅在有相關變更時才會發布：
 
@@ -85,77 +85,77 @@ Users will need to clear their old cache directory.
 
 ## 發布管道
 
-CLI、伺服器與 Kura 不會在每次推送到 `main` 時都提升為穩定版本。每個元件都透過三個管道交付，讓建議安裝保持穩定且變動緩慢，同時讓早期採用者保留每次提交的建置。使用者文件位於 <.localized_link href="/cli/release/channels">CLI 發布管道</.localized_link> 與 <.localized_link href="/guides/server/self-host/release/channels">Server 發布管道</.localized_link>；本節為維護者操作手冊。
+CLI、伺服器與 Kura 不會在每次推送到 `main` 時提升為穩定版本。每個元件都透過三個管道交付，讓建議安裝版本保持穩定且變動緩慢，同時讓早期採用者保留每次提交的建置。使用者文件位於 <.localized_link href="/cli/release/channels">CLI 發布管道</.localized_link> 與 <.localized_link href="/guides/server/self-host/release/channels">Server 發布管道</.localized_link>；本節為維護者操作手冊。
 
 每個元件都使用相同的三個管道：
 
-| 管道 | 版本 | 切出方式 |
+| 管道 | 版本 | 釋出方式 |
 |---------|---------|--------|
-| Canary | `X.Y.0-canary.N` | 自動執行，在每次影響元件的推送到 `main` 時觸發（`<component>-release.yml`；對 Kura 而言，當 `kura/` 變更時由 `server-production-deployment.yml` 呼叫） |
+| Canary | `X.Y.0-canary.N` | 自動執行，在每次影響元件的推送到 `main` 時（`<component>-release.yml`；對 Kura 而言，當 `kura/` 變更時由 `server-production-deployment.yml` 呼叫） |
 | 候選版本 | `X.Y.0-rc.N` | 每週一，或手動在 `releases/<component>-<major>.<minor>.x` 分支上執行（`<component>-rc.yml`） |
-| 穩定版 | `X.Y.Z` | 每週一，或手動提升經過充分測試的候選版本（`<component>-promote.yml`）；修補版本透過 `<component>-backport.yml` |
+| 穩定 | `X.Y.Z` | 每週一，或手動提升經過充分驗證的候選版本（`<component>-promote.yml`）；修補版本透過 `<component>-backport.yml` |
 
-Canary 與 RC 建置會以 GitHub 預先發布形式發布（從不標記為「Latest」，從不在 GHCR 上移動 `:latest`，從不將 CLI 推送到 Homebrew），因此套件管理器與映像解析器僅在明確選擇加入時才會選用。Canary 始終鎖定下一個未發布的次版本：一旦切出 RC 線，`main` 的 canary 就會推進至下一個次版本。
+Canary 與 RC 建置會以 GitHub 預發布形式發布（從不標示為「Latest」，從不在 GHCR 上移動 `:latest`，從不將 CLI 推送至 Homebrew），因此套件管理器與映像解析器僅在明確選擇加入時才會採用。Canary 始終針對下一個尚未發布的次版本：一旦釋出 RC 線，`main` 的 canary 就會推進至下一個次版本。
 
-託管 Tuist 不會等待穩定列車：伺服器按提交部署，而託管 canary 與生產環境執行最新的 Kura canary。部署串流在部署前先發布該 canary，因此 `kura-release.yml` 沒有自己的觸發條件。僅變更 Kura 發布工具（`mise/tasks/kura/**`、`kura-*.yml` 工作流程）不會切出 canary。
+託管 Tuist 不會等待穩定列車：伺服器按提交部署，而託管 canary 與生產環境執行最新的 Kura canary。部署串聯會在部署前先發布該 canary，因此 `kura-release.yml` 沒有自己的觸發條件。僅對 Kura 發布工具鏈的變更（`mise/tasks/kura/**`、`kura-*.yml` 工作流程）不會釋出 canary。
 
-你從不手動挑選版本號碼。每個管道的下一個版本都由 `mise/tasks/<component>/release/channel-version.sh` 從現有的 git 標籤衍生而來，下方的工作流程會叫用它。
+你從不手動挑選版本號。每個管道的下一個版本都由 `mise/tasks/<component>/release/channel-version.sh` 從現有 git 標籤衍生而來，以下工作流程會叫用它。
 
-發布分支按元件命名空間區隔（`releases/server-X.Y.x`、`releases/kura-X.Y.x`、CLI 為 `releases/X.Y.x`），因此三個元件的線不會在同一個次版本衝突。
+發布分支依元件進行命名空間隔離（`releases/server-X.Y.x`、`releases/kura-X.Y.x`、CLI 為 `releases/X.Y.x`），因此三個元件的發布線不會在同一個次版本衝突。
 
 ### 每週排程
 
-每週一 UTC 06:00，三個元件的提升作業同步執行：**CLI Promote to Stable**、**Server Promote to Stable** 與 **Kura Promote to Stable**。每個作業都會提升尚未穩定的最新 RC 線，通常是上週一切出的線。若沒有這樣的線，該作業就不會發布任何內容。
+每週一 06:00 UTC，三個元件的提升作業會同步執行：**CLI Promote to Stable**、**Server Promote to Stable** 與 **Kura Promote to Stable**。每個作業會提升最新且尚未穩定的 RC 線，通常是前一週一釋出的線。若沒有這樣的線，該作業就不會發布任何內容。
 
-當提升完成時，無論結果為何，其對應的 **Release Candidate** 工作流程（`cli-rc.yml`、`server-rc.yml`、`kura-rc.yml`）會透過 `workflow_run` 觸發，並從 `main` 切出下一條線。
+當提升完成時，無論結果為何，其對應的 **Release Candidate** 工作流程（`cli-rc.yml`、`server-rc.yml`、`kura-rc.yml`）會透過 `workflow_run` 觸發，並從 `main` 釋出下一條線。
 
-若任一預定執行失敗或取消，系統會將訊息張貼至 Slack。當發布分支在其最新 RC 之後仍有提交時，提升會失敗。若要發布該線，請在其上切出新的 RC 並手動提升。否則，下週一會改為提升較新的線。
+若任一預定執行失敗或被取消，系統會向 Slack 發送訊息。當發布分支在其最新 RC 之後仍有提交時，提升會失敗。若要發布該線，請在其上建立新的 RC 並手動提升。否則，下週一會改為提升較新的線。
 
-### 切出候選版本
+### 釋出候選版本
 
-若要在每週排程之外切出新線（請將下方元件的工作流程名稱替換為實際名稱）：
+若要在每週排程之外釋出新的發布線（請將下方元件的工作流程名稱替換為對應名稱）：
 
 1. 以空的 `branch` 輸入執行 **\<Component\> Release Candidate** 工作流程（例如 `server-rc.yml`）。
 2. 它會發布 `X.Y.0-rc.1`，並在成功後於已建置的提交處建立受保護的 `releases/<component>-X.Y.x` 分支。
 
-若要將關鍵修復或回歸問題拉入正在測試的線，請透過 PR 將其 cherry-pick 到發布分支（與回溯移植的流程相同；CI 從不執行 cherry-pick），然後迭代 RC：
+若要將關鍵修復或回歸問題納入正在驗證的發布線，請透過 PR 將其 cherry-pick 到發布分支（流程與 backport 相同；CI 從不執行 cherry-pick），然後迭代 RC：
 
-1. 從 `releases/<component>-X.Y.x` 建立分支，cherry-pick 該修復，開啟一個合併回發布分支的 PR，解決其中的任何衝突，然後合併。
+1. 從 `releases/<component>-X.Y.x` 建立分支，cherry-pick 該修復，開啟指向發布分支的 PR，解決其中的任何衝突，然後合併。
 2. 再次以 `branch=releases/<component>-X.Y.x` 執行 **Release Candidate** 工作流程。它會從分支 HEAD 發布 `X.Y.0-rc.(N+1)`。
 
-正在測試的線會凍結功能：只有關鍵修復和回歸問題才會納入。
+驗證中的發布線會凍結功能：僅允許關鍵修復與回歸修正進入。
 
 ### 提升至穩定版
 
-若要在每週排程之外提升一條線，請在其 RC 經過充分測試且無問題後：
+若要在每週排程之外提升發布線，請在其 RC 通過完整驗證後：
 
 1. 以 `branch=releases/<component>-X.Y.x` 執行 **\<Component\> Promote to Stable** 工作流程（例如 `server-promote.yml`）。
-2. 它會使用 `make_latest=true` 發布帶有語意版本標籤的映像，並移動 GHCR 的 `:latest` 標籤與 GitHub 的「Latest」指標。CLI 還會額外更新 Homebrew 公式。
+2. 它會以 `make_latest=true` 發布帶有語意化版本標籤的映像，並移動 GHCR 的 `:latest` 標籤與 GitHub 的「Latest」指標。CLI 還會更新 Homebrew formula。
 
-除非分支 HEAD 正好是最新 RC 指向的提交，否則提升作業拒絕執行。因此，若在最後一個 RC 之後有任何修復合併到該線，你必須切出新的 RC 並讓其經過測試，才能作為穩定版發布。
+除非分支 HEAD 正好是最新 RC 所指向的提交，否則提升作業不會執行。因此，若在最後一個 RC 之後有任何修复合併到該線，你必須建立新的 RC 並讓其經過驗證，才能作為穩定版發布。
 
 ### 將修補程式回溯移植到穩定線
 
-一旦某條線成為穩定版，就使用僅限 CLI 的 **Backport Release** 工作流程（`cli-backport.yml`）來發布修補程式：透過 PR 將修復 cherry-pick 到 `releases/X.Y.x`，然後以該分支執行工作流程以切出 `X.Y.(Z+1)`。回溯移植從不會移動「Latest」指標或 Homebrew 公式。同時維護兩條線：當前線接受回歸問題和安全修復，前一條線僅接受關鍵和安全修復。其他錯誤修復不會回溯移植，而是隨下一個次版本發布。
+一旦發布線進入穩定狀態，請使用僅限 CLI 的 **Backport Release** 工作流程（`cli-backport.yml`）來發布修補程式：透過 PR 將修補程式 cherry-pick 到 `releases/X.Y.x`，然後以該分支執行工作流程以釋出 `X.Y.(Z+1)`。回溯移植從不會移動「Latest」指標或 Homebrew formula。同時維護兩條線：當前線接受回歸修正與安全性修復，前一條線僅接受關鍵與安全性修復。其他錯誤修復不會回溯移植，而是隨下一次次版本發布。
 
-對於伺服器與 Kura，請使用 **Server Backport Release**（`server-backport.yml`）或 **Kura Backport Release**（`kura-backport.yml`）。提升作業僅發布 RC 的 `X.Y.0`；它無法修補已穩定的線。
+對於伺服器與 Kura，請使用 **Server Backport Release**（`server-backport.yml`）或 **Kura Backport Release**（`kura-backport.yml`）。提升作業僅會發布 RC 的 `X.Y.0`；它無法對已穩定的線進行修補。
 
-1. 從所選 `X.Y` 線上最新發布的穩定元件標籤開始，並針對其現有的 `releases/server-X.Y.x` 或 `releases/kura-X.Y.x` 分支開啟精準修復 PR。較新的次版本或主要版本發布不會阻止對已維護線的修補。請避免納入與 main 無關的變更。
-2. 審查並合併來源 PR。抓取遠端發布分支，並驗證其 **最終合併頂端**，包括元件支援的平台與 TLS 正負向控制。通過預合併頭的檢查並不代表對不同的 squash 或合併提交的驗證。
-3. 在獲得獨立的發布核准後，從 main **from main** 調度對應的回溯移植工作流程，將 `source_sha` 設為該精確驗證過的合併頂端，並將 `base_tag` 設為當前穩定標籤，例如 `server@X.Y.Z` 或 `kura@X.Y.Z`。工作流程會推導出 `X.Y.(Z+1)`；操作人員不會選擇次版本升級或提升 canary 內容。
+1. 從選定 `X.Y` 線上最新發布的穩定元件標籤開始，並向其現有的 `releases/server-X.Y.x` 或 `releases/kura-X.Y.x` 分支開啟精準修復 PR。較新的次版本或主要版本發布不會阻止對受維護線的修補。請避免引入與 main 無關的變更。
+2. 審查並合併來源 PR。抓取遠端發布分支並確認其 **最終合併頂端**，包括元件支援的平台與 TLS 正負向控制。通過預合併檢查的頭部並不代表對不同 squash 或合併提交的確認。
+3. 在獲得獨立的發布核准後，**從 main** 調度對應的回溯移植工作流程，將 `source_sha` 設為該經確認的精確合併頂端，並將 `base_tag` 設為當前穩定標籤，例如 `server@X.Y.Z` 或 `kura@X.Y.Z`。工作流程會推導出 `X.Y.(Z+1)`；營運人員不會選擇次版本遞增或提升 canary 內容。
 
-規劃會刷新精確的遠端分支與基礎標籤，要求所選來源等於分支頂端，拒絕未變更的來源或元件以外的變更、其信任政策輸入與驗證，並釘選已解析的基礎提交。來自 main 的控制項會在版本化映像與 GitHub 發布前立即重複這些檢查。若來源分支、穩定基礎或可用版本發生變更，請停止並重新驗證，而非替換為新來源。
+規劃階段會刷新精確的遠端分支與基礎標籤，要求選定的來源等於分支頂端，拒絕未變更的來源或元件以外的變更、其信任政策輸入與驗證，並鎖定已解析的基础提交。來自 main 的控制項會在版本化映像與 GitHub 發布前立即重複這些檢查。若來源分支、穩定基礎或可用版本發生變更，請停止並重新確認，而非替換為新的來源。
 
-回溯移植使用現有的多平台發布器，而不會移動 GitHub 的「Latest」指標或 GHCR `:latest`。發布與託管部署是分開的：這些工作流程不會提升託管伺服器或 Kura 集群、繞過 canary 驗收，或驗證已安裝的執行環境。建置輔助工具與 Dockerfile 仍來自所選的穩定來源。這些控制項是發布閘門，而非無需憑證的建置作業；建置可以在最終閘門之前上傳未標記的映像摘要。映像與 GitHub 發布並非原子操作：若在映像標籤發布後後續閘門失敗，請檢查部分發布並保留其原始來源與構件。切勿替換現有發布或在其標籤下使用不同的位元組。
+回溯移植使用現有的多平台發布器，而不會移動 GitHub 的「Latest」指標或 GHCR `:latest`。發布與託管部署是分開的：這些工作流程不會提升託管伺服器或 Kura 叢集，不會繞過 canary 驗收，也不會確認已安裝的執行環境。建置輔助工具與 Dockerfile 仍來自選定的穩定來源。這些控制項是發布閘道，而非免憑證的建置作業；建置可以在最終閘道之前上傳未標記的映像摘要。映像與 GitHub 發布並非原子操作：若在映像標籤發布後後續閘道失敗，請檢查部分發布並保留其原始來源與產物。切勿替換現有發布或在其標籤下使用不同的位元組。
 
 ## 撰寫良好的提交訊息
 
-由於提交訊息會直接影響發布說明，因此撰寫清晰且具描述性的訊息至關重要：
+由於提交訊息會直接影響發布說明，因此撰寫清晰且具描述性的訊息非常重要：
 
 ### 建議做法：
 - 使用現在式：「add feature」而非「added feature」
 - 簡潔但具描述性
-- 當變更僅限於特定元件時，請包含範圍
+- 當變更為特定元件時，請包含範圍
 - 在適用時參考議題：`fix(cli): resolve build cache issue (#1234)`
 
 ### 避免做法：
@@ -176,18 +176,18 @@ Users need to clear their cache after updating.
 
 ## 發布工作流程
 
-CLI、伺服器與 Kura 各自擁有遵循相同結構的一組管道工作流程：
+CLI、伺服器與 Kura 各自擁有一組管道工作流程，結構如下：
 
-- `<component>-release.yml` - 在每次觸及元件的推送至 `main` 時發布 canary（Kura 的是可重複使用的工作流程，由 `server-production-deployment.yml` 在 `kura/` 變更時呼叫）
-- `<component>-rc.yml` - 每週一切出候選版本（在提升後透過 `workflow_run`），或手動切出或迭代
-- `<component>-promote.yml` - 每週一 UTC 06:00 將待處理的 RC 提升為穩定版，或手動提升經過充分測試的 RC
-- `<component>-build-publish.yml` - 上述三者呼叫的共用建置與發布管線
+- `<component>-release.yml` - 在每次影響元件的推送至 `main` 時發布 canary（Kura 的是可重複使用的工作流程，由 `server-production-deployment.yml` 在 `kura/` 變更時呼叫）
+- `<component>-rc.yml` - 每週一釋出候選版本（透過提升後的 `workflow_run`），或手動釋出或迭代
+- `<component>-promote.yml` - 每週一 06:00 UTC 將待處理的 RC 提升至穩定版，或手動提升已驗證的 RC
+- `<component>-build-publish.yml` - 上述三者共用的建置與發布管道
 
-CLI、伺服器與 Kura 另外擁有 `<component>-backport.yml`，用於在穩定線上切出修補程式。元件的所有工作流程都透過一個 `<component>-publish` 並行群組序列化，因此版本解析與標籤設定永遠不會競爭。Kura 是例外：其 canary 使用 `kura-canary-publish`，而其 RC、提升與回溯移植使用 `kura-stable-publish`，因此長時間的穩定建置永遠不會阻礙部署串流。標籤命名空間不相交，因此這兩個群組不會衝突。
+CLI、伺服器與 Kura 另外擁有 `<component>-backport.yml`，用於在穩定線上釋出修補程式。元件的所有工作流程都透過單一 `<component>-publish` 並行群組序列化，因此版本解析與標籤不會競爭。Kura 是例外：其 canary 使用 `kura-canary-publish`，而其 RC、提升與回溯移植使用 `kura-stable-publish`，因此長時間的穩定建置不會阻礙部署串聯。標籤命名空間互不相交，因此這兩個群組不會衝突。
 
-Helm chart 與基礎設施映像（CAPI operator、runners controller、xcresult processor image、linux runner image 等）仍透過 `.github/workflows/server-production-deployment.yml` 發布。它在推送到 `main` 時執行，並為託管部署串流 canary → 驗收測試 → 生產環境，同時在這些基礎設施元件變更時發布它們。應用程式、快取、Gradle 外掛程式、skills、Noora 以及獨立的基礎設施控制器各自擁有專用的 `*-release.yml` 工作流程。它們都共用變更偵測：`mise/tasks/release/components.json` 宣告每個元件的標籤前綴與包含路徑，而 git cliff 會將符合的提交轉換為發布說明。
+Helm Chart 與基礎設施映像（CAPI operator、runners controller、xcresult processor image、linux runner image 等）仍透過 `.github/workflows/server-production-deployment.yml` 發布。它在推送到 `main` 時執行，並為託管部署串聯 canary → 驗收測試 → 生產環境，同時在這些基礎設施元件變更時發布它們。應用程式、快取、Gradle 外掛程式、skills、Noora 以及獨立的基礎設施控制器各自擁有專用的 `*-release.yml` 工作流程。它們都共用變更偵測：`mise/tasks/release/components.json` 宣告每個元件的標籤前綴與包含路徑，而 git cliff 會將符合的提交轉換為發布說明。
 
-CLI 建置（`cli-build-publish.yml`）也會產生並發布 `tuist.spec.json` 產物（由 `tuist --experimental-dump-help` 產生），以便下游工具能夠使用命令介面。
+CLI 建置（`cli-build-publish.yml`）也會產生並發布 `tuist.spec.json` 成品（由 `tuist --experimental-dump-help` 產生），以便下游工具能夠使用命令介面。
 
 ## 監控發布
 
@@ -196,7 +196,7 @@ CLI 建置（`cli-build-publish.yml`）也會產生並發布 `tuist.spec.json` �
 - GitHub Actions 分頁中的工作流程執行紀錄
 - 每個元件目錄中的變更記錄檔案
 
-## 優勢
+## 優點
 
 這種持續發布方法提供：
 
@@ -204,22 +204,22 @@ CLI 建置（`cli-build-publish.yml`）也會產生並發布 `tuist.spec.json` �
 - **減少瓶頸**：無需等待手動發布
 - **清晰溝通**：從提交訊息自動產生變更記錄
 - **一致的流程**：所有元件採用相同的發布流程
-- **品質保證**：僅發布經過測試的變更
+- **品質保證**：僅發布已通過測試的變更
 
 ## 疑難排解
 
 如果發布失敗：
 
-1. 檢查 GitHub Actions 日誌中失敗的工作流程
+1. 檢查 GitHub Actions 中失敗工作流程的日誌
 2. 確保你的提交訊息遵循慣例格式
-3. 確認所有測試皆通過
+3. 驗證所有測試皆通過
 4. 確認元件能成功建置
 
 對於需要立即發布的緊急修復：
 1. 確保你的提交具有明確的範圍
 2. 合併後，監控發布工作流程
 3. 對於伺服器或應用程式，修復會在下次推送時交付；如有需要，觸發手動發布
-4. 對於 CLI，修復會自動進入 canary。若要讓穩定版使用者取得，請將其回溯移植至維護中的穩定線（參閱[將修復回溯移植至穩定線](#backporting-fixes-to-a-stable-line)）
+4. 對於 CLI，修復會自動進入 canary 頻道。若要讓穩定版使用者取得，請將其回溯移植至維護中的穩定線（參閱[將修復回溯移植至穩定線](#backporting-fixes-to-a-stable-line)）
 
 ## App Store 發布
 
@@ -227,8 +227,8 @@ CLI 建置（`cli-build-publish.yml`）也會產生並發布 `tuist.spec.json` �
 
 - **手動發布**：iOS 應用程式發布需要手動提交至 App Store
 - **審查延遲**：每次發布都必須經過 Apple 的審查流程，可能需要 1-7 天
-- **批次變更**：多個變更通常會打包在每次 iOS 發布中
-- **TestFlight**：Beta 版本可能在 App Store 發布前透過 TestFlight 分發
-- **發布說明**：必須根據 App Store 指南專門撰寫
+- **批次變更**：多個變更通常會打包在一起，於每次 iOS 發布中一併推出
+- **TestFlight**：Beta 版本可能在 App Store 發布前透過 TestFlight 發放
+- **發布說明**：必須依據 App Store 規範專門撰寫
 
-iOS 應用程式仍遵循相同的提交慣例，並使用 git cliff 產生變更記錄，但實際向使用者發布的频率較低，且採用手動排程。
+iOS 應用程式仍遵循相同的提交慣例，並使用 git cliff 產生變更記錄，但實際向用戶發布的频率較低，且採用手動排程。

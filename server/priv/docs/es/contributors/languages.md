@@ -2,7 +2,7 @@
 {
   "title": "Idiomas",
   "titleTemplate": ":title · Colaboradores · Tuist",
-  "description": "Ayuda a Tuist a admitir nuevos idiomas y mejorar su contexto de localización."
+  "description": "Ayuda a Tuist a añadir compatibilidad con nuevos idiomas y mejorar su contexto de localización."
 }
 ---
 # Idiomas {#translate}
@@ -30,14 +30,14 @@ Dado que el soporte de idiomas es un esfuerzo continuo, añadimos idiomas a medi
 
 ## Cómo ayudar {#how-to-translate}
 
-El soporte de idiomas de Tuist se gestiona desde el repositorio. Los colaboradores actualizan el contenido original en inglés y el contexto de traducción, y [Glossia](https://glossia.ai) genera automáticamente los archivos localizados.
+El soporte de idiomas de Tuist se gestiona desde el repositorio. Los colaboradores actualizan el contenido original en inglés y el contexto de traducción, y [Glossia](https://glossia.ai) genera los archivos localizados automáticamente.
 
 El flujo de trabajo es:
 
 1. Actualiza el contenido original en inglés.
 2. Actualiza el contexto relevante de `L10N.md` si los traductores necesitan más orientación.
 3. Abre una pull request con esos cambios en el origen.
-4. Una vez que los cambios se integren en `main`, Glossia traduce lo que ha cambiado y mantiene abierta una pull request de traducción con los archivos localizados actualizados.
+4. Una vez que los cambios se integran en `main`, Glossia traduce lo que ha cambiado y mantiene abierta una pull request de traducción con los archivos localizados actualizados.
 
 > [!WARNING]
 > **No modifiques el contenido localizado generado**
@@ -47,7 +47,7 @@ El flujo de trabajo es:
 
 ## Estructura de L10N.md {#l10n-md-structure}
 
-Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es considerarlos como instrucciones de idioma con alcance específico que pueden ubicarse en distintos niveles de directorio.
+Los archivos `L10N.md` definen el contexto que utiliza Glossia al traducir. La forma más sencilla de entenderlos es considerarlos como instrucciones de idioma con alcance específico que pueden residir en diferentes niveles de directorio.
 
 Por ejemplo:
 
@@ -66,16 +66,16 @@ Por ejemplo:
 
 ## Contexto de directorio {#directory-context}
 
-Glossia recorre desde la raíz del repositorio hasta el directorio que se está traduciendo y combina todos los archivos `L10N.md` que encuentra en esa ruta.
+Glossia recorre desde la raíz del repositorio hasta el directorio que se está traduciendo y combina cada archivo `L10N.md` que encuentra en esa ruta.
 
 En el ejemplo anterior:
 
-- `L10N.md` se aplica de forma global.
+- `L10N.md` se aplica globalmente.
 - `server/L10N.md` añade contexto específico del servidor.
 - `server/L10N/es.md` añade anulaciones exclusivas para español en esa misma área.
 
 Esto significa que puedes colocar el contexto donde corresponde:
 
-- orientación para todo el repositorio en la raíz
-- orientación específica de área en un subdirectorio
-- orientación específica de idioma en `L10N/<locale>.md`
+- instrucciones para todo el repositorio en la raíz
+- instrucciones específicas de área en un subdirectorio
+- instrucciones específicas de idioma en `L10N/<locale>.md`

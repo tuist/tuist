@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
@@ -337,6 +338,9 @@ func (m *Manager) createFromDiskSnapshot(ctx context.Context, sb *Sandbox, args 
 		if err := m.attachCacheImage(args.CacheImage, sb.root, uid); err != nil {
 			return res, err
 		}
+		sb.mu.Lock()
+		sb.meta.CacheImage = args.CacheImage
+		sb.mu.Unlock()
 	}
 
 	return m.coldCreate(ctx, sb, log.With("snapshot", args.FromDiskSnapshot, "slot", slot))
@@ -358,6 +362,16 @@ func (m *Manager) attachCacheImage(name, root string, uid int) error {
 		return err
 	}
 	return vm.Chown(dst, uid, uid)
+}
+
+// cachePlaceholder gives the jail the empty cache drive a template snapshot
+// built with a cache drive expects.
+func (m *Manager) cachePlaceholder(root string, uid int) error {
+	cache := filepath.Join(root, firecracker.CachePath)
+	if err := vm.Sparse(cache, template.CachePlaceholderBytes); err != nil {
+		return err
+	}
+	return vm.Chown(cache, uid, uid)
 }
 
 // coldCreate boots a new sandbox whose jail already holds its kernel and

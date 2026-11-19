@@ -88,13 +88,16 @@ func ParseShapes(csv string) ([]Shape, error) {
 
 // Metadata describes a built shape snapshot.
 type Metadata struct {
-	Name               string    `json:"name"`
-	Tag                string    `json:"tag"`
-	Kernel             string    `json:"kernel"`
-	VCPUs              int       `json:"vcpus"`
-	MemoryMB           int       `json:"memory_mb"`
-	WorkspaceGB        int       `json:"workspace_gb"`
-	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
+	Name              string `json:"name"`
+	Tag               string `json:"tag"`
+	Kernel            string `json:"kernel"`
+	VCPUs             int    `json:"vcpus"`
+	MemoryMB          int    `json:"memory_mb"`
+	WorkspaceGB       int    `json:"workspace_gb"`
+	WorkspacePrepared bool   `json:"workspace_prepared,omitempty"`
+	// CacheDrive: the snapshot has a CachePlaceholderBytes cache drive that
+	// every jail restored from it must provide.
+	CacheDrive         bool      `json:"cache_drive,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -168,6 +171,10 @@ func (t Template) ReadyShapes() []Shape {
 }
 
 // Artifacts are the files a sandbox is created from.
+// CachePlaceholderBytes is the size of the empty cache drive in a shape
+// snapshot built with Builder.CacheDrive.
+const CachePlaceholderBytes = 1 << 20
+
 type Artifacts struct {
 	Dir       string
 	Rootfs    string
@@ -382,10 +389,11 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind, shapes snapshotted by a different Firecracker version, which
 // that version cannot load, shapes built with a workspace of another size
-// than workspaceGB, which creates of that size could not clone, and shapes
+// than workspaceGB, which creates of that size could not clone, shapes
+// whose cache placeholder drive does not match cacheDrive, and shapes
 // holding a file the daemon does not own; the next create rebuilds them.
 // Sandboxes linked to a removed memfile keep their own hard link.
-func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int) error {
+func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int, cacheDrive bool) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -402,7 +410,7 @@ func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int) e
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
 			meta := shapeMetadata(dir)
 			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) ||
-				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || !ownedByDaemon(dir) {
+				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || meta.CacheDrive != cacheDrive || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

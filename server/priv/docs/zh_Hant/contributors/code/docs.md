@@ -2,7 +2,7 @@
 {
   "title": "文件",
   "titleTemplate": ":title · 程式碼 · 貢獻者 · Tuist",
-  "description": "為 Tuist 文件網站做出貢獻。"
+  "description": "協助貢獻 Tuist 文件網站。"
 }
 ---
 # 文件 {#docs}
@@ -11,13 +11,13 @@
 
 ## 用途 {#what-it-is-for}
 
-文件網站託管 Tuist 的產品與貢獻者文件。它是 Tuist 伺服器的一部分，這是一個 Phoenix 應用程式，會將位於 `server/priv/docs/en` 的 Markdown 頁面渲染至 `/docs`。
+文件網站託管 Tuist 的產品與貢獻者文件。它是 Tuist 伺服器（一個 Phoenix 應用程式）的一部分，負責將 `server/priv/docs/en` 下的 Markdown 頁面渲染至 `/docs`。
 
 ## 如何貢獻 {#how-to-contribute}
 
-編輯位於 `server/priv/docs/en` 的英文頁面。翻譯由其他流程管理，因此請勿編輯其他語系目錄。側邊欄定義於 `server/lib/tuist/docs_sidebar.ex`；請在此處新增頁面，讓讀者能夠找到它們。
+編輯 `server/priv/docs/en` 下的英文頁面。翻譯由其他流程管理，因此請勿編輯其他語系目錄。側邊欄定義於 `server/lib/tuist/docs_sidebar.ex`；請在該處新增頁面，以便讀者找到它們。
 
-當多個頁面共用相同文字時（例如不同建置系統中的相同章節），請將其放入名稱以 `_` 開頭且與這些頁面相鄰的檔案中，並使用指向該檔案的 `@snippet:` HTML 註解來引入，如同不穩定測試頁面所示。以 `_` 開頭的檔案不會作為獨立頁面發布。
+當多個頁面共用相同文字時（例如不同建置系統中的相同章節），請將其放入與這些頁面相鄰、名稱以 `_` 開頭的檔案中，並使用指向該檔案的 `@snippet:` HTML 註解來引入，如同不穩定測試頁面所做的那樣。以 `_` 開頭的檔案不會作為獨立頁面發布。
 
 ### 本機設定 {#set-up-locally}
 

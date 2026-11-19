@@ -402,15 +402,18 @@ func TestCleanPartialBuilds(t *testing.T) {
 	stale := tmpl.ShapeDir(Shape{VCPUs: 8, MemoryMB: 16384})
 	// Built with a workspace of another size than creates now ask for.
 	resized := tmpl.ShapeDir(Shape{VCPUs: 2, MemoryMB: 8192})
-	for _, d := range []string{ready, partial, staging, stale, resized} {
+	// Built without the cache placeholder the daemon now puts in snapshots.
+	uncached := tmpl.ShapeDir(Shape{VCPUs: 4, MemoryMB: 4096})
+	for _, d := range []string{ready, partial, staging, stale, resized, uncached} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for dir, meta := range map[string]string{
-		ready:   `{"firecracker_version":"v1.16.2","workspace_gb":30}`,
-		stale:   `{"firecracker_version":"v1.16.1","workspace_gb":30}`,
-		resized: `{"firecracker_version":"v1.16.2","workspace_gb":10}`,
+		ready:    `{"firecracker_version":"v1.16.2","workspace_gb":30,"cache_drive":true}`,
+		stale:    `{"firecracker_version":"v1.16.1","workspace_gb":30,"cache_drive":true}`,
+		resized:  `{"firecracker_version":"v1.16.2","workspace_gb":10,"cache_drive":true}`,
+		uncached: `{"firecracker_version":"v1.16.2","workspace_gb":30}`,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, ReadyFile), nil, 0o644); err != nil {
 			t.Fatal(err)
@@ -420,10 +423,10 @@ func TestCleanPartialBuilds(t *testing.T) {
 		}
 	}
 	store := &Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds("v1.16.2", 30); err != nil {
+	if err := store.CleanPartialBuilds("v1.16.2", 30, true); err != nil {
 		t.Fatal(err)
 	}
-	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) || vm.Exists(resized) {
+	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) || vm.Exists(resized) || vm.Exists(uncached) {
 		t.Fatal("clean removed the wrong directories")
 	}
 }
