@@ -1048,7 +1048,7 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 	if !enabled {
 		return ""
 	}
-	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataNeedrestartSetup(sudo) + kataMemoryHighSetup(sudo)
+	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataNeedrestartSetup(sudo)
 	if staticSandboxSizing {
 		dropIns += kataStaticSandboxSetup(sudo)
 	}

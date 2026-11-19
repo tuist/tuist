@@ -1,9 +1,9 @@
 ### Detección entre ejecuciones {#cross-run-detection}
 
-Incluso sin reintentos de tests, Tuist puede detectar tests inestables comparando los resultados de distintas ejecuciones de CI sobre el mismo commit, esquema y destino informado (nombre del dispositivo, plataforma y versión del sistema operativo). Si un test pasa en una ejecución de CI coincidente pero falla en otra, la ejecución fallida se marca como inestable. Esto funciona independientemente de qué resultado llegue primero.
+Incluso sin reintentos de tests, Tuist puede detectar tests inestables comparando resultados entre distintas ejecuciones de CI sobre el mismo commit, esquema y destino informado (nombre del dispositivo, plataforma y versión del sistema operativo). Si un test pasa en una ejecución de CI coincidente pero falla en otra, la ejecución fallida se marca como inestable. Esto funciona independientemente de qué resultado llegue primero.
 
-El mismo test puede comportarse de forma consistentemente distinta según el esquema o el destino. Por ejemplo, pasar en iOS 26 y fallar en iOS 27 no implica inestabilidad. Los resultados de esquemas, dispositivos, plataformas o versiones del sistema operativo distintos no se marcan entre sí como inestables.
+El mismo test puede comportarse de forma consistentemente distinta según el esquema o el destino. Por ejemplo, pasar en iOS 26 y fallar en iOS 27 no establece inestabilidad. Los resultados de esquemas, dispositivos, plataformas o versiones del sistema operativo diferentes no se marcan mutuamente como inestables.
 
-Las ejecuciones sin metadatos de destino, o que abarcan varios destinos, solo se comparan entre sí, por lo que las diferencias de entorno entre ellas pueden seguir reportándose como inestabilidad. La detección basada en reintentos sigue aplicándose.
+Las ejecuciones sin metadatos de destino, o que cubren varios destinos, solo se comparan entre sí, por lo que las diferencias de entorno entre ellas aún pueden reportarse como inestabilidad. La detección basada en reintentos sigue aplicándose.
 
-Esto es especialmente útil para capturar tests inestables que no fallan con la suficiente consistencia como para ser detectados por los reintentos, pero que aun así provocan fallos intermitentes en CI.
+Esto es especialmente útil para capturar tests inestables que no fallan con suficiente consistencia como para ser detectados por reintentos, pero que aun así provocan fallos intermitentes en CI.

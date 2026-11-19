@@ -7,54 +7,56 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
-func TestKataMemoryHighSoftLimitsExclusiveCPUVMs(t *testing.T) {
+// The tuist-kata-memory-high service (b300ad91da) could not reclaim guest RAM,
+// which is shmem, and was replaced by sizing podFixed with the guest. The
+// repair has to take it off the hosts that already run it.
+func TestKataHostConfigRepairRemovesMemoryHighService(t *testing.T) {
+	script := renderKataHostConfigRepairScript(linuxCloudInitOptions{BootstrapUser: "ubuntu"})
+	for _, want := range []string{
+		"systemctl disable --now tuist-kata-memory-high.service",
+		"rm -f /etc/systemd/system/tuist-kata-memory-high.service /usr/local/sbin/tuist-kata-memory-high",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("repair script is missing %q", want)
+		}
+	}
+	if strings.Contains(script, "systemctl restart tuist-kata-memory-high.service") {
+		t.Error("repair script still starts tuist-kata-memory-high")
+	}
+}
+
+func TestKataMemoryHighResetLiftsOnlyTheServicesSoftLimit(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "kubepods.slice")
-	proc := filepath.Join(dir, "proc")
 	const gib = 1 << 30
-
-	write := func(path, content string) {
+	pod := func(slice string, max, high int) string {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// pod lays out a Pod slice holding one scope with the given process.
-	pod := func(slice, max, comm string, pid int) string {
 		path := filepath.Join(root, slice)
-		write(filepath.Join(path, "memory.max"), max+"\n")
-		write(filepath.Join(path, "memory.high"), "max\n")
-		write(filepath.Join(path, "cri-containerd-abc.scope", "cgroup.procs"), strconv.Itoa(pid)+"\n")
-		write(filepath.Join(proc, strconv.Itoa(pid), "comm"), comm+"\n")
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for file, value := range map[string]int{"memory.max": max, "memory.high": high} {
+			if err := os.WriteFile(filepath.Join(path, file), []byte(strconv.Itoa(value)+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
 		return path
 	}
+	// Set by the service: memory.max less its 256 MiB headroom.
+	softLimited := pod("kubepods-pod1.slice", 70*gib, 70*gib-256<<20)
+	// Set by something else; not ours to lift.
+	other := pod("kubepods-pod2.slice", 40*gib, 30*gib)
 
-	exclusive := pod("kubepods-pod1.slice", strconv.Itoa(70*gib), "qemu-system-x86", 101)
-	// A Guaranteed Pod under runc on the same host: no VM, nothing to protect.
-	runc := pod("kubepods-pod2.slice", strconv.Itoa(1*gib), "cache-volumes", 102)
-	// A Kata Pod with no Pod-level memory limit.
-	unlimited := pod("kubepods-pod3.slice", "max", "qemu-system-x86", 103)
-	// Burstable Pods live under their own QoS slice and are never touched.
-	burstable := pod(filepath.Join("kubepods-burstable.slice", "kubepods-burstable-pod4.slice"), strconv.Itoa(40*gib), "qemu-system-x86", 104)
-
-	run := func() {
-		t.Helper()
-		script := filepath.Join(dir, "memory-high")
-		if err := os.WriteFile(script, []byte(kataMemoryHighScript), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if out, err := exec.Command("/bin/sh", script, root, proc).CombinedOutput(); err != nil {
-			t.Fatalf("script failed: %v\n%s", err, out)
-		}
+	script := filepath.Join(dir, "reset")
+	if err := os.WriteFile(script, []byte(kataMemoryHighResetScript), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	high := func(path string) string {
+	if out, err := exec.Command("/bin/sh", script, root).CombinedOutput(); err != nil {
+		t.Fatalf("reset failed: %v\n%s", err, out)
+	}
+	read := func(path string) string {
 		t.Helper()
 		b, err := os.ReadFile(filepath.Join(path, "memory.high"))
 		if err != nil {
@@ -62,41 +64,10 @@ func TestKataMemoryHighSoftLimitsExclusiveCPUVMs(t *testing.T) {
 		}
 		return strings.TrimSpace(string(b))
 	}
-
-	run()
-	want := strconv.Itoa(70*gib - kataMemoryHighHeadroomBytes)
-	if got := high(exclusive); got != want {
-		t.Fatalf("exclusive-CPU VM memory.high = %s, want %s (memory.max less the headroom)", got, want)
+	if got := read(softLimited); got != "max" {
+		t.Errorf("soft-limited Pod memory.high = %s, want max", got)
 	}
-	for name, path := range map[string]string{"runc": runc, "unlimited": unlimited, "burstable": burstable} {
-		if got := high(path); got != "max" {
-			t.Errorf("%s Pod memory.high = %s, want it left at max", name, got)
-		}
-	}
-
-	// A Pod-level limit that changes (an in-place resize) is followed.
-	write(filepath.Join(exclusive, "memory.max"), strconv.Itoa(36*gib)+"\n")
-	run()
-	if got, want := high(exclusive), strconv.Itoa(36*gib-kataMemoryHighHeadroomBytes); got != want {
-		t.Fatalf("after resize memory.high = %s, want %s", got, want)
-	}
-}
-
-func TestKataHostConfigCoversMemoryHigh(t *testing.T) {
-	node := &corev1.Node{}
-	node.Status.NodeInfo.BootID = "boot"
-	before := kataHostConfigRevision(node)
-	original := kataMemoryHighScript
-	t.Cleanup(func() { kataMemoryHighScript = original })
-	kataMemoryHighScript += "# changed\n"
-	if kataHostConfigRevision(node) == before {
-		t.Fatal("changing the memory.high script must re-run the repair on existing hosts")
-	}
-
-	script := renderKataHostConfigRepairScript(linuxCloudInitOptions{BootstrapUser: "ubuntu"})
-	for _, want := range []string{kataMemoryHighScript, kataMemoryHighUnit, "systemctl restart tuist-kata-memory-high.service"} {
-		if !strings.Contains(script, want) {
-			t.Errorf("repair script is missing %q", want)
-		}
+	if got, want := read(other), strconv.Itoa(30*gib); got != want {
+		t.Errorf("other Pod memory.high = %s, want it left at %s", got, want)
 	}
 }

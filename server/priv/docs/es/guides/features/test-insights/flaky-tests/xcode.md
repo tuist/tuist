@@ -2,7 +2,7 @@
 {
   "title": "Tests inestables en Xcode",
   "titleTemplate": ":title · Tests inestables · Análisis de tests · Funcionalidades · Guías · Tuist",
-  "description": "Detecta, gestiona y pon en cuarentena los tests inestables en proyectos de Xcode con Tuist."
+  "description": "Detecta, gestiona y aísla tests inestables en proyectos de Xcode con Tuist."
 }
 ---
 # Tests inestables de Xcode {#xcode-flaky-tests}
@@ -16,9 +16,9 @@
 
 ![Página de tests inestables](/images/guides/features/test-insights/flaky-tests-page.png)
 
-## Cómo funciona la detección de tests inestables {#how-it-works}
+## Cómo funciona la detección de inestabilidad {#how-it-works}
 
-Tuist detecta tests inestables de dos formas:
+Tuist detecta tests inestables de dos maneras:
 
 ### Reintentos de tests {#test-retries}
 
@@ -43,22 +43,22 @@ tuist xcodebuild test \
 
 <!-- @snippet: ./_quarantine-intro -->
 
-Un test en cuarentena está en uno de estos dos modos:
+Un test en cuarentena está en uno de dos modos:
 
 - **Silenciado**: el test sigue ejecutándose, pero `tuist xcodebuild test` oculta el fallo. Los fallos siguen alimentando el detector de tests inestables, así que puedes seguir vigilando el test sin romper la compilación. Elige esta opción para un test que estés investigando activamente.
-- **Omitido**: xcodebuild recibe `-skip-testing <identifier>`, por lo que el test nunca se inicia. No genera nuevos resultados y desaparece del panel de tests inestables hasta que lo vuelvas a habilitar. Elige esta opción cuando el test esté roto, sea lento o tan persistentemente inestable que ejecutarlo solo suponga desperdiciar minutos de CI.
+- **Omitido**: xcodebuild recibe `-skip-testing <identifier>`, por lo que el test nunca se inicia. No genera nuevos resultados y desaparece del panel de tests inestables hasta que lo vuelvas a habilitar. Elige esta opción cuando el test esté roto, sea lento o tan persistentemente inestable que ejecutarlo solo desperdicie minutos de CI.
 
 <!-- @snippet: ./_quarantined-passing -->
 
 ### Ejecutar tests {#running-tests}
 
-`tuist xcodebuild test` es un envoltorio transparente que respeta ambos modos automáticamente. Úsalo igual que llamarías a xcodebuild:
+`tuist xcodebuild test` es un envoltorio transparente que respeta ambos modos automáticamente. Úsalo de la misma manera que llamarías a xcodebuild:
 
 ```sh
 tuist xcodebuild test -scheme MyScheme
 ```
 
-Los tests omitidos se añaden a tu invocación de xcodebuild como `-skip-testing <identifier>` y nunca se inician. Los tests silenciados se ejecutan con normalidad; si fallan, el fallo queda oculto en el estado de compilación resultante.
+Los tests omitidos se añaden a tu invocación de xcodebuild como `-skip-testing <identifier>` y nunca se inician. Los tests silenciados se ejecutan con normalidad; si fallan, el fallo se oculta en el estado de compilación resultante.
 
 #### Omitir la cuarentena {#bypassing-quarantine}
 
@@ -84,11 +84,11 @@ Este es el valor predeterminado seguro fuera de `tuist xcodebuild test`: el ocul
 
 <!-- @snippet: ./_stress-intro -->
 
-Un caso de test se considera nuevo cuando no se ha ejecutado en CI en los últimos 90 días en la rama predeterminada del proyecto, o en un commit que ya se haya incorporado a ella. Con una cola de merge, un caso de test que la cola haya ejecutado se conoce una vez que el commit de la cola se incorpora, y sigue siendo nuevo si la cola lo descarta. Los commits se emparejan a través del <.localized_link href="/guides/features/test-insights/xcode#git-history">historial de Git</.localized_link> que Tuist recopila en CI.
+Un caso de test se considera nuevo cuando no se ha ejecutado en CI en los últimos 90 días en la rama predeterminada del proyecto, o en un commit que desde entonces se haya integrado en ella. Con una cola de merge, un caso de test que la cola haya ejecutado se conoce una vez que el commit de la cola se integra, y sigue siendo nuevo si la cola lo descarta. Los commits se emparejan a través del <.localized_link href="/guides/features/test-insights/xcode#git-history">historial de Git</.localized_link> que Tuist recopila en CI.
 
 <!-- @snippet: ./_stress-modes -->
 
-Pásalo antes de los argumentos transparentes, o establece `TUIST_TEST_STRESS_NEW_TESTS` para variar el modo por canal de CI:
+Pásalo antes de los argumentos transparentes, o establece `TUIST_TEST_STRESS_NEW_TESTS` para variar el modo por pipeline de CI:
 
 ```sh
 tuist xcodebuild test --stress-new-tests report -scheme MyScheme
@@ -96,7 +96,7 @@ tuist xcodebuild test --stress-new-tests report -scheme MyScheme
 
 <!-- @snippet: ./_stress-reruns -->
 
-Las repeticiones reutilizan lo que construyó la primera pasada.
+Las reejecuciones reutilizan lo que construyó la primera pasada.
 
 <!-- @snippet: ./_stress-skipped -->
 

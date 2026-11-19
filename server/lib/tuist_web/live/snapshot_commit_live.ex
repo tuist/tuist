@@ -125,6 +125,15 @@ defmodule TuistWeb.SnapshotCommitLive do
           data-part="review-buttons"
         >
           <.button
+            :if={@commit.status != "approved"}
+            id="approve-snapshot-commit"
+            label={dgettext("dashboard_snapshots", "Approve changes")}
+            size="medium"
+            phx-click="approve"
+          >
+            <:icon_left><.icon name="check" /></:icon_left>
+          </.button>
+          <.button
             :if={@commit.status != "rejected"}
             id="reject-snapshot-commit"
             label={dgettext("dashboard_snapshots", "Reject changes")}
@@ -133,15 +142,6 @@ defmodule TuistWeb.SnapshotCommitLive do
             phx-click="reject"
           >
             <:icon_left><.icon name="close" /></:icon_left>
-          </.button>
-          <.button
-            :if={@commit.status != "approved"}
-            id="approve-snapshot-commit"
-            label={dgettext("dashboard_snapshots", "Approve changes")}
-            size="medium"
-            phx-click="approve"
-          >
-            <:icon_left><.icon name="check" /></:icon_left>
           </.button>
         </div>
       </div>

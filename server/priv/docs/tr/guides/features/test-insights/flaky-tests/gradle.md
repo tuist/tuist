@@ -1,7 +1,7 @@
 ---
 {
   "title": "Gradle Kararsız Testler",
-  "titleTemplate": ":title · Kararsız Testler · Test İçgörüler · Özellikler · Kılavuzlar · Tuist",
+  "titleTemplate": ":title · Kararsız Testler · Test İçgörüleri · Özellikler · Kılavuzlar · Tuist",
   "description": "Tuist ile Gradle projelerindeki kararsız testleri tespit edin, yönetin ve karantinaya alın."
 }
 ---
@@ -10,19 +10,19 @@
 > [!IMPORTANT]
 > **Gereksinimler**
 >
-> - <.localized_link href="/guides/features/test-insights/gradle">Gradle test içgörüsü</.localized_link> yapılandırıldı.
+> - <.localized_link href="/guides/features/test-insights/gradle">Gradle test içgörülerinin</.localized_link> yapılandırılmış olması.
 
 <!-- @snippet: ./_intro -->
 
 ![Kararsız Testler sayfası](/images/guides/features/test-insights/flaky-tests-page.png)
 
-## Kararsızlık algılamanın çalışma şekli {#how-it-works}
+## Kararsızlık algılama nasıl çalışır {#how-it-works}
 
 Tuist, kararsız testleri iki şekilde algılar:
 
 ### Test yeniden denemeleri {#test-retries}
 
-Yeniden deneme işleviyle test çalıştırdığınızda Tuist her denemenin sonuçlarını analiz eder. Bir test bazı denemelerde başarısız olurken diğerlerinde başarılı oluyorsa kararsız olarak işaretlenir.
+Yeniden deneme işleviyle testleri çalıştırdığınızda Tuist, her denemenin sonuçlarını analiz eder. Bir test bazı denemelerde başarısız olurken diğerlerinde başarılı oluyorsa kararsız olarak işaretlenir.
 
 Başarısız testleri yeniden çalıştırmak için [Test Retry eklentisini](https://github.com/gradle/test-retry-gradle-plugin) veya benzer bir mekanizmayı kullanabilirsiniz. Tuist, bazı denemelerde başarılı olan ancak diğerlerinde başarısız olan testleri algılar.
 
@@ -44,30 +44,30 @@ tasks.test {
 
 ![Kararsız test senaryosu ayrıntısı](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
-### Çapraz-çalıştırma algılama {#cross-run-detection}
+### Çalışmalar arası algılama {#cross-run-detection}
 
-Test yeniden denemeleri olmadan bile Tuist, aynı commit ve aynı Gradle projesi üzerindeki farklı CI çalıştırmalarındaki sonuçları karşılaştırarak kararsız testleri algılayabilir. Bir test aynı commit ve proje için bir CI çalıştırmasında başarılı olurken başka bir çalıştırmada başarısız olursa başarısız yürütme kararsız olarak işaretlenir.
+Test yeniden denemeleri olmadan bile Tuist, aynı commit ve aynı Gradle projesindeki farklı CI çalıştırmalarındaki sonuçları karşılaştırarak kararsız testleri algılayabilir. Bir test aynı commit ve proje için bir CI çalıştırmasında başarılı olurken başka bir çalıştırmada başarısız olursa başarısız yürütme kararsız olarak işaretlenir.
 
-Gradle projesi karşılaştırma anahtarının bir parçasıdır çünkü aynı test projeler arasında deterministik olarak farklı davranabilir — örneğin farklı bağımlılıklarla derlenen paylaşılan bir test sınıfı veya farklı bir modül sabitinde çalışan test. Aynı commit’in farklı Gradle projelerindeki iki çalıştırması ayrı yürütme varyantları olarak değerlendirilir ve birbirini kararsız olarak işaretlemeyecektir.
+Aynı test projeler arasında deterministik olarak farklı davranabileceği için Gradle projesi karşılaştırma anahtarının bir parçasıdır; örneğin farklı bağımlılıklarla derlenen paylaşılan bir test sınıfı veya farklı bir modül sabitinde çalışan bir test. Aynı commit’in farklı Gradle projelerindeki iki çalıştırması ayrı yürütme varyantları olarak ele alınır ve birbirini kararsız olarak işaretlemeyeceklerdir.
 
-Bu durum, yeniden denemelerle yakalanacak kadar tutarlı başarısız olmayan ancak yine de aralıklı CI hatalarına neden olan kararsız testleri yakalamak için özellikle yararlıdır.
+Bu, yeniden denemelerle yakalanacak kadar tutarlı başarısız olmayan ancak yine de aralıklı CI hatalarına neden olan kararsız testleri yakalamak için özellikle faydalıdır.
 
 <!-- @snippet: ./_managing -->
 
-## Kararsız testlerin karantinaya alınması {#quarantining}
+## Kararsız testleri karantinaya alma {#quarantining}
 
 <!-- @snippet: ./_quarantine-intro -->
 
 Karantinaya alınmış bir test iki moddan birindedir:
 
-- **Sessize alınmış**: test hâlâ çalışır ancak eklenti `ignoreFailures = true` ayarlar ve yalnızca karantina dışı hatalarda derlemeyi yeniden başarısız kılar. Hatalar yine de kararsız-test algılayıcısına beslenir; bu sayede derlemeyi bozmadan testi izlemeye devam edebilirsiniz. Aktif olarak incelediğiniz bir test için bunu seçin.
-- **Atlanan**: eklenti testi Gradle’ın `excludeTestsMatching` üzerinden filtreler, bu nedenle test hiç başlamaz. Yeni sonuç üretmez ve siz yeniden etkinleştirene kadar kararsız-test panosundan düşer. Test bozuk, yavaş veya o kadar sürekli kararsızsa ki çalıştırmak sadece CI dakikalarını boşa harcamak anlamına geliyorsa bunu seçin.
+- **Susturulmuş**: test yine de çalışır, ancak eklenti `ignoreFailures = true` ayarlar ve yalnızca karantina dışı hatalarda derlemeyi tekrar başarısız kılar. Hatalar hâlâ kararsız-test algılayıcısına beslenir, böylece derlemeyi bozmadan testi izlemeye devam edebilirsiniz. Aktif olarak incelediğiniz bir test için bunu seçin.
+- **Atlanan**: eklenti testi Gradle’ın `excludeTestsMatching` yoluyla filtreler, bu nedenle test hiç başlamaz. Yeni sonuç üretmez ve siz yeniden etkinleştirene kadar kararsız-testler panosundan çıkar. Test bozuk, yavaş veya o kadar sürekli kararsızsa ki çalıştırmak sadece CI dakikalarını boşa harcıyorsa bunu seçin.
 
 <!-- @snippet: ./_quarantined-passing -->
 
 ### Karantinayı etkinleştirme {#enabling-quarantine}
 
-Karantina **CI üzerinde otomatik olarak etkindir** (`CI` ortam değişkeni ayarlandığında) ve yerel derlemeler için devre dışı bırakılır. Eklenti, her test görevinden önce karantinaya alınmış test listesini Tuist sunucusundan alır; sessize alınmış testler normal şekilde çalışır ve hataları maskelenir, atlanan testler filtrelenir.
+Karantina **CI’da otomatik olarak etkindir** (`CI` ortam değişkeni ayarlandığında) ve yerel derlemeler için devre dışı bırakılır. Eklenti, her test görevinden önce karantinaya alınmış testlerin listesini Tuist sunucusundan alır; susturulmuş testler normal şekilde çalışır ve hataları maskelenir, atlanan testler filtrelenir.
 
 Bunu `settings.gradle.kts` içinde açıkça kontrol edebilirsiniz:
 
@@ -79,17 +79,17 @@ tuist {
 }
 ```
 
-`enabled` ayarlanmadığında varsayılan olarak otomatik algılama kullanılır: CI üzerinde etkin, yerelde devre dışı.
+`enabled` ayarlanmadığında varsayılan olarak otomatik algılama kullanılır: CI’da etkin, yerelde devre dışı.
 
-## Yeni testlere stres testi uygulama {#stress-testing-new-tests}
+## Yeni testleri stres testiyle değerlendirme {#stress-testing-new-tests}
 
 <!-- @snippet: ./_stress-intro -->
 
-Bir test senaryosu, projenin varsayılan dalında son 90 gün içinde CI üzerinde çalıştırılmamışsa veya o dala daha sonra entegre edilmiş bir commit üzerinde çalıştırılmamışsa yeni sayılır. Bir birleştirme kuyruğuyla, kuyruğun çalıştırdığı bir test senaryosu kuyruğun commit’i entegre edildiğinde bilinir hale gelir ve kuyruk onu çıkarırsa yeni kalmaya devam eder. Commit’ler, Tuist’in CI üzerinde topladığı <.localized_link href="/guides/features/test-insights/gradle#git-history">Git geçmişi</.localized_link> aracılığıyla eşleştirilir.
+Bir test senaryosu, projenin varsayılan dalında son 90 gün içinde CI’da çalışmamışsa veya o dala daha sonra entegre edilmiş bir commit üzerinde çalışmamışsa yeni olarak sayılır. Bir birleştirme kuyruğu varsa kuyruğun çalıştırdığı bir test senaryosu, kuyruğun commit’i dala entegre edildiğinde bilinir hale gelir ve kuyruk onu düşürürse yeni olarak kalır. Commit eşleştirmeleri, Tuist’in CI’da topladığı <.localized_link href="/guides/features/test-insights/gradle#git-history">Git geçmişi</.localized_link> üzerinden yapılır.
 
 <!-- @snippet: ./_stress-modes -->
 
-Bunu `settings.gradle.kts` içinde bildirin veya CI hattı başına modu değiştirmek için `TUIST_TEST_STRESS_NEW_TESTS` ayarlayın:
+Bunu `settings.gradle.kts` içinde bildirin veya CI hattına göre modu değiştirmek için `TUIST_TEST_STRESS_NEW_TESTS` ayarlayın:
 
 ```kotlin
 tuist {
@@ -99,11 +99,11 @@ tuist {
 }
 ```
 
-Karantinadan farklı olarak, bu kapının CI farkındalığına sahip bir varsayılanı yoktur. `mode` ayarlanmadığında hiçbir yerde çalışmaz.
+Karantinadan farklı olarak, bu geçidin CI farkındalığına sahip bir varsayılanı yoktur. `mode` ayarlanmadığında hiçbir yerde çalışmaz.
 
 <!-- @snippet: ./_stress-reruns -->
 
-Her yeniden çalıştırma, o tek test senaryosuna filtrelenmiş iç içe geçmiş bir Gradle derlemesidir; bu nedenle her yeniden çalıştırma yeni bir test JVM’si alır.
+Her yeniden deneme, yalnızca o test senaryosuna filtrelenmiş iç içe geçmiş bir Gradle derlemesidir; bu nedenle her yeniden deneme temiz bir test JVM’si alır.
 
 <!-- @snippet: ./_stress-skipped -->
 

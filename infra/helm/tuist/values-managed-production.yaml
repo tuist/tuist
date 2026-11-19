@@ -2636,9 +2636,11 @@ runnersFleetLinux:
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
-    # Each idle 32 GiB runner reserves 35.5 GiB with the kata overhead.
+    # Exclusive CPUs again since 2026-11-19, under kata-qemu-32g (5120Mi
+    # podFixed), so each idle 32 GiB runner reserves 37 GiB.
     - vcpus: 8
       memoryGb: 32
+      exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
     - vcpus: 16
