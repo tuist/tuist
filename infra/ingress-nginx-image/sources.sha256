@@ -1,0 +1,34 @@
+# sha256 of every tarball the fork's images/nginx/rootfs/download.sh fetches
+# with get_src, keyed by the URL exactly as written there (before its version
+# variables from version.sh are expanded). The fork ships stale checksums and
+# has the check commented out; source.sh puts these in their place and turns
+# the check back on, so a moved tag or a version bump in version.sh fails the
+# build until the entry here is updated. See README.md, "Changing what is built".
+bd7ba68a6ce1ea3768b771c7e2ab4955a59fb1b1ae8d554fedb6c2304104bdfc  https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz
+faa2fcd5168b10764d35081356511d5f84db5c526a1aa4b6add2db94b6853b2b  https://github.com/vision5/ngx_devel_kit/archive/$NDK_VERSION.tar.gz
+e0330194b72f2fe4c0ce3ece06b02dc4aa0ab491eb75bf42c6f5e283912e468c  https://github.com/open-telemetry/opentelemetry-cpp/archive/$OPENTELEMETRY_CPP_VERSION.tar.gz
+08f40636adbc5f33d2084bd8e7b64e491dd0239d1a95021dbffbdf1ca8cea454  https://github.com/open-telemetry/opentelemetry-proto/archive/$OPENTELEMETRY_PROTO_VERSION.tar.gz
+cd5e2cc834bcfa30149e7511f2b5a2183baf0b70dc091af717a89a64e44a2985  https://github.com/openresty/set-misc-nginx-module/archive/$SETMISC_VERSION.tar.gz
+cf6e169d6b350c06d0c730b0eaf4973394026ad40094cddd3b3a5b346577019d  https://github.com/openresty/headers-more-nginx-module/archive/$MORE_HEADERS_VERSION.tar.gz
+f09851e6309560a8ff3e901548405066c83f1f6ff88aa7171e0763bd9514762b  https://github.com/atomx/nginx-http-auth-digest/archive/$NGINX_DIGEST_AUTH.tar.gz
+bb596d146ad0650014168dda9dc8d07c50a070010044c95ed0d167a9a78e63a1  https://github.com/owasp-modsecurity/ModSecurity-nginx/archive/$MODSECURITY_VERSION.tar.gz
+634827d54de6216cb0502d14f76610788b3a3e33160e91d5578d6db0d9a34a20  https://github.com/openresty/lua-nginx-module/archive/$LUA_NGX_VERSION.tar.gz
+3b1103cf5ee940ea94711eae1a7ccc1a161273ec9a08eb415f1d45ad385f967d  https://github.com/openresty/stream-lua-nginx-module/archive/$LUA_STREAM_NGX_VERSION.tar.gz
+2a69815e4ae01aa8b170941a8e1a10b6f6a9aab699dee485d58f021dd933829a  https://github.com/openresty/lua-upstream-nginx-module/archive/$LUA_UPSTREAM_VERSION.tar.gz
+68ff3dc2cc97969f7385679da7c9ff96738aa9cc275fa6bab77316eb3340ea8e  https://github.com/openresty/luajit2/archive/$LUAJIT_VERSION.tar.gz
+5e2113ed09cdd710908df8c6d1630616eeacb9216ef8705a06c25733394ddf28  https://github.com/leev/ngx_http_geoip2_module/archive/$GEOIP2_VERSION.tar.gz
+deb4ab1ffb9f3d962c4b4a2c4bdff692b86a209e3835ae71ebdf3b97189e40a9  https://github.com/openresty/lua-resty-upload/archive/$LUA_RESTY_UPLOAD_VERSION.tar.gz
+77f006a97fd4a3be4a82dcf2d5f1482e399b70fb35454c5b5ad4b97ff1dded0d  https://github.com/openresty/lua-resty-string/archive/$LUA_RESTY_STRING_VERSION.tar.gz
+8b2ff4edefc240dea0d3adb9dd065a42e8c09e06ba8bb0a188464cf76c9e4d06  https://github.com/openresty/lua-resty-balancer/archive/$LUA_RESTY_BALANCER.tar.gz
+a8af7beadd43dd4758b7dc3c00e027dd3908e73f5bf0e08155a2c8954c5937c0  https://github.com/openresty/lua-resty-core/archive/$LUA_RESTY_CORE.tar.gz
+14cac5c7a4520b33449a1fc961344556b8b6a2a2c6b739b0e46e3002e6e605bc  https://github.com/openresty/lua-cjson/archive/$LUA_CJSON_VERSION.tar.gz
+c0217456f4c36bb9ebbf7dbcd733e3d70734330364c88df73e703c4777521ff9  https://github.com/cloudflare/lua-resty-cookie/archive/$LUA_RESTY_COOKIE_VERSION.tar.gz
+8cf1a22e0d5b8f35cb0b2e14c58fcb3aa505a8fb6e956817f0cdb1f06593f072  https://github.com/openresty/lua-resty-lrucache/archive/$LUA_RESTY_CACHE.tar.gz
+b4ddcd47db347e9adf5c1e1491a6279a6ae2a3aff3155ef77ea0a65c998a69c1  https://github.com/openresty/lua-resty-lock/archive/$LUA_RESTY_LOCK.tar.gz
+ecc80b91bfb4f795b8a80acfa69e1778288ef60649ddd87f30a9c4a57ac5da79  https://github.com/openresty/lua-resty-dns/archive/$LUA_RESTY_DNS.tar.gz
+3da18ca8582243eff28302591e36651dc7fab046e77336aa4a6fa718bccce4a2  https://github.com/ledgetech/lua-resty-http/archive/$LUA_RESTY_HTTP.tar.gz
+02733575c4aed15f6cab662378e4b071c0a4a4d07940c4ef19a7319e9be943d4  https://github.com/openresty/lua-resty-memcached/archive/$LUA_RESTY_MEMCACHED_VERSION.tar.gz
+927389dda41f07038481f89f925c44328446b2ee6ce3e667eeef51b7bd0ee836  https://github.com/openresty/lua-resty-redis/archive/$LUA_RESTY_REDIS_VERSION.tar.gz
+bf4f89c0c00d1e986260d22180cbccbd2016eb054b5c2adcc1b6ee0ff773032f  https://github.com/api7/lua-resty-ipmatcher/archive/$LUA_RESTY_IPMATCHER_VERSION.tar.gz
+754a98de5e2912fddbeaf24830f982b4540992f1bab4a0a8796ee118e0752bda  https://github.com/microsoft/mimalloc/archive/${MIMALOC_VERSION}.tar.gz
+7b0446f0b3e0b63b57883e0464d883f0ac4eab82ec7746599d37563dc6808203  https://github.com/nginx/njs/archive/${NJS_VERSION}.tar.gz

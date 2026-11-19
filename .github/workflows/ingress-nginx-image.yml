@@ -1,12 +1,14 @@
 name: Ingress NGINX Image
 
-# Builds ingress-nginx from the Chainguard fork pinned in
-# infra/ingress-nginx-image/fork.env (nginx base with the fork's CVE patches
-# plus ours, the controller on top of it, and kube-webhook-certgen), checks
-# them against the official images they replace, and runs the fork's nginx
-# test suite. Pull requests only build. Pushes to main and manual dispatches
-# on main publish immutable `<fork version>-tuist.<n>` tags to
-# ghcr.io/tuist/ingress-nginx-{nginx,controller,kube-webhook-certgen}. See infra/ingress-nginx-image/README.md.
+# Builds ingress-nginx from the Rancher fork pinned in
+# infra/ingress-nginx-image/fork.env (the fork's patched nginx base plus our
+# patches, the controller on top of it, and kube-webhook-certgen), compares
+# them with the official images and with the Chainguard-fork build we run
+# today, and runs the nginx-tests suite against the same patch stack. Pull
+# requests only build. Pushes to main and manual dispatches on main publish
+# immutable `<fork tag>-tuist.<n>` tags to
+# ghcr.io/tuist/ingress-nginx-rancher-{nginx,controller,kube-webhook-certgen}.
+# See infra/ingress-nginx-image/README.md.
 #
 # The fork's source is untrusted input: the jobs that build and run it get a
 # read-only token, and the publishing job only loads and pushes their output.
@@ -48,7 +50,7 @@ jobs:
         env:
           TUIST_REVISION: ${{ github.sha }}
         run: bash infra/ingress-nginx-image/build.sh "$RUNNER_TEMP/ingress-nginx"
-      - name: Verify against the official images
+      - name: Verify and compare with the images it would replace
         run: bash infra/ingress-nginx-image/verify.sh "$RUNNER_TEMP/ingress-nginx"
       - name: Save images
         run: |
@@ -87,13 +89,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Fetch the pinned fork with our patches
-        run: bash infra/ingress-nginx-image/source.sh "$RUNNER_TEMP/ingress-nginx"
-      # The fork's own target: nginx-tests plus the fork's tests/t, against
-      # nginx built with AddressSanitizer from the same version and patch
-      # stack as the base image (ours included).
-      - name: Run the fork's nginx tests
-        run: make -C "$RUNNER_TEMP/ingress-nginx/src/images/nginx" test
+      # nginx-tests plus our tests/*.t, against nginx built with
+      # AddressSanitizer from the same version and patch stack as the base
+      # image (ours included). The Rancher fork ships no nginx tests of its own.
+      - name: Run the nginx tests
+        run: bash infra/ingress-nginx-image/nginx-tests.sh "$RUNNER_TEMP/ingress-nginx"
 
   publish:
     name: Publish to GHCR
@@ -122,7 +122,7 @@ jobs:
           refs=()
           for key in NGINX_IMAGE CONTROLLER_IMAGE CERTGEN_IMAGE; do
             ref=$(sed -n "s/^${key}=//p" images.env)
-            if [[ ! "$ref" =~ ^ghcr\.io/tuist/ingress-nginx-(nginx|controller|kube-webhook-certgen):v[0-9]+\.[0-9]+\.[0-9]+-tuist\.[0-9]+$ ]]; then
+            if [[ ! "$ref" =~ ^ghcr\.io/tuist/ingress-nginx-rancher-(nginx|controller|kube-webhook-certgen):v[0-9]+\.[0-9]+\.[0-9]+-prime[0-9]+-tuist\.[0-9]+$ ]]; then
               echo "::error::unexpected $key in images.env: $ref"
               exit 1
             fi

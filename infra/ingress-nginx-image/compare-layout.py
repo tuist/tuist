@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Compares the filesystem of our controller image with the official one.
+"""Compares the filesystem of our controller image with a reference image.
 
-    compare-layout.py OFFICIAL.tar OURS.tar
+    compare-layout.py REFERENCE.tar OURS.tar LABEL
 
-Both arguments are `docker export` archives. Prints a Markdown report and exits
-1 when a path the controller relies on is missing from ours or differs in type,
-mode, owner, symlink target, or file capabilities. Other differences (Alpine
-package versions, extra libraries) are listed but do not fail.
+Both archives are `docker export` output; LABEL names the reference in the
+report. Prints a Markdown report and exits 1 when a path the reference
+controller relies on is missing from ours or differs in type, mode, owner,
+symlink target, or file capabilities (contract differences). Other differences
+(package versions, extra libraries) are listed as well.
 """
 
 import hashlib
 import sys
 import tarfile
+from collections import defaultdict
 
 # Paths the controller, its chart, and its nginx configuration rely on.
 CONTRACT = (
@@ -76,31 +78,52 @@ def manifest(archive):
 
 
 def main():
-    official, ours = manifest(sys.argv[1]), manifest(sys.argv[2])
+    official, ours, label = manifest(sys.argv[1]), manifest(sys.argv[2]), sys.argv[3]
     failures, notes = [], []
+    # Paths whose only difference is the owner, grouped by (theirs, ours):
+    # a different group id repeats on every file the controller ships.
+    owners = defaultdict(lambda: ([], []))
+    # Missing paths outside the contract (base OS files), counted by directory.
+    missing_dirs = defaultdict(int)
 
     for path in sorted(official):
         theirs = official[path]
         mine = ours.get(path)
         if mine is None:
-            (failures if in_contract(path) else notes).append(f"missing `{path}` ({theirs['type']})")
+            if in_contract(path):
+                failures.append(f"missing `{path}` ({theirs['type']})")
+            else:
+                missing_dirs["/".join(path.split("/")[:2])] += 1
             continue
-        for key in ("type", "mode", "owner", "link", "caps"):
-            if theirs[key] != mine[key]:
-                line = f"`{path}` {key}: official {theirs[key]}, ours {mine[key]}"
+        differs = [key for key in ("type", "mode", "owner", "link", "caps") if theirs[key] != mine[key]]
+        if differs == ["owner"]:
+            owners[(theirs["owner"], mine["owner"])][0 if in_contract(path) else 1].append(path)
+        else:
+            for key in differs:
+                line = f"`{path}` {key}: theirs {theirs[key]}, ours {mine[key]}"
                 (failures if in_contract(path) else notes).append(line)
         if theirs["sha256"] and mine["sha256"] and theirs["sha256"] != mine["sha256"]:
-            notes.append(f"`{path}` content differs from the official image")
+            notes.append(f"`{path}` content differs")
+    for (theirs, mine), (contract, other) in sorted(owners.items()):
+        for paths, bucket in ((contract, failures), (other, notes)):
+            if paths:
+                bucket.append(f"{len(paths)} paths differ only in owner: theirs {theirs}, ours {mine} "
+                              f"(for example {', '.join(f'`{p}`' for p in paths[:3])})")
 
+    notes[:0] = [f"{n} missing under `{d}`" for d, n in sorted(missing_dirs.items())]
     extra = sorted(set(ours) - set(official))
+    extra_dirs = defaultdict(int)
+    for p in extra:
+        extra_dirs["/".join(p.split("/")[:2])] += 1
     capped = sorted(p for p, e in official.items() if e["caps"])
+    ours_capped = sorted(p for p, e in ours.items() if e["caps"])
 
-    print("### Filesystem compared with the official controller image\n")
-    print(f"- Official: {len(official)} paths, ours: {len(ours)} paths, {len(extra)} only in ours.")
-    print(f"- Paths with file capabilities in the official image: {', '.join(f'`{p}`' for p in capped) or 'none'}.")
-    print(f"- Contract differences (fail): {len(failures)}. Other differences: {len(notes)}.\n")
+    print(f"#### Filesystem compared with {label}\n")
+    print(f"- Theirs: {len(official)} paths, ours: {len(ours)} paths, {len(extra)} only in ours.")
+    print(f"- File capabilities: theirs {', '.join(f'`{p}`' for p in capped) or 'none'}; ours {', '.join(f'`{p}`' for p in ours_capped) or 'none'}.")
+    print(f"- Contract differences: {len(failures)}. Other differences: {len(notes)}.\n")
     for title, lines in (("Contract differences", failures), ("Other differences", notes),
-                         ("Only in ours", [f"`{p}`" for p in extra])):
+                         ("Only in ours, by directory", [f"`{d}`: {n}" for d, n in sorted(extra_dirs.items())])):
         if lines:
             print(f"<details><summary>{title} ({len(lines)})</summary>\n")
             for line in lines:

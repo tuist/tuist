@@ -1,0 +1,5 @@
+# Upstream nginx-tests files that run.sh skips in whole-suite runs, one per
+# line: the file name, then the reason.  Files whose configuration uses root
+# or alias are skipped automatically on the patched build and are not listed
+# here.  Keep this list short: every entry is a test that no longer guards
+# anything, so each needs a reason that a reviewer can check.

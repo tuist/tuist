@@ -1,0 +1,33 @@
+Let Test::Nginx run against an nginx built without the root directive.
+
+ingress-nginx removes the root and alias directives from nginx
+(images/nginx/rootfs/patches/00_drop-alias-root.patch), but Test::Nginx puts
+"root <testdir>;" into every HTTP test configuration, so no HTTP test could
+start.  With TEST_NGINX_NO_ROOT set (tests/run.sh sets it when
+the binary rejects root), that line is left out and the default root,
+<testdir>/html, is a symlink to the test directory, so the same files are
+served.  Files whose own configuration uses root or alias are still skipped.
+--- a/lib/Test/Nginx.pm
++++ b/lib/Test/Nginx.pm
+@@ -49,6 +49,11 @@
+ 		or die "Can't create temp directory: $!\n";
+ 	$self->{_testdir} =~ s!\\!/!g if $^O eq 'MSWin32';
+ 
++	# Without the root directive nginx serves its default root, <prefix>/html:
++	# point that at the test directory, which is what "root <testdir>" did.
++	symlink('.', "$self->{_testdir}/html")
++		if $ENV{TEST_NGINX_NO_ROOT};
++
+ 	Test::More::BAIL_OUT("no $NGINX binary found")
+ 		unless -x $NGINX;
+ 
+@@ -776,7 +781,8 @@
+ 
+ 	my $s = '';
+ 
+-	$s .= "root $self->{_testdir};\n";
++	$s .= "root $self->{_testdir};\n"
++		unless $ENV{TEST_NGINX_NO_ROOT};
+ 	$s .= "access_log $self->{_testdir}/access.log;\n";
+ 	$s .= "client_body_temp_path $self->{_testdir}/client_body_temp;\n";
+ 

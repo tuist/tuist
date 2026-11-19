@@ -1,0 +1,37 @@
+Restore the reserved length in ngx_http_script_run() and ngx_stream_script_run().
+
+The fork's CVE-2026-42533 backport (44_nginx-1.27.1-CVE-2026-42533.patch)
+rewrote both functions to allocate the script result plus `len` reserved bytes
+and stop the codes at the end of the result, but it returns
+value->len = e.pos - value->data, dropping the reserved bytes callers expect
+in value->len. Upstream (nginx 1.30.4, release-1.30.4) returns
+value->len = e.pos + len - value->data, as here.
+
+Visible effect without this patch: an access_log path with variables loses
+its last character, because the log modules reserve one byte for the
+terminating NUL and write it at value->len - 1 (`access_log
+/var/log/nginx/access-$host.log` writes to access-example.com.lo). verify.sh
+checks this on the built controller image.
+
+--- a/src/http/ngx_http_script.c
++++ b/src/http/ngx_http_script.c
+@@ -670,7 +670,7 @@
+         return NULL;
+     }
+ 
+-    value->len = e.pos - value->data;
++    value->len = e.pos + len - value->data;
+ 
+     return e.pos;
+ }
+--- a/src/stream/ngx_stream_script.c
++++ b/src/stream/ngx_stream_script.c
+@@ -546,7 +546,7 @@
+         return NULL;
+     }
+ 
+-    value->len = e.pos - value->data;
++    value->len = e.pos + len - value->data;
+ 
+     return e.pos;
+ }
