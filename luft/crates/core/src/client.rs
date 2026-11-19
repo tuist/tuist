@@ -232,8 +232,8 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
-            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread"
-            | "archive_thread") => {
+            op @ ("threads" | "start_thread" | "thread" | "send_message" | "answer_question"
+            | "snooze_thread" | "archive_thread") => {
                 let mut view = self.threads_operation(op, args, host)?;
                 crate::threads::present_stored(&mut view, now()?);
                 Ok(view)
@@ -504,7 +504,9 @@ impl MobileClient {
             unsent = store.unsent(&id)?;
             args["id"] = json!(id);
         }
-        if matches!(op, "start_thread" | "send_message") && args.get("request_id").is_none() {
+        if matches!(op, "start_thread" | "send_message" | "answer_question")
+            && args.get("request_id").is_none()
+        {
             let server = server_url(&self.vault.profiles[index].server)?;
             args["request_id"] = json!(self.threads.request_key(&server, &account, op, &args)?);
         }
@@ -539,14 +541,20 @@ impl MobileClient {
         };
         match (recorded, result) {
             (Ok(view), _) => {
-                self.threads.settle();
+                // Polls must not forget a lost answer's retry key while the
+                // person is still looking at the pending question.
+                if matches!(op, "start_thread" | "send_message" | "answer_question") {
+                    self.threads.settle();
+                }
                 Ok(view)
             }
             // The server answered; a local store that can't keep it (full
             // disk, a database from a newer build) mustn't turn that into an error.
             (Err(error), Ok(mut data)) => {
                 log(host, &format!("store: {error}"));
-                self.threads.settle();
+                if matches!(op, "start_thread" | "send_message" | "answer_question") {
+                    self.threads.settle();
+                }
                 data["freshness"] = json!({"state": "live"});
                 Ok(data)
             }

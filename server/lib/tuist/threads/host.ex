@@ -26,6 +26,7 @@ defmodule Tuist.Threads.Host do
   claim end the run.
   """
 
+  @behaviour Condukt.Notifier
   @behaviour Tuist.Agents.Kind
 
   use GenServer, restart: :temporary
@@ -44,6 +45,7 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Repo
   alias Tuist.Threads
   alias Tuist.Threads.Agent
+  alias Tuist.Threads.AskUser
   alias Tuist.Threads.Attachments
   alias Tuist.Threads.Cards
   alias Tuist.Threads.Clients
@@ -117,12 +119,20 @@ defmodule Tuist.Threads.Host do
 
   def start_link({id, epoch}), do: GenServer.start_link(__MODULE__, {id, epoch})
 
+  @impl Condukt.Notifier
+  def publish(_session_id, {:waiting, %{tool_calls: calls}}, opts) do
+    if Enum.any?(calls, &(&1.tool == "ask_user")), do: send(opts[:host], {:question_waiting, opts[:run_id]})
+    :ok
+  end
+
+  def publish(_session_id, _event, _opts), do: :ok
+
   @impl GenServer
   def init({id, epoch}) do
     Phoenix.PubSub.subscribe(Tuist.PubSub, Lease.topic(id))
     send(self(), :work)
     Process.send_after(self(), :heartbeat, @heartbeat_ms)
-    {:ok, %{id: id, epoch: epoch, task: nil, run: nil, session: nil}}
+    {:ok, %{id: id, epoch: epoch, task: nil, run: nil, session: nil, workspace: nil}}
   end
 
   @impl GenServer
@@ -170,7 +180,7 @@ defmodule Tuist.Threads.Host do
             {epoch, host} = {state.epoch, self()}
             task = Task.Supervisor.async_nolink(Tuist.Threads.Tasks, fn -> execute(run, thread, epoch, host) end)
 
-            {:noreply, %{state | task: task, run: run}}
+            {:noreply, %{state | task: task, run: run, workspace: nil}}
 
           # A revoked thread's run, or one past its age, was ended by the
           # claim; look for the next.
@@ -188,6 +198,18 @@ defmodule Tuist.Threads.Host do
   end
 
   def handle_info({:session, pid}, %{task: %Task{}} = state), do: {:noreply, %{state | session: pid}}
+
+  def handle_info({:workspace, context}, %{task: %Task{}} = state), do: {:noreply, %{state | workspace: context}}
+
+  def handle_info({:question_waiting, id}, %{run: %{id: id}} = state) do
+    # The call's intent is already journalled and its question is committed.
+    # Drain, rather than abort, so replay can return the stored answer. No
+    # model session or worker stays alive while the person decides.
+    if state.session, do: stop_session(state.session, {:shutdown, :drain})
+    if state.task, do: Task.shutdown(state.task, :brutal_kill)
+    if state.workspace, do: Workspace.release(state.workspace)
+    {:stop, :normal, %{state | task: nil, session: nil, run: nil}}
+  end
 
   def handle_info(:heartbeat, state) do
     Process.send_after(self(), :heartbeat, @heartbeat_ms)
@@ -284,6 +306,7 @@ defmodule Tuist.Threads.Host do
   defp execute(run, thread, epoch, host, attempts) do
     case Workspace.prepare(thread, run) do
       {:ok, context} ->
+        send(host, {:workspace, context})
         result = infer(run, context.thread, context, epoch, host)
         Workspace.release(context)
         result
@@ -328,6 +351,7 @@ defmodule Tuist.Threads.Host do
           [
             id: "#{thread.id}:#{run.id}",
             session_store: SessionStore.store("thread", thread.id, epoch),
+            notifier: {__MODULE__, host: host, run_id: run.id},
             system_prompt: system_prompt(thread, context),
             tools: tools(run, context) ++ mcp_tools ++ client_tools(run, thread, author),
             hooks: [{ToolLog, run: run, tools: @logged_tools}],
@@ -533,7 +557,7 @@ defmodule Tuist.Threads.Host do
       end
 
     base = if Cards.available?(), do: [naming, progress(run), card(run)], else: [naming, progress(run)]
-    base ++ requesting ++ workspace
+    base ++ [{AskUser, run: run}] ++ requesting ++ workspace
   end
 
   defp list_repositories(run) do

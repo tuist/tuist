@@ -67,6 +67,7 @@ defmodule Tuist.Push.Workers.ThreadFinishedWorker do
 
   defp body("snooze_ended"), do: "Your snooze is over. Tap to pick it up."
   defp body("idle"), do: "Replied. Tap to read it."
+  defp body("waiting"), do: "Needs your decision. Tap to answer."
   defp body("failed"), do: "Couldn't finish. Tap to see what happened."
   defp body("outcome_unknown"), do: "Stopped while a tool was running. Check it before continuing."
   defp body(_status), do: "Was interrupted. Send a message to continue."

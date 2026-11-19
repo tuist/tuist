@@ -529,7 +529,7 @@ pub fn record(
         // rather than answering with the latest page again.
         ("thread", Err(OFFLINE)) if args.get("before").is_some() => Err(OFFLINE),
         ("thread", Err(OFFLINE)) => store.conversation(args["id"].as_str().unwrap_or_default()),
-        ("start_thread" | "send_message", Ok(thread)) => {
+        ("start_thread" | "send_message" | "answer_question", Ok(thread)) => {
             if operation == "start_thread" {
                 let tx = store.db.transaction().map_err(|_| SAVE)?;
                 add_to_inbox(&tx, account, &thread)?;

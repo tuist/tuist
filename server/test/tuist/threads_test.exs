@@ -58,6 +58,108 @@ defmodule Tuist.ThreadsTest do
     assert DateTime.diff(DateTime.utc_now(), Repo.reload!(run).heartbeat_at) < 5
   end
 
+  test "decisions accept only a current authorized answer and replay it without a second run", %{
+    user: user,
+    account: account
+  } do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Threads.next_run(thread.id))
+
+    question = %{
+      "question" => "Which approach?",
+      "options" => [%{"id" => "a", "label" => "First"}, %{"id" => "b", "label" => "Second"}],
+      "allow_other" => false
+    }
+
+    {:ok, decision} = Threads.ask_user(run, Ecto.UUID.generate(), question, "compiled decision")
+    {:ok, waiting} = Threads.get(user, account, thread.id)
+    pending = Enum.find(Threads.serialize(waiting).messages, &Map.has_key?(&1, :decision))
+    assert pending.ui.size == "medium"
+    attachment = %{"name" => "context.txt", "mime_type" => "text/plain", "data_base64" => Base.encode64("context")}
+
+    attrs =
+      Map.merge(request("untrusted label"), %{
+        "question_id" => decision.id,
+        "option_id" => "b",
+        "attachments" => [attachment]
+      })
+
+    stranger = AccountsFixtures.user_fixture()
+    assert {:error, :forbidden} = Threads.message(stranger, account, thread.id, attrs)
+    assert {:error, :invalid_arguments} = Threads.message(user, account, thread.id, %{attrs | "option_id" => "missing"})
+    assert {:error, :invalid_arguments} = Threads.message(user, account, thread.id, Map.delete(attrs, "option_id"))
+    assert {:ok, answered} = Threads.message(user, account, thread.id, attrs)
+    assert {:ok, _} = Threads.message(user, account, thread.id, attrs)
+    assert {:error, :request_conflict} = Threads.message(user, account, thread.id, %{attrs | "option_id" => "a"})
+    assert {:error, :request_conflict} = Threads.message(user, account, thread.id, %{attrs | "attachments" => []})
+    assert List.last(answered.messages).attachments == [attachment]
+
+    assert {:error, :question_answered} =
+             Threads.message(user, account, thread.id, %{attrs | "request_id" => Ecto.UUID.generate()})
+
+    assert Repo.aggregate(Run, :count) == 1
+    assert Repo.reload!(run).status == "queued"
+    serialized = Enum.find(Threads.serialize(answered).messages, &Map.has_key?(&1, :decision))
+    assert serialized.decision["answer"] == %{"option_id" => "b", "text" => "Second"}
+    refute Map.has_key?(serialized.decision, "run_id")
+    refute Map.has_key?(serialized, :ui)
+  end
+
+  test "free-text answers exclude human waiting time from the run deadline", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Threads.next_run(thread.id))
+
+    question = %{
+      "question" => "Which approach?",
+      "options" => [%{"id" => "a", "label" => "First"}, %{"id" => "b", "label" => "Second"}],
+      "allow_other" => true
+    }
+
+    {:ok, decision} = Threads.ask_user(run, Ecto.UUID.generate(), question, nil)
+    yesterday = DateTime.utc_now() |> DateTime.add(-86_400) |> DateTime.truncate(:second)
+    Repo.update_all(from(r in Run, where: r.id == ^run.id), set: [updated_at: yesterday, inserted_at: yesterday])
+    assert {:ok, _} = Threads.message(user, account, thread.id, request("A different approach"))
+    assert Repo.reload!(decision).decision["answer"] == %{"option_id" => nil, "text" => "A different approach"}
+    assert Repo.reload!(run).waited_seconds >= 86_399
+    Lease.release(thread.id, run.attempt)
+    assert {:ok, {resumed, _}} = claim(run.id)
+    assert resumed.status == "running"
+  end
+
+  test "dismissing resumes without an answer, while archiving cancels waiting work", %{user: user, account: account} do
+    for action <- [:dismiss, :archive] do
+      {:ok, thread} = Threads.create(user, account, request())
+      {:ok, {run, _}} = claim(Threads.next_run(thread.id))
+
+      question = %{
+        "question" => "Which approach?",
+        "options" => [%{"id" => "a", "label" => "First"}, %{"id" => "b", "label" => "Second"}],
+        "allow_other" => false
+      }
+
+      {:ok, decision} = Threads.ask_user(run, Ecto.UUID.generate(), question, nil)
+
+      if action == :dismiss do
+        assert {:ok, _} =
+                 Threads.message(
+                   user,
+                   account,
+                   thread.id,
+                   Map.merge(request("Dismissed"), %{"question_id" => decision.id, "cancel" => true})
+                 )
+
+        assert Repo.reload!(run).status == "queued"
+      else
+        assert {:ok, _} = Threads.archive(user, account, thread.id, "archived")
+        assert Repo.reload!(run).status == "cancelled"
+        assert {:error, :archived} = Threads.message(user, account, thread.id, request("First"))
+      end
+
+      assert Repo.reload!(decision).decision["status"] == "cancelled"
+      assert Repo.reload!(decision).decision["answer"] == nil
+    end
+  end
+
   test "creation is durable, private and replay-safe", %{user: user, account: account} do
     attrs = request("Explain this codebase")
     assert {:ok, thread} = Threads.create(user, account, attrs)

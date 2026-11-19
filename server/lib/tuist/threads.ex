@@ -281,32 +281,122 @@ defmodule Tuist.Threads do
         if access(user, account, thread) != :ok, do: Repo.rollback(:forbidden)
 
         case Repo.get_by(Message, thread_id: thread.id, request_id: request_id) do
-          %Message{body: ^body, attachments: ^attachments} ->
+          %Message{body: ^body, attachments: ^attachments} = sent ->
+            validate_replay!(sent, attrs)
             history(thread)
 
           %Message{} ->
             Repo.rollback(:request_conflict)
 
           nil ->
-            require_idle!(thread)
-
-            message =
-              append!(thread, %{
-                kind: "human",
-                body: body,
-                attachments: attachments,
-                request_id: request_id,
-                author_id: user.id
-              })
-
-            loop_in!(thread, user, account, body)
-            enqueue!(thread, message.id)
+            prompt!(thread, user, account, body, attachments, request_id, attrs)
             history(Repo.reload!(thread))
         end
       end
       |> transact()
       |> wake()
     end
+  end
+
+  defp validate_replay!(sent, attrs) do
+    if Map.take(sent.decision || %{}, ["question_id", "option_id", "cancel"]) !=
+         Map.take(attrs, ["question_id", "option_id", "cancel"]),
+       do: Repo.rollback(:request_conflict)
+  end
+
+  defp prompt!(thread, user, account, body, attachments, request_id, attrs) do
+    if thread.status != :active, do: Repo.rollback(:archived)
+
+    case pending_question(thread, attrs["question_id"]) do
+      nil ->
+        if Map.has_key?(attrs, "question_id"), do: Repo.rollback(:question_answered)
+        require_idle!(thread)
+
+        message =
+          append!(thread, %{
+            kind: "human",
+            body: body,
+            attachments: attachments,
+            request_id: request_id,
+            author_id: user.id
+          })
+
+        loop_in!(thread, user, account, body)
+        enqueue!(thread, message.id)
+
+      question ->
+        answer_question!(thread, question, user, body, attachments, request_id, attrs)
+    end
+  end
+
+  defp pending_question(thread, nil) do
+    Repo.one(
+      from m in Message,
+        where: m.thread_id == ^thread.id and m.kind == "decision" and fragment("?->>'status' = 'pending'", m.decision),
+        order_by: [desc: m.position],
+        limit: 1
+    )
+  end
+
+  defp pending_question(thread, id) do
+    with {:ok, id} <- uuid(id),
+         %Message{kind: "decision", decision: %{"status" => "pending"}} = message <-
+           Repo.get_by(Message, thread_id: thread.id, id: id) do
+      message
+    else
+      _ -> Repo.rollback(:question_answered)
+    end
+  end
+
+  defp answer_question!(thread, question, user, body, attachments, request_id, attrs) do
+    run = Repo.one!(from r in Run, where: r.id == ^question.decision["run_id"], lock: "FOR UPDATE")
+    if run.status != "waiting", do: Repo.rollback(:question_answered)
+    cancelled = attrs["cancel"] == true
+    option = selected_option(question.decision["options"], body, attrs)
+
+    if not cancelled and is_nil(option) and (Map.has_key?(attrs, "option_id") or not question.decision["allow_other"]),
+      do: Repo.rollback(:invalid_arguments)
+
+    status = if cancelled, do: "cancelled", else: "answered"
+
+    decision =
+      Map.merge(question.decision, %{
+        "status" => status,
+        "answer" => decision_answer(cancelled, option, body),
+        "answered_by_id" => user.id
+      })
+
+    Repo.update!(Changeset.change(question, decision: decision))
+
+    append!(thread, %{
+      kind: "human",
+      body: body,
+      attachments: attachments,
+      request_id: request_id,
+      author_id: user.id,
+      decision: Map.take(attrs, ["question_id", "option_id", "cancel"])
+    })
+
+    waited = max(DateTime.diff(now(), run.updated_at), 0)
+
+    Repo.update!(
+      Changeset.change(run, status: "queued", waited_seconds: run.waited_seconds + waited, heartbeat_at: now())
+    )
+
+    Lease.want(thread.id, "thread", min_epoch: run.attempt)
+    update_thread!(Repo.reload!(thread), %{agent_status: "queued", snoozed_until: nil, snoozed_until_needed: false})
+  end
+
+  defp decision_answer(true, _option, _body), do: nil
+  defp decision_answer(false, nil, body), do: %{"option_id" => nil, "text" => body}
+  defp decision_answer(false, option, _body), do: %{"option_id" => option["id"], "text" => option["label"]}
+
+  defp selected_option(options, body, attrs) do
+    Enum.find(options, fn option ->
+      if Map.has_key?(attrs, "option_id"),
+        do: option["id"] == attrs["option_id"],
+        else: body in [option["id"], option["label"]]
+    end)
   end
 
   def archive(user, account, id, status) when status in ["active", "archived"] do
@@ -339,9 +429,15 @@ defmodule Tuist.Threads do
       set: [status: "outcome_unknown", checkpoint: nil, session_id: nil]
     )
 
-    Repo.update_all(from(r in Run, where: r.thread_id == ^thread.id and r.status in ^@active),
+    Repo.update_all(from(r in Run, where: r.thread_id == ^thread.id and r.status in ["queued", "running", "waiting"]),
       set: [status: "cancelled", checkpoint: nil, session_id: nil]
     )
+
+    from(m in Message,
+      where: m.thread_id == ^thread.id and m.kind == "decision" and fragment("?->>'status' = 'pending'", m.decision)
+    )
+    |> Repo.all()
+    |> Enum.each(&Repo.update!(Changeset.change(&1, decision: Map.put(&1.decision, "status", "cancelled"))))
   end
 
   defp cancel_archived_runs!(_thread, :active), do: :ok
@@ -615,7 +711,9 @@ defmodule Tuist.Threads do
     Repo.exists?(
       from r in Run,
         where:
-          r.id == ^run.id and r.inserted_at < fragment("CURRENT_TIMESTAMP - make_interval(hours => ?)", ^@run_max_hours)
+          r.id == ^run.id and
+            r.inserted_at <
+              fragment("CURRENT_TIMESTAMP - make_interval(hours => ?, secs => ?)", ^@run_max_hours, r.waited_seconds)
     )
   end
 
@@ -780,6 +878,37 @@ defmodule Tuist.Threads do
         do: append!(thread, %{kind: "card", body: summary, card_size: size, card_source: source})
 
       "The card is shown in the conversation above your reply. Don't repeat what it shows."
+    end)
+  end
+
+  @doc "The persisted question for this run's replay-safe ask_user call."
+  def user_question(run, request_id), do: Repo.get_by(Message, thread_id: run.thread_id, request_id: request_id)
+
+  @doc "Persists the question before releasing its session; replay returns the same question or its accepted answer."
+  def ask_user(run, request_id, question, source) do
+    with_attempt(run, fn thread, fresh ->
+      case user_question(run, request_id) do
+        %Message{} = message ->
+          message
+
+        nil ->
+          summary = question["question"] <> "\n\n" <> Enum.map_join(question["options"], "\n", &"- #{&1["label"]}")
+
+          message =
+            append!(thread, %{
+              kind: "decision",
+              request_id: request_id,
+              body: summary,
+              card_size: "medium",
+              card_source: source,
+              decision: Map.merge(question, %{"run_id" => run.id, "status" => "pending"})
+            })
+
+          Repo.update!(Changeset.change(fresh, status: "waiting"))
+          thread = update_thread!(Repo.reload!(thread), %{agent_status: "waiting"})
+          Push.notify_thread_finished(thread, "waiting")
+          message
+      end
     end)
   end
 
@@ -1426,6 +1555,15 @@ defmodule Tuist.Threads do
 
   defp workspace_ready_id(_thread), do: nil
 
+  defp serialize_message(%Message{kind: "decision"} = message, people) do
+    decision = Map.take(message.decision, ["question", "options", "allow_other", "status", "answer"])
+    serialized = message |> Map.put(:kind, "agent") |> serialize_message(people) |> Map.put(:decision, decision)
+
+    if decision["status"] == "pending" and is_binary(message.card_source),
+      do: Map.put(serialized, :ui, %{size: message.card_size, source: message.card_source}),
+      else: serialized
+  end
+
   defp serialize_message(%Message{kind: "card"} = message, people) do
     message
     |> Map.put(:kind, "agent")
@@ -1588,7 +1726,8 @@ defmodule Tuist.Threads do
          ),
        do: Repo.rollback(:tool_outcome_unknown)
 
-    if Repo.exists?(from r in Run, where: r.thread_id == ^thread.id and r.status in ^@active), do: Repo.rollback(:busy)
+    if Repo.exists?(from r in Run, where: r.thread_id == ^thread.id and r.status in ["queued", "running", "waiting"]),
+      do: Repo.rollback(:busy)
   end
 
   defp require_worker_access!(thread) do

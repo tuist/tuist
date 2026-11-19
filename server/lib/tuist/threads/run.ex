@@ -12,6 +12,7 @@ defmodule Tuist.Threads.Run do
     field :attempt, :integer, default: 0
     field :session_id, Ecto.UUID
     field :heartbeat_at, :utc_datetime
+    field :waited_seconds, :integer, default: 0
     field :checkpoint, Tuist.Vault.Binary, redact: true
     timestamps(type: :utc_datetime)
   end

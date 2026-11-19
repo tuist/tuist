@@ -40,7 +40,7 @@ impl Threads {
         Self::default()
     }
 
-    /// Runs `threads`, `start_thread`, `thread`, `send_message`,
+    /// Runs `threads`, `start_thread`, `thread`, `send_message`, `answer_question`,
     /// `snooze_thread` or `archive_thread` (see the crate README) in the account `handle` on `server`: the person's own
     /// account or a selected organization. The server lists only the threads
     /// the user owns there, and requires admin rights and the organization's
@@ -143,14 +143,30 @@ impl Threads {
                 present(&mut thread);
                 Ok(thread)
             }
-            "send_message" => {
+            "send_message" | "answer_question" => {
                 let id = thread_id(args)?;
                 let content = message_content(args)?;
-                let body = json!({
-                    "request_id": self.request_id(args, server, handle, id, content)?,
+                let mut body = json!({
+                    "request_id": self.request_key(server, handle, operation, args)?,
                     "content": content,
                     "attachments": attachments(args)?,
                 });
+                if operation == "answer_question" {
+                    let question = text(args, "question_id")?;
+                    if question.len() != 36
+                        || !question.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-')
+                    {
+                        return Err("Invalid question");
+                    }
+                    body["question_id"] = json!(question);
+                    match (args.get("option_id"), args.get("cancel")) {
+                        (None, Some(Value::Bool(true))) => body["cancel"] = json!(true),
+                        (Some(Value::String(option)), None) if !option.is_empty() => {
+                            body["option_id"] = json!(option);
+                        }
+                        _ => return Err("Choose an option or dismiss the question"),
+                    }
+                }
                 let mut thread = request(
                     transport,
                     "POST",
@@ -212,11 +228,25 @@ impl Threads {
         args: &Value,
     ) -> Result<String> {
         let thread = match operation {
-            "send_message" => thread_id(args)?,
+            "send_message" | "answer_question" => thread_id(args)?,
             // The same request on another runner is another thread.
             _ => runner_id(args)?.unwrap_or(""),
         };
-        self.request_id(args, server, handle, thread, message_content(args)?)
+        let content = message_content(args)?;
+        if operation == "answer_question" {
+            // The same label can answer different questions or options. Bind a
+            // retry to the whole structured answer, not just its display text.
+            let identity = json!([
+                "answer_question",
+                args["question_id"],
+                args["option_id"],
+                args["cancel"],
+                content
+            ]);
+            self.request_id(args, server, handle, thread, &identity.to_string())
+        } else {
+            self.request_id(args, server, handle, thread, content)
+        }
     }
 
     /// Forgets the in-memory key once its write is sent or queued, so the

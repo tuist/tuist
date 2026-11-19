@@ -11,11 +11,13 @@ esac
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 # As the server builds cards: the kit beside the card, as "./luft".
-cp App.tsx nsh.json "$work/"
+cp App.tsx Decision.tsx Cards.test.tsx nsh.json "$work/"
 cp ../../server/priv/threads/card_kit.tsx "$work/luft.tsx"
 (
   cd "$work"
-  echo 'await app.press("Ask why TuistKit misses")' | "$nsh" test App.tsx
+  "$nsh" test Cards.test.tsx
   "$nsh" build App.tsx --release --out out
+  "$nsh" build Decision.tsx --release --out decision-out
 )
 cp "$work/out/bundle.js" bundle.js
+cp "$work/decision-out/bundle.js" decision-bundle.js

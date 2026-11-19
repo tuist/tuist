@@ -18,10 +18,18 @@ struct LuftApp: App {
             #if targetEnvironment(simulator)
                 if ProcessInfo.processInfo.arguments.contains("-LuftToolPreview") {
                     ToolPreview()
-                } else if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") {
+                } else if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") ||
+                    ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview") {
                     CardPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("-LuftSandboxPreview") {
                     SandboxReadyPreview()
+                } else {
+                    AppWorkspace(client: client)
+                }
+            #elseif os(macOS)
+                if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") ||
+                    ProcessInfo.processInfo.arguments.contains("-LuftDecisionPreview") {
+                    CardPreview()
                 } else {
                     AppWorkspace(client: client)
                 }
