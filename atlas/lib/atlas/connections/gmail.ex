@@ -7,14 +7,12 @@ defmodule Atlas.Connections.Gmail do
   attachment listings. `get_attachment/3` returns one attachment's bytes for the
   caller to keep, such as a receipt saved to the document library.
 
-  Sending is never direct: `send_draft/2` sends only a draft whose recipients,
-  subject, body and attachments still match a single-use approval its owner
-  gave in Atlas.
+  `send_draft/2` sends immediately. The calling client owns confirmation;
+  Atlas does not create send approvals or store draft content.
   """
 
   alias Atlas.Audit
   alias Atlas.Connections
-  alias Atlas.MCP
   alias Atlas.Repo
   alias Atlas.Users.User
 
@@ -32,13 +30,8 @@ defmodule Atlas.Connections.Gmail do
   # separator or line break into the message.
   @address ~r/\A[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\z/
 
-  # Send approvals use the shared MCP tool approval rows under this name.
-  @approval_server "gmail"
-  @approval_tool "send-draft"
-
   def scope, do: @read_scope
   def compose_scope, do: @compose_scope
-  def approval_server, do: @approval_server
 
   def search(%User{} = user, query, limit \\ 10) when is_binary(query) do
     limit = limit |> max(1) |> min(@max_results)
@@ -101,12 +94,12 @@ defmodule Atlas.Connections.Gmail do
     with :ok <- valid_id(id),
          {:ok, draft} <- with_token(user, [@compose_scope, @read_scope], "draft_read", &fetch_draft(&1, id)) do
       audit(user, "connection.gmail_draft_read", %{"draft_id" => id})
-      {:ok, %{draft | body: bounded(draft.body)}}
+      {:ok, %{draft | body: bounded(draft.body), body_html: bounded(draft.body_html)}}
     end
   end
 
   @doc """
-  Creates a plain-text draft. `reply_to_message_id` threads it under that
+  Creates a plain-text, Markdown or HTML draft. `reply_to_message_id` threads it under that
   message, which also needs the Gmail read consent to look up its headers.
   """
   def create_draft(%User{} = user, attrs) when is_map(attrs) do
@@ -140,102 +133,20 @@ defmodule Atlas.Connections.Gmail do
   end
 
   @doc """
-  Sends a draft once its owner approved its current content.
-
-  Returns `{:error, {:approval_required, approval, changed?}}` until then:
-  the approval pins a digest of the draft, so `changed?` is true when an
-  approval exists for an earlier version of it. Draft updates through Atlas
-  wait on the same lock, so they cannot slip in between the check and the send.
+  Sends the current draft immediately, without an Atlas approval. The calling
+  client handles confirmation. Updates and sends serialize on the same lock.
   """
   def send_draft(%User{} = user, id) when is_binary(id) do
     with :ok <- valid_id(id) do
       with_locked_draft(user, id, "draft_send", fn token ->
-        with {:ok, draft} <- fetch_draft(token, id),
-             :ok <- approved(user, id, draft) do
-          send_approved(user, token, id, draft)
+        with {:ok, draft} <- fetch_draft(token, id) do
+          send_current_draft(user, token, id, draft)
         end
       end)
     end
   end
 
-  @doc """
-  Pending send requests with the draft each one would send, re-read from
-  Gmail. `status` is `:ready` while the draft still matches the request,
-  `:changed` once it does not and `:unavailable` when Gmail cannot return it.
-  """
-  def pending_sends(%User{} = user) do
-    user
-    |> MCP.list_pending_tool_approvals(server_names: [@approval_server])
-    |> Enum.map(fn approval ->
-      case review(user, approval) do
-        {:ok, draft} -> %{approval: approval, draft: draft, status: :ready}
-        {:error, {:changed, draft}} -> %{approval: approval, draft: draft, status: :changed}
-        {:error, _reason} -> %{approval: approval, draft: nil, status: :unavailable}
-      end
-    end)
-  end
-
-  @doc "Approves a pending send only while the draft still matches it; rejects unconditionally."
-  def decide_send(%User{} = user, approval_id, "approved") do
-    pending = MCP.list_pending_tool_approvals(user, server_names: [@approval_server])
-
-    with %{} = approval <- Enum.find(pending, &(&1.id == approval_id)) || {:error, :not_found},
-         {:ok, _draft} <- review(user, approval) do
-      MCP.decide_tool_approval(user, approval.id, "approved", server_names: [@approval_server])
-    end
-  end
-
-  def decide_send(%User{} = user, approval_id, "rejected"),
-    do: MCP.decide_tool_approval(user, approval_id, "rejected", server_names: [@approval_server])
-
-  @doc """
-  Saves the owner's edit of a pending send's draft and approves the saved
-  content as Gmail then holds it. Agent updates wait on the same draft lock,
-  so nothing the owner did not write can be approved in between.
-  """
-  def revise_send(%User{} = user, approval_id, attrs) when is_map(attrs) do
-    pending = MCP.list_pending_tool_approvals(user, server_names: [@approval_server])
-
-    with %{arguments: %{"draft_id" => id}} = approval <-
-           Enum.find(pending, &(&1.id == approval_id)) || {:error, :not_found} do
-      with_draft_lock(user, id, fn -> save_and_approve(user, approval, id, attrs) end)
-    end
-  end
-
-  defp save_and_approve(user, approval, id, attrs) do
-    with {:ok, _written} <- update_draft(user, id, attrs),
-         {:ok, draft} <- with_token(user, [@compose_scope], "draft_review", &fetch_draft(&1, id)) do
-      MCP.decide_tool_approval(user, approval.id, "approved",
-        server_names: [@approval_server],
-        arguments: approval_arguments(id, draft)
-      )
-    end
-  end
-
-  defp review(user, %{arguments: %{"draft_id" => id, "digest" => digest}}) do
-    with {:ok, draft} <- with_token(user, [@compose_scope], "draft_review", &fetch_draft(&1, id)) do
-      if digest(draft) == digest, do: {:ok, draft}, else: {:error, {:changed, draft}}
-    end
-  end
-
-  defp review(_user, _approval), do: {:error, :invalid_response}
-
-  defp approved(user, id, draft) do
-    case MCP.authorize_tool_call(user, @approval_server, @approval_tool, approval_arguments(id, draft)) do
-      {:ok, _approval} ->
-        :ok
-
-      {:approval_required, approval} ->
-        changed? =
-          user
-          |> MCP.list_tool_approvals("approved", server_names: [@approval_server])
-          |> Enum.any?(&(&1.tool_name == @approval_tool and &1.arguments["draft_id"] == id))
-
-        {:error, {:approval_required, approval, changed?}}
-    end
-  end
-
-  defp send_approved(user, token, id, draft) do
+  defp send_current_draft(user, token, id, draft) do
     case request(:post, "/drafts/send", token, json: %{"id" => id}) do
       {:ok, sent} ->
         audit(user, "connection.gmail_draft_sent", %{
@@ -246,7 +157,7 @@ defmodule Atlas.Connections.Gmail do
 
         {:ok, %{draft_id: id, message_id: sent["id"], thread_id: sent["threadId"]}}
 
-      # The approval is spent and Gmail may still have sent the message.
+      # Gmail may have sent the message despite an ambiguous transport failure.
       {:error, reason} when reason in [:provider_unavailable, :rate_limited] ->
         {:error, :send_unconfirmed}
 
@@ -255,21 +166,10 @@ defmodule Atlas.Connections.Gmail do
     end
   end
 
-  # The digest covers what the recipients would receive. Thread and reply
-  # headers are left out: they decide where the message files, not what it says.
-  defp approval_arguments(id, draft), do: %{"draft_id" => id, "digest" => digest(draft)}
-
-  defp digest(draft) do
-    [draft.to, draft.cc, draft.bcc, draft.subject, draft.body, draft.attachments]
-    |> JSON.encode!()
-    |> then(&:crypto.hash(:sha256, &1))
-    |> Base.encode16(case: :lower)
-  end
-
   defp with_locked_draft(user, id, operation, fun),
     do: with_draft_lock(user, id, fn -> with_token(user, [@compose_scope], operation, fun) end)
 
-  # Transaction-scoped and reentrant, so a locked caller can run update_draft/3.
+  # Serialize updates and sends for the same user's draft.
   defp with_draft_lock(user, id, fun) do
     Repo.transaction(fn ->
       Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["gmail-draft:#{user.id}:#{id}"])
@@ -360,12 +260,8 @@ defmodule Atlas.Connections.Gmail do
            in_reply_to: nilable(header(headers, "In-Reply-To")),
            references: header(headers, "References"),
            body: body(payload),
+           body_html: html_body(payload),
            attachments: attachments(payload),
-           # Saving from Atlas rewrites the draft as plain text, so only drafts
-           # that lose nothing that way can be edited there.
-           editable:
-             header(headers, "Bcc") == "" and attachments(payload) == [] and
-               not Enum.any?(flatten(payload), &(&1["mimeType"] == "text/html")),
            recipients: Enum.flat_map(~w(To Cc Bcc), &(headers |> header(&1) |> split_addresses()))
          }}
 
@@ -388,6 +284,7 @@ defmodule Atlas.Connections.Gmail do
       subject: fields.subject,
       in_reply_to: reply && reply.in_reply_to,
       body: bounded(fields.body),
+      body_html: bounded(fields.body_html),
       attachments: []
     }
   end
@@ -431,6 +328,7 @@ defmodule Atlas.Connections.Gmail do
     cc = Map.get(attrs, "cc", [])
     subject = Map.get(attrs, "subject", "")
     body = Map.get(attrs, "body", "")
+    format = Map.get(attrs, "body_format", "plain")
     reply_to = Map.get(attrs, "reply_to_message_id")
 
     checks = [
@@ -438,16 +336,52 @@ defmodule Atlas.Connections.Gmail do
       {recipients?(cc, 0), "cc must list up to #{@max_recipients} plain email addresses."},
       {single_line?(subject), "subject must be one line of at most 500 characters."},
       {is_binary(body) and String.valid?(body) and byte_size(body) <= @max_draft_body,
-       "body must be plain text of at most #{@max_draft_body} bytes."},
+       "body must be UTF-8 text of at most #{@max_draft_body} bytes."},
+      {format in ~w(plain markdown html), "body_format must be plain, markdown or html."},
       {is_nil(reply_to) or (is_binary(reply_to) and Regex.match?(@id, reply_to)),
        "reply_to_message_id must be a message id returned by search_my_gmail."}
     ]
 
     case Enum.find(checks, fn {valid?, _message} -> not valid? end) do
-      nil -> {:ok, %{to: to, cc: cc, subject: subject, body: body, reply_to_message_id: reply_to}}
-      {false, message} -> {:error, {:invalid, message}}
+      nil ->
+        fields = %{to: to, cc: cc, subject: subject, reply_to_message_id: reply_to}
+        {:ok, Map.merge(fields, draft_content(body, format))}
+
+      {false, message} ->
+        {:error, {:invalid, message}}
     end
   end
+
+  defp draft_content(body, "plain"), do: %{body: body, body_html: ""}
+
+  defp draft_content(body, "html") do
+    text = body |> LazyHTML.from_fragment() |> LazyHTML.to_tree() |> html_text() |> String.trim()
+    %{body: text, body_html: body}
+  end
+
+  defp draft_content(body, "markdown") do
+    %{body: body, body_html: MDEx.to_html!(body, extension: [table: true, strikethrough: true, autolink: true])}
+  end
+
+  defp html_text(nodes) when is_list(nodes), do: Enum.map_join(nodes, &html_text/1)
+  defp html_text(text) when is_binary(text), do: text
+  defp html_text({:comment, _}), do: ""
+  defp html_text({tag, _, _}) when tag in ~w(script style), do: ""
+  defp html_text({"br", _, _}), do: "\n"
+
+  defp html_text({"a", attrs, children}) do
+    text = html_text(children)
+
+    case List.keyfind(attrs, "href", 0) do
+      {"href", href} when href != "" and href != text -> text <> " (" <> href <> ")"
+      _ -> text
+    end
+  end
+
+  defp html_text({tag, _, children}) when tag in ~w(p div li tr h1 h2 h3 h4 h5 h6 blockquote pre),
+    do: html_text(children) <> "\n"
+
+  defp html_text({_tag, _attrs, children}), do: html_text(children)
 
   defp recipients?(list, min) do
     is_list(list) and length(list) in min..@max_recipients and
@@ -457,8 +391,10 @@ defmodule Atlas.Connections.Gmail do
   defp single_line?(value),
     do: is_binary(value) and String.valid?(value) and String.length(value) <= 500 and not (value =~ ~r/[\r\n\x00]/)
 
-  # RFC 5322 text/plain message with UTF-8 base64 content, sent to Gmail as `raw`.
+  # RFC 5322 message with UTF-8 base64 content, sent to Gmail as `raw`.
   defp message(fields, reply) do
+    {content_headers, body} = mime_content(fields)
+
     headers =
       [
         {"To", Enum.join(fields.to, ", ")},
@@ -466,17 +402,32 @@ defmodule Atlas.Connections.Gmail do
         {"Subject", encode_header(fields.subject)},
         reply && reply.in_reply_to && {"In-Reply-To", reply.in_reply_to},
         reply && reply.references != "" && {"References", reply.references},
-        {"MIME-Version", "1.0"},
-        {"Content-Type", "text/plain; charset=UTF-8"},
-        {"Content-Transfer-Encoding", "base64"}
+        {"MIME-Version", "1.0"}
       ]
+      |> Kernel.++(content_headers)
       |> Enum.filter(& &1)
       |> Enum.map_join(fn {name, value} -> "#{name}: #{value}\r\n" end)
 
-    body = fields.body |> Base.encode64() |> wrap(76)
     raw = Base.url_encode64(headers <> "\r\n" <> body, padding: false)
 
     if reply && reply.thread_id, do: %{"raw" => raw, "threadId" => reply.thread_id}, else: %{"raw" => raw}
+  end
+
+  defp mime_content(%{body: body, body_html: ""}) do
+    {[{"Content-Type", "text/plain; charset=UTF-8"}, {"Content-Transfer-Encoding", "base64"}],
+     wrap(Base.encode64(body), 76)}
+  end
+
+  defp mime_content(fields) do
+    boundary = "atlas-" <> Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
+
+    body =
+      Enum.map_join([{"text/plain", fields.body}, {"text/html", fields.body_html}], fn {type, content} ->
+        "--#{boundary}\r\nContent-Type: #{type}; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" <>
+          wrap(Base.encode64(content), 76)
+      end) <> "--#{boundary}--\r\n"
+
+    {[{"Content-Type", "multipart/alternative; boundary=\"#{boundary}\""}], body}
   end
 
   defp wrap(text, width) when byte_size(text) > width do
@@ -520,6 +471,10 @@ defmodule Atlas.Connections.Gmail do
   end
 
   # Prefer the plain-text part; fall back to tag-stripped HTML.
+  defp html_body(payload) do
+    payload |> flatten() |> Enum.find(%{}, &(&1["mimeType"] == "text/html")) |> decode()
+  end
+
   defp body(payload) do
     parts = flatten(payload)
 
@@ -536,7 +491,6 @@ defmodule Atlas.Connections.Gmail do
     end
   end
 
-  # Draft attachments above stay as they are: their shape feeds the send-approval digest.
   defp message_attachments(payload) do
     for %{"filename" => name, "partId" => part_id} = part <- flatten(payload),
         is_binary(name) and name != "" and is_binary(part_id) do

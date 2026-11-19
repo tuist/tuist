@@ -181,7 +181,7 @@ defmodule AtlasWeb.ConnectionsLive do
   defp description("google"),
     do:
       gettext(
-        "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare drafts (create_my_gmail_draft, update_my_gmail_draft); a draft is only sent after you approve it in My approvals."
+        "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare and send drafts (create_my_gmail_draft, update_my_gmail_draft, send_my_gmail_draft). The calling client handles confirmation; Atlas sends immediately."
       )
 
   defp description(_provider), do: nil
