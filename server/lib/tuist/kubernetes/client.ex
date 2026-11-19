@@ -494,6 +494,75 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  Resizes the CPU request of a sandbox daemon Pod's `sandboxd` container in
+  place, leaving its memory and its absent CPU limit alone. `target` gets the
+  container's current request in millicores and returns the one to ask for;
+  nothing is written when they are equal. Fenced like
+  `resize_sandbox_daemon_memory/4`: the PATCH carries the resourceVersion
+  and UID the current request was read at. Returns `{:ok, millicores}`, the
+  request the Pod asks for afterwards.
+  """
+  def resize_sandbox_daemon_cpu(namespace, name, target, opts \\ [])
+      when is_binary(namespace) and is_binary(name) and is_function(target, 1) do
+    path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
+
+    with {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}} = pod}
+         when is_binary(version) and is_binary(uid) <- request(:get, path, opts: opts, timeout: 5_000),
+         {:ok, current} <- sandboxd_cpu_request(pod) do
+      case target.(current) do
+        ^current ->
+          {:ok, current}
+
+        milli when is_integer(milli) and milli > 0 ->
+          resources = %{requests: %{cpu: "#{milli}m"}}
+
+          with {:ok, _pod} <-
+                 request(:patch, path <> "/resize",
+                   opts: opts,
+                   timeout: 5_000,
+                   body:
+                     JSON.encode!(%{
+                       metadata: %{resourceVersion: version, uid: uid},
+                       spec: %{containers: [%{name: "sandboxd", resources: resources}]}
+                     }),
+                   headers: [{"content-type", "application/strategic-merge-patch+json"}]
+                 ) do
+            {:ok, milli}
+          end
+      end
+    else
+      {:error, reason} -> {:error, reason}
+      {:ok, _invalid_pod} -> {:error, :invalid_pod}
+    end
+  end
+
+  defp sandboxd_cpu_request(pod) do
+    pod
+    |> get_in(["spec", "containers"])
+    |> List.wrap()
+    |> Enum.find(&(&1["name"] == "sandboxd"))
+    |> case do
+      %{"resources" => %{"requests" => %{"cpu" => quantity}}} -> cpu_milli(quantity)
+      _no_request -> {:error, :invalid_pod}
+    end
+  end
+
+  defp cpu_milli(quantity) when is_binary(quantity) do
+    case Regex.run(~r/^(\d+)m$/, quantity) do
+      [_all, milli] ->
+        {:ok, String.to_integer(milli)}
+
+      nil ->
+        case Float.parse(quantity) do
+          {cores, ""} -> {:ok, round(cores * 1000)}
+          _other -> {:error, :invalid_pod}
+        end
+    end
+  end
+
+  defp cpu_milli(cores) when is_number(cores), do: {:ok, round(cores * 1000)}
+
+  @doc """
   Deletes a runner Pod and its same-named per-Pod ServiceAccount.
   The runner-pool reconciler creates the two as RunnerPool siblings
   sharing one name (not parent/child), so deleting the Pod alone

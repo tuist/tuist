@@ -284,7 +284,9 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     elastic = %{
       "pod_name" => "sandboxd-abc",
       "memory_floor_bytes" => 8_589_934_592,
-      "memory_ceiling_bytes" => 34_359_738_368
+      "memory_ceiling_bytes" => 34_359_738_368,
+      "cpu_floor_milli" => 250,
+      "cpu_ceiling_milli" => 8000
     }
 
     {:ok, state} = SandboxNodeWebSock.handle_in(text(hello(node_name, %{"elastic" => elastic})), state)
@@ -295,7 +297,9 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
                elastic: %{
                  pod_name: "sandboxd-abc",
                  memory_floor_bytes: 8_589_934_592,
-                 memory_ceiling_bytes: 34_359_738_368
+                 memory_ceiling_bytes: 34_359_738_368,
+                 cpu_floor_milli: 250,
+                 cpu_ceiling_milli: 8000
                }
              } = node
            ] = Enum.filter(Nodes.connected_nodes(), &(&1.name == node_name))

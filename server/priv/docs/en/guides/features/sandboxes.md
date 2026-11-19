@@ -40,7 +40,7 @@ tuist auth login
 tuist sandbox create --platform macos
 ```
 
-Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
+Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), `--guaranteed-vcpus` to guarantee a Linux sandbox more [CPU](#guaranteed-cpu), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
 
 ### 3. Run commands {#cli-exec}
 
@@ -90,17 +90,34 @@ The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `
 
 ## Linux and macOS {#platforms}
 
-**Linux** sandboxes run Ubuntu 24.04:
+**Linux** sandboxes run Ubuntu 24.04. Every Linux sandbox has 16 vCPUs and bursts into the idle cores of the machine it runs on, so its shape picks its memory:
 
-- 2 vCPU, 4 GiB RAM (default)
-- 4 vCPU, 8 GiB RAM
-- 8 vCPU, 16 GiB RAM
+- 2 GiB RAM (`--vcpus 1 --memory-gb 2`)
+- 4 GiB RAM (`--vcpus 2 --memory-gb 4`, default)
+- 8 GiB RAM (`--vcpus 4 --memory-gb 8`)
+- 16 GiB RAM (`--vcpus 8 --memory-gb 16`)
+- 32 GiB RAM (`--vcpus 16 --memory-gb 32`)
+- 44 GiB RAM (`--vcpus 16 --memory-gb 44`)
 
 **macOS** sandboxes run on Apple silicon with Xcode:
 
 - 8 vCPU, 8 GiB RAM (default)
 - 8 vCPU, 16 GiB RAM
 - 8 vCPU, 24 GiB RAM
+
+### Guaranteed CPU {#guaranteed-cpu}
+
+A Linux sandbox is guaranteed a quarter of a vCPU per GiB of its memory, such as 2 vCPUs for 8 GiB, and uses as much more as its machine has idle, up to its 16 vCPUs. That suits an agent, which mostly waits and then builds in bursts. When a build needs more steady CPU even on a busy machine, guarantee it 1, 2, 4 or 8 vCPUs when the sandbox is created; it gets the larger of that and its memory's guarantee:
+
+| Where | How |
+| --- | --- |
+| CLI | `tuist sandbox create --guaranteed-vcpus 4` |
+| API and MCP `create_sandbox` | `"guaranteed_vcpus": 4` |
+
+- **A guarantee is a floor, not a cap.** A sandbox with 4 guaranteed vCPUs still bursts to 16 when cores are idle. Under contention, each sandbox gets CPU in proportion to its guarantee.
+- **It's billed as a minimum.** A running sandbox is billed for the CPU it uses, but never for less than its guarantee.
+- **A sandbox keeps its guarantee for life.** To change it, create a new sandbox.
+- **macOS sandboxes always have their whole shape**, so they don't take a guarantee.
 
 ### Choose an Xcode {#xcode}
 

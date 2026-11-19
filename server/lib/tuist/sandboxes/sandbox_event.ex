@@ -17,6 +17,7 @@ defmodule Tuist.Sandboxes.SandboxEvent do
     field :workspace_gb, Ch, type: "UInt16"
     field :boot_source, Ch, type: "LowCardinality(String)"
     field :duration_ms, Ch, type: "UInt32"
+    field :guaranteed_cpu_milli, Ch, type: "UInt32"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 end

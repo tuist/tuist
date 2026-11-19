@@ -606,7 +606,7 @@ defmodule TuistWeb.UsageLive do
   def vcpu_hours(value), do: CldrHelpers.format_number(value)
 
   @doc """
-  The daily value of the period's sandbox vCPU-hours, followed by the
+  The daily value of the period's sandbox usage, CPU and memory, followed by the
   projection for the days the period has not reached yet.
   """
   def sandbox_chart_series(%{days: days, projected_days: projected_days} = sandboxes) do
@@ -631,8 +631,13 @@ defmodule TuistWeb.UsageLive do
 
   def vcpu_hour_rate_label,
     do:
-      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 2)} " <>
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 3)} " <>
         dgettext("dashboard_usage", "per vCPU-hour")
+
+  def gib_hour_rate_label,
+    do:
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_gib_hour() / 100, decimals: 3)} " <>
+        dgettext("dashboard_usage", "per GiB-hour")
 
   def sandbox_pace_label(%{projected_vcpu_hours: nil, previous_vcpu_hours: previous}) when previous > 0,
     do: dgettext("dashboard_usage", "Last period came to %{count} vCPU-hours.", count: vcpu_hours(previous))

@@ -762,6 +762,7 @@ defmodule TuistWeb.UsageLiveTest do
             workspace_gb: 10,
             boot_source: "",
             duration_ms: 0,
+            guaranteed_cpu_milli: 0,
             inserted_at: at
           }
         end
@@ -771,10 +772,19 @@ defmodule TuistWeb.UsageLiveTest do
       render_async(lv, @render_async_timeout)
 
       assert has_element?(lv, "#widget-sandbox-vcpu-hours", "8.0")
-      # 8 vCPU-hours at $0.06, none of it billed during early access.
+      # 8 vCPU-hours at $0.048 ($0.38) and 16 GiB-hours at $0.006 ($0.10),
+      # none of it billed during early access.
       assert has_element?(lv, "#widget-sandbox-gross", "0.48")
       assert has_element?(lv, "#widget-sandbox-billed", "0.00")
       assert has_element?(lv, "#sandbox-spend-chart")
+
+      assert has_element?(
+               lv,
+               ~s([data-kind="sandboxes"] [data-kind="memory"]),
+               "16 GiB-hours of memory at $0.006 per GiB-hour"
+             )
+
+      assert has_element?(lv, ~s([data-kind="sandboxes"] [data-kind="memory"]), "0.10")
       assert has_element?(lv, ~s([data-kind="sandboxes"] [data-kind="credit"]), "0.48")
       # 16.5 of January's 31 days have passed: 8 × 31 / 16.5 rounds down to 15.
       assert has_element?(

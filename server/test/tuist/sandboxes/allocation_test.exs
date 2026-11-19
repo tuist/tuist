@@ -193,4 +193,108 @@ defmodule Tuist.Sandboxes.AllocationTest do
     [job] = all_enqueued(worker: Tuist.Sandboxes.Workers.PauseSandboxWorker)
     assert DateTime.diff(job.scheduled_at, job.inserted_at, :second) == 0
   end
+
+  describe "daemon CPU requests" do
+    setup %{node: node} do
+      cpu_node = put_in(node, [:elastic, :cpu_floor_milli], 250)
+      cpu_node = put_in(cpu_node, [:elastic, :cpu_ceiling_milli], 8000)
+
+      # The Pod's CPU request, as the stubbed resize reads and writes it.
+      Process.put(:daemon_cpu_milli, 250)
+
+      stub(KubernetesClient, :resize_sandbox_daemon_cpu, fn _namespace, pod, target ->
+        assert pod == cpu_node.elastic.pod_name
+        Process.put(:daemon_cpu_reads, Process.get(:daemon_cpu_reads, 0) + 1)
+        Process.put(:daemon_cpu_milli, target.(Process.get(:daemon_cpu_milli)))
+        {:ok, Process.get(:daemon_cpu_milli)}
+      end)
+
+      {:ok, cpu_node: cpu_node}
+    end
+
+    test "grow into the grant's free CPU with the node's agent sandboxes and shrink as they pause", %{
+      cpu_node: node
+    } do
+      running = sandbox_fixture(node_name: node.name, state: :running, vcpus: 1, memory_mb: 2048)
+      sandbox_fixture(node_name: node.name, state: :creating, vcpus: 4, memory_mb: 8192)
+      sandbox_fixture(node_name: node.name, state: :paused, vcpus: 8, memory_mb: 16_384)
+      sandbox_fixture(node_name: node.name, state: :running, vcpus: 16, purpose: :remote_execution)
+
+      # A controller without CPU grants gives the daemon no room to grow.
+      assert :ok = Capacity.update_allocation(grant(node))
+      assert {:ok, 250} = Capacity.sync_cpu(node)
+
+      # 250m floor + the charged agent sandboxes' quarter vCPU per GiB
+      # (500m + 2000m) is 2750m; the grant has room for 250m more.
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 250}))
+      assert {:ok, 500} = Capacity.sync_cpu(node)
+
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 5000}))
+      assert {:ok, 2750} = Capacity.sync_cpu(node)
+
+      # Unchanged guarantees read nothing from Kubernetes.
+      reads = Process.get(:daemon_cpu_reads)
+      assert :unchanged = Capacity.sync_cpu(node)
+      assert Process.get(:daemon_cpu_reads) == reads
+
+      # A revoked grant blocks growth, never a shrink.
+      running |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+      assert :ok = Capacity.update_allocation(grant(node, %{"reclaim" => true, "cpu_free_milli" => 0}))
+      assert {:ok, 2250} = Capacity.sync_cpu(node)
+    end
+
+    test "stays within the ceiling, and a node not shared with CI grows freely", %{cpu_node: node} do
+      Repo.delete!(Repo.get!(SandboxNode, node.name))
+      node = put_in(node, [:elastic, :cpu_ceiling_milli], 3000)
+      sandbox_fixture(node_name: node.name, state: :running)
+      assert {:ok, 1250} = Capacity.sync_cpu(node)
+
+      for _ <- 1..3, do: sandbox_fixture(node_name: node.name, state: :resuming)
+      assert {:ok, 3000} = Capacity.sync_cpu(node)
+    end
+
+    test "a guarantee goes only where the node holds it and has the CPU for it", %{cpu_node: node} do
+      # 4096 MB is guaranteed a quarter vCPU per GiB, 1000m.
+      default = sandbox_fixture(node_name: nil, state: :creating)
+      picked = sandbox_fixture(node_name: nil, state: :creating, guaranteed_cpu_milli: 2000)
+      guarded = Map.put(node, :cpu_guarantees, true)
+
+      # Without per-VM cgroups the node's VMs share one weight: it takes
+      # memory guarantees, as before guarantees were held, but not a picked
+      # one, which would not be the sandbox's own.
+      assert Capacity.cpu_room?(node, default)
+      refute Capacity.cpu_room?(node, picked)
+
+      # Nor does a node whose controller reports no free CPU.
+      assert :ok = Capacity.update_allocation(grant(node))
+      assert Capacity.cpu_room?(guarded, default)
+      refute Capacity.cpu_room?(guarded, picked)
+
+      # 250m floor + 4000m already guaranteed + 2000m fits the 8000m
+      # ceiling, but only into CPU the grant reports free, and a memory
+      # guarantee needs that room too.
+      sandbox_fixture(node_name: node.name, state: :running, guaranteed_cpu_milli: 4000)
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 999}))
+      refute Capacity.cpu_room?(guarded, default)
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 1999}))
+      assert Capacity.cpu_room?(guarded, default)
+      refute Capacity.cpu_room?(guarded, picked)
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 2000}))
+      assert Capacity.cpu_room?(guarded, picked)
+
+      # Past the ceiling no grant helps: 6250m + 2000m is over 8000m, while
+      # 6250m + 1000m still fits.
+      sandbox_fixture(node_name: node.name, state: :running, guaranteed_cpu_milli: 2000)
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 8000}))
+      refute Capacity.cpu_room?(guarded, picked)
+      assert Capacity.cpu_room?(guarded, default)
+
+      # The daemon's request follows the guarantees, up to the ceiling.
+      assert {:ok, 6250} = Capacity.sync_cpu(node)
+    end
+
+    test "rejects a negative free CPU grant", %{cpu_node: node} do
+      assert {:error, :invalid_allocation} = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => -1}))
+    end
+  end
 end

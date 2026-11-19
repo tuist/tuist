@@ -31,6 +31,7 @@ defmodule Tuist.Sandboxes.Events do
       workspace_gb: sandbox.workspace_gb || 0,
       boot_source: Map.get(extra, :boot_source, ""),
       duration_ms: Map.get(extra, :duration_ms, 0),
+      guaranteed_cpu_milli: Sandbox.guaranteed_cpu_milli(sandbox),
       inserted_at: Map.get_lazy(extra, :inserted_at, &NaiveDateTime.utc_now/0)
     })
 

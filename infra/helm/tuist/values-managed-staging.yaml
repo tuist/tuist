@@ -967,7 +967,7 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  prebuildShapes: "2x4096,4x8192"
+  prebuildShapes: "16x4096,16x8192"
   diskGiB: 100
   archiveAfterHours: 24
   admin:

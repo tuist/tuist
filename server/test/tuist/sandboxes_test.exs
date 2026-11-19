@@ -16,6 +16,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.UsageEvent
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
 
@@ -216,7 +217,8 @@ defmodule Tuist.SandboxesTest do
         assert %Sandbox{state: :creating} = Repo.get(Sandbox, args.sandbox_id)
         assert args.hostname == "sbx-" <> String.slice(args.sandbox_id, 0, 8)
         assert args.template == "default"
-        assert args.vcpus == 2
+        # Every Linux sandbox bursts to 16 vCPUs; its shape picks the memory.
+        assert args.vcpus == 16
         assert args.memory_mb == 4096
         assert args.workspace_gb == 10
         {:ok, %{"boot_ms" => 180, "template_tag" => "sha-1"}}
@@ -264,12 +266,12 @@ defmodule Tuist.SandboxesTest do
 
       expect(Nodes, :call, fn "node-a",
                               "create",
-                              %{template: "xcode", vcpus: 8, memory_mb: 16_384, workspace_gb: 40},
+                              %{template: "xcode", vcpus: 16, memory_mb: 16_384, workspace_gb: 40},
                               _ ->
         {:ok, %{}}
       end)
 
-      assert {:ok, %Sandbox{vcpus: 8, memory_mb: 16_384, workspace_gb: 40, template: "xcode"}} =
+      assert {:ok, %Sandbox{vcpus: 16, memory_mb: 16_384, workspace_gb: 40, template: "xcode"}} =
                Sandboxes.create_sandbox(account, %{template: "xcode", vcpus: 8, memory_mb: 16_384, workspace_gb: 40})
     end
 
@@ -660,6 +662,58 @@ defmodule Tuist.SandboxesTest do
       # A new VM process starts its count again.
       assert :ok = Sandboxes.reconcile_node_report("node-a", report.(50))
       assert %Sandbox{guest_cpu_ms: 50} = Repo.reload!(sandbox)
+    end
+
+    test "bills a running Linux sandbox the larger of its memory's CPU floor and the CPU it used at each report" do
+      # 2 GiB of memory: a floor of half a vCPU, above its quarter-core guarantee.
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
+      darwin = sandbox_fixture(state: :running, node_name: "node-a", platform: :darwin, vcpus: 8, memory_mb: 8192)
+      execution = sandbox_fixture(state: :running, node_name: "node-a", purpose: :remote_execution)
+
+      report = fn cpu_ms, seconds_since_last ->
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and not is_nil(s.metered_at)),
+          set: [metered_at: DateTime.add(DateTime.utc_now(), -seconds_since_last, :second)]
+        )
+
+        reported = for s <- [sandbox, darwin, execution], do: %{"id" => s.id, "state" => "running", "cpu_ms" => cpu_ms}
+        assert :ok = Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => reported})
+      end
+
+      # The first report of a run bills the CPU its VM used since it started.
+      report.(5_000, 0)
+      # Idle for 30 s: half a vCPU over 30 s is 15 s.
+      report.(6_000, 30)
+      # Bursting: 29 s of CPU in 30 s.
+      report.(35_000, 30)
+      # A gap, such as a server restart, bills the floor for one minute.
+      report.(36_000, 600)
+      # A new VM process counts from zero.
+      report.(2_000, 30)
+
+      rows =
+        ClickHouseRepo.all(
+          from(u in UsageEvent,
+            where: u.sandbox_id in ^[sandbox.id, darwin.id, execution.id],
+            order_by: u.inserted_at,
+            select: %{sandbox_id: u.sandbox_id, used: u.used_cpu_ms, billed: u.billed_cpu_ms}
+          )
+        )
+
+      assert Enum.all?(rows, &(&1.sandbox_id == sandbox.id))
+      assert [5_000, 1_000, 29_000, 1_000, 2_000] = Enum.map(rows, & &1.used)
+      assert [5_000, idle, 29_000, gap, new_process] = Enum.map(rows, & &1.billed)
+      assert idle in 15_000..15_100 and new_process in 15_000..15_100 and gap in 30_000..30_100
+
+      # A pause ends the run, so the next one starts its metering over. The
+      # report adopts a pause once the last running report has settled.
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
+        set: [updated_at: DateTime.add(DateTime.utc_now(:second), -60, :second)]
+      )
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
+
+      assert %Sandbox{state: :paused, metered_cpu_ms: nil, metered_at: nil} = Repo.reload!(sandbox)
     end
 
     test "queues a pause for a running Orb whose guest has been quiet for ten minutes" do

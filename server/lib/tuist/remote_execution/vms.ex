@@ -88,7 +88,9 @@ defmodule Tuist.RemoteExecution.VMs do
           memory_mb: sandbox.memory_mb,
           workspace_gb: sandbox.workspace_gb,
           hostname: "rbe-" <> String.slice(sandbox.id, 0, 8),
-          expires_at_unix: DateTime.to_unix(deadline)
+          expires_at_unix: DateTime.to_unix(deadline),
+          # Its whole shape, against agents' guarantees on the node.
+          cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
         }
 
         case Nodes.call(node, "create", args, timeout: @node_timeout_ms) do

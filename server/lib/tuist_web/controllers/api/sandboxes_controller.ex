@@ -509,7 +509,7 @@ defmodule TuistWeb.API.SandboxesController do
     parameters: @account_parameters,
     request_body:
       {"Sandbox params", "application/json",
-       %Schema{title: "CreateSandbox", type: :object, properties: @shape_properties}},
+       %Schema{title: "CreateSandbox", type: :object, properties: SandboxSchemas.create()}},
     responses:
       @error_responses
       |> Map.merge(@node_error_responses)

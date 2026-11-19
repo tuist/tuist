@@ -21,7 +21,7 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:228
 #: lib/tuist_web/components/amp_integration.ex:269
 #: lib/tuist_web/components/amp_workspaces.ex:214
-#: lib/tuist_web/components/claude_integration.ex:593
+#: lib/tuist_web/components/claude_integration.ex:596
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -196,8 +196,8 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:124
 #: lib/tuist_web/components/amp_integration.ex:235
 #: lib/tuist_web/components/amp_workspaces.ex:221
-#: lib/tuist_web/components/claude_integration.ex:344
-#: lib/tuist_web/components/claude_integration.ex:600
+#: lib/tuist_web/components/claude_integration.ex:350
+#: lib/tuist_web/components/claude_integration.ex:603
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -738,7 +738,7 @@ msgid "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-4266141740
 msgstr ""
 
 #: lib/tuist_web/components/amp_workspaces.ex:191
-#: lib/tuist_web/components/claude_integration.ex:497
+#: lib/tuist_web/components/claude_integration.ex:500
 #, elixir-autogen, elixir-format
 msgid "Workspace ID"
 msgstr ""
@@ -778,8 +778,8 @@ msgstr ""
 msgid "Project ID"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:251
-#: lib/tuist_web/components/claude_integration.ex:384
+#: lib/tuist_web/components/claude_integration.ex:257
+#: lib/tuist_web/components/claude_integration.ex:387
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr ""
@@ -794,27 +794,27 @@ msgstr ""
 msgid "Anthropic rejected the request: %{message}"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:469
+#: lib/tuist_web/components/claude_integration.ex:472
 #, elixir-autogen, elixir-format
 msgid "Audience"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:374
+#: lib/tuist_web/components/claude_integration.ex:377
 #, elixir-autogen, elixir-format
 msgid "Connect Claude Managed Agents"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:345
+#: lib/tuist_web/components/claude_integration.ex:351
 #, elixir-autogen, elixir-format
 msgid "Connect environment"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:601
+#: lib/tuist_web/components/claude_integration.ex:604
 #, elixir-autogen, elixir-format
 msgid "Connecting…"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:302
+#: lib/tuist_web/components/claude_integration.ex:308
 #, elixir-autogen, elixir-format
 msgid "Copy %{label}"
 msgstr ""
@@ -829,63 +829,63 @@ msgstr ""
 msgid "Could not reach Anthropic. Try again."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:558
+#: lib/tuist_web/components/claude_integration.ex:561
 #, elixir-autogen, elixir-format
 msgid "Environment ID"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:568
+#: lib/tuist_web/components/claude_integration.ex:571
 #, elixir-autogen, elixir-format
 msgid "Environment key"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:525
+#: lib/tuist_web/components/claude_integration.ex:528
 #, elixir-autogen, elixir-format
 msgid "Federation rule ID"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:459
+#: lib/tuist_web/components/claude_integration.ex:462
 #, elixir-autogen, elixir-format
 msgid "Issuer URL"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:252
+#: lib/tuist_web/components/claude_integration.ex:258
 #, elixir-autogen, elixir-format
 msgid "No credentials"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:419
+#: lib/tuist_web/components/claude_integration.ex:422
 #, elixir-autogen, elixir-format
 msgid "Open the authentication history"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:483
+#: lib/tuist_web/components/claude_integration.ex:486
 #, elixir-autogen, elixir-format
 msgid "Organization ID"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:576
-#: lib/tuist_web/components/claude_integration.ex:581
+#: lib/tuist_web/components/claude_integration.ex:579
+#: lib/tuist_web/components/claude_integration.ex:584
 #, elixir-autogen, elixir-format
 msgid "Sandbox shape"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:474
+#: lib/tuist_web/components/claude_integration.ex:477
 #, elixir-autogen, elixir-format
 msgid "Scope"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:511
+#: lib/tuist_web/components/claude_integration.ex:514
 #, elixir-autogen, elixir-format
 msgid "Service account ID"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:464
+#: lib/tuist_web/components/claude_integration.ex:467
 #, elixir-autogen, elixir-format
 msgid "Subject prefix"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:430
+#: lib/tuist_web/components/claude_integration.ex:433
 #, elixir-autogen, elixir-format
 msgid "Anthropic API key"
 msgstr ""
@@ -895,12 +895,12 @@ msgstr ""
 msgid "Anthropic rejected the API key. Check that you copied all of it."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:331
+#: lib/tuist_web/components/claude_integration.ex:337
 #, elixir-autogen, elixir-format
 msgid "Run Claude Managed Agents sessions on Tuist sandboxes."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:391
+#: lib/tuist_web/components/claude_integration.ex:394
 #, elixir-autogen, elixir-format
 msgid "Federated identity"
 msgstr ""
@@ -925,12 +925,12 @@ msgstr ""
 msgid "Could not connect the environment."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:436
+#: lib/tuist_web/components/claude_integration.ex:439
 #, elixir-autogen, elixir-format
 msgid "Needs the developer role in the environment's workspace. Stored encrypted. Use a federated identity for environments you rely on."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:540
+#: lib/tuist_web/components/claude_integration.ex:543
 #, elixir-autogen, elixir-format
 msgid "Self-hosted environment"
 msgstr ""
@@ -951,38 +951,38 @@ msgstr ""
 msgid "can't be blank"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:551
+#: lib/tuist_web/components/claude_integration.ex:554
 #, elixir-autogen, elixir-format
 msgid "Claude Console"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:544
+#: lib/tuist_web/components/claude_integration.ex:547
 #, elixir-autogen, elixir-format
 msgid "Create one in the %{link}, open it and click Generate environment key."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:447
+#: lib/tuist_web/components/claude_integration.ex:450
 #, elixir-autogen, elixir-format
 msgid "In %{link}, connect a Custom OIDC workload with these values and add its service account to the environment's workspace."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:454
+#: lib/tuist_web/components/claude_integration.ex:457
 #, elixir-autogen, elixir-format
 msgid "Workload identity"
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:485
+#: lib/tuist_web/components/claude_integration.ex:488
 #, elixir-autogen, elixir-format
 msgid "Settings → Organization in the Claude Console."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:499
+#: lib/tuist_web/components/claude_integration.ex:502
 #, elixir-autogen, elixir-format
 msgid "Settings → Workspaces in the Claude Console. Use the workspace that runs the environment."
 msgstr ""
 
-#: lib/tuist_web/components/claude_integration.ex:513
-#: lib/tuist_web/components/claude_integration.ex:527
+#: lib/tuist_web/components/claude_integration.ex:516
+#: lib/tuist_web/components/claude_integration.ex:530
 #, elixir-autogen, elixir-format
 msgid "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
 msgstr ""

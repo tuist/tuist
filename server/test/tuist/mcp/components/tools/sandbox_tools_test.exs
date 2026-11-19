@@ -125,7 +125,8 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
         {:ok, %{"template_tag" => "macos-tag"}}
 
       "linux-1", "create", args, _opts ->
-        assert %{template: "default", vcpus: 2, memory_mb: 4096} = args
+        # A Linux sandbox bursts to 16 vCPUs and is guaranteed a quarter per GiB.
+        assert %{template: "default", vcpus: 16, memory_mb: 4096, cpu_guarantee_milli: 1000} = args
         {:ok, %{"template_tag" => "linux-tag"}}
     end)
 
@@ -138,7 +139,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
                "workspace_gb" => 20
              })
 
-    assert %{"structuredContent" => %{"platform" => "linux", "vcpus" => 2}} =
+    assert %{"structuredContent" => %{"platform" => "linux", "vcpus" => 16, "guaranteed_vcpus" => 1}} =
              CreateSandbox.call(conn, %{"account_handle" => account.name})
   end
 

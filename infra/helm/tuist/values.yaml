@@ -2832,10 +2832,20 @@ sandboxes:
   # daemon's memory, grows again. A ceiling not above memoryGiB keeps the
   # carve-out fixed.
   maxMemoryGiB: 16
-  # CPU the daemon requests. Guests have no CPU limit and run on idle cores;
-  # the request only sets their share when the node's CPU is contended, so
-  # it stays small and leaves runner Pods' scheduling capacity alone.
+  # CPU the daemon requests with no sandbox running: the floor of its CPU
+  # request. Guests have no CPU limit and burst into whatever cores of the
+  # node's shared pool are idle. The server raises the request in place,
+  # never above maxCpu and only into CPU no other Pod requests, to this
+  # floor plus the guarantee of each creating, resuming or running
+  # sandbox (a quarter vCPU per GiB of memory, or its creator's pick), and lowers it again as they pause. The request is
+  # what keeps those cores out of exclusive-CPU runners and gives the
+  # guests their weight when the shared pool is contended.
   cpu: "250m"
+  # The most the server may raise the daemon's CPU request to, in cores or
+  # millicores; sandboxes whose guarantees would pass it go to other nodes.
+  # Guarantees follow memory at the hosts' 1 vCPU : 4 GB, so 24 matches about
+  # 96 GB of sandboxes. Not above `cpu` keeps the request fixed.
+  maxCpu: "24"
   # Share of the node's data filesystem sandboxes may reserve. Every file a
   # sandbox writes is fixed-size (rootfs clone, sparse workspace of
   # workspace_gb, memory image), so the server reserves each sandbox's
@@ -2872,11 +2882,14 @@ sandboxes:
   archiveDiskHighWaterPercent: 85
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
-  prebuildShapes: "4x8192,2x4096"
-  # The only shapes a node accepts. Each shape costs a template build and a
-  # memory image on disk, so the list is short and matches the shapes the
-  # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
-  allowedShapes: "1x2048,2x4096,4x8192,8x16384,16x32768,16x45056"
+  prebuildShapes: "16x8192,16x4096"
+  # The only shapes a node creates. Each shape costs a template build and a
+  # memory image on disk, so the list is short. The server boots every
+  # Linux agent sandbox with 16 vCPUs (Tuist.Sandboxes.Sandbox.burst_vcpus/0)
+  # and the memory of the shape an account asks for
+  # (Tuist.Sandboxes.Sandbox.shapes/0). The older shapes stay accepted for
+  # sandboxes created before that; they cost nothing until built.
+  allowedShapes: "16x2048,16x4096,16x8192,16x16384,16x32768,16x45056,1x2048,2x4096,4x8192,8x16384"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes

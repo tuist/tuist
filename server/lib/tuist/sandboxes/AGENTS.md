@@ -111,6 +111,33 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   sending the daemon `reclaim` before the resize because the kubelet refuses
   to lower a limit below current usage; it also retries a shrink the kubelet
   has not applied and cancels a deferred growth no longer needed.
+- Daemon CPU requests (`Capacity.sync_cpu/1`): a daemon that reports a CPU
+  ceiling above its floor (`elastic.cpu_floor_milli`, `cpu_ceiling_milli`)
+  has its Pod's CPU request moved, without a limit, to the floor plus
+  `Sandbox.guaranteed_cpu_milli/1` (a quarter vCPU per GiB of memory, or the creator's pick if more) of each
+  creating, resuming or running agent sandbox on it, up to the ceiling,
+  through `Tuist.Kubernetes.Client.resize_sandbox_daemon_cpu/4` under the
+  node lock. A growth only goes into the fresh grant's `cpu_free_milli`; a
+  shrink always goes. Run on every `reconcile_allocation/1` and by
+  `ShrinkCarveOutsWorker`; the last confirmed request is cached per node and
+  Pod for five minutes so an unchanged guarantee reads nothing. Placement holds
+  it: `Capacity.cpu_room?/2`. See `infra/sandboxd/fleet-sharing.md` ("Disk and CPU").
+- Placement packs Linux agent sandboxes (`Capacity.place/3`): after nodes in
+  `prefer:`, the node with room that already runs the most sandbox memory
+  wins, ties going to the most CPU the grant reports free. Sandboxes burst
+  into each other's idle cores, and nodes left whole take runners. Remote
+  execution VMs still go to the node with the most free memory.
+- Bursting and metering: a Linux agent sandbox boots with
+  `Sandbox.burst_vcpus/0` (16) vCPUs whatever shape it asks for; the shape
+  picks its memory. Each node report bills a running one the larger of its
+  guarantee over the time since the previous report (at most 60 s) and the
+  CPU its VM used (`cpu_ms`), as a `Tuist.Sandboxes.UsageEvent` row; the
+  sandbox's `metered_cpu_ms`/`metered_at` hold the last reading and are
+  cleared with `guest_cpu_ms` on pause. `Analytics.compute/2` sums those rows
+  for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
+  runs from before metering, up to their first metered report).
+  `Concurrency` counts guarantees. The API's analytics report guaranteed
+  vCPUs rounded up, since released CLIs decode them as integers.
 - `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
   (`connected_nodes/0`) read from
   `Tuist.Sandboxes.NodePresence`, a `Phoenix.Presence` on `Tuist.PubSub`
@@ -751,9 +778,9 @@ socket, the poller and the caller share a replica:
   neither resumes nor counts as activity) and records a `setup` event dated
   when setup finished; a log older than the row came with a disk snapshot
   and is ignored. The Setup and Time to start widgets chart those
-  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page,
-  priced by `Sandboxes.Pricing` at one rate per vCPU-hour, memory and disk
-  included. There is no Stripe meter yet: early access covers the whole
+  durations; vCPU-hours and memory GiB-hours (`Analytics.compute/2`) are
+  on the Usage page, priced by `Sandboxes.Pricing` per vCPU-hour and per
+  GiB-hour of reserved memory, disk included. There is no Stripe meter yet: early access covers the whole
   charge and Billed stays $0 until one exists.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,

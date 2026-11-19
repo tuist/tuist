@@ -26,6 +26,19 @@ defmodule Tuist.Sandboxes.Sandbox do
   # `sandboxes.allowedShapes`).
   @shapes [{1, 2048}, {2, 4096}, {4, 8192}, {8, 16_384}, {16, 32_768}, {16, 45_056}]
   @darwin_shapes [{8, 8192}, {8, 16_384}, {8, 24_576}]
+  # A Linux agent sandbox boots with this many vCPUs whatever shape it asks
+  # for: its shape picks the memory, and the guest bursts up to these vCPUs
+  # into its node's idle cores. Its guarantee (`guaranteed_cpu_milli/1`) is
+  # what it holds, and what it is billed when idle.
+  @burst_vcpus 16
+  # A Linux agent sandbox is guaranteed a vCPU per this much memory, the
+  # hosts' own ratio (32 vCPUs to 128 GB), so the guarantees of the
+  # sandboxes a host's memory holds never outgrow its cores.
+  @mb_per_guaranteed_vcpu 4096
+  # The guarantees a Linux agent sandbox's creator can pick above its
+  # memory's, in millicores. A node's daemon can be guaranteed at most its
+  # chart's `sandboxes.maxCpu`, so the largest stays well below it.
+  @guaranteed_cpu_choices [1000, 2000, 4000, 8000]
   @max_workspace_gb 100
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -50,6 +63,8 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :vcpus, :integer
     field :memory_mb, :integer
     field :workspace_gb, :integer
+    # NULL is the default guarantee (`guaranteed_cpu_milli/1`).
+    field :guaranteed_cpu_milli, :integer
     field :state, Ecto.Enum, values: @states, default: :creating
     field :node_name, :string
     field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
@@ -60,6 +75,10 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :residency_epoch, :integer, default: 0
     field :last_active_at, :utc_datetime
     field :guest_cpu_ms, :integer
+    # The VM's CPU time and when a report last billed it (`Sandboxes`'
+    # metering); cleared with `guest_cpu_ms` when the sandbox pauses.
+    field :metered_cpu_ms, :integer
+    field :metered_at, :utc_datetime_usec
     field :paused_at, :utc_datetime
     field :error_message, :string
     field :archive_key, :string
@@ -88,6 +107,39 @@ defmodule Tuist.Sandboxes.Sandbox do
   def shapes(:darwin), do: @darwin_shapes
   def shapes(_platform), do: @shapes
   def max_workspace_gb, do: @max_workspace_gb
+  def burst_vcpus, do: @burst_vcpus
+  def guaranteed_cpu_choices, do: @guaranteed_cpu_choices
+
+  @doc """
+  The CPU, in millicores, a sandbox (or an agent environment's shape) is
+  guaranteed, and billed for at least, while it runs. A Linux agent sandbox
+  bursts past it up to its vCPUs and is guaranteed a quarter vCPU per GiB of
+  memory, or what its creator picked when that is more. A macOS sandbox,
+  which cannot burst, and a remote execution VM, whose scheduler sizes
+  actions against its shape, hold every vCPU. A node whose daemon runs each
+  VM in its own cgroup holds it per sandbox; otherwise its sandboxes share
+  their guarantees.
+  """
+  def guaranteed_cpu_milli(%{platform: :darwin, vcpus: vcpus}), do: vcpus * 1000
+  def guaranteed_cpu_milli(%{purpose: :remote_execution, vcpus: vcpus}), do: vcpus * 1000
+
+  def guaranteed_cpu_milli(%{memory_mb: memory_mb} = sandbox),
+    do: max(Map.get(sandbox, :guaranteed_cpu_milli) || 0, memory_cpu_milli(memory_mb))
+
+  defp memory_cpu_milli(memory_mb), do: div(memory_mb * 1000, @mb_per_guaranteed_vcpu)
+
+  @doc "Millicores as vCPUs, whole when they are."
+  def vcpus(milli) when rem(milli, 1000) == 0, do: div(milli, 1000)
+  def vcpus(milli), do: milli / 1000
+
+  @doc "Whether a Linux sandbox's creator picked more than its memory's guarantee, which only some nodes hold."
+  def picked_guarantee?(sandbox),
+    do: burst?(sandbox) and guaranteed_cpu_milli(sandbox) > memory_cpu_milli(sandbox.memory_mb)
+
+  @doc "Whether the sandbox bursts past its guarantee: a Linux agent sandbox does."
+  def burst?(%{platform: :darwin}), do: false
+  def burst?(%{purpose: :remote_execution}), do: false
+  def burst?(_sandbox), do: true
 
   @doc """
   Validates `:vcpus` and `:memory_mb` against the offered shapes and caps
@@ -128,16 +180,46 @@ defmodule Tuist.Sandboxes.Sandbox do
       :xcode_version,
       :vcpus,
       :memory_mb,
-      :workspace_gb
+      :workspace_gb,
+      :guaranteed_cpu_milli
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
+    |> validate_guaranteed_cpu()
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     |> Tuist.Sandboxes.Xcode.validate()
     |> validate_shape()
+    |> put_burst_vcpus()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
     |> unique_constraint([:account_id, :amp_orb_id])
     |> unique_constraint(:provider_environment_id)
   end
+
+  # Only a Linux agent sandbox bursts, so only its guarantee is picked; a
+  # macOS sandbox and a remote execution VM hold every vCPU.
+  defp validate_guaranteed_cpu(changeset) do
+    case get_field(changeset, :guaranteed_cpu_milli) do
+      nil ->
+        changeset
+
+      _milli ->
+        if get_field(changeset, :platform) == :darwin or get_field(changeset, :purpose) == :remote_execution,
+          do: add_error(changeset, :guaranteed_cpu_milli, "only Linux sandboxes take a CPU guarantee"),
+          else:
+            validate_inclusion(changeset, :guaranteed_cpu_milli, @guaranteed_cpu_choices,
+              message: "must be one of #{Enum.map_join(@guaranteed_cpu_choices, ", ", &vcpus/1)} vCPUs"
+            )
+    end
+  end
+
+  # Remote execution VMs keep their shape: their scheduler sizes actions
+  # against it.
+  defp put_burst_vcpus(%Ecto.Changeset{valid?: true} = changeset) do
+    if get_field(changeset, :platform) == :darwin or get_field(changeset, :purpose) == :remote_execution,
+      do: changeset,
+      else: put_change(changeset, :vcpus, @burst_vcpus)
+  end
+
+  defp put_burst_vcpus(changeset), do: changeset
 
   def update_changeset(sandbox, attrs) do
     sandbox

@@ -2,6 +2,10 @@ defmodule Tuist.Sandboxes.Concurrency do
   @moduledoc """
   Account-wide sandbox CPU and memory admission, independent of CI limits.
 
+  CPU counts what sandboxes are guaranteed (`Sandbox.guaranteed_cpu_milli/1`),
+  not the vCPUs a Linux sandbox bursts to: a quarter vCPU per GiB of a Linux
+  sandbox's memory, or its creator's pick if more, and every vCPU of a macOS one, against `sandbox_vcpus_limit` in cores.
+
   The account row serializes the usage check and reservation across web replicas
   and nodes. Only database work belongs inside `admit/3`; boot, resize and resume
   commands run after commit. Creating and resuming rows reserve CPU and memory
@@ -35,24 +39,36 @@ defmodule Tuist.Sandboxes.Concurrency do
 
   # Tuist threads' sandboxes are hidden from the account and so do not use
   # its limits (`Tuist.Sandboxes.not_thread/0`).
+  @doc "The account's guaranteed vCPUs (in cores) and memory in use."
   def usage(account_id) do
-    Repo.one(
-      from s in Sandbox,
-        as: :sandbox,
-        where: s.account_id == ^account_id and s.purpose == :agent and s.state in [:creating, :resuming, :running],
-        where: ^Tuist.Sandboxes.not_thread(),
-        select: %{vcpus: coalesce(sum(s.vcpus), 0), memory_mb: coalesce(sum(s.memory_mb), 0)}
-    )
+    charged =
+      Repo.all(
+        from s in Sandbox,
+          as: :sandbox,
+          where: s.account_id == ^account_id and s.purpose == :agent and s.state in [:creating, :resuming, :running],
+          where: ^Tuist.Sandboxes.not_thread(),
+          select: %{
+            platform: s.platform,
+            vcpus: s.vcpus,
+            memory_mb: s.memory_mb,
+            guaranteed_cpu_milli: s.guaranteed_cpu_milli
+          }
+      )
+
+    %{
+      vcpus: charged |> Enum.map(&Sandbox.guaranteed_cpu_milli/1) |> Enum.sum() |> Kernel./(1000),
+      memory_mb: charged |> Enum.map(& &1.memory_mb) |> Enum.sum()
+    }
   end
 
   # An inexpensive preflight for pollers and before reclaim/resize. The locked
   # admission below remains authoritative when concurrent starts race it.
   def check(account_id, requested), do: check_limits(Repo.get!(Account, account_id), requested)
 
-  defp check_limits(account, %{vcpus: vcpus, memory_mb: memory_mb}) do
+  defp check_limits(account, %{memory_mb: memory_mb} = requested) do
     used = usage(account.id)
 
-    if used.vcpus + vcpus > account.sandbox_vcpus_limit or
+    if used.vcpus * 1000 + Sandbox.guaranteed_cpu_milli(requested) > account.sandbox_vcpus_limit * 1000 or
          used.memory_mb + memory_mb > account.sandbox_memory_gb_limit * 1024,
        do: {:error, :sandbox_concurrency_limit},
        else: :ok

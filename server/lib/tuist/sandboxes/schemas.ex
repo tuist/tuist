@@ -26,9 +26,18 @@ defmodule Tuist.Sandboxes.Schemas do
         resident: %Schema{type: :boolean, description: "Whether a macOS sandbox retains its process and capacity."},
         template: %Schema{type: :string},
         template_tag: %Schema{type: :string, nullable: true},
-        vcpus: %Schema{type: :integer},
+        vcpus: %Schema{
+          type: :integer,
+          description:
+            "The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU."
+        },
         memory_mb: %Schema{type: :integer},
         workspace_gb: %Schema{type: :integer},
+        guaranteed_vcpus: %Schema{
+          type: :number,
+          description:
+            "The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one."
+        },
         node_name: %Schema{type: :string, nullable: true},
         hostname: %Schema{type: :string, nullable: true},
         agent_environment_id: %Schema{type: :integer, nullable: true},
@@ -70,11 +79,25 @@ defmodule Tuist.Sandboxes.Schemas do
       vcpus: %Schema{
         type: :integer,
         enum: [2, 4, 8],
-        description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
+        description:
+          "With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576."
       },
       memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
       workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
     }
+  end
+
+  @doc "What a sandbox is created with: its shape and, on Linux, the CPU it is guaranteed."
+  def create do
+    choices = Enum.map(Sandbox.guaranteed_cpu_choices(), &Sandbox.vcpus/1)
+
+    Map.put(shape(), :guaranteed_vcpus, %Schema{
+      type: :number,
+      minimum: List.first(choices),
+      maximum: List.last(choices),
+      description:
+        "Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: #{Enum.join(choices, ", ")}. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life."
+    })
   end
 
   def pagination do
@@ -102,7 +125,13 @@ defmodule Tuist.Sandboxes.Schemas do
       },
       vcpu_hours: %Schema{
         type: :number,
-        description: "vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs."
+        description:
+          "vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour."
+      },
+      memory_gib_hours: %Schema{
+        type: :number,
+        description:
+          "GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs."
       },
       created:
         object("SandboxAnalyticsCount", %{
@@ -116,6 +145,7 @@ defmodule Tuist.Sandboxes.Schemas do
       concurrency:
         object("SandboxAnalyticsConcurrency", %{
           limits: resources.("SandboxResourceLimits"),
+          # Guaranteed vCPUs, which the limit counts, rounded up.
           in_use: resources.("SandboxResourcesInUse"),
           points:
             array(
@@ -154,7 +184,7 @@ defmodule Tuist.Sandboxes.Schemas do
           %{start: timestamp(), end: timestamp()}
 
         :create ->
-          Map.put(shape(), :repository, %Schema{
+          Map.put(create(), :repository, %Schema{
             type: :string,
             pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$",
             description:
