@@ -17,8 +17,10 @@ import Config
 #     `:process_build` queue.
 #
 # See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.AWS.S3AuthenticationConfig
 alias Tuist.Oban.RuntimeConfig
 alias Tuist.Runners.Catalog
+alias TuistCommon.AWS.CredentialFiles
 
 # Initial Pulse enrollment is one stable organization account ID, never a handle
 # supplied by the browser. Leave unset outside the Tuist deployment.
@@ -642,6 +644,28 @@ if Tuist.Environment.error_tracking_enabled?() do
   end
 end
 
+# The registry bucket's key can come from files (a mounted Secret) instead of
+# variables, so a rotated key is picked up without a restart. Its ExAws profile
+# is configured with the platform storage's below: ExAws takes one auth adapter
+# and one profile map per node.
+registry_s3_credentials_dir =
+  Enum.find_value(
+    ["TUIST_REGISTRY_S3_CREDENTIALS_DIR"] ++
+      if(Tuist.Environment.swift_registry_sync_mode?(), do: ["S3_CREDENTIALS_DIR"], else: []),
+    fn name -> if System.get_env(name) not in [nil, ""], do: System.get_env(name) end
+  )
+
+registry_s3_file_profiles =
+  if registry_s3_credentials_dir do
+    %{
+      S3AuthenticationConfig.registry_credential_files_profile() => %{
+        credentials_dir: registry_s3_credentials_dir
+      }
+    }
+  else
+    %{}
+  end
+
 if Tuist.Environment.env() not in [:test] do
   s3_endpoint =
     if Tuist.Environment.swift_registry_sync_mode?() do
@@ -706,10 +730,15 @@ if Tuist.Environment.env() not in [:test] do
     config :ex_aws, :s3, s3_config
 
     config :ex_aws,
-           Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+           S3AuthenticationConfig.ex_aws_config(
              Tuist.Environment.s3_authentication_method(secrets),
-             secrets
+             secrets,
+             registry_s3_file_profiles
            )
+  else
+    if registry_s3_file_profiles != %{} do
+      config :ex_aws, CredentialFiles.ex_aws_config(registry_s3_file_profiles)
+    end
   end
 end
 
@@ -1038,6 +1067,16 @@ registry_s3_secret_access_key =
     endpoint ->
       uri = URI.parse(endpoint)
       {"#{uri.scheme || "https"}://", uri.host || registry_s3_host, uri.port}
+  end
+
+{registry_s3_access_key_id, registry_s3_secret_access_key} =
+  if registry_s3_credentials_dir do
+    credential =
+      CredentialFiles.credential(S3AuthenticationConfig.registry_credential_files_profile())
+
+    {credential, credential}
+  else
+    {registry_s3_access_key_id, registry_s3_secret_access_key}
   end
 
 registry_s3_values = [

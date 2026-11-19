@@ -9,6 +9,7 @@ defmodule Tuist.Shards.Storage do
   alias Tuist.Runners.CacheGrant
   alias Tuist.Storage
   alias Tuist.Storage.S3Target
+  alias TuistCommon.AWS.CredentialFiles
 
   def routable?(project), do: project.build_system in [:xcode, :mix, :cargo]
 
@@ -188,11 +189,15 @@ defmodule Tuist.Shards.Storage do
 
   @doc """
   The S3 target a storage target configuration describes: its endpoint,
-  `"bucket"` and key.
+  `"bucket"` and key. The key is either inline (`"access_key_id"`,
+  `"secret_access_key"`) or, so it can be rotated without a restart, read on
+  every call from the files in `"credentials_dir"`
+  (`TuistCommon.AWS.CredentialFiles`).
   """
   def s3_target(id, config) do
-    with %{"endpoint" => endpoint, "bucket" => bucket, "access_key_id" => key, "secret_access_key" => secret} <- config,
+    with %{"endpoint" => endpoint, "bucket" => bucket} <- config,
          true <- Map.get(config, "access", "private") in ["private", "public"],
+         {:ok, %{access_key_id: key, secret_access_key: secret}} <- target_credentials(config),
          true <- Enum.all?([endpoint, bucket, key, secret], &(is_binary(&1) and &1 != "")),
          %URI{scheme: scheme, host: host, port: port, path: path, userinfo: nil, query: nil, fragment: nil} <-
            URI.parse(endpoint),
@@ -216,4 +221,11 @@ defmodule Tuist.Shards.Storage do
       _ -> {:error, :shard_storage_unavailable}
     end
   end
+
+  defp target_credentials(%{"credentials_dir" => dir}) when is_binary(dir) and dir != "", do: CredentialFiles.read(dir)
+
+  defp target_credentials(%{"access_key_id" => key, "secret_access_key" => secret}),
+    do: {:ok, %{access_key_id: key, secret_access_key: secret}}
+
+  defp target_credentials(_config), do: :error
 end

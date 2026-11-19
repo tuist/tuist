@@ -1185,6 +1185,16 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Directory holding the platform storage key as files (`access_key_id`,
+  `secret_access_key`), read with `s3_authentication_method` `credential_files`
+  so a rotated key is picked up without a restart. See
+  `TuistCommon.AWS.CredentialFiles`.
+  """
+  def s3_credentials_dir(secrets \\ secrets()) do
+    get([:s3, :credentials_dir], secrets)
+  end
+
   def s3_connect_timeout(secrets \\ secrets()) do
     case get([:s3, :connect_timeout], secrets) do
       "infinity" ->

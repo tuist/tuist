@@ -278,4 +278,27 @@ defmodule Tuist.Shards.StorageTest do
     assert {:ok, target} = ShardStorage.resolve_for_request(plan, ctx.account, ctx.grant)
     assert URI.parse(Storage.generate_download_url(key, target)).host == "shards.example.com"
   end
+
+  describe "s3_target/2" do
+    @tag :tmp_dir
+    test "reads the key from credentials_dir on every call", %{tmp_dir: dir} do
+      config = %{"endpoint" => "http://garage:3900", "bucket" => "shards", "credentials_dir" => dir}
+
+      File.write!(Path.join(dir, "access_key_id"), "GK1")
+      File.write!(Path.join(dir, "secret_access_key"), "secret1")
+      assert {:ok, %S3Target{config: %{access_key_id: "GK1"}}} = ShardStorage.s3_target("gra", config)
+
+      File.write!(Path.join(dir, "access_key_id"), "GK2")
+      File.write!(Path.join(dir, "secret_access_key"), "secret2")
+
+      assert {:ok, %S3Target{config: %{access_key_id: "GK2", secret_access_key: "secret2"}}} =
+               ShardStorage.s3_target("gra", config)
+    end
+
+    @tag :tmp_dir
+    test "is unavailable when credentials_dir has no key", %{tmp_dir: dir} do
+      config = %{"endpoint" => "http://garage:3900", "bucket" => "shards", "credentials_dir" => dir}
+      assert ShardStorage.s3_target("gra", config) == {:error, :shard_storage_unavailable}
+    end
+  end
 end
