@@ -3,6 +3,8 @@ package executiongateway
 import (
 	"log"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -59,7 +61,7 @@ func newMetrics(registry prometheus.Registerer) *metrics {
 // observePhases records how long each phase of an executed action took, so a
 // slow action can be attributed to queueing, input fetch, the command itself
 // or output upload. Phases with a missing or reversed timestamp are skipped.
-func (m *metrics) observePhases(md *re.ExecutedActionMetadata) {
+func (m *metrics) observePhases(md *re.ExecutedActionMetadata, queueWaits map[string]int64) {
 	if md == nil {
 		return
 	}
@@ -89,6 +91,7 @@ func (m *metrics) observePhases(md *re.ExecutedActionMetadata) {
 	if line == "" {
 		return
 	}
+	line += formatQueueWaits(queueWaits)
 	if slowInputs {
 		line += casReads(md)
 	}
@@ -132,4 +135,19 @@ func casReads(md *re.ExecutedActionMetadata) string {
 		return " cas_reads=" + string(b)
 	}
 	return ""
+}
+
+// formatQueueWaits returns the control plane's queue wait causes as a log
+// suffix, such as " waits=account_limit:500,node_capacity:1500", sorted by
+// cause so lines compare across actions.
+func formatQueueWaits(waits map[string]int64) string {
+	if len(waits) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(waits))
+	for cause, ms := range waits {
+		parts = append(parts, cause+":"+strconv.FormatInt(ms, 10))
+	}
+	slices.Sort(parts)
+	return " waits=" + strings.Join(parts, ",")
 }
