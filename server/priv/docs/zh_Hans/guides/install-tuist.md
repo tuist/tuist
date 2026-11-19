@@ -1,13 +1,13 @@
 ---
 {
   "title": "安装 Tuist",
-  "titleTemplate": ":title · 指南 · Tuist",
+  "titleTemplate": ":title · Guides · Tuist",
   "description": "在 macOS 或 Linux 上使用 mise 或 Homebrew 安装 Tuist 命令行界面，并为团队和持续集成固定版本。"
 }
 ---
 # 安装 Tuist {#install-tuist}
 
-Tuist 命令行界面可在 **macOS** 和 **Linux** 上运行，并将你的 Xcode、生成项目、Gradle、Bazel 和 Rust 项目连接到 Tuist 的缓存、洞察和 runner 基础设施。虽然你可以从[源代码](https://github.com/tuist/tuist)构建 Tuist，但我们建议使用以下安装方法之一，以确保安装有效且可验证。Elixir 项目改用 `tuist_ex` Hex 包，不需要 CLI。
+Tuist 命令行界面可在 **macOS** 和 **Linux** 上运行，并将你的 Xcode、生成项目、Gradle、Bazel 和 Rust 项目连接到 Tuist 的缓存、洞察和运行器基础设施。虽然你可以从[源代码](https://github.com/tuist/tuist)构建 Tuist，但我们建议使用以下安装方法之一，以确保安装有效且可验证。Elixir 项目改用 `tuist_ex` Hex 包，无需 CLI。
 
 ## Mise {#recommended-mise}
 
@@ -15,7 +15,7 @@ Tuist 命令行界面可在 **macOS** 和 **Linux** 上运行，并将你的 Xco
 > 如果你尚未安装 Mise，请先参阅[入门指南](https://mise.jdx.dev/getting-started.html)。如果你的团队或组织需要确保不同环境中工具版本的确定性，Mise 是 [Homebrew](https://brew.sh) 的推荐替代方案。
 
 
-与 Homebrew 等在全局安装并激活单一版本工具的工具不同，**Mise 会锁定版本**，可以是全局锁定，也可以限定在项目范围内。运行 `mise use` 以安装并激活 Tuist：
+与 Homebrew 等在全局安装并激活单一版本工具的工具不同，**Mise 会固定版本**，可以全局固定，也可以限定在项目范围内。运行 `mise use` 来安装并激活 Tuist：
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -24,10 +24,10 @@ mise use -g tuist@x.y.z       # Install and pin tuist-x.y.z as the global defaul
 mise use -g tuist@system       # Use the system's tuist as the global default
 ```
 
-如果你克隆的项目已在 `mise.toml` 中锁定了 Tuist 版本，请运行 `mise install` 进行安装。
+如果你克隆的项目已在 `mise.toml` 中固定了 Tuist 版本，请运行 `mise install` 进行安装。
 
 > [!TIP]
-> `tuist@latest` 解析为最新的**稳定**版本。Tuist 还会发布预发布的 Canary 和候选发布（RC）构建；这些版本需要主动选择加入，且永远不会被 `latest` 解析。请参阅<.localized_link href="/cli/release/channels">发布渠道</.localized_link>，了解如何锁定你可信赖的稳定版本线，以及如何加入预发布。
+> `tuist@latest` 会解析为最新的**稳定**版本。Tuist 还会发布预发布的 Canary 和候选发布（RC）构建；这些版本仅在选择加入时使用，永远不会被 `latest` 解析。请参阅<.localized_link href="/cli/release/channels">发布渠道</.localized_link>，了解如何固定你可信赖的稳定分支，以及如何选择加入预发布版本。
 
 <details>
 <summary>Linux 支持</summary>
@@ -63,4 +63,4 @@ brew install --formula tuist@x.y.z
 ## 后续步骤 {#next-steps}
 
 - 按照<.localized_link href="/guides/get-started">入门指南</.localized_link>将你的项目连接到 Tuist。
-- 探索[Tuist 面向工程团队和编码智能体的构建基础设施](https://tuist.dev)，以更全面地了解产品背景。
+- 浏览[Tuist 面向工程团队和编码智能体的构建基础设施](https://tuist.dev)，以更全面地了解产品背景。

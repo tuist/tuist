@@ -2,12 +2,12 @@
 {
   "title": "Gradle 플러그인 설치",
   "titleTemplate": ":title · 가이드 · Tuist",
-  "description": "프로젝트에 Tuist의 Gradle 플러그인을 설치하고 구성하는 방법을 알아보세요."
+  "description": "프로젝트에 Tuist의 Gradle 플러그인을 설치하고 구성하는 방법을 알아봅니다."
 }
 ---
 # Gradle 플러그인 설치 {#install-the-gradle-plugin}
 
-Tuist는 Gradle 프로젝트와 통합되어 <.localized_link href="/guides/features/cache/gradle-cache">원격 빌드 캐싱</.localized_link> 및 <.localized_link href="/guides/features/build-insights/gradle">빌드 인사이트</.localized_link>와 같은 기능을 사용할 수 있게 해주는 Gradle 플러그인을 제공합니다. 이 가이드에서는 플러그인을 설치하고 구성하는 방법을 안내합니다.
+Tuist는 Gradle 프로젝트와 통합되어 <.localized_link href="/guides/features/cache/gradle-cache">원격 빌드 캐싱</.localized_link> 및 <.localized_link href="/guides/features/build-insights/gradle">빌드 인사이트</.localized_link>와 같은 기능을 사용할 수 있게 해주는 Gradle 플러그인을 제공합니다. 이 가이드에서는 플러그인을 설치하고 구성하는 과정을 안내합니다.
 
 이 플러그인은 Gradle 8.12.1 이상이 필요합니다.
 
@@ -27,7 +27,7 @@ tuist init
 <!-- -->
 :::
 
-이 명령어는 인증 과정, Tuist 프로젝트 생성 또는 선택, 그리고 Gradle 프로젝트용 구성 파일 생성을 안내합니다.
+명령어는 인증, Tuist 프로젝트 생성 또는 선택, 그리고 Gradle 프로젝트 구성 파일 생성 과정을 안내합니다.
 
 ## 2. 플러그인 적용 {#apply-the-plugin}
 
@@ -35,7 +35,7 @@ tuist init
 
 <!-- @snippet: ./_gradle-plugin-block -->
 
-## 3. 팀 및 지속적 통합(CI) 인증 {#authenticate}
+## 3. 팀 및 지속적 통합 인증 {#authenticate}
 
 `tuist init`는 로컬에서 여러분을 인증하지만, 팀원들과 <.localized_link href="/guides/integrations/continuous-integration">지속적 통합</.localized_link> 환경은 별도로 인증해야 합니다.
 
@@ -77,7 +77,7 @@ Android 애플리케이션 모듈의 경우, 플러그인은 `tuistShare<Variant
 ./gradlew :app:tuistShareDebug --track nightly
 ```
 
-이 태스크는 서명된 단일 APK를 빌드하고 검증한 후, 기존 Tuist 인증 정보를 사용하여 게시합니다. 태스크 호출이 곧 옵트인(opt-in)입니다: 일반적인 `assemble`, `build` 및 테스트 태스크는 프리뷰를 게시하지 않습니다. CLI 업로드 단계는 필요하지 않습니다. 자격 조건, 캐시 재실행 및 실패 동작에 대해서는 <.localized_link href="/guides/features/previews/gradle">Gradle 프리뷰</.localized_link>를 참조하세요.
+이 태스크는 서명된 APK 하나를 빌드하고 검증한 후, 기존 Tuist 인증 정보를 사용하여 게시합니다. 태스크 호출이 옵트인(opt-in) 방식입니다: 일반적인 `assemble`, `build`, 테스트 태스크는 프리뷰를 게시하지 않습니다. CLI 업로드 단계는 필요하지 않습니다. 자격 조건, 캐시 재생 및 실패 동작에 대해서는 <.localized_link href="/guides/features/previews/gradle">Gradle 프리뷰</.localized_link>를 참조하세요.
 
 ## 구성 참조 {#configuration-reference}
 
@@ -105,7 +105,7 @@ tuist {
 > [!NOTE]
 > **Tuist.toml**
 >
-> `project`(및 선택적으로 `url`)를 구성하는 권장 방법은 프로젝트 루트에 `tuist.toml` 파일을 사용하는 것입니다. 이렇게 하면 Tuist 명령줄 인터페이스와 Gradle 플러그인이 구성을 공유합니다. 필요한 경우 `settings.gradle.kts`에서 이러한 값을 여전히 덮어쓸 수 있습니다.
+> `project`(및 선택적으로 `url`)을 구성하는 권장 방법은 프로젝트 루트의 `tuist.toml` 파일을 사용하는 것입니다. 이렇게 하면 Tuist 명령줄 인터페이스와 Gradle 플러그인 간에 구성이 공유됩니다. 필요한 경우 `settings.gradle.kts`에서 이러한 값을 재정의할 수 있습니다.
 
 ```toml
 project = "account/project"
@@ -123,4 +123,4 @@ url = "https://tuist.dev"
 - 팀과 지속적 통합 러너 간에 빌드 아티팩트를 공유하려면 <.localized_link href="/guides/features/cache/gradle-cache">원격 빌드 캐시</.localized_link>를 사용하세요.
 - Tuist 대시보드에서 태스크 소요 시간과 캐시 동작을 추적하려면 <.localized_link href="/guides/features/build-insights/gradle">빌드 인사이트</.localized_link>를 사용하세요.
 - 테스트 성능을 추적하고 불안정한 테스트를 감지하려면 <.localized_link href="/guides/features/test-insights/gradle">테스트 인사이트</.localized_link>를 사용하세요.
-- 불안정한 테스트를 자동으로 감지, 추적 및 격리하려면 <.localized_link href="/guides/features/test-insights/flaky-tests">불안정한 테스트</.localized_link> 기능을 사용하세요.
+- 불안정한 테스트를 자동으로 감지, 추적 및 격리하려면 <.localized_link href="/guides/features/test-insights/flaky-tests">불안정한 테스트</.localized_link>를 사용하세요.
