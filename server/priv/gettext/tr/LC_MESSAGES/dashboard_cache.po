@@ -64,7 +64,7 @@ msgstr "0 MB"
 #: lib/tuist_web/live/bundle_live.ex:904
 #, elixir-autogen, elixir-format
 msgid "< 0.1 %"
-msgstr "< 0.1 %"
+msgstr "< 0,1 %"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:133
 #: lib/tuist_web/live/module_cache_module_live.html.heex:111
@@ -91,7 +91,7 @@ msgstr "Analitik"
 #: lib/tuist_web/live/modules_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "Herhangi"
+msgstr "Herhangi biri"
 
 #: lib/tuist_web/live/bundle_live.ex:1029
 #: lib/tuist_web/live/bundles_live.ex:421
@@ -138,13 +138,13 @@ msgstr "Ort. isabet oranı"
 #: lib/tuist_web/live/bundle_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Binaries"
-msgstr "İkilikler"
+msgstr "İkili dosyalar"
 
 #: lib/tuist_web/live/bundle_live.ex:1044
 #: lib/tuist_web/live/bundle_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "Binary"
-msgstr "İkilik"
+msgstr "İkili dosya"
 
 #: lib/tuist_web/live/bundle_live.html.heex:82
 #: lib/tuist_web/live/bundles_live.ex:955
@@ -235,12 +235,12 @@ msgstr "Önbellek indirmeleri"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:801
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "Önbellek isabeti oranı"
+msgstr "Önbellek isabet oranı"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "Önbellek isabeti oranı, önbelleklenebilir hedeflerin yeniden derlenmek yerine önbellekten (yerel veya uzak) çözümlenme yüzdesini temsil eder."
+msgstr "Önbellek isabet oranı, yeniden derlenmek yerine önbellekten (yerel veya uzak) çözümlenen önbelleklenebilir hedeflerin yüzdesini temsil eder."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:130
 #, elixir-autogen, elixir-format
@@ -265,7 +265,7 @@ msgstr "Önbellek ıskalamaları"
 #: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "Önbellek ıskalamaları, belirtilen dönemde önbellekte bulunamadığı için yeniden derlenmesi gereken önbelleklenebilir hedeflerin toplam sayısını temsil eder."
+msgstr "Önbellek ıskalamaları, belirtilen dönemde önbellekte bulunamadıkları için yeniden derlenmesi gereken önbelleklenebilir hedeflerin toplam sayısını temsil eder."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:260
 #: lib/tuist_web/live/xcode_cache_live.ex:247
@@ -558,7 +558,7 @@ msgstr "Genel Bakış"
 #: lib/tuist_web/live/xcode_cache_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "Başarılı"
+msgstr "Geçti"
 
 #: lib/tuist_web/live/bundle_live.html.heex:520
 #: lib/tuist_web/live/bundle_live.html.heex:527
@@ -623,7 +623,7 @@ msgstr "Kullanıcı tarafından ağ üzerinden indirilen sıkıştırılmış uy
 #: lib/tuist_web/live/bundle_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "Bir kullanıcı tarafından kurulan sıkıştırılmamış uygulama paketinin boyutunu temsil eder. Bu, App Store'da gösterilen sayıdır."
+msgstr "Bir kullanıcı tarafından yüklenen sıkıştırılmamış uygulama paketinin boyutunu temsil eder. Bu, App Store'da gösterilen sayıdır."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
@@ -729,7 +729,7 @@ msgstr "Sürüm"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:789
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "Daha fazlasını görüntüle"
+msgstr "Daha fazla görüntüle"
 
 #: lib/tuist_web/live/bundle_live.ex:1030
 #: lib/tuist_web/live/bundles_live.ex:422
@@ -748,7 +748,7 @@ msgstr "Xcode Önbelleği"
 #: lib/tuist_web/live/bundle_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "compared to last bundle"
-msgstr "son demetle karşılaştırıldığında"
+msgstr "son demete kıyasla"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:496
 #: lib/tuist_web/live/xcode_cache_live.html.heex:633
@@ -807,7 +807,7 @@ msgstr "p99 isabet oranı"
 #: lib/tuist_web/live/xcode_cache_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "son bir aydır"
+msgstr "son bir aydan beri"
 
 #: lib/tuist_web/live/bundles_live.ex:303
 #: lib/tuist_web/live/module_cache_live.ex:416
@@ -815,14 +815,14 @@ msgstr "son bir aydır"
 #: lib/tuist_web/live/xcode_cache_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "son bir haftadır"
+msgstr "son bir haftadan beri"
 
 #: lib/tuist_web/live/bundles_live.ex:304
 #: lib/tuist_web/live/module_cache_live.ex:417
 #: lib/tuist_web/live/xcode_cache_live.ex:338
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "son bir yıldır"
+msgstr "son bir yıldan beri"
 
 #: lib/tuist_web/live/bundles_live.html.heex:120
 #: lib/tuist_web/live/module_cache_live.html.heex:100
@@ -909,12 +909,12 @@ msgstr "Önbellek Uç Noktası"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Xcode cache for your project"
-msgstr "Projeniz için Xcode önbelleğini ayarlayın"
+msgstr "Projeniz için Xcode önbelleğini kurun"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr "Projeniz için Xcode önbelleğini şu komutu çalıştırarak ayarlayabilirsiniz:"
+msgstr "Projeniz için Xcode önbelleğini şu komutu çalıştırarak kurabilirsiniz:"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -963,17 +963,17 @@ msgstr "Ortam"
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10.000 kayıt sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Veri kümesini daraltmak için filtrelemeyi deneyin."
+msgstr "10.000 girdi sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Veri kümesini daraltmak için filtrelemeyi deneyin."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "10.000 kayıt sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Daha güncel verileri görmek için tarih aralığını daraltmayı deneyin."
+msgstr "10.000 girdi sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Daha güncel verileri görmek için tarih aralığını daraltmayı deneyin."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
-msgstr "Belirtilen dönemde uzak önbellek depolamasına yönelik okuma (indirme) ve yazma (yükleme) işlemlerinin ortalama gecikmesi."
+msgstr "Belirtilen dönemde uzak önbellek depolama alanına yönelik okuma (indirme) ve yazma (yükleme) işlemlerinin ortalama gecikmesi."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:261
 #: lib/tuist_web/live/xcode_cache_live.ex:261
@@ -989,7 +989,7 @@ msgstr "Önbellek gecikmesi"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "Cache throughput"
-msgstr "Önbellek verimliliği"
+msgstr "Önbellek aktarım hızı"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:258
 #: lib/tuist_web/live/xcode_cache_live.ex:237
@@ -1007,14 +1007,14 @@ msgstr "Önbellek aktarımı, belirtilen dönemde uzak depolamadan indirilen ve 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "Belirtilen dönemde uzak önbellek depolamasına yönelik birleşik indirme ve yükleme hızı; zaman içinde aktarılan baytlardan türetilir."
+msgstr "Belirtilen dönemde uzak önbellek depolamasına karşı birleşik indirme ve yükleme verimliliği, zaman içinde aktarılan baytlardan türetilir."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
 #: lib/tuist_web/live/xcode_cache_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
-msgstr "İndirme hızı"
+msgstr "İndirme verimliliği"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:260
 #: lib/tuist_web/live/xcode_cache_live.html.heex:444
@@ -1039,7 +1039,7 @@ msgstr "Okuma gecikmesi"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
-msgstr "Yükleme hızı"
+msgstr "Yükleme verimliliği"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:277
 #: lib/tuist_web/live/xcode_cache_live.html.heex:464
@@ -1143,7 +1143,7 @@ msgstr "Yok"
 #: lib/tuist_web/live/module_cache_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Needs CLI graph edges"
-msgstr "CLI grafik kenarları gerekli"
+msgstr "CLI grafik kenarları gerekiyor"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:649
 #: lib/tuist_web/live/modules_live.html.heex:393
@@ -1169,17 +1169,17 @@ msgstr "Modülleri ara"
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "Yalnızca üst akış bağımlılığının değişmesinden kaynaklanan, modülün kendi kodundan kaynaklanmayan geçersiz kılma payı (üst akış ÷ değişen + üst akış). Daha iyi modül sınırlarının ortadan kaldırabileceği oran budur."
+msgstr "Yalnızca bir üst düzey bağımlılığın değişmesinden kaynaklanan, modülün kendi kodundaki değişikliklerden değil, geçersiz kılma payı (üst düzey ÷ değiştirilen + üst düzey). Daha iyi modül sınırları bu oranı düşürebilir."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
-msgstr "Bu modülün yeniden oluşturulmak yerine önbellekten sunulmuş yapılarının payı."
+msgstr "Bu modülün yeniden oluşturulmak yerine önbellekten sunulan yapılarının payı."
 
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
-msgstr "Dönem içinde en sık önbellek ıskalamasına neden olan modül. Yeniden oluşturma sıklığını azaltmanın en büyük doğrudan getirisi buna bağlıdır."
+msgstr "Dönem içinde en sık önbellek ıskalamasına neden olan modül. Yeniden oluşturma sıklığını azaltmak en büyük doğrudan getiriyi sağlar."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:325
 #: lib/tuist_web/live/module_cache_module_live.ex:349
@@ -1189,7 +1189,7 @@ msgstr "Dönem içinde en sık önbellek ıskalamasına neden olan modül. Yenid
 #: lib/tuist_web/live/modules_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Upstream"
-msgstr "Üst akış"
+msgstr "Üst düzey"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:337
 #: lib/tuist_web/live/modules_live.ex:218
@@ -1227,7 +1227,7 @@ msgstr "Yok"
 #: lib/tuist_web/live/module_cache_module_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "Cached"
-msgstr "Önbelleğe alınmış"
+msgstr "Önbellekli"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:501
 #, elixir-autogen, elixir-format
@@ -1237,7 +1237,7 @@ msgstr "Bu filtrelerle eşleşen derleme yok"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Search commit sha"
-msgstr "Commit sha'sını ara"
+msgstr "Commit SHA'sını ara"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:524
 #, elixir-autogen, elixir-format
@@ -1247,7 +1247,7 @@ msgstr "İsabet"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "Iskalama"
+msgstr "Iskalaması"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:527
 #, elixir-autogen, elixir-format
@@ -1267,7 +1267,7 @@ msgstr "Neden:"
 #: lib/tuist_web/live/modules_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Modules in the project, from the latest commit on its default branch."
-msgstr "Projedeki modüller, varsayılan dalındaki son commit'ten itibaren."
+msgstr "Varsayılan dalındaki son commit'ten itibaren projedeki modüller."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:182
 #: lib/tuist_web/live/modules_live.html.heex:148
@@ -1294,17 +1294,17 @@ msgstr "Bu modülün önbellekten sunulduğu derlemeler."
 #: lib/tuist_web/live/bundle_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "and %{count} more"
-msgstr "ve %{count} tane daha"
+msgstr "ve %{count} fazlası"
 
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "Bu anahtar daha önce aynı önbellek uç noktasında uzak isabet almıştı, ancak şimdi ıskalıyor. Önbelleğe alınmış yapıt büyük olasılıkla önbellekten atıldı."
+msgstr "Bu anahtar daha önce aynı önbellek uç noktasında uzak isabet almıştı, ancak şimdi ıskalıyor. Önbelleğe alınmış yapıt büyük olasılıkla önbellekten çıkarıldı."
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "Modülün bildirilen girdileri değişti; dosyaları, derleme ayarları, yapılandırması veya derleyici sürümü gibi."
+msgstr "Modülün bildirilen girdileri (dosyaları, derleme ayarları, yapılandırma veya derleyici sürümü gibi) değişti."
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
@@ -1314,7 +1314,7 @@ msgstr "Daha önceki bir karşılaştırma mevcut değil veya bildirilen girdile
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
 msgid "This observation reports a local or remote cache hit."
-msgstr "Bu gözlem yerel veya uzak önbellek isabetini bildirir."
+msgstr "Bu gözlem yerel veya uzak önbellek isabetini rapor eder."
 
 #: lib/tuist_web/helpers/module_cache.ex:45
 #, elixir-autogen, elixir-format
@@ -1372,12 +1372,12 @@ msgstr[1] "Son %{total} derlemeden %{measured} tanesi için önbellek sonuçlar�
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "Bireysel derleme önbellek isabet oranlarının ortalaması ve yüzdelikleri. İsabetler önbelleğe alınmış çıktıları yeniden kullanır; ıskalamalar arama ıskalamalarını, soğuk derlemeleri ve doğrulama amaçlı yeniden derlemeleri içerir. Ön yüklemeler hariç tutulur."
+msgstr "Tekil derleme önbellek isabet oranlarının ortalaması ve yüzdeleri. İsabetler, önbelleğe alınmış çıktıları yeniden kullanır; ıskalamalar ise arama ıskalamalarını, soğuk derlemeleri ve doğrulama amaçlı yeniden derlemeleri içerir. Ön getirmeler hariç tutulur."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
-msgstr "Deneysel Cargo önbellek ölçümleri. Aktarım toplamları derleme genelindeki bayt sayaçlarını kullanır. Gecikme, derleme veya yapıt aktarım süresini değil, anahtar başına kaydedilen dizin işlemlerini ölçer. Verim yalnızca başarılı ölçülen CAS aktarımlarını kullanır; başarısız ve zaten mevcut olan işlemler hariç tutulur. İnceleme kayıtları kısmi olabilir."
+msgstr "Deneysel Cargo önbellek ölçümleri. Aktarım toplamları, derleme genelindeki bayt sayaçlarını kullanır. Gecikme ölçümleri, derleme veya yapıt aktarım süresini değil, anahtar başına kaydedilen dizin işlemlerini ölçer. Verim yalnızca başarılı ölçülen CAS aktarımlarını kullanır; başarısız ve zaten mevcut olan işlemler hariç tutulur. İnceleme kayıtları kısmi olabilir."
 
 #: lib/tuist_web/live/bundles_live.ex:989
 #, elixir-autogen, elixir-format

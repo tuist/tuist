@@ -97,7 +97,7 @@ msgstr "构件转换"
 #: lib/tuist_web/live/gradle_build_live.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms recorded for this build."
-msgstr "记录此构建的构件转换。"
+msgstr "已记录此构建的构件转换。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:329
 #: lib/tuist_web/live/gradle_cache_live.html.heex:399
@@ -260,19 +260,19 @@ msgstr "缓存命中率"
 #: lib/tuist_web/live/gradle_build_live.html.heex:847
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
-msgstr "缓存摘要"
+msgstr "缓存概览"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:884
 #: lib/tuist_web/live/gradle_cache_live.ex:201
 #: lib/tuist_web/live/gradle_cache_live.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "缓存下载"
+msgstr "缓存下载量"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
-msgstr "缓存下载表示在给定期间从远程存储下载的缓存构件的总大小。"
+msgstr "缓存下载量表示在给定期间内从远程存储下载的缓存构件的总大小。"
 
 #: lib/tuist_web/live/gradle_cache_live.ex:210
 #: lib/tuist_web/live/gradle_cache_live.html.heex:145
@@ -289,7 +289,7 @@ msgstr "缓存命中率"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "缓存命中率表示从缓存解析而非执行的缓存任务所占百分比。"
+msgstr "缓存命中率表示通过缓存解析而非执行的缓存任务所占的百分比。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1212
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:107
@@ -302,12 +302,12 @@ msgstr "缓存键"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "缓存上传"
+msgstr "缓存上传量"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
-msgstr "缓存上传表示在给定期间上传到远程存储的缓存构件的总大小。"
+msgstr "缓存上传量表示在给定期间内上传到远程存储的缓存构件的总大小。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:908
 #, elixir-autogen, elixir-format
@@ -322,12 +322,12 @@ msgstr "可缓存任务"
 #: lib/tuist_web/live/gradle_build_live.html.heex:866
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "未在缓存中找到的可缓存任务。"
+msgstr "未从缓存中找到的可缓存任务。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:855
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "从缓存（本地 + 远程）检索到的可缓存任务。"
+msgstr "从缓存（本地 + 远程）中检索到的可缓存任务。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:919
 #, elixir-autogen, elixir-format
@@ -443,7 +443,7 @@ msgstr "下载吞吐量"
 #: lib/tuist_web/live/mix_builds_live.html.heex:708
 #, elixir-autogen, elixir-format
 msgid "Duration"
-msgstr "耗时"
+msgstr "持续时间"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:265
 #: lib/tuist_web/live/gradle_cache_live.ex:243
@@ -671,7 +671,7 @@ msgstr "不适用"
 #: lib/tuist_web/live/gradle_build_live.html.heex:825
 #, elixir-autogen, elixir-format
 msgid "No artifact transforms"
-msgstr "无构件转换"
+msgstr "无制品转换"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:713
 #: lib/tuist_web/live/mix_overview_live.html.heex:644
@@ -720,7 +720,7 @@ msgstr "无条目"
 #: lib/tuist_web/live/mix_overview_live.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "暂无近期构建记录"
+msgstr "暂无近期构建"
 
 #: lib/tuist_web/live/gradle_build_live.ex:806
 #, elixir-autogen, elixir-format
@@ -730,13 +730,13 @@ msgstr "无远程条目"
 #: lib/tuist_web/live/gradle_build_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
-msgstr "无远程条目，随后存储"
+msgstr "无远程条目，已存储"
 
 #: lib/tuist_web/helpers/gradle_task.ex:20
 #: lib/tuist_web/live/gradle_build_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "No source"
-msgstr "无源代码"
+msgstr "无来源"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:357
 #, elixir-autogen, elixir-format
@@ -837,7 +837,7 @@ msgstr "运行者"
 #: lib/tuist_web/live/mix_builds_live.html.heex:598
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
-msgstr "最近构建"
+msgstr "近期构建"
 
 #: lib/tuist_web/live/gradle_build_live.ex:770
 #: lib/tuist_web/live/gradle_build_live.html.heex:999
@@ -862,7 +862,7 @@ msgstr "请求的任务"
 #: lib/tuist_web/live/gradle_build_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Reused"
-msgstr "已复用"
+msgstr "复用"
 
 #: lib/tuist_web/live/gradle_build_live.ex:563
 #: lib/tuist_web/live/gradle_build_live.html.heex:599
@@ -894,7 +894,7 @@ msgstr "搜索..."
 #: lib/tuist_web/live/gradle_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Gradle cache for your project"
-msgstr "为项目设置 Gradle 缓存"
+msgstr "为你的项目配置 Gradle 缓存"
 
 #: lib/tuist_web/live/gradle_build_live.ex:652
 #: lib/tuist_web/live/gradle_build_live.ex:819
@@ -924,7 +924,7 @@ msgstr "已跳过"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "排序依据："
+msgstr "排序方式："
 
 #: lib/tuist_web/live/gradle_build_live.ex:580
 #: lib/tuist_web/live/gradle_build_live.html.heex:247
@@ -962,7 +962,7 @@ msgstr "主题"
 #: lib/tuist_web/live/mix_builds_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "成功构建次数"
+msgstr "成功构建"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:328
 #, elixir-autogen, elixir-format
@@ -981,12 +981,12 @@ msgstr "任务"
 #: lib/tuist_web/live/gradle_build_live.html.heex:853
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "任务命中"
+msgstr "任务缓存命中"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:864
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "任务未命中"
+msgstr "任务缓存未命中"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:219
 #: lib/tuist_web/live/gradle_tasks_live.ex:45
@@ -1011,13 +1011,13 @@ msgstr "测试"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "已达到 10,000 条记录上限，数据仅包含至 %{date}。请尝试筛选以缩小数据集范围。"
+msgstr "已达到 10,000 条记录上限，仅包含截至 %{date} 的数据。请尝试筛选以缩小数据集范围。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:177
 #: lib/tuist_web/live/mix_builds_live.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "构建平均时长及各百分位区间。"
+msgstr "各百分位区间的平均构建时长。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:146
 #: lib/tuist_web/live/mix_builds_live.html.heex:137
@@ -1029,7 +1029,7 @@ msgstr "构建失败次数。"
 #: lib/tuist_web/live/mix_builds_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "构建成功百分比。"
+msgstr "构建成功率。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:874
 #, elixir-autogen, elixir-format
@@ -1080,7 +1080,7 @@ msgstr "上传到远程缓存的缓存构件总大小。"
 #: lib/tuist_web/live/gradle_build_live.html.heex:680
 #, elixir-autogen, elixir-format
 msgid "Total time spent in recorded artifact transforms."
-msgstr "记录的构件转换所花费的总时间。"
+msgstr "记录的构件转换总耗时。"
 
 #: lib/tuist_web/live/gradle_build_live.ex:614
 #: lib/tuist_web/live/gradle_build_live.ex:682
@@ -1104,7 +1104,7 @@ msgstr "转换次数"
 #: lib/tuist_web/live/gradle_build_live.html.heex:826
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
-msgstr "请尝试调整搜索条件或筛选器。"
+msgstr "尝试调整搜索条件或筛选器。"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -1227,7 +1227,7 @@ msgstr "p99 缓存命中率"
 #: lib/tuist_web/live/gradle_tasks_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "自上月以来"
+msgstr "自上月起"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:37
 #: lib/tuist_web/live/gradle_builds_live.ex:191
@@ -1236,7 +1236,7 @@ msgstr "自上月以来"
 #: lib/tuist_web/live/gradle_tasks_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "自上一周期以来"
+msgstr "自上一周期起"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:35
 #: lib/tuist_web/live/gradle_builds_live.ex:189
@@ -1245,7 +1245,7 @@ msgstr "自上一周期以来"
 #: lib/tuist_web/live/gradle_tasks_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "自上周以来"
+msgstr "自上周起"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:36
 #: lib/tuist_web/live/gradle_builds_live.ex:190
@@ -1254,7 +1254,7 @@ msgstr "自上周以来"
 #: lib/tuist_web/live/gradle_tasks_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "自去年以来"
+msgstr "自去年起"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:34
 #: lib/tuist_web/live/gradle_builds_live.ex:188
@@ -1263,7 +1263,7 @@ msgstr "自去年以来"
 #: lib/tuist_web/live/gradle_tasks_live.ex:87
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "自昨天以来"
+msgstr "自昨天起"
 
 #: lib/tuist_web/live/gradle_build_live.ex:809
 #: lib/tuist_web/live/gradle_build_live.ex:832
@@ -1300,7 +1300,7 @@ msgstr "增量"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "No builds in this period"
-msgstr "此期间无构建记录"
+msgstr "此期间无构建"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:275
 #, elixir-autogen, elixir-format
@@ -1310,7 +1310,7 @@ msgstr "无匹配路径"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Refresh the page to try again."
-msgstr "刷新页面以重试"
+msgstr "刷新页面重试。"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1330,12 +1330,12 @@ msgstr "未复用输出而直接运行的任务。"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Try a different date range or adjust the filters."
-msgstr "尝试其他日期范围或调整筛选条件。"
+msgstr "尝试不同的日期范围或调整筛选条件。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks observed in matching builds. Each chart point counts distinct tasks in that interval."
-msgstr "在匹配构建中观察到的不同任务。每个图表点统计该时间段内的不同任务数量。"
+msgstr "在匹配构建中观察到的不同任务。每个图表点统计该时间间隔内的不同任务数量。"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -1352,7 +1352,7 @@ msgstr "不可缓存"
 #: lib/tuist_web/live/gradle_tasks_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Unknown cacheability"
-msgstr "缓存状态未知"
+msgstr "缓存能力未知"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:517
 #, elixir-autogen, elixir-format
@@ -1373,12 +1373,12 @@ msgstr "p99 耗时"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "未命中次数"
+msgstr "未命中数"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "所选时间段内各次执行的 p90 任务耗时百分位。"
+msgstr "所选周期内各次执行的第 p90 任务耗时百分位。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
@@ -1398,7 +1398,7 @@ msgstr "p99 任务耗时"
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "所选时间段内各次执行的平均任务耗时。"
+msgstr "所选周期内各次执行的平均任务耗时。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1413,7 +1413,7 @@ msgstr "未找到任务执行记录"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Task executions"
-msgstr "任务执行次数"
+msgstr "任务执行"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:478
 #, elixir-autogen, elixir-format
@@ -1433,17 +1433,17 @@ msgstr "%{change} 个百分点"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate does not apply to this task."
-msgstr "缓存命中率不适用于此任务。"
+msgstr "此任务不适用缓存命中率。"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits divided by hits and confirmed misses. Local cache hits and up-to-date tasks are excluded."
-msgstr "远程缓存命中率由命中数除以命中数与确认未命中数之和得出。本地缓存命中和最新任务不计入。"
+msgstr "远程缓存命中率由命中数除以命中数与确认未命中数之和得出。本地缓存命中和最新任务不包含在内。"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "These builds did not report enough cache information to calculate a hit rate."
-msgstr "这些构建未报告足够的缓存信息以计算命中率。"
+msgstr "这些构建未报告足够的缓存信息来计算命中率。"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:101
 #, elixir-autogen, elixir-format
@@ -1532,12 +1532,12 @@ msgstr "未报告"
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "通过缓存命中节省的预估任务执行时间。并行任务可能重叠，因此这不等于节省的构建耗时。仅包含已报告预估时间的构建。"
+msgstr "通过缓存命中节省的预估任务执行时间。并行任务可能重叠，因此这不等于节省的构建耗时。仅包含已报告预估值的那些构建。"
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
 msgid "No task time estimates reported for this period."
-msgstr "本周期内没有报告的任务时间预估。"
+msgstr "此期间未报告任何任务时间预估值。"
 
 #: lib/tuist_web/components/build_health.ex:31
 #: lib/tuist_web/components/build_health.ex:112
@@ -1554,7 +1554,7 @@ msgstr "通过缓存命中节省的预估任务执行时间。并行任务可能
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format
 msgid "No comparison available"
-msgstr "无可用的对比数据"
+msgstr "无可用的比较数据"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:241
 #, elixir-autogen, elixir-format
