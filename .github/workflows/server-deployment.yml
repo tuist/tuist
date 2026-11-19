@@ -2096,6 +2096,13 @@ jobs:
                 echo "::warning::Could not upgrade shard storage; the server keeps default shard storage."
               fi
               ;;
+            production)
+              # Garage is retired: its buckets were copied into RustFS, which
+              # serves gra-production-v1 as an alias. Its PVC outlives the
+              # release until it is reclaimed by hand.
+              helm uninstall shard-storage --namespace kura --ignore-not-found ||
+                echo "::warning::Could not uninstall the retired Garage store."
+              ;;
           esac
           # Public RustFS store (s3.tuist.dev) for plans from runners other than
           # ours. Nothing waits on it either: until it serves, the server keeps
