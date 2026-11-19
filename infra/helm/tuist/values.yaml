@@ -1881,7 +1881,7 @@ vultrFleet:
 vultrFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
-# Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
+# Rack-owned Mac minis: hardware we bought, in a rack we operate (the alder
 # colo programme), as opposed to capacity ordered from a provider API.
 #
 # `hosts` is the rack's physical inventory: one entry per box, each rendering a
@@ -2217,7 +2217,7 @@ rackFleet:
       username: username
       password: password
 
-# Rack-owned x86 Linux machines (the BER1 edge, services and storage nodes).
+# Rack-owned x86 Linux machines (the alder edge, services and storage nodes).
 # `hosts` is inventory, one RackLinuxHost each; each role present among them
 # gets a MachineDeployment claiming from `<pool>-<role>`, with that role's node
 # labels and taints from `roles`. A host joins the tailnet from its install
@@ -3112,7 +3112,7 @@ runnersFleet:
   #      instead and the budget over-counts every SMALLER shape's slots,
   #      producing Pods the allocator keeps asking for and the scheduler
   #      never places. At 8 vCPU / 24 GB that ratio is 3072 MB per
-  #      vCPU, the BER1 rack hosts' 16 CPU / 48 GB, which is what makes
+  #      vCPU, the alder rack hosts' 16 CPU / 48 GB, which is what makes
   #      16 vCPU / 48 GB the consistent larger shape.
   #   2. A shape larger than the smallest host in the fleet is
   #      over-promised by that same fleet-wide sum, since it counts

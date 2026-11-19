@@ -601,7 +601,7 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# the Helm side: the 16 vCPU shape needs a whole alder rack host and is not offered in
 # environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
   %{vcpus: 8, memory_gb: 24, default: true},

@@ -790,7 +790,7 @@ ovhFleets:
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
-  # Every Mac host this env runs, including the BER1 rack hosts production
+  # Every Mac host this env runs, including the alder rack hosts production
   # lends it. Keep the three envs on one release.
   tart:
     version: "2.41.1"
@@ -872,7 +872,7 @@ macosFleet:
     hostMemoryMB: 14336
 
 # Staging rents no Scaleway hosts for its macOS runners: they run on the
-# BER1 rack host production lends it (`rackFleet`), and every staging account
+# alder rack host production lends it (`rackFleet`), and every staging account
 # runs there (`runner_site`). `enabled` stays on, since it also renders the
 # runners controller, the runner namespace and the rack's RunnerPools. With
 # `hostCount: 0` the chart renders no rented macOS pools, and the
@@ -1104,7 +1104,7 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
 
-# BER1 rack hosts production lends staging: production keeps them in its
+# Alder rack hosts production lends staging: production keeps them in its
 # inventory (rackFleet.hosts there, with `lendTo: staging`), and staging's
 # operator runs their runtime and registers their Nodes here, so staging jobs
 # run on rack hardware. They are staging's only macOS runners: every staging

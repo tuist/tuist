@@ -114,7 +114,7 @@ after releasing the collector and this chart; Helm does not install alert JSON.
 `bash test-runner-macos-host-alerts.sh` checks the shipped expressions with
 promtool. See the [incident and OS rollout runbook](../../cluster-api-provider-tuist/macos-tcp-clock.md).
 
-A rack can live in a non-production env (BER1 was in staging while it was built at home), and the destination drops almost every `node_*` metric outside production. So rack hardware is marked `rack_host="true"` (Linux hosts by `alloy-rack`, minis by their egress Service belonging to the rack fleet), and the destination keeps a marked host's `node_*` metrics in every environment. Other non-production nodes are filtered as before.
+A rack can live in a non-production env (alder was in staging while it was built at home), and the destination drops almost every `node_*` metric outside production. So rack hardware is marked `rack_host="true"` (Linux hosts by `alloy-rack`, minis by their egress Service belonging to the rack fleet), and the destination keeps a marked host's `node_*` metrics in every environment. Other non-production nodes are filtered as before.
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 

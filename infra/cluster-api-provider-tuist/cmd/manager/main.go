@@ -774,7 +774,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
+	// Rack-owned Mac minis (the alder colo programme). Two controllers: the
 	// physical hosts, each of which keeps its own Machine, and the machine
 	// kind that bootstraps the host. Both are registered unconditionally: with
 	// no RackHost declared they have nothing to reconcile.

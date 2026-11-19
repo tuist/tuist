@@ -12,7 +12,7 @@ setup() {
   source "$ROOT/infra/rack-nodes/render-autoinstall.sh"
   # shellcheck source=/dev/null
   source "$ROOT/infra/rack-switch-fleet/lib/config.sh"
-  # The env whose chart values declare BER1's hosts.
+  # The env whose chart values declare alder's hosts.
   RACK_ENV="$(fleet_site_env "$ROOT/infra/rack-switch-fleet/sites/ber1.json")"
 
   BIN="$BATS_TEST_TMPDIR/bin"

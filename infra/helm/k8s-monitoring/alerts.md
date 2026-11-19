@@ -2609,7 +2609,7 @@ Private Network and no prospect of one, so it correctly has no `vlan` device.
 Without the exclusion every rack host pages as critical from the moment it
 joins, which is what happened on 2026-09-09 when the first one did.
 
-When BER1 gains its in-rack kura region, the cache path there is in-rack L2
+When alder gains its in-rack kura region, the cache path there is in-rack L2
 rather than a Scaleway PN. Checking it is a NEW rule keyed on whatever that path
 exposes, not a widening of this one. Removing the exclusion to "cover the rack"
 only restores the false positive.
@@ -3133,7 +3133,7 @@ missed 10-06 and 10-07 entirely.
 The `2 *` term and the `-12vcpu-28gb` regex encode today's only
 double-slot shape. Add any new shape there with its slot count, or the
 rule under-counts occupancy. The rule covers the Scaleway fleet only;
-BER1 is its own capacity domain and needs its own copy over
+alder is its own capacity domain and needs its own copy over
 `node=~"ber1-runner-.*"` and the `-ber1-` pools once it takes work.
 
 When it fires:
@@ -7900,12 +7900,12 @@ and on (site) (
 
 Transit is billed on the 95th percentile of 5-minute samples against the
 committed rate, so a trailing 7-day 95th percentile above 90% of the commit is
-heading for an overage. `1e9` is BER1's commit in bits per second (1 Gbps),
+heading for an overage. `1e9` is alder's commit in bits per second (1 Gbps),
 and `<instance site>` selects only `site="ber1"`. Pulse rejects the
 `label_replace(vector(...))` commit table the rule used on Grafana Cloud, so a
 second site needs its own copy of the rule with its own commit. The `count_over_time`
 gate waits for 3.5 days of `wan0` samples, so a short history cannot fire it:
-in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
+in its first 25 minutes on 2026-10-15 alder downloaded 3.5 and 2.9 Gbps over two
 5-minute windows, which alone made the 95th percentile three times the commit.
 
 ### Rack power draw near its contracted limit
@@ -7945,7 +7945,7 @@ step there, not an edit to this rule. A site with no contracted power has no
 ratio, which [Rack has no contracted power](#rack-has-no-contracted-power)
 catches.
 
-BER1's steps:
+Alder's steps:
 
 | From | Contracted power | Fires above |
 | --- | --- | --- |
@@ -7968,7 +7968,7 @@ in `infra/cluster-api-provider-tuist/AGENTS.md`. While the alert fires,
 is already holding work back.
 
 The draw is every PDU outlet's active power, plus the output of each transfer
-switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
+switch that feeds no reporting PDU. At alder that switch is `ber1-ats-1`, which
 powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs
 directly. `capt_rackpdu_chain` names the switch behind each PDU while that PDU
 reports draw, so a chain is never counted twice. A PDU that stops reporting

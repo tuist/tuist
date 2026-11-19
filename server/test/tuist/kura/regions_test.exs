@@ -720,7 +720,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.site(ber1) == "ber1"
       assert Regions.site(larch) == "larch"
 
-      assert ber1.display_name == "BER1 rack (runner cache)"
+      assert ber1.display_name == "Alder rack (runner cache)"
       assert larch.display_name == "Larch rack (runner cache)"
 
       assert %{

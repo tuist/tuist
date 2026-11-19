@@ -287,7 +287,7 @@ jobs:
       # one at a time when they are up, each held 90 s after its static pod
       # applied the new configuration; `kubectl -n omada rollout status
       # ds/rack-edge-<site>` follows it.
-      # One release per site with edges. BER1's is `rack-edge`, named before
+      # One release per site with edges. Alder's is `rack-edge`, named before
       # there was a second site: a new name would be a second release taking
       # over its DaemonSet.
       - name: helm upgrade --install the rack edges
