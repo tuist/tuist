@@ -365,4 +365,30 @@ defmodule TuistWeb.OrganizationAISettingsLiveTest do
     assert {:ok, %{connections: saved}} = OrganizationAI.settings(user, account)
     assert Enum.find(saved, &(&1.id == preset.id)) == preset
   end
+
+  test "Add provider offers Claude linking and API keys when linked billing is configured", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :anthropic_linked_billing_config, fn ->
+      Map.new(
+        ~w(client_id client_assertion_audience organization_id workspace_id service_account_id federation_rule_id)a,
+        &{&1, "configured"}
+      )
+    end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/ai/routing")
+    document = Floki.parse_document!(html)
+
+    assert has_element?(lv, "#add-ai-provider-dropdown")
+    refute has_element?(lv, "button#add-ai-connection")
+
+    assert Floki.attribute(document, "a#link-claude-organization", "href") == [
+             "/integrations/claude/start?account_id=#{account.id}"
+           ]
+
+    assert Floki.attribute(document, "#add-ai-connection", "phx-click") == ["add-connection"]
+    render_click(lv, "add-connection")
+    assert_push_event(lv, "open-modal", %{id: "organization-ai-connection-modal"})
+  end
 end
