@@ -151,8 +151,11 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 	}
 	defer os.Remove(stderr.Name())
 	defer stderr.Close()
-	limit := 10 * time.Minute
-	if action.Timeout != nil {
+	// Bazel gives every test its size's timeout, up to an hour for
+	// "eternal" tests that finish in seconds, so a longer request runs
+	// with the VM's ceiling instead of failing before it starts.
+	limit := MaxTimeout
+	if action.Timeout != nil && action.Timeout.AsDuration() < limit {
 		limit = action.Timeout.AsDuration()
 	}
 	runCtx, cancel := context.WithTimeout(ctx, limit)
@@ -272,8 +275,8 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 	if len(c.Arguments) == 0 || c.Arguments[0] == "" || len(c.Arguments) > 4096 {
 		return status.Error(codes.InvalidArgument, "invalid argv")
 	}
-	if a.Timeout != nil && (a.Timeout.CheckValid() != nil || a.Timeout.AsDuration() <= 0 || a.Timeout.AsDuration() > 10*time.Minute) {
-		return status.Error(codes.InvalidArgument, "timeout must be at most ten minutes")
+	if a.Timeout != nil && (a.Timeout.CheckValid() != nil || a.Timeout.AsDuration() <= 0) {
+		return status.Error(codes.InvalidArgument, "invalid timeout")
 	}
 	platform := a.Platform
 	if platform == nil {
@@ -318,6 +321,10 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 const MemoryProperty = "tuist-memory-gb"
 
 const DefaultMemoryGB = 4
+
+// MaxTimeout is the longest an action's command runs, within the server's
+// 13-minute execution lease.
+const MaxTimeout = 10 * time.Minute
 
 // MemorySizesGB are the VM sizes workers offer, smallest first.
 var MemorySizesGB = []int{4, 8, 16}
