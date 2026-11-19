@@ -28,6 +28,33 @@ if [[ "$actual" != "$FORK_COMMIT" ]]; then
 fi
 git -C "$src" -c advice.detachedHead=false checkout -q "$FORK_COMMIT"
 
+# Replaces the one line of FILE equal to OLD with NEW, failing unless exactly
+# one line matches. Keeps FILE's mode: the fork's build.sh must stay executable.
+replace_line() {
+  local file=$1 old=$2 new=$3
+  awk -v old="$old" -v new="$new" '$0 == old { print new; n++; next } { print } END { exit (n != 1) }' \
+    "$file" > "$file.tmp" || { echo "error: expected exactly one line in $file: $old" >&2; exit 1; }
+  cat "$file.tmp" > "$file"
+  rm "$file.tmp"
+}
+
+# Hold the sources the fork fetches by tag to the pins in fork.env (see there).
+# The checks run right after each clone, against the commit actually fetched;
+# git submodules then follow that commit's gitlinks.
+# shellcheck disable=SC2016 # single-quoted strings are literal lines of the fork's files
+{
+  nginx_build="$src/images/nginx/rootfs/build.sh"
+  modsecurity_checkout='git checkout $MODSECURITY_LIB_VERSION'
+  replace_line "$nginx_build" "$modsecurity_checkout" \
+    "$modsecurity_checkout\\ntest \"\$(git rev-parse HEAD)\" = $MODSECURITY_COMMIT || { echo \"error: ModSecurity \$MODSECURITY_LIB_VERSION is not MODSECURITY_COMMIT=$MODSECURITY_COMMIT from fork.env\" >&2; exit 1; }"
+  crs_clone='git clone -b $OWASP_MODSECURITY_CRS_VERSION https://github.com/coreruleset/coreruleset'
+  replace_line "$nginx_build" "$crs_clone" \
+    "$crs_clone\\ntest \"\$(git -C coreruleset rev-parse HEAD)\" = $CRS_COMMIT || { echo \"error: OWASP CRS \$OWASP_MODSECURITY_CRS_VERSION is not CRS_COMMIT=$CRS_COMMIT from fork.env\" >&2; exit 1; }"
+  replace_line "$src/images/kube-webhook-certgen/rootfs/Dockerfile" \
+    'FROM --platform=$BUILDPLATFORM gcr.io/distroless/static:nonroot' \
+    "FROM --platform=\$BUILDPLATFORM $DISTROLESS_IMAGE"
+}
+
 # images/nginx/rootfs/build.sh (and tests/build-nginx.sh) apply every file in
 # patches/ in `ls` order with `patch -p1`, so ours go in with a prefix that
 # sorts after the fork's NN_ names.

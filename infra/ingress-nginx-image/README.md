@@ -41,6 +41,12 @@ Everything is pinned in [`fork.env`](fork.env):
 - **New fork release:** set `FORK_TAG` and `FORK_COMMIT` (`git ls-remote
   https://github.com/chainguard-forks/ingress-nginx refs/tags/<tag>^{}`), reset
   `TUIST_BUILD` to 1. The build fails if the tag does not resolve to the commit.
+- **Sources the fork fetches by tag:** the fork's nginx build clones ModSecurity
+  (`MODSECURITY_LIB_VERSION`) and the OWASP CRS (`OWASP_MODSECURITY_CRS_VERSION`)
+  by git tag, and its certgen image starts `FROM gcr.io/distroless/static:nonroot`.
+  `source.sh` makes the build fail unless the tags resolve to `MODSECURITY_COMMIT`
+  and `CRS_COMMIT`, and pins distroless to `DISTROLESS_IMAGE`. When a fork release
+  bumps one, update its pin (`git ls-remote <repository> refs/tags/<tag>^{}`).
 - **Any other change to the images** (patches, Go toolchain, a rebuild for
   Alpine package fixes): bump `TUIST_BUILD`.
 
