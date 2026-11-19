@@ -88,13 +88,16 @@ func ParseShapes(csv string) ([]Shape, error) {
 
 // Metadata describes a built shape snapshot.
 type Metadata struct {
-	Name               string    `json:"name"`
-	Tag                string    `json:"tag"`
-	Kernel             string    `json:"kernel"`
-	VCPUs              int       `json:"vcpus"`
-	MemoryMB           int       `json:"memory_mb"`
-	WorkspaceGB        int       `json:"workspace_gb"`
-	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
+	Name              string `json:"name"`
+	Tag               string `json:"tag"`
+	Kernel            string `json:"kernel"`
+	VCPUs             int    `json:"vcpus"`
+	MemoryMB          int    `json:"memory_mb"`
+	WorkspaceGB       int    `json:"workspace_gb"`
+	WorkspacePrepared bool   `json:"workspace_prepared,omitempty"`
+	// CacheDrive: the snapshot has a CachePlaceholderBytes cache drive that
+	// every jail restored from it must provide.
+	CacheDrive         bool      `json:"cache_drive,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -168,6 +171,10 @@ func (t Template) ReadyShapes() []Shape {
 }
 
 // Artifacts are the files a sandbox is created from.
+// CachePlaceholderBytes is the size of the empty cache drive in a shape
+// snapshot built with Builder.CacheDrive.
+const CachePlaceholderBytes = 1 << 20
+
 type Artifacts struct {
 	Dir       string
 	Rootfs    string
