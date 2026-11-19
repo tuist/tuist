@@ -284,7 +284,13 @@ defmodule Tuist.RemoteExecutionTest do
     [row] = Enum.filter(vm_rows(project), & &1.node_name)
     send(Scheduler.whereis(project.account_id), {:destroy, row.id})
     assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 2_000)
-    assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 2_000)
+
+    assert {:ok, %{id: ^id, done: true, queue_waits_ms: waits}} =
+             RemoteExecution.await(project, id, "executing", wait: 2_000)
+
+    # The wait for room is charged to the node, not to the account.
+    assert waits["node_capacity"] >= 250
+    assert Map.keys(waits) -- ["node_capacity", "vm_preparing", "scheduling"] == []
   end
 
   test "the warm pool follows demand below its ceiling", %{project: project} do
@@ -419,7 +425,14 @@ defmodule Tuist.RemoteExecutionTest do
       send(held, :release)
       assert {:ok, %{done: true}} = Task.await(first)
       assert {:ok, %{id: ^large}} = RemoteExecution.await(project, large, "queued", wait: 5_000)
-      assert {:ok, %{id: ^large, done: true, code: 0}} = RemoteExecution.await(project, large, "executing", wait: 5_000)
+
+      assert {:ok, %{id: ^large, done: true, code: 0, queue_waits_ms: waits}} =
+               RemoteExecution.await(project, large, "executing", wait: 5_000)
+
+      # Waiting for the running action's room is the account's limit, then its VM.
+      assert waits["account_limit"] >= 250
+      assert waits["vm_preparing"] > 0
+      refute Map.has_key?(waits, "node_capacity")
       assert_received {:node, "create", %{memory_mb: 8192}}
     end
   end
