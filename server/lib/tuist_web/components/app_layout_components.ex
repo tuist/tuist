@@ -696,7 +696,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={dgettext("dashboard", "Errors")}
         icon="alert_triangle"
-        href="https://hive.tuist.dev/errors"
+        href="https://atlas.tuist.dev/engineering/errors"
         target="_blank"
         rel="noopener noreferrer"
         external

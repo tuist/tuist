@@ -15,7 +15,7 @@ function fixture(run) {
   try {
     const host = { processCpu: "1 (kura) " + ["S", ...Array(10).fill("0"), "100", "50"].join(" ") + "\n100\n", disk: "100 /data", diskAllocated: "4096 /data", net: "eth0: 100 0 0 0 0 0 0 0 200 0 0 0 0 0 0 0" };
     const result = { schemaVersion: 2, label: "before-1", imageId: "sha256:" + "a".repeat(64), samples: 2, before: [host, host, host], after: [host, host, { ...host, net: "eth0: 100 0 0 0 0 0 0 0 1048576 0 0 0 0 0 0 0" }], stats: { loadStartSample: 1, loadEndSample: 2, retentionStartSample: 2, retentionEndSample: 2, seedProbeSuccesses: 192, seedProbeSuccessBytes: 192 * 1024 ** 2, seedProbeFailuresByStatus: {}, seedProbeAttempts: 192, seedProbeBytes: 192 * 1024 ** 2, failures: [], handshakes: 1280, retainedObjects: 960, puts: 320, gets: 1728, readBytes: 1728 * 1024 ** 2, loadDurationMs: 64000 } };
-    const source = fs.readFileSync(new URL("../../../src/metrics.rs", import.meta.url), "utf8");
+    const source = fs.readFileSync(new URL("../../../crates/kura-core/src/metrics.rs", import.meta.url), "utf8");
     result.knownLazyCounters = knownLazyCounters(source);
     result.metricsSourceSHA256 = createHash("sha256").update(source).digest("hex");
     fs.writeFileSync(path.join(directory, "result.json"), JSON.stringify(result));
@@ -62,7 +62,7 @@ test("unknown metrics cannot silently become zero", () => fixture(directory => {
 }));
 
 test("source-verified lazy families can be empty without weakening unknown metrics", () => fixture(directory => {
-  const source = fs.readFileSync(new URL("../../../src/metrics.rs", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../../../crates/kura-core/src/metrics.rs", import.meta.url), "utf8");
   const filename = path.join(directory, "result.json");
   const result = JSON.parse(fs.readFileSync(filename, "utf8"));
   result.knownLazyCounters = knownLazyCounters(source);

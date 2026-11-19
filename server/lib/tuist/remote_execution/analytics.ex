@@ -248,9 +248,12 @@ defmodule Tuist.RemoteExecution.Analytics do
         select: %{invocation_id: p.invocation_id, version: fragment("JSONExtractString(?, 'steps_version')", p.payload)}
       )
 
+    # No FINAL: every ingest writes its steps under a version of its own, so a
+    # published version has no duplicate rows to collapse. FINAL would also keep
+    # the phase filter out of PREWHERE and merge every step of the period across
+    # all parts at once, which exceeds the memory limit for busy projects.
     query =
       from(s in ProfileSteps,
-        hints: ["FINAL"],
         join: p in subquery(profiles),
         on: p.invocation_id == s.invocation_id and p.version == s.version,
         join: i in subquery(invocations),

@@ -41,7 +41,6 @@ clusters/
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
     ├── production/{cluster,kustomization}.yaml
-    ├── hive/{cluster,kustomization}.yaml    tenant (migrated from tuist/hive)
     ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
     └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
@@ -49,12 +48,12 @@ clusters/
 ## Reconciliation ownership
 
 Two mechanisms apply these manifests, split deliberately (see
-[hive/specs/72](https://hive.tuist.dev/specs/72) and `infra/flux/mgmt/README.md`):
+[spec 72](https://atlas.tuist.dev/engineering/specs/72) and `infra/flux/mgmt/README.md`):
 
 - **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
   `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
   scoped never to prune a `Cluster` object. This is the source of truth
-  for the staging / canary / production and hive / once / atlas topologies.
+  for the staging / canary / production and once / atlas topologies.
 - **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
   path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
   templates (whose delete-and-apply fallback for `field is immutable` a plain

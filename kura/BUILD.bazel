@@ -1,9 +1,10 @@
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("//bazel:deny_warnings.bzl", "DENY_WARNINGS")
 load("//bazel:rust_junit_test.bzl", "rust_junit_test")
+load("//bazel:version.bzl", "KURA_VERSION")
 
-_KURA_VERSION = "0.8.0"
 
 # CI-only gate: deny warnings on the first-party crates (the bazel equivalent of cargo's
 # RUSTFLAGS="-D warnings"). Off by default so local `bazel build` / `mise run compile`
@@ -13,15 +14,11 @@ _KURA_VERSION = "0.8.0"
 config_setting(
     name = "deny_warnings",
     define_values = {"kura_deny_warnings": "true"},
+    visibility = ["//visibility:public"],
 )
 
-_DENY_WARNINGS = select({
-    ":deny_warnings": ["-Dwarnings"],
-    "//conditions:default": [],
-})
-
 # The kura crate is a lib + bin: main.rs calls `kura::run()`, so the library must compile under the
-# crate name `kura`. test_support.rs is `#[cfg(test)]`, so it is inert in this non-test build.
+# crate name `kura`.
 # (rules_rs folds proc-macro deps into all_crate_deps, so there is no separate proc_macro_deps.)
 rust_library(
     name = "kura_lib",
@@ -29,46 +26,11 @@ rust_library(
     aliases = aliases(),
     crate_name = "kura",
     edition = "2024",
-    rustc_flags = _DENY_WARNINGS,
-    version = _KURA_VERSION,
+    exec_properties = {"tuist-memory-gb": "8"},
+    rustc_flags = DENY_WARNINGS,
+    version = KURA_VERSION,
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True),
-)
-
-# Qualify independent native/explicit TLS without compiling the storage engine.
-rust_junit_test(
-    name = "certificate_trust_test",
-    srcs = glob(["src/certificate_trust*.rs"]),
-    crate_root = "src/certificate_trust.rs",
-    crate_name = "certificate_trust",
-    compile_data = glob(["test/certificate-trust/*.pem"]),
-    aliases = aliases(),
-    edition = "2024",
-    rustc_flags = _DENY_WARNINGS,
-    size = "small",
-    deps = [
-        "@crates//:bytes",
-        "@crates//:http-body-util",
-        "@crates//:hyper",
-        "@crates//:hyper-util",
-        "@crates//:rcgen",
-        "@crates//:reqwest",
-        "@crates//:rustls",
-        "@crates//:rustls-native-certs",
-        "@crates//:rustls-webpki",
-        "@crates//:sha2",
-        "@crates//:tempfile",
-        "@crates//:tokio",
-        "@crates//:tokio-rustls",
-        "@crates//:tracing",
-    ] + select({
-        "@platforms//os:macos": [
-            "@crates//:core-foundation",
-            "@crates//:security-framework",
-            "@crates//:security-framework-sys",
-        ],
-        "//conditions:default": [],
-    }),
 )
 
 rust_binary(
@@ -76,8 +38,8 @@ rust_binary(
     srcs = ["src/main.rs"],
     aliases = aliases(),
     edition = "2024",
-    rustc_flags = _DENY_WARNINGS,
-    version = _KURA_VERSION,
+    rustc_flags = DENY_WARNINGS,
+    version = KURA_VERSION,
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True) + [":kura_lib"],
 )
@@ -87,24 +49,42 @@ rust_junit_test(
     srcs = ["src/main.rs"],
     aliases = aliases(),
     edition = "2024",
-    rustc_flags = _DENY_WARNINGS,
+    rustc_flags = DENY_WARNINGS,
     size = "small",
     deps = all_crate_deps(normal = True, normal_dev = True) + [":kura_lib"],
 )
 
-# Recompiles kura_lib with --test so the crate's #[cfg(test)] unit tests (and the test_support
-# module) run under `bazel test`.
+# A test binary must link one kura_core and one kura_node, so the kura crate's test binary links
+# the test-support variants of the crates below it rather than reusing kura_lib's dependencies.
+_TEST_ALIASES = dict(aliases())
+
+_TEST_ALIASES.update({
+    "//crates/kura-core:kura_core_test_support": "kura_core",
+    "//crates/kura-node:kura_node_test_support": "kura_node",
+    "//crates/kura-reapi:kura_reapi_test_support": "kura_reapi",
+})
+
+# Compiles the kura crate with --test so its #[cfg(test)] unit tests run under `bazel test`.
 rust_junit_test(
     name = "kura_lib_test",
-    compile_data = glob(["test/certificate-trust/*.pem"]),
-    aliases = aliases(),
-    crate = ":kura_lib",
+    srcs = glob(["src/**/*.rs"], exclude = ["src/main.rs"]),
+    aliases = _TEST_ALIASES,
+    crate_name = "kura",
+    crate_root = "src/lib.rs",
     edition = "2024",
-    # rustc peaks near 4 GB compiling the crate as a test binary, which the default 4 GiB
-    # remote-execution VM cannot hold. Ignored outside remote execution.
     exec_properties = {"tuist-memory-gb": "8"},
-    rustc_flags = _DENY_WARNINGS,
+    # Test binaries skip rustc's crate-local ThinLTO: it is a large share of the compile and the
+    # tests run just as fast without it. The libraries and shipped binary keep the default.
+    rustc_flags = DENY_WARNINGS + ["-Clto=off"],
     size = "medium",
-    version = _KURA_VERSION,
-    deps = all_crate_deps(normal_dev = True),
+    version = KURA_VERSION,
+    deps = all_crate_deps(
+        cargo_only = True,
+        normal = True,
+        normal_dev = True,
+    ) + [
+        "//crates/kura-core:kura_core_test_support",
+        "//crates/kura-node:kura_node_test_support",
+        "//crates/kura-reapi:kura_reapi_test_support",
+    ],
 )

@@ -27,9 +27,9 @@ defmodule Atlas.MCP.Tools.UpdateMyGmailDraft do
 
   @impl EMCP.Tool
   def description do
-    "Replace the recipients, subject and plain-text body of a draft in the caller's own Gmail mailbox. Without " <>
-      "reply_to_message_id the draft keeps its thread and reply headers. Changing a draft invalidates any send " <>
-      "approval for its previous content. Requires Allow Gmail drafts in Atlas settings."
+    "Replace the recipients, subject and body of a draft in the caller's own Gmail mailbox. Set body_format to markdown or html for rich text; default plain. Without " <>
+      "reply_to_message_id the draft keeps its thread and reply headers. Nothing is sent. " <>
+      "Requires Allow Gmail drafts in Atlas settings."
   end
 
   def execute(conn, args) do

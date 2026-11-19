@@ -1,6 +1,6 @@
 [agent]
 kind = "opencode"
-model = "hive/Balanced"
+model = "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code"
 
 [defaults]
 base = "origin/main"

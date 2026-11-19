@@ -43,7 +43,10 @@ defmodule Tuist.Bazel.Profile do
   def ingest(project, invocation_id, compressed) do
     with {:ok, profile} <- decode(compressed),
          {:ok, timeline} <- normalize(profile, invocation_id, project.name) do
-      version = Base.encode16(:crypto.hash(:sha256, compressed), case: :lower)
+      # A version per ingest, not per upload: a retried or repeated ingest writes
+      # a fresh set of steps instead of duplicating the published one, so
+      # readers never need FINAL to collapse duplicate steps.
+      version = UUIDv7.generate()
       ProfileSteps.insert(project, invocation_id, version, timeline)
       timeline = timeline |> Map.put(:steps_version, version) |> Map.put(:events, [])
 

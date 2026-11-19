@@ -208,6 +208,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether a new Linux sandbox of the account's Claude Code sessions starts with
+  a copy of its repository's CI cache volume
+  (`Tuist.Runners.CacheVolumes.sandbox_cache/2`). Production requires the
+  `:sandbox_runner_cache` flag for the account during the rollout; nodes attach
+  a cache only where sandboxd copies them (`CACHE_IMAGES_GIB`).
+  """
+  def sandbox_runner_cache_enabled?(account) do
+    Environment.env() != :prod or FunWithFlags.enabled?(:sandbox_runner_cache, for: account)
+  end
+
+  @doc """
   Whether the account's GitHub Actions jobs on Linux runners use the cache the
   runner hosts serve (`Tuist.Runners.ActionsCache`) instead of GitHub's.
   Production requires the `:runner_actions_cache` flag for the account during

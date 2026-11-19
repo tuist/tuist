@@ -3000,4 +3000,81 @@ defmodule Tuist.Runners.CacheVolumesTest do
       refute Repo.exists?(from(v in Volume, where: v.account_id == ^account.id))
     end
   end
+
+  describe "sandbox_cache/2" do
+    setup do
+      stub(VCS, :get_github_app_installation_for_account, fn _ -> {:ok, %{installation_id: "99", client_url: nil}} end)
+      stub(VCS, :installation_api_url, fn _ -> "https://api.github.com" end)
+
+      stub(GitHubClient, :get_repository, fn _, "Org/Repo" ->
+        {:ok, %{"id" => 123, "full_name" => "org/repo", "default_branch" => "main"}}
+      end)
+
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://1.1.1.1/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      :ok
+    end
+
+    # A Linux volume of the repository whose default-branch job saved a head,
+    # last used `hours` ago.
+    defp saved_linux_volume(job, key, hours) do
+      job = %{job | workflow_job_id: System.unique_integer([:positive])}
+      {:ok, use} = CacheVolumes.allocate_for_job(job, main_identity(), %{attrs("pod-" <> key) | key: key})
+      complete(job)
+      assert {:ok, %{action: "keep"}} = publish_report("node", use.id)
+      volume_id = Repo.get!(Usage, use.id).volume_id
+      used_at = DateTime.utc_now() |> DateTime.add(-hours * 60 * 60, :second) |> DateTime.truncate(:second)
+      Repo.update_all(from(v in Volume, where: v.id == ^volume_id), set: [last_used_at: used_at])
+      volume_id
+    end
+
+    test "offers the head the repository's next CI job would mount, of its most recently used Linux volume", %{
+      account: account,
+      job: job
+    } do
+      _older = saved_linux_volume(job, "older", 5)
+      recent = saved_linux_volume(job, "recent", 1)
+      # Newer still, but never offered: the session's checkout comes separately,
+      # and a Docker data root is not a cache drive.
+      for key <- ["checkout", "docker"] do
+        id = saved_linux_volume(job, "reserved-" <> key, 0)
+        Repo.update_all(from(v in Volume, where: v.id == ^id), set: [key: key])
+      end
+
+      # The same head a CI job allocated now starts from.
+      {:ok, next_job} =
+        CacheVolumes.allocate_for_job(%{job | workflow_job_id: 999_001}, identity(), %{attrs("next") | key: "recent"})
+
+      assert %{volume_id: ^recent} = cache = CacheVolumes.sandbox_cache(account.id, "Org/Repo")
+      assert cache.base_generation == next_job.base_generation
+      assert cache.base_generation > 0
+      assert cache.image_digest == next_job.image_digest
+      assert cache.content_digest == next_job.content_digest
+      assert cache.scope == next_job.scope
+      # Nothing is allocated for the sandbox.
+      refute Repo.exists?(from(u in Usage, where: u.volume_id == ^recent and like(u.pod_name, "sandbox-%")))
+    end
+
+    test "offers nothing without a saved head the repository can use", %{account: account, job: job} do
+      # A fork's pull request reads the volume but never saves it.
+      {:ok, fork} =
+        CacheVolumes.allocate_for_job(job, %{identity() | trusted: false, same_repository: false}, attrs("fork"))
+
+      complete(job)
+      publish_report("node", fork.id)
+      assert is_nil(CacheVolumes.sandbox_cache(account.id, "Org/Repo"))
+
+      # A macOS volume, and one idle past retention that the next sweep clears.
+      mac = saved_linux_volume(job, "mac", 1)
+      Repo.update_all(from(v in Volume, where: v.id == ^mac), set: [platform: "macos"])
+      saved_linux_volume(job, "idle", 8 * 24)
+      assert is_nil(CacheVolumes.sandbox_cache(account.id, "Org/Repo"))
+
+      # A repository the installation cannot read gets nothing, even with a head.
+      saved_linux_volume(job, "fresh", 1)
+      assert %{} = CacheVolumes.sandbox_cache(account.id, "Org/Repo")
+      stub(GitHubClient, :get_repository, fn _, _ -> {:error, "Not Found"} end)
+      assert is_nil(CacheVolumes.sandbox_cache(account.id, "Org/Repo"))
+    end
+  end
 end

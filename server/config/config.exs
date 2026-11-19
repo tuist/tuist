@@ -443,6 +443,8 @@ config :logger, :console,
     :disk_snapshot_copy,
     :bytes,
     :preferred_node,
+    :cache_offered,
+    :cache_attached,
     :checkout_nodes,
     :placement_path,
     # Why each node holding a disk snapshot refused a sandbox

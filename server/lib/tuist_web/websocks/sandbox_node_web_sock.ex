@@ -52,7 +52,9 @@ defmodule TuistWeb.SandboxNodeWebSock do
       snapshot_compat: nil,
       lazy_disks: false,
       archives: false,
-      cpu_guarantees: false
+      cpu_guarantees: false,
+      cache_grants: false,
+      cache_drive_in_template: false
     }
   end
 
@@ -245,6 +247,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
     |> maybe_merge(:lazy_disks, frame["lazy_disks"], &(&1 == true))
     |> maybe_merge(:archives, frame["archives"], &(&1 == true))
     |> maybe_merge(:cpu_guarantees, frame["cpu_guarantees"], &(&1 == true))
+    |> maybe_merge(:cache_grants, frame["cache_grants"], &(&1 == true))
+    |> maybe_merge(:cache_drive_in_template, frame["cache_drive_in_template"], &(&1 == true))
     |> maybe_merge(:direct_exec_endpoint, frame["direct_exec_endpoint"], &direct_exec_endpoint/1)
   end
 

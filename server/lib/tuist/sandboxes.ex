@@ -18,6 +18,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Runners.Sites
+  alias Tuist.Runners.VolumeAffinities
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.AgentSessions
@@ -598,6 +599,10 @@ defmodule Tuist.Sandboxes do
   `prefer_nodes:` names nodes a template boot tries first when they have
   room, such as the nodes holding the session repository's checkout
   (`Capacity.place/3`).
+
+  `cache:` (`Tuist.Runners.CacheVolumes.sandbox_cache/2`) gives a new Linux
+  sandbox a copy of a CI cache volume as its cache drive, on a node that can
+  attach it (`create_call/3`); elsewhere the sandbox starts without it.
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
@@ -612,11 +617,30 @@ defmodule Tuist.Sandboxes do
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, sandbox} <- Concurrency.admit(account_id, requested, fn -> Repo.insert(changeset) end) do
       Events.record(sandbox, "created")
-      boot(sandbox, Keyword.get(opts, :from_disk_snapshot), Keyword.get(opts, :prefer_nodes, []))
+
+      boot(
+        sandbox,
+        Keyword.get(opts, :from_disk_snapshot),
+        Keyword.get(opts, :prefer_nodes, []),
+        Keyword.get(opts, :cache)
+      )
     end
   end
 
-  defp boot(%Sandbox{} = sandbox, source, prefer \\ []) do
+  @doc """
+  The connected nodes that would attach `cache` to a template create: they
+  accept cache grants, their shape snapshots carry the cache placeholder, and
+  their labels advertise the volume's master. `[]` without a cache.
+  """
+  def cache_nodes(nil), do: []
+
+  def cache_nodes(%{scope: scope}) do
+    for %{name: name, cache_grants: true, cache_drive_in_template: true} <- Nodes.connected_nodes(),
+        VolumeAffinities.holds_volume?(name, scope),
+        do: name
+  end
+
+  defp boot(%Sandbox{} = sandbox, source, prefer \\ [], cache \\ nil) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
     started_at = System.monotonic_time(:millisecond)
 
@@ -630,8 +654,12 @@ defmodule Tuist.Sandboxes do
       cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
     }
 
+    args = with_cache(args, sandbox, source, cache)
+
     case place_and_create(sandbox, args, source, prefer) do
       {:ok, node_name, data} ->
+        attached_cache = data["cache"]
+
         Logger.info("sandboxes: sandbox created",
           sandbox_id: sandbox.id,
           node: node_name,
@@ -640,6 +668,8 @@ defmodule Tuist.Sandboxes do
           disk_snapshot_id: data["disk_snapshot_id"],
           disk_snapshot_copy: data["disk_snapshot_copy"],
           from_archive: match?({:archive, _}, source),
+          cache_offered: Map.has_key?(args, :cache),
+          cache_attached: not is_nil(attached_cache),
           boot_ms: data["boot_ms"]
         )
 
@@ -658,7 +688,9 @@ defmodule Tuist.Sandboxes do
               hostname: hostname,
               template_tag: data["template_tag"],
               last_active_at: now(),
-              error_message: nil
+              error_message: nil,
+              cache_volume_id: attached_cache && attached_cache.volume_id,
+              cache_generation: attached_cache && attached_cache.base_generation
             },
             boot_event
           )
@@ -697,6 +729,13 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  # Only a new Linux sandbox takes a cache; `create_call/3` attaches it on a
+  # node that can.
+  defp with_cache(args, %Sandbox{platform: :linux}, source, cache) when not is_nil(cache) and not is_tuple(source),
+    do: Map.put(args, :cache, cache)
+
+  defp with_cache(args, _sandbox, _source, _cache), do: args
+
   # A disk snapshot clone that failed fell back to its archive or the template.
   defp boot_source({:archive, _source}, _data), do: "archive"
   defp boot_source(_source, %{"disk_snapshot_archive" => true}), do: "disk_snapshot_archive"
@@ -733,7 +772,7 @@ defmodule Tuist.Sandboxes do
   defp place_and_create(sandbox, args, {:archive, source}, _prefer) do
     with {:ok, node_name} <- place_restore(sandbox),
          {:ok, data} <-
-           Nodes.call(node_name, "create", Map.put(args, :from_archive, source), timeout: @restore_timeout) do
+           create_call(node_name, Map.put(args, :from_archive, source), timeout: @restore_timeout) do
       {:ok, node_name, data}
     end
   end
@@ -807,7 +846,7 @@ defmodule Tuist.Sandboxes do
       {:ok, node_name} ->
         clone_args = Map.put(args, :from_disk_snapshot, disk_snapshot.id)
 
-        case Nodes.call(node_name, "create", clone_args, timeout: @create_timeout) do
+        case create_call(node_name, clone_args, timeout: @create_timeout) do
           {:ok, data} ->
             DiskSnapshots.touch(disk_snapshot, node_name)
 
@@ -967,7 +1006,7 @@ defmodule Tuist.Sandboxes do
   # removes it, and succeeds for an id the node does not hold.
   defp create_template_after_failure(sandbox, args, node_name, _reason) do
     with {:ok, _data} <- Nodes.call(node_name, "delete", %{sandbox_id: sandbox.id}, []),
-         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+         {:ok, data} <- create_call(node_name, args, timeout: @create_timeout) do
       {:ok, node_name, data}
     end
   end
@@ -980,7 +1019,7 @@ defmodule Tuist.Sandboxes do
       expires_at = DateTime.add(DateTime.utc_now(), @restore_timeout, :millisecond)
       restore_args = Map.merge(args, %{from_archive: source, expires_at_unix: DateTime.to_unix(expires_at)})
 
-      case Nodes.call(node_name, "create", restore_args, timeout: @restore_timeout) do
+      case create_call(node_name, restore_args, timeout: @restore_timeout) do
         {:ok, data} ->
           DiskSnapshots.touch(disk_snapshot)
           # Every node holding it was full or failed: copy it out ahead of
@@ -2442,6 +2481,9 @@ defmodule Tuist.Sandboxes do
   defp error_message(:timeout), do: "node did not answer in time"
   defp error_message(reason), do: inspect(reason)
 
+  defp node_call(%Sandbox{platform: :linux} = sandbox, "create", args, opts),
+    do: create_call(sandbox.node_name, args, opts)
+
   defp node_call(sandbox, op, args, opts) do
     args = if sandbox.platform == :darwin, do: Map.put(args, :node_uid, sandbox.node_uid), else: args
 
@@ -2451,6 +2493,65 @@ defmodule Tuist.Sandboxes do
       # capacity denials. This also works with already-deployed host versions.
       {:error, "macOS sandbox capacity unavailable"} when sandbox.platform == :darwin -> {:error, :no_capacity}
       result -> result
+    end
+  end
+
+  # Every Linux create goes through here. A new sandbox's cache (`:cache`,
+  # from `Tuist.Runners.CacheVolumes.sandbox_cache/2`) becomes the create's
+  # `cache_grant` only on a node that accepts grants, can attach one to this
+  # kind of create, and advertises the volume's master; otherwise the sandbox
+  # is created without it. A cache is never worth failing a create for: one
+  # the node could not copy (the master went since its label was read) is
+  # retried without it. sandboxd resolves the grant before it creates
+  # anything, so the retry reuses the id. The answer names the attached cache
+  # under "cache".
+  defp create_call(node_name, args, opts) do
+    {cache, args} = Map.pop(args, :cache)
+
+    case cache_grant(node_name, args, cache) do
+      nil ->
+        Nodes.call(node_name, "create", args, opts)
+
+      grant ->
+        case Nodes.call(node_name, "create", Map.put(args, :cache_grant, grant), opts) do
+          {:ok, data} ->
+            {:ok, Map.put(data, "cache", cache)}
+
+          {:error, reason} = error ->
+            if is_binary(reason) and String.contains?(reason, "cache image") do
+              Logger.warning("sandboxes: cache not attached, creating without it",
+                sandbox_id: args.sandbox_id,
+                node: node_name,
+                reason: reason
+              )
+
+              Nodes.call(node_name, "create", args, opts)
+            else
+              error
+            end
+        end
+    end
+  end
+
+  # A cache drive cannot join a restored memory snapshot, so a template
+  # create takes one only where shape snapshots carry its placeholder; a
+  # disk snapshot clone cold boots and always can. Archives never take one.
+  defp cache_grant(_node_name, _args, nil), do: nil
+  defp cache_grant(_node_name, %{from_archive: _source}, _cache), do: nil
+
+  defp cache_grant(node_name, args, cache) do
+    with {:ok, _pid, %{cache_grants: true} = node} <- Nodes.lookup(node_name),
+         true <- Map.has_key?(args, :from_disk_snapshot) or Map.get(node, :cache_drive_in_template) == true,
+         true <- VolumeAffinities.holds_volume?(node_name, cache.scope) do
+      %{
+        id: args.sandbox_id,
+        scope: cache.scope,
+        base_generation: cache.base_generation,
+        image_digest: cache.image_digest,
+        content_digest: cache.content_digest
+      }
+    else
+      _ -> nil
     end
   end
 

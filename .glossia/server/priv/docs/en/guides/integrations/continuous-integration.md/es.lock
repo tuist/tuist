@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d2b40a48555fe22099355fb951c4939a983684c1c482e3d8dcbfd68d006d46d8",
+  "hash": "6055d7bd346ad89572adb3aa02d51c8cbf62d6d660543bab5d876648b6f6c9ff",
   "hash_tree": {
     "root": {
       "children": [
@@ -121,7 +121,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -134,13 +134,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -169,11 +163,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -271,21 +265,21 @@
             }
           ],
           "details": {},
-          "hash": "3041a41b259e86c3dd55735c182a6109a9440f771bee6b4563b9e26688754902",
+          "hash": "871023b9b3902114021f3d6b33940c6d28f2b467cc000d8771e55b8d5d74a518",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "d2b40a48555fe22099355fb951c4939a983684c1c482e3d8dcbfd68d006d46d8",
+      "hash": "6055d7bd346ad89572adb3aa02d51c8cbf62d6d660543bab5d876648b6f6c9ff",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/continuous-integration.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "987280fc8fc9c25dad96b04c90a885ee801c96bc868841d86e4bcbeb63f48f22",
+  "output_hash": "b9fcfd9f2cff532cc5025bd38f3411a8f0d9e89ef783611318337b890de9eb43",
   "output_path": "server/priv/docs/es/guides/integrations/continuous-integration.md",
   "protection_state": "recorded",
   "provider": "",
@@ -308,8 +302,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b300ad91dadb18860d63e5839846550fb69359a0",
+  "source_commit_sha": "033c5a7122b8c8980275218dccecac3583377dd8",
   "source_path": "server/priv/docs/en/guides/integrations/continuous-integration.md",
-  "translated_at": "2026-11-19T08:43:08.620033Z",
-  "translation_session_id": "01a1f2ef-6f58-74ee-a3af-63aaf049c03e"
+  "translated_at": "2026-11-19T16:59:38.037909Z",
+  "translation_session_id": "01a1f4be-3014-7c22-85af-c4230fde5483"
 }

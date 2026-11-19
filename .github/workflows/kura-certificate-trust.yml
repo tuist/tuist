@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - kura/src/**
+      - kura/crates/**
       - kura/test/certificate-trust/**
       - kura/Cargo.toml
       - kura/Cargo.lock
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - kura/src/**
+      - kura/crates/**
       - kura/test/certificate-trust/**
       - kura/Cargo.toml
       - kura/Cargo.lock
@@ -54,18 +56,18 @@ jobs:
         run: mise exec -- node --test test/certificate-trust/wiring.test.mjs
       - name: Execute native stores and actual TLS fixtures
         run: |
-          mise exec -- bazel test //:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all
+          mise exec -- bazel test //crates/kura-core:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all
           mkdir -p "$RUNNER_TEMP/kura-native-receipt"
-          cp bazel-testlogs/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/default.xml"
-          cp bazel-testlogs/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/default.log"
+          cp bazel-testlogs/crates/kura-core/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/default.xml"
+          cp bazel-testlogs/crates/kura-core/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/default.log"
       - name: Execute explicit public and identity-format qualification
         if: inputs.public_controls
         run: |
-          mise exec -- bazel test //:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all \
+          mise exec -- bazel test //crates/kura-core:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all \
             --test_arg=--ignored --test_arg=public_controls_fail_for_certificates --test_arg=valid_pkcs1_and_sec1_identities \
             --test_env=TUIST_TRUST_LIVE=1 --test_env=KURA_TRUST_OPENSSL=/usr/bin/openssl
-          cp bazel-testlogs/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/opt-in.xml"
-          cp bazel-testlogs/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/opt-in.log"
+          cp bazel-testlogs/crates/kura-core/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/opt-in.xml"
+          cp bazel-testlogs/crates/kura-core/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/opt-in.log"
       - name: Record source and platform
         if: always()
         run: |

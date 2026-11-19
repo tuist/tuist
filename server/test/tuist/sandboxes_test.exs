@@ -8,6 +8,7 @@ defmodule Tuist.SandboxesTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
+  alias Tuist.Runners.VolumeAffinities
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Archives
@@ -1235,6 +1236,90 @@ defmodule Tuist.SandboxesTest do
       reject(&Nodes.call/4)
       assert :ok = perform_job(PauseSandboxWorker, args)
       assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
+  end
+
+  describe "create_sandbox/3 with a cache" do
+    setup do
+      cache = %{
+        volume_id: Ecto.UUID.generate(),
+        scope: String.duplicate("a", 64),
+        generation: 3,
+        base_generation: 7,
+        image_digest: String.duplicate("b", 40),
+        content_digest: String.duplicate("c", 64)
+      }
+
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+      %{account: account_fixture(), cache: cache}
+    end
+
+    defp node_info(info), do: stub(Nodes, :lookup, fn "node-a" -> {:ok, self(), info} end)
+
+    test "grants it on a node that accepts grants, attaches it to template creates and holds the master", %{
+      account: account,
+      cache: cache
+    } do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      expect(VolumeAffinities, :holds_volume?, fn "node-a", scope -> scope == cache.scope end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        refute Map.has_key?(args, :cache)
+
+        assert args.cache_grant == %{
+                 id: args.sandbox_id,
+                 scope: cache.scope,
+                 base_generation: 7,
+                 image_digest: cache.image_digest,
+                 content_digest: cache.content_digest
+               }
+
+        {:ok, %{"boot_ms" => 170}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.cache_volume_id == cache.volume_id
+      assert sandbox.cache_generation == 7
+    end
+
+    test "creates without it where the node cannot attach it", %{account: account, cache: cache} do
+      # The node's shape snapshots carry no placeholder, so a template create
+      # would have to cold boot.
+      node_info(%{cache_grants: true, cache_drive_in_template: false})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        refute Map.has_key?(args, :cache_grant)
+        refute Map.has_key?(args, :cache)
+        {:ok, %{"boot_ms" => 170}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert is_nil(sandbox.cache_volume_id)
+      assert is_nil(sandbox.cache_generation)
+    end
+
+    test "retries without it when the node no longer holds the master", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+
+      expect(Nodes, :call, 2, fn "node-a", "create", args, _opts ->
+        if Map.has_key?(args, :cache_grant),
+          do: {:error, "invalid cache image: this node holds no copy of the granted cache"},
+          else: {:ok, %{"boot_ms" => 1200}}
+      end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+      assert sandbox.state == :running
+      assert is_nil(sandbox.cache_volume_id)
+    end
+
+    test "does not retry other create failures without it", %{account: account, cache: cache} do
+      node_info(%{cache_grants: true, cache_drive_in_template: true})
+      stub(VolumeAffinities, :holds_volume?, fn _node, _scope -> true end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:error, "jailer exited with status 1"} end)
+
+      assert {:error, "jailer exited with status 1"} = Sandboxes.create_sandbox(account, %{}, cache: cache)
     end
   end
 end

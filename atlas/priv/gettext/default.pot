@@ -164,7 +164,6 @@ msgstr ""
 #: lib/atlas_web/live/admin/roles_live.ex:401
 #: lib/atlas_web/live/admin/users_live.ex:251
 #: lib/atlas_web/live/admin/users_live.ex:322
-#: lib/atlas_web/live/approvals_live.ex:329
 #: lib/atlas_web/live/automation_live.html.heex:177
 #: lib/atlas_web/live/automation_live.html.heex:249
 #: lib/atlas_web/live/data_center_show_live.ex:170
@@ -218,7 +217,6 @@ msgstr ""
 #: lib/atlas_web/live/account_live.ex:2287
 #: lib/atlas_web/live/account_live.ex:2324
 #: lib/atlas_web/live/account_live.ex:2787
-#: lib/atlas_web/live/approvals_live.ex:384
 #: lib/atlas_web/live/data_center_show_live.ex:116
 #: lib/atlas_web/live/hardware_show_live.ex:124
 #: lib/atlas_web/live/mcp_live.ex:466
@@ -2126,15 +2124,14 @@ msgstr ""
 
 #: lib/atlas_web/components/time_off_components.ex:294
 #: lib/atlas_web/live/account_live.ex:3546
-#: lib/atlas_web/live/approvals_live.ex:439
+#: lib/atlas_web/live/approvals_live.ex:168
 #, elixir-autogen, elixir-format
 msgid "Approve"
 msgstr ""
 
 #: lib/atlas_web/components/time_off_components.ex:304
 #: lib/atlas_web/live/account_live.ex:3536
-#: lib/atlas_web/live/approvals_live.ex:374
-#: lib/atlas_web/live/approvals_live.ex:430
+#: lib/atlas_web/live/approvals_live.ex:159
 #: lib/atlas_web/live/automation_live.html.heex:962
 #, elixir-autogen, elixir-format
 msgid "Reject"
@@ -3839,8 +3836,6 @@ msgstr ""
 msgid "Category spend"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:304
-#: lib/atlas_web/live/approvals_live.ex:349
 #: lib/atlas_web/live/email_mailbox_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Cc"
@@ -7044,9 +7039,6 @@ msgstr ""
 msgid "Memory · %{kind}"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:319
-#: lib/atlas_web/live/approvals_live.ex:320
-#: lib/atlas_web/live/approvals_live.ex:365
 #: lib/atlas_web/live/email_mailbox_live.ex:393
 #: lib/atlas_web/live/errors_live/event.ex:132
 #: lib/atlas_web/live/errors_live/show.ex:395
@@ -8503,7 +8495,7 @@ msgstr ""
 #: lib/atlas_web/components/agent_session_components.ex:583
 #: lib/atlas_web/live/admin/memory_live.ex:661
 #: lib/atlas_web/live/admin/memory_live.ex:874
-#: lib/atlas_web/live/approvals_live.ex:221
+#: lib/atlas_web/live/approvals_live.ex:120
 #: lib/atlas_web/live/automation_live.ex:779
 #: lib/atlas_web/live/automation_live/table.ex:282
 #: lib/atlas_web/live/documents_live.ex:391
@@ -10498,8 +10490,6 @@ msgstr ""
 msgid "Subagent"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:312
-#: lib/atlas_web/live/approvals_live.ex:357
 #: lib/atlas_web/live/gtm_email_live.ex:1146
 #: lib/atlas_web/live/outreach_contacts_live.ex:966
 #, elixir-autogen, elixir-format
@@ -10986,8 +10976,6 @@ msgstr ""
 msgid "Timings appear when a worker claims a step."
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:295
-#: lib/atlas_web/live/approvals_live.ex:345
 #: lib/atlas_web/live/email_mailbox_live.ex:233
 #: lib/atlas_web/live/email_mailbox_live.ex:324
 #, elixir-autogen, elixir-format
@@ -12514,7 +12502,7 @@ msgstr ""
 msgid "Alert rule saved."
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:184
+#: lib/atlas_web/live/approvals_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "All approvals"
 msgstr ""
@@ -12539,14 +12527,9 @@ msgstr ""
 msgid "An administrator needs to configure this connection."
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:418
+#: lib/atlas_web/live/approvals_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "An agent asked to run this call as you. Approving lets the identical call run once. Requested %{requested}, expires %{expires}."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:246
-#, elixir-autogen, elixir-format
-msgid "An agent asked to send this draft from your mailbox. Approving lets this exact draft be sent once. Requested %{requested}, expires %{expires}."
 msgstr ""
 
 #: lib/atlas_web/controllers/oauth/authorize_html/consent.html.heex:7
@@ -12559,29 +12542,9 @@ msgstr ""
 msgid "Application (self-reported name)"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:393
-#, elixir-autogen, elixir-format
-msgid "Approve send"
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:123
+#: lib/atlas_web/live/approvals_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Approved. The agent can now repeat the call once."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:96
-#, elixir-autogen, elixir-format
-msgid "Approved. The agent can now send this draft once."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:279
-#, elixir-autogen, elixir-format
-msgid "Atlas could not read this draft from Gmail."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:361
-#, elixir-autogen, elixir-format
-msgid "Attachments"
 msgstr ""
 
 #: lib/atlas_web/live/project_live/alerts.ex:218
@@ -12597,11 +12560,6 @@ msgstr ""
 #: lib/atlas_web/controllers/oauth/authorize_html/consent.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Authorize access to Atlas?"
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:353
-#, elixir-autogen, elixir-format
-msgid "Bcc"
 msgstr ""
 
 #: lib/atlas_web/live/coding_settings_live.ex:106
@@ -12657,11 +12615,6 @@ msgstr ""
 msgid "Could not disconnect your account. Please try again."
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:81
-#, elixir-autogen, elixir-format
-msgid "Could not save this draft to Gmail. Reload and try again."
-msgstr ""
-
 #: lib/atlas_web/live/project_live/alerts.ex:158
 #, elixir-autogen, elixir-format
 msgid "Create a disabled rule, then enable it when you are ready to send alerts."
@@ -12704,19 +12657,9 @@ msgstr ""
 msgid "Drafts access granted"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:183
-#, elixir-autogen, elixir-format
-msgid "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare drafts (create_my_gmail_draft, update_my_gmail_draft); a draft is only sent after you approve it in My approvals."
-msgstr ""
-
 #: lib/atlas_web/live/project_live/alerts.ex:176
 #, elixir-autogen, elixir-format
 msgid "Edit alert rule"
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:296
-#, elixir-autogen, elixir-format
-msgid "Email addresses separated by commas."
 msgstr ""
 
 #: lib/atlas_web/live/project_live/alerts.ex:106
@@ -12790,8 +12733,8 @@ msgid "Minimum level"
 msgstr ""
 
 #: lib/atlas_web/components/layouts/dashboard.html.heex:44
-#: lib/atlas_web/live/approvals_live.ex:26
-#: lib/atlas_web/live/approvals_live.ex:173
+#: lib/atlas_web/live/approvals_live.ex:20
+#: lib/atlas_web/live/approvals_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "My approvals"
 msgstr ""
@@ -12827,7 +12770,7 @@ msgstr ""
 msgid "Not granted"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:227
+#: lib/atlas_web/live/approvals_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Nothing is waiting for your approval."
 msgstr ""
@@ -12872,14 +12815,9 @@ msgstr ""
 msgid "Reporter"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:126
+#: lib/atlas_web/live/approvals_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Request rejected."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:175
-#, elixir-autogen, elixir-format
-msgid "Requests from agents to act as you, such as sending an email from your mailbox or elevating a thread's cluster access. Only you can see and decide them, and each approval covers one action."
 msgstr ""
 
 #: lib/atlas_web/live/project_live/alerts.ex:212
@@ -12891,11 +12829,6 @@ msgstr ""
 #: lib/atlas_web/live/project_live/alerts.ex:152
 #, elixir-autogen, elixir-format
 msgid "Rule"
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:337
-#, elixir-autogen, elixir-format
-msgid "Save and approve send"
 msgstr ""
 
 #: lib/atlas_web/live/coding_settings_live.ex:210
@@ -12913,11 +12846,6 @@ msgstr ""
 msgid "Saved installation · unavailable"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:71
-#, elixir-autogen, elixir-format
-msgid "Saved to Gmail and approved. The agent can now send this draft once."
-msgstr ""
-
 #: lib/atlas_web/live/coding_settings_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Saving…"
@@ -12926,16 +12854,6 @@ msgstr ""
 #: lib/atlas_web/live/connections_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Search the messages, channels and DMs you can see in Slack from Atlas tools (search_my_slack). This is separate from the Atlas bot."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:243
-#, elixir-autogen, elixir-format
-msgid "Send Gmail draft?"
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:99
-#, elixir-autogen, elixir-format
-msgid "Send request rejected."
 msgstr ""
 
 #: lib/atlas_web/controllers/oauth/authorize_html/consent.html.heex:22
@@ -12953,32 +12871,12 @@ msgstr ""
 msgid "Slack channel ID"
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:263
-#, elixir-autogen, elixir-format
-msgid "The draft changed after this request. Reject it, or edit it here to approve what you see."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:267
-#, elixir-autogen, elixir-format
-msgid "The draft changed after this request. Reject it; the agent has to ask again."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:102
-#, elixir-autogen, elixir-format
-msgid "The draft changed since this request, so it was not approved."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:105
-#, elixir-autogen, elixir-format
-msgid "This request could not be approved. Reload and try again."
-msgstr ""
-
-#: lib/atlas_web/live/approvals_live.ex:129
+#: lib/atlas_web/live/approvals_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "This request is no longer pending."
 msgstr ""
 
-#: lib/atlas_web/live/approvals_live.ex:213
+#: lib/atlas_web/live/approvals_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "This request is no longer waiting for your approval. It was decided, used or has expired."
 msgstr ""
@@ -13006,4 +12904,14 @@ msgstr ""
 #: lib/atlas_web/live/project_live/alerts.ex:245
 #, elixir-autogen, elixir-format
 msgid "Window (minutes)"
+msgstr ""
+
+#: lib/atlas_web/live/connections_live.ex:183
+#, elixir-autogen, elixir-format
+msgid "Drive files and read-only calendar access. Allow Gmail access to search and read your mail from Atlas tools (search_my_gmail, get_my_gmail_message). Allow Gmail drafts to let them prepare and send drafts (create_my_gmail_draft, update_my_gmail_draft, send_my_gmail_draft). The calling client handles confirmation; Atlas sends immediately."
+msgstr ""
+
+#: lib/atlas_web/live/approvals_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Requests from agents to act as you, such as elevating a thread's cluster access. Only you can see and decide them, and each approval covers one action."
 msgstr ""
