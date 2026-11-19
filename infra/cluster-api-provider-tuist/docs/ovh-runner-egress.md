@@ -236,7 +236,8 @@ Primary-IP rollback inventory (removed from the public guide with the cutover):
 `capt_runner_egress_info{node,mac,vrack,cidr}` joins `node_network_info` to private
 NIC counters without relying on interface names. The Grafana definitions in
 `infra/helm/k8s-monitoring/ovh-runner-egress-alert-rules.json` alert on sustained
-transmit or receive above 80% of the 5 Gbps block limit for ten minutes. Provision
+transmit or receive above 80% of the 5 Gbps block limit for ten minutes, as one
+copy per Pulse metrics source (`-prod`, `-stg`, `-can`). Provision
 them separately into `Runner networking` with a one-minute evaluation interval;
 preserve notification routing and verify `affected_service=Runners` reaches its
 receiver. No-data is normal while disabled. Check every configured host has data
