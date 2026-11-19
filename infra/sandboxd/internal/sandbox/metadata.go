@@ -41,6 +41,11 @@ type Metadata struct {
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 	Error             string    `json:"error,omitempty"`
+
+	// CacheImage names the cache image cloned into the jail at create. Its
+	// clone is never archived, so a memory image that has it mounted must
+	// not travel either. Empty for no cache or the template's placeholder.
+	CacheImage string `json:"cache_image,omitempty"`
 }
 
 func (m Metadata) Shape() template.Shape {

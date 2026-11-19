@@ -210,8 +210,12 @@ func main() {
 		logger.Error("creating the disk snapshot directory", "error", err)
 		os.Exit(1)
 	}
+	// Experimental: only meaningful with CACHE_IMAGE_DIR. Changing it makes
+	// startup remove shape snapshots built the other way, which the next
+	// create rebuilds.
+	cacheDriveInTemplate := os.Getenv("CACHE_IMAGE_DIR") != "" && os.Getenv("CACHE_DRIVE_IN_TEMPLATE") == "true"
 	store := &template.Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB); err != nil {
+	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB, cacheDriveInTemplate); err != nil {
 		logger.Error("cleaning partial template builds", "error", err)
 		os.Exit(1)
 	}
@@ -247,9 +251,7 @@ func main() {
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, FirecrackerVersion: fcVersion, WorkspaceGB: templateWorkspaceGB,
 		BootTimeout: templateBootTimeout, Log: logger, Events: events,
-		// Experimental: only meaningful with CACHE_IMAGE_DIR. Shape snapshots
-		// built before it was set keep cold-booting cache creates.
-		CacheDrive: os.Getenv("CACHE_IMAGE_DIR") != "" && os.Getenv("CACHE_DRIVE_IN_TEMPLATE") == "true",
+		CacheDrive: cacheDriveInTemplate,
 		Observe: func(shape template.Shape, elapsed time.Duration, err error) {
 			if err == nil {
 				metrics.TemplateBuild.WithLabelValues(shape.String()).Observe(elapsed.Seconds())
