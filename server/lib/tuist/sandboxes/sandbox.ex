@@ -93,6 +93,10 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :archive_memory, :map
     field :archive_attempted_at, :utc_datetime
     field :archived_at, :utc_datetime
+    # The runner cache volume and saved generation the sandbox's cache drive
+    # was copied from at creation (`Tuist.Runners.CacheVolumes.sandbox_cache/2`).
+    field :cache_volume_id, Ecto.UUID
+    field :cache_generation, :integer
 
     belongs_to :account, Account
     belongs_to :provider_environment, Tuist.Sandboxes.ProviderEnvironment, type: :binary_id
@@ -243,7 +247,9 @@ defmodule Tuist.Sandboxes.Sandbox do
       :archive_sha256,
       :archive_memory,
       :archive_attempted_at,
-      :archived_at
+      :archived_at,
+      :cache_volume_id,
+      :cache_generation
     ])
     |> validate_required([:state])
   end

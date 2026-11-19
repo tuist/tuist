@@ -450,9 +450,13 @@ node that holds the head. Concurrent creates for one head share one copy
 its own reflink of it exactly as with `cache_image`. Copies a sandbox is
 attaching are pinned; eviction and expiry skip them and never touch images
 without the `rc-` prefix. The copy is one way: nothing the sandbox writes
-reaches the runner-cache volume. The agent must run a version with the route
-before a daemon gets grants; an older agent's 404 fails the create as an
-error rather than `cold`.
+reaches the runner-cache volume. Hello's `cache_grants` says the daemon takes
+grants, and `cache_drive_in_template` that its template creates can attach
+one; the server sends a grant only to such nodes (a disk-snapshot create cold
+boots and needs only `cache_grants`) and retries a create without its grant
+when the daemon answers an `invalid cache image` error. Every grant error
+names the cache image (`copying the granted cache image: ...` when the agent
+has no route), so the server's retry covers them all.
 
 ## Node to server: WebSocket
 

@@ -464,15 +464,17 @@ func main() {
 				sandboxes := manager.List()
 				disk := diskReport()
 				return protocol.Hello{
-					ExecutionDeadlines: true,
-					ExecutionSlots:     executionSlots,
-					DirectExecEndpoint: directExecEndpoint,
-					SnapshotCompat:     snapshotCompat,
-					LazyDisks:          true,
-					CPUGuarantees:      vmCgroups != nil,
-					DefaultTemplate:    templateName,
-					DefaultTemplateTag: defaultTemplate.Tag,
-					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,
+					ExecutionDeadlines:   true,
+					ExecutionSlots:       executionSlots,
+					DirectExecEndpoint:   directExecEndpoint,
+					SnapshotCompat:       snapshotCompat,
+					LazyDisks:            true,
+					CPUGuarantees:        vmCgroups != nil,
+					CacheGrants:          cacheImages != nil,
+					CacheDriveInTemplate: cacheDriveInTemplate,
+					DefaultTemplate:      templateName,
+					DefaultTemplateTag:   defaultTemplate.Tag,
+					DaemonVersion:        version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,
 					Templates: manager.Templates(), Sandboxes: withDisk(sandboxes, disk), DiskSnapshots: manager.DiskSnapshots(),
 				}
 			},

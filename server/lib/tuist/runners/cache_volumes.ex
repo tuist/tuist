@@ -196,12 +196,9 @@ defmodule Tuist.Runners.CacheVolumes do
       when sandbox_platform in [:darwin, :linux] and is_binary(node) and is_binary(use_key) do
     {platform, arch} = if sandbox_platform == :darwin, do: {:macos, "arm64"}, else: {:linux, "amd64"}
 
-    with true <- is_binary(repository) and Regex.match?(~r/\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/, repository),
-         true <- Environment.runner_cache_volumes_enabled?(platform),
-         {:ok, installation} <- VCS.get_github_app_installation_for_account(account_id),
-         true <- VCS.installation_api_url(installation) == "https://api.github.com",
-         {:ok, %{"id" => repository_id, "full_name" => full_name, "default_branch" => default}}
-         when is_integer(repository_id) and is_binary(default) <- GitHubClient.get_repository(installation, repository),
+    with true <- Environment.runner_cache_volumes_enabled?(platform),
+         {:ok, installation, %{"id" => repository_id, "full_name" => full_name, "default_branch" => default}} <-
+           github_repository(account_id, repository),
          {:ok, %{"commit" => %{"sha" => commit}}} when is_binary(commit) <-
            GitHubClient.get_branch(installation, full_name, default),
          session = %{account_id: account_id, workflow_job_id: nil, workflow_run_id: nil, repository: full_name},
@@ -238,6 +235,76 @@ defmodule Tuist.Runners.CacheVolumes do
     else
       _ -> {:error, :unavailable}
     end
+  end
+
+  # A github.com repository (`owner/name`) the account's GitHub installation
+  # reads, as GitHub names it now, with the installation.
+  defp github_repository(account_id, repository) do
+    with true <- is_binary(repository) and Regex.match?(~r/\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/, repository),
+         {:ok, installation} <- VCS.get_github_app_installation_for_account(account_id),
+         true <- VCS.installation_api_url(installation) == "https://api.github.com",
+         {:ok, %{"id" => id, "full_name" => full_name, "default_branch" => default} = github_repository}
+         when is_integer(id) and is_binary(full_name) and is_binary(default) <-
+           GitHubClient.get_repository(installation, repository) do
+      {:ok, installation, github_repository}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  @doc """
+  The cache a new Linux sandbox of a session on the GitHub repository
+  `repository` (`owner/name`) starts with, or nil: the saved head of the
+  repository's Linux custom cache volume its CI jobs used most recently, the
+  same head the repository's next CI job would mount. The account's github.com
+  installation must read the repository, as for the session's checkout
+  (`allocate_sandbox_checkout/3`). The checkout and Docker volumes are never
+  chosen: the session gets its checkout separately, and a Docker data root is
+  only ever mounted by a privileged guest's own daemon.
+
+  The sandbox receives a copy of the head (sandboxd's `cache_grant`), so
+  nothing is allocated, published or recorded on the volume: its last use stays
+  a CI signal. Returns `%{volume_id, scope, generation, base_generation,
+  image_digest, content_digest}`.
+  """
+  def sandbox_cache(account_id, repository) when is_integer(account_id) do
+    with true <- Environment.runner_cache_volumes_enabled?(:linux),
+         {:ok, _installation, %{"id" => repository_id}} <- github_repository(account_id, repository),
+         %Volume{} = volume <- sandbox_cache_volume(account_id, repository_id),
+         %{generation: generation} = head when generation > 0 <-
+           VolumeHeads.get_head(account_id, storage_name(volume)) do
+      %{
+        volume_id: volume.id,
+        scope: scope(volume),
+        generation: volume.generation,
+        base_generation: generation,
+        image_digest: head.tree_digest,
+        content_digest: head.content_digest
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  def sandbox_cache(_account_id, _repository), do: nil
+
+  # A volume unused for the retention period is cleared by the next sweep, so
+  # it is never offered.
+  defp sandbox_cache_volume(account_id, repository_id) do
+    active_since = DateTime.add(DateTime.utc_now(), -@retention_seconds)
+
+    Repo.one(
+      from(v in Volume,
+        where:
+          v.account_id == ^account_id and v.provider == "github" and v.provider_instance == "github.com" and
+            v.scope_id == ^to_string(repository_id) and v.platform == "linux" and v.architecture == "amd64",
+        where:
+          v.key not in @reserved_keys and is_nil(v.deleted_at) and not is_nil(v.head_id) and
+            v.last_used_at > ^active_since,
+        order_by: [desc: v.last_used_at, asc: v.id],
+        limit: 1
+      )
+    )
   end
 
   # The volume's identity includes the user that owns the tree, so a session

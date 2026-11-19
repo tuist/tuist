@@ -218,6 +218,13 @@ type Hello struct {
 	// Archives: a macOS host archives its evicted sandboxes' disks (OpArchive)
 	// and creates sandboxes from such archives. Linux daemons always do.
 	Archives bool `json:"archives,omitempty"`
+	// CacheGrants: creates take CreateArgs.CacheGrant (CACHE_IMAGES_GIB is
+	// set). Disk-snapshot creates always cold boot and can take one; a
+	// template create takes one only with CacheDriveInTemplate.
+	CacheGrants bool `json:"cache_grants,omitempty"`
+	// CacheDriveInTemplate: shape snapshots carry the cache placeholder, so
+	// a template create can attach a cache and still restore from memory.
+	CacheDriveInTemplate bool `json:"cache_drive_in_template,omitempty"`
 }
 
 type Result struct {
