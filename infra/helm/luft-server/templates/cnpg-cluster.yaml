@@ -1,0 +1,32 @@
+{{- /*
+One table (sessions). Two instances so node drains can switch over the primary;
+see infra/helm/tuist-ops/values.yaml for why one instance deadlocks drains.
+CNPG emits the `<cluster>-app` Secret the Deployment reads DATABASE_URL from.
+*/}}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "luft-server.pgClusterName" . }}
+  labels:
+    {{- include "luft-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  instances: {{ .Values.postgresql.instances }}
+  imageName: {{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.database | quote }}
+      owner: {{ .Values.postgresql.owner | quote }}
+      encoding: UTF8
+  storage:
+    size: {{ .Values.postgresql.storageSize | quote }}
+    {{- with .Values.postgresql.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
+  resources:
+    {{- toYaml .Values.postgresql.resources | nindent 4 }}
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required

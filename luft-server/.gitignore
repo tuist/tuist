@@ -1,0 +1,9 @@
+/_build/
+/cover/
+/deps/
+/doc/
+erl_crash.dump
+*.ez
+
+# The web app build, copied in by the Dockerfile.
+/priv/static/
