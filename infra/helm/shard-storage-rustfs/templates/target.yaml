@@ -31,6 +31,16 @@
 {{- $_ := set $config "actions_cache_bytes" (mul (int64 $.Values.actionsCache.maxGB) 1000000000) }}
 {{- end }}
 {{- end }}
+{{- $targets := dict .Values.target.id $config }}
+{{- range .Values.target.aliases }}
+{{- if not $.Values.privateNetwork.enabled }}
+{{- fail "target.aliases needs privateNetwork.enabled" }}
+{{- end }}
+{{- /* A retired store's ID, whose objects were copied here: rows that name it
+  resolve to the same buckets in-cluster, and it never takes placements. */}}
+{{- $alias := merge (dict "access" "private" "endpoint" $config.private_endpoint "private_network_ready" false) (omit $config "access" "endpoint" "private_endpoint" "private_network_ready") }}
+{{- $_ := set $targets . $alias }}
+{{- end }}
 # Publishes this store to the server as Secret <release>-targets (key
 # targets.json) in serverNamespace, copied from the service Secret through a
 # SecretStore that may only get that one Secret. The ID is immutable.
@@ -98,7 +108,7 @@ spec:
     template:
       engineVersion: v2
       data:
-        targets.json: {{ dict .Values.target.id $config | toJson | quote }}
+        targets.json: {{ $targets | toJson | quote }}
   data:
     - secretKey: access_key_id
       remoteRef:

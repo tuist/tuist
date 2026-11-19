@@ -175,10 +175,12 @@ those operations to Tigris.
 
 ## Initial single-node deployment
 
-Use `values-staging.yaml`, `values-canary.yaml`, or `values-production.yaml` on a
-fresh store. All select one replica and three-day archive expiration. Staging
-and canary default to 200 GiB for functional validation; production reserves
-3 TiB. Keep usage below about 3 TB decimal to leave room within the quota. There
+Use `values-staging.yaml` or `values-canary.yaml` on a fresh store. Both select
+one replica and three-day archive expiration, with 200 GiB for functional
+validation. Production retired its Garage store on 2026-11-19: its buckets were
+copied into RustFS, which publishes `gra-production-v1` as an alias
+(`infra/helm/shard-storage-rustfs`). Keep usage below about 3 TB decimal on a
+3 TiB quota to leave room within it. There
 is no replication multiplier: the usable dataset is stored once. On 2026-10-28,
 retained Linux shard archives totalled 215.6 GiB and the largest rolling 72-hour
 window was 55.7 GiB. Compare retained bytes and daily upload volume with the

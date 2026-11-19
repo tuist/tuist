@@ -28,6 +28,11 @@ target:
   # sandbox archives) place new objects here over privateNetwork. Existing
   # objects stay readable there either way.
   privateNetworkReady: false
+  # IDs of retired in-cluster stores whose buckets were copied into this one.
+  # Each is published as a private alias of this store that never takes
+  # placements, so shard plans, Actions cache entries and sandbox archives
+  # recorded under it keep resolving. Needs privateNetwork.
+  aliases: []
 # In-cluster S3 (<release>-s3:9000) for callers on the private network, which
 # reach every bucket the service user may use, unlike the public gateway.
 # sandboxd must keep its guests off port 9000 (DAEMON_ONLY_TCP_PORTS), since
