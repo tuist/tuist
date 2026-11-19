@@ -1604,7 +1604,9 @@ without the region split.
 - Threshold: `< 1` on `A`, so the alert value is the number of largest-plan
   instances admission can still take
 - Pending period: 15 minutes
-- Severity: critical
+- Severity: warning (a planning signal: admission still takes smaller
+  instances; the critical case is real refusals, see **Kura admission refusing
+  instances**)
 - Live: rule `cfyi8cxo4t4hsc`, titled `Kura - region admission cannot take a
   largest-plan instance`
 - Production only (the `cluster` matchers). Folder `Alerts`, group `Cache`,
@@ -1642,6 +1644,11 @@ us-west and sa-west 1, and ap-southeast 0 (523 GiB), which fired on the
 change. Change 543 with the `ClaimSizing` ceiling or the thin overhead in
 `Tuist.Kura.Capacity.thin_reservation_bytes/1`; change 32 with
 `@enterprise_storage_claim` in `Tuist.Kura.Regions`.
+
+It was critical for its first hour at the new unit and fired for ap-southeast,
+whose largest tenant holds a 100Gi claim and which still had room for two
+more of those. It is a warning since: it says when to plan a node, not that
+admission refuses anything.
 
 The admission check, as opposed to the scheduler check in **Kura region cannot
 place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
