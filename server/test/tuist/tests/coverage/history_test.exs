@@ -1,6 +1,8 @@
 defmodule Tuist.Tests.Coverage.HistoryTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  import Ecto.Query
+
   alias Tuist.GitHistory
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.Commits
@@ -729,6 +731,45 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       run(project, account, %{git_commit_sha: "e", ran_at: ~N[2026-09-02 10:00:00]}, [1, 0])
       assert History.branches(project) == ["main", "develop", "release"]
       assert History.branches(project, limit: 1) == ["main", "develop"]
+    end
+  end
+
+  describe "recent_commits_page/2" do
+    test "pages the project's listed commits on every branch and pull request, the most recently run first, both ways",
+         %{project: project} do
+      publish(
+        project,
+        [
+          ~U[2026-09-01 10:00:00.000000Z],
+          ~U[2026-09-02 10:00:00.000000Z],
+          ~U[2026-09-03 10:00:00.000000Z],
+          ~U[2026-09-04 10:00:00.000000Z],
+          ~U[2026-09-05 10:00:00.000000Z]
+        ],
+        ["c3"]
+      )
+
+      # c0 measured nothing, so no list shows it; c2 ran on a pull request.
+      Repo.update_all(from(c in CoverageCommit, where: c.git_commit_sha == "c0"), set: [executable_lines: 0])
+
+      Repo.update_all(from(c in CoverageCommit, where: c.git_commit_sha == "c2"),
+        set: [git_branch: "feature", pull_request_number: 7]
+      )
+
+      other = ProjectsFixtures.project_fixture(account_id: project.account_id)
+      publish(other, [~U[2026-09-06 10:00:00.000000Z]])
+
+      first = History.recent_commits_page(project, page_size: 2)
+      assert Enum.map(first.commits, &{&1.git_commit_sha, &1.complete}) == [{"c4", true}, {"c3", false}]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+
+      second = History.recent_commits_page(project, page_size: 2, after: first.end_cursor)
+      assert Enum.map(second.commits, &{&1.git_commit_sha, &1.pull_request_number}) == [{"c2", 7}, {"c1", 0}]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      back = History.recent_commits_page(project, page_size: 2, before: second.start_cursor)
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c4", "c3"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
     end
   end
 end

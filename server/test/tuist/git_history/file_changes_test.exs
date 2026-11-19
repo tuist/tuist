@@ -1,5 +1,6 @@
 defmodule Tuist.GitHistory.FileChangesTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -403,6 +404,47 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert changes(repository, "b") == %{}
     assert %{changes_ref_id: nil} = listing(repository, "b")
     assert files(repository, "a") == with_mode(a)
+  end
+
+  # A server whose `compatibility` is older than 25.12 (production runs 24.12)
+  # gives each subquery its own snapshot, so the listing's count could see a
+  # part its files did not, and a partial listing was written as whole. The
+  # local server shares one by default and logs no setting left at its
+  # default, so what is checked is what every statement that reads the
+  # listing asks the server for.
+  test "every statement that writes from a listing reads it from one snapshot", %{repository: repository} do
+    test_pid = self()
+
+    record = fn repo ->
+      stub(repo, :query!, fn sql, params, opts ->
+        if sql =~ "FROM git_commit_files", do: send(test_pid, {:listing_read, opts[:settings]})
+        call_original(repo, :query!, [sql, params, opts])
+      end)
+    end
+
+    record.(IngestRepo)
+    record.(ClickHouseRepo)
+
+    commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+    head(repository, "main", "c")
+
+    list(repository, "c", %{"A.swift" => "a1"})
+    list(repository, "b", %{"A.swift" => "a2", "B.swift" => "b1"})
+    list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b1"})
+    assert files(repository, "b") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
+    assert files(repository, "c") == with_mode(%{"A.swift" => "a1"})
+
+    settings = collect_listing_reads([])
+    assert settings != []
+    assert Enum.all?(settings, &(Keyword.get(&1 || [], :enable_shared_storage_snapshot_in_query) == 1))
+  end
+
+  defp collect_listing_reads(acc) do
+    receive do
+      {:listing_read, settings} -> collect_listing_reads([settings | acc])
+    after
+      0 -> acc
+    end
   end
 
   test "a commit listed before a ref owns it is written once it is placed", %{repository: repository} do

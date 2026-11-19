@@ -2020,7 +2020,10 @@ targets.append(
             "TestCoverageAttribution": .framework,
             "TestCoverageAttributionObserver": .framework,
         ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"]),
+        // Imports XCTest. Drop this once the pinned Tuist CLI lists TuistSnapshotsTesting in
+        // PackageInfoMapper's forceEnabledTestingSearchPath.
+        targetSettings: ["TuistSnapshotsTesting": .settings(base: ["ENABLE_TESTING_SEARCH_PATHS": "YES"])]
     )
 #endif
 
@@ -2206,6 +2209,8 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
+        // Renders the app's SwiftUI previews as snapshots (app/Tests/TuistAppSnapshotTests).
+        .package(url: "https://github.com/tuist/snapshots", .upToNextMinor(from: "0.1.0")),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

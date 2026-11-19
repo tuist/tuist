@@ -533,11 +533,14 @@ defmodule Tuist.Tests.Coverage.History do
     }
   end
 
+  # The `ran_at` bound repeats what the `or` says so PostgreSQL can seek the
+  # `ran_at` indexes to the cursor; with the `or` alone it walks and filters
+  # every row on the near side, so a page got slower the deeper it was.
   defp older_than(query, {at, sha}),
-    do: where(query, [c], c.ran_at < ^at or (c.ran_at == ^at and c.git_commit_sha < ^sha))
+    do: where(query, [c], c.ran_at <= ^at and (c.ran_at < ^at or (c.ran_at == ^at and c.git_commit_sha < ^sha)))
 
   defp newer_than(query, {at, sha}),
-    do: where(query, [c], c.ran_at > ^at or (c.ran_at == ^at and c.git_commit_sha > ^sha))
+    do: where(query, [c], c.ran_at >= ^at and (c.ran_at > ^at or (c.ran_at == ^at and c.git_commit_sha > ^sha)))
 
   defp oldest_first(query), do: order_by(query, [c], asc: c.ran_at, asc: c.git_commit_sha)
 
@@ -653,6 +656,37 @@ defmodule Tuist.Tests.Coverage.History do
       |> Repo.all()
 
     [project.default_branch | List.delete(measured, project.default_branch)]
+  end
+
+  @doc """
+  The project's listed commits (`Commits.listed/1`) on every branch and pull
+  request, complete or not, the most recently run first, a page at a time
+  from a cursor (`after`/`before`, as `commit_cursor_page/3` takes them):
+  where each run's coverage went, whichever branch it named. Read along
+  `(project_id, ran_at)`.
+  """
+  def recent_commits_page(%Project{} = project, opts \\ []) do
+    size = Keyword.get(opts, :page_size, 20)
+    cursor = opts |> cursor() |> cursor_time()
+    read = fn refine -> Commits.all(project.id, refine, listed: true) end
+
+    {rows, more?} =
+      read_page(cursor, size, fn
+        {:older, key}, limit -> read.(&(&1 |> older_than(key) |> newest_first() |> limit(^limit)))
+        {:newer, key}, limit -> read.(&(&1 |> newer_than(key) |> oldest_first() |> limit(^limit)))
+        nil, limit -> read.(&(&1 |> newest_first() |> limit(^limit)))
+      end)
+
+    {newest, oldest} = bounds(rows, &{&1.ran_at, &1.git_commit_sha})
+    beyond? = fn key, side -> not is_nil(key) and read.(&(&1 |> side.(key) |> limit(1))) != [] end
+
+    %{
+      commits: Enum.map(rows, &with_coverage/1),
+      has_next_page?: older_page?(cursor, more?, fn -> beyond?.(oldest, &older_than/2) end),
+      has_previous_page?: newer_page?(cursor, more?, fn -> beyond?.(newest, &newer_than/2) end),
+      start_cursor: newest && time_cursor(newest),
+      end_cursor: oldest && time_cursor(oldest)
+    }
   end
 
   @doc """

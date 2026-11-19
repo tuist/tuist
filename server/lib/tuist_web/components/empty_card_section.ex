@@ -8,9 +8,11 @@ defmodule TuistWeb.Components.EmptyCardSection do
   import TuistWeb.Components.EmptyStateBackground
 
   attr :title, :string, required: true, doc: "The title of the empty card section"
+  attr :description, :string, default: nil, doc: "An optional sentence under the title"
   attr :get_started_href, :string, default: nil, doc: "The Get started link"
   attr :rest, :global
   slot :image, required: true
+  slot :actions, doc: "Optional links under the title, beside the Get started link"
 
   def empty_card_section(assigns) do
     ~H"""
@@ -22,6 +24,8 @@ defmodule TuistWeb.Components.EmptyCardSection do
         {render_slot(@image)}
       </div>
       <span data-part="title">{@title}</span>
+      <span :if={@description} data-part="description">{@description}</span>
+      {render_slot(@actions)}
       <.link_button
         :if={@get_started_href}
         target="_blank"

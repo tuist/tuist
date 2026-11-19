@@ -22,7 +22,24 @@
       grouping={@grouping}
       selected_widget={@selected_widget}
       point_href={&commit_href(assigns, &1.git_commit_sha)}
+      empty_description={
+        dgettext(
+          "dashboard_tests",
+          "A commit is complete once its pipeline runs `tuist coverage complete` and no run left its figure incomplete. Commits still in progress, incomplete ones, and runs on pull requests aren't charted here."
+        )
+      }
     >
+      <:empty_actions>
+        <.link_button
+          label={dgettext("dashboard_tests", "See recent coverage commits")}
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits"
+          }
+          size="medium"
+          underline
+          data-part="recent-coverage-commits"
+        />
+      </:empty_actions>
       <:actions>
         <.button
           :if={@latest}

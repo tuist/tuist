@@ -134,7 +134,7 @@ msgstr ""
 msgid "Flags"
 msgstr ""
 
-#: lib/tuist_web/components/empty_card_section.ex:29
+#: lib/tuist_web/components/empty_card_section.ex:33
 #: lib/tuist_web/components/public_project_cta_banner.ex:40
 #, elixir-autogen, elixir-format
 msgid "Get started"

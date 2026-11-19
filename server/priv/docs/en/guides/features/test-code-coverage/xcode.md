@@ -50,7 +50,7 @@ A commit's coverage often comes from several jobs: one per scheme, per shard, or
 tuist coverage complete
 ```
 
-Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend. The <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#commit-status">generated project guide</.localized_link> describes each status.
+The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend. The <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#commit-status">generated project guide</.localized_link> describes each status.
 
 ## Skipped tests {#skipped-tests}
 

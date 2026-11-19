@@ -250,6 +250,24 @@ defmodule TuistWeb.CoverageLiveTest do
 
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
     end
+
+    test "says what a complete commit is and leads to the recent coverage commits when none is charted", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Measured on main but never signalled complete, so nothing is charted.
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])], %{complete: false})
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "[data-part='empty-analytics'] [data-part='description']", "tuist coverage complete")
+
+      assert has_element?(
+               lv,
+               ~s([data-part='empty-analytics'] a[href="/#{organization.account.name}/#{project.name}/tests/coverage/commits"])
+             )
+    end
   end
 
   describe "build systems" do
