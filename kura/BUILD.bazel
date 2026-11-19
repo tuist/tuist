@@ -109,10 +109,10 @@ rust_junit_test(
     # 123 s to 81 s on production remote execution. Ignored outside remote execution.
     exec_properties = {"tuist-memory-gb": "16"},
     # The suite is wait-bound: about 90 s of test time but under 10 s of CPU, mostly timeouts and
-    # sleeps. libtest runs as many tests at once as there are CPUs, two in the default
-    # remote-execution VM, so the run took 45 s. Eight threads take it to about 13 s on two cores;
-    # sixteen made a timing-sensitive store test fail.
-    env = {"RUST_TEST_THREADS": "8"},
+    # sleeps, and libtest runs one case per CPU, so the default 2 vCPU remote-execution VM took
+    # 45 s. Shards run in parallel VMs at the same per-VM concurrency; more test threads instead
+    # made a store test that races two tasks fail.
+    shard_count = 4,
     # Only this test binary skips rustc's crate-local ThinLTO, which took 55 s of the 150 s
     # compile, the longest action in the build. Tests run just as fast without it, and the
     # library and shipped binary keep the default.

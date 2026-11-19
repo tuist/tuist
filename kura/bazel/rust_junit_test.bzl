@@ -25,7 +25,7 @@ See kura/bazel/tools/rust_libtest_junit.rs for the Rust report writer.
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
-def rust_junit_test(name, tags = None, size = "medium", env = None, **kwargs):
+def rust_junit_test(name, tags = None, size = "medium", shard_count = None, **kwargs):
     binary_name = name + "_binary"
     inner_tags = ["manual"] + (tags or [])
 
@@ -53,9 +53,8 @@ def rust_junit_test(name, tags = None, size = "medium", env = None, **kwargs):
             "$(rootpath //bazel/tools:rust_libtest_junit)",
         ],
         data = [":" + binary_name, "//bazel/tools:rust_libtest_junit"],
-        # Only the wrapper runs, so the test's runtime environment (such as RUST_TEST_THREADS)
-        # belongs on it rather than on the inner rust_test.
-        env = env,
+        # The wrapper splits the cases across shards (see rust_libtest_junit.sh).
+        shard_count = shard_count,
         tags = tags,
         size = size,
     )
