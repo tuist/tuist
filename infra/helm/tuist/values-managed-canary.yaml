@@ -270,6 +270,10 @@ server:
       # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
       # tears down its leftovers whether or not it is listed here.
       value: ca-east
+    # The remote-execution chart's gateway Ingress host, which accounts'
+    # Bazel workspaces use as --remote_executor (capabilities API).
+    - name: TUIST_REMOTE_EXECUTION_ENDPOINT
+      value: grpcs://execution-canary.tuist.dev
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
