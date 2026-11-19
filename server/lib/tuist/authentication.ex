@@ -30,13 +30,7 @@ defmodule Tuist.Authentication do
         snapshot(subject, Map.get(claims, "exp"))
 
       _ ->
-        user = Accounts.get_user_by_token(token)
-
-        if is_nil(user) do
-          account_or_project_token(token)
-        else
-          user |> Accounts.record_legacy_token_use() |> reject_if_inactive_user() |> snapshot(nil)
-        end
+        account_or_project_token(token)
     end
   end
 
@@ -102,7 +96,6 @@ defmodule Tuist.Authentication do
           nil
       end
     else
-      if Projects.legacy_token?(token), do: Accounts.record_legacy_token_use(project_token)
       snapshot(project_token, nil)
     end
   end

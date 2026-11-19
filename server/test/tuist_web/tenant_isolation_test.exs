@@ -21,7 +21,12 @@ defmodule TuistWeb.TenantIsolationTest do
 
   test "real user, project and account credentials isolate populated private reads", tenants do
     for {own, other} <- [{tenants.alpha, tenants.beta}, {tenants.beta, tenants.alpha}],
-        token <- [user_token(own.user), own.project.token, account_token(own), account_token(own, restricted: true)] do
+        token <- [
+          user_token(own.user),
+          Projects.create_project_token(own.project),
+          account_token(own),
+          account_token(own, restricted: true)
+        ] do
       conn = bearer(token)
 
       bundles = conn |> get(api_path(own, "/bundles")) |> json_response(200)
@@ -74,7 +79,12 @@ defmodule TuistWeb.TenantIsolationTest do
         sibling_preview = AppBuildsFixtures.preview_fixture(project: own.sibling, visibility: :private)
         sibling_build = AppBuildsFixtures.app_build_fixture(preview: sibling_preview)
 
-        for token <- [user_token(own.user), own.project.token, account_token(own), account_token(own, restricted: true)],
+        for token <- [
+              user_token(own.user),
+              Projects.create_project_token(own.project),
+              account_token(own),
+              account_token(own, restricted: true)
+            ],
             legacy? <- if(@action == :icon, do: [false], else: [true, false]) do
           conn = bearer(token)
 
@@ -121,7 +131,12 @@ defmodule TuistWeb.TenantIsolationTest do
 
   test "real write credentials cannot delete a foreign preview through either parent", tenants do
     for {own, other} <- [{tenants.alpha, tenants.beta}, {tenants.beta, tenants.alpha}],
-        token <- [user_token(own.user), own.project.token, account_token(own), account_token(own, restricted: true)] do
+        token <- [
+          user_token(own.user),
+          Projects.create_project_token(own.project),
+          account_token(own),
+          account_token(own, restricted: true)
+        ] do
       conn = bearer(token)
       preview = AppBuildsFixtures.preview_fixture(project: own.project, visibility: :private)
 
@@ -139,7 +154,7 @@ defmodule TuistWeb.TenantIsolationTest do
     bundle = BundlesFixtures.bundle_fixture(project: sibling.project, name: "sibling-only")
     preview = AppBuildsFixtures.preview_fixture(project: sibling.project, visibility: :private)
 
-    for token <- [own.project.token, account_token(own, restricted: true)] do
+    for token <- [Projects.create_project_token(own.project), account_token(own, restricted: true)] do
       conn = bearer(token)
       assert conn |> get(api_path(own, "/bundles/#{own.bundle.id}")) |> json_response(200)
       assert conn |> get(api_path(sibling, "/bundles/#{bundle.id}")) |> json_response(403)

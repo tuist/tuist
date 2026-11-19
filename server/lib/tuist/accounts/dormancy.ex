@@ -17,7 +17,7 @@ defmodule Tuist.Accounts.Dormancy do
   account, its projects, and its command events with it, which would destroy
   the very audit trail an auditor expects to still be there. Instead
   `scrub/1` removes every credential and identifier that could authenticate
-  the account — password, legacy CLI token, OAuth identities, sessions, and
+  the account — password, OAuth identities, sessions, and
   the email address — leaving the row as a tombstone that keeps referential
   integrity for historical records. Nothing can log in as a scrubbed user.
 
@@ -241,8 +241,7 @@ defmodule Tuist.Accounts.Dormancy do
           |> Changeset.change(
             active: false,
             email: tombstone_email(user),
-            encrypted_password: "",
-            token_hash: nil
+            encrypted_password: ""
           )
           |> Repo.update()
 
@@ -315,7 +314,6 @@ defmodule Tuist.Accounts.Dormancy do
       active: false,
       email: tombstone_email(user),
       encrypted_password: "",
-      token_hash: nil,
       updated_at: naive(now)
     ]
   end

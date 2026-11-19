@@ -36,9 +36,6 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
         account: %{id: account_id}
       }
       |> Projects.create_project!(
-        # A legacy token, as projects created before they stopped being
-        # issued have, so tests can still cover authenticating with one.
-        token: Keyword.get_lazy(opts, :token, &Tuist.Tokens.generate_token/0),
         created_at: created_at,
         visibility: Keyword.get(opts, :visibility, :private),
         default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),

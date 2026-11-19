@@ -24,7 +24,7 @@ defmodule Tuist.Accounts.DormancyTest do
       days ->
         at = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -days * 24 * 60 * 60, :second)
         Repo.update_all(from(u in User, where: u.id == ^user.id), set: [last_sign_in_at: at])
-        %{Accounts.get_user_by_id(user.id) | token: user.token}
+        Accounts.get_user_by_id(user.id)
     end
   end
 
@@ -133,7 +133,6 @@ defmodule Tuist.Accounts.DormancyTest do
       assert scrubbed.email == "deleted-user-#{user.id}@invalid"
       assert scrubbed.encrypted_password == ""
       refute scrubbed.active
-      assert is_nil(scrubbed.token_hash)
       assert Repo.all(from(o in Oauth2Identity, where: o.user_id == ^user.id)) == []
       assert Repo.all(from(t in UserToken, where: t.user_id == ^user.id)) == []
     end
@@ -277,11 +276,11 @@ defmodule Tuist.Accounts.DormancyTest do
     test "a scrubbed user can no longer authenticate" do
       # Given
       user = operator_fixture(last_sign_in_days_ago: 400)
-      token = user.token
+      token = AccountsFixtures.user_access_token(user)
       user |> disable() |> Dormancy.scrub()
 
       # When / Then
-      assert is_nil(Accounts.get_user_by_token(token))
+      assert is_nil(Tuist.Authentication.authenticated_subject(token))
     end
   end
 end

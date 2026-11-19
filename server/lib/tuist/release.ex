@@ -353,18 +353,6 @@ defmodule Tuist.Release do
   end
 
   @doc """
-  Revokes every legacy user and project token (the ones without a `tuist_`
-  prefix) and nothing else. Check `legacy_token_usage/1` first:
-
-      bin/tuist rpc 'IO.inspect(Tuist.Release.revoke_legacy_tokens())'
-  """
-  def revoke_legacy_tokens do
-    counts = CredentialRevocation.revoke_legacy_tokens()
-    Logger.warning("Revoked every legacy token: #{inspect(counts)}")
-    counts
-  end
-
-  @doc """
   Emails the admins of one account, or of every account (personal accounts
   reach their owner), a credential rotation notice
   (`Tuist.Accounts.Workers.CredentialRotationNoticeWorker`), on a live node:
@@ -417,33 +405,6 @@ defmodule Tuist.Release do
     # One insert per job, because uniqueness, which makes a resumed sending
     # skip the notices already queued, is not enforced by `Oban.insert_all/1`.
     |> Enum.count(fn changeset -> match?({:ok, %Oban.Job{conflict?: false}}, Oban.insert(changeset)) end)
-  end
-
-  @doc """
-  Reports how many legacy user and project tokens (the ones without a
-  `tuist_` prefix) are still set and how many authenticated within `days`,
-  to decide when they can be retired:
-
-      bin/tuist rpc 'Tuist.Release.legacy_token_usage()'
-  """
-  def legacy_token_usage(days \\ 30) do
-    since = DateTime.add(DateTime.utc_now(), -days, :day)
-
-    usage =
-      for table <- ["users", "projects"], into: %{} do
-        {table,
-         Repo.one(
-           from(r in table,
-             select: %{
-               set: filter(count(r.id), not is_nil(r.token_hash)),
-               used_since: filter(count(r.id), r.legacy_token_last_used_at >= ^since)
-             }
-           )
-         )}
-      end
-
-    Logger.info("Legacy tokens (used within #{days} days): #{inspect(usage)}")
-    usage
   end
 
   @doc """
