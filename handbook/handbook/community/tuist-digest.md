@@ -11,6 +11,6 @@ Tuist Digest is a newsletter showcasing the most important work happening in Tui
 
 ## Overview
 
-The newsletter is sent at the end of every 6-week cycle via [Loops](https://app.loops.so/), where we have a template specifically created for this purpose.
+The newsletter is sent at the end of every 6-week cycle in Tuist's self-hosted Atlas, where we have a template specifically created for this purpose.
 
-The list of subscribers, templates, and campaigns are all managed using Loops. People can subscribe through the form at [tuist.dev/newsletter](https://tuist.dev/newsletter), and they can unsubscribe at any time by clicking the link at the bottom of the newsletter.
+The list of subscribers, templates, and campaigns are all managed in Atlas. People can subscribe through the form at [tuist.dev/newsletter](https://tuist.dev/newsletter), and they can unsubscribe at any time by clicking the link at the bottom of the newsletter.
