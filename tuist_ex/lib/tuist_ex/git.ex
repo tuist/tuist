@@ -114,9 +114,8 @@ defmodule TuistEx.Git do
   end
 
   @doc """
-  A commit's file listing, from its tree rather than the index: on a pull
-  request's merge checkout the run reports the pull request's head, while the
-  index is the merge commit's.
+  A commit's file listing, from its tree rather than the index, which is the
+  checkout's and may not be the reported commit's.
   """
   def commit_files(_dir, _sha, limit) when limit <= 0, do: {:ok, %{files: [], truncated: true}}
 

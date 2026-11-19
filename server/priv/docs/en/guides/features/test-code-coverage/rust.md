@@ -51,7 +51,7 @@ A commit's coverage often comes from several jobs: one per shard or per feature 
 tuist cargo coverage-complete
 ```
 
-The command reads the commit from the checkout, or the one your CI provider reports on a pull request; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
+The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 
 ## How it works {#how-it-works}
 

@@ -76,7 +76,7 @@ A commit's coverage often comes from several jobs: one per scheme, per shard, or
 tuist coverage complete
 ```
 
-The command reads the commit from the checkout or from your CI provider; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
+The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 
 ### Run the whole suite on your default branch {#full-runs}
 

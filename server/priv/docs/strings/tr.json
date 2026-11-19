@@ -14,7 +14,7 @@
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel önbelleği" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "Derle ve yayınla" },
+      "build-and-publish": { "text": "Derle ve yayımla" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Önbellek birimleri" },
       "calendar": { "text": "Takvim" },
@@ -31,8 +31,8 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "images": { "text": "İmajlar" },
-      "implicit-dependencies": { "text": "Örtülü bağımlılıklar" },
+      "images": { "text": "Görüntüler" },
+      "implicit-dependencies": { "text": "Örtük bağımlılıklar" },
       "iphone-app": { "text": "iPhone uygulaması" },
       "macos-app": { "text": "macOS uygulaması" },
       "new-project": { "text": "Yeni proje" },
@@ -67,10 +67,10 @@
         "text": "Diller 🌍"
       },
       "description": {
-        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfa için dil rehberliğinin iyileştirilmesine yardımcı olabilirsiniz."
+        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
       },
       "cta": {
-        "text": "Katkıda bulunun"
+        "text": "Katkıda bulun"
       }
     }
   },
@@ -279,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Yerinde barındırma",
+          "text": "Şirket içi",
           "items": {
             "install": {
               "text": "Kurulum"
@@ -337,13 +337,13 @@
           }
         },
         "install-tuist": {
-          "text": "Tuist'i kurun"
+          "text": "Tuist'i Kurun"
         },
         "tuist": {
           "text": "Tuist",
           "items": {
             "about": {
-              "text": "Tuist hakkında"
+              "text": "Tuist Hakkında"
             }
           }
         },
@@ -351,7 +351,7 @@
           "text": "Hızlı başlangıç",
           "items": {
             "install-tuist": {
-              "text": "Tuist'i kurun"
+              "text": "Tuist'i Kurun"
             },
             "get-started": {
               "text": "Başlangıç"
@@ -434,10 +434,10 @@
                   "text": "Hashing"
                 },
                 "inspect": {
-                  "text": "İncele",
+                  "text": "İnceleme",
                   "items": {
                     "implicit-imports": {
-                      "text": "Örtülü içe aktarmalar"
+                      "text": "Örtük içe aktarmalar"
                     }
                   }
                 },
@@ -506,7 +506,7 @@
               }
             },
             "test-sharding": {
-              "text": "Parçalara ayırma",
+              "text": "Parçalama",
               "items": {
                 "generated-xcode-project": {
                   "text": "Oluşturulan Xcode projesi"
@@ -562,7 +562,7 @@
               "text": "MCP"
             },
             "skills": {
-              "text": "Beceriler"
+              "text": "Yetenekler"
             }
           }
         },
@@ -573,7 +573,7 @@
               "text": "Sürekli entegrasyon"
             },
             "http-proxy": {
-              "text": "HTTP proxy"
+              "text": "HTTP vekil sunucusu"
             },
             "sso": {
               "text": "SSO"
@@ -604,7 +604,7 @@
               "text": "Ağ"
             },
             "self-hosting": {
-              "text": "Kendi kendine barındırma",
+              "text": "Kendi sunucunuzda barındırma",
               "items": {
                 "server": {
                   "text": "Sunucu"
@@ -620,7 +620,7 @@
           }
         },
         "share": {
-          "text": "Paylaş",
+          "text": "Paylaşım",
           "items": {
             "previews": {
               "text": "Önizlemeler"

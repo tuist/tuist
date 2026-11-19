@@ -3,8 +3,8 @@
     "groups": {
       "builds": { "text": "构建" },
       "tests": { "text": "测试" },
-      "compute": { "text": "计算资源" },
-      "bundles": { "text": "应用包" },
+      "compute": { "text": "计算" },
+      "bundles": { "text": "包" },
       "other-features": { "text": "其他功能" }
     },
     "items": {
@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir 缓存" },
-      "entire": { "text": "完整" },
+      "entire": { "text": "全部" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -40,7 +40,7 @@
       "once-cache": { "text": "Once 缓存" },
       "once-project": { "text": "Once 项目" },
       "once-remote-execution": { "text": "Once 远程执行" },
-      "origin": { "text": "来源" },
+      "origin": { "text": "源" },
       "profiles": { "text": "配置文件" },
       "project-description": { "text": "项目描述" },
       "release": { "text": "发布" },
@@ -67,7 +67,7 @@
         "text": "语言 🌍"
       },
       "description": {
-        "text": "你可以帮助 Tuist 支持更多语言，或改进本页的语言指引。"
+        "text": "你可以帮助 Tuist 支持更多语言，或改进本页面的语言指引。"
       },
       "cta": {
         "text": "贡献"
@@ -314,10 +314,10 @@
       "text": "指南",
       "items": {
         "get-started": {
-          "text": "开始使用",
+          "text": "入门",
           "items": {
             "choose-your-path": {
-              "text": "开始使用"
+              "text": "入门"
             },
             "existing-xcode-project": {
               "text": "Xcode 项目"
@@ -348,13 +348,13 @@
           }
         },
         "quick-start": {
-          "text": "快速入门",
+          "text": "快速开始",
           "items": {
             "install-tuist": {
               "text": "安装 Tuist"
             },
             "get-started": {
-              "text": "开始使用"
+              "text": "入门"
             }
           }
         },
@@ -382,7 +382,7 @@
                       "text": "创建新项目"
                     },
                     "swift-package": {
-                      "text": "试用 Swift Package"
+                      "text": "使用 Swift Package 试用"
                     },
                     "migrate": {
                       "text": "迁移",
