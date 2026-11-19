@@ -122,14 +122,17 @@ func requestMetadata(ctx context.Context) map[string]string {
 const maxMetadataBytes = 1024
 
 type operation struct {
-	QueuedAtUnixUS int64  `json:"queued_at_unix_us"`
-	ID             string `json:"id"`
-	State          string `json:"state"`
-	Response       string `json:"response"`
-	Code           int32  `json:"code"`
-	Message        string `json:"message"`
-	Image          string `json:"image"`
-	Done           bool   `json:"done"`
+	QueuedAtUnixUS int64 `json:"queued_at_unix_us"`
+	// What the control plane waited on while the action was queued, in ms by
+	// cause. Diagnostics only: logged on the action phases line.
+	QueueWaitsMS map[string]int64 `json:"queue_waits_ms"`
+	ID           string           `json:"id"`
+	State        string           `json:"state"`
+	Response     string           `json:"response"`
+	Code         int32            `json:"code"`
+	Message      string           `json:"message"`
+	Image        string           `json:"image"`
+	Done         bool             `json:"done"`
 	// Set on successful results that the action cache should store.
 	Cacheable   bool   `json:"cacheable"`
 	ActionHash  string `json:"action_hash"`
@@ -343,7 +346,7 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 					}
 				}
 				if observe && !response.CachedResult && response.Result != nil {
-					g.metrics.observePhases(response.Result.ExecutionMetadata)
+					g.metrics.observePhases(response.Result.ExecutionMetadata, op.QueueWaitsMS)
 				}
 				// Diagnostics only: neither the client nor the action cache keeps them.
 				stripCASReads(response.GetResult().GetExecutionMetadata())
