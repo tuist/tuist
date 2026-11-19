@@ -2555,29 +2555,14 @@ runnersFleetLinux:
   # 2560Mi podFixed capped each VM's host cgroup at its guest RAM plus 512 MiB,
   # and the host OOM killer stopped full guests mid-job (GitHub's "runner lost
   # communication"). Shapes come back one at a time with `exclusiveCPUs: true`
-  # once the runners-vm-memory-probe workflow passes on them.
+  # once the runners-vm-memory-probe workflow passes on them, under a
+  # kata-qemu-<size> RuntimeClass whose podFixed grows with the guest:
+  # 8vcpu-32gb and 16vcpu-64gb since 2026-11-19.
   # Turning it back on rolls idle Pods; never restart the kubelet on a host
   # running exclusive Pods: it leaks their cores (kubernetes/kubernetes#140989,
   # see infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
   exclusiveCPUs:
     defaultEnabled: false
-  pools:
-    # The 16vcpu-64gb shape on exclusive CPUs, for the runners-vm-memory-probe
-    # workflow only (`runs-on: tuist-vm-memory-probe-16x64`), so the 64 GiB
-    # guest is proven to fit its host cgroup before the customer shape gets
-    # exclusive CPUs. Scales to zero; remove it once that shape is exclusive.
-    - name: vm-memory-probe-16x64
-      dispatchLabel: tuist-vm-memory-probe-16x64
-      runtimeClass: kata-qemu
-      exclusiveCPUs: true
-      pod:
-        cpuMilli: 16000
-        memoryMB: 65536
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-        scaleDownCooldownSeconds: 300
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
@@ -2647,8 +2632,10 @@ runnersFleetLinux:
       memoryGb: 32
       autoscaling:
         maxLearnedWarmPoolFloor: 2
-    # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
-    # 3.5 GiB podFixed overhead is 67.5 GiB per Pod. That seats 3 to an
+    # Ceiling shape, production-only. On exclusive CPUs since 2026-11-19, under
+    # kata-qemu-64g, whose 6400Mi podFixed makes 70.25 GiB per Pod (67.5 GiB
+    # with the 3.5 GiB kata podFixed the figures below were written for). That
+    # still seats 1 to a RISE-L. At 67.5 GiB it seated 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
     # (16c/32t, 128 GB — see ovhFleets.runners-linux above), so the shape
     # survives the migration but stops being a small slice of a host.
@@ -2696,6 +2683,7 @@ runnersFleetLinux:
     # shares; raise this as the fleet grows.
     - vcpus: 16
       memoryGb: 64
+      exclusiveCPUs: true
       autoscaling:
         minWarmPoolFloor: 3
         maxLearnedWarmPoolFloor: 3
