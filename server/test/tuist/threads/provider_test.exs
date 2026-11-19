@@ -226,16 +226,33 @@ defmodule Tuist.Threads.ProviderTest do
   end
 
   test "reply parsing retains legacy answers and bounds suggested messages" do
-    assert Agent.decode_reply("plain answer") == {"plain answer", []}
+    assert Agent.decode_reply("plain answer") == {"plain answer", [], %{}}
 
     assert Agent.decode_reply(~s({"reply":" Done ","suggestions":[" Next? ","Next?",null,"","Two","Three","Four"]})) ==
-             {"Done", ["Next?", "Two", "Three"]}
+             {"Done", ["Next?", "Two", "Three"], %{}}
 
     assert Agent.decode_reply(
              JSON.encode!(%{reply: "Done", suggestions: [String.duplicate("界", 121), String.duplicate("界", 120)]})
-           ) == {"Done", [String.duplicate("界", 120)]}
+           ) == {"Done", [String.duplicate("界", 120)], %{}}
 
-    assert Agent.decode_reply(~s(```json\n{"reply":"Done","suggestions":[]}\n```)) == {"Done", []}
+    assert Agent.decode_reply(~s(```json\n{"reply":"Done","suggestions":[]}\n```)) == {"Done", [], %{}}
+  end
+
+  test "suggestion icons are semantic and unknown icons keep the editable text" do
+    for icon <- ["investigate", "test", "explain", "retry"] do
+      assert Agent.decode_reply(
+               JSON.encode!(%{
+                 reply: "Done",
+                 suggestions: [
+                   %{text: " Next? ", icon: icon},
+                   %{text: "Next?", icon: "retry"},
+                   %{text: "Keep text", icon: "arbitrary.sf.symbol"},
+                   "Legacy",
+                   %{text: "Fourth", icon: "test"}
+                 ]
+               })
+             ) == {"Done", ["Next?", "Keep text", "Legacy"], %{"Next?" => icon}}
+    end
   end
 
   defp completed do

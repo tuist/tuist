@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use gpui::{
-    Context, Div, Entity, FontWeight, IntoElement, Render, ScrollHandle, SharedString,
-    Subscription, Task, Window, div, prelude::*, px,
+    Context, Div, Entity, Focusable, FontWeight, IntoElement, Render, ScrollHandle, SharedString,
+    Subscription, Task, Window, div, prelude::*, px, svg,
 };
 use serde_json::{Value, json};
 use tuist_app_core::navigation::Destination;
@@ -76,6 +76,7 @@ pub struct ThreadsPanel {
     prompt: Entity<TextInput>,
     reply: Entity<TextInput>,
     scroll: ScrollHandle,
+    suggestions_scroll: ScrollHandle,
     task: Option<Task<()>>,
     follow: Option<Task<()>>,
     /// Whether the window is in front; the inbox is followed only then.
@@ -83,7 +84,7 @@ pub struct ThreadsPanel {
     /// The inbox's live socket while the list shows (see `sync_inbox`).
     inbox: Option<Task<()>>,
     _activation: Subscription,
-    _submitted: [Subscription; 2],
+    _submitted: [Subscription; 3],
 }
 
 /// How often the inbox socket's frames are read; its thread buffers them meanwhile.
@@ -108,6 +109,7 @@ impl ThreadsPanel {
         let submitted = [
             cx.subscribe(&prompt, |this, _, _: &Submitted, cx| this.start(cx)),
             cx.subscribe(&reply, |this, _, _: &Submitted, cx| this.send(cx)),
+            cx.observe(&reply, |_, _, cx| cx.notify()),
         ];
         let mut panel = Self {
             session,
@@ -126,6 +128,7 @@ impl ThreadsPanel {
             prompt,
             reply,
             scroll: ScrollHandle::new(),
+            suggestions_scroll: ScrollHandle::new(),
             task: None,
             follow: None,
             active: window.is_window_active(),
@@ -629,6 +632,50 @@ impl Render for ThreadsPanel {
                     .render(None, window, cx, |this, _, cx| this.start(cx)),
             ),
         };
+        let suggestions = open
+            .as_ref()
+            .and_then(|thread| thread["suggestions"].as_array())
+            .filter(|_| !self.busy && self.reply.read(cx).value().is_empty())
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .enumerate()
+            .map(|(index, suggestion)| {
+                let icon = match open.as_ref().unwrap()["suggestion_icons"][suggestion].as_str() {
+                    Some("investigate") => Some("icons/search.svg"),
+                    Some("test") => Some("icons/circle-check.svg"),
+                    Some("explain") => Some("icons/message-square.svg"),
+                    Some("retry") => Some("icons/rotate-cw.svg"),
+                    _ => None,
+                };
+                let suggestion = suggestion.to_owned();
+                Button::new(
+                    SharedString::from(format!("suggestion-{index}")),
+                    suggestion.clone(),
+                    Variant::Secondary,
+                )
+                .render(
+                    Some(&self.suggestions_scroll),
+                    window,
+                    cx,
+                    move |this, window, cx| {
+                        this.reply
+                            .update(cx, |input, cx| input.set_value(suggestion.clone(), cx));
+                        window.focus(&this.reply.focus_handle(cx), cx);
+                    },
+                )
+                .debug_selector(move || format!("suggestion-{index}"))
+                .when_some(icon, |button, icon| {
+                    button.child(
+                        svg()
+                            .path(icon)
+                            .size(px(16.))
+                            .flex_none()
+                            .text_color(theme.text),
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
         div()
             .id("threads")
             .flex()
@@ -663,6 +710,90 @@ impl Render for ThreadsPanel {
                             .child(body),
                     ),
             )
-            .child(composer(&input, send, theme))
+            .when(!suggestions.is_empty(), |column| {
+                column.child(
+                    div()
+                        .id("thread-suggestions")
+                        .debug_selector(|| "thread-suggestions".into())
+                        .flex()
+                        .flex_none()
+                        .overflow_x_scroll()
+                        .track_scroll(&self.suggestions_scroll)
+                        .gap_2()
+                        .px_6()
+                        .py_2()
+                        .children(suggestions),
+                )
+            })
+            .child(composer(&input, send, theme).debug_selector(|| "reply-composer".into()))
+    }
+}
+
+#[cfg(all(test, debug_assertions))]
+mod tests {
+    use super::*;
+    use gpui::{KeyUpEvent, Keystroke, TestAppContext, VisualTestContext, size};
+    use tuist_credentials::Directories;
+    use tuist_session::Accounts;
+
+    fn draw(cx: &mut VisualTestContext) {
+        cx.run_until_parked();
+        for _ in 0..2 {
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+        }
+    }
+
+    #[gpui::test]
+    fn long_suggestions_scroll_to_keyboard_focus_and_fill_the_composer(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            crate::keyboard::init(cx);
+            crate::input::init(cx);
+        });
+        let directory = tempfile::tempdir().unwrap();
+        let accounts = Accounts::new(Directories {
+            config: directory.path().join("config"),
+            state: directory.path().join("state"),
+            data: directory.path().join("data"),
+        });
+        let session = Arc::new(
+            accounts
+                .current_session(Url::parse("https://example.test").unwrap())
+                .unwrap(),
+        );
+        let navigation = cx.new(|_| Navigation::default());
+        let (panel, cx) = cx.add_window_view(|window, cx| {
+            let mut panel = ThreadsPanel::new(session, None, navigation, window, cx);
+            panel.task = None;
+            panel.open = Some(json!({"id":"example", "working":false, "messages":[],
+                "suggestions":["Explain how temporary network failures affect queued messages without duplicating requests", "x".repeat(120), "Run tests"]}));
+            panel
+        });
+        // The 640px minimum window leaves 440px beside the desktop sidebar.
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_resize(size(px(440.), px(300.)));
+        draw(cx);
+        let viewport = cx.debug_bounds("thread-suggestions").unwrap();
+        assert!(cx.debug_bounds("suggestion-2").unwrap().right() > viewport.right());
+        // Back, first suggestion, second suggestion, then the short third one.
+        for _ in 0..4 {
+            cx.update(|window, cx| window.focus_next(cx));
+            draw(cx);
+        }
+        let focused = cx.debug_bounds("suggestion-2").unwrap();
+        assert!(
+            focused.left() >= viewport.left() && focused.right() <= viewport.right(),
+            "focused: {focused:?}, viewport: {viewport:?}"
+        );
+        let composer = cx.debug_bounds("reply-composer").unwrap();
+        assert!(composer.top() >= viewport.bottom() && composer.bottom() <= px(300.));
+        cx.simulate_keystrokes("enter");
+        cx.simulate_event(KeyUpEvent {
+            keystroke: Keystroke::parse("enter").unwrap(),
+        });
+        draw(cx);
+        panel.read_with(cx, |panel, cx| {
+            assert_eq!(panel.reply.read(cx).value(), "Run tests")
+        });
+        assert!(cx.debug_bounds("thread-suggestions").is_none());
     }
 }

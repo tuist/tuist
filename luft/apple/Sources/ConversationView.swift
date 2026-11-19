@@ -124,6 +124,9 @@ struct AppConversation: Decodable {
     var repository: String?
     var branch: String?
     var runner_id: String?
+    /// Editable next prompts selected by the core from the latest answer.
+    var suggestions: [String]?
+    var suggestion_icons: [String: String]?
 }
 
 extension AppClient {
@@ -340,6 +343,7 @@ struct ConversationView: View {
     @State private var loadingOlder = false
     @State private var reply = ""
     @State private var attachments: [PromptAttachment] = []
+    @FocusState private var replyFocused: Bool
     @State private var sending = false
     @State private var error: String?
     @State private var showingPrompts = false
@@ -455,15 +459,48 @@ struct ConversationView: View {
                             .foregroundStyle(Noora.labelSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    // Floats over the messages, right above Send, so it is in reach of the thumb.
-                    promptsButton
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 17, weight: .medium))
-                        .frame(width: 44, height: 44)
-                        .interactiveGlass(in: Circle())
-                        .padding(.trailing, 4)
                 #endif
-                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions, attachments: $attachments) {
+                HStack(spacing: 8) {
+                    if reply.isEmpty, !sending, !voice.busy, let suggestions = thread?.suggestions, !suggestions.isEmpty {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(Array(suggestions.enumerated()), id: \.offset) { _, suggestion in
+                                    Button {
+                                        reply = suggestion
+                                        replyFocused = true
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            if let icon = thread?.suggestion_icons?[suggestion],
+                                               let symbol = ["investigate": "magnifyingglass", "test": "checkmark.circle", "explain": "text.bubble", "retry": "arrow.clockwise"][icon] {
+                                                Image(systemName: symbol).accessibilityHidden(true)
+                                            }
+                                            Text(verbatim: suggestion).lineLimit(1)
+                                        }
+                                        .font(.subheadline)
+                                        .padding(.horizontal, 14)
+                                        .frame(minHeight: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(Noora.labelPrimary)
+                                    .interactiveGlass(in: Capsule())
+                                }
+                            }
+                            .padding(4)
+                        }
+                        .scrollIndicators(.hidden)
+                    }
+                    #if os(iOS)
+                        // Floats over the messages, right above Send, so it is in reach of the thumb.
+                        Spacer(minLength: 0)
+                        promptsButton
+                            .labelStyle(.iconOnly)
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(width: 44, height: 44)
+                            .interactiveGlass(in: Circle())
+                            .padding(.trailing, 4)
+                    #endif
+                }
+                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments) {
                     Task { await send() }
                 }
             }

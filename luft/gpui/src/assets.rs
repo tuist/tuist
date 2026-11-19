@@ -61,6 +61,22 @@ const EMBEDDED: &[(&str, &[u8])] = &[
         EXTERNAL_LINK_ICON,
         include_bytes!("../resources/icons/external-link.svg"),
     ),
+    (
+        "icons/search.svg",
+        include_bytes!("../resources/icons/search.svg"),
+    ),
+    (
+        "icons/circle-check.svg",
+        include_bytes!("../resources/icons/circle-check.svg"),
+    ),
+    (
+        "icons/message-square.svg",
+        include_bytes!("../resources/icons/message-square.svg"),
+    ),
+    (
+        "icons/rotate-cw.svg",
+        include_bytes!("../resources/icons/rotate-cw.svg"),
+    ),
 ];
 
 /// Assets embedded in the binary, so it runs without a resources directory.
