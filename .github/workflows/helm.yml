@@ -47,8 +47,6 @@ on:
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
-      - .github/workflows/pentest-deployment.yml
-      - .github/workflows/pentest-platform-reconcile.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -70,8 +68,6 @@ on:
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
-      - .github/workflows/pentest-deployment.yml
-      - .github/workflows/pentest-platform-reconcile.yml
   merge_group: {}
 
 permissions:
@@ -117,7 +113,6 @@ jobs:
             "infra/helm/tuist|values-managed-common.yaml values-managed-canary.yaml values-ci.yaml"
             "infra/helm/tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
-            "infra/helm/tuist|values-pentest.yaml values-ci.yaml"
             "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
@@ -236,10 +231,8 @@ jobs:
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "tuist (clustered self-hosted)|infra/helm/tuist|cluster-validation|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
             "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
-            "tuist (pentest)|infra/helm/tuist|pentest|values-pentest.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
-            "platform (pentest)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-pentest.yaml"
             "symptoms (production)|infra/helm/symptoms|symptoms|values-production.yaml values-ci.yaml"
           )
           failed=()

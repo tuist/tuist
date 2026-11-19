@@ -635,9 +635,12 @@ the first production deployment.
 
 ## 9. Dedicated pentest cluster
 
-`tuist-pentest` has been retired and its manifest removed from
-`infra/k8s/clusters/`. Restore `cluster-pentest.yaml` from git history to run
-another assessment; the steps below still apply.
+`tuist-pentest` has been retired: the live cluster was deleted on 2026-10-21,
+and its manifest, the three pentest workflows and its values files were
+removed afterwards. To run another assessment, restore them from git history
+(the commit that removed the workflows), create a fresh `server-k8s-pentest`
+GitHub Environment with new credentials, and follow the steps below. Never
+reuse the retired environment's account password or kubeconfig.
 
 `tuist-pentest` is a separate workload cluster for an authorized security
 assessment. It uses the existing `tuist-workloads` Hetzner project, not a new
@@ -694,7 +697,7 @@ first does.
 ## 10. Teardown
 
 For `tuist-pentest`, use the **Pentest Cluster Retirement** workflow described
-above instead of the command below. It verifies that the source manifest is no
+above (restored from git history) instead of the command below. It verifies that the source manifest is no
 longer on `main` before deleting the `Cluster` resource.
 
 ```bash

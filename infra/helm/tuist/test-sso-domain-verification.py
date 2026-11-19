@@ -62,11 +62,8 @@ class SSODomainVerificationTests(unittest.TestCase):
             with self.subTest(environment=environment):
                 self.assert_policy(["values-managed-common.yaml", f"values-managed-{environment}.yaml"], True)
 
-    def test_previews_and_pentest_explicitly_require_dns_verification(self):
-        for values in (["values-preview.yaml", "values-preview-kura.yaml", "values-preview-ci.yaml"],
-                       ["values-pentest.yaml"]):
-            with self.subTest(values=values):
-                self.assert_policy(values, True)
+    def test_previews_explicitly_require_dns_verification(self):
+        self.assert_policy(["values-preview.yaml", "values-preview-kura.yaml", "values-preview-ci.yaml"], True)
 
     def test_separate_xcresult_processor_inherits_managed_policy(self):
         for environment in ("staging", "canary", "production"):

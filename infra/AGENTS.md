@@ -107,10 +107,8 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
   preview workflows, and the Slack `/preview` command were removed, and
   the live cluster was deleted on 2026-11-05.
 - The isolated security-assessment cluster (`tuist-pentest`) is retired: its
-  Cluster CR was removed, and **Pentest Cluster Retirement** deletes the live
-  cluster. Its pentest workflows and values files remain until that has run.
-  Before running it, delete every DNS record pointing at the cluster's load
-  balancers, since the run frees their IPs.
+  Cluster CR was removed, the live cluster was deleted on 2026-10-21, and its
+  workflows and values files were removed afterwards.
 - `clusters/README.md` — reconciliation ownership (Flux vs `mgmt-cluster-apply.yml`), ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access). Snapshots use a Talos-issued, automatically renewed six-hour `os:etcd:backup` credential in `mgmt-system`, the in-cluster Talos Service and the scheduled node's host IP, without host networking or first-node affinity. The workflow verifies uploads from every control-plane node; `verify-etcd-snapshot.sh --delete-legacy-credential` removes the old static credential only after every upload succeeds. `tailscale.yaml` is a DaemonSet in its own `mgmt-tailscale` namespace, one tailnet device per control-plane node named after it; `infra/mise/tasks/mgmt/migrate-tailscale.sh` moved the old single-node Deployment over, keeping `tuist-mgmt`'s identity. `cleanup-ha-secrets.sh` checks live references and rollout health before an operator deletes the exact obsolete Secret names.
 - `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
