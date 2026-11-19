@@ -25,19 +25,19 @@ tuist inspect bundle App --platforms ios --configuration Debug
 <!-- -->
 :::
 
-在 macOS 上傳遞 App 名稱而非路徑時，Tuist 會從 Xcode 的建置產物中解析已建置的 `.app`（若設定則遵循 `--derived-data-path`），與 `tuist share` 的做法相同。
+在 macOS 上，當你傳入 App 名稱而非路徑時，Tuist 會從 Xcode 的建置產物中解析已建置的 `.app`（若已設定，則遵循 `--derived-data-path`），其運作方式與 `tuist share` 相同。
 
 <!-- @snippet: ./_upload-result -->
 
 ## 與 App Store Connect 比較 {#app-store-connect}
 
-Tuist 會依照你提供的內容精確測量套件，不會套用 [App Thinning](https://developer.apple.com/documentation/xcode/reducing-your-app-s-size)。回報的大小對應至 **Universal**（未精簡）變體——即 App Store Connect 的 App 檔案大小報告中標示為「Universal」的那一列——而非各裝置變體。
+Tuist 會依照你提供的內容精確測量套件大小，且不會套用 [App Thinning](https://developer.apple.com/documentation/xcode/reducing-your-app-s-size)。回報的大小對應於 **通用**（未精簡）版本——即 App Store Connect App 檔案大小報告中標示為「Universal」的那一列——而非各裝置專屬版本。
 
-數值應與 Universal 列相近，但不會完全相同：
+預期數值會落在 Universal 列的相近範圍，但不會完全相同：
 
 - **安裝大小**接近 Universal 安裝大小。App Store Connect 回報的數值略高，因為它包含裝置端額外負擔，例如檔案系統區塊配置與 Apple 自身的估算，而原始檔案大小測量無法捕捉這些項目。
 - **下載大小**低於 Universal 下載大小。Apple 會在上傳後對 App 二進位檔進行加密，而加密資料的壓縮效率較低，因此 App Store 的壓縮下載結果會比 Tuist 測量的 `.ipa` 封存檔更大。這是在上傳後由 Apple 端處理，因此不會反映在 Tuist 的數值中。
 
-App Store Connect 中各裝置列的數值更小，因為 App Thinning 會移除特定裝置不需要的 CPU 架構與資源變體。Tuist 目前不會回報各裝置（精簡後）的大小。
+App Store Connect 中各裝置專屬列的數值更小，因為 App Thinning 會移除特定裝置不需要的 CPU 架構與資源變體。Tuist 目前不會回報各裝置（精簡後）的大小。
 
 <!-- @snippet: ./_shared -->

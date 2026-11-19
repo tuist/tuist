@@ -2189,12 +2189,13 @@ max by (cluster, namespace, pod) (kura_migration_bridge_armed)
   `values.yaml`, because planned storage moves are rehearsed on staging).
   Folder `Alerts`, group `Cache`, no contact point on the rule (policy
   routing). **No Data: Normal** (older runtimes do not publish these gauges),
-  **Error: Error**.
+  **Error: Keep last state**.
 - Summary: `Kura migration bridge on {{ $labels.pod }} has been armed but not
   ready for 15 minutes ({{ $labels.cluster }})`
 - Proposed rule, recorded in
-  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
-  `kura-migration-bridge-unready`); it must be created in Grafana separately.
+  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) as one
+  copy per Pulse metrics source (`kura-migration-bridge-unready-prod`, `-stg`,
+  `-can`); it must be created in Grafana separately.
 
 During a planned thin-storage move the source pod pins its sync feed at the
 head, proves every write from that pin through the head on the named
@@ -2226,10 +2227,11 @@ max by (cluster, namespace, pod) (kura_migration_bridge_last_proof_age_seconds)
 - Threshold: `> 60`, pending period 2m. The gauge is 0 while no bridge is armed.
 - Severity: critical, all environments (the gauge is on the non-production
   allowlist). Folder `Alerts`, group `Cache`, policy routing. **No Data:
-  Normal**, **Error: Error**.
+  Normal**, **Error: Keep last state**.
 - Proposed rule in
-  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
-  `kura-migration-bridge-unproven`); it must be created in Grafana separately.
+  [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) as one
+  copy per Pulse metrics source (`kura-migration-bridge-unproven-prod`, `-stg`,
+  `-can`); it must be created in Grafana separately.
 
 The bridge loop proves the feed on the destination every second, so a growing
 last-proof age means the destination stopped answering or lost records while

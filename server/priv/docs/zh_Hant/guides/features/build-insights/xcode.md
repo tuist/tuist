@@ -7,21 +7,21 @@
 ---
 # Xcode 建置洞察 {#xcode-build-insights}
 
-處理大型專案時，不應需要重複建置相同的程式碼。Tuist Build Insights 可讓你追蹤建置分析數據，以便在本地與 CI 建置時間成為瓶頸之前識別趨勢。
+開發大型專案不應該需要反覆重新建置相同的程式碼。Tuist Build Insights 讓你追蹤建置分析數據，以便在本地與 CI 建置時間成為瓶頸之前識別趨勢。
 
-建置洞察由 `tuist inspect build` 指令驅動，通常會將其加入至你的 Scheme 的後置動作中。
+建置洞察由 `tuist inspect build` 指令驅動，通常會加入至你的 Scheme 的 post-action 中。
 
-若要開始追蹤本地建置時間，你可以將 `tuist inspect build` 指令加入至你的 Scheme 的後置動作中來加以利用：
+若要開始追蹤本地建置時間，你可以將 `tuist inspect build` 指令加入至你的 Scheme 的 post-action 來使用：
 
-![用於檢查建置的後置動作](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
-
-> [!NOTE]
-> 將「Provide build settings from」欄位設定為可執行檔或你的主要建置目標，以擷取建置組態。
+![用於檢查建置的 Post-action](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 > [!NOTE]
-> 當建置失敗時，不會執行 Scheme 後置動作。
+> 將「Provide build settings from」欄位設為可執行檔或你的主要建置目標，以擷取建置設定。
+
+> [!NOTE]
+> 當建置失敗時，不會執行 post-scheme action。
 >
-> 在此情況下，你可以透過在 Scheme 的 `.xcscheme` 檔案中的 `<BuildAction>` 元素上，將 `runPostActionsOnFailure` 設定為 `YES` 來執行它：
+> 在此情況下，你可以將 scheme 的 `.xcscheme` 檔案中 `<BuildAction>` 元素上的 `runPostActionsOnFailure` 設為 `YES` 來執行它：
 >
 > ```diff
 > <BuildAction
@@ -30,7 +30,7 @@
 > +  runPostActionsOnFailure="YES">
 > ```
 
-對於 [Mise](https://mise.jdx.dev/)，請在後置動作環境中啟用 `tuist`：
+對於 [Mise](https://mise.jdx.dev/)，在 post-action 環境中啟用 `tuist`：
 
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
@@ -41,16 +41,16 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 > [!TIP]
 > **Mise 路徑解析**
 >
-> 你的環境的 `PATH` 不會被 Scheme 後置動作繼承，因此請使用 Mise 的絕對路徑。這取決於你安裝 Mise 的方式。應從目標繼承建置設定，以便 `mise` 可以從 `$SRCROOT` 執行。
+> 你的環境中的 `PATH` 不會被 scheme post action 繼承，因此請使用 Mise 的絕對路徑。這取決於你安裝 Mise 的方式。建置設定應從目標繼承，如此 `mise` 才能從 `$SRCROOT` 執行。
 
-對於 [Homebrew](https://brew.sh/)，請將 Homebrew 路徑加入至後置動作環境：
+對於 [Homebrew](https://brew.sh/)，將 Homebrew 路徑加入至 post-action 環境：
 
 ```sh
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
-登入後，系統會追蹤本地建置，並可從 Tuist 儀表板存取：
+登入後，系統會追蹤本地建置，並可在 Tuist 儀表板中查看：
 
 > [!TIP]
 > 若要快速存取儀表板，請從 CLI 執行 `tuist project show --web`。

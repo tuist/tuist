@@ -2,14 +2,14 @@
 {
   "title": "Análisis de compilaciones de Xcode",
   "titleTemplate": ":title · Análisis de compilaciones · Funcionalidades · Guías · Tuist",
-  "description": "Realiza un seguimiento de las métricas de compilación de Xcode en el panel de Tuist para monitorizar el rendimiento de las compilaciones locales y de CI."
+  "description": "Sigue las métricas de compilación de Xcode en el panel de control de Tuist para supervisar el rendimiento de las compilaciones locales y de CI."
 }
 ---
 # Análisis de compilaciones de Xcode {#xcode-build-insights}
 
-Trabajar en proyectos grandes no debería obligarte a recompilar el mismo código una y otra vez. Tuist Build Insights te permite seguir las analíticas de compilación para que puedas identificar tendencias antes de que los tiempos de compilación local y de CI se conviertan en cuellos de botella.
+Trabajar en proyectos grandes no debería obligarte a recompilar el mismo código una y otra vez. Tuist Build Insights te permite seguir las métricas de compilación para que puedas identificar tendencias antes de que los tiempos de compilación local y de CI se conviertan en cuellos de botella.
 
-Los análisis de compilación se generan con el comando `tuist inspect build`, que normalmente se añade a la acción posterior del esquema.
+Los análisis de compilaciones se generan con el comando `tuist inspect build`, que normalmente se añade a la acción posterior del esquema.
 
 Para empezar a registrar los tiempos de compilación local, puedes usar el comando `tuist inspect build` añadiéndolo a la acción posterior de tu esquema:
 
@@ -21,7 +21,7 @@ Para empezar a registrar los tiempos de compilación local, puedes usar el coman
 > [!NOTE]
 > La acción posterior al esquema no se ejecuta cuando la compilación falla.
 >
-> Puedes ejecutarla en ese caso estableciendo `runPostActionsOnFailure` como `YES` en el elemento `<BuildAction>` del archivo `.xcscheme` del esquema:
+> Puedes ejecutarla en ese caso estableciendo `runPostActionsOnFailure` a `YES` en el elemento `<BuildAction>` del archivo `.xcscheme` del esquema:
 >
 > ```diff
 > <BuildAction
@@ -41,7 +41,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 > [!TIP]
 > **Resolución de rutas de Mise**
 >
-> El `PATH` de tu entorno no se hereda en la acción posterior del esquema, así que usa la ruta absoluta de Mise. Esto depende de cómo hayas instalado Mise. La configuración de compilación debe heredarse desde un objetivo para que `mise` pueda ejecutarse desde `$SRCROOT`.
+> El `PATH` de tu entorno no se hereda en la acción posterior del esquema, así que usa la ruta absoluta de Mise. Esto depende de cómo hayas instalado Mise. La configuración de compilación debería heredarse desde un objetivo para que `mise` pueda ejecutarse desde `$SRCROOT`.
 
 Para [Homebrew](https://brew.sh/), añade las rutas de Homebrew al entorno de la acción posterior:
 
@@ -50,7 +50,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 tuist inspect build
 ```
 
-Una vez iniciada la sesión, las compilaciones locales se registran y están disponibles desde el panel de Tuist:
+Una vez que has iniciado sesión, las compilaciones locales se registran y están disponibles en el panel de Tuist:
 
 > [!TIP]
 > Para acceder rápidamente al panel, ejecuta `tuist project show --web` desde la CLI.
