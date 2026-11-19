@@ -2476,9 +2476,11 @@ sandboxes:
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
-  # Exclusive-CPU Pods' host cgroup is their budget plus this, so it must
+  # Exclusive-CPU Pods' host cgroup is their budget plus podFixed, so it must
   # cover Kata's 2 GiB guest base plus QEMU's page tables and slab. Raised
-  # ahead of turning exclusive CPUs back on, one shape at a time.
+  # ahead of turning exclusive CPUs back on, one shape at a time. Exclusive
+  # pools run under a kata-qemu-<size> RuntimeClass that adds
+  # exclusivePodFixedMemoryPercent of the budget to this (see values.yaml).
   podFixed:
     memory: "3584Mi"
 

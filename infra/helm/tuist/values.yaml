@@ -3644,6 +3644,13 @@ kataContainers:
   podFixed:
     cpu: "250m"
     memory: "2560Mi"
+  # Exclusive-CPU pools run under a `kata-qemu-<size>` RuntimeClass (same
+  # handler) whose podFixed memory is the one above plus this percentage of
+  # the guest budget, rounded up to 256 MiB. The guest's kernel memory and
+  # virtiofsd's page cache grow with its size: at 3584Mi a full 64 GiB guest
+  # left under 1 GiB for page cache and the host OOM-killed QEMU
+  # (2026-11-19 probe). Shared-CPU pools keep `kata-qemu`.
+  exclusivePodFixedMemoryPercent: 4
 
 runnersController:
   replicaCount: 1

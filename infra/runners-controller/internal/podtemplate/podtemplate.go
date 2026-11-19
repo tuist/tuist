@@ -192,12 +192,12 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
-	if pool.Spec.OS == "linux" && dindImage != "" && pool.Spec.RuntimeClass != "kata-qemu" {
+	if pool.Spec.OS == "linux" && dindImage != "" && !IsKataRuntimeClass(pool.Spec.RuntimeClass) {
 		return nil, fmt.Errorf("refusing to build Linux runner Pod with privileged dind sidecar: pool %q has runtimeClass %q, want kata-qemu", pool.Name, pool.Spec.RuntimeClass)
 	}
 	// Under runc, /dev/kvm would be the host's own device rather than the
 	// guest's, so nested virtualization is only offered inside the microVM.
-	if pool.Spec.NestedVirtualization && (pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu") {
+	if pool.Spec.NestedVirtualization && (pool.Spec.OS != "linux" || !IsKataRuntimeClass(pool.Spec.RuntimeClass)) {
 		return nil, fmt.Errorf("refusing to build runner Pod with nested virtualization: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 	}
 
@@ -209,7 +209,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	kvmThroughNRI := pool.Spec.NestedVirtualization && pool.Spec.ExclusiveCPUs
 
 	if pool.Spec.ExclusiveCPUs {
-		if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass != "kata-qemu" {
+		if pool.Spec.OS != "linux" || !IsKataRuntimeClass(pool.Spec.RuntimeClass) {
 			return nil, fmt.Errorf("refusing to build runner Pod with exclusive CPUs: pool %q needs os linux and runtimeClass kata-qemu", pool.Name)
 		}
 		// The static CPU manager pins only whole CPUs, and full-pcpus-only
@@ -231,7 +231,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	if pool.Spec.DockerCache && !cacheVolumes {
 		return nil, fmt.Errorf("pool %q enables the Docker cache without cache volumes", pool.Name)
 	}
-	if cacheVolumes && (!linuxPod || pool.Spec.RuntimeClass != "kata-qemu" || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
+	if cacheVolumes && (!linuxPod || !IsKataRuntimeClass(pool.Spec.RuntimeClass) || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
 		return nil, fmt.Errorf("cache volumes require a Linux Kata pool, dind, an absolute dedicated root and an agent URL")
 	}
 
@@ -727,7 +727,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	if linuxPod {
 		annotations["tuist.dev/cache-volume-revision"] = CacheVolumeRevision(pool)
 	}
-	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
+	if linuxPod && IsKataRuntimeClass(pool.Spec.RuntimeClass) {
 		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
 		// vitals probe can report CPU/memory pressure. The stock kata
 		// kernel ships CONFIG_PSI=y but boots with PSI disabled; `psi=1`
@@ -886,6 +886,13 @@ func BuildServiceAccount(pool *tuistv1.RunnerPool, saName string) *corev1.Servic
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// IsKataRuntimeClass reports whether a RuntimeClass runs the Pod in a Kata
+// microVM: the chart's kata-qemu, or a kata-qemu-<size> class it renders for
+// exclusive-CPU pools with the same handler and a podFixed sized to the guest.
+func IsKataRuntimeClass(name string) bool {
+	return name == "kata-qemu" || strings.HasPrefix(name, "kata-qemu-")
 }
 
 // runtimeClassName returns a non-nil *string to stamp on

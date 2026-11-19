@@ -158,6 +158,12 @@ jq '.[1].spec.runtimeClass=""' "$work/render.json" > "$work/shared.json"
 run "$work/shared.json"
 test "$(grep -c 'apply -f' "$work/calls")" = 1
 jq -e '.spec.template.spec | .runtimeClassName == null and .automountServiceAccountToken == false and .volumes == null and .containers[0].resources.requests.memory == "16Mi"' "$work/applied.json" >/dev/null
+# Exclusive pools' sized kata-qemu-<size> classes are the same handler and store.
+reset
+jq '.[1].spec.runtimeClass="kata-qemu-64g"' "$work/render.json" > "$work/sized.json"
+run "$work/sized.json"
+test "$(grep -c 'apply -f' "$work/calls")" = 1
+jq -e '.spec.template.spec.runtimeClassName == null' "$work/applied.json" >/dev/null
 reset
 jq '.[1].spec.runtimeClass="custom-runtime"' "$work/render.json" > "$work/custom.json"
 run "$work/custom.json"
