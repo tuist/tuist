@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const kura = fileURLToPath(new URL("../../", import.meta.url));
 const read = name => fs.readFileSync(path.join(kura, name), "utf8");
-// Kura's Rust sources span the `kura` crate and the `kura-core` crate under it.
-const sourceRoots = ["src", "crates/kura-core/src"];
+// Kura's Rust sources span the `kura` crate and the kura-core, kura-node and kura-reapi crates under it.
+const sourceRoots = ["src", "crates/kura-core/src", "crates/kura-node/src", "crates/kura-reapi/src"];
 const sourceFile = name => sourceRoots.map(root => root + "/" + name).find(file => fs.existsSync(path.join(kura, file)));
 const foundation = "../infra/certificate-trust/";
 
@@ -37,7 +37,7 @@ test("embedded policy and real fixtures match the independent foundation", () =>
 });
 
 test("production factories retain protected backends and qualified native versions", () => {
-  const expected = { "crates/kura-core/src/certificate_trust.rs": 1, "src/peer_tls.rs": 1, "src/serving_authority.rs": 1, "src/telemetry.rs": 1 };
+  const expected = { "crates/kura-core/src/certificate_trust.rs": 1, "crates/kura-node/src/peer_tls.rs": 1, "crates/kura-node/src/serving_authority.rs": 1, "crates/kura-node/src/telemetry.rs": 1 };
   for (const name of sourceRoots.flatMap(root => fs.readdirSync(path.join(kura, root), { recursive: true }).map(entry => root + "/" + entry))) {
     if (!name.endsWith(".rs") || name.endsWith("_tests.rs") || ["tests.rs", "test_support.rs"].includes(path.basename(name))) continue;
     let source = read(name);
@@ -58,7 +58,7 @@ test("production factories retain protected backends and qualified native versio
     "control_plane_http.rs": ["certificate_trust::client_builder()?"],
     "enrollment.rs": ["certificate_trust::client_builder()?"],
     "registration.rs": ["certificate_trust::client_builder()"],
-    "reapi/asset/http.rs": ["certificate_trust::client_builder()", ".no_proxy()", "reqwest::redirect::Policy::none()"],
+    "asset/http.rs": ["certificate_trust::client_builder()", ".no_proxy()", "reqwest::redirect::Policy::none()"],
     "peer_tls.rs": ["certificate_trust::config(", "Roots::Explicit(", "Roots::Native(", "certificate_trust::client_auth_verifier(", "self.identity.load_full()"],
     "telemetry.rs": ["transport: Some(", "sentry_http_client_builder(options)", "ReqwestHttpTransport::with_client", "certificate_trust::native_config()?"],
     "certificate_trust_apple.rs": ["set_trust_anchor_certificates_only(false)", "set_trust_ocsp_response", "set_trust_verify_date", "trust.evaluate_with_error()", ".certificate_at_index(index)"],

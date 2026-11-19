@@ -712,7 +712,7 @@ pub(super) struct ServedFullView {
     pub(super) removal_seq: u64,
 }
 
-pub(crate) struct SnapshotCache {
+pub struct SnapshotCache {
     pub(super) indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
     pub(super) builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
     /// The last FULL (`after == 0`) encoded snapshot per namespace. A reconcile
@@ -728,12 +728,12 @@ pub(crate) struct SnapshotCache {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct SnapshotCacheStats {
-    pub(crate) bytes: usize,
-    pub(crate) namespaces: usize,
-    pub(crate) entries: usize,
-    pub(crate) nodes: usize,
-    pub(crate) served_full_bytes: usize,
+pub struct SnapshotCacheStats {
+    pub bytes: usize,
+    pub namespaces: usize,
+    pub entries: usize,
+    pub nodes: usize,
+    pub served_full_bytes: usize,
 }
 
 impl Default for SnapshotCache {
@@ -742,8 +742,25 @@ impl Default for SnapshotCache {
     }
 }
 
+/// Reaches a node's snapshot cache. `AppState` holds it in an opaque slot, because the state lives
+/// in kura-node below this crate; the first caller creates it at the configured size.
+pub trait SnapshotCacheExt {
+    fn snapshot_cache(&self) -> std::sync::Arc<SnapshotCache>;
+}
+
+impl SnapshotCacheExt for kura_node::state::AppState {
+    fn snapshot_cache(&self) -> std::sync::Arc<SnapshotCache> {
+        let slot = self.snapshot_cache.get_or_init(|| {
+            std::sync::Arc::new(SnapshotCache::new(self.config.snapshot_cache_max_bytes))
+        });
+        std::sync::Arc::clone(slot)
+            .downcast()
+            .expect("the snapshot cache slot holds a SnapshotCache")
+    }
+}
+
 impl SnapshotCache {
-    pub(crate) fn new(max_bytes: usize) -> Self {
+    pub fn new(max_bytes: usize) -> Self {
         Self {
             indexes: Default::default(),
             builds: Default::default(),
@@ -759,7 +776,7 @@ impl SnapshotCache {
             .max(1)
     }
 
-    pub(crate) fn stats(&self) -> SnapshotCacheStats {
+    pub fn stats(&self) -> SnapshotCacheStats {
         let indexes = self.indexes.lock().expect("snapshot cache lock poisoned");
         let served_full = self
             .served_full
@@ -799,7 +816,7 @@ impl SnapshotCache {
         }
     }
 
-    pub(crate) fn update_metrics(&self, metrics: &crate::metrics::Metrics) {
+    pub fn update_metrics(&self, metrics: &crate::metrics::Metrics) {
         let stats = self.stats();
         metrics.update_snapshot_cache(
             stats.bytes,
@@ -811,7 +828,7 @@ impl SnapshotCache {
         );
     }
 
-    pub(crate) fn trim_to(
+    pub fn trim_to(
         &self,
         target_bytes: usize,
         reason: &str,

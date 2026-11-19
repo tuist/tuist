@@ -840,7 +840,7 @@ fn record_delivery_failure<F>(
 ///   client only reads status, so it should stay empty.
 /// - `request` is the catch-all for everything that connected but
 ///   otherwise misbehaved.
-pub(crate) fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+pub fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
     if error.is_connect() {
         "connect"
     } else if error.is_timeout() {
@@ -856,7 +856,7 @@ pub(crate) fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
     }
 }
 
-pub(crate) fn error_result_label(kind: &str) -> &'static str {
+pub fn error_result_label(kind: &str) -> &'static str {
     // Return a `&'static str` so the metrics label is stable and never
     // interpolated with user data.
     match kind {
@@ -869,7 +869,7 @@ pub(crate) fn error_result_label(kind: &str) -> &'static str {
     }
 }
 
-pub(crate) fn status_result_label(status: StatusCode) -> &'static str {
+pub fn status_result_label(status: StatusCode) -> &'static str {
     if status.is_client_error() {
         "error_status_4xx"
     } else if status.is_server_error() {
@@ -884,7 +884,7 @@ pub(crate) fn status_result_label(status: StatusCode) -> &'static str {
 /// url (...)`; the real cause (connection reset, DNS failure, TLS
 /// handshake, ...) lives further down and is what tells the operator what
 /// actually went wrong.
-pub(crate) fn error_cause_chain(error: &(dyn std::error::Error + 'static)) -> String {
+pub fn error_cause_chain(error: &(dyn std::error::Error + 'static)) -> String {
     use std::fmt::Write as _;
     let mut out = error.to_string();
     let mut cause = error.source();
@@ -895,7 +895,7 @@ pub(crate) fn error_cause_chain(error: &(dyn std::error::Error + 'static)) -> St
     out
 }
 
-pub(crate) fn sign(secret: &str, body: &[u8]) -> String {
+pub fn sign(secret: &str, body: &[u8]) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
         .expect("analytics signing key should be accepted by HMAC");
     mac.update(body);
@@ -912,7 +912,7 @@ fn observed_at_ms_now() -> u64 {
         .unwrap_or(0)
 }
 
-pub(crate) fn analytics_endpoint(node_url: &str) -> String {
+pub fn analytics_endpoint(node_url: &str) -> String {
     let Some(url) = reqwest::Url::parse(node_url).ok() else {
         return node_url.to_owned();
     };

@@ -33,7 +33,7 @@ const GUARDIAN_SECRET: &str = "tuist-guardian-secret";
 use std::sync::Mutex;
 
 #[tokio::test]
-async fn network_cache_policy_authorizes_http_and_grpc_but_not_credentials_or_other_operations() {
+async fn network_cache_policy_authorizes_http_but_not_credentials_or_other_operations() {
     use axum::{body::Body, http::Request};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
@@ -136,30 +136,7 @@ async fn network_cache_policy_authorizes_http_and_grpc_but_not_credentials_or_ot
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let grpc = crate::reapi::routes(context.state.clone());
-    let path = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
-    for (headers, expected) in [(vec![], "0"), (vec![""], "16"), (vec!["one", "two"], "16")] {
-        let mut request = Request::builder()
-            .method("POST")
-            .uri(path)
-            .header("content-type", "application/grpc")
-            .header("te", "trailers");
-        for header in headers {
-            request = request.header("authorization", header);
-        }
-        let response = grpc
-            .clone()
-            .oneshot(request.body(Body::from(vec![0u8; 5])).unwrap())
-            .await
-            .unwrap();
-        let status = response.headers().get("grpc-status").cloned();
-        let body = response.into_body().collect().await.unwrap();
-        let status = status.or_else(|| {
-            body.trailers()
-                .and_then(|trailers| trailers.get("grpc-status").cloned())
-        });
-        assert_eq!(status.unwrap().to_str().unwrap(), expected);
-    }
+    // The same policy over gRPC is covered by kura-reapi's auth_policy_tests, which owns those routes.
     for operation in [
         "asset.read",
         "asset.write",

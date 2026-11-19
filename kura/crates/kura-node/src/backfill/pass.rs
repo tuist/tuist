@@ -25,6 +25,8 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
+use kura_core::reapi::chunking::is_recipe_key;
+
 use crate::{
     artifact::producer::ArtifactProducer,
     backfill::{
@@ -46,7 +48,6 @@ use crate::{
         BackfillBodyFramePrelude, BackfillEntriesPage, BackfillEntry, BackfillUnavailable,
         read_backfill_body_frame_prelude,
     },
-    reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
     store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},

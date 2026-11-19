@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/kura-core"]
+members = ["crates/kura-core", "crates/kura-node", "crates/kura-reapi"]
 
 [workspace.package]
 version = "0.8.0"
@@ -8,6 +8,8 @@ license = "AGPL-3.0-only"
 
 [workspace.dependencies]
 kura-core = { path = "crates/kura-core" }
+kura-node = { path = "crates/kura-node" }
+kura-reapi = { path = "crates/kura-reapi" }
 arc-swap = "1.9.1"
 async-trait = "0.1.89"
 axum = "0.8.9"
@@ -75,59 +77,34 @@ license.workspace = true
 
 [dependencies]
 kura-core.workspace = true
+kura-node.workspace = true
+kura-reapi.workspace = true
 arc-swap.workspace = true
-async-trait.workspace = true
 axum.workspace = true
 axum-server.workspace = true
 base64.workspace = true
 bazel-remote-apis.workspace = true
 bytes.workspace = true
-deadpool.workspace = true
 futures-util.workspace = true
-h2.workspace = true
 hex.workspace = true
-hmac.workspace = true
-http-body.workspace = true
 http-body-util.workspace = true
 httparse.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 libc.workspace = true
-jsonwebtoken.workspace = true
-memmap2.workspace = true
-moka.workspace = true
-opentelemetry.workspace = true
-opentelemetry-http.workspace = true
-opentelemetry-otlp.workspace = true
-opentelemetry_sdk.workspace = true
-prost.workspace = true
-prost-types.workspace = true
-prometheus-client.workspace = true
-rand.workspace = true
 rcgen.workspace = true
 reqwest.workspace = true
-rocksdb.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
-rustls-native-certs.workspace = true
-webpki.workspace = true
-rustix.workspace = true
-sentry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true
-tokio-stream.workspace = true
-tokio-util.workspace = true
 tonic.workspace = true
-tonic-prost.workspace = true
 tower.workspace = true
 tracing.workspace = true
-tracing-opentelemetry.workspace = true
 tracing-subscriber.workspace = true
-uuid.workspace = true
-zstd.workspace = true
+webpki.workspace = true
 
 # `unprefixed_malloc_on_supported_platforms` builds jemalloc without the `_rjem_` symbol prefix, so
 # the binary's own `malloc`/`free` are jemalloc's and interpose libc's for the whole process. Without
@@ -152,6 +129,7 @@ sha2 = { version = "0.10.9", features = ["asm"] }
 futures-executor.workspace = true
 tempfile.workspace = true
 kura-core = { workspace = true, features = ["test-support"] }
+kura-node = { workspace = true, features = ["test-support"] }
 tokio = { workspace = true, features = ["test-util"] }
 
 [profile.dev.package."*"]

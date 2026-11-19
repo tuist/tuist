@@ -82,7 +82,7 @@ pub struct HandoverFailure {
 /// A destination rejection. Terminal ones answer 422 so the frozen source
 /// reports them instead of retrying until the Quiescing deadline.
 #[derive(Debug)]
-pub(crate) struct Rejection {
+pub struct Rejection {
     reason: String,
     terminal: bool,
 }
@@ -188,7 +188,7 @@ fn bounded_detail(detail: &str) -> String {
     detail.chars().take(1024).collect()
 }
 
-pub(crate) async fn record(
+pub async fn record(
     state: &SharedState,
     kind: BackfillRecordKind,
     id: &str,
@@ -725,7 +725,7 @@ fn require_room_for_barrier(state: &SharedState, walk: &ContentWalk) -> Result<(
 
 // Called only under the destination's hold: a missing or different record
 // cannot be repaired any more, so those rejections are terminal.
-pub(crate) async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Rejection> {
+pub async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Rejection> {
     let kind =
         BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")?;
     let actual = match record(state, kind, &expected.id, expected.version).await? {

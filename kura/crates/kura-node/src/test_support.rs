@@ -22,22 +22,19 @@ use crate::{
     usage::Usage,
 };
 
-pub(crate) struct TestContext {
+pub struct TestContext {
     pub _temp_dir: TempDir,
     pub state: Arc<AppState>,
 }
 
-pub(crate) async fn test_context<F>(override_config: F) -> TestContext
+pub async fn test_context<F>(override_config: F) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
     test_context_with_auth(override_config, None).await
 }
 
-pub(crate) async fn test_context_with_auth<F>(
-    override_config: F,
-    auth: Option<SharedAuth>,
-) -> TestContext
+pub async fn test_context_with_auth<F>(override_config: F, auth: Option<SharedAuth>) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
@@ -146,9 +143,6 @@ where
         config.memory_hard_limit_bytes,
         config.anon_admission_budget_bytes(),
     );
-    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
-        config.snapshot_cache_max_bytes,
-    ));
     let store = Arc::new(
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
     );
@@ -200,7 +194,7 @@ where
         store,
         io,
         memory,
-        snapshot_cache,
+        snapshot_cache: Default::default(),
         metrics,
         runtime,
         auth,
@@ -229,7 +223,7 @@ where
     }
 }
 
-pub(crate) async fn response_text(response: Response) -> String {
+pub async fn response_text(response: Response) -> String {
     let bytes = response
         .into_body()
         .collect()

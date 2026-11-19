@@ -57,16 +57,16 @@ pub struct ServingAuthority {
     observed: Mutex<Option<Grant>>,
     mutations: AtomicUsize,
     pub barrier: Mutex<Option<crate::handover::Receipt>>,
-    pub(crate) handover_preparation: tokio::sync::Mutex<()>,
-    pub(crate) preparation: Mutex<Option<crate::handover::Preparation>>,
+    pub handover_preparation: tokio::sync::Mutex<()>,
+    pub preparation: Mutex<Option<crate::handover::Preparation>>,
     // Record versions whose content this destination confirmed against the
     // source while it still served, for exactly one named intent.
-    pub(crate) verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
+    pub verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
     // A destination rejection retrying cannot change, reported by the frozen
     // source so the controller resumes it before the Quiescing deadline.
-    pub(crate) barrier_failure: Mutex<Option<crate::handover::HandoverFailure>>,
+    pub barrier_failure: Mutex<Option<crate::handover::HandoverFailure>>,
     // The same outcome on the destination, answered to every later begin.
-    pub(crate) frozen_failure: Mutex<Option<crate::handover::HandoverFailure>>,
+    pub frozen_failure: Mutex<Option<crate::handover::HandoverFailure>>,
     marker: Option<std::path::PathBuf>,
     // The exited holder that left this pod's volume marked. Until its exit
     // resume installs, no other grant may open the volume.

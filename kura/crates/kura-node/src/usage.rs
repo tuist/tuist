@@ -511,8 +511,8 @@ impl Usage {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn current_rollups_for_tests(&self) -> Vec<UsageRollup> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn current_rollups_for_tests(&self) -> Vec<UsageRollup> {
         let buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
 
         buckets

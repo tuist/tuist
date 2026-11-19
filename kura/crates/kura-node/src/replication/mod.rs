@@ -54,7 +54,7 @@ pub fn spawn_membership_task(state: SharedState) {
     spawn_supervised("membership", state, membership_task_loop);
 }
 
-pub(crate) fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
+pub fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
 where
     F: Fn(SharedState) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
@@ -235,7 +235,7 @@ async fn probe_private_path(
     true
 }
 
-pub(crate) async fn read_bounded_body(
+pub async fn read_bounded_body(
     response: reqwest::Response,
     max_bytes: u64,
     label: &str,
@@ -267,7 +267,7 @@ pub(crate) async fn read_bounded_body(
 /// reservation, applying replication bandwidth shaping and dropping the staged
 /// page cache behind the writer under memory pressure. Used by the backfill
 /// pass driver for both batch and per-artifact downloads.
-pub(crate) async fn stream_response_to_temp(
+pub async fn stream_response_to_temp(
     state: &SharedState,
     response: reqwest::Response,
     path: &Path,
