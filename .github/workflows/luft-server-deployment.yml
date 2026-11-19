@@ -104,10 +104,15 @@ jobs:
           install_args: rust github:tuist/struo node cargo:wasm-bindgen-cli
           cache: "false"
       # struo links libasound; sqlite-wasm-rs compiles SQLite for wasm32 with clang.
+      # Azure's Ubuntu mirror, which GitHub-hosted runners use: Canonical's own
+      # mirrors were unreachable from these runners on 2026-11-19 and apt hung
+      # until the job timed out. The timeout makes a mirror outage fail fast.
       - name: Install Struo runtime libraries and clang
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends libasound2t64 clang
+          sudo sed -i -E 's#https?://([a-z]{2}\.)?(archive|security)\.ubuntu\.com#http://azure.archive.ubuntu.com#g' \
+            /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
+          sudo apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=3 update -y
+          sudo apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=3 install -y --no-install-recommends libasound2t64 clang
       - name: Authenticate hosted cache and insights
         if: github.event.pull_request.head.repo.fork != true
         working-directory: luft

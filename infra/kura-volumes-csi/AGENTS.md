@@ -201,12 +201,23 @@ checker and pool preparation refuses to mutate a VG without it.
 
 On thin nodes the plugin serves `kura_volumes_thin_pool_*` gauges (data and
 metadata used/size bytes, `read_only`, `out_of_data_space`, `healthy`,
-`last_observation_timestamp_seconds`) on `METRICS_ADDRESS` (`:9809` in the
+`last_observation_timestamp_seconds`, and the admission figures
+`usable_bytes`, `committed_bytes`, `unattributed_mapped_bytes` and
+`available_commitment_bytes`) on `METRICS_ADDRESS` (`:9809` in the
 chart). They are recorded from the advertiser's pool observations, never by a
 scrape running LVM, and carry only `node`, `vg` and `pool`. A failed
 observation removes the usage series. Alerts are in
 `infra/helm/k8s-monitoring/kura-thin-pool-alert-rules.json`. Do not treat VM
 qualification with host-installed tooling as proof that the packaged image has
 those tools. Never run offline metadata checks against a live metadata device.
+
+`tuist.dev/kura-disk` advertises `usable_bytes` only. The scheduler subtracts
+pod requests from it, while CreateVolume refuses against `committed_bytes`,
+which also counts volumes no pod requests and unattributed mappings; the
+server's capacity admission counts the former per node. Do not subtract either
+from the advertised value: kubelet re-admits resident pods against it after a
+restart, and a pod whose template reserves a larger sibling's volume can
+request more than its own volume commits, so a lowered value can reject a
+serving pod. Compare `committed_bytes` with the node's pod requests instead.
 
 - Borrowed child volumes (`internal/driver/borrowed.go`) are experimental and build only with `-tags kuraborrowed`; `borrowed_disabled.go` is the shipping behaviour and refuses them. Keep new borrowed code behind the tag and keep shared record types in `borrowed_shared.go`.
