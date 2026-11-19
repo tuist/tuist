@@ -150,6 +150,12 @@ class DefaultConfigurationProvider(
 
     private val cacheTokenCache: CachedValueStore<String?> = CachedValueStore()
 
+    @Volatile
+    private var sentCacheToken = false
+
+    @Volatile
+    private var cacheTokenRejected = false
+
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
         val token = server.tokenProvider.getOptionalToken(forceRefresh)
         if (token == null) {
@@ -172,7 +178,20 @@ class DefaultConfigurationProvider(
             resolveCacheEndpoint(serverConfiguration.accountHandle)
         }
 
-        val cacheToken = cacheTokenCache.getValue(forceRefresh) { exchangeCacheToken(serverConfiguration) }
+        val cacheToken = when {
+            cacheTokenRejected -> null
+            // A forced refresh follows a 401. A node that cannot verify cache tokens and asks the
+            // server instead (the legacy cache service, for example) refuses every one, because the
+            // server does not accept a cache token as a credential, so the build goes on with the
+            // credential that node does accept.
+            forceRefresh && sentCacheToken -> {
+                cacheTokenRejected = true
+                logger.info("Tuist: The cache refused the exchanged cache token; using the original credential.")
+                null
+            }
+            else -> cacheTokenCache.getValue(forceRefresh) { exchangeCacheToken(serverConfiguration) }
+        }
+        sentCacheToken = cacheToken != null
 
         return serverConfiguration.copy(url = cacheEndpoint, token = cacheToken ?: serverConfiguration.token)
     }
