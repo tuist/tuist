@@ -281,6 +281,14 @@ jobs:
             echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
           } >>"$GITHUB_STEP_SUMMARY"
           for phase in $phases; do
+            if [ "$phase" = repeat ]; then
+              # Drop the first build's outputs, action cache and test results
+              # so every action runs again, then redo analysis untimed as the
+              # warm-up step did for the first build.
+              bazel clean
+              # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
+              bazel build $TARGETS --nobuild $BAZEL_FLAGS --disk_cache= --noremote_accept_cached
+            fi
             start=$(date +%s)
             # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
             bazel "$COMMAND" $TARGETS $BAZEL_FLAGS --disk_cache= --noremote_accept_cached \
