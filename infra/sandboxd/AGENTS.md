@@ -503,8 +503,10 @@ Server to node:
 
 A running sandbox's `cpu_ms` is its Firecracker process's user and system
 time from `/proc/<pid>/stat` (vCPU threads included), restarting from zero
-with each new VM process; the server uses it to pause idle Amp Orbs. Paused
-sandboxes, and hosts without `/proc`, omit it.
+with each new VM process; the server uses it to pause idle Amp Orbs and to
+bill bursting sandboxes. Paused sandboxes, and hosts without `/proc`, omit
+it. A `pause` result carries the same reading, taken as the VM's vCPUs stop
+and before the snapshot, so the server bills the time since the last report.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker

@@ -875,6 +875,13 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	if err := api.PatchVMState(ctx, firecracker.VMPaused); err != nil {
 		return res, err
 	}
+	// The guest's CPU time up to its pause, read before the snapshot's own
+	// work adds to the process's, so the server bills the time since the
+	// VM's last report.
+	var cpuMs int64
+	if cpu, ok := inst.CPUTime(); ok {
+		cpuMs = cpu.Milliseconds()
+	}
 	memNew := filepath.Join(sb.root, "mem.new")
 	snapNew := filepath.Join(sb.root, "snapshot.new")
 	if err := api.CreateSnapshot(ctx, firecracker.SnapshotCreateParams{
@@ -930,7 +937,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		if saveErr != nil {
 			return res, saveErr
 		}
-		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced}, nil
+		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced, CPUMs: cpuMs}, nil
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
@@ -953,7 +960,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
 	}
 	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
-	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced}, nil
+	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs}, nil
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {

@@ -489,6 +489,11 @@ type PauseResult struct {
 	SnapshotMs  int64 `json:"snapshot_ms"`
 	MemBytes    int64 `json:"mem_bytes"`
 	DisksSynced bool  `json:"disks_synced"`
+	// CPUMs is the VM's CPU time from its process's start to the pause,
+	// as SandboxInfo.CPUMs reports it while it runs, so the server bills
+	// the time since the last report. Absent when the daemon could not
+	// read it.
+	CPUMs int64 `json:"cpu_ms,omitempty"`
 }
 
 type SaveDisksResult struct {
