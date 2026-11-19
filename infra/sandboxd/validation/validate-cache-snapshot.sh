@@ -47,10 +47,10 @@ truncate -s 40G "$work/data.xfs"
 loop=$(sudo losetup --find --show "$work/data.xfs")
 sudo mkfs.xfs -q -m reflink=1 "$loop"
 sudo mount "$loop" "$work/data"
-# Two copies of the same template: one per daemon configuration, so the
-# flag-on daemon cannot reuse shape snapshots built without the drive.
+# One copy of the template per daemon configuration, so the flag-on daemon
+# cannot reuse shape snapshots built without the drive. Each is seeded just
+# before its daemon starts, since startup deletes other tags.
 docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation-off sandbox-orbs-template:validation
-docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation sandbox-orbs-template:validation
 
 # A cache image made with runner-cache's mkfs flags, holding 256 MiB of
 # random bytes owned by UID 1000 like a CI job's cache.
@@ -145,6 +145,7 @@ cat "$evidence/refused.json"; echo
 stop_daemon
 
 # --- Placeholder in the template snapshot ---------------------------------
+docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation sandbox-orbs-template:validation
 start_daemon validation true
 build_shape validation
 sudo find "$work/data" -path '*/default/validation/*/2x4096/metadata.json' -exec cat {} \; | tee "$evidence/shape-metadata.json"
