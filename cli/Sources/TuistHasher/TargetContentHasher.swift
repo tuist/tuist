@@ -156,13 +156,10 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         if let projectHash {
             // External packages use their revision instead of reading every header. The packaging
             // contract still contributes to both exact-target hashes and the reused SDK subhashes.
-            let headersHash = try graphTarget.target.headers?.sourceLayout.map { layout in
-                try contentHasher.hash([
-                    HeadersContentHasher.swiftPackageLayoutVersion,
-                    layout.moduleName,
-                    layout.publicHeaders.relative(to: layout.root).pathString,
-                    String(layout.usesDirectoryModuleMap),
-                ])
+            let headersHash = try graphTarget.target.headers.flatMap { headers in
+                try headers.sourceLayout.map { layout in
+                    try contentHasher.hash(HeadersContentHasher.swiftPackageLayoutInputs(headers: headers, layout: layout))
+                }
             }
             let subhashes = TargetContentHashSubhashes(
                 dependencies: dependenciesHash.hash,
