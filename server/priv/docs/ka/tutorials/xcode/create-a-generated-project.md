@@ -21,23 +21,23 @@ tuist init
 <!-- -->
 :::
 
-ბრძანება მიგიყვანთ ნაბიჯ-ნაბიჯ <.localized_link href="/guides/features/projects">გენერირებული პროექტის შექმნამდე</.localized_link> ან არსებული Xcode პროექტის ან სამუშაო სივრცის ინტეგრაციამდე. ის გეხმარებათ დააკავშიროთ თქვენი გარემო удаленный სერვერთან, რაც გაძლევთ წვდომას ისეთ ფუნქციებზე, როგორიცაა <.localized_link href="/guides/features/selective-testing">შერჩევითი ტესტირება</.localized_link>, <.localized_link href="/guides/features/previews">წინასწარი ჩვენებები</.localized_link> და <.localized_link href="/guides/features/package-registries/swift">რეესტრი</.localized_link>.
+ბრძანება გაგივლით ნაბიჯებს <.localized_link href="/guides/features/projects">გენერირებული პროექტის შესაქმნელად</.localized_link> ან არსებული Xcode-ის პროექტის ან სამუშაო სივრცის ინტეგრაციისთვის. ის გეხმარებათ თქვენი გარემოს დაკავშირებაში удален სერვერთან, რაც გაძლევთ წვდომას ისეთ ფუნქციებზე, როგორიცაა <.localized_link href="/guides/features/selective-testing">შერჩევითი ტესტირება</.localized_link>, <.localized_link href="/guides/features/previews">პრივიუები</.localized_link> და <.localized_link href="/guides/features/package-registries/swift">რეესტრი</.localized_link>.
 
 > [!NOTE]
 > **არსებული პროექტის მიგრაცია**
 >
-> თუ გსურთ არსებული პროექტის გადატანა გენერირებულ პროექტებზე დეველოპერის გამოცდილების გასაუმჯობესებლად და ჩვენი <.localized_link href="/guides/features/cache">ქეშის</.localized_link> გამოყენებისთვის, იხილეთ ჩვენი <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">მიგრაციის სახელმძღვანელო</.localized_link>.
+> თუ გსურთ არსებული პროექტის გადაყვანა გენერირებულ პროექტებზე დეველოპერული გამოცდილების გასაუმჯობესებლად და ჩვენი <.localized_link href="/guides/features/cache">ქეშის</.localized_link> გამოყენებისთვის, იხილეთ ჩვენი <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">მიგრაციის სახელმძღვანელო</.localized_link>.
 
 
 ## დამატეთ დამოკიდებულებები {#add-dependencies}
 
-ხშირია, რომ პროექტები ეყრდნობიან მესამე მხარის ბიბლიოთეკებს დამატებითი ფუნქციონალის მისაღებად. ამისთვის გაუშვით შემდეგი ბრძანება, რათა უზრუნველყოთ პროექტის რედაქტირების საუკეთესო გამოცდილება:
+ხშირია, რომ პროექტები ეყრდნობიან მესამე მხარის ბიბლიოთეკებს დამატებითი ფუნქციონალის უზრუნველსაყოფად. ამისათვის, გაუშვით შემდეგი ბრძანება, რათა მიიღოთ საუკეთესო გამოცდილება თქვენი პროექტის რედაქტირებისას:
 
 ```bash
 tuist edit
 ```
 
-გაიხსნება Xcode პროექტი, რომელიც შეიცავს თქვენს პროექტის ფაილებს. ჩაასწორეთ `Tuist/Package.swift` და დაამატეთ Kingfisher:
+გაიხსნება Xcode-ის პროექტი, რომელიც შეიცავს თქვენს პროექტის ფაილებს. ჩაასწორეთ `Tuist/Package.swift` და დაამატეთ Kingfisher:
 
 ```swift
 // swift-tools-version: 5.9
@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-შემდეგ ჩაასწორეთ თქვენი პროექტის აპლიკაციის target, რათა განაცხადოთ `Kingfisher` როგორც დამოკიდებულება:
+შემდეგ ჩაასწორეთ თქვენი პროექტის აპლიკაციის სამიზნე (target), რათა განაცხადოთ `Kingfisher` როგორც დამოკიდებულება:
 
 ```swift
 import ProjectDescription
@@ -105,12 +105,12 @@ let project = Project(
 )
 ```
 
-შემდეგ გაუშვით `tuist install`, რათა ამოიცნოთ და ჩამოიტანოთ დამოკიდებულებები [Swift Package Manager](https://www.swift.org/documentation/package-manager/)-ის გამოყენებით.
+შემდეგ გაუშვით `tuist install`, რათა გადაწყვიტოთ და ჩამოტვირთოთ დამოკიდებულებები [Swift Package Manager](https://www.swift.org/documentation/package-manager/)-ის გამოყენებით.
 
 > [!NOTE]
-> **SwiftPM, როგორც დამოკიდებულებების ამომცნობი**
+> **SwiftPM, როგორც დამოკიდებულობების ამომხსნელი**
 >
-> Tuist-ის რეკომენდებული მიდგომა დამოკიდებულებების მიმართ იყენებს Swift Package Manager-ს (SPM) მხოლოდ დამოკიდებულებების ამოსაცნობად. Tuist შემდეგ გარდაქმნის მათ Xcode პროექტებად და target-ებად მაქსიმალური კონფიგურირებადობისა და კონტროლისთვის.
+> Tuist-ის რეკომენდებული მიდგომა დამოკიდებულებების მიმართ იყენებს Swift Package Manager-ს (SPM) მხოლოდ დამოკიდებულებების გადასაწყვეტად. Tuist შემდეგ გარდაქმნის მათ Xcode-ის პროექტებად და სამიზნეებად მაქსიმალური კონფიგურირებადობისა და კონტროლისთვის.
 
 
 ## ვიზუალიზაცია პროექტის {#visualize-the-project}
@@ -149,4 +149,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-გაუშვით აპლიკაცია Xcode-დან და უნდა დაინახოთ სურათი, რომელიც ჩაიტვირთა URL-დან.
+გაუშვით აპლიკაცია Xcode-დან და თქვენ უნდა დაინახოთ სურათი, რომელიც ჩაიტვირთა URL-დან.

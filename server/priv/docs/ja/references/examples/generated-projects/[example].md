@@ -14,4 +14,4 @@ const { params } = useData()
 
 <!-- @content -->
 
-<a :href="params.url" target="blank">例を確認する</a>
+<a :href="params.url" target="blank">サンプルを確認</a>

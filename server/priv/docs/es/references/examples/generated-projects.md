@@ -7,4 +7,4 @@
 ---
 # Ejemplos de proyectos generados
 
-En esta sección encontrarás ejemplos de <.localized_link href="/guides/features/projects">proyectos generados</.localized_link> que utilizamos como [ejemplos](https://github.com/tuist/tuist/tree/main/examples/xcode) para ejecutar pruebas de aceptación. Pueden resultarte útiles al crear un nuevo proyecto generado o al migrar un proyecto de Xcode existente para que sea generado por Tuist.
+En esta sección encontrarás ejemplos de <.localized_link href="/guides/features/projects">proyectos generados</.localized_link> que utilizamos como [ejemplos](https://github.com/tuist/tuist/tree/main/examples/xcode) para ejecutar pruebas de aceptación. Pueden resultarte útiles al crear un nuevo proyecto generado o al migrar un proyecto existente de Xcode para que sea generado por Tuist.

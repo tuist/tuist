@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Кэш Elixir" },
-      "entire": { "text": "Весь проект" },
+      "entire": { "text": "Полностью" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -36,7 +36,7 @@
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
       "new-project": { "text": "Новый проект" },
-      "once": { "text": "Once" },
+      "once": { "text": "Один раз" },
       "once-cache": { "text": "Кэш Once" },
       "once-project": { "text": "Проект Once" },
       "once-remote-execution": { "text": "Удалённое выполнение Once" },
@@ -49,7 +49,7 @@
       "run-previews": { "text": "Запуск превью" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
-      "rust-project": { "text": "Проект на Rust" },
+      "rust-project": { "text": "Проект Rust" },
       "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
       "server-api": { "text": "API сервера" },
@@ -67,7 +67,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить перевод этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить рекомендации по локализации для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -102,7 +102,7 @@
         },
         "footer": {
           "select-text": "Выбрать",
-          "navigate-text": "Перейти",
+          "navigate-text": "Навигация",
           "close-text": "Закрыть",
           "search-by-text": "Поисковый провайдер"
         },
@@ -126,7 +126,7 @@
       "text": "Сервер"
     },
     "tutorials": {
-      "text": "Уроки"
+      "text": "Туториалы"
     },
     "resources": {
       "text": "Ресурсы",
@@ -153,7 +153,7 @@
               "text": "Отладка"
             },
             "directories": {
-              "text": "Каталоги"
+              "text": "Директории"
             },
             "shell-completions": {
               "text": "Автодополнение в оболочке"
@@ -279,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное развёртывание",
+          "text": "Локальное развертывание",
           "items": {
             "install": {
               "text": "Установка"
@@ -298,7 +298,7 @@
       }
     },
     "tutorials": {
-      "text": "Уроки",
+      "text": "Туториалы",
       "items": {
         "xcode": {
           "text": "Xcode",
@@ -391,7 +391,7 @@
                           "text": "Проект Xcode"
                         },
                         "swift-package": {
-                          "text": "Swift-пакет"
+                          "text": "Пакет Swift"
                         },
                         "xcodegen-project": {
                           "text": "Проект XcodeGen"
@@ -407,7 +407,7 @@
                   "text": "Манифесты"
                 },
                 "directory-structure": {
-                  "text": "Структура каталогов"
+                  "text": "Структура директорий"
                 },
                 "editing": {
                   "text": "Редактирование"
@@ -490,7 +490,7 @@
                   "text": "Интеграция на основе XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Swift-пакет"
+                  "text": "Пакет Swift"
                 },
                 "continuous-integration": {
                   "text": "Непрерывная интеграция"
@@ -498,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "Выборочное тестирование",
+              "text": "Выборочный запуск",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -514,7 +514,7 @@
               }
             },
             "insights": {
-              "text": "Аналитика сборок",
+              "text": "Аналитика",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -522,7 +522,7 @@
               }
             },
             "test-insights": {
-              "text": "Аналитика тестов",
+              "text": "Аналитика",
               "items": {
                 "flaky-tests": {
                   "text": "Нестабильность",
@@ -535,7 +535,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Аналитика бандлов",
+              "text": "Аналитика",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -582,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git-хостинги",
+              "text": "Git-форжи",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -604,7 +604,7 @@
               "text": "Сеть"
             },
             "self-hosting": {
-              "text": "Самостоятельное размещение",
+              "text": "Самостоятельный хостинг",
               "items": {
                 "server": {
                   "text": "Сервер"
