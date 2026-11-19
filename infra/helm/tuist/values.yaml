@@ -2881,6 +2881,10 @@ sandboxes:
     # archives. The daemon drops the guests' traffic to that port
     # (DAEMON_ONLY_TCP_PORTS), so only the daemon uses this rule.
     archiveStoreEgress: false
+    # Namespace of the RustFS store (infra/helm/shard-storage-rustfs) whose
+    # private endpoint holds archives. Admits the daemon on :9000 and drops
+    # the guests' traffic to that port everywhere, as for archiveStoreEgress.
+    rustfsNamespace: ""
     # Let guests reach the in-cluster server directly. The NetworkPolicy
     # admits the daemon Pod, and so its guests, to the server for the node
     # connection; without this the daemon drops guest traffic to the
@@ -3045,6 +3049,9 @@ runnersFleet:
   # templates/runners-namespace.yaml.
   networkPolicy:
     enabled: true
+    # Namespace of the RustFS store whose private endpoint runners reach on
+    # :9000 for presigned object requests. Empty adds no rule.
+    rustfsNamespace: ""
     # CIDRs excluded from the runner-Pod egress allow rule.
     # Blocks the Pod (not the VM) from reaching internal cluster
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster

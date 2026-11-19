@@ -24,6 +24,28 @@ setup:
 target:
   id: ""
   site: gra
+  # Lets in-cluster callers (Linux runner shards, the Actions cache and
+  # sandbox archives) place new objects here over privateNetwork. Existing
+  # objects stay readable there either way.
+  privateNetworkReady: false
+# In-cluster S3 (<release>-s3:9000) for callers on the private network, which
+# reach every bucket the service user may use, unlike the public gateway.
+# sandboxd must keep its guests off port 9000 (DAEMON_ONLY_TCP_PORTS), since
+# its Pod is admitted here.
+privateNetwork:
+  enabled: false
+  # Namespaces admitted to the store, each optionally narrowed to pods
+  # carrying podLabels.
+  clients: []
+# Sandbox archives bucket: no expiry, since an archive is an Orb's only copy.
+# archiveBudgetGiB is the server's routing threshold, not a quota.
+archiveBucket: ""
+archiveBudgetGiB: 100
+# GitHub Actions cache bucket, capped by a hard RustFS quota of maxGB
+# (decimal). The server evicts beyond 90% of it.
+actionsCache:
+  bucket: ""
+  maxGB: 0
 serverNamespace: tuist
 storageClass: hcloud-volumes
 volumeSize: 10Gi
