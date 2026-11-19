@@ -30,7 +30,7 @@ so arm64 would mean compiling nginx, OpenTelemetry and ModSecurity under QEMU.
 
 ## Tags
 
-Tags are `<fork version>-tuist.<TUIST_BUILD>`, for example `v1.15.15-tuist.1`,
+Tags are `<fork version>-tuist.<TUIST_BUILD>`, for example `v1.15.16-tuist.1`,
 and are never overwritten: publishing fails if the tag already exists. Pin by
 digest in charts.
 
