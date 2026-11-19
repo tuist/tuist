@@ -2027,7 +2027,10 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 // would render as `location /build.bazel.remote.execution.v2./` plus an
 // exact `= /build.bazel.remote.execution.v2.`, and the method path (no `/`
 // after the package prefix) matches neither, falling through to the HTTP
-// `/` location. Verified against ingress-nginx v1.11.3.
+// `/` location. Verified against ingress-nginx v1.11.8 and v1.15.1. Since
+// v1.13.7 the controller escapes backslashes inside the quoted location
+// (`"^/build\\.bazel\\.remote\\.execution\\.v2\\."`), which nginx unescapes
+// to the same regex.
 //
 // The values must start with `/` (the Kubernetes Ingress API rejects a path
 // that does not begin with a slash); ingress-nginx adds the leading `^`
