@@ -8,9 +8,26 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
   embed_templates("marketing_html/*")
   embed_templates("marketing_html/blog/*")
+  embed_templates("marketing_html/runners/*")
 
   # Delegate to Localization module
   defdelegate localized_href(href), to: TuistWeb.Marketing.Localization
+
+  # The line a CI job changes to run on Tuist Runners, per provider:
+  # {ci, switch label, removed line, added line}.
+  @runners_diffs %{
+    "github" => {"GitHub", "runs-on: macos-latest", "runs-on: tuist-macos"},
+    "gitlab" => {"GitLab", "tags: [macos]", "tags: [tuist-macos]"},
+    "buildkite" => {"Buildkite", ~s(queue: "macos"), ~s(queue: "tuist-macos")},
+    "bitrise" => {"Bitrise", "stack: osx-xcode-26.0.x", "stack: agent-pool-a0c641c0"}
+  }
+
+  def runners_diffs(providers) do
+    Enum.map(providers, fn ci ->
+      {label, removed, added} = Map.fetch!(@runners_diffs, ci)
+      {ci, label, removed, added}
+    end)
+  end
 
   def static_asset_path(nil), do: nil
 

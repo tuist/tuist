@@ -1,18 +1,6 @@
 apiVersion: v2
-name: pulse
-description: Headless observability backend for logs and metrics with a native Model Context Protocol interface.
+name: tuist-pulse
+description: Pulse backend with isolated object storage and retained WAL
 type: application
-# Kept in lockstep with mix.exs by the release workflow. Each release
-# publishes the chart and the container image under the same version.
-version: 1.39.0
-appVersion: "1.39.0"
-home: https://github.com/tuist/tuist
-sources:
-  - https://github.com/tuist/tuist
-annotations:
-  licenses: MIT
-keywords:
-  - observability
-  - logs
-  - metrics
-  - mcp
+version: 0.1.0
+appVersion: 1.3.0

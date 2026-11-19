@@ -269,7 +269,7 @@ fn label_for_error(err: MicrosandboxError) -> String {
     match err {
         MicrosandboxError::ExecTimeout(_) => "timeout".to_string(),
         MicrosandboxError::Io(io) => label_for_io(&io),
-        MicrosandboxError::SandboxFs(message) => label_for_message(&message),
+        MicrosandboxError::SandboxFsOps(message) => label_for_message(&message),
         other => label_for_message(&other.to_string()),
     }
 }

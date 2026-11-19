@@ -52,7 +52,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
-    val isAIEnabled by viewModel.isAIEnabled.collectAsStateWithLifecycle()
+    val signOutFailed by viewModel.signOutFailed.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
@@ -132,11 +132,6 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(NooraSpacing.Spacing5))
 
-            if (isAIEnabled) {
-                AISubscriptionsSection()
-                Spacer(Modifier.height(NooraSpacing.Spacing3))
-            }
-
             SectionCard {
                 LinkRow(
                     title = stringResource(R.string.notifications_title),
@@ -200,6 +195,9 @@ fun ProfileScreen(
             Spacer(Modifier.height(NooraSpacing.Spacing5))
 
             // Sign out
+            if (signOutFailed) {
+                Text(stringResource(R.string.profile_sign_out_failed), color = MaterialTheme.colorScheme.error)
+            }
             SectionCard {
                 TextButton(
                     onClick = { viewModel.signOut() },

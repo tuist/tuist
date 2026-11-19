@@ -39,7 +39,9 @@ sudo mount "$loop" "$work/data"
 docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation sandbox-orbs-template:validation
 
 start_daemon() {
-  docker run -d --name "$daemon" --privileged --cgroupns=host \
+  # Guests are always 10.0.0.2 (sandboxd internal/network/addr.go). Some hosted
+  # runners resolve through 10.0.0.2 too, which a guest would answer itself.
+  docker run -d --name "$daemon" --privileged --cgroupns=host --dns 1.1.1.1 --dns 8.8.8.8 \
     -v "$work/data:/data/sandboxes" \
     -p 127.0.0.1:9471:9471 \
     -e ADMIN_ADDR=:9471 -e TEMPLATE_TAG=validation \
@@ -89,12 +91,12 @@ cat > /usr/local/bin/amp <<"AMP"
 #!/usr/bin/env bash
 set -euo pipefail
 [[ $(id -un) == user && $HOME == /home/user ]]
-[[ -z ${AMP_ORB_PROVIDER_TOKEN:-} && ${TUIST_TOKEN:-} == validation-cache-read ]]
+[[ -z ${AMP_ORB_PROVIDER_TOKEN:-} && -z ${TUIST_TOKEN:-} ]]
 echo boot >> /home/user/bootstrap-starts
 exec sleep 3600
 AMP
 chmod +x /usr/local/bin/amp
-ORB_TOKEN=validation-first AMP_URL=https://amp.example.invalid AMP_ORB_PROVIDER_TOKEN=must-not-cross TUIST_TOKEN=validation-cache-read /usr/local/bin/sbx-orb-bootstrap
+ORB_TOKEN=validation-first AMP_URL=https://amp.example.invalid AMP_ORB_PROVIDER_TOKEN=must-not-cross TUIST_TOKEN=must-not-cross /usr/local/bin/sbx-orb-bootstrap
 cp /run/tuist-amp/process /home/user/first-bootstrap
 runuser -u user -- bash -c "echo retained > /home/user/workspace/marker"
 cat > /home/user/counter.sh <<"COUNTER"
@@ -124,7 +126,7 @@ kill -0 "$pid"
 counter=$(cat /home/user/counter.pid)
 [[ $(awk "{print \$22}" /proc/$counter/stat) == $(cat /home/user/counter.start) ]]
 before=$(cat /workspace/amp/counter); sleep 2; [[ $(cat /workspace/amp/counter) -gt $before ]]
-ORB_TOKEN=validation-refreshed AMP_URL=https://amp.example.invalid TUIST_TOKEN=validation-cache-read /usr/local/bin/sbx-orb-bootstrap
+ORB_TOKEN=validation-refreshed AMP_URL=https://amp.example.invalid TUIST_TOKEN=must-not-cross /usr/local/bin/sbx-orb-bootstrap
 read -r current _ < /run/tuist-amp/process
 read -r previous _ < /home/user/first-bootstrap
 [[ $current != "$previous" ]]

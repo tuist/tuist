@@ -97,8 +97,18 @@ defmodule Tuist.OAuth.TokenGenerator do
     "project:runs:write"
   ]
 
+  # Clients limited to the scopes they were granted (`authorize_scope`, the
+  # Luft server) never get the defaults: a blank scope on any grant,
+  # including a refresh, means no scopes, not every project.
+  defp parse_scopes(scope, %{authorize_scope: true}), do: String.split(scope || "", " ", trim: true)
+  defp parse_scopes(scope, _client), do: parse_scopes(scope)
+
   defp parse_scopes(nil), do: @default_user_scopes
   defp parse_scopes(""), do: @default_user_scopes
+  # Luft asked for `threads` before it became a first-party client; those
+  # sessions keep their default access until they sign in again.
+  defp parse_scopes("threads"), do: @default_user_scopes
+
   defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
 
   defp parse_user_id(sub) when is_binary(sub), do: Integer.parse(sub)
@@ -111,7 +121,7 @@ defmodule Tuist.OAuth.TokenGenerator do
     with {user_id, ""} <- parse_user_id(sub),
          user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
          client when not is_nil(client) <- Clients.get_client(client_id) do
-      scopes = parse_scopes(scope)
+      scopes = parse_scopes(scope, client)
 
       claims = %{
         "type" => "account",

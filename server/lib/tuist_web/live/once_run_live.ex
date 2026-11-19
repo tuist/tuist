@@ -269,7 +269,7 @@ defmodule TuistWeb.OnceRunLive do
           patch={~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}"}
         />
         <.tab_menu_horizontal_item
-          label={dgettext("dashboard_projects", "Once Cache")}
+          label={dgettext("dashboard_projects", "Struo Cache")}
           selected={@live_action == :cache}
           patch={
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}/cache"
@@ -308,7 +308,7 @@ defmodule TuistWeb.OnceRunLive do
                   <span :if={redacted_command?(@run)} data-part="command-note">
                     {dgettext(
                       "dashboard_projects",
-                      "Argument values are redacted by Once before this command is sent to Tuist."
+                      "Argument values are redacted by Struo before this command is sent to Tuist."
                     )}
                   </span>
                 </div>
@@ -321,12 +321,12 @@ defmodule TuistWeb.OnceRunLive do
                     label={run_status_label(@run)}
                     color={run_status_badge_color(@run)}
                     style="fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_projects", "Kind")}</div>
-                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="large" />
+                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="medium" />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
@@ -377,7 +377,7 @@ defmodule TuistWeb.OnceRunLive do
           </.card_section>
         </.card>
         <TuistWeb.Components.BuildMetadata.environment_metadata fields={[
-          {dgettext("dashboard_projects", "Once version"), @run.once_version},
+          {dgettext("dashboard_projects", "Struo version"), @run.once_version},
           {dgettext("dashboard_projects", "Host"), @run.host_class}
         ]} />
 
@@ -540,7 +540,7 @@ defmodule TuistWeb.OnceRunLive do
           description={
             dgettext(
               "dashboard_projects",
-              "Actions that replayed from the Once cache instead of executing."
+              "Actions that replayed from the Struo cache instead of executing."
             )
           }
           value={@cache.hits}
@@ -552,7 +552,7 @@ defmodule TuistWeb.OnceRunLive do
           description={
             dgettext(
               "dashboard_projects",
-              "Actions that had to execute because the Once cache had no result."
+              "Actions that had to execute because the Struo cache had no result."
             )
           }
           value={@cache.misses}
@@ -576,7 +576,7 @@ defmodule TuistWeb.OnceRunLive do
           description={
             dgettext(
               "dashboard_projects",
-              "Total bytes moved from the Once cache into this run."
+              "Total bytes moved from the Struo cache into this run."
             )
           }
           value={ByteFormatter.format_bytes(@cache.content_download_bytes)}
@@ -588,7 +588,7 @@ defmodule TuistWeb.OnceRunLive do
           description={
             dgettext(
               "dashboard_projects",
-              "Total bytes this run stored back into the Once cache."
+              "Total bytes this run stored back into the Struo cache."
             )
           }
           value={ByteFormatter.format_bytes(@cache.content_upload_bytes)}
@@ -609,7 +609,7 @@ defmodule TuistWeb.OnceRunLive do
       />
     </.tab_menu_horizontal>
     <.card
-      title={dgettext("dashboard_projects", "Once Cache")}
+      title={dgettext("dashboard_projects", "Struo Cache")}
       icon="database"
       data-part="cache-requests-card"
     >
@@ -697,7 +697,7 @@ defmodule TuistWeb.OnceRunLive do
               description={
                 dgettext(
                   "dashboard_projects",
-                  "Time Once spent reading action cache keys, including hits and misses."
+                  "Time Struo spent reading action cache keys, including hits and misses."
                 )
               }
               value={
@@ -713,7 +713,7 @@ defmodule TuistWeb.OnceRunLive do
               description={
                 dgettext(
                   "dashboard_projects",
-                  "Time Once spent writing action results back into the cache."
+                  "Time Struo spent writing action results back into the cache."
                 )
               }
               value={
@@ -1257,9 +1257,9 @@ defmodule TuistWeb.OnceRunLive do
   defp run_title(run) do
     if redacted_command?(run) do
       case run.kind do
-        "build" -> dgettext("dashboard_projects", "Once build")
-        "test" -> dgettext("dashboard_projects", "Once test")
-        _ -> dgettext("dashboard_projects", "Once run")
+        "build" -> dgettext("dashboard_projects", "Struo build")
+        "test" -> dgettext("dashboard_projects", "Struo test")
+        _ -> dgettext("dashboard_projects", "Struo run")
       end
     else
       run.command_display || run.run_id

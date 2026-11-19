@@ -100,7 +100,7 @@ struct TestShowCommandServiceTests {
             isFlaky: true,
             macosVersion: "14.0",
             scheme: "App",
-            status: .failure,
+            status: "failure",
             totalTestCount: 100,
             xcodeVersion: "15.0"
         )
@@ -140,6 +140,50 @@ struct TestShowCommandServiceTests {
         #expect(ui().contains("abc1234"))
         #expect(ui().contains("IDs"))
         #expect(ui().contains("Run:          run-id"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora) func run_shows_coverage_and_selective_testing() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testRun = ServerTestRun.test(
+            coverage: .init(
+                coverage: 75,
+                covered_lines: 150,
+                enabled: true,
+                executable_lines: 200,
+                git_dirty: false,
+                measured: true,
+                partial: true
+            ),
+            selectiveTesting: .init(
+                baseline_sha: "0f0f0f",
+                estimated: 4,
+                requested: 10,
+                selected: 3,
+                skipped: 7,
+                strategy: "coverage"
+            )
+        )
+        given(getTestRunService).getTestRun(fullHandle: .any, testRunId: .value("run-id"), serverURL: .any)
+            .willReturn(testRun)
+
+        // When
+        try await subject.run(project: nil, testRunId: "run-id", path: nil, json: false)
+
+        // Then
+        #expect(ui().contains("Coverage:     75.0% (150 of 200 lines)"))
+        #expect(ui().contains("Partial:      Yes"))
+        #expect(!ui().contains("Discarded:"))
+        #expect(ui().contains("Strategy:     coverage"))
+        #expect(ui().contains("Baseline:     0f0f0f"))
+        #expect(ui().contains("Selected:     3"))
+        #expect(ui().contains("Skipped:      7 (4 estimated)"))
+        #expect(ui().contains("tuist test selective-testing list run-id"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora) func run_with_explicit_project_handle() async throws {

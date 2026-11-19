@@ -88,16 +88,23 @@ struct PackageManifestEnvironmentTests {
     }
 
     @Test func automatic_defaults_exclude_tuist_metadata_without_a_provider_marker() async {
-        let filtered = await PackageManifestEnvironment.withConfiguration(.init()) {
-            PackageManifestEnvironment.filtered([
-                "TUIST_CACHE_SIGNING_GRANT": "grant",
-                "TUIST_RUNNER_POD_NAME": "pod",
-                "TUIST_RUNNER_POD_UID": "uid",
-                "TUIST_EE": "1",
-                "SSH_AUTH_SOCK": "/agent.sock",
+        let variables = [
+            "TUIST_CACHE_SIGNING_GRANT": "grant",
+            "TUIST_RUNNER_POD_NAME": "pod",
+            "TUIST_RUNNER_POD_UID": "uid",
+            "TUIST_COMMAND_ID": "command",
+            "TUIST_OIDC_TOKEN": "sandbox-token",
+            "STRUO_PROGRESS": "/progress.jsonl",
+            "ONCE_PROGRESS": "/progress.jsonl",
+            "TUIST_EE": "1",
+            "SSH_AUTH_SOCK": "/agent.sock",
+        ]
+        await PackageManifestEnvironment.withConfiguration(.init()) {
+            #expect(PackageManifestEnvironment.filtered(variables) == ["TUIST_EE": "1", "SSH_AUTH_SOCK": "/agent.sock"])
+            #expect(PackageManifestEnvironment.filtered(variables, forDependencyResolution: true) == [
+                "TUIST_EE": "1", "SSH_AUTH_SOCK": "/agent.sock", "TUIST_OIDC_TOKEN": "sandbox-token",
             ])
         }
-        #expect(filtered == ["TUIST_EE": "1", "SSH_AUTH_SOCK": "/agent.sock"])
     }
 
     @Test func automatic_defaults_exclude_shell_bookkeeping_and_tuist_cache_settings_without_a_provider_marker() async {

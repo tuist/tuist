@@ -81,14 +81,16 @@ jobs:
           BUILDER: ${{ steps.builder.outputs.name }}
         run: |
           set -euo pipefail
-          # The cold job also builds the changed source, so it publishes the
+          # The cold job also seeds the changed source, so it publishes the
           # `second` marker the same-size write reads. Every cross-job claim
           # (mounted marker, same-size publication, compile-layer hit) is then
           # proven by the next job; the in-job build only seeds that state and
-          # saves a publication wait. The in-repo Docker e2e test covers every
-          # phase as its own job.
+          # saves a publication wait, so it asserts no cache reuse. BuildKit
+          # may drop a cache mount between two builds on the same builder, and
+          # asserting it made canary deploys flaky. The in-repo Docker e2e test
+          # covers every phase as its own job.
           phases="$CACHE_PHASE"
-          [ "$CACHE_PHASE" != cold ] || phases="cold changed-source"
+          [ "$CACHE_PHASE" != cold ] || phases="cold seed"
           # Both drivers share one published snapshot. Parallel seed jobs can
           # overwrite whole BuildKit databases, obscuring what this gate tests.
           for driver in docker docker-container; do

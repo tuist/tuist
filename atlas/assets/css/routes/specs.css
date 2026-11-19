@@ -404,7 +404,7 @@
     }
 
     & .markdown-alert-note {
-      background: light-dark(var(--noora-azure-50), var(--noora-alpha-azure));
+      background: light-dark(var(--noora-azure-50), var(--noora-alpha-azure-24));
 
       & > p:first-child {
         color: var(--noora-azure-500);
@@ -412,7 +412,7 @@
     }
 
     & .markdown-alert-tip {
-      background: light-dark(var(--noora-green-50), var(--noora-alpha-green));
+      background: light-dark(var(--noora-green-50), var(--noora-alpha-green-24));
 
       & > p:first-child {
         color: var(--noora-green-600);
@@ -420,7 +420,7 @@
     }
 
     & .markdown-alert-important {
-      background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+      background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
 
       & > p:first-child {
         color: var(--noora-purple-600);
@@ -428,7 +428,7 @@
     }
 
     & .markdown-alert-warning {
-      background: light-dark(var(--noora-orange-50), var(--noora-alpha-orange));
+      background: light-dark(var(--noora-orange-50), var(--noora-alpha-orange-24));
 
       & > p:first-child {
         color: var(--noora-orange-600);
@@ -436,7 +436,7 @@
     }
 
     & .markdown-alert-caution {
-      background: light-dark(var(--noora-red-50), var(--noora-alpha-red));
+      background: light-dark(var(--noora-red-50), var(--noora-alpha-red-24));
 
       & > p:first-child {
         color: var(--noora-red-500);

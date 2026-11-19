@@ -5,6 +5,16 @@ own node: [`cache_volumes/AGENTS.md`](cache_volumes/AGENTS.md). GitLab
 acquisition: [`gitlab/AGENTS.md`](gitlab/AGENTS.md). Bitrise pools:
 [`bitrise/AGENTS.md`](bitrise/AGENTS.md).
 
+## Air fleet share
+
+`AirShare` caps what Air accounts (no live paid or open source subscription, no
+runner trial) hold together at `:runner_air_fleet_share_percent` (default 15,
+`TUIST_RUNNER_AIR_FLEET_SHARE_PERCENT`) of each platform's Ready, schedulable
+RunnerPool Nodes. `Claims.attempt/6` reads the budget before its transaction,
+never the cluster under locks, and serialises Air admission per platform with
+a non-blocking advisory lock. The scaling signals withhold Air jobs past the
+share. An unreadable cluster leaves the share unenforced (fail open).
+
 ## Rack sites
 
 The design and the alternatives considered are in [`sites.md`](sites.md).
@@ -49,6 +59,41 @@ Linux profiles share one runner pool per shape and Ubuntu release
 the existing regional Kura Service directly; vRack enrollment changes transport
 at the host level. Keep profile sizing, fleet accounting and macOS site selection
 independent. Old internal cohort labels remain hidden during rolling upgrades.
+
+## GitHub Actions cache
+
+`ActionsCache` is the index of the GitHub Actions cache Linux hosts serve
+(see `infra/runner-cache/AGENTS.md`); only the storage agent calls it.
+
+- Scope comes from `Identity.github_run/1` for the Pod's executed job, cached
+  per workflow run attempt. It reads the run the App's `workflow_run`
+  `requested` webhook stored (`WorkflowRuns`, kept three days) and asks
+  GitHub's API (two requests, about 750 ms) only for runs it lacks; both are
+  GitHub's word, never the job's. A same-repository pull request saves under
+  `refs/pull/<n>/merge` and reads its base branch; other runs of the repository
+  save under `refs/heads/<head_branch>`; a run from a fork saves under
+  `fork/<head repository ID>/<branch>`. Every job also reads the default branch.
+  Never take a ref from the job.
+- Matching follows GitHub per ref in read order: exact key, key prefix, then
+  each restore key as a prefix, newest first. Escape LIKE wildcards.
+- A save of an existing key and version in the job's ref is refused (409),
+  except a reservation abandoned for an hour. Reservations are idempotent by
+  the agent's entry ID, and commits by ID and node.
+- A reservation is placed in the account's own storage, otherwise in the shard
+  store (`actions_cache_bucket`) whose site is the node's, which must be on the
+  private network. Without one the save is refused and the job uses GitHub's
+  cache. Lookups only match entries the node's site can read. An entry commits
+  only once its store holds the object.
+- Production serves an account only with `:runner_actions_cache`
+  (`FeatureFlags.runner_actions_cache_enabled?/1`). `enabled/1` answers the
+  host's health check per job, so a job without it keeps GitHub's cache; lookup
+  and reserve refuse it too. Gate there, never in lookup alone: a job sent to
+  the mirror and refused would miss instead of restoring from GitHub.
+- `sweep/1` (hourly) deletes abandoned reservations, entries unused for seven
+  days, a repository's least recently used entries beyond 200 GB, and a store's
+  beyond 90% of its `actions_cache_bytes`, so the Garage quota stays a backstop.
+  An entry's row goes only after its object was deleted, except in a store that
+  is no longer configured.
 
 ## Linux OS versions
 

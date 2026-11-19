@@ -36,11 +36,11 @@ clusters/
 │                              (separate /data, no Kata, per-cluster RAID;
 │                              carries ClickHouse)            (mgmt-cluster-apply.yml)
 ├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
+├── clusterclass-check/        render check for the control-plane patches
 └── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
     ├── production/{cluster,kustomization}.yaml
-    ├── hive/{cluster,kustomization}.yaml    tenant (migrated from tuist/hive)
     ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
     └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
@@ -48,12 +48,12 @@ clusters/
 ## Reconciliation ownership
 
 Two mechanisms apply these manifests, split deliberately (see
-[hive/specs/72](https://hive.tuist.dev/specs/72) and `infra/flux/mgmt/README.md`):
+[spec 72](https://atlas.tuist.dev/engineering/specs/72) and `infra/flux/mgmt/README.md`):
 
 - **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
   `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
   scoped never to prune a `Cluster` object. This is the source of truth
-  for the staging / canary / production and hive / once / atlas topologies.
+  for the staging / canary / production and once / atlas topologies.
 - **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
   path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
   templates (whose delete-and-apply fallback for `field is immutable` a plain
@@ -70,9 +70,9 @@ the tenant-repo copies are then retired to a pointer.
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
+| `tuist-staging` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 6× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx32 | md-0: 8× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 
 Canary's general-purpose pool runs its three CNPG instances and reserves
 capacity for deployment hooks and rolling-update surge pods. Without that
@@ -80,6 +80,14 @@ headroom the 512Mi ClickHouse schema-clone hook stays unschedulable until Helm
 times out and rolls back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
+
+Production's general pool includes capacity to qualify Pulse's distributed
+backend while Pulse continues serving live traffic. The increase from five to
+eight ccx23 Hetzner Cloud VMs is preliminary qualification capacity, not a
+load-qualified minimum; it does not add bare-metal workers. Scale it down only after
+cutover and retirement of the old workload, with the remaining placement checked
+for server rollout surge, host anti-affinity and a single worker failure. Removing
+Pulse alone does not establish that the HA backend fits on the smaller pool.
 
 `tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
 Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
@@ -186,6 +194,26 @@ Everything below the PR is a human operation:
    must be Ready: Ready means `/replicas_status` reports the replica caught
    up. The PodDisruptionBudget refuses the drain otherwise, and that refusal
    is the point. Check that the last backup CronJob runs succeeded.
+
+   Then check that no backup is running. Don't drain either box while one
+   is, including the box whose replica isn't running it. Backups run at
+   01:00 UTC: the weekly full on Mondays takes about 11 hours on production,
+   and the daily incremental takes much less. On production on 2026-11-09,
+   draining `clickhouse-1`'s box failed the full that `clickhouse-0` had
+   been writing for 7 hours. It failed with an S3 `RequestCanceled` 21
+   seconds after the eviction, and the Job's one retry then started again
+   from scratch. Before draining, both of these must be empty:
+
+   ```bash
+   kubectl -n <namespace> get jobs | grep clickhouse-backup | grep Running
+   kubectl -n <namespace> exec tuist-tuist-clickhouse-0 -c clickhouse -- \
+     sh -c 'clickhouse-client --password "$TUIST_CLICKHOUSE_PASSWORD" \
+       -q "SELECT name, start_time FROM system.backups WHERE status = '\''CREATING_BACKUP'\''"'
+   ```
+
+   Repeat the `system.backups` query on `tuist-tuist-clickhouse-1`. The
+   server can keep writing a backup after its Job has failed or hit its
+   deadline. That's why `system.backups` is the check, not the Job's status.
 3. For **one** box (`NODE=bm-...-md-clickhouse-...`):
 
    ```bash
@@ -320,6 +348,24 @@ on the stuck host. Pause only the KCP, not the `Cluster`: pausing the Cluster
 also stops every worker pool from scaling or remediating. Then remove the
 annotation and either delete the stuck Machine (KCP retries) or revert.
 Reverting the type is another full roll, not an undo.
+
+## API server flags, volumes and files
+
+Opt-in API server features (the metrics label manifest, the audit log, GitHub
+Actions OIDC) each need a flag, a hostPath volume and a file. Cluster API
+patches can only add or replace whole arrays at `apiServer.extraArgs` and
+`apiServer.extraVolumes`, so one patch owns each array and builds it from
+every feature's variable: `KubeadmControlPlaneKubeletAddressTypes` for
+`extraArgs`, `ApiServerExtraVolumes` for `extraVolumes`. A feature adds its
+entries to those two templates and appends only its file (`files/-`) in its
+own patch. A second patch that writes either array replaces the first's
+entries without any error, and the control plane rolls without them.
+
+`mise run k8s:lint-clusterclass-patches` renders the control-plane patches
+with every variable on and fails when a flag or volume one patch renders is
+missing from the result, when a File volume has no file, or when the defaults
+change the base template's API server args or volumes, which would roll every
+control plane. `mgmt-cluster-apply.yml` runs it before applying anything.
 
 ## Adapting from caph upstream
 

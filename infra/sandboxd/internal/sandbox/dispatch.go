@@ -30,6 +30,8 @@ type Operations interface {
 	SaveDisks(ctx context.Context, args protocol.SaveDisksArgs) (protocol.SaveDisksResult, error)
 	DeleteDisks(ctx context.Context, id string) error
 	Archive(ctx context.Context, args protocol.ArchiveArgs) (protocol.ArchiveResult, error)
+	ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error)
+	CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (protocol.SaveDisksResult, error)
 }
 
 // Lifecycle operations run detached from the connection that carried the
@@ -203,6 +205,30 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 		opCtx, cancel := detached(archiveTimeout)
 		defer cancel()
 		res, err := ops.Archive(opCtx, args)
+		if err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		return protocol.OKResult(cmd.ID, res)
+	case protocol.OpArchiveDisks:
+		var args protocol.ArchiveDisksArgs
+		if err := decode(&args); err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		opCtx, cancel := detached(archiveTimeout)
+		defer cancel()
+		res, err := ops.ArchiveDisks(opCtx, args)
+		if err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		return protocol.OKResult(cmd.ID, res)
+	case protocol.OpCopyDisks:
+		var args protocol.CopyDisksArgs
+		if err := decode(&args); err != nil {
+			return protocol.ErrorResult(cmd.ID, err)
+		}
+		opCtx, cancel := detached(archiveTimeout)
+		defer cancel()
+		res, err := ops.CopyDisks(opCtx, args)
 		if err != nil {
 			return protocol.ErrorResult(cmd.ID, err)
 		}

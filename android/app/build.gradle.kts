@@ -11,7 +11,7 @@ plugins {
 
 android {
     namespace = "dev.tuist.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.tuist.app"
@@ -75,9 +75,16 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // Glossia updates values-*/strings.xml only after source strings land, so renamed
+        // or removed keys stay in translations until its next sync; Android drops them.
+        disable += "ExtraTranslation"
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
+            isIncludeAndroidResources = true
         }
     }
 
@@ -89,6 +96,17 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+// The Tuist plugin applies JaCoCo when coverage is on. Robolectric defines the app's classes in
+// its own class loader without a code source, which JaCoCo skips unless told to include them.
+pluginManager.withPlugin("jacoco") {
+    tasks.withType<Test>().configureEach {
+        extensions.configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
     }
 }
 
@@ -155,6 +173,7 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     androidTestImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.okhttp.tls)
 }
@@ -183,7 +202,10 @@ openApiGenerate {
     ))
 }
 
-// With "original" enum naming, an empty-string enum value generates a constant without a name.
+// With "original" enum naming, an empty-string enum value generates a constant without a name,
+// and `name` and `value` entries clash with Kotlin's `Enum.name` and the generated `value`
+// property. The plugin ignores `enumNameMappings`, so rename them here; JSON values are unchanged.
+// A nested enum puts each entry on its annotation's line, a top-level one on the next line.
 tasks.named("openApiGenerate") {
     val generatedSources = layout.buildDirectory.dir("generated/openapi/src/main/kotlin")
     doLast {
@@ -191,7 +213,10 @@ tasks.named("openApiGenerate") {
             .filter { it.extension == "kt" }
             .forEach { file ->
                 val source = file.readText()
-                val patched = source.replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                val patched = source
+                    .replace(Regex("""(@Json\(name = ""\)\s+)\(""\)"""), "$1EMPTY(\"\")")
+                    .replace(Regex("""(@Json\(name = "name"\)\s+)name\("name"\)"""), "$1name_(\"name\")")
+                    .replace(Regex("""(@Json\(name = "value"\)\s+)`value`\("value"\)"""), "$1value_(\"value\")")
                 if (patched != source) file.writeText(patched)
             }
     }

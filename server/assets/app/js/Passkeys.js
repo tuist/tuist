@@ -73,7 +73,7 @@ async function authenticate({ optionsURL, actionURL, mediation, signal }) {
   });
 }
 
-async function register({ optionsURL, actionURL, name }) {
+async function register({ optionsURL, actionURL }) {
   const { publicKey: options, token } = await fetchOptions(optionsURL);
   const credential = await navigator.credentials.create({
     publicKey: {
@@ -85,7 +85,6 @@ async function register({ optionsURL, actionURL, name }) {
   });
   submit(actionURL, {
     challenge_token: token,
-    name,
     attestation_object: toBase64url(credential.response.attestationObject),
     client_data_json: toBase64url(credential.response.clientDataJSON),
     transports: credential.response.getTransports?.().join(",") ?? "",
@@ -102,26 +101,25 @@ function reportFailure(status, error) {
   status.textContent = error?.serverMessage || messages[error?.name] || status.dataset.failed;
 }
 
-// Settings and the MFA challenge are controller-rendered pages without a
-// LiveView socket, so their buttons are wired directly on load.
+// Delegate so controller pages and LiveView modal portals share the same
+// ceremony handling, including buttons inserted after a session refresh.
 export function initPasskeys() {
-  const button = document.querySelector("[data-passkey-ceremony]");
-  if (!button) return;
-  const status = document.getElementById(button.dataset.status);
-  if (!passkeysSupported()) {
-    button.disabled = true;
-    if (status) status.textContent = status.dataset.unsupported ?? "";
-    return;
-  }
-  button.addEventListener("click", async () => {
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-passkey-ceremony]");
+    if (!button || button.disabled) return;
+    const status = document.getElementById(button.dataset.status);
+    if (!passkeysSupported()) {
+      button.disabled = true;
+      if (status) status.textContent = status.dataset.unsupported ?? "";
+      return;
+    }
     const { optionsUrl: optionsURL, actionUrl: actionURL, passkeyCeremony } = button.dataset;
     if (status) status.textContent = "";
     // The button stays disabled once a ceremony succeeds, while the form posts.
     button.disabled = true;
     try {
       if (passkeyCeremony === "register") {
-        const name = document.getElementById(button.dataset.nameInput)?.value ?? "";
-        await register({ optionsURL, actionURL, name });
+        await register({ optionsURL, actionURL });
       } else {
         await authenticate({ optionsURL, actionURL });
       }

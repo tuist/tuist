@@ -9,6 +9,7 @@ public struct BuildGradleCommand: ParsableCommand {
             abstract: "A set of commands to inspect Gradle build details.",
             subcommands: [
                 BuildGradleTaskCommand.self,
+                BuildGradleFailureCommand.self,
             ]
         )
     }

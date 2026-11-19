@@ -45,6 +45,9 @@ defmodule Condukt.Sandbox.Microsandbox do
     volume configuration at sandbox creation time.
   * `glob/3` and `grep/3` operate on host-backed bind mounts. Paths outside a
     bind mount return `{:error, :not_supported}` for those operations.
+  * `start_process/4` runs a command detached inside the guest, so it outlives
+    the exec call that started it, but not the microVM, which ends with this
+    sandbox. The image needs `setsid` from util-linux.
   * `Condukt.Sandbox.NetworkPolicy` remains Kubernetes-specific. This backend
     does not translate it yet.
   """
@@ -54,12 +57,14 @@ defmodule Condukt.Sandbox.Microsandbox do
   alias Condukt.Microsandbox.NIF
   alias Condukt.Sandbox
   alias Condukt.Sandbox.Microsandbox.State
+  alias Condukt.Sandbox.Processes
 
   @default_image "ubuntu:24.04"
   @default_cwd "/workspace"
   @default_shell "/bin/bash"
   @default_cpus 2
   @default_memory_mib 1024
+  @process_exec_timeout 30_000
 
   @impl Sandbox
   def init(opts) do
@@ -142,6 +147,30 @@ defmodule Condukt.Sandbox.Microsandbox do
     |> normalize_exec_result()
   end
 
+  # Processes live in the guest, under /tmp/condukt-processes, apart from the
+  # exec call that started them. The microVM itself ends with this sandbox,
+  # so they do not outlive the BEAM node. See `Condukt.Sandbox.Processes`.
+  @impl Sandbox
+  def start_process(%State{base_cwd: base_cwd} = state, id, command, opts) do
+    cwd = opts |> Keyword.get(:cwd) |> resolve_optional_guest(base_cwd)
+    Processes.start(&process_exec(state, &1), id, command, Keyword.put(opts, :cwd, cwd))
+  end
+
+  @impl Sandbox
+  def read_process(%State{} = state, id, offset, opts), do: Processes.read(&process_exec(state, &1), id, offset, opts)
+
+  @impl Sandbox
+  def stop_process(%State{} = state, id), do: Processes.stop(&process_exec(state, &1), id, [])
+
+  @impl Sandbox
+  def write_process(%State{} = state, id, data, opts), do: Processes.write(&process_exec(state, &1), id, data, opts)
+
+  defp process_exec(%State{session: session, base_cwd: base_cwd, shell: shell, nif_module: nif_module}, script) do
+    session
+    |> nif_module.exec(shell, script, base_cwd, [], @process_exec_timeout)
+    |> normalize_exec_result()
+  end
+
   @impl Sandbox
   def glob(%State{} = state, pattern, opts) do
     guest_base = opts |> Keyword.get(:cwd) |> resolve_optional_guest(state.base_cwd)
@@ -165,7 +194,7 @@ defmodule Condukt.Sandbox.Microsandbox do
   def grep(%State{} = state, pattern, opts) do
     guest_base = opts |> Keyword.get(:path) |> resolve_optional_guest(state.base_cwd)
     case_sensitive? = Keyword.get(opts, :case_sensitive, true)
-    file_glob = Keyword.get(opts, :glob, "**/*")
+    file_glob = opts |> Keyword.get(:glob, "**/*") |> Sandbox.grep_file_glob()
     limit = Keyword.get(opts, :limit, 1_000)
 
     with {:ok, regex} <- compile_regex(pattern, case_sensitive?),

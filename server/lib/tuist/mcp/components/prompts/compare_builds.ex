@@ -82,7 +82,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     - **get_gradle_build**: Get detailed metrics for a Gradle build run.
     - **list_gradle_build_tasks**: List Gradle tasks with outcomes and cache status.
     - **list_gradle_build_steps**: Compare timed tasks, configuration and transforms with search and overlap filters.
-    - **get_gradle_build_step**: Inspect recorded metadata by opaque step ID; per-step logs are unavailable.
+    - **get_gradle_build_step**: Inspect recorded metadata by opaque step ID; failed steps include the reported failure message as their log. `get_gradle_build` lists every recorded failure.
     """
   end
 

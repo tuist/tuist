@@ -23,6 +23,7 @@ const (
 	KernelPath    = "/vmlinux"
 	RootfsPath    = "/rootfs.ext4"
 	WorkspacePath = "/workspace.ext4"
+	CachePath     = "/cache.ext4"
 	MemPath       = "/mem"
 	SnapshotPath  = "/snapshot"
 	VsockPath     = "/v.sock"
@@ -30,6 +31,7 @@ const (
 
 	RootDriveID      = "rootfs"
 	WorkspaceDriveID = "workspace"
+	CacheDriveID     = "cache"
 	IfaceID          = "eth0"
 	TapName          = "tap0"
 	GuestMAC         = "06:00:AC:10:00:02"

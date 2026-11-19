@@ -90,6 +90,27 @@ public protocol GitControlling {
         limits: GitHistoryLimits
     ) async throws -> GitHistory
 
+    /// `history` with what a shallow clone lacked between its heads and the commits the server
+    /// has. A run's checkout often holds its commit without the parent, and a commit uploaded
+    /// before its parent is placed on its branch without it, which the parent's later upload does
+    /// not undo. While `unknown` returns any of the first parents the checkout stops at, the clone
+    /// is deepened through `refs`, without blobs, in growing steps within the limits' window and
+    /// budget, so the parents are uploaded with the commit. Returns `history` as it is when the
+    /// checkout is whole, the limits allow no fetch of history, or `refs` is empty.
+    /// - Parameters:
+    ///   - history: What `gitHistory` collected.
+    ///   - workingDirectory: The repository's top level.
+    ///   - refs: The remote branches to fetch through.
+    ///   - limits: How much to collect.
+    ///   - unknown: Of the given commits, the ones the server lacks.
+    func connectedGitHistory(
+        _ history: GitHistory,
+        workingDirectory: AbsolutePath,
+        refs: [String],
+        limits: GitHistoryLimits,
+        unknown: @escaping ([String]) async -> [String]
+    ) async -> GitHistory
+
     /// Every file of the commit's tree with the blob it has, at most `limit` of them in path order,
     /// which is what the server keys the listing by.
     func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles
@@ -416,28 +437,12 @@ public struct GitController: GitControlling {
             )
         }
 
-        // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
-        // HEAD is an ephemeral merge commit. Use the second parent (the actual
-        // PR branch tip) instead, since the merge commit doesn't exist on the remote.
-        // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
-        // another commit, such as the pull request's head, reports HEAD, since that commit's
-        // second parent, if it has one, is not the pull request.
+        // SHA — the checkout's HEAD, which is what a run measures. On a pull request's merge ref
+        // (refs/pull/N/merge) that is the merge commit CI checked out: its files are the ones the
+        // run built, and the server keeps it on the pull request's ref, off the branch.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
-            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
-            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
-                && (mergeCommit == nil || mergeCommit == head)
-            if isPullRequestMergeCheckout,
-               let secondParent = try? await capture(
-                   command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
-               ).trimmingCharacters(in: .whitespacesAndNewlines),
-               !secondParent.isEmpty
-            {
-                commitSHA = secondParent
-            } else {
-                commitSHA = head
-            }
+            commitSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
         } else {
             commitSHA = nil
         }

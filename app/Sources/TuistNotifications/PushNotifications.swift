@@ -101,19 +101,40 @@ public final class PushNotifications {
     /// does nothing if it's denied. Turning them off throws if the server can't be told, and leaves them on.
     public func setEnabledOnThisDevice(_ isEnabled: Bool) async throws {
         guard let serverURL else { return }
+        let sessionID = ServerAuthenticationSession.current.id
         if isEnabled {
             await requestPermission()
             guard permission == .authorized else { return }
         }
         try await enqueue { [registrationService] in
             // The session can end while the permission prompt is showing; its opt-in must not outlive it.
-            guard self.serverURL == serverURL else { return }
+            guard self.serverURL == serverURL, sessionID == ServerAuthenticationSession.current.id else { return }
             try await registrationService.setEnabled(isEnabled, serverURL: serverURL)
         }.value
+        guard sessionID == ServerAuthenticationSession.current.id else { return }
         isEnabledOnThisDevice = registrationService.isEnabled(serverURL: serverURL)
         installationID = registrationService.installationID(serverURL: serverURL)
         if isEnabledOnThisDevice {
             UIApplication.shared.registerForRemoteNotifications()
+        }
+    }
+
+    /// Failed account transactions restore intent with a new installation, never a retired identifier.
+    public func prepareForProfileChange() async -> (() async -> Void)? {
+        guard let url = serverURL else { return nil }
+        let wasEnabled = registrationService.isEnabled(serverURL: url)
+        await signOut()
+        guard wasEnabled else { return nil }
+        return { [self] in
+            guard serverURL == url else { return }
+            do {
+                try await enqueue { [registrationService] in
+                    try await registrationService.setEnabled(true, serverURL: url)
+                }.value
+                await refresh()
+            } catch {
+                Logger.current.error("Could not restore notification preference: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -137,7 +158,9 @@ public final class PushNotifications {
 
     private func register() {
         guard !isPreview, permission == .authorized, let serverURL, let deviceToken else { return }
+        let sessionID = ServerAuthenticationSession.current.id
         enqueue { [registrationService] in
+            guard sessionID == ServerAuthenticationSession.current.id else { return }
             do {
                 try await registrationService.register(
                     token: deviceToken,

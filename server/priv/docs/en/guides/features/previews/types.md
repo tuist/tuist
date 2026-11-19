@@ -14,7 +14,7 @@ The preview type determines what you package and where it can run, independently
 - **Android:** a signed application APK. Recipients need a compatible Android device or emulator. Android App Bundles (`.aab`) are not preview installation packages.
 - **Apple:** an application bundle for a simulator, or an exported IPA for physical devices. Device builds need a provisioning profile that permits installation on the recipient's device.
 
-The <.localized_link href="/guides/features/previews/xcode">Xcode</.localized_link>, <.localized_link href="/guides/features/previews/gradle">Gradle</.localized_link>, and <.localized_link href="/guides/features/previews/bazel">Bazel</.localized_link> guides describe which outputs each workflow can publish. For example, Bazel and Once publication support eligible Apple simulator and macOS applications, not physical-device builds.
+The <.localized_link href="/guides/features/previews/xcode">Xcode</.localized_link>, <.localized_link href="/guides/features/previews/gradle">Gradle</.localized_link>, and <.localized_link href="/guides/features/previews/bazel">Bazel</.localized_link> guides describe which outputs each workflow can publish. For example, Bazel and Struo publication support eligible Apple simulator and macOS applications, not physical-device builds.
 
 ## Desktop apps {#desktop-apps}
 
@@ -41,6 +41,12 @@ tuist share path/to/distribution --executable bin/my-tool
 ```
 
 The entire distribution directory is uploaded. Include the libraries, resources, and helpers your tool needs, and make sure it can run outside your build directory. Scripts need a shebang and an interpreter installed on the recipient's system.
+
+Executables carry no icon of their own. Pass a PNG with `--icon` to show one on the preview, for example for a Linux desktop app:
+
+```bash
+tuist share path/to/distribution --executable bin/my-app --icon path/to/icon.png
+```
 
 ## Multiple CLI targets {#multiple-cli-targets}
 

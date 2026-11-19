@@ -154,6 +154,38 @@ defmodule Condukt.Sandbox.KubernetesTest do
     assert {:ok, "persisted"} = Sandbox.read(second, "/workspace/keep.txt")
   end
 
+  test "a process runs in the pod apart from the handle that started it, and a new handle finds it by id",
+       %{namespace: ns, id: id} do
+    {:ok, first} = open_sandbox(id, ns)
+    command = "echo one; while [ ! -e /tmp/gate ]; do sleep 0.1; done; echo two; exit 3"
+
+    assert :ok = Sandbox.start_process(first, "build", command, cwd: "/tmp", env: [{"X", "1"}])
+    assert {:ok, %{output: "one\n", status: :running}} = await_process(first, "build", &(&1.output == "one\n"))
+
+    # A new handle on the same pod, as a restarted node opens.
+    {:ok, second} = open_sandbox(id, ns)
+    assert {:error, :already_started} = Sandbox.start_process(second, "build", command)
+    assert {:ok, %{exit_code: 0}} = Sandbox.exec(second, "touch /tmp/gate")
+
+    assert {:ok, %{output: "two\n", offset: 8, size: 8, status: {:exited, 3}}} =
+             await_process(second, "build", &(&1.status != :running), 4)
+
+    assert :ok = Sandbox.start_process(second, "slow", "sleep 30", timeout: 500)
+    assert {:ok, %{status: :timeout}} = await_process(second, "slow", &(&1.status != :running))
+
+    assert :ok = Sandbox.start_process(second, "long", "sleep 300")
+    assert :ok = Sandbox.stop_process(second, "long")
+    assert {:error, :not_found} = Sandbox.read_process(second, "long", 0)
+    # The image has no pgrep, and the pod's own first process is a sleep.
+    assert {:ok, %{output: "", exit_code: 1}} =
+             Sandbox.exec(second, ~S"""
+             for p in /proc/[0-9]*; do
+               case "$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null)" in "sleep 300 "*) exit 0 ;; esac
+             done
+             exit 1
+             """)
+  end
+
   test "mount/3 reports :not_supported", %{namespace: ns, id: id} do
     {:ok, sandbox} = open_sandbox(id, ns)
     assert {:error, :not_supported} = Sandbox.mount(sandbox, "/host", "/vfs")
@@ -201,6 +233,18 @@ defmodule Condukt.Sandbox.KubernetesTest do
   # ============================================================================
   # Helpers
   # ============================================================================
+
+  defp await_process(sandbox, id, done?, offset \\ 0, attempts \\ 100) do
+    result = Sandbox.read_process(sandbox, id, offset)
+
+    case result do
+      {:ok, read} when attempts > 0 ->
+        if done?.(read), do: result, else: Process.sleep(200) && await_process(sandbox, id, done?, offset, attempts - 1)
+
+      result ->
+        result
+    end
+  end
 
   defp open_sandbox(id, namespace, opts \\ []) do
     base_opts = [

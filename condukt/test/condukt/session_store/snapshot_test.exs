@@ -89,4 +89,31 @@ defmodule Condukt.SessionStore.SnapshotTest do
       assert {:error, :invalid_snapshot} = Snapshot.migrate("nonsense")
     end
   end
+
+  describe "the record of a session's runs" do
+    # An older build decodes snapshots with `binary_to_term(binary, [:safe])`,
+    # which refuses any atom its VM has never seen, so the snapshot's own keys
+    # must stay the ones version 3 always had.
+    test "adds no key an older build cannot decode" do
+      version_3_keys =
+        [:__struct__, :version, :id, :actor, :messages, :model, :thinking_level, :system_prompt] ++
+          [:created_at, :updated_at]
+
+      snapshot =
+        %{messages: [Message.user("hi")]}
+        |> Snapshot.new()
+        |> Snapshot.put_runs(7, [{"r", {:error, :aborted}}])
+
+      assert Enum.sort(Map.keys(snapshot) -- version_3_keys) == ["condukt.runs"]
+      assert is_binary(Map.fetch!(snapshot, "condukt.runs"))
+      assert {:ok, migrated} = Snapshot.migrate(snapshot)
+      assert Snapshot.runs(migrated) == {7, [{"r", {:error, :aborted}}]}
+    end
+
+    test "is empty for a snapshot without one or with one that cannot be read" do
+      snapshot = Snapshot.new(%{messages: []})
+      assert Snapshot.runs(snapshot) == {nil, []}
+      assert Snapshot.runs(Map.put(snapshot, "condukt.runs", "not a term")) == {nil, []}
+    end
+  end
 end

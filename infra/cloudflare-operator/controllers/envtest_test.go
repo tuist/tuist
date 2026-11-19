@@ -221,3 +221,41 @@ func TestEnvtest_CRDDefaults(t *testing.T) {
 		t.Error("default paused should be false")
 	}
 }
+
+// TestEnvtest_CacheRuleAdmission confirms the CloudflareCacheRule CRD
+// admits the shape used for luft.work and rejects an override_origin
+// TTL without a default, which Cloudflare would otherwise reject at
+// reconcile time.
+func TestEnvtest_CacheRuleAdmission(t *testing.T) {
+	c, _, stop := envtestClient(t)
+	defer stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	valid := &cfv1alpha1.CloudflareCacheRule{
+		ObjectMeta: metav1.ObjectMeta{Name: "assets"},
+		Spec: cfv1alpha1.CloudflareCacheRuleSpec{
+			ZoneID:        "zone-abc",
+			Description:   "assets",
+			Expression:    `(starts_with(http.request.uri.path, "/assets/"))`,
+			Cache:         true,
+			EdgeTTL:       &cfv1alpha1.CacheTTL{Mode: "respect_origin"},
+			CreateNewRule: true,
+		},
+	}
+	if err := c.Create(ctx, valid); err != nil {
+		t.Fatalf("expected valid cache rule to be admitted: %v", err)
+	}
+
+	invalid := valid.DeepCopy()
+	invalid.ObjectMeta = metav1.ObjectMeta{Name: "override-without-default"}
+	invalid.Spec.EdgeTTL = &cfv1alpha1.CacheTTL{Mode: "override_origin"}
+	err := c.Create(ctx, invalid)
+	if err == nil {
+		t.Fatal("expected admission to reject override_origin without default")
+	}
+	if !strings.Contains(err.Error(), "default is required") {
+		t.Errorf("expected error to mention default, got %v", err)
+	}
+}

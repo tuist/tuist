@@ -104,31 +104,27 @@ defmodule Condukt.Sandbox.NetworkPolicy.Decider do
   def decide(%NetworkPolicy{} = policy, %Context{} = context, %Request{} = request, cache) do
     case policy_spec(policy) do
       nil -> {default_decision(policy), cache}
-      spec -> dispatch(spec, policy, context, request, cache)
+      spec -> dispatch(spec, context, request, cache)
     end
   end
 
-  defp dispatch(%{cache: false} = spec, policy, context, request, cache) do
-    {run_one(spec, policy, context, request), cache}
+  defp dispatch(%{cache: false} = spec, context, request, cache) do
+    {run_one(spec, context, request), cache}
   end
 
-  defp dispatch(spec, policy, context, request, cache) do
+  defp dispatch(spec, context, request, cache) do
     case Map.fetch(cache, request.host) do
       {:ok, cached} ->
         {cached, cache}
 
       :error ->
-        decision = run_one(spec, policy, context, request)
+        decision = run_one(spec, context, request)
         {decision, Map.put(cache, request.host, decision)}
     end
   end
 
-  defp run_one(spec, policy, context, request) do
-    case do_invoke(spec.call, context, request, spec.timeout) do
-      :allow -> :allow
-      {:deny, _} = decision -> decision
-      _other -> emit_failure_and_default(:decider_bad_return, policy)
-    end
+  defp run_one(spec, context, request) do
+    do_invoke(spec.call, context, request, spec.timeout)
   end
 
   defp do_invoke(decider, context, request, timeout) do
@@ -197,10 +193,5 @@ defmodule Condukt.Sandbox.NetworkPolicy.Decider do
       %{count: 1},
       %{reason: reason}
     )
-  end
-
-  defp emit_failure_and_default(reason, policy) do
-    emit_failure(reason)
-    default_decision(policy)
   end
 end

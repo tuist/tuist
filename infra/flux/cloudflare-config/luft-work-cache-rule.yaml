@@ -1,0 +1,26 @@
+# luft.work Cache Rule: make Vite's hashed /assets/ eligible for edge
+# caching. Cloudflare's default cacheable extensions include .js and
+# .css but not .wasm, so without this rule the Luft core (~2 MB gzipped)
+# would be fetched from the cluster on every load. The edge TTL follows
+# the origin, where the Luft server sends `max-age=31536000, immutable`
+# for /assets/ and `no-cache` for the HTML shell (LuftServerWeb.Endpoint's
+# Plug.Static and LuftServerWeb.WebController).
+#
+# Created in read_only and activated after the site went live on
+# 2026-11-18, when /assets/*.wasm was still served cf-cache-status DYNAMIC.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCacheRule
+metadata:
+  name: luft-work-assets
+spec:
+  zoneId: 35d2834627c7070a7f687ca722a59c7b
+  description: "luft.work - cache hashed Vite assets"
+  expression: (http.host eq "luft.work" and starts_with(http.request.uri.path, "/assets/"))
+  cache: true
+  edgeTtl:
+    mode: respect_origin
+  browserTtl:
+    mode: respect_origin
+  mode: active
+  createNewRule: true
+  retainOnDelete: false

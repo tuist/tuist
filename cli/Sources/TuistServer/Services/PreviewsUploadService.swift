@@ -5,6 +5,7 @@ import Mockable
 import Path
 import TuistAndroid
 import TuistEnvironment
+import TuistLogging
 
 #if canImport(TuistCore)
     import TuistAutomation
@@ -22,7 +23,7 @@ import TuistEnvironment
 
 public enum PreviewUploadType: Equatable {
     case apk(path: AbsolutePath, metadata: APKMetadata)
-    case executable(path: AbsolutePath, entryPoint: RelativePath?)
+    case executable(path: AbsolutePath, entryPoint: RelativePath?, icon: AbsolutePath? = nil)
     #if canImport(TuistCore)
         case ipa(AppBundle)
         case appBundles([AppBundle])
@@ -166,7 +167,7 @@ public protocol PreviewsUploadServicing {
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Components.Schemas.Preview {
             switch previewUploadType {
-            case let .executable(path, entryPoint):
+            case let .executable(path, entryPoint, icon):
                 return try await fileSystem.runInTemporaryDirectory(prefix: "executable-preview") { temporaryDirectory in
                     let root = try RelativePath(validating: path.basename)
                     let executable = entryPoint.map { root.appending($0) } ?? root
@@ -203,6 +204,14 @@ public protocol PreviewsUploadServicing {
                             updateProgress: updateProgress
                         )
                         try await archiver.delete()
+                        if let icon {
+                            try await uploadPreviewIconService.uploadPreviewIcon(
+                                icon,
+                                previewId: preview.id,
+                                serverURL: serverURL,
+                                fullHandle: fullHandle
+                            )
+                        }
                         return preview
                     } catch {
                         try? await archiver.delete()
@@ -468,7 +477,37 @@ public protocol PreviewsUploadServicing {
             }
 
             private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
-                try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                if let iconFile = appBundle.infoPlist.iconFile,
+                   try await fileSystem.exists(appBundle.path.appending(component: "Contents"))
+                {
+                    let icns = appBundle.path.appending(
+                        components: "Contents", "Resources", iconFile.hasSuffix(".icns") ? iconFile : "\(iconFile).icns"
+                    )
+                    guard try await fileSystem.exists(icns) else { return [] }
+                    // The build is already uploaded; an unreadable icon must not fail the share.
+                    do {
+                        // Converted outside the bundle so its code signature stays intact.
+                        let outputPath = try await fileSystem.makeTemporaryDirectory(prefix: "preview-icon")
+                            .appending(component: "icon.png")
+                        try await commandRunner
+                            .run(arguments: [
+                                "/usr/bin/sips", "-s", "format", "png", "-Z", "512",
+                                icns.pathString, "--out", outputPath.pathString,
+                            ])
+                            .awaitCompletion()
+                        // sips skips files it cannot read and still exits 0.
+                        guard try await fileSystem.exists(outputPath) else {
+                            Logger.current.debug("sips did not convert \(icns.pathString) to a preview icon")
+                            return []
+                        }
+                        return [outputPath]
+                    } catch {
+                        Logger.current.debug("Could not convert \(icns.pathString) to a preview icon: \(error)")
+                        return []
+                    }
+                }
+
+                return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
                     .map { appBundle.path.appending(component: $0 + "@2x.png") }
                     .concurrentFilter {
                         try await fileSystem.exists($0)

@@ -521,8 +521,8 @@ defmodule Tuist.Authorization do
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
 
-      desc("Allows an account token with project:admin:read scope to read projects.")
-      allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
+      desc("Allows an account token of the account with project:admin:read scope to read its projects.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "project:admin:read"])
     end
   end
 
@@ -595,22 +595,41 @@ defmodule Tuist.Authorization do
     end
 
     action :update do
-      desc("Allows the admin of an account to pause, resume and delete its sandboxes and project snapshots.")
+      desc("Allows users of an account to pause, resume, archive and delete its sandboxes and project snapshots.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to pause, resume, archive and delete its sandboxes and project snapshots.")
       allow([:authenticated_as_user, user_role: :admin])
 
       desc("Allows users with ops write access to pause, resume and delete any account's sandboxes.")
       allow([:authenticated_as_user, :ops_write_access])
     end
 
-    action :use do
-      desc(
-        "Allows users of an account to create sandboxes through the API and run commands in them. Sandboxes that serve an agent environment, an Amp integration or remote execution stay admin-only."
-      )
+    action :write do
+      desc("Allows users of an account to create, use and manage its sandboxes through the API and run commands in them.")
 
       allow([:authenticated_as_user, user_role: :user])
 
-      desc("Allows the admin of an account to create sandboxes through the API and run commands in them.")
+      desc(
+        "Allows the admin of an account to create, use and manage its sandboxes through the API and run commands in them."
+      )
+
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows an account token with account:sandboxes:write scope to do what a user of the account can: create, use and manage its sandboxes through the API and run commands in them."
+      )
+
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:sandboxes:write"])
+    end
+  end
+
+  # Pulse holds one organization's telemetry, so only that account's own
+  # producers write to it; reading stays with `account_dashboard`.
+  object :pulse do
+    action :write do
+      desc("Allows an account token with account:pulse:write scope to send its producers' errors to Pulse.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:pulse:write"])
     end
   end
 

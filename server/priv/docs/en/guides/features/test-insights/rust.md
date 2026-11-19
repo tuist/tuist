@@ -70,7 +70,7 @@ Tuist streams output while collecting results. This can affect automatic color d
 
 ## Reliability and selection {#reliability-and-selection}
 
-Use <.localized_link href="/guides/features/test-insights/flaky-tests/rust">flaky test detection and quarantine</.localized_link> to investigate unstable tests and mute or skip them. <.localized_link href="/guides/features/test-sharding/rust">Test sharding</.localized_link> distributes whole Cargo targets across CI workers. Coverage ingestion, coverage-based test selection, and build-once distribution are not available for plain Cargo test runs.
+Use <.localized_link href="/guides/features/test-insights/flaky-tests/rust">flaky test detection and quarantine</.localized_link> to investigate unstable tests and mute or skip them. <.localized_link href="/guides/features/test-sharding/rust">Test sharding</.localized_link> distributes whole Cargo targets across CI workers. Turn on <.localized_link href="/guides/features/test-code-coverage/rust">code coverage</.localized_link> to follow the line coverage of your test runs. Coverage-based test selection and build-once distribution are not available for plain Cargo test runs.
 
 ## Troubleshooting {#troubleshooting}
 

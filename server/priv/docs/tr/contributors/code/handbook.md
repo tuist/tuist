@@ -11,7 +11,7 @@ Kaynak: [github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tui
 
 ## Amacı {#what-it-is-for}
 
-El kitabı, Tuist’in bir şirket olarak nasıl çalıştığını; değerleri, politikaları ve mühendislik uygulamalarını belgeler. Bir VitePress sitesidir.
+El kitabı, Tuist'in bir şirket olarak nasıl çalıştığını; değerlerini, politikalarını ve mühendislik uygulamalarını belgeler. Bir VitePress sitesidir.
 
 ## Nasıl katkıda bulunulur {#how-to-contribute}
 

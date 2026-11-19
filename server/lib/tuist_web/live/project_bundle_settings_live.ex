@@ -50,9 +50,15 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
       |> assign(create_form_metric: :install_size)
       |> assign(create_form_deviation: "5.0", create_form_unit: "percentage")
       |> assign(create_form_baseline_branch: "main")
-      |> assign(create_form_bundle_name: "")
+      |> assign(create_form_bundle_name: "", create_form_tag: "")
+      |> assign(:threshold_tag_search, "")
+      |> assign_threshold_tags("")
 
     {:noreply, socket}
+  end
+
+  def handle_event("open_edit_threshold_modal", _params, socket) do
+    {:noreply, socket |> assign(:threshold_tag_search, "") |> assign_threshold_tags("")}
   end
 
   def handle_event("update_create_form_name", %{"value" => name}, socket) do
@@ -86,13 +92,22 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     {:noreply, assign(socket, create_form_bundle_name: bundle_name, create_form_error: nil)}
   end
 
+  def handle_event("update_create_form_tag", %{"tag" => tag}, socket) do
+    {:noreply, assign(socket, create_form_tag: tag, create_form_error: nil)}
+  end
+
+  def handle_event("search_threshold_tags", %{"value" => search}, socket) do
+    {:noreply, socket |> assign(:threshold_tag_search, search) |> assign_threshold_tags(search)}
+  end
+
   def handle_event("create_threshold", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
       name: assigns.create_form_name,
       metric: assigns.create_form_metric,
       baseline_branch: assigns.create_form_baseline_branch,
-      bundle_name: if(assigns.create_form_bundle_name == "", do: nil, else: assigns.create_form_bundle_name)
+      bundle_name: if(assigns.create_form_bundle_name == "", do: nil, else: assigns.create_form_bundle_name),
+      tag: if(assigns.create_form_tag == "", do: nil, else: assigns.create_form_tag)
     }
 
     with {:ok, limit} <- limit_attrs(assigns.create_form_unit, assigns.create_form_deviation),
@@ -142,6 +157,10 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     {:noreply, update_edit_form(socket, id, :bundle_name, bundle_name)}
   end
 
+  def handle_event("update_edit_form_tag", %{"id" => id, "tag" => tag}, socket) do
+    {:noreply, update_edit_form(socket, id, :tag, tag)}
+  end
+
   def handle_event("update_threshold", %{"id" => id}, %{assigns: assigns} = socket) do
     {:ok, threshold} = Bundles.get_bundle_threshold(id)
     threshold = Repo.preload(threshold, :project)
@@ -156,6 +175,12 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
         bundle_name:
           case Map.get(form, :bundle_name) do
             nil -> threshold.bundle_name
+            "" -> nil
+            val -> val
+          end,
+        tag:
+          case Map.get(form, :tag) do
+            nil -> threshold.tag
             "" -> nil
             val -> val
           end
@@ -335,7 +360,8 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
            deviation: threshold_value(t),
            unit: threshold_unit(t),
            baseline_branch: t.baseline_branch,
-           bundle_name: t.bundle_name || ""
+           bundle_name: t.bundle_name || "",
+           tag: t.tag || ""
          }}
       end)
 
@@ -346,7 +372,27 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     |> assign(create_form_metric: :install_size)
     |> assign(create_form_deviation: "5.0", create_form_unit: "percentage")
     |> assign(create_form_baseline_branch: "main")
-    |> assign(create_form_bundle_name: "")
+    |> assign(create_form_bundle_name: "", create_form_tag: "")
+    |> assign(threshold_tag_search: "", threshold_tags: [])
+  end
+
+  # Offers the tags the project's bundles carry, plus those thresholds already use so a
+  # rule keeps showing its tag after the bundles carrying it age out of the lookup window.
+  # Runs only when a threshold modal opens or its search changes, so the rest of the page
+  # does not depend on ClickHouse.
+  defp assign_threshold_tags(socket, search) do
+    threshold_tags =
+      socket.assigns.thresholds
+      |> Enum.map(& &1.tag)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.filter(&String.contains?(String.downcase(&1), String.downcase(search)))
+
+    tags =
+      (Bundles.project_bundle_tags(socket.assigns.selected_project, search) ++ threshold_tags)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    assign(socket, :threshold_tags, tags)
   end
 
   defp update_edit_form(socket, id, key, value) do
@@ -356,13 +402,69 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     assign(socket, edit_threshold_forms: Map.put(forms, id, updated_form))
   end
 
+  attr :id, :string, required: true
+  attr :selected, :string, required: true
+  attr :tags, :list, required: true
+  attr :search, :string, required: true
+  attr :on_select, :string, required: true
+  attr :threshold_id, :string, default: nil
+
+  defp threshold_tag_dropdown(assigns) do
+    ~H"""
+    <.dropdown
+      id={@id}
+      data-positioning-strategy="fixed"
+      label={if @selected == "", do: dgettext("dashboard_projects", "All bundles"), else: @selected}
+    >
+      <:search>
+        <input
+          type="text"
+          name="tag_search"
+          value={@search}
+          phx-keyup="search_threshold_tags"
+          phx-debounce="250"
+          autocomplete="off"
+          placeholder={dgettext("dashboard_projects", "Search tags...")}
+          aria-label={dgettext("dashboard_projects", "Search tags")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        value="all-bundles"
+        label={dgettext("dashboard_projects", "All bundles")}
+        phx-click={@on_select}
+        phx-value-id={@threshold_id}
+        phx-value-tag=""
+        data-selected={@selected == ""}
+      >
+        <:right_icon :if={@selected == ""}>
+          <.icon name="check" />
+        </:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={tag <- @tags}
+        value={"tag:#{tag}"}
+        label={tag}
+        phx-click={@on_select}
+        phx-value-id={@threshold_id}
+        phx-value-tag={tag}
+        data-selected={@selected == tag}
+      >
+        <:right_icon :if={@selected == tag}>
+          <.icon name="check" />
+        </:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    """
+  end
+
   defp metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
   defp metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
 
   defp threshold_error_message(:error), do: dgettext("dashboard_projects", "Enter a valid size threshold.")
 
   defp threshold_error_message({:error, _changeset}) do
-    dgettext("dashboard_projects", "The size threshold could not be saved. Check the name and baseline branch.")
+    dgettext("dashboard_projects", "The size threshold could not be saved. Check the name, baseline branch, and tag.")
   end
 
   defp threshold_unit(%{deviation_bytes: bytes}) when is_integer(bytes), do: "megabytes"
@@ -405,30 +507,50 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
   defp limit_attrs(_unit, _value), do: :error
 
-  defp threshold_description(metric, deviation, unit, baseline_branch, bundle_name) do
+  defp threshold_description(metric, deviation, unit, baseline_branch, bundle_name, tag) do
     deviation = escape_description(deviation <> if(unit == "megabytes", do: " MB", else: "%"))
     baseline_branch = escape_description(baseline_branch)
-    bundle_name = if bundle_name, do: escape_description(bundle_name)
+    bundle_name = if bundle_name not in [nil, ""], do: escape_description(bundle_name)
+    tag = if tag not in [nil, ""], do: escape_description(tag)
     size_label = escape_description(metric_label(metric))
 
+    bindings = [
+      size_label: size_label,
+      bundle_name: bundle_name,
+      tag: tag,
+      deviation: deviation,
+      baseline_branch: baseline_branch
+    ]
+
     text =
-      if bundle_name == "" or is_nil(bundle_name) do
-        dgettext(
-          "dashboard_projects",
-          "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
-          size_label: size_label,
-          deviation: deviation,
-          baseline_branch: baseline_branch
-        )
-      else
-        dgettext(
-          "dashboard_projects",
-          "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
-          size_label: size_label,
-          bundle_name: bundle_name,
-          deviation: deviation,
-          baseline_branch: baseline_branch
-        )
+      case {bundle_name, tag} do
+        {nil, nil} ->
+          dgettext(
+            "dashboard_projects",
+            "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
+            bindings
+          )
+
+        {_bundle_name, nil} ->
+          dgettext(
+            "dashboard_projects",
+            "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
+            bindings
+          )
+
+        {nil, _tag} ->
+          dgettext(
+            "dashboard_projects",
+            "Block PRs when the <strong>%{size_label}</strong> of bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>.",
+            bindings
+          )
+
+        {_bundle_name, _tag} ->
+          dgettext(
+            "dashboard_projects",
+            "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>.",
+            bindings
+          )
       end
 
     raw(text)

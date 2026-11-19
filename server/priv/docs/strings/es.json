@@ -4,11 +4,11 @@
       "builds": { "text": "Compilaciones" },
       "tests": { "text": "Tests" },
       "compute": { "text": "Cómputo" },
-      "bundles": { "text": "Paquetes" },
+      "bundles": { "text": "Bundles" },
       "other-features": { "text": "Otras funcionalidades" }
     },
     "items": {
-      "agentic-coding": { "text": "Programación con agentes" },
+      "agentic-coding": { "text": "Programación con agentes de IA" },
       "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Imágenes" },
       "implicit-dependencies": { "text": "Dependencias implícitas" },
       "iphone-app": { "text": "App para iPhone" },
       "macos-app": { "text": "App para macOS" },
@@ -42,17 +43,17 @@
       "origin": { "text": "Origen" },
       "profiles": { "text": "Perfiles" },
       "project-description": { "text": "Descripción del proyecto" },
-      "release": { "text": "Versión" },
-      "release-calendar": { "text": "Calendario de versiones" },
+      "release": { "text": "Lanzamiento" },
+      "release-calendar": { "text": "Calendario de lanzamientos" },
       "release-channels": { "text": "Canales de lanzamiento" },
-      "run-previews": { "text": "Ejecutar previsualizaciones" },
+      "run-previews": { "text": "Previews en ejecución" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Caché de Rust" },
       "rust-project": { "text": "Proyecto de Rust" },
-      "sandboxes": { "text": "Entornos aislados" },
+      "sandboxes": { "text": "Sandboxes" },
       "scim-provisioning": { "text": "Aprovisionamiento SCIM" },
       "server-api": { "text": "API del servidor" },
-      "single-sign-on": { "text": "Inicio de sesión único" },
+      "single-sign-on": { "text": "Inicio de sesión único (SSO)" },
       "supported-types": { "text": "Tipos admitidos" },
       "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "Proyecto de XcodeGen" },
@@ -66,7 +67,7 @@
         "text": "Idiomas 🌍"
       },
       "description": {
-        "text": "Puedes ayudar a Tuist a admitir más idiomas o mejorar la guía lingüística de esta página."
+        "text": "Puedes ayudar a Tuist a admitir más idiomas o mejorar las guías lingüísticas de esta página."
       },
       "cta": {
         "text": "Contribuir"
@@ -96,7 +97,7 @@
           "remove-favorite-search-button-title": "Eliminar de favoritos"
         },
         "error-screen": {
-          "title-text": "No se han podido obtener los resultados",
+          "title-text": "No se pueden recuperar los resultados",
           "help-text": "Es posible que debas comprobar tu conexión de red"
         },
         "footer": {
@@ -107,7 +108,7 @@
         },
         "no-results-screen": {
           "no-results-text": "No se han encontrado resultados relevantes",
-          "suggested-query-text": "Puedes intentar buscar",
+          "suggested-query-text": "Prueba a buscar",
           "report-missing-results-text": "¿Crees que esta consulta debería tener resultados?",
           "report-missing-results-link-text": "Haz clic para enviar comentarios"
         }
@@ -178,6 +179,17 @@
         "examples": {
           "text": "Ejemplos"
         },
+        "concepts": {
+          "text": "Conceptos",
+          "items": {
+            "flaky-test": {
+              "text": "Tests inestables"
+            },
+            "build-cache": {
+              "text": "Caché de compilación"
+            }
+          }
+        },
         "libraries": {
           "text": "Librerías"
         },
@@ -241,7 +253,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Registros"
+              "text": "Registro de eventos"
             }
           }
         }
@@ -282,9 +294,6 @@
         },
         "status": {
           "text": "Estado"
-        },
-        "metrics-dashboard": {
-          "text": "Panel de métricas"
         }
       }
     },
@@ -305,10 +314,10 @@
       "text": "Guías",
       "items": {
         "get-started": {
-          "text": "Empezar",
+          "text": "Primeros pasos",
           "items": {
             "choose-your-path": {
-              "text": "Empezar"
+              "text": "Primeros pasos"
             },
             "existing-xcode-project": {
               "text": "Proyecto de Xcode"
@@ -345,7 +354,7 @@
               "text": "Instalar Tuist"
             },
             "get-started": {
-              "text": "Empezar"
+              "text": "Primeros pasos"
             }
           }
         },
@@ -547,7 +556,7 @@
           }
         },
         "agentic-coding": {
-          "text": "Programación con agentes",
+          "text": "Programación con agentes de IA",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -573,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Forjas Git",
+              "text": "Forjas de Git",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -614,7 +623,7 @@
           "text": "Compartir",
           "items": {
             "previews": {
-              "text": "Previsualizaciones"
+              "text": "Previews"
             }
           }
         }

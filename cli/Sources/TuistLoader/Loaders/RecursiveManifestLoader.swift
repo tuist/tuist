@@ -177,6 +177,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                     packageSettings: packageSettings,
                     packageModuleAliases: [:],
                     packageProducts: [:],
+                    graphTargetNames: [],
                     enabledTraits: []
                 )
             }

@@ -2,7 +2,7 @@
 {
   "title": "Proyecto de Xcode generado",
   "titleTemplate": ":title · Análisis de compilaciones · Funcionalidades · Guías · Tuist",
-  "description": "Sigue las analíticas de compilación de un proyecto de Xcode generado por Tuist en el panel de control de Tuist."
+  "description": "Sigue las métricas de compilación de un proyecto de Xcode generado con Tuist en el panel de control de Tuist."
 }
 ---
 # Proyecto de Xcode generado {#generated-xcode-project-build-insights}
@@ -12,7 +12,7 @@
 >
 > Si no quieres realizar el seguimiento de los análisis de compilaciones en los esquemas generados, desactívalo mediante [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
-Si utilizas proyectos generados con esquemas personalizados, debes añadir la acción posterior tú mismo. Para [Mise](https://mise.jdx.dev/):
+Si usas proyectos generados con esquemas personalizados, debes añadir la acción posterior tú mismo. Para [Mise](https://mise.jdx.dev/):
 
 ```swift
 let project = Project(
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-Si no utilizas Mise, debes asegurarte de que `tuist` esté disponible en el entorno del esquema, ya que las acciones posteriores de Xcode no heredan el `PATH` de tu shell. Para instalaciones de [Homebrew](https://brew.sh/):
+Si no usas Mise, debes asegurarte de que `tuist` esté disponible en el entorno del esquema, ya que las acciones posteriores de Xcode no heredan la variable `PATH` de tu shell. Para instalaciones de [Homebrew](https://brew.sh/):
 
 ```swift
 buildAction: .buildAction(

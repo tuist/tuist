@@ -17,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -104,7 +105,7 @@ type AutoscalerReconciler struct {
 	Now func() time.Time
 
 	// MemReserveFraction is the share of a Linux node pool's
-	// allocatable memory the fleet allocator may hand to runner Pods.
+	// allocatable memory the compute allocator may hand to runner Pods.
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
@@ -113,6 +114,15 @@ type AutoscalerReconciler struct {
 	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
 	// when the chart runs no sandboxes.
 	SandboxesNamespace string
+
+	// ExecutionFloorSlots is the remote execution pool's fleet-wide floor
+	// in VM slots (see execution_allocation.go). 0 leaves remote execution
+	// workers out of the compute allocator.
+	ExecutionFloorSlots int32
+
+	// ExecutionSlotBytes is one remote execution slot's memory. 0 uses
+	// the chart's 4160 MiB.
+	ExecutionSlotBytes int64
 
 	// ReservationsNamespace, when set, is where the manager caches macOS
 	// sandbox reservation Pods; a new one reconciles the darwin pools at
@@ -271,7 +281,7 @@ func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
-// per-pool policy. Everything else runs through the fleet allocator,
+// per-pool policy. Everything else runs through the compute allocator,
 // which apportions a shared capacity budget across sibling pools and
 // squeezes idle pools' speculative warm buffers before another pool's
 // real queued work. The budget unit depends on OS:
@@ -320,6 +330,10 @@ func (r *AutoscalerReconciler) desiredForPool(
 // allocated in. Nil when the allocator was bypassed or fell back.
 type fleetAllocation struct {
 	members map[string]fleetMember
+	// executionWarm is each remote execution worker's warm target in
+	// slots, by grant name. Nil when remote execution is not allocated.
+	executionWarm map[string]int32
+	slotBytes     int64
 }
 
 type fleetMember struct {
@@ -329,7 +343,7 @@ type fleetMember struct {
 	allocated int32
 }
 
-// allocate runs the shared-capacity fleet allocator for `pool`,
+// allocate runs the shared-capacity compute allocator for `pool`,
 // returning the (possibly squeezed) replica target. Fleet-view read
 // failures fall back to the per-pool target, while an unavailable
 // per-Pod scheduling cost leaves replicas unchanged.
@@ -360,10 +374,10 @@ func (r *AutoscalerReconciler) allocate(
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
 	// almost always a transient empty node-list read (informer cache
 	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
-	// capacity" state. Routing it into AllocateFleet would squeeze every
+	// capacity" state. Routing it into AllocateCompute would squeeze every
 	// pool's floor to zero and reap their warm Pods fleet-wide, the exact
 	// blip-driven mass scale-down this per-pool fallback exists to
-	// prevent. AllocateFleet's own zero-capacity contract (see its unit
+	// prevent. AllocateCompute's own zero-capacity contract (see its unit
 	// test) is therefore never exercised from here.
 	capacity, err := r.fleetCapacity(ctx, pool)
 	if err != nil || capacity <= 0 {
@@ -382,17 +396,38 @@ func (r *AutoscalerReconciler) allocate(
 			"fleetSelector", pool.Spec.FleetSelector)
 	}
 
-	alloc := scaling.AllocateFleet(demands, capacity, shapeCaps)
+	var workers []executionWorker
+	if pool.Spec.OS == "linux" && r.ExecutionFloorSlots > 0 && r.SandboxesNamespace != "" {
+		workers, err = r.executionWorkers(ctx, pool)
+		if err != nil {
+			logger.Error(err, "read remote execution workers; falling back to per-pool target",
+				"fleetSelector", pool.Spec.FleetSelector)
+			return perPool, nil
+		}
+		if len(workers) > 0 {
+			demand, held := executionDemand(workers, r.ExecutionFloorSlots, r.executionSlotBytes())
+			demands = append(demands, demand)
+			capacity += held
+		}
+	}
+
+	alloc := scaling.AllocateCompute(demands, capacity, shapeCaps)
 	v, ok := alloc[pool.Name]
 	if !ok {
 		return perPool, nil
+	}
+	fleet := &fleetAllocation{members: members, slotBytes: r.executionSlotBytes()}
+	if granted, ok := alloc[executionPoolName]; ok {
+		delete(alloc, executionPoolName)
+		fleet.executionWarm = executionWarmSlots(workers, min(granted, r.ExecutionFloorSlots))
+		metrics.RecordExecutionAllocation(r.ExecutionFloorSlots, granted)
 	}
 	for name, granted := range alloc {
 		member := members[name]
 		member.allocated = granted
 		members[name] = member
 	}
-	return v, &fleetAllocation{members: members}
+	return v, fleet
 }
 
 // podShape is the placement footprint of one pool's Pod. Two pools with
@@ -553,7 +588,7 @@ func nodeSeatsForShape(node *corev1.Node, shape podShape) int32 {
 }
 
 // fleetCapacity returns the shared budget `pool` competes for with
-// its siblings, in the same unit AllocateFleet expects PerPodCost to
+// its siblings, in the same unit AllocateCompute expects PerPodCost to
 // be expressed in — allocatable memory bytes, for both OSes. An
 // unrecognised OS returns (0, nil), which trips the per-pool fallback
 // in desiredForPool without an error log — pools without a known OS
@@ -692,14 +727,23 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		}
 		shapes[shape.key()] = shape
 
+		var lastDemandAt time.Time
+		if p.Status.LastDemandAt != nil {
+			lastDemandAt = p.Status.LastDemandAt.Time
+		}
 		demands = append(demands, scaling.PoolDemand{
-			Name:       p.Name,
-			PerPodCost: cost,
-			Floor:      scaling.WarmFloor(sig, k),
-			InUse:      sig.InUse(),
-			Load:       sig.Load(),
-			Target:     scaling.DesiredReplicas(sig, k),
-			ShapeKey:   shape.key(),
+			Name:             p.Name,
+			PerPodCost:       cost,
+			Floor:            scaling.WarmFloor(sig, k),
+			MinWarmPoolFloor: k.MinWarmPoolFloor,
+			Active:           sig.CurrentOccupancy()+sig.Queued > 0,
+			InUse:            sig.InUse(),
+			ColdJobs:         sig.ColdJobs,
+			HoursWithJobs:    sig.HoursWithJobs,
+			LastDemandAt:     lastDemandAt,
+			Load:             sig.Load(),
+			Target:           scaling.DesiredReplicas(sig, k),
+			ShapeKey:         shape.key(),
 		})
 		members[p.Name] = fleetMember{pool: p, cost: cost, queued: sig.Queued}
 	}
@@ -835,13 +879,26 @@ func (r *AutoscalerReconciler) now() time.Time {
 	return time.Now()
 }
 
+// autoscalerWorkers is how many pools reconcile at once. One worker could not
+// keep the 5 s poll: in production 40 pools at ~0.3 s each kept it busy all
+// the time with 28 pools queued, so each pool ran about every 12 s. The macOS
+// sandbox grants, which the fleet's first pool renews and which expire after
+// 15 s, then went stale fleet-wide between renewals, and a sandbox waiting for
+// an idle runner's slot outlived its grant before that runner was retired.
+// The workqueue never runs one pool twice at once, and each reconcile writes
+// only its own pool and Pods, from preemption plans every pool computes the
+// same way. Grant publication keeps its own lock, and host reservations stay
+// in the RunnerPool reconciler's single worker.
+const autoscalerWorkers = 4
+
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		// Different controller name so it doesn't collide with
 		// the RunnerPoolReconciler — both watch the same For()
 		// type but maintain independent workqueues.
 		Named("autoscaler").
-		For(&tuistv1.RunnerPool{})
+		For(&tuistv1.RunnerPool{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: autoscalerWorkers})
 	if r.ReservationsNamespace != "" {
 		// A new macOS sandbox reservation may be waiting for an idle CI
 		// runner's slot. Reconcile the darwin pools now rather than on the
@@ -858,15 +915,31 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return b.Complete(r)
 }
 
-func (r *AutoscalerReconciler) darwinPools(ctx context.Context, _ client.Object) []reconcile.Request {
+// darwinPools reconciles the pools with runners on the reservation's host,
+// the only ones that can give it room. Enqueueing every darwin pool put the
+// pool owning that idle runner behind the others' reconciles, each of which
+// lists every Pod in the cluster: in production, with 21 darwin pools, a
+// sandbox create or restore waited 5 to 12 s for its runner to be retired.
+func (r *AutoscalerReconciler) darwinPools(ctx context.Context, obj client.Object) []reconcile.Request {
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools); err != nil {
 		return nil
 	}
+	var runners corev1.PodList
+	listErr := r.List(ctx, &runners, client.HasLabels{"tuist.dev/runner-pool"})
+	node := obj.(*corev1.Pod).Spec.NodeName
+	onNode := map[client.ObjectKey]bool{}
+	for i := range runners.Items {
+		if pod := &runners.Items[i]; pod.Spec.NodeName == node {
+			onNode[client.ObjectKey{Namespace: pod.Namespace, Name: pod.Labels["tuist.dev/runner-pool"]}] = true
+		}
+	}
 	var requests []reconcile.Request
 	for _, pool := range pools.Items {
-		if pool.Spec.OS == "darwin" {
-			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&pool)})
+		key := client.ObjectKeyFromObject(&pool)
+		// Without the runners, every darwin pool, as before.
+		if pool.Spec.OS == "darwin" && (onNode[key] || listErr != nil) {
+			requests = append(requests, reconcile.Request{NamespacedName: key})
 		}
 	}
 	return requests

@@ -141,7 +141,7 @@
                 label={status_props.label}
                 color={status_props.color}
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -187,7 +187,7 @@
                 label={platform_label}
                 color={TuistWeb.RunnerJobLive.platform_badge_color(@job.fleet_name)}
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -222,6 +222,16 @@
         </div>
       </.card_section>
     </.card>
+
+    <.alert
+      :if={@out_of_memory}
+      id="runner-job-out-of-memory-alert"
+      status="error"
+      type="secondary"
+      size="large"
+      title={dgettext("dashboard_runners", "Ran out of memory")}
+      description={Tuist.Runners.JobMetrics.out_of_memory_description(@out_of_memory)}
+    />
 
     <.job_volumes
       volumes={@volumes}
@@ -321,7 +331,7 @@
                         label={row_status_props.label}
                         color={row_status_props.color}
                         style="fill"
-                        size="large"
+                        size="medium"
                       />
                     </span>
                   </.link>
@@ -399,7 +409,7 @@
                         label={row_status_props.label}
                         color={row_status_props.color}
                         style="fill"
-                        size="large"
+                        size="medium"
                       />
                     </span>
                   </.link>

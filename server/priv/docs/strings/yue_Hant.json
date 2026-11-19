@@ -8,7 +8,7 @@
       "other-features": { "text": "其他功能" }
     },
     "items": {
-      "agentic-coding": { "text": "代理式編碼" },
+      "agentic-coding": { "text": "AI 代理編程" },
       "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
@@ -18,10 +18,10 @@
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "快取磁碟區" },
       "calendar": { "text": "日曆" },
-      "channels": { "text": "頻道" },
+      "channels": { "text": "渠道" },
       "claude": { "text": "Claude" },
       "compatibility": { "text": "相容性" },
-      "coverage": { "text": "涵蓋率" },
+      "coverage": { "text": "覆蓋率" },
       "data-retention": { "text": "資料保留" },
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
@@ -31,7 +31,8 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "implicit-dependencies": { "text": "隱含相依性" },
+      "images": { "text": "映像" },
+      "implicit-dependencies": { "text": "隱含依賴" },
       "iphone-app": { "text": "iPhone App" },
       "macos-app": { "text": "macOS App" },
       "new-project": { "text": "新專案" },
@@ -44,13 +45,13 @@
       "project-description": { "text": "專案描述" },
       "release": { "text": "版本" },
       "release-calendar": { "text": "版本日曆" },
-      "release-channels": { "text": "版本頻道" },
+      "release-channels": { "text": "版本渠道" },
       "run-previews": { "text": "執行預覽" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust 快取" },
       "rust-project": { "text": "Rust 專案" },
       "sandboxes": { "text": "沙盒" },
-      "scim-provisioning": { "text": "SCIM 佈建" },
+      "scim-provisioning": { "text": "SCIM 配置" },
       "server-api": { "text": "伺服器 API" },
       "single-sign-on": { "text": "單一登入" },
       "supported-types": { "text": "支援類型" },
@@ -66,7 +67,7 @@
         "text": "語言 🌍"
       },
       "description": {
-        "text": "你可以協助 Tuist 支援更多語言，或改善本頁的語言指引。"
+        "text": "你可以協助 Tuist 支援更多語言，或改進此頁面的語言指引。"
       },
       "cta": {
         "text": "貢獻"
@@ -92,8 +93,8 @@
           "no-recent-searches-text": "沒有搜尋紀錄",
           "save-recent-search-button-title": "儲存至搜尋紀錄",
           "remove-recent-search-button-title": "從搜尋紀錄移除",
-          "favorite-searches-title": "我的收藏",
-          "remove-favorite-search-button-title": "從我的收藏移除"
+          "favorite-searches-title": "收藏",
+          "remove-favorite-search-button-title": "從收藏移除"
         },
         "error-screen": {
           "title-text": "無法取得結果",
@@ -106,9 +107,9 @@
           "search-by-text": "搜尋提供者"
         },
         "no-results-screen": {
-          "no-results-text": "找不到相關結果",
+          "no-results-text": "未找到相關結果",
           "suggested-query-text": "你可以嘗試查詢",
-          "report-missing-results-text": "你認為此查詢應該有結果嗎？",
+          "report-missing-results-text": "你認為此查詢應有結果嗎？",
           "report-missing-results-link-text": "點擊提供回饋"
         }
       }
@@ -137,7 +138,7 @@
           "text": "貢獻者"
         },
         "changelog": {
-          "text": "更新紀錄"
+          "text": "更新日誌"
         }
       }
     }
@@ -155,7 +156,7 @@
               "text": "目錄"
             },
             "shell-completions": {
-              "text": "Shell 自動補完"
+              "text": "Shell 自動補全"
             }
           }
         },
@@ -178,8 +179,19 @@
         "examples": {
           "text": "範例"
         },
+        "concepts": {
+          "text": "概念",
+          "items": {
+            "flaky-test": {
+              "text": "不穩定測試"
+            },
+            "build-cache": {
+              "text": "建構快取"
+            }
+          }
+        },
         "libraries": {
-          "text": "程式庫"
+          "text": "函式庫"
         },
         "migrations": {
           "text": "遷移",
@@ -282,9 +294,6 @@
         },
         "status": {
           "text": "狀態"
-        },
-        "metrics-dashboard": {
-          "text": "指標儀表板"
         }
       }
     },
@@ -373,7 +382,7 @@
                       "text": "建立新專案"
                     },
                     "swift-package": {
-                      "text": "以 Swift Package 試用"
+                      "text": "試用 Swift Package"
                     },
                     "migrate": {
                       "text": "遷移",
@@ -404,10 +413,10 @@
                   "text": "編輯"
                 },
                 "dependencies": {
-                  "text": "相依性"
+                  "text": "依賴"
                 },
                 "code-sharing": {
-                  "text": "程式碼共用"
+                  "text": "程式碼共享"
                 },
                 "synthesized-files": {
                   "text": "合成檔案"
@@ -416,7 +425,7 @@
                   "text": "動態設定"
                 },
                 "templates": {
-                  "text": "範本"
+                  "text": "模板"
                 },
                 "plugins": {
                   "text": "外掛"
@@ -516,7 +525,7 @@
               "text": "測試洞察",
               "items": {
                 "flaky-tests": {
-                  "text": "不穩定測試",
+                  "text": "不穩定性",
                   "items": {
                     "generated-xcode-project": {
                       "text": "產生的 Xcode 專案"
@@ -547,7 +556,7 @@
           }
         },
         "agentic-coding": {
-          "text": "代理式編碼",
+          "text": "AI 代理編程",
           "items": {
             "mcp": {
               "text": "MCP"

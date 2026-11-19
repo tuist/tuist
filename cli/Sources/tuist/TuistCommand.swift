@@ -25,6 +25,7 @@ import TuistRunCommand
 import TuistRunnerCommand
 import TuistSandboxCommand
 import TuistShareCommand
+import TuistSnapshotsCommand
 import TuistSupport
 import TuistTestCommand
 import TuistVersionCommand
@@ -79,6 +80,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         SandboxCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
+                        SnapshotsCommand.self,
                         TeardownCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
@@ -114,6 +116,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     RunCommand.self,
                     RunnerCommand.self,
                     SandboxCommand.self,
+                    SnapshotsCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
                 ]
@@ -200,17 +203,24 @@ public struct TuistCommand: AsyncParsableCommand {
                         && processedArguments.prefix(2) != ["bazel", "credential-helper"]
                         && processedArguments.first != "analytics-upload"
                     let optionalAuthentication = config.project.optionalAuthentication
+                    let compilationCacheVariables = XcodeBuildEnvironment.compilationCacheVariables(
+                        fullHandle: config.fullHandle,
+                        upload: config.xcodeCache.upload,
+                        environment: Environment.current.variables
+                    )
                     let runTrackableCommand = {
                         try await withHARRecorder(
                             networkFilePath: networkFilePath,
                             shouldRecordHAR: shouldRecordHAR
                         ) {
-                            try await trackableCommand.run(
-                                fullHandle: config.fullHandle,
-                                serverURL: serverURL,
-                                shouldTrackAnalytics: shouldTrackAnalytics,
-                                optionalAuthentication: optionalAuthentication
-                            )
+                            try await XcodeBuildEnvironment.$additionalVariables.withValue(compilationCacheVariables) {
+                                try await trackableCommand.run(
+                                    fullHandle: config.fullHandle,
+                                    serverURL: serverURL,
+                                    shouldTrackAnalytics: shouldTrackAnalytics,
+                                    optionalAuthentication: optionalAuthentication
+                                )
+                            }
                         }
                     }
                     if let nooraReadyCommand = command as? NooraReadyCommand {
@@ -258,26 +268,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 }
             }
         #else
-            try await withLoggerForNoora(logFilePath: logFilePath) {
-                do {
-                    let command = try parseAsRoot(processedArguments)
-                    let jsonThroughNoora = (command as? NooraReadyCommand)?.jsonThroughNoora ?? false
-                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
-                        if var asyncCommand = command as? AsyncParsableCommand {
-                            try await asyncCommand.run()
-                        } else {
-                            var mutableCommand = command
-                            try mutableCommand.run()
-                        }
-                        outputCompletion(
-                            logFilePath: logFilePath,
-                            shouldOutputLogFilePath: false
-                        )
-                    }
-                } catch {
-                    await onError(error, isParsingError: false, logFilePath: logFilePath)
-                }
-            }
+            try await executeOnLinux(processedArguments, logFilePath: logFilePath)
         #endif
     }
 
@@ -425,3 +416,47 @@ public struct TuistCommand: AsyncParsableCommand {
         return CommandLineArguments.removingGlobalFlags(arguments)
     }
 }
+
+#if !os(macOS)
+    extension TuistCommand {
+        fileprivate static func executeOnLinux(_ processedArguments: [String], logFilePath: AbsolutePath) async throws {
+            do {
+                let command = try parseAsRoot(processedArguments)
+                let nooraReadyCommand = command as? NooraReadyCommand
+                let jsonThroughNoora = nooraReadyCommand?.jsonThroughNoora ?? false
+                let runCommand = {
+                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
+                        if var asyncCommand = command as? AsyncParsableCommand {
+                            try await asyncCommand.run()
+                        } else {
+                            var mutableCommand = command
+                            try mutableCommand.run()
+                        }
+                    }
+                }
+                // As on macOS, only Noora-ready commands get the Noora logger, which prints to the
+                // terminal only with --verbose. Other commands print their results through
+                // Logger.current, so they keep the default logger.
+                if nooraReadyCommand != nil {
+                    try await withLoggerForNoora(logFilePath: logFilePath, runCommand)
+                } else {
+                    try await runCommand()
+                }
+                try await withLoggerForNoora(logFilePath: logFilePath) {
+                    Noora.$current.withValue(initNoora()) {
+                        outputCompletion(
+                            logFilePath: logFilePath,
+                            shouldOutputLogFilePath: false
+                        )
+                    }
+                }
+            } catch {
+                try await withLoggerForNoora(logFilePath: logFilePath) {
+                    await Noora.$current.withValue(initNoora()) {
+                        await onError(error, isParsingError: false, logFilePath: logFilePath)
+                    }
+                }
+            }
+        }
+    }
+#endif

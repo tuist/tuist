@@ -6,10 +6,13 @@ defmodule Tuist.Tests.Selections do
   the nearest ancestor whose full run recorded per-test coverage evidence,
   the outcome (`selected`, or `fallback` when it continued as default
   selective testing), the trace of the rules that decided it and the
-  counts. Only the tests it selected are stored
-  (`Tuist.TestImpactAnalysis.RunTest`); the skipped ones are the baseline
-  run's tests in the requested modules, minus the selected ones. The test
-  runs an invocation reported point to its impact run (`test_impact_run_id`).
+  counts. What it decided for each test in the requested modules is stored
+  as its decision (`Tuist.TestImpactAnalysis.Decision`): bitmaps of the
+  selected and skipped tests, each with its reason and the changed file
+  that matched, numbered as its baseline's checkpoint numbers its tests. A
+  fallback that found its baseline decides no test: its tests, like those
+  of the modules hashing skipped, are the baseline run's. The test runs an
+  invocation reported point to its impact run (`test_impact_run_id`).
 
   These back the Test Selection page and the Selective Testing tabs of a
   test run and a test case run.
@@ -18,14 +21,16 @@ defmodule Tuist.Tests.Selections do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
+  alias Tuist.Repo
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.TestImpactAnalysis.Run
-  alias Tuist.TestImpactAnalysis.RunTest
+  alias Tuist.TestImpactAnalysis.Snapshot
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests.Coverage.ExcludedPaths
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.RunSelections
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
@@ -33,7 +38,7 @@ defmodule Tuist.Tests.Selections do
   @skipped_reasons ~w(unaffected module_skipped)
   @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
-  @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
+  @doc "Why an impact run selects a test (its decision's `reason`), in the rules' order."
   def selected_reasons, do: @selected_reasons
 
   @doc "Why an impact run skips a test."
@@ -80,21 +85,16 @@ defmodule Tuist.Tests.Selections do
     skip_rate(ran, total - ran)
   end
 
-  # The mean of the runs' skip rates, each as `skip_rate/1` computes it, as a
-  # fraction.
-  defmacrop run_skip_rate_avg(r) do
+  # The period's runs' avoided tests over their tests in scope, pooled, as a
+  # fraction (`Tuist.Tests.RunSelections`): the same measure as the
+  # dashboards'.
+  defmacrop pooled_skip_rate(s) do
     quote do
       fragment(
-        "avg(multiIf(ifNull(?, '') != '', if(? > 0, ? / ?, 0), length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
-        unquote(r).baseline_sha,
-        unquote(r).requested_count,
-        unquote(r).skipped_count,
-        unquote(r).requested_count,
-        unquote(r).requested_modules,
-        unquote(r).skipped_modules,
-        unquote(r).skipped_modules,
-        unquote(r).requested_modules,
-        unquote(r).skipped_modules
+        "if(sum(?) > 0, sum(?) / sum(?), 0)",
+        unquote(s).scope_tests,
+        unquote(s).avoided_tests,
+        unquote(s).scope_tests
       )
     end
   end
@@ -104,6 +104,10 @@ defmodule Tuist.Tests.Selections do
   reported: totals, their trend against the
   period before, and per-bucket series (hours for a period of two days or
   less, days otherwise) of runs, selected and skipped tests, and skip rate.
+  The skip rate is the dashboards' test selection effectiveness over the
+  same runs: their avoided tests over their tests in scope, pooled, as the
+  test runs' selections recorded them (`Tuist.Tests.RunSelections`), so a run
+  without its selection recorded yet adds nothing to it.
   The end is carried to the close of its second, as the date picker's
   periods are in whole seconds.
   """
@@ -114,13 +118,15 @@ defmodule Tuist.Tests.Selections do
 
     rows =
       from(r in reported_runs(project_id, start_datetime, until),
+        left_join: s in subquery(RunSelections.by_impact_run(project_id, DateTime.add(start_datetime, -1, :day))),
+        on: s.test_impact_run_id == r.id,
         group_by: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
         select: %{
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
           runs: count(),
           selected: sum(r.selected_count),
           skipped: sum(r.skipped_count),
-          skip_rate: run_skip_rate_avg(r)
+          skip_rate: pooled_skip_rate(s)
         }
       )
       |> ClickHouseRepo.all()
@@ -160,12 +166,14 @@ defmodule Tuist.Tests.Selections do
     row =
       ClickHouseRepo.one(
         from(r in reported_runs(project_id, start_datetime, until),
+          left_join: s in subquery(RunSelections.by_impact_run(project_id, DateTime.add(start_datetime, -1, :day))),
+          on: s.test_impact_run_id == r.id,
           select: %{
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
             selected: sum(r.selected_count),
             skipped: sum(r.skipped_count),
-            skip_rate: run_skip_rate_avg(r)
+            skip_rate: pooled_skip_rate(s)
           }
         )
       ) || %{}
@@ -383,11 +391,13 @@ defmodule Tuist.Tests.Selections do
     project |> tracked_file_globs() |> ExcludedPaths.pattern() |> ExcludedPaths.compile()
   end
 
+  # Read off the decision's bitmaps, keyed by the path that selected them.
   defp selected_counts_by_path(%Run{} = run) do
-    from(t in selected_query(run),
-      where: t.matched_path != "",
-      group_by: t.matched_path,
-      select: {t.matched_path, count()}
+    from(d in decision_rows(run),
+      where: d.snapshot_id in subquery(decision_snapshot_query(run)),
+      where: fragment("? = 'selected'", d.decision) and d.matched_path != "",
+      group_by: d.matched_path,
+      select: {d.matched_path, fragment("sum(bitmapCardinality(?))", d.tests)}
     )
     |> ClickHouseRepo.all()
     |> Map.new(fn {path, count} -> {path, to_integer(count)} end)
@@ -421,9 +431,12 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  A page of an impact run's tests, the selected ones and the skipped ones
-  derived from the baseline, with their outcome in `test_run_id` (`nil`
-  when it reported none for the test) and the shard they were planned on.
+  A page of an impact run's tests, as its decision selected and skipped
+  them (those of the modules hashing skipped, and those of a fallback that
+  found its baseline, derived from the baseline), with their outcome in
+  `test_run_id` (`nil` when it reported none for the test) and the shard
+  they were planned on. A run without a complete decision lists none that
+  coverage decided.
   Options: `:search` (part of the module, suite or test name), `:decision`
   (`selected` or `skipped`), `:reason`, `:shard`,
   `:sort_by` (`decision`, `name`, `shard` or `duration`), `:sort_order`,
@@ -456,8 +469,86 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
-  defp selected_query(%Run{id: id, project_id: project_id}) do
-    from(t in RunTest, where: t.project_id == ^project_id and t.test_impact_run_id == ^id)
+  # The rows of the run's stored decision (`Tuist.TestImpactAnalysis.Decision`).
+  defp decision_rows(%Run{id: id, project_id: project_id}) do
+    from(d in "test_impact_run_decisions",
+      hints: ["FINAL"],
+      where: d.project_id == ^project_id and d.test_impact_run_id == type(^id, Ecto.UUID)
+    )
+  end
+
+  # The snapshot whose numbering the run's decision uses (its primary
+  # checkpoint), only when the decision is complete: one whose storing
+  # failed midway holds fewer tests than it decided, and reads as none.
+  defp decision_snapshot_query(run) do
+    from(d in decision_rows(run),
+      having: count() > 0 and fragment("sum(bitmapCardinality(?)) = any(?)", d.tests, d.decided),
+      select: type(fragment("any(?)", d.snapshot_id), Ecto.UUID)
+    )
+  end
+
+  # The tests of the run's decision, one row each: its bitmaps expanded into
+  # the primary checkpoint's numbers, mapped back to their test cases
+  # through that snapshot's tests, named from `test_cases` (read by the
+  # requested modules, its sort key's prefix; a test without a row there is
+  # left out) and timed by the baseline. Only a run with a baseline has one.
+  defp decided_tests_query(%Run{project_id: project_id} = run) do
+    snapshot_id = decision_snapshot_query(run)
+
+    expanded =
+      from(d in decision_rows(run),
+        where: d.snapshot_id in subquery(snapshot_id),
+        select: %{
+          snapshot_id: d.snapshot_id,
+          test_idx: fragment("arrayJoin(bitmapToArray(?))", d.tests),
+          decision: fragment("toString(?)", d.decision),
+          reason: fragment("toString(?)", d.reason),
+          matched_path: d.matched_path
+        }
+      )
+
+    tests =
+      from(s in "test_impact_snapshot_tests",
+        hints: ["FINAL"],
+        where: s.project_id == ^project_id and s.snapshot_id in subquery(snapshot_id),
+        select: %{
+          snapshot_id: s.snapshot_id,
+          test_idx: s.test_idx,
+          test_case_id: s.test_case_id,
+          module_name: s.module_name,
+          suite_name: s.suite_name
+        }
+      )
+
+    names =
+      from(c in "test_cases",
+        where: c.project_id == ^project_id and c.module_name in ^run.requested_modules,
+        distinct: true,
+        select: %{id: c.id, name: c.name}
+      )
+
+    query =
+      from(e in subquery(expanded),
+        join: t in subquery(tests),
+        on: t.snapshot_id == e.snapshot_id and t.test_idx == e.test_idx,
+        join: c in subquery(names),
+        on: c.id == t.test_case_id
+      )
+
+    from([e, t, c] in query,
+      left_join: b in subquery(baseline_tests_query(run)),
+      on: b.test_case_id == t.test_case_id,
+      select: %{
+        test_case_id: type(t.test_case_id, Ecto.UUID),
+        module_name: t.module_name,
+        suite_name: t.suite_name,
+        name: c.name,
+        decision: e.decision,
+        reason: e.reason,
+        matched_path: e.matched_path,
+        duration: fragment("ifNull(?, 0)", b.duration)
+      }
+    )
   end
 
   # The baseline run's tests in `modules` (by default the requested ones),
@@ -495,7 +586,7 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
-  defp skipped_queries(run), do: for({true, branch} <- branches(run, [decision: "skipped"], [], nil), do: branch.())
+  defp skipped_queries(run), do: for({true, branch} <- branches(run, [decision: "skipped"], []), do: branch.())
 
   # The requested modules' baseline tests a fallback that found its baseline
   # ran, under its reason.
@@ -514,28 +605,27 @@ defmodule Tuist.Tests.Selections do
     })
   end
 
-  # The requested modules' baseline tests coverage didn't select.
-  defp unaffected_query(run, filters) do
-    selected_ids = select(selected_query(run), [t], t.test_case_id)
-
-    skipped_branch(
-      from(b in subquery(baseline_tests_query(run)), where: b.test_case_id not in subquery(selected_ids)),
-      filters,
-      "unaffected"
-    )
+  # The tests the run's decision selected or skipped (`decisions`): the
+  # selected ones under the rule that selected them, the skipped ones as
+  # `unaffected`.
+  defp decided_query(run, decisions, filters) do
+    from(t in subquery(decided_tests_query(run)), where: t.decision in ^decisions)
+    |> filter_branch(filters)
+    |> select([t], %{
+      test_case_id: t.test_case_id,
+      module_name: t.module_name,
+      suite_name: t.suite_name,
+      name: t.name,
+      decision: t.decision,
+      reason: t.reason,
+      matched_path: t.matched_path,
+      duration: t.duration
+    })
   end
 
   # The baseline tests of the modules selective testing skipped by hash.
   defp module_skipped_query(run, filters) do
-    skipped_branch(
-      from(b in subquery(baseline_tests_query(run, Map.keys(run.skipped_modules)))),
-      filters,
-      "module_skipped"
-    )
-  end
-
-  defp skipped_branch(query, filters, reason) do
-    query
+    from(b in subquery(baseline_tests_query(run, Map.keys(run.skipped_modules))))
     |> filter_branch(filters)
     |> select([b], %{
       test_case_id: b.test_case_id,
@@ -543,10 +633,28 @@ defmodule Tuist.Tests.Selections do
       suite_name: b.suite_name,
       name: b.name,
       decision: fragment("'skipped'"),
-      reason: fragment("?", ^reason),
+      reason: fragment("'module_skipped'"),
       matched_path: fragment("''"),
       duration: b.duration
     })
+  end
+
+  # No rows, in the branches' shape, read from nothing but the decision's
+  # key, so a run without a baseline needs none.
+  defp empty_query(run) do
+    from(d in decision_rows(run),
+      where: false,
+      select: %{
+        test_case_id: type(d.test_impact_run_id, Ecto.UUID),
+        module_name: d.matched_path,
+        suite_name: d.matched_path,
+        name: d.matched_path,
+        decision: fragment("toString(?)", d.decision),
+        reason: fragment("toString(?)", d.reason),
+        matched_path: d.matched_path,
+        duration: fragment("toInt64(0)")
+      }
+    )
   end
 
   # Filters apply inside each branch of the union: ClickHouse fails to push
@@ -554,25 +662,33 @@ defmodule Tuist.Tests.Selections do
   defp requested_query(run, opts) do
     reason = Keyword.get(opts, :reason)
     filters = Keyword.take(opts, [:search, :test_case_id])
-    selected = selected_branch(run, if(reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]))
+    filters = if reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]
 
-    branches = for {included?, branch} <- branches(run, opts, filters, selected), included?, do: branch.()
+    branches = for {included?, branch} <- branches(run, opts, filters), included?, do: branch.()
 
     case branches do
-      [] -> where(selected, false)
+      [] -> empty_query(run)
       [first | rest] -> Enum.reduce(rest, first, &union_all(&2, ^&1))
     end
   end
 
   # Each branch of the union, whether the options include it, and how to
-  # build it.
-  defp branches(run, opts, filters, selected) do
+  # build it. `filters` holds the reason asked for, which only the decision's
+  # branch has several of.
+  defp branches(run, opts, filters) do
+    decisions =
+      Enum.concat(
+        if(selected_branch?(opts) and not counted_fallback?(run), do: ["selected"], else: []),
+        if(skipped_branch?(run, opts, "unaffected") and not fallback?(run), do: ["skipped"], else: [])
+      )
+
+    others = Keyword.delete(filters, :reason)
+
     [
-      {selected_branch?(opts) and not counted_fallback?(run), fn -> selected end},
-      {counted_fallback?(run) and fallback_selected_branch?(run, opts), fn -> fallback_selected_query(run, filters) end},
-      {skipped_branch?(run, opts, "unaffected") and not fallback?(run), fn -> unaffected_query(run, filters) end},
+      {has_baseline?(run) and decisions != [], fn -> decided_query(run, decisions, filters) end},
+      {counted_fallback?(run) and fallback_selected_branch?(run, opts), fn -> fallback_selected_query(run, others) end},
       {skipped_branch?(run, opts, "module_skipped") and run.skipped_modules != %{} and
-         Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, filters) end}
+         Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, others) end}
     ]
   end
 
@@ -590,40 +706,6 @@ defmodule Tuist.Tests.Selections do
     has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
       Keyword.get(opts, :reason) in [nil, "", "any", reason] and
       not is_integer(Keyword.get(opts, :shard))
-  end
-
-  defp selected_branch(run, filters) do
-    query = filter_branch(selected_query(run), filters)
-
-    if has_baseline?(run) do
-      from(t in query,
-        left_join: b in subquery(baseline_tests_query(run)),
-        on: b.test_case_id == t.test_case_id,
-        select: %{
-          test_case_id: t.test_case_id,
-          module_name: t.module_name,
-          suite_name: t.suite_name,
-          name: t.name,
-          decision: fragment("'selected'"),
-          reason: fragment("toString(?)", t.reason),
-          matched_path: t.matched_path,
-          duration: fragment("ifNull(?, 0)", b.duration)
-        }
-      )
-    else
-      from(t in query,
-        select: %{
-          test_case_id: t.test_case_id,
-          module_name: t.module_name,
-          suite_name: t.suite_name,
-          name: t.name,
-          decision: fragment("'selected'"),
-          reason: fragment("toString(?)", t.reason),
-          matched_path: t.matched_path,
-          duration: fragment("toInt64(0)")
-        }
-      )
-    end
   end
 
   defp filter_branch(query, filters) do
@@ -766,33 +848,31 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  The files a test executed in its baseline, from the baseline's per-test
-  coverage evidence: the paths of its `test` scope in the coverage of the
-  baseline commit's test runs.
+  The repository files a test depends on at its impact run's baseline, in
+  path order: what it, its suite's setup or its module's processes executed
+  there, as the test map the run was decided from records it
+  (`Tuist.TestImpactAnalysis.Snapshots.test_files/3`). That's the primary
+  checkpoint of the run's decision or, for a run without one, the snapshot
+  at the baseline commit for the run's scheme and platform.
   """
-  def baseline_covered_paths(project_id, baseline_sha, %{module_name: module, suite_name: suite, name: name})
+  def baseline_covered_paths(%Run{baseline_sha: baseline_sha} = run, %{test_case_id: test_case_id})
       when baseline_sha not in [nil, ""] do
-    scope_id = Enum.join([module, suite, name], "\u001F")
-
-    ClickHouseRepo.all(
-      from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.scope_kind == "test" and f.scope_id == ^scope_id,
-        where:
-          f.git_commit_sha == ^baseline_sha or
-            f.test_run_id in subquery(
-              from(r in CoverageRun,
-                where: r.project_id == ^project_id and r.git_commit_sha == ^baseline_sha,
-                select: r.test_run_id
-              )
-            ),
-        distinct: true,
-        select: f.path,
-        order_by: f.path
-      )
-    )
+    with %{checkpoint: %Snapshot{}} = layers <- baseline_snapshot(run),
+         files when is_list(files) <- Snapshots.test_files(run.project_id, layers, test_case_id) do
+      Enum.map(files, & &1.path)
+    else
+      _ -> []
+    end
   end
 
-  def baseline_covered_paths(_project_id, _baseline_sha, _test), do: []
+  def baseline_covered_paths(_run, _test), do: []
+
+  defp baseline_snapshot(%Run{} = run) do
+    case ClickHouseRepo.one(decision_snapshot_query(run)) do
+      nil -> Snapshots.at(run.project_id, run.baseline_sha, Map.get(run.build_context || %{}, "scheme"), run.platform)
+      snapshot_id -> %{checkpoint: Repo.get(Snapshot, snapshot_id), overlay: nil}
+    end
+  end
 
   @doc "Whether any test run of the commit reported coverage."
   def coverage?(_project_id, sha) when sha in [nil, ""], do: false

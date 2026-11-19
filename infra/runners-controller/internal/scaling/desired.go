@@ -22,6 +22,18 @@ type Signals struct {
 	// weeks), or 0 when the pool had no job in the last day. An older
 	// server omits it and it decodes as 0.
 	LearnedWarmFloor int32 `json:"learned_warm_floor"`
+	// HoursWithJobs is how many hours of the last two weeks had one of the
+	// pool's jobs, or 0 when the pool had no job in the last day. The
+	// floors of pools not in use are funded most used first. An older
+	// server omits it and it decodes as 0, which leaves recency to decide.
+	HoursWithJobs int32 `json:"hours_with_jobs"`
+	// ColdJobs is how many of the pool's jobs of the last two weeks arrived
+	// with another of its jobs in the 30 s before them: the jobs one warm
+	// runner does not cover, which boot cold unless the learned floor above
+	// it is funded. 0 when the pool had no job in the last day. Warm floors
+	// are funded most cold jobs first. An older server omits it and it
+	// decodes as 0, which leaves HoursWithJobs to decide, as before.
+	ColdJobs int32 `json:"cold_jobs"`
 	// PreferredNodes holds one Node per oldest queued job, in queue order: a
 	// host that holds the custom cache volumes the job is predicted to attach
 	// and has cache disk room for them. A Node repeats once per job it fits.
@@ -54,7 +66,7 @@ func (s Signals) CurrentOccupancy() int32 {
 // it does not self-heal.
 //
 // One Pod is the whole fix: it is enough to enter the race for freed
-// headroom, and it enters tier 1 of AllocateFleet, which is granted even
+// headroom, and it enters tier 1 of AllocateCompute, which is granted even
 // past capacity. Sizing for the full withheld count instead would recreate
 // exactly the idle-Pod squatting the withholding exists to prevent, which
 // is why this saturates at 1 rather than scaling with `Withheld`.
@@ -74,11 +86,10 @@ func (s Signals) Load() int32 {
 	return s.CurrentOccupancy() + s.Queued + s.BlockedDemand()
 }
 
-// InUse reports whether the pool has load now or held a runner session in
-// the last hour. A pool with only a learned floor is not in use: the floor
-// keeps it warm for a burst that may come, not for one that is under way.
+// InUse reports dispatchable/occupied work or a session in the last hour.
+// Withheld-only work keeps its tier-1 contender, not priority warm spare.
 func (s Signals) InUse() bool {
-	return s.Load() > 0 || s.P95ConcurrentLastHour > 0
+	return s.CurrentOccupancy()+s.Queued > 0 || s.P95ConcurrentLastHour > 0
 }
 
 // PolicyKnobs are the per-pool autoscaling parameters from the
@@ -106,7 +117,7 @@ func LearnedSpare(s Signals, k PolicyKnobs) int32 {
 	return spare
 }
 
-// WarmFloor is the pool's floor tier for the fleet allocator: the
+// WarmFloor is the pool's floor tier for the compute allocator: the
 // replicas it keeps before any p95 headroom. That is `minWarmPoolFloor`,
 // or load plus the learned spare when that is higher.
 func WarmFloor(s Signals, k PolicyKnobs) int32 {

@@ -21,7 +21,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
 
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
-      expect(Projects, :create_project_token, fn ^project -> "project_access_token" end)
+      expect(Projects, :create_project_token, fn %{id: id} when id == project.id -> "project_access_token" end)
 
       # When
       conn =

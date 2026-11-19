@@ -17,9 +17,9 @@ msgstr "Language: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "%{hit_rate}%"
 msgstr "%{hit_rate}%"
 
-#: lib/tuist_web/live/build_run_live.ex:980
-#: lib/tuist_web/live/mix_build_live.ex:482
-#: lib/tuist_web/live/mix_build_live.ex:488
+#: lib/tuist_web/live/build_run_live.ex:981
+#: lib/tuist_web/live/mix_build_live.ex:483
+#: lib/tuist_web/live/mix_build_live.ex:489
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
 msgstr "%{message} w %{link}"
@@ -33,7 +33,7 @@ msgstr "%{percentage}%"
 #: lib/tuist_web/live/run_detail_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
-msgstr "%{run_duration}s"
+msgstr "%{run_duration} s"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:475
 #, elixir-autogen, elixir-format
@@ -66,7 +66,7 @@ msgstr "Średnia"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "Śr. czas trwania buildu"
+msgstr "Śr. czas budowania"
 
 #: lib/tuist_web/live/build_run_live.html.heex:957
 #, elixir-autogen, elixir-format
@@ -94,7 +94,8 @@ msgid "Branch"
 msgstr "Gałąź"
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
-#: lib/tuist_web/live/bazel_invocation_live.ex:63
+#: lib/tuist_web/live/bazel_invocation_live.ex:67
+#: lib/tuist_web/live/bazel_invocation_live.ex:95
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/cargo_build_live.html.heex:47
 #: lib/tuist_web/live/mix_build_live.html.heex:383
@@ -103,8 +104,8 @@ msgstr "Gałąź"
 msgid "Build Details"
 msgstr "Szczegóły buildu"
 
-#: lib/tuist_web/live/build_run_live.ex:87
-#: lib/tuist_web/live/build_run_live.ex:108
+#: lib/tuist_web/live/build_run_live.ex:88
+#: lib/tuist_web/live/build_run_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Build Run"
 msgstr "Uruchomienie buildu"
@@ -119,10 +120,10 @@ msgstr "Uruchomienie buildu"
 msgid "Build Runs"
 msgstr "Uruchomienia buildów"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:249
+#: lib/tuist_web/live/bazel_invocation_live.ex:620
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
-#: lib/tuist_web/live/build_run_live.ex:1221
+#: lib/tuist_web/live/build_run_live.ex:1222
 #: lib/tuist_web/live/build_run_live.html.heex:286
 #: lib/tuist_web/live/build_run_live.html.heex:472
 #: lib/tuist_web/live/build_run_live.html.heex:488
@@ -140,9 +141,9 @@ msgstr "Uruchomienia buildów"
 msgid "Build duration"
 msgstr "Czas trwania buildu"
 
-#: lib/tuist_web/live/build_run_live.ex:62
-#: lib/tuist_web/live/build_run_live.ex:73
-#: lib/tuist_web/live/mix_build_live.ex:38
+#: lib/tuist_web/live/build_run_live.ex:63
+#: lib/tuist_web/live/build_run_live.ex:74
+#: lib/tuist_web/live/mix_build_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Build not found."
 msgstr "Nie znaleziono buildu."
@@ -182,23 +183,23 @@ msgstr "Foldery do kompilacji"
 msgid "Builds"
 msgstr "Buildy"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:258
+#: lib/tuist_web/live/bazel_invocation_live.ex:629
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
 #: lib/tuist_web/live/once_run_live.ex:338
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "Skompilowano"
+msgstr "Zbudowano o"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:244
+#: lib/tuist_web/live/bazel_invocation_live.ex:615
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "Skompilowane przez"
+msgstr "Zbudowano przez"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:317
 #, elixir-autogen, elixir-format
@@ -210,31 +211,31 @@ msgstr "Bundle ID"
 #: lib/tuist_web/live/mix_build_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
-msgstr "Wyjścia CAS"
+msgstr "Wyniki CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1177
 #: lib/tuist_web/live/mix_build_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "CAS output"
-msgstr "Wyjście CAS"
+msgstr "Wynik CAS"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:281
 #: lib/tuist_web/live/build_run_live.html.heex:1286
 #, elixir-autogen, elixir-format
 msgid "CAS outputs"
-msgstr "Wyjścia CAS"
+msgstr "Wyniki CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1513
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Wyjścia CAS pojawią się tutaj podczas korzystania z pamięci podręcznej Tuist"
+msgstr "Wyniki CAS pojawią się tutaj podczas korzystania z pamięci podręcznej Tuist"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:79
 #: lib/tuist_web/components/reapi_cache_outputs.ex:90
 #: lib/tuist_web/live/build_run_live.html.heex:1238
 #, elixir-autogen, elixir-format
 msgid "CAS outputs:"
-msgstr "Wyjścia CAS:"
+msgstr "Wyniki CAS:"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:100
 #: lib/tuist_web/live/xcode_builds_live.ex:401
@@ -265,7 +266,7 @@ msgstr "Podsumowanie pamięci podręcznej"
 
 #: lib/tuist_web/live/build_run_live.html.heex:893
 #: lib/tuist_web/live/cargo_build_live.html.heex:163
-#: lib/tuist_web/live/mix_build_live.ex:286
+#: lib/tuist_web/live/mix_build_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
 msgstr "Pobrania z pamięci podręcznej"
@@ -294,7 +295,7 @@ msgstr "Nietrafienia w pamięci podręcznej"
 
 #: lib/tuist_web/live/build_run_live.html.heex:901
 #: lib/tuist_web/live/cargo_build_live.html.heex:174
-#: lib/tuist_web/live/mix_build_live.ex:287
+#: lib/tuist_web/live/mix_build_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
 msgstr "Wysyłania do pamięci podręcznej"
@@ -334,7 +335,7 @@ msgstr "Zadania możliwe do buforowania pobrane z pamięci podręcznej (lokalnej
 #: lib/tuist_web/live/build_run_live.html.heex:1212
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "Zadania możliwe do buforowania pojawią się tutaj podczas korzystania z Tuist cache"
+msgstr "Zadania możliwe do buforowania pojawią się tutaj podczas korzystania z pamięci podręcznej Tuist"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:81
 #: lib/tuist_web/live/build_run_live.html.heex:931
@@ -357,11 +358,12 @@ msgstr "Kategoria"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Clean"
-msgstr "Wyczyść"
+msgstr "Czysty"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:225
+#: lib/tuist_web/live/bazel_invocation_live.ex:251
+#: lib/tuist_web/live/bazel_invocation_live.ex:596
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
@@ -390,15 +392,15 @@ msgstr "SHA commitu"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:96
 #: lib/tuist_web/helpers/build_entity_labels.ex:97
-#: lib/tuist_web/live/build_run_live.ex:1192
-#: lib/tuist_web/live/build_run_live.ex:1229
+#: lib/tuist_web/live/build_run_live.ex:1193
+#: lib/tuist_web/live/build_run_live.ex:1230
 #: lib/tuist_web/live/build_run_live.html.heex:473
 #: lib/tuist_web/live/build_run_live.html.heex:496
 #: lib/tuist_web/live/build_run_live.html.heex:551
 #: lib/tuist_web/live/build_run_live.html.heex:626
 #: lib/tuist_web/live/build_run_live.html.heex:633
 #: lib/tuist_web/live/build_run_live.html.heex:696
-#: lib/tuist_web/live/mix_build_live.ex:503
+#: lib/tuist_web/live/mix_build_live.ex:504
 #: lib/tuist_web/live/mix_build_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "Compilation duration"
@@ -411,14 +413,14 @@ msgstr "Czas kompilacji"
 #: lib/tuist_web/live/build_run_live.html.heex:1479
 #, elixir-autogen, elixir-format
 msgid "Compressed Size"
-msgstr "Rozmiar po kompresji"
+msgstr "Rozmiar skompresowany"
 
-#: lib/tuist_web/live/build_run_live.ex:1446
+#: lib/tuist_web/live/build_run_live.ex:1447
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
-msgstr "Rozmiar po kompresji (MB)"
+msgstr "Rozmiar skompresowany (MB)"
 
-#: lib/tuist_web/components/build_timeline.ex:339
+#: lib/tuist_web/components/build_timeline.ex:346
 #: lib/tuist_web/live/build_run_live.html.heex:242
 #: lib/tuist_web/live/xcode_build_runs_live.ex:211
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:73
@@ -432,7 +434,7 @@ msgstr "Konfiguracja"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "Statystyki konfiguracji"
+msgstr "Analiza konfiguracji"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:60
 #, elixir-autogen, elixir-format
@@ -467,7 +469,7 @@ msgstr "Zależności"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:405
 #, elixir-autogen, elixir-format
 msgid "Deployment target"
-msgstr "Docelowy system wdrożenia"
+msgstr "Docelowa wersja systemu"
 
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:169
 #: lib/tuist_web/live/xcode_builds_live.ex:408
@@ -480,7 +482,7 @@ msgstr "Urządzenie"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:202
 #: lib/tuist_web/components/reapi_cache_outputs.ex:291
 #: lib/tuist_web/helpers/cargo_cache.ex:63
-#: lib/tuist_web/live/build_run_live.ex:1419
+#: lib/tuist_web/live/build_run_live.ex:1420
 #: lib/tuist_web/live/build_run_live.html.heex:1299
 #: lib/tuist_web/live/build_run_live.html.heex:1452
 #, elixir-autogen, elixir-format
@@ -501,10 +503,11 @@ msgstr "Wynik pobierania"
 msgid "Download throughput"
 msgstr "Przepustowość pobierania"
 
-#: lib/tuist_web/components/build_timeline.ex:251
+#: lib/tuist_web/components/build_timeline.ex:258
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
+#: lib/tuist_web/live/bazel_invocation_live.ex:1442
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
 #: lib/tuist_web/live/cargo_build_live.ex:131
@@ -518,6 +521,7 @@ msgstr "Przepustowość pobierania"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
+#: lib/tuist_web/live/remote_execution_live.ex:709
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -578,16 +582,16 @@ msgid "External"
 msgstr "Zewnętrzne"
 
 #: lib/tuist_web/components/build_status_filter.ex:44
-#: lib/tuist_web/components/build_timeline.ex:269
-#: lib/tuist_web/components/build_timeline.ex:314
-#: lib/tuist_web/components/build_timeline.ex:351
+#: lib/tuist_web/components/build_timeline.ex:276
+#: lib/tuist_web/components/build_timeline.ex:321
+#: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
 #: lib/tuist_web/live/build_entity_live.ex:517
 #: lib/tuist_web/live/build_entity_live.ex:1193
 #: lib/tuist_web/live/build_entity_live.html.heex:438
 #: lib/tuist_web/live/build_entity_live.html.heex:582
-#: lib/tuist_web/live/build_run_live.ex:1258
+#: lib/tuist_web/live/build_run_live.ex:1259
 #: lib/tuist_web/live/build_run_live.html.heex:263
 #: lib/tuist_web/live/build_run_live.html.heex:578
 #: lib/tuist_web/live/cargo_build_live.html.heex:66
@@ -620,93 +624,93 @@ msgstr "Nieudane"
 msgid "Failed builds"
 msgstr "Nieudane buildy"
 
-#: lib/tuist_web/live/build_run_live.ex:997
+#: lib/tuist_web/live/build_run_live.ex:998
 #, elixir-autogen, elixir-format
 msgid "Failed compiling C file %{path}"
 msgstr "Nie udało się skompilować pliku C %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1000
-#: lib/tuist_web/live/build_run_live.ex:1036
+#: lib/tuist_web/live/build_run_live.ex:1001
+#: lib/tuist_web/live/build_run_live.ex:1037
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Swift file %{path}"
 msgstr "Nie udało się skompilować pliku Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1033
+#: lib/tuist_web/live/build_run_live.ex:1034
 #, elixir-autogen, elixir-format
 msgid "Failed compiling XIB file %{path}"
 msgstr "Nie udało się skompilować pliku XIB %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1015
+#: lib/tuist_web/live/build_run_live.ex:1016
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
 msgstr "Nie udało się skompilować katalogu zasobów %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1018
+#: lib/tuist_web/live/build_run_live.ex:1019
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
 msgstr "Nie udało się skompilować storyboardu %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1012
+#: lib/tuist_web/live/build_run_live.ex:1013
 #, elixir-autogen, elixir-format
 msgid "Failed copying Swift libraries %{path}"
 msgstr "Nie udało się skopiować bibliotek Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1027
+#: lib/tuist_web/live/build_run_live.ex:1028
 #, elixir-autogen, elixir-format
 msgid "Failed copying resource file %{path}"
 msgstr "Nie udało się skopiować pliku zasobów %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1006
+#: lib/tuist_web/live/build_run_live.ex:1007
 #, elixir-autogen, elixir-format
 msgid "Failed creating static library %{path}"
 msgstr "Nie udało się utworzyć biblioteki statycznej %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1003
+#: lib/tuist_web/live/build_run_live.ex:1004
 #, elixir-autogen, elixir-format
 msgid "Failed executing script %{script_name}"
 msgstr "Nie udało się wykonać skryptu %{script_name}"
 
-#: lib/tuist_web/live/build_run_live.ex:1009
+#: lib/tuist_web/live/build_run_live.ex:1010
 #, elixir-autogen, elixir-format
 msgid "Failed linking %{path}"
 msgstr "Nie udało się zlinkować %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1024
+#: lib/tuist_web/live/build_run_live.ex:1025
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
 msgstr "Nie udało się zlinkować storyboardów %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1030
+#: lib/tuist_web/live/build_run_live.ex:1031
 #, elixir-autogen, elixir-format
 msgid "Failed merging Swift module %{path}"
 msgstr "Nie udało się scalić modułu Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1039
+#: lib/tuist_web/live/build_run_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
-msgstr "Niepowodzenie podczas wstępnej kompilacji nagłówka mostkującego %{path}"
+msgstr "Niepowodzenie wstępnego kompilowania nagłówka mostkującego %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1051
+#: lib/tuist_web/live/build_run_live.ex:1052
 #, elixir-autogen, elixir-format
 msgid "Failed processing %{path}"
-msgstr "Niepowodzenie podczas przetwarzania %{path}"
+msgstr "Niepowodzenie przetwarzania %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1045
+#: lib/tuist_web/live/build_run_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Failed validating %{path}"
-msgstr "Niepowodzenie podczas walidacji %{path}"
+msgstr "Niepowodzenie walidacji %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1042
+#: lib/tuist_web/live/build_run_live.ex:1043
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
-msgstr "Niepowodzenie podczas walidacji osadzonego pliku binarnego %{path}"
+msgstr "Niepowodzenie walidacji osadzonego pliku binarnego %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1021
+#: lib/tuist_web/live/build_run_live.ex:1022
 #, elixir-autogen, elixir-format
 msgid "Failed writing auxiliary file %{path}"
-msgstr "Niepowodzenie podczas zapisu pliku pomocniczego %{path}"
+msgstr "Niepowodzenie zapisu pliku pomocniczego %{path}"
 
-#: lib/tuist_web/components/build_timeline.ex:237
+#: lib/tuist_web/components/build_timeline.ex:244
 #: lib/tuist_web/helpers/build_entity_labels.ex:18
 #: lib/tuist_web/live/build_run_live.html.heex:625
 #: lib/tuist_web/live/build_run_live.html.heex:641
@@ -759,13 +763,13 @@ msgstr "Nagłówki"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:242
 #: lib/tuist_web/helpers/build_entity_labels.ex:109
 #: lib/tuist_web/helpers/cargo_cache.ex:58
-#: lib/tuist_web/live/build_run_live.ex:1394
-#: lib/tuist_web/live/build_run_live.ex:1621
+#: lib/tuist_web/live/build_run_live.ex:1395
+#: lib/tuist_web/live/build_run_live.ex:1622
 #: lib/tuist_web/live/build_run_live.html.heex:1111
 #: lib/tuist_web/live/mix_build_live.html.heex:257
 #: lib/tuist_web/live/run_detail_live.ex:351
 #: lib/tuist_web/live/run_detail_live.ex:384
-#: lib/tuist_web/live/test_run_live.ex:1431
+#: lib/tuist_web/live/test_run_live.ex:1437
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "Trafienie"
@@ -774,7 +778,7 @@ msgstr "Trafienie"
 #: lib/tuist_web/live/cargo_build_live.html.heex:151
 #: lib/tuist_web/live/generate_runs_live.ex:297
 #: lib/tuist_web/live/generate_runs_live.html.heex:61
-#: lib/tuist_web/live/mix_build_live.ex:285
+#: lib/tuist_web/live/mix_build_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr "Wskaźnik trafień"
@@ -783,7 +787,7 @@ msgstr "Wskaźnik trafień"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "Inkrementalne"
+msgstr "Przyrostowe"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:411
 #, elixir-autogen, elixir-format
@@ -806,23 +810,23 @@ msgstr "Klucz"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:252
 #: lib/tuist_web/components/runs/module_cache_tab.ex:547
 #: lib/tuist_web/helpers/build_entity_labels.ex:101
-#: lib/tuist_web/live/build_run_live.ex:1398
-#: lib/tuist_web/live/build_run_live.ex:1626
+#: lib/tuist_web/live/build_run_live.ex:1399
+#: lib/tuist_web/live/build_run_live.ex:1627
 #: lib/tuist_web/live/build_run_live.html.heex:934
 #: lib/tuist_web/live/build_run_live.html.heex:1114
 #: lib/tuist_web/live/cargo_build_runs_live.ex:65
 #: lib/tuist_web/live/cargo_builds_live.ex:154
-#: lib/tuist_web/live/mix_build_live.ex:335
-#: lib/tuist_web/live/mix_build_live.ex:352
+#: lib/tuist_web/live/mix_build_live.ex:336
+#: lib/tuist_web/live/mix_build_live.ex:353
 #: lib/tuist_web/live/run_detail_live.ex:356
 #: lib/tuist_web/live/run_detail_live.ex:389
-#: lib/tuist_web/live/test_run_live.ex:1436
+#: lib/tuist_web/live/test_run_live.ex:1442
 #: lib/tuist_web/live/xcode_builds_live.ex:400
 #: lib/tuist_web/live/xcode_builds_live.ex:403
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Local"
-msgstr "Lokalnie"
+msgstr "Lokalny"
 
 #: lib/tuist_web/live/build_run_live.html.heex:780
 #: lib/tuist_web/live/build_run_live.html.heex:833
@@ -841,15 +845,15 @@ msgstr "Urządzenie Mac"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:258
 #: lib/tuist_web/components/runs/module_cache_tab.ex:573
 #: lib/tuist_web/helpers/cargo_cache.ex:61
-#: lib/tuist_web/live/build_run_live.ex:1400
-#: lib/tuist_web/live/build_run_live.ex:1627
+#: lib/tuist_web/live/build_run_live.ex:1401
+#: lib/tuist_web/live/build_run_live.ex:1628
 #: lib/tuist_web/live/build_run_live.html.heex:944
 #: lib/tuist_web/live/build_run_live.html.heex:1126
-#: lib/tuist_web/live/mix_build_live.ex:336
-#: lib/tuist_web/live/mix_build_live.ex:370
+#: lib/tuist_web/live/mix_build_live.ex:337
+#: lib/tuist_web/live/mix_build_live.ex:371
 #: lib/tuist_web/live/run_detail_live.ex:357
 #: lib/tuist_web/live/run_detail_live.ex:390
-#: lib/tuist_web/live/test_run_live.ex:1437
+#: lib/tuist_web/live/test_run_live.ex:1443
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr "Nietrafienie"
@@ -872,7 +876,7 @@ msgstr "Moduł"
 #: lib/tuist_web/live/mix_build_live.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "Podział według modułów"
+msgstr "Podział na moduły"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:105
 #: lib/tuist_web/live/build_run_live.html.heex:180
@@ -882,9 +886,9 @@ msgid "Module Cache"
 msgstr "Pamięć podręczna modułu"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:86
-#: lib/tuist_web/live/build_run_live.ex:1237
+#: lib/tuist_web/live/build_run_live.ex:1238
 #: lib/tuist_web/live/cargo_build_live.ex:132
-#: lib/tuist_web/live/mix_build_live.ex:500
+#: lib/tuist_web/live/mix_build_live.ex:501
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "Nazwa"
@@ -895,7 +899,7 @@ msgstr "Nazwa"
 #: lib/tuist_web/live/build_run_live.html.heex:1511
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
-msgstr "Nie znaleziono wyników CAS"
+msgstr "Nie znaleziono danych wyjściowych CAS"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:309
 #: lib/tuist_web/live/build_run_live.html.heex:1210
@@ -984,12 +988,12 @@ msgid "Overview"
 msgstr "Przegląd"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:964
+#: lib/tuist_web/live/bazel_invocation_live.ex:1335
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
 #: lib/tuist_web/live/build_entity_live.html.heex:577
-#: lib/tuist_web/live/build_run_live.ex:1257
+#: lib/tuist_web/live/build_run_live.ex:1258
 #: lib/tuist_web/live/build_run_live.html.heex:256
 #: lib/tuist_web/live/build_run_live.html.heex:573
 #: lib/tuist_web/live/cargo_build_live.html.heex:65
@@ -1011,7 +1015,7 @@ msgstr "Przegląd"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:913
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "Zaliczone"
+msgstr "Udane"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:68
 #, elixir-autogen, elixir-format
@@ -1028,13 +1032,13 @@ msgstr "Produkt"
 msgid "Product name"
 msgstr "Nazwa produktu"
 
-#: lib/tuist_web/components/build_timeline.ex:232
+#: lib/tuist_web/components/build_timeline.ex:239
 #: lib/tuist_web/helpers/build_entity_labels.ex:88
 #: lib/tuist_web/live/build_entity_live.ex:606
 #: lib/tuist_web/live/build_entity_live.ex:609
 #: lib/tuist_web/live/build_entity_live.ex:610
-#: lib/tuist_web/live/build_run_live.ex:1208
-#: lib/tuist_web/live/build_run_live.ex:1245
+#: lib/tuist_web/live/build_run_live.ex:1209
+#: lib/tuist_web/live/build_run_live.ex:1246
 #: lib/tuist_web/live/build_run_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Project"
@@ -1056,6 +1060,7 @@ msgstr "Ustawienia projektu"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
+#: lib/tuist_web/live/remote_execution_live.ex:715
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1077,7 +1082,7 @@ msgstr "Uruchomiono o"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:930
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "Uruchomiono przez"
+msgstr "Uruchomione przez"
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:366
 #: lib/tuist_web/live/once_runs_live.ex:52
@@ -1088,21 +1093,21 @@ msgstr "Ostatnie buildy"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:246
 #: lib/tuist_web/components/runs/module_cache_tab.ex:560
-#: lib/tuist_web/live/build_run_live.ex:1399
-#: lib/tuist_web/live/build_run_live.ex:1625
+#: lib/tuist_web/live/build_run_live.ex:1400
+#: lib/tuist_web/live/build_run_live.ex:1626
 #: lib/tuist_web/live/build_run_live.html.heex:939
 #: lib/tuist_web/live/build_run_live.html.heex:1120
-#: lib/tuist_web/live/mix_build_live.ex:334
-#: lib/tuist_web/live/mix_build_live.ex:361
+#: lib/tuist_web/live/mix_build_live.ex:335
+#: lib/tuist_web/live/mix_build_live.ex:362
 #: lib/tuist_web/live/run_detail_live.ex:355
 #: lib/tuist_web/live/run_detail_live.ex:388
-#: lib/tuist_web/live/test_run_live.ex:1435
+#: lib/tuist_web/live/test_run_live.ex:1441
 #, elixir-autogen, elixir-format
 msgid "Remote"
-msgstr "Zdalne"
+msgstr "Zdalny"
 
-#: lib/tuist_web/components/build_timeline.ex:336
-#: lib/tuist_web/components/build_timeline.ex:344
+#: lib/tuist_web/components/build_timeline.ex:343
+#: lib/tuist_web/components/build_timeline.ex:351
 #: lib/tuist_web/components/runs/module_cache_tab.ex:371
 #, elixir-autogen, elixir-format
 msgid "Resources"
@@ -1112,7 +1117,7 @@ msgstr "Zasoby"
 #: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
-msgstr "Uruchom"
+msgstr "Uruchomienie"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:177
 #, elixir-autogen, elixir-format
@@ -1137,7 +1142,7 @@ msgstr "Schemat:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:596
+#: lib/tuist_web/live/bazel_invocation_live.ex:967
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1169,13 +1174,14 @@ msgstr "Testy selektywne"
 msgid "Size"
 msgstr "Rozmiar"
 
-#: lib/tuist_web/live/build_run_live.ex:1438
+#: lib/tuist_web/live/build_run_live.ex:1439
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
 msgstr "Rozmiar (MB)"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
+#: lib/tuist_web/live/bazel_invocation_live.ex:468
 #: lib/tuist_web/live/bazel_invocations_live.ex:524
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
@@ -1187,6 +1193,7 @@ msgstr "Rozmiar (MB)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
+#: lib/tuist_web/live/remote_execution_live.ex:456
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -1207,13 +1214,15 @@ msgstr "Źródła"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:234
+#: lib/tuist_web/live/bazel_invocation_live.ex:259
+#: lib/tuist_web/live/bazel_invocation_live.ex:347
+#: lib/tuist_web/live/bazel_invocation_live.ex:605
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
 #: lib/tuist_web/live/build_entity_live.html.heex:573
-#: lib/tuist_web/live/build_run_live.ex:1253
-#: lib/tuist_web/live/build_run_live.ex:1415
+#: lib/tuist_web/live/build_run_live.ex:1254
+#: lib/tuist_web/live/build_run_live.ex:1416
 #: lib/tuist_web/live/build_run_live.html.heex:253
 #: lib/tuist_web/live/build_run_live.html.heex:1449
 #: lib/tuist_web/live/cargo_build_live.html.heex:61
@@ -1225,6 +1234,7 @@ msgstr "Źródła"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
+#: lib/tuist_web/live/remote_execution_live.ex:714
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -1249,26 +1259,26 @@ msgstr "Podsumowanie"
 msgid "Swift version"
 msgstr "Wersja Swifta"
 
-#: lib/tuist_web/components/build_timeline.ex:238
+#: lib/tuist_web/components/build_timeline.ex:245
 #: lib/tuist_web/live/build_entity_live.ex:598
 #: lib/tuist_web/live/build_entity_live.ex:605
 #: lib/tuist_web/live/build_entity_live.ex:607
 #: lib/tuist_web/live/build_entity_live.ex:608
-#: lib/tuist_web/live/build_run_live.ex:1200
+#: lib/tuist_web/live/build_run_live.ex:1201
 #: lib/tuist_web/live/build_run_live.html.heex:688
 #, elixir-autogen, elixir-format
 msgid "Target"
-msgstr "Cel"
+msgstr "Target"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:389
 #, elixir-autogen, elixir-format
 msgid "Target scripts"
-msgstr "Skrypty celu"
+msgstr "Skrypty targetu"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:457
 #, elixir-autogen, elixir-format
 msgid "Target settings"
-msgstr "Ustawienia celu"
+msgstr "Ustawienia targetu"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:209
 #: lib/tuist_web/helpers/build_entity_labels.ex:14
@@ -1280,14 +1290,14 @@ msgstr "Zadanie"
 
 #: lib/tuist_web/live/build_run_live.html.heex:848
 #: lib/tuist_web/live/cargo_build_live.html.heex:129
-#: lib/tuist_web/live/mix_build_live.ex:283
+#: lib/tuist_web/live/mix_build_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Task hits"
 msgstr "Trafienia zadań"
 
 #: lib/tuist_web/live/build_run_live.html.heex:859
 #: lib/tuist_web/live/cargo_build_live.html.heex:140
-#: lib/tuist_web/live/mix_build_live.ex:284
+#: lib/tuist_web/live/mix_build_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Task misses"
 msgstr "Nietrafienia zadań"
@@ -1328,7 +1338,7 @@ msgstr "Procent udanych buildów."
 #: lib/tuist_web/live/build_run_live.html.heex:872
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "Odsetek zadań możliwych do buforowania, które zakończyły się trafieniem w pamięci podręcznej (lokalne + zdalne)."
+msgstr "Odsetek zadań możliwych do buforowania, które zakończyły się trafieniem w pamięci podręcznej (lokalnej i zdalnej)."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:89
 #: lib/tuist_web/live/xcode_builds_live.html.heex:220
@@ -1339,12 +1349,12 @@ msgstr "Łączna liczba buildów."
 #: lib/tuist_web/live/build_run_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "Czas odczytu kluczy pamięci podręcznej, które jednoznacznie identyfikują zadania możliwe do buforowania, z pamięci podręcznej."
+msgstr "Czas odczytu z pamięci podręcznej kluczy jednoznacznie identyfikujących zadania możliwe do buforowania."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1020
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "Czas zapisu kluczy pamięci podręcznej, które jednoznacznie identyfikują zadania możliwe do buforowania, w pamięci podręcznej."
+msgstr "Czas zapisu w pamięci podręcznej kluczy jednoznacznie identyfikujących zadania możliwe do buforowania."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1342
 #, elixir-autogen, elixir-format
@@ -1370,17 +1380,17 @@ msgstr "Łączna liczba modułów pobranych z lokalnej lub zdalnej pamięci podr
 #: lib/tuist_web/components/runs/module_cache_tab.ex:57
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "Łączna liczba modułów, które mogłyby zostać pobrane z pamięci podręcznej, gdyby była w pełni zapełniona."
+msgstr "Łączna liczba modułów, które mogłyby zostać pobrane z pamięci podręcznej, gdyby była w pełni wypełniona."
 
 #: lib/tuist_web/live/build_run_live.html.heex:895
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "Łączny rozmiar artefaktów pobranych z pamięci podręcznej."
+msgstr "Łączny rozmiar artefaktów pamięci podręcznej pobranych."
 
 #: lib/tuist_web/live/build_run_live.html.heex:903
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "Łączny rozmiar artefaktów przesłanych do pamięci podręcznej."
+msgstr "Łączny rozmiar artefaktów pamięci podręcznej przesłanych."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:276
 #, elixir-autogen, elixir-format
@@ -1399,12 +1409,12 @@ msgstr "Spróbuj zaktualizować wyszukiwanie"
 msgid "Tuist version"
 msgstr "Wersja Tuist"
 
-#: lib/tuist_web/components/build_timeline.ex:243
+#: lib/tuist_web/components/build_timeline.ex:250
 #: lib/tuist_web/components/cargo_cache_inspection.ex:228
 #: lib/tuist_web/components/cargo_cache_inspection.ex:275
 #: lib/tuist_web/components/reapi_cache_outputs.ex:209
-#: lib/tuist_web/live/build_run_live.ex:1381
-#: lib/tuist_web/live/build_run_live.ex:1428
+#: lib/tuist_web/live/build_run_live.ex:1382
+#: lib/tuist_web/live/build_run_live.ex:1429
 #: lib/tuist_web/live/build_run_live.html.heex:674
 #: lib/tuist_web/live/build_run_live.html.heex:1131
 #: lib/tuist_web/live/build_run_live.html.heex:1463
@@ -1421,7 +1431,7 @@ msgstr "Typ"
 msgid "Type:"
 msgstr "Typ:"
 
-#: lib/tuist_web/components/build_timeline.ex:72
+#: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
 #: lib/tuist_web/live/build_entity_live.html.heex:607
@@ -1455,13 +1465,13 @@ msgstr "Nieznane"
 #: lib/tuist_web/live/build_run_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Unknown scheme"
-msgstr "Nieznana konfiguracja"
+msgstr "Nieznany schemat"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:174
 #: lib/tuist_web/components/reapi_cache_outputs.ex:203
 #: lib/tuist_web/components/reapi_cache_outputs.ex:300
 #: lib/tuist_web/helpers/cargo_cache.ex:64
-#: lib/tuist_web/live/build_run_live.ex:1420
+#: lib/tuist_web/live/build_run_live.ex:1421
 #: lib/tuist_web/live/build_run_live.html.heex:1316
 #: lib/tuist_web/live/build_run_live.html.heex:1458
 #, elixir-autogen, elixir-format
@@ -1486,88 +1496,88 @@ msgstr "Przepustowość przesyłania"
 msgid "View more"
 msgstr "Zobacz więcej"
 
-#: lib/tuist_web/live/build_run_live.ex:1055
+#: lib/tuist_web/live/build_run_live.ex:1056
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
 msgstr "Ostrzeżenie podczas kompilacji pliku C %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1058
-#: lib/tuist_web/live/build_run_live.ex:1094
+#: lib/tuist_web/live/build_run_live.ex:1059
+#: lib/tuist_web/live/build_run_live.ex:1095
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
 msgstr "Ostrzeżenie podczas kompilacji pliku Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1091
+#: lib/tuist_web/live/build_run_live.ex:1092
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
 msgstr "Ostrzeżenie podczas kompilacji pliku XIB %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1073
+#: lib/tuist_web/live/build_run_live.ex:1074
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
 msgstr "Ostrzeżenie podczas kompilowania katalogu zasobów %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1076
+#: lib/tuist_web/live/build_run_live.ex:1077
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
 msgstr "Ostrzeżenie podczas kompilowania storyboardu %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1070
+#: lib/tuist_web/live/build_run_live.ex:1071
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
 msgstr "Ostrzeżenie podczas kopiowania bibliotek Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1085
+#: lib/tuist_web/live/build_run_live.ex:1086
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "Ostrzeżenie podczas kopiowania pliku zasobu %{path}"
+msgstr "Ostrzeżenie podczas kopiowania pliku zasobów %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1064
+#: lib/tuist_web/live/build_run_live.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
 msgstr "Ostrzeżenie podczas tworzenia biblioteki statycznej %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1061
+#: lib/tuist_web/live/build_run_live.ex:1062
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
 msgstr "Ostrzeżenie podczas wykonywania skryptu %{script_name}"
 
-#: lib/tuist_web/live/build_run_live.ex:1067
+#: lib/tuist_web/live/build_run_live.ex:1068
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
 msgstr "Ostrzeżenie podczas linkowania %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1082
+#: lib/tuist_web/live/build_run_live.ex:1083
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
 msgstr "Ostrzeżenie podczas linkowania storyboardów %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1088
+#: lib/tuist_web/live/build_run_live.ex:1089
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
 msgstr "Ostrzeżenie podczas scalania modułu Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1097
+#: lib/tuist_web/live/build_run_live.ex:1098
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "Ostrzeżenie podczas wstępnej kompilacji nagłówka mostkującego %{path}"
+msgstr "Ostrzeżenie podczas wstępnego kompilowania nagłówka mostkującego %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1109
+#: lib/tuist_web/live/build_run_live.ex:1110
 #, elixir-autogen, elixir-format
 msgid "Warning when processing %{path}"
 msgstr "Ostrzeżenie podczas przetwarzania %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1103
+#: lib/tuist_web/live/build_run_live.ex:1104
 #, elixir-autogen, elixir-format
 msgid "Warning when validating %{path}"
 msgstr "Ostrzeżenie podczas walidacji %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1100
+#: lib/tuist_web/live/build_run_live.ex:1101
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
 msgstr "Ostrzeżenie podczas walidacji osadzonego pliku binarnego %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:1079
+#: lib/tuist_web/live/build_run_live.ex:1080
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
 msgstr "Ostrzeżenie podczas zapisywania pliku pomocniczego %{path}"
@@ -1627,12 +1637,12 @@ msgstr "Czas trwania buildu p50"
 #: lib/tuist_web/live/build_run_live.html.heex:960
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache keys"
-msgstr "Opóźnienie p50 przy odczycie kluczy pamięci podręcznej"
+msgstr "Opóźnienie p50 przy odczycie kluczy cache"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1016
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache keys"
-msgstr "Opóźnienie p50 przy zapisie kluczy pamięci podręcznej"
+msgstr "Opóźnienie p50 przy zapisie kluczy cache"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:489
 #, elixir-autogen, elixir-format
@@ -1648,12 +1658,12 @@ msgstr "Czas trwania buildu p90"
 #: lib/tuist_web/live/build_run_live.html.heex:959
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache keys"
-msgstr "opóźnienie p90 odczytu kluczy pamięci podręcznej"
+msgstr "opóźnienie p90 przy odczycie kluczy pamięci podręcznej"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1015
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache keys"
-msgstr "opóźnienie p90 zapisu kluczy pamięci podręcznej"
+msgstr "opóźnienie p90 przy zapisie kluczy pamięci podręcznej"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:475
 #, elixir-autogen, elixir-format
@@ -1664,17 +1674,17 @@ msgstr "p99"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "czas trwania builda p99"
+msgstr "czas trwania buildu p99"
 
 #: lib/tuist_web/live/build_run_live.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache keys"
-msgstr "opóźnienie p99 odczytu kluczy pamięci podręcznej"
+msgstr "opóźnienie p99 przy odczycie kluczy pamięci podręcznej"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1014
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache keys"
-msgstr "opóźnienie p99 zapisu kluczy pamięci podręcznej"
+msgstr "opóźnienie p99 przy zapisie kluczy pamięci podręcznej"
 
 #: lib/tuist_web/live/build_entity_live.ex:645
 #: lib/tuist_web/live/xcode_builds_live.ex:397
@@ -1725,7 +1735,7 @@ msgstr "Anuluj"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "Niestandardowy"
+msgstr "Własny zakres"
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:54
 #: lib/tuist_web/live/xcode_builds_live.html.heex:168
@@ -1770,7 +1780,7 @@ msgstr "od wczoraj"
 #: lib/tuist_web/live/run_detail_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "Endpoint pamięci podręcznej"
+msgstr "Punkt końcowy pamięci podręcznej"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:416
 #: lib/tuist_web/live/xcode_builds_live.html.heex:11
@@ -1842,7 +1852,7 @@ msgstr "Odśwież"
 #: lib/tuist_web/live/build_run_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "Zazwyczaj trwa to kilka sekund. Jeśli strona nie zaktualizuje się automatycznie, kliknij przycisk odświeżania."
+msgstr "Zazwyczaj zajmuje to kilka sekund. Jeśli strona nie zaktualizuje się automatycznie, kliknij przycisk odświeżania."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
@@ -1857,12 +1867,12 @@ msgstr "Osiągnięto limit 10 000 wpisów, dane są uwzględniane tylko do %{dat
 #: lib/tuist_web/components/runs/module_cache_tab.ex:78
 #, elixir-autogen, elixir-format
 msgid "Downloaded"
-msgstr "Pobrane"
+msgstr "Pobrano"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:168
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput from the remote cache during this run."
-msgstr "Średnia ważona czasem przepustowość pobierania z zdalnej pamięci podręcznej podczas tego uruchomienia."
+msgstr "Średnia ważona czasem przepustowość pobierania ze zdalnej pamięci podręcznej podczas tego uruchomienia."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:184
 #, elixir-autogen, elixir-format
@@ -1872,7 +1882,7 @@ msgstr "Średnia ważona czasem przepustowość wysyłania do zdalnej pamięci p
 #: lib/tuist_web/components/runs/module_cache_tab.ex:91
 #, elixir-autogen, elixir-format
 msgid "Uploaded"
-msgstr "Wysłane"
+msgstr "Wysłano"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:80
 #, elixir-autogen, elixir-format
@@ -1887,69 +1897,69 @@ msgstr "Łączna ilość danych przesłanych do zdalnej pamięci podręcznej pod
 #: lib/tuist_web/components/runs/module_cache_tab.ex:469
 #, elixir-autogen, elixir-format
 msgid "Additional hashing inputs"
-msgstr "Dodatkowe dane wejściowe dla haszowania"
+msgstr "Dodatkowe dane wejściowe haszowania"
 
-#: lib/tuist_web/components/build_timeline.ex:199
+#: lib/tuist_web/components/build_timeline.ex:206
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
-msgstr "Kroki kompilacji. Przeciągnij, aby wybrać zakres czasu. Naciśnij Escape, aby anulować przeciąganie. Użyj klawiszy strzałek w lewo i w prawo, aby przeglądać kroki. Użyj plusa i minusa do powiększania oraz klawisza Home, aby zresetować widok."
+msgstr "Kroki kompilacji. Przeciągnij, aby wybrać zakres czasu. Naciśnij Escape, aby anulować przeciąganie. Użyj klawiszy strzałek w lewo i prawo, aby przeglądać kroki. Użyj plusa i minusa do powiększania oraz Home, aby zresetować widok."
 
-#: lib/tuist_web/components/build_timeline.ex:309
-#: lib/tuist_web/components/build_timeline.ex:320
+#: lib/tuist_web/components/build_timeline.ex:316
+#: lib/tuist_web/components/build_timeline.ex:327
 #, elixir-autogen, elixir-format
 msgid "Compilation"
 msgstr "Kompilacja"
 
-#: lib/tuist_web/components/build_timeline.ex:321
+#: lib/tuist_web/components/build_timeline.ex:328
 #, elixir-autogen, elixir-format
 msgid "Linking"
 msgstr "Linkowanie"
 
-#: lib/tuist_web/components/build_timeline.ex:154
+#: lib/tuist_web/components/build_timeline.ex:161
 #, elixir-autogen, elixir-format
 msgid "No timeline available"
-msgstr "Oś czasu jest niedostępna"
+msgstr "Oś czasu niedostępna"
 
-#: lib/tuist_web/components/build_timeline.ex:313
-#: lib/tuist_web/components/build_timeline.ex:350
+#: lib/tuist_web/components/build_timeline.ex:320
+#: lib/tuist_web/components/build_timeline.ex:357
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr "Inne"
 
-#: lib/tuist_web/components/build_timeline.ex:258
+#: lib/tuist_web/components/build_timeline.ex:265
 #, elixir-autogen, elixir-format
 msgid "Outcome"
 msgstr "Wynik"
 
-#: lib/tuist_web/components/build_timeline.ex:322
+#: lib/tuist_web/components/build_timeline.ex:329
 #, elixir-autogen, elixir-format
 msgid "Scripts"
 msgstr "Skrypty"
 
-#: lib/tuist_web/components/build_timeline.ex:297
+#: lib/tuist_web/components/build_timeline.ex:304
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets"
 msgstr "Szukaj kroków lub celów"
 
-#: lib/tuist_web/components/build_timeline.ex:301
+#: lib/tuist_web/components/build_timeline.ex:308
 #, elixir-autogen, elixir-format
 msgid "Search steps or targets…"
 msgstr "Szukaj kroków lub celów…"
 
-#: lib/tuist_web/components/build_timeline.ex:247
+#: lib/tuist_web/components/build_timeline.ex:254
 #: lib/tuist_web/live/cargo_build_live.ex:133
 #: lib/tuist_web/live/cargo_build_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Started after"
 msgstr "Rozpoczęto po"
 
-#: lib/tuist_web/components/build_timeline.ex:263
+#: lib/tuist_web/components/build_timeline.ex:270
 #: lib/tuist_web/helpers/build_entity_labels.ex:104
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
 msgstr "Udało się"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:195
+#: lib/tuist_web/live/bazel_invocation_live.ex:429
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/mix_build_live.html.heex:60
@@ -1957,105 +1967,105 @@ msgstr "Udało się"
 msgid "Timeline"
 msgstr "Oś czasu"
 
-#: lib/tuist_web/components/build_timeline.ex:88
+#: lib/tuist_web/components/build_timeline.ex:90
 #, elixir-autogen, elixir-format
 msgid "elapsed"
 msgstr "upłynęło"
 
-#: lib/tuist_web/components/build_timeline.ex:83
-#: lib/tuist_web/components/build_timeline.ex:89
+#: lib/tuist_web/components/build_timeline.ex:85
+#: lib/tuist_web/components/build_timeline.ex:91
 #, elixir-autogen, elixir-format
 msgid "steps"
 msgstr "kroki"
 
-#: lib/tuist_web/components/build_timeline.ex:93
+#: lib/tuist_web/components/build_timeline.ex:95
 #, elixir-autogen, elixir-format
 msgid "targets"
 msgstr "cele"
 
 #: lib/tuist_web/components/build_timeline.ex:21
 #: lib/tuist_web/components/build_timeline.ex:28
-#: lib/tuist_web/components/build_timeline.ex:85
+#: lib/tuist_web/components/build_timeline.ex:87
 #, elixir-autogen, elixir-format
 msgid "Build Timeline"
 msgstr "Oś czasu kompilacji"
 
-#: lib/tuist_web/components/build_timeline.ex:289
+#: lib/tuist_web/components/build_timeline.ex:296
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
-msgstr "Brak kroków w tym zakresie czasowym pasujących do Twoich filtrów."
+msgstr "Żadne kroki w tym zakresie czasowym nie pasują do Twoich filtrów."
 
-#: lib/tuist_web/components/build_timeline.ex:78
+#: lib/tuist_web/components/build_timeline.ex:80
 #, elixir-autogen, elixir-format
 msgid "Loading log…"
 msgstr "Ładowanie logu…"
 
-#: lib/tuist_web/components/build_timeline.ex:277
+#: lib/tuist_web/components/build_timeline.ex:284
 #, elixir-autogen, elixir-format
 msgid "Log"
 msgstr "Log"
 
-#: lib/tuist_web/components/build_timeline.ex:79
+#: lib/tuist_web/components/build_timeline.ex:81
 #, elixir-autogen, elixir-format
 msgid "No log recorded for this step."
 msgstr "Brak zapisanego logu dla tego kroku."
 
-#: lib/tuist_web/components/build_timeline.ex:281
+#: lib/tuist_web/components/build_timeline.ex:288
 #, elixir-autogen, elixir-format
 msgid "This log was truncated."
 msgstr "Ten log został obcięty."
 
-#: lib/tuist_web/components/build_timeline.ex:81
+#: lib/tuist_web/components/build_timeline.ex:83
 #, elixir-autogen, elixir-format
 msgid "Unable to load the log. Select the step again to retry."
-msgstr "Nie udało się załadować logu. Wybierz krok ponownie, aby spróbować jeszcze raz."
+msgstr "Nie można załadować logu. Wybierz krok ponownie, aby spróbować jeszcze raz."
 
-#: lib/tuist_web/components/build_timeline.ex:220
+#: lib/tuist_web/components/build_timeline.ex:227
 #, elixir-autogen, elixir-format
 msgid "Resize step details"
 msgstr "Szczegóły kroku zmiany rozmiaru"
 
-#: lib/tuist_web/components/build_timeline.ex:117
+#: lib/tuist_web/components/build_timeline.ex:119
 #, elixir-autogen, elixir-format
 msgid "Disk I/O"
-msgstr "Dyskowe I/O"
+msgstr "Wejście/wyjście dysku"
 
 #: lib/tuist_web/components/build_timeline.ex:60
-#: lib/tuist_web/components/build_timeline.ex:127
+#: lib/tuist_web/components/build_timeline.ex:130
 #, elixir-autogen, elixir-format
 msgid "In"
-msgstr "Wejście"
+msgstr "Przychodzące"
 
-#: lib/tuist_web/components/build_timeline.ex:115
+#: lib/tuist_web/components/build_timeline.ex:117
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "Pamięć"
 
-#: lib/tuist_web/components/build_timeline.ex:116
+#: lib/tuist_web/components/build_timeline.ex:118
 #, elixir-autogen, elixir-format
 msgid "Network"
 msgstr "Sieć"
 
 #: lib/tuist_web/components/build_timeline.ex:61
-#: lib/tuist_web/components/build_timeline.ex:130
+#: lib/tuist_web/components/build_timeline.ex:135
 #, elixir-autogen, elixir-format
 msgid "Out"
-msgstr "Wyjście"
+msgstr "Wychodzące"
 
 #: lib/tuist_web/components/build_timeline.ex:62
-#: lib/tuist_web/components/build_timeline.ex:128
+#: lib/tuist_web/components/build_timeline.ex:131
 #, elixir-autogen, elixir-format
 msgid "Read"
 msgstr "Odczyt"
 
 #: lib/tuist_web/components/build_timeline.ex:63
-#: lib/tuist_web/components/build_timeline.ex:131
+#: lib/tuist_web/components/build_timeline.ex:136
 #: lib/tuist_web/helpers/build_entity_labels.ex:111
 #, elixir-autogen, elixir-format
 msgid "Write"
 msgstr "Zapis"
 
-#: lib/tuist_web/components/build_timeline.ex:156
+#: lib/tuist_web/components/build_timeline.ex:163
 #, elixir-autogen, elixir-format
 msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
 msgstr "Ten build nie zawiera zarejestrowanych czasów kroków. Zarejestrowane kroki są przechowywane przez 90 dni."
@@ -2074,7 +2084,7 @@ msgstr "Niedostępne"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:339
 #, elixir-autogen, elixir-format
 msgid "Foreign build"
-msgstr "Zewnętrzny build"
+msgstr "Obcy build"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:347
 #, elixir-autogen, elixir-format
@@ -2084,7 +2094,7 @@ msgstr "Urządzenie testowe"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:355
 #, elixir-autogen, elixir-format
 msgid "Test runtime"
-msgstr "Środowisko wykonawcze testów"
+msgstr "Środowisko wykonawcze testu"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:323
 #, elixir-autogen, elixir-format
@@ -2099,76 +2109,76 @@ msgstr "Hash zależności"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:425
 #, elixir-autogen, elixir-format
 msgid "No direct target dependencies recorded"
-msgstr "Brak zarejestrowanych bezpośrednich zależności celów"
+msgstr "Brak zarejestrowanych bezpośrednich zależności celu"
 
-#: lib/tuist_web/components/build_timeline.ex:331
+#: lib/tuist_web/components/build_timeline.ex:338
 #, elixir-autogen, elixir-format
 msgid "Analysis/setup"
 msgstr "Analiza/konfiguracja"
 
-#: lib/tuist_web/components/build_timeline.ex:340
+#: lib/tuist_web/components/build_timeline.ex:347
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms"
 msgstr "Transformacje artefaktów"
 
-#: lib/tuist_web/components/build_timeline.ex:68
+#: lib/tuist_web/components/build_timeline.ex:70
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
 msgstr "Trafienie w pamięci podręcznej"
 
-#: lib/tuist_web/components/build_timeline.ex:330
+#: lib/tuist_web/components/build_timeline.ex:337
 #, elixir-autogen, elixir-format
 msgid "Fetching"
 msgstr "Pobieranie"
 
-#: lib/tuist_web/components/build_timeline.ex:329
+#: lib/tuist_web/components/build_timeline.ex:336
 #, elixir-autogen, elixir-format
 msgid "File preparation"
 msgstr "Przygotowanie plików"
 
-#: lib/tuist_web/components/build_timeline.ex:66
+#: lib/tuist_web/components/build_timeline.ex:68
 #, elixir-autogen, elixir-format
 msgid "Local cache hit"
 msgstr "Lokalne trafienie w pamięci podręcznej"
 
-#: lib/tuist_web/components/build_timeline.ex:71
+#: lib/tuist_web/components/build_timeline.ex:73
 #: lib/tuist_web/helpers/build_entity_labels.ex:114
 #, elixir-autogen, elixir-format
 msgid "No source"
 msgstr "Brak źródła"
 
-#: lib/tuist_web/components/build_timeline.ex:338
+#: lib/tuist_web/components/build_timeline.ex:345
 #, elixir-autogen, elixir-format
 msgid "Packaging"
 msgstr "Pakowanie"
 
-#: lib/tuist_web/components/build_timeline.ex:67
+#: lib/tuist_web/components/build_timeline.ex:69
 #, elixir-autogen, elixir-format
 msgid "Remote cache hit"
 msgstr "Trafienie w zdalnej pamięci podręcznej"
 
-#: lib/tuist_web/components/build_timeline.ex:299
+#: lib/tuist_web/components/build_timeline.ex:306
 #, elixir-autogen, elixir-format
 msgid "Search steps, targets, or categories"
 msgstr "Szukaj kroków, celów lub kategorii"
 
-#: lib/tuist_web/components/build_timeline.ex:303
+#: lib/tuist_web/components/build_timeline.ex:310
 #, elixir-autogen, elixir-format
 msgid "Search steps, targets, or categories…"
 msgstr "Szukaj kroków, celów lub kategorii…"
 
-#: lib/tuist_web/components/build_timeline.ex:70
+#: lib/tuist_web/components/build_timeline.ex:72
 #: lib/tuist_web/helpers/build_entity_labels.ex:113
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr "Pominięto"
 
-#: lib/tuist_web/components/build_timeline.ex:337
+#: lib/tuist_web/components/build_timeline.ex:344
 #, elixir-autogen, elixir-format
 msgid "Testing"
 msgstr "Testowanie"
 
-#: lib/tuist_web/components/build_timeline.ex:69
+#: lib/tuist_web/components/build_timeline.ex:71
 #: lib/tuist_web/helpers/build_entity_labels.ex:112
 #, elixir-autogen, elixir-format
 msgid "Up-to-date"
@@ -2187,9 +2197,9 @@ msgstr "Załaduj więcej"
 #: lib/tuist_web/live/build_run_live.html.heex:1194
 #, elixir-autogen, elixir-format
 msgid "Loading..."
-msgstr "Ładowanie..."
+msgstr "Ładowanie…"
 
-#: lib/tuist_web/live/mix_build_live.ex:516
+#: lib/tuist_web/live/mix_build_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
 msgid_plural "%{count} files"
@@ -2202,23 +2212,23 @@ msgstr[2] "%{count} pliki"
 msgid "%{duration}s"
 msgstr "%{duration} s"
 
-#: lib/tuist_web/live/mix_build_live.ex:461
+#: lib/tuist_web/live/mix_build_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "Compilation failed"
 msgstr "Kompilacja nie powiodła się"
 
-#: lib/tuist_web/live/mix_build_live.ex:462
+#: lib/tuist_web/live/mix_build_live.ex:463
 #, elixir-autogen, elixir-format
 msgid "Compilation warning"
 msgstr "Ostrzeżenie kompilacji"
 
-#: lib/tuist_web/live/mix_build_live.ex:502
+#: lib/tuist_web/live/mix_build_live.ex:503
 #: lib/tuist_web/live/mix_build_live.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependencies"
 msgstr "Zależności czasu kompilacji"
 
-#: lib/tuist_web/live/mix_build_live.ex:501
+#: lib/tuist_web/live/mix_build_live.ex:502
 #: lib/tuist_web/live/mix_build_live.html.heex:641
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependents"
@@ -2236,12 +2246,12 @@ msgstr "Elixir / OTP"
 msgid "Elixir version"
 msgstr "Wersja Elixira"
 
-#: lib/tuist_web/live/mix_build_live.ex:463
+#: lib/tuist_web/live/mix_build_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Elixir file %{path}"
 msgstr "Nie udało się skompilować pliku Elixira %{path}"
 
-#: lib/tuist_web/live/mix_build_live.ex:62
+#: lib/tuist_web/live/mix_build_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "Mix Build"
 msgstr "Kompilacja Mix"
@@ -2260,42 +2270,42 @@ msgstr "Środowisko Mix"
 msgid "OTP version"
 msgstr "Wersja OTP"
 
-#: lib/tuist_web/components/build_timeline.ex:312
+#: lib/tuist_web/components/build_timeline.ex:319
 #, elixir-autogen, elixir-format
 msgid "Other compilers"
 msgstr "Inne kompilatory"
 
-#: lib/tuist_web/components/build_timeline.ex:298
+#: lib/tuist_web/components/build_timeline.ex:305
 #, elixir-autogen, elixir-format
 msgid "Search files or modules"
-msgstr "Szukaj plików lub modułów"
+msgstr "Wyszukaj pliki lub moduły"
 
-#: lib/tuist_web/components/build_timeline.ex:302
+#: lib/tuist_web/components/build_timeline.ex:309
 #, elixir-autogen, elixir-format
 msgid "Search files or modules…"
-msgstr "Szukaj plików lub modułów…"
+msgstr "Wyszukaj pliki lub moduły…"
 
-#: lib/tuist_web/components/build_timeline.ex:310
+#: lib/tuist_web/components/build_timeline.ex:317
 #, elixir-autogen, elixir-format
 msgid "Type checking"
 msgstr "Sprawdzanie typów"
 
-#: lib/tuist_web/live/mix_build_live.ex:466
+#: lib/tuist_web/live/mix_build_live.ex:467
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Elixir file %{path}"
-msgstr "Ostrzeżenie podczas kompilacji pliku Elixir %{path}"
+msgstr "Ostrzeżenie podczas kompilowania pliku Elixir %{path}"
 
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Warnings / Errors"
 msgstr "Ostrzeżenia / Błędy"
 
-#: lib/tuist_web/components/build_timeline.ex:311
+#: lib/tuist_web/components/build_timeline.ex:318
 #, elixir-autogen, elixir-format
 msgid "Writing to disk"
 msgstr "Zapis na dysk"
 
-#: lib/tuist_web/live/mix_build_live.ex:65
+#: lib/tuist_web/live/mix_build_live.ex:66
 #: lib/tuist_web/live/mix_build_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "mix compile"
@@ -2309,7 +2319,7 @@ msgstr "Infrastruktura / narzędzia"
 #: lib/tuist_web/components/build_health.ex:223
 #, elixir-autogen, elixir-format
 msgid "Unclassified"
-msgstr "Nieklasyfikowane"
+msgstr "Nie sklasyfikowano"
 
 #: lib/tuist_web/components/build_health.ex:221
 #, elixir-autogen, elixir-format
@@ -2328,37 +2338,37 @@ msgstr "Weryfikacja"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Failure category"
-msgstr "Kategoria awarii"
+msgstr "Kategoria błędu"
 
 #: lib/tuist_web/components/build_health.ex:202
 #, elixir-autogen, elixir-format
 msgid "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
-msgstr "Zarejestrowane dane buildu nie zawierają wystarczających dowodów, aby Tuist mógł sklasyfikować tę awarię jako weryfikację lub infrastrukturę i narzędzia."
+msgstr "Zarejestrowane dane buildu nie zawierają wystarczających dowodów, aby Tuist mógł sklasyfikować ten błąd jako weryfikację lub infrastrukturę i narzędzia."
 
 #: lib/tuist_web/components/build_health.ex:175
 #, elixir-autogen, elixir-format
 msgid "About failure category"
-msgstr "O kategorii awarii"
+msgstr "O kategorii błędu"
 
 #: lib/tuist_web/components/build_health.ex:195
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
-msgstr "Wnioskowane na podstawie zarejestrowanych danych buildu. Kategoria infrastruktura i narzędzia obejmuje awarie konfiguracji, rozwiązywania zależności oraz infrastruktury wykonawczej."
+msgstr "Wywnioskowano na podstawie zarejestrowanych danych buildu. Kategoria „Infrastruktura i narzędzia” obejmuje błędy konfiguracji, rozwiązywania zależności oraz infrastruktury wykonawczej."
 
 #: lib/tuist_web/components/build_health.ex:188
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
-msgstr "Wnioskowane na podstawie zarejestrowanych danych buildu. Kategoria weryfikacja obejmuje awarie kompilacji, testów, lintowania i sprawdzania."
+msgstr "Wywnioskowano na podstawie zarejestrowanych danych buildu. Kategoria „Weryfikacja” obejmuje błędy kompilacji, testów, lintowania i sprawdzania."
 
-#: lib/tuist_web/live/mix_build_live.ex:325
+#: lib/tuist_web/live/mix_build_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache artifacts"
-msgstr "Średnie opóźnienie odczytu artefaktów z pamięci podręcznej"
+msgstr "Śr. opóźnienie odczytu artefaktów z pamięci podręcznej"
 
-#: lib/tuist_web/live/mix_build_live.ex:329
+#: lib/tuist_web/live/mix_build_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache artifacts"
-msgstr "Średnie opóźnienie zapisu artefaktów do pamięci podręcznej"
+msgstr "Średnie opóźnienie zapisu artefaktów w pamięci podręcznej"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:265
 #, elixir-autogen, elixir-format
@@ -2372,35 +2382,35 @@ msgstr "Kompilacja zależności"
 msgid "Mix cache"
 msgstr "Mieszana pamięć podręczna"
 
-#: lib/tuist_web/live/mix_build_live.ex:328
+#: lib/tuist_web/live/mix_build_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache artifacts"
-msgstr "Opóźnienie p50 odczytu artefaktów z pamięci podręcznej"
+msgstr "Latencja p50 odczytu artefaktów z pamięci podręcznej"
+
+#: lib/tuist_web/live/mix_build_live.ex:333
+#, elixir-autogen, elixir-format
+msgid "p50 latency writing cache artifacts"
+msgstr "Latencja p50 zapisu artefaktów do pamięci podręcznej"
+
+#: lib/tuist_web/live/mix_build_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "p90 latency reading cache artifacts"
+msgstr "Latencja p90 odczytu artefaktów z pamięci podręcznej"
 
 #: lib/tuist_web/live/mix_build_live.ex:332
 #, elixir-autogen, elixir-format
-msgid "p50 latency writing cache artifacts"
-msgstr "Opóźnienie p50 zapisu artefaktów do pamięci podręcznej"
+msgid "p90 latency writing cache artifacts"
+msgstr "Latencja p90 zapisu artefaktów do pamięci podręcznej"
 
 #: lib/tuist_web/live/mix_build_live.ex:327
 #, elixir-autogen, elixir-format
-msgid "p90 latency reading cache artifacts"
-msgstr "Opóźnienie p90 odczytu artefaktów z pamięci podręcznej"
+msgid "p99 latency reading cache artifacts"
+msgstr "Latencja p99 odczytu artefaktów z pamięci podręcznej"
 
 #: lib/tuist_web/live/mix_build_live.ex:331
 #, elixir-autogen, elixir-format
-msgid "p90 latency writing cache artifacts"
-msgstr "Opóźnienie p90 zapisu artefaktów do pamięci podręcznej"
-
-#: lib/tuist_web/live/mix_build_live.ex:326
-#, elixir-autogen, elixir-format
-msgid "p99 latency reading cache artifacts"
-msgstr "Opóźnienie p99 odczytu artefaktów z pamięci podręcznej"
-
-#: lib/tuist_web/live/mix_build_live.ex:330
-#, elixir-autogen, elixir-format
 msgid "p99 latency writing cache artifacts"
-msgstr "opóźnienie p99 przy zapisie artefaktów w pamięci podręcznej"
+msgstr "Opóźnienie p99 przy zapisie artefaktów w pamięci podręcznej"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:316
 #: lib/tuist_web/live/mix_build_live.html.heex:362
@@ -2411,12 +2421,12 @@ msgstr "Pakiet zależności"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:237
 #, elixir-autogen, elixir-format
 msgid "Only actual CAS transfers reported by Kura appear here. Local snapshot copies are not remote CAS outputs; compressed sizes are unavailable."
-msgstr "Tutaj widoczne są tylko rzeczywiste transfery CAS raportowane przez Kurę. Lokalne kopie migawek nie są zdalnymi wynikami CAS; rozmiary po kompresji są niedostępne."
+msgstr "Tutaj widoczne są wyłącznie rzeczywiste transfery CAS zgłaszane przez Kurę. Lokalne kopie migawek nie są wynikami zdalnego CAS; rozmiary po kompresji są niedostępne."
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:113
 #, elixir-autogen, elixir-format
 msgid "Time-weighted CAS transfer throughput reported by Kura through the shared REAPI analytics pipeline, excluding action-cache metadata and local copies."
-msgstr "Przepustowość transferów CAS ważona czasem, raportowana przez Kurę za pośrednictwem wspólnego potoku analitycznego REAPI, z wyłączeniem metadanych pamięci podręcznej akcji i lokalnych kopii."
+msgstr "Przepustowość transferów CAS ważona czasem, raportowana przez Kurę za pośrednictwem wspólnego potoku analitycznego REAPI, z wyłączeniem metadanych pamięci podręcznej akcji i kopii lokalnych."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:16
 #: lib/tuist_web/helpers/build_entity_labels.ex:17
@@ -2477,7 +2487,10 @@ msgid "Declared action index"
 msgstr "Zadeklarowany indeks akcji"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:65
+#: lib/tuist_web/live/bazel_invocation_live.ex:327
+#: lib/tuist_web/live/bazel_invocation_live.ex:446
 #: lib/tuist_web/live/build_entity_live.ex:625
+#: lib/tuist_web/live/remote_execution_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr "Wykonania"
@@ -2500,7 +2513,7 @@ msgstr "Ostatnio widziane"
 #: lib/tuist_web/helpers/build_entity_labels.ex:108
 #, elixir-autogen, elixir-format
 msgid "Local hit"
-msgstr "Lokalne trafienie"
+msgstr "Trafienie lokalne"
 
 #: lib/tuist_web/live/build_entity_live.ex:1148
 #, elixir-autogen, elixir-format
@@ -2547,6 +2560,7 @@ msgstr "Brak zarejestrowanych zapytań"
 msgid "Not found in this project."
 msgstr "Nie znaleziono w tym projekcie."
 
+#: lib/tuist_web/live/bazel_invocation_live.ex:1483
 #: lib/tuist_web/live/build_entity_live.ex:518
 #: lib/tuist_web/live/build_entity_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:675
@@ -2557,9 +2571,10 @@ msgstr "Nie znaleziono w tym projekcie."
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
+#: lib/tuist_web/live/remote_execution_live.ex:685
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
-msgstr "Nie zarejestrowano"
+msgstr "Nie zapisano"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:38
 #: lib/tuist_web/live/build_entity_live.ex:1188
@@ -2645,18 +2660,18 @@ msgstr "Zgłoszona nazwa"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:329
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency reading cache keys"
-msgstr "%{percentile} opóźnienie odczytu kluczy pamięci podręcznej"
+msgstr "Opóźnienie %{percentile} przy odczycie kluczy z pamięci podręcznej"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:332
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency writing cache keys"
-msgstr "%{percentile} opóźnienie zapisu kluczy pamięci podręcznej"
+msgstr "Opóźnienie %{percentile} przy zapisie kluczy w pamięci podręcznej"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:244
 #: lib/tuist_web/live/cargo_build_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "About compiler jobs"
-msgstr "Informacje o zadaniach kompilatora"
+msgstr "O zadaniach kompilatora"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:67
 #, elixir-autogen, elixir-format
@@ -2671,7 +2686,7 @@ msgstr "Już istnieje"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:276
 #, elixir-autogen, elixir-format
 msgid "Blob"
-msgstr "Obiekt binarny"
+msgstr "Blob"
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:415
 #, elixir-autogen, elixir-format
@@ -2681,7 +2696,7 @@ msgstr "Build"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:232
 #, elixir-autogen, elixir-format
 msgid "Build script"
-msgstr "Skrypt budowania"
+msgstr "Skrypt kompilacji"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:166
 #, elixir-autogen, elixir-format
@@ -2711,7 +2726,7 @@ msgstr "Weryfikacja pamięci podręcznej wykryła rozbieżne wyniki"
 #: lib/tuist_web/live/cargo_build_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
-msgstr "Zadania możliwe do zapisania w pamięci podręcznej, które zostały skompilowane zamiast ponownie wykorzystać zapisane wyniki, w tym zimne buildy i przebudowy weryfikacyjne."
+msgstr "Zadania możliwe do buforowania, które zostały skompilowane zamiast wykorzystać wyniki z pamięci podręcznej, w tym kompilacje od zera i ponowne kompilacje weryfikacyjne."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:41
 #, elixir-autogen, elixir-format
@@ -2721,17 +2736,12 @@ msgstr "Pamięć podręczna Cargo"
 #: lib/tuist_web/helpers/cargo_cache.ex:72
 #, elixir-autogen, elixir-format
 msgid "Checked the cache but could not reuse cached outputs."
-msgstr "Sprawdzono pamięć podręczną, ale nie można było ponownie wykorzystać zapisanych wyników."
+msgstr "Sprawdzono pamięć podręczną, ale nie można było ponownie użyć wyników z niej pochodzących."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "Akcje kompilacji przywrócone z lokalnej lub zdalnej pamięci podręcznej."
-
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "Skompilowano w celu poznania danych wejściowych zadania dla przyszłego ponownego wykorzystania z pamięci podręcznej."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
@@ -2758,12 +2768,12 @@ msgstr "Nie udało się załadować zadań kompilatora."
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
-msgstr "Ukończone bajty CAS zdalnie podzielone przez sumę czasów trwania operacji, w tym połączenia, ponownych prób i weryfikacji. Operacje mogą się nakładać; nie jest to przepustowość sieciowa całego procesu budowania."
+msgstr "Ukończone bajty zdalnego CAS podzielone przez sumę czasów trwania operacji, w tym połączenia, ponownych prób i weryfikacji. Operacje mogą się nakładać; nie jest to przepustowość sieciowa całego buildu."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:140
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed upload-attempt durations, including presence checks. Already-present blobs and failed attempts are excluded. Operations can overlap."
-msgstr "Ukończone bajty CAS zdalnie podzielone przez sumę czasów trwania prób przesyłania, w tym sprawdzanie obecności. Już istniejące obiekty blob i nieudane próby są wykluczone. Operacje mogą się nakładać."
+msgstr "Ukończone bajty zdalnego CAS podzielone przez sumę czasów trwania prób wysyłania, w tym sprawdzanie obecności. Już istniejące obiekty blob oraz nieudane próby są wykluczone. Operacje mogą się nakładać."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:20
 #: lib/tuist_web/live/cargo_build_live.html.heex:298
@@ -2784,12 +2794,12 @@ msgstr "Szczegółowe rekordy pamięci podręcznej nie zostały zebrane"
 #: lib/tuist_web/live/cargo_build_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
-msgstr "Każdy wiersz odpowiada jednemu wywołaniu rustc dla crate, który może zawierać wiele plików źródłowych. Ścieżka wskazuje na korzeń tego crate. Crate może mieć wiele zadań dla różnych celów lub konfiguracji. Czasy trwania mogą się nakładać. \"Rozpoczęto po\" jest względem polecenia Cargo."
+msgstr "Każdy wiersz reprezentuje jedno wywołanie rustc dla crate, który może zawierać wiele plików źródłowych. Ścieżka wskazuje jego korzeń. Crate może mieć wiele zadań dla różnych targetów lub konfiguracji. Czasy trwania mogą się nakładać. „Rozpoczęto po” odnosi się do polecenia Cargo."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
-msgstr "Świeże artefakty Cargo nie wywołują rustc. Nie wnioskujemy o pracy kompilatora dla nich."
+msgstr "Świeże artefakty Cargo nie wywołują rustc. Nie przypisuje się im pracy kompilatora."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:52
 #, elixir-autogen, elixir-format
@@ -2799,17 +2809,17 @@ msgstr "Zachowano świeże wyniki kompilatora zamiast rozbieżnych wyników z pa
 #: lib/tuist_web/components/cargo_cache_inspection.ex:65
 #, elixir-autogen, elixir-format
 msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
-msgstr "Rekordy inspekcji są ograniczone i realizowane w miarę możliwości. Poniższe tabele, wykresy i pomiary obejmują tylko przechwycone rekordy; powyższe podsumowanie zachowuje łączne sumy."
+msgstr "Rekordy inspekcji mają ograniczony zakres i są dostarczane w miarę możliwości. Poniższe tabele, wykresy i pomiary obejmują tylko przechwycone rekordy; powyższe podsumowanie zachowuje łączne sumy."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:92
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent lookup latency for recorded tasks, including local and remote resolution. Repeated reads of a key are averaged; cumulative build timings are not used as latency samples."
-msgstr "Zmierzono opóźnienia wyszukiwania w agencie pamięci podręcznej per klucz dla zarejestrowanych zadań, w tym lokalne i zdalne rozwiązywanie. Wielokrotne odczyty tego samego klucza są uśredniane; skumulowane czasy budowania nie są używane jako próbki opóźnień."
+msgstr "Zmierzono opóźnienia wyszukiwania w agentach pamięci podręcznej dla każdego klucza w zarejestrowanych zadaniach, uwzględniając rozwiązywanie lokalne i zdalne. Wielokrotne odczyty tego samego klucza są uśredniane; skumulowane czasy kompilacji nie są używane jako próbki opóźnień."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:108
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent store latency for recorded tasks. This includes local storage and queueing, not completion of background remote publication. Repeated writes of a key are averaged."
-msgstr "Zmierzono opóźnienia zapisu w agencie pamięci podręcznej per klucz dla zarejestrowanych zadań. Obejmuje to lokalne przechowywanie i kolejkowanie, a nie zakończenie publikacji zdalnej w tle. Wielokrotne zapisy tego samego klucza są uśredniane."
+msgstr "Zmierzono opóźnienia zapisu w agentach pamięci podręcznej dla każdego klucza w zarejestrowanych zadaniach. Obejmuje to zapis lokalny i kolejkowanie, a nie zakończenie publikacji zdalnej w tle. Wielokrotne zapisy tego samego klucza są uśredniane."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:332
 #, elixir-autogen, elixir-format
@@ -2824,7 +2834,7 @@ msgstr "Wyświetlane jest tylko 10 000 najnowszych buildów. Zawęż zakres dat 
 #: lib/tuist_web/live/cargo_build_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
-msgstr "Procent zadań możliwych do cache'owania, które ponownie wykorzystały wyniki z pamięci podręcznej zamiast kompilować."
+msgstr "Procent zadań możliwych do buforowania, które ponownie wykorzystały wyniki z pamięci podręcznej zamiast kompilować."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:80
 #, elixir-autogen, elixir-format
@@ -2834,12 +2844,12 @@ msgstr "Zapytane akcje:"
 #: lib/tuist_web/helpers/cargo_cache.ex:78
 #, elixir-autogen, elixir-format
 msgid "Rebuilt to compare fresh outputs with cached outputs and verify cache correctness."
-msgstr "Przebudowano, aby porównać nowe dane wyjściowe z danymi z pamięci podręcznej i zweryfikować poprawność cache'u."
+msgstr "Przebudowano, aby porównać nowe wyniki z wynikami z pamięci podręcznej i zweryfikować poprawność pamięci podręcznej."
 
 #: lib/tuist_web/helpers/cargo_cache.ex:69
 #, elixir-autogen, elixir-format
 msgid "Reused cached outputs instead of compiling."
-msgstr "Wykorzystano dane wyjściowe z pamięci podręcznej zamiast kompilacji."
+msgstr "Ponowne użycie wyników z pamięci podręcznej zamiast kompilacji."
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:117
 #: lib/tuist_web/live/cargo_build_runs_live.ex:54
@@ -2886,7 +2896,7 @@ msgstr "Czas wykonania %{percentile}"
 #: lib/tuist_web/live/build_entity_live.ex:922
 #, elixir-autogen, elixir-format
 msgid "%{percentile} file compilation duration"
-msgstr "Czas kompilacji pliku %{percentile}"
+msgstr "Czas kompilacji pliku na poziomie %{percentile}"
 
 #: lib/tuist_web/live/build_entity_live.ex:774
 #, elixir-autogen, elixir-format
@@ -2896,7 +2906,7 @@ msgstr "Wykonania akcji"
 #: lib/tuist_web/live/build_entity_live.ex:954
 #, elixir-autogen, elixir-format
 msgid "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
-msgstr "Każdy moduł wnosi zmierzony czas kompilacji swojego pliku. Moduły siostrzane współdzielą ten pomiar; ich czasy nie sumują się."
+msgstr "Każdy moduł wnosi zmierzony czas kompilacji pliku, w którym się znajduje. Moduły siostrzane współdzielą ten pomiar; ich czasy nie sumują się."
 
 #: lib/tuist_web/live/build_entity_live.ex:791
 #, elixir-autogen, elixir-format
@@ -2936,7 +2946,7 @@ msgstr "Wykonania zadań"
 #: lib/tuist_web/live/build_entity_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
-msgstr "Rekordy kompilacji modułów wywodzące się ze skompilowanych plików, w tym te bez zmierzonego czasu. Plik definiujący wiele modułów wnosi jeden rekord na moduł, a nie niezależną pracę kompilacyjną."
+msgstr "Rekordy kompilacji modułów wywodzące się ze skompilowanych plików, w tym te bez zmierzonego czasu. Plik definiujący wiele modułów generuje jeden rekord na moduł, a nie niezależną pracę kompilacyjną."
 
 #: lib/tuist_web/live/build_entity_live.ex:832
 #, elixir-autogen, elixir-format
@@ -2946,17 +2956,17 @@ msgstr "Zgłoszone kompilacje plików, w tym te bez zmierzonego czasu trwania."
 #: lib/tuist_web/live/build_entity_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
-msgstr "Wykonania zadań z zarejestrowanym powodzeniem lub niepowodzeniem. Trafienia w pamięci podręcznej, zadania pominięte, aktualne oraz bez kodu źródłowego są wykluczone, niezależnie od dostępności pomiaru czasu."
+msgstr "Wykonania zadań z zarejestrowanym powodzeniem lub niepowodzeniem. Trafienia w pamięci podręcznej, zadania pominięte, aktualne i bez źródeł są wykluczone, niezależnie od dostępności pomiaru czasu."
 
 #: lib/tuist_web/live/build_entity_live.ex:826
 #, elixir-autogen, elixir-format
 msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
-msgstr "Wykonania akcji bez cache’u z zarejestrowanym powodzeniem lub niepowodzeniem. Wyniki z cache’u, pominięte, anulowane i nieznane są wykluczone, niezależnie od dostępności pomiaru czasu."
+msgstr "Wykonania akcji bez cache’u z zarejestrowanym powodzeniem lub niepowodzeniem. Akcje z cache’u, pominięte, anulowane i o nieznanym wyniku są wykluczone, niezależnie od dostępności pomiaru czasu."
 
 #: lib/tuist_web/live/build_entity_live.ex:812
 #, elixir-autogen, elixir-format
 msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
-msgstr "Wykonania akcji zgłaszane przez BEP, a nie wyszukiwania w cache’u. Raportowanie musi publikować wszystkie akcje dla pełnego pokrycia wykonania; brakujące dane czasowe pozostają niedostępne."
+msgstr "Wykonania akcji zgłoszone przez BEP, a nie wyszukiwania w cache’u. Raportowanie musi publikować wszystkie akcje dla pełnego pokrycia wykonania; brakujące dane czasowe pozostają niedostępne."
 
 #: lib/tuist_web/live/build_entity_live.ex:600
 #, elixir-autogen, elixir-format
@@ -2977,22 +2987,22 @@ msgstr "Ostatni status"
 #: lib/tuist_web/live/build_entity_live.ex:897
 #, elixir-autogen, elixir-format
 msgid "Distinct actions with recorded activity during the selected period. The chart shows distinct actions per day, not a cumulative total."
-msgstr "Unikalne akcje z odnotowaną aktywnością w wybranym okresie. Wykres pokazuje unikalne akcje dziennie, a nie sumę skumulowaną."
+msgstr "Unikalne akcje z zarejestrowaną aktywnością w wybranym okresie. Wykres pokazuje liczbę unikalnych akcji dziennie, a nie sumę narastającą."
 
 #: lib/tuist_web/live/build_entity_live.ex:903
 #, elixir-autogen, elixir-format
 msgid "Distinct files with recorded activity during the selected period. The chart shows distinct files per day, not a cumulative total."
-msgstr "Unikalne pliki z odnotowaną aktywnością w wybranym okresie. Wykres pokazuje unikalne pliki dziennie, a nie sumę skumulowaną."
+msgstr "Unikalne pliki z zarejestrowaną aktywnością w wybranym okresie. Wykres pokazuje liczbę unikalnych plików dziennie, a nie sumę narastającą."
 
 #: lib/tuist_web/live/build_entity_live.ex:909
 #, elixir-autogen, elixir-format
 msgid "Distinct modules with recorded activity during the selected period. The chart shows distinct modules per day, not a cumulative total."
-msgstr "Unikalne moduły z odnotowaną aktywnością w wybranym okresie. Wykres pokazuje unikalne moduły dziennie, a nie sumę skumulowaną."
+msgstr "Unikalne moduły z zarejestrowaną aktywnością w wybranym okresie. Wykres pokazuje liczbę unikalnych modułów dziennie, a nie sumę narastającą."
 
 #: lib/tuist_web/live/build_entity_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks with recorded activity during the selected period. The chart shows distinct tasks per day, not a cumulative total."
-msgstr "Unikalne zadania z odnotowaną aktywnością w wybranym okresie. Wykres pokazuje unikalne zadania dziennie, a nie sumę skumulowaną."
+msgstr "Unikalne zadania z zarejestrowaną aktywnością w wybranym okresie. Wykres pokazuje liczbę unikalnych zadań dziennie, a nie sumę narastającą."
 
 #: lib/tuist_web/live/build_entity_live.ex:975
 #, elixir-autogen, elixir-format
@@ -3002,7 +3012,7 @@ msgstr "Zmierzone czasy kompilacji plików w wybranym okresie. Brakujące pomiar
 #: lib/tuist_web/live/build_entity_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Recorded action execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "Zarejestrowane niepowodzenia wykonania akcji w wybranym okresie. Nieznane wyniki nie są liczone jako sukcesy ani porażki."
+msgstr "Zarejestrowane błędy wykonania akcji w wybranym okresie. Nieznane wyniki nie są liczone ani jako sukcesy, ani jako błędy."
 
 #: lib/tuist_web/live/build_entity_live.ex:869
 #, elixir-autogen, elixir-format
@@ -3032,7 +3042,7 @@ msgstr "Zmierzone czasy trwania zadań w wybranym okresie. Brakujące pomiary s�
 #: lib/tuist_web/live/build_entity_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "%{percentile} module build duration"
-msgstr "Czas budowania modułu %{percentile}"
+msgstr "%{percentile} czas budowania modułu"
 
 #: lib/tuist_web/live/build_entity_live.ex:789
 #, elixir-autogen, elixir-format
@@ -3042,28 +3052,28 @@ msgstr "Nieudane budowy modułów"
 #: lib/tuist_web/live/build_entity_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
-msgstr "Zmierzony czas kompilacji dla buildów modułów, a nie całkowity czas buildu. Rozstrzygnięcia z pamięci podręcznej i moduły bez pracy kompilacyjnej nie wnoszą próbek czasu."
+msgstr "Zmierzony czas kompilacji dla budów modułów, a nie całkowity czas budowy. Rozwiązywanie pamięci podręcznej i moduły bez pracy kompilacyjnej nie dostarczają próbek czasowych."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:94
 #, elixir-autogen, elixir-format
 msgid "Module build duration"
-msgstr "Czas trwania buildu modułu"
+msgstr "Czas budowania modułu"
 
 #: lib/tuist_web/live/build_entity_live.ex:624
 #: lib/tuist_web/live/build_entity_live.ex:768
 #, elixir-autogen, elixir-format
 msgid "Module builds"
-msgstr "Buildy modułów"
+msgstr "Budowy modułów"
 
 #: lib/tuist_web/live/build_entity_live.ex:805
 #, elixir-autogen, elixir-format
 msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
-msgstr "Buildy modułów z zarejestrowaną pracą kompilacyjną w wybranym okresie. Rozstrzygnięcia z pamięci podręcznej modułów i moduły bez pracy kompilacyjnej są wykluczone."
+msgstr "Budowy modułów z zarejestrowaną pracą kompilacji w wybranym okresie. Rozwiązania z pamięci podręcznej modułów oraz moduły bez pracy kompilacji są wykluczone."
 
 #: lib/tuist_web/live/build_entity_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Recorded module build failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "Zarejestrowane niepowodzenia buildów modułów w wybranym okresie. Nieznane wyniki nie są liczone jako sukcesy ani niepowodzenia."
+msgstr "Zarejestrowane niepowodzenia budowania modułów w wybranym okresie. Nieznane wyniki nie są liczone jako sukcesy ani niepowodzenia."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:23
 #, elixir-autogen, elixir-format
@@ -3135,113 +3145,113 @@ msgstr "Ostatnie wykonania"
 #: lib/tuist_web/live/build_entity_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Latest recorded module count from a generated-project graph on the default branch (%{branch}) before the end of the selected period, independent of environment. The chart carries that reported count forward until another scoped snapshot arrives. Historical graphs without scoped count metadata remain unavailable."
-msgstr "Najnowsza zarejestrowana liczba modułów z grafu wygenerowanego projektu na domyślnej gałęzi (%{branch}) przed końcem wybranego okresu, niezależnie od środowiska. Wykres utrzymuje tę zgłoszoną liczbę do momentu nadejścia kolejnego snapshotu w zakresie. Historyczne wykresy bez metadanych liczby w zakresie pozostają niedostępne."
+msgstr "Najnowsza zarejestrowana liczba modułów z grafu wygenerowanego projektu na domyślnej gałęzi (%{branch}) przed końcem wybranego okresu, niezależnie od środowiska. Wykres utrzymuje tę zgłoszoną liczbę do momentu nadejścia kolejnego snapshotu w zakresie. Historyczne wykresy bez metadanych o liczbie w zakresie pozostają niedostępne."
 
-#: lib/tuist_web/components/build_metadata.ex:120
+#: lib/tuist_web/components/build_metadata.ex:121
 #, elixir-autogen, elixir-format
 msgid "Available logical processors"
 msgstr "Dostępne logiczne procesory"
 
 #: lib/tuist_web/components/build_metadata.ex:61
-#: lib/tuist_web/components/build_metadata.ex:77
+#: lib/tuist_web/components/build_metadata.ex:78
 #, elixir-autogen, elixir-format
 msgid "Build environment"
-msgstr "Środowisko builda"
+msgstr "Środowisko budowania"
 
-#: lib/tuist_web/components/build_metadata.ex:132
+#: lib/tuist_web/components/build_metadata.ex:133
 #, elixir-autogen, elixir-format
 msgid "CI job"
 msgstr "Zadanie CI"
 
-#: lib/tuist_web/components/build_metadata.ex:131
+#: lib/tuist_web/components/build_metadata.ex:132
 #, elixir-autogen, elixir-format
 msgid "CI provider"
 msgstr "Dostawca CI"
 
-#: lib/tuist_web/components/build_metadata.ex:123
+#: lib/tuist_web/components/build_metadata.ex:124
 #, elixir-autogen, elixir-format
 msgid "Default charset"
 msgstr "Domyślny zestaw znaków"
 
-#: lib/tuist_web/components/build_metadata.ex:127
+#: lib/tuist_web/components/build_metadata.ex:128
 #, elixir-autogen, elixir-format
 msgid "Java VM"
-msgstr "Maszyna wirtualna Java"
+msgstr "Java VM"
 
-#: lib/tuist_web/components/build_metadata.ex:128
+#: lib/tuist_web/components/build_metadata.ex:129
 #, elixir-autogen, elixir-format
 msgid "Java VM version"
 msgstr "Wersja maszyny wirtualnej Java"
 
-#: lib/tuist_web/components/build_metadata.ex:125
+#: lib/tuist_web/components/build_metadata.ex:126
 #, elixir-autogen, elixir-format
 msgid "Java runtime"
 msgstr "Środowisko wykonawcze Java"
 
-#: lib/tuist_web/components/build_metadata.ex:126
+#: lib/tuist_web/components/build_metadata.ex:127
 #, elixir-autogen, elixir-format
 msgid "Java runtime version"
 msgstr "Wersja środowiska wykonawczego Java"
 
-#: lib/tuist_web/components/build_metadata.ex:124
+#: lib/tuist_web/components/build_metadata.ex:125
 #, elixir-autogen, elixir-format
 msgid "Java vendor"
 msgstr "Dostawca Java"
 
-#: lib/tuist_web/components/build_metadata.ex:117
+#: lib/tuist_web/components/build_metadata.ex:118
 #, elixir-autogen, elixir-format
 msgid "Kernel version"
 msgstr "Wersja jądra"
 
-#: lib/tuist_web/components/build_metadata.ex:119
+#: lib/tuist_web/components/build_metadata.ex:120
 #, elixir-autogen, elixir-format
 msgid "Machine model"
-msgstr "Model komputera"
+msgstr "Model maszyny"
 
-#: lib/tuist_web/components/build_metadata.ex:130
+#: lib/tuist_web/components/build_metadata.ex:131
 #, elixir-autogen, elixir-format
 msgid "Maximum Gradle workers"
 msgstr "Maksymalna liczba workerów Gradle"
 
-#: lib/tuist_web/components/build_metadata.ex:129
+#: lib/tuist_web/components/build_metadata.ex:130
 #, elixir-autogen, elixir-format
 msgid "Maximum JVM heap"
 msgstr "Maksymalny rozmiar sterty JVM"
 
-#: lib/tuist_web/components/build_metadata.ex:115
+#: lib/tuist_web/components/build_metadata.ex:116
 #, elixir-autogen, elixir-format
 msgid "Operating system"
 msgstr "System operacyjny"
 
-#: lib/tuist_web/components/build_metadata.ex:116
+#: lib/tuist_web/components/build_metadata.ex:117
 #, elixir-autogen, elixir-format
 msgid "Operating system version"
 msgstr "Wersja systemu operacyjnego"
 
-#: lib/tuist_web/components/build_metadata.ex:118
+#: lib/tuist_web/components/build_metadata.ex:119
 #, elixir-autogen, elixir-format
 msgid "Process architecture"
 msgstr "Architektura procesu"
 
-#: lib/tuist_web/components/build_metadata.ex:122
+#: lib/tuist_web/components/build_metadata.ex:123
 #, elixir-autogen, elixir-format
 msgid "Process locale"
-msgstr "Locale procesu"
+msgstr "Język procesu"
 
-#: lib/tuist_web/components/build_metadata.ex:121
+#: lib/tuist_web/components/build_metadata.ex:122
 #, elixir-autogen, elixir-format
 msgid "Reported OS memory"
-msgstr "Zgłoszona pamięć systemu operacyjnego"
-
-#: lib/tuist_web/components/build_metadata.ex:133
-#, elixir-autogen, elixir-format
-msgid "Runner environment"
-msgstr "Środowisko runnery CI"
+msgstr "Zgłoszona pamięć OS"
 
 #: lib/tuist_web/components/build_metadata.ex:134
 #, elixir-autogen, elixir-format
+msgid "Runner environment"
+msgstr "Środowisko runnera"
+
+#: lib/tuist_web/components/build_metadata.ex:135
+#, elixir-autogen, elixir-format
 msgid "Runner name"
-msgstr "Nazwa runnery CI"
+msgstr "Nazwa runnera"
 
 #: lib/tuist_web/live/build_run_live.html.heex:334
 #: lib/tuist_web/live/cargo_build_live.html.heex:116
@@ -3252,7 +3262,7 @@ msgstr "Wersja CLI Tuist"
 #: lib/tuist_web/live/mix_build_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "tuist_ex version"
-msgstr "Wersja tuist_ex"
+msgstr "wersja tuist_ex"
 
 #: lib/tuist_web/live/build_run_live.html.heex:335
 #, elixir-autogen, elixir-format
@@ -3262,54 +3272,54 @@ msgstr "Wersja generatora Tuist"
 #: lib/tuist_web/live/build_entity_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Crate compilations"
-msgstr "Kompilacje crate'ów"
+msgstr "Kompilacje crate’ów"
 
 #: lib/tuist_web/live/build_entity_live.ex:617
 #, elixir-autogen, elixir-format
 msgid "Crate kind"
-msgstr "Rodzaj crate'a"
+msgstr "Rodzaj crate’a"
 
 #: lib/tuist_web/live/build_entity_live.ex:616
 #, elixir-autogen, elixir-format
 msgid "Crate name"
-msgstr "Nazwa crate'a"
+msgstr "Nazwa crate’a"
 
 #: lib/tuist_web/live/build_entity_live.ex:615
 #, elixir-autogen, elixir-format
 msgid "Crate root"
-msgstr "Korzeń crate'a"
+msgstr "Katalog główny crate’a"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:12
 #, elixir-autogen, elixir-format
 msgid "Crates"
-msgstr "Crate'y"
+msgstr "Crate’y"
 
 #: lib/tuist_web/live/build_entity_live.ex:885
 #, elixir-autogen, elixir-format
 msgid "Distinct crates with recorded activity during the selected period. The chart shows distinct crates per day, not a cumulative total. Identity uses recorded root, name and kind, not a complete workspace inventory. Paths are not normalized; build configurations are not distinguished. Missing observations do not establish removals."
-msgstr "Oddzielne crate’y z odnotowaną aktywnością w wybranym okresie. Wykres pokazuje liczbę oddzielnych crate’ów dziennie, a nie sumę skumulowaną. Tożsamość opiera się na odnotowanym elemencie głównym, nazwie i typie, a nie na pełnym spisie workspace. Ścieżki nie są normalizowane; konfiguracje budowania nie są rozróżniane. Brakujące obserwacje nie oznaczają usunięć."
+msgstr "Unikalne crate’y z odnotowaną aktywnością w wybranym okresie. Wykres pokazuje unikalne crate’y dziennie, a nie sumę łączną. Tożsamość opiera się na zarejestrowanym katalogu głównym, nazwie i rodzaju, a nie na pełnej inwentaryzacji obszaru roboczego. Ścieżki nie są normalizowane; konfiguracje kompilacji nie są rozróżniane. Brak obserwacji nie oznacza usunięcia."
 
 #: lib/tuist_web/live/build_entity_live.ex:940
 #, elixir-autogen, elixir-format
 msgid "Measured duration of each rustc invocation, not per-source-file timing, total build time or cache-hit time. Genuine measured zeros are included."
-msgstr "Zmierzony czas każdego wywołania rustc, a nie czas dla poszczególnych plików źródłowych, całkowity czas budowania ani czas trafienia w pamięci podręcznej. Uwzględniono rzeczywiste zmierzone wartości zerowe."
+msgstr "Zmierzony czas trwania każdego wywołania rustc, a nie czas na plik źródłowy, całkowity czas budowania ani czas trafienia w pamięci podręcznej. Uwzględniono rzeczywiste, zmierzone zera."
 
 #: lib/tuist_web/live/build_entity_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Recorded rustc invocation failures during the selected period. Unknown outcomes are not counted as successes or failures."
-msgstr "Odnotowane błędy wywołań rustc w wybranym okresie. Nieznane wyniki nie są liczone jako sukcesy ani błędy."
+msgstr "Odnotowane błędy wywołań rustc w wybranym okresie. Nieznane wyniki nie są liczone jako sukcesy ani porażki."
 
 #: lib/tuist_web/live/build_entity_live.ex:798
 #, elixir-autogen, elixir-format
 msgid "Recorded rustc invocations, not per-file compilations or cache hits. Only crates with a reported root, name and kind are included."
-msgstr "Odnotowane wywołania rustc, a nie kompilacje poszczególnych plików ani trafienia w pamięci podręcznej. Uwzględniono tylko crate’y z podanym elementem głównym, nazwą i typem."
+msgstr "Odnotowane wywołania rustc, a nie kompilacje poszczególnych plików ani trafienia w pamięci podręcznej. Uwzględniono tylko crate’y z podanym korzeniem, nazwą i typem."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:26
 #, elixir-autogen, elixir-format
 msgid "Search crates..."
 msgstr "Szukaj crate’ów..."
 
-#: lib/tuist_web/components/build_timeline.ex:103
+#: lib/tuist_web/components/build_timeline.ex:105
 #, elixir-autogen, elixir-format
 msgid "Download trace"
 msgstr "Pobierz ślad"
@@ -3317,4 +3327,271 @@ msgstr "Pobierz ślad"
 #: lib/tuist_web/components/build_status_filter.ex:58
 #, elixir-autogen, elixir-format
 msgid "Status:"
-msgstr "Stan:"
+msgstr "Status:"
+
+#: lib/tuist_web/components/build_timeline.ex:120
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:235
+#, elixir-autogen, elixir-format
+msgid "Disk space"
+msgstr "Miejsce na dysku"
+
+#: lib/tuist_web/components/build_timeline.ex:65
+#: lib/tuist_web/components/build_timeline.ex:137
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:243
+#, elixir-autogen, elixir-format
+msgid "Total"
+msgstr "Razem"
+
+#: lib/tuist_web/components/build_timeline.ex:64
+#: lib/tuist_web/components/build_timeline.ex:132
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:242
+#, elixir-autogen, elixir-format
+msgid "Used"
+msgstr "Użyto"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "Skompilowano bez odwoływania się do pamięci podręcznej, ponieważ nie można było jej zbuforować."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1448
+#, elixir-autogen, elixir-format
+msgid "Execution"
+msgstr "Wykonanie"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1447
+#, elixir-autogen, elixir-format
+msgid "Input fetch"
+msgstr "Pobieranie danych wejściowych"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1449
+#, elixir-autogen, elixir-format
+msgid "Output upload"
+msgstr "Przesyłanie wyników"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1446
+#, elixir-autogen, elixir-format
+msgid "Queue"
+msgstr "Kolejka"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Remote execution"
+msgstr "Zdalne wykonanie"
+
+#: lib/tuist_web/live/remote_execution_live.ex:401
+#, elixir-autogen, elixir-format
+msgid "Execution diagnostics"
+msgstr "Diagnostyka wykonania"
+
+#: lib/tuist_web/live/remote_execution_live.ex:426
+#, elixir-autogen, elixir-format
+msgid "Open build runs"
+msgstr "Otwórz uruchomienia buildów"
+
+#: lib/tuist_web/live/remote_execution_live.ex:562
+#: lib/tuist_web/live/remote_execution_live.ex:711
+#, elixir-autogen, elixir-format
+msgid "Avg. execution"
+msgstr "Średni czas wykonania"
+
+#: lib/tuist_web/live/remote_execution_live.ex:680
+#, elixir-autogen, elixir-format
+msgid "Avg. execution time"
+msgstr "Średni czas wykonania"
+
+#: lib/tuist_web/live/remote_execution_live.ex:676
+#, elixir-autogen, elixir-format
+msgid "Avg. queue time"
+msgstr "Średni czas w kolejce"
+
+#: lib/tuist_web/live/remote_execution_live.ex:388
+#, elixir-autogen, elixir-format
+msgid "No remote execution timings in this period"
+msgstr "Brak zdalnych czasów wykonania w tym okresie"
+
+#: lib/tuist_web/live/remote_execution_live.ex:552
+#: lib/tuist_web/live/remote_execution_live.ex:710
+#: lib/tuist_web/live/remote_execution_live.ex:754
+#, elixir-autogen, elixir-format
+msgid "Remote actions"
+msgstr "Zdalne akcje"
+
+#: lib/tuist_web/live/remote_execution_live.ex:311
+#, elixir-autogen, elixir-format
+msgid "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
+msgstr "Czas, w którym akcje były wykonywane na zdalnym workerze. Dotyczy pracy per-akcja, a nie całkowitego czasu buildu ani rozliczanego czasu VM."
+
+#: lib/tuist_web/live/remote_execution_live.ex:287
+#, elixir-autogen, elixir-format
+msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
+msgstr "Czas oczekiwania akcji na zdalnego workera. Akcje bez zarejestrowanej fazy oczekiwania są wykluczone."
+
+#: lib/tuist_web/live/remote_execution_live.ex:679
+#, elixir-autogen, elixir-format
+msgid "p50 execution time"
+msgstr "Czas wykonania p50"
+
+#: lib/tuist_web/live/remote_execution_live.ex:675
+#, elixir-autogen, elixir-format
+msgid "p50 queue time"
+msgstr "Czas oczekiwania w kolejce p50"
+
+#: lib/tuist_web/live/remote_execution_live.ex:678
+#, elixir-autogen, elixir-format
+msgid "p90 execution time"
+msgstr "Czas wykonania p90"
+
+#: lib/tuist_web/live/remote_execution_live.ex:674
+#, elixir-autogen, elixir-format
+msgid "p90 queue time"
+msgstr "Czas oczekiwania w kolejce p90"
+
+#: lib/tuist_web/live/remote_execution_live.ex:677
+#, elixir-autogen, elixir-format
+msgid "p99 execution time"
+msgstr "Czas wykonania p99"
+
+#: lib/tuist_web/live/remote_execution_live.ex:673
+#, elixir-autogen, elixir-format
+msgid "p99 queue time"
+msgstr "Czas oczekiwania w kolejce p99"
+
+#: lib/tuist_web/live/remote_execution_live.ex:436
+#, elixir-autogen, elixir-format
+msgid "Invocations"
+msgstr "Wywołania"
+
+#: lib/tuist_web/live/remote_execution_live.ex:481
+#, elixir-autogen, elixir-format
+msgid "Invocations could not be loaded."
+msgstr "Nie udało się załadować wywołań."
+
+#: lib/tuist_web/live/remote_execution_live.ex:609
+#, elixir-autogen, elixir-format
+msgid "No invocations match your search"
+msgstr "Brak wywołań pasujących do wyszukiwania"
+
+#: lib/tuist_web/live/remote_execution_live.ex:605
+#, elixir-autogen, elixir-format
+msgid "No invocations with remote execution timings in this period"
+msgstr "Brak wywołań z czasami zdalnego wykonania w tym okresie"
+
+#: lib/tuist_web/live/remote_execution_live.ex:448
+#, elixir-autogen, elixir-format
+msgid "Search invocations..."
+msgstr "Szukaj wywołań..."
+
+#: lib/tuist_web/live/remote_execution_live.ex:712
+#, elixir-autogen, elixir-format
+msgid "p50 execution"
+msgstr "Wykonanie p50"
+
+#: lib/tuist_web/live/remote_execution_live.ex:713
+#, elixir-autogen, elixir-format
+msgid "p90 execution"
+msgstr "Wykonanie p90"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#, elixir-autogen, elixir-format
+msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
+msgstr "Wymagany jest profil z jednoznacznie określonymi przedziałami akcji i faz serwera. Starsze lub niekompletne profile mogą nie zawierać tych pomiarów. Prześlij nowy profil, aby je zobaczyć."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:558
+#, elixir-autogen, elixir-format
+msgid "No remote action timings"
+msgstr "Brak czasów zdalnych akcji"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:511
+#, elixir-autogen, elixir-format
+msgid "Phases"
+msgstr "Fazy"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:505
+#: lib/tuist_web/live/bazel_invocation_live.ex:1441
+#, elixir-autogen, elixir-format
+msgid "Started at"
+msgstr "Rozpoczęto o"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:365
+#: lib/tuist_web/live/remote_execution_live.ex:803
+#, elixir-autogen, elixir-format
+msgid "%{vcpus} vCPU · %{memory} GB"
+msgstr "%{vcpus} vCPU · %{memory} GB"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "Machine"
+msgstr "Maszyna"
+
+#: lib/tuist_web/live/remote_execution_live.ex:358
+#, elixir-autogen, elixir-format
+msgid "No remote executions in this period"
+msgstr "Brak zdalnych wykonań w tym okresie"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:352
+#, elixir-autogen, elixir-format
+msgid "Queued"
+msgstr "W kolejce"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:261
+#: lib/tuist_web/live/bazel_invocation_live.ex:351
+#: lib/tuist_web/live/remote_execution_live.ex:518
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr "Uruchomione"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:371
+#, elixir-autogen, elixir-format
+msgid "Time in status"
+msgstr "Czas w statusie"
+
+#: lib/tuist_web/live/remote_execution_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Once run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
+msgstr "Telemetria uruchomień nie rozróżnia jeszcze akcji zdalnych od lokalnych, dlatego czasy kolejkowania i wykonania dla każdej akcji oraz wywołania, które je uruchomiły, nie są wyświetlane."
+
+#: lib/tuist_web/live/remote_execution_live.ex:407
+#, elixir-autogen, elixir-format
+msgid "Per-action remote timings are not available for Once yet"
+msgstr "Zdalne czasy poszczególnych akcji nie są jeszcze dostępne dla Once"
+
+#: lib/tuist_web/live/remote_execution_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "Total execution time"
+msgstr "Całkowity czas wykonania"
+
+#: lib/tuist_web/live/remote_execution_live.ex:800
+#, elixir-autogen, elixir-format
+msgid "%{running} running · %{queued} queued"
+msgstr "%{running} uruchomionych · %{queued} w kolejce"
+
+#: lib/tuist_web/live/remote_execution_live.ex:793
+#, elixir-autogen, elixir-format
+msgid "Invocation %{id}"
+msgstr "Wywołanie %{id}"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:277
+#, elixir-autogen, elixir-format
+msgid "Running for"
+msgstr "Uruchomione od"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:335
+#, elixir-autogen, elixir-format
+msgid "No executions are running or queued"
+msgstr "Brak uruchomionych lub oczekujących wykonań"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:334
+#, elixir-autogen, elixir-format
+msgid "Running executions are unavailable"
+msgstr "Uruchomione wykonania są niedostępne"
+
+#: lib/tuist_web/live/remote_execution_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Remote actions that ran in a VM, as the execution node recorded them. Results served from the cache are not executions."
+msgstr "Zdalne akcje, które zostały wykonane na maszynie wirtualnej, zgodnie z zapisem węzła wykonawczego. Wyniki serwowane z pamięci podręcznej nie są uznawane za wykonania."
+
+#: lib/tuist_web/live/remote_execution_live.ex:264
+#, elixir-autogen, elixir-format
+msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
+msgstr "Czas działania executora w maszynie wirtualnej każdej akcji, od startu do zakończenia, zsumowany dla wszystkich wykonań. Obejmuje pobieranie danych wejściowych i przesyłanie wyników, ale nie kolejkowanie ani przygotowywanie maszyny wirtualnej. Na stronie Użycie ten czas jest rozliczany według typu maszyny."

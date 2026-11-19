@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
@@ -30,9 +31,11 @@ const (
 )
 
 var (
-	ErrDiskSnapshotNotFound = errors.New("disk snapshot not found")
-	ErrDisksNotSynced       = errors.New("disks were not synced by the last pause")
-	ErrDiskSnapshotMismatch = errors.New("disk snapshot does not match the requested sandbox")
+	ErrDiskSnapshotNotFound    = errors.New("disk snapshot not found")
+	ErrDisksNotSynced          = errors.New("disks were not synced by the last pause")
+	ErrArchiveNeedsWarmRestore = errors.New("archive of an unsynced pause restores only on a node that loads its memory")
+	ErrDiskSnapshotMismatch    = errors.New("disk snapshot does not match the requested sandbox")
+	ErrCacheImage              = errors.New("invalid cache image")
 )
 
 type diskSnapshotMeta struct {
@@ -148,6 +151,68 @@ func (m *Manager) SaveDisks(ctx context.Context, args protocol.SaveDisksArgs) (r
 		return res, err
 	}
 	m.log.Info("disk snapshot saved", "snapshot", args.SnapshotID, "sandbox", args.SandboxID, "duration", time.Since(start))
+	return protocol.SaveDisksResult{DurationMs: time.Since(start).Milliseconds()}, nil
+}
+
+// CopyDisks fills the disk snapshot id from its archive, so this node can
+// create sandboxes from it without downloading it on the spawn's path. The
+// download runs outside snapMu, so clones of other snapshots go on; a
+// snapshot already on the node is kept as it is.
+func (m *Manager) CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (res protocol.SaveDisksResult, err error) {
+	start := time.Now()
+	defer func() { m.metrics.observe(protocol.OpCopyDisks, err) }()
+	dir, err := m.diskSnapshotDir(args.SnapshotID)
+	if err != nil {
+		return res, err
+	}
+	src := args.FromArchive
+	if src == nil || src.URL == "" || src.Bytes <= 0 || src.SHA256 == "" {
+		return res, errors.New("from_archive needs a URL, a size and a checksum")
+	}
+	if _, _, err := m.loadDiskSnapshot(args.SnapshotID); err == nil {
+		return protocol.SaveDisksResult{DurationMs: time.Since(start).Milliseconds()}, nil
+	}
+	if err := os.MkdirAll(m.cfg.SnapshotDir, 0o700); err != nil {
+		return res, err
+	}
+	// Startup removes a copy a crash interrupted with the other .tmp-* saves.
+	tmp, err := os.MkdirTemp(m.cfg.SnapshotDir, diskSnapshotTmpPrefix+"copy-"+args.SnapshotID+"-")
+	if err != nil {
+		return res, err
+	}
+	defer os.RemoveAll(tmp)
+	log := m.log.With("snapshot", args.SnapshotID)
+	header, err := m.downloadArchive(ctx, src, tmp, args.Template, args.WorkspaceGB, 0, log)
+	if err != nil {
+		return res, err
+	}
+	for _, name := range archivedFiles {
+		if err := syncFile(filepath.Join(tmp, name)); err != nil {
+			return res, err
+		}
+	}
+	snap := diskSnapshotMeta{
+		ID: args.SnapshotID, Template: header.Template, Tag: header.Tag, WorkspaceGB: header.WorkspaceGB,
+		SourceSandbox: header.SourceSandbox, CreatedAt: time.Now().UTC(),
+	}
+	if err := writeJSON(filepath.Join(tmp, diskSnapshotFile), snap); err != nil {
+		return res, err
+	}
+	m.snapMu.Lock()
+	defer m.snapMu.Unlock()
+	if _, _, err := m.loadDiskSnapshot(args.SnapshotID); err == nil {
+		return protocol.SaveDisksResult{DurationMs: time.Since(start).Milliseconds()}, nil
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return res, err
+	}
+	if err := os.Rename(tmp, dir); err != nil {
+		return res, err
+	}
+	if err := syncFile(m.cfg.SnapshotDir); err != nil {
+		return res, err
+	}
+	m.log.Info("disk snapshot copied", "snapshot", args.SnapshotID, "bytes", src.Bytes, "duration", time.Since(start))
 	return protocol.SaveDisksResult{DurationMs: time.Since(start).Milliseconds()}, nil
 }
 
@@ -269,8 +334,44 @@ func (m *Manager) createFromDiskSnapshot(ctx context.Context, sb *Sandbox, args 
 	sb.mu.Lock()
 	sb.meta.Tag = snap.Tag
 	sb.mu.Unlock()
+	if args.CacheImage != "" {
+		if err := m.attachCacheImage(args.CacheImage, sb.root, uid); err != nil {
+			return res, err
+		}
+		sb.mu.Lock()
+		sb.meta.CacheImage = args.CacheImage
+		sb.mu.Unlock()
+	}
 
 	return m.coldCreate(ctx, sb, log.With("snapshot", args.FromDiskSnapshot, "slot", slot))
+}
+
+// attachCacheImage gives the jail a private writable clone of a cache image.
+// The source must be a regular file, not a symlink out of the directory.
+func (m *Manager) attachCacheImage(name, root string, uid int) error {
+	src := filepath.Join(m.cfg.CacheImageDir, name)
+	info, err := os.Lstat(src)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCacheImage, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: %s is not a regular file", ErrCacheImage, name)
+	}
+	dst := filepath.Join(root, firecracker.CachePath)
+	if err := m.cloneFile(src, dst); err != nil {
+		return err
+	}
+	return vm.Chown(dst, uid, uid)
+}
+
+// cachePlaceholder gives the jail the empty cache drive a template snapshot
+// built with a cache drive expects.
+func (m *Manager) cachePlaceholder(root string, uid int) error {
+	cache := filepath.Join(root, firecracker.CachePath)
+	if err := vm.Sparse(cache, template.CachePlaceholderBytes); err != nil {
+		return err
+	}
+	return vm.Chown(cache, uid, uid)
 }
 
 // coldCreate boots a new sandbox whose jail already holds its kernel and
@@ -278,10 +379,11 @@ func (m *Manager) createFromDiskSnapshot(ctx context.Context, sb *Sandbox, args 
 // the sandbox when this fails.
 func (m *Manager) coldCreate(ctx context.Context, sb *Sandbox, log *slog.Logger) (protocol.CreateResult, error) {
 	bootStart := time.Now()
-	inst, _, err := m.boot(ctx, sb, log)
+	inst, agent, err := m.boot(ctx, sb, log)
 	if err != nil {
 		return protocol.CreateResult{}, err
 	}
+	m.growRootfs(ctx, sb, inst, agent, log)
 	sb.mu.Lock()
 	sb.meta.State = protocol.StateRunning
 	sb.meta.Generation = 0

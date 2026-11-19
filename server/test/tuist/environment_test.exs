@@ -4,6 +4,14 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  test "handle policies exempt app only for projects and preserve migration reservations" do
+    account_handles = Environment.blocked_account_handles()
+
+    assert "app" in account_handles
+    assert Environment.blocked_project_handles() == account_handles -- ["app"]
+    assert Application.fetch_env!(:tuist, :blocked_handles) == account_handles
+  end
+
   describe "mail_configured?/1" do
     setup do
       stub(System, :get_env, fn name, default ->
@@ -72,6 +80,31 @@ defmodule Tuist.EnvironmentTest do
     test "normalizes the configured domain and falls back to tuist.dev" do
       assert Environment.operator_email_domain(%{"operator_email_domain" => " Example.COM "}) == "example.com"
       assert Environment.operator_email_domain(%{}) == "tuist.dev"
+    end
+  end
+
+  describe "shard_storage_targets/0" do
+    test "merges the public store's targets without letting them replace a runner-local ID" do
+      stub(System, :get_env, fn
+        "TUIST_SHARD_STORAGE_TARGETS" -> ~s({"gra-v1":{"site":"gra"}})
+        "TUIST_PUBLIC_SHARD_STORAGE_TARGETS" -> ~s({"gra-v1":{"site":"us"},"rustfs-v1":{"access":"public"}})
+        name -> Mimic.call_original(System, :get_env, [name])
+      end)
+
+      assert Environment.shard_storage_targets() == %{
+               "gra-v1" => %{"site" => "gra"},
+               "rustfs-v1" => %{"access" => "public"}
+             }
+    end
+
+    test "keeps the other store's targets when one map is malformed" do
+      stub(System, :get_env, fn
+        "TUIST_SHARD_STORAGE_TARGETS" -> ~s({"gra-v1":{"site":"gra"}})
+        "TUIST_PUBLIC_SHARD_STORAGE_TARGETS" -> "[1]"
+        name -> Mimic.call_original(System, :get_env, [name])
+      end)
+
+      assert Environment.shard_storage_targets() == %{"gra-v1" => %{"site" => "gra"}}
     end
   end
 
@@ -552,8 +585,8 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "coverage_inline_threshold_bytes/1" do
-    test "defaults to 5 MB and reads the environment" do
-      assert Environment.coverage_inline_threshold_bytes(%{}) == 5_000_000
+    test "defaults to 500 KB and reads the environment" do
+      assert Environment.coverage_inline_threshold_bytes(%{}) == 500_000
       assert Environment.coverage_inline_threshold_bytes(%{"TUIST_COVERAGE_INLINE_THRESHOLD_BYTES" => "1024"}) == 1024
     end
   end
@@ -566,8 +599,8 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "coverage_retention_days/1" do
-    test "keeps file detail for 90 days and run totals for a year by default" do
-      assert Environment.coverage_retention_days(%{}) == %{files: 90, runs: 365}
+    test "keeps file detail for 31 days and run totals for a year by default" do
+      assert Environment.coverage_retention_days(%{}) == %{files: 31, runs: 365}
     end
 
     test "reads each period from its environment variable" do
@@ -818,6 +851,23 @@ defmodule Tuist.EnvironmentTest do
     # tells certificates from online keys.
     test "reads the unified license value" do
       assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
+    end
+  end
+
+  describe "sentry_pulse_dsn/2" do
+    # The processors and registry sync share the web pods' config Secret, but
+    # Pulse admits only web pods, so only they may copy errors there.
+    test "returns the Pulse DSN only in web mode" do
+      secrets = %{"sentry" => %{"pulse_dsn" => "http://sentry:pw@pulse:4000/v1/sentry/server/1"}}
+
+      assert Environment.sentry_pulse_dsn(secrets, :web) ==
+               "http://sentry:pw@pulse:4000/v1/sentry/server/1"
+
+      for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
+        assert Environment.sentry_pulse_dsn(secrets, mode) == nil
+      end
+
+      assert Environment.sentry_pulse_dsn(%{"sentry" => %{"pulse_dsn" => ""}}, :web) == nil
     end
   end
 end

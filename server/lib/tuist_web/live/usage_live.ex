@@ -11,7 +11,10 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
+  alias Tuist.Projects
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.CacheVolumeBilling
   alias Tuist.Runners.Prepaid
   alias Tuist.Sandboxes.Pricing, as: SandboxPricing
   alias Tuist.Utilities.ByteFormatter
@@ -45,6 +48,10 @@ defmodule TuistWeb.UsageLive do
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
      |> assign(
+       :remote_execution_enabled,
+       FeatureFlags.bazel_remote_execution_enabled?(account) and Projects.has_remote_execution_projects?(account)
+     )
+     |> assign(
        :sandboxes_enabled,
        FeatureFlags.sandboxes_enabled?(account) and
          Authorization.authorize(:sandboxes_read, current_user, account) == :ok
@@ -75,7 +82,20 @@ defmodule TuistWeb.UsageLive do
      |> assign_async(:usage_pricing, fn ->
        {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
      end)
-     |> assign_sandbox_usage(account, period)}
+     |> assign_async(:storage, fn ->
+       {:ok, %{storage: CacheVolumeBilling.period_breakdown(account, period)}}
+     end)
+     |> assign_sandbox_usage(account, period)
+     |> assign_remote_execution_usage(account, period)}
+  end
+
+  defp assign_remote_execution_usage(%{assigns: %{remote_execution_enabled: false}} = socket, _account, _period),
+    do: socket
+
+  defp assign_remote_execution_usage(socket, account, period) do
+    assign_async(socket, :remote_execution_usage, fn ->
+      {:ok, %{remote_execution_usage: RemoteExecutionUsage.period_breakdown(account, period)}}
+    end)
   end
 
   defp assign_sandbox_usage(%{assigns: %{sandboxes_enabled: false}} = socket, _account, _period), do: socket
@@ -179,7 +199,12 @@ defmodule TuistWeb.UsageLive do
     }
   end
 
-  @repository_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99"]
+  # Stacked segments sit next to each other, so neighbors alternate hues:
+  # the purple primary and blue secondary tokens share a lightness and are
+  # only ~27° apart, which made the two largest series hard to tell apart.
+  # Blue is left out for that reason, and p99 because it is the same green
+  # as tertiary.
+  @repository_colors ["primary", "p50", "tertiary", "p90", "quaternary"]
 
   @doc """
   One stacked bar series per repository, valued in dollars.
@@ -356,10 +381,10 @@ defmodule TuistWeb.UsageLive do
       )
 
     case previous do
-      0 when minutes > 0 ->
+      previous when previous == 0 and minutes > 0 ->
         pace <> " " <> dgettext("dashboard_usage", "Nothing ran last period.")
 
-      0 ->
+      previous when previous == 0 ->
         pace
 
       _ ->
@@ -436,13 +461,17 @@ defmodule TuistWeb.UsageLive do
   def cache_chart_unit("requests"), do: :count
 
   @doc """
-  Every date a usage pricing chart draws, spend and projection alike.
+  Every date a usage pricing chart draws, spend and projection alike, from
+  the first day of the billing period, so the axis starts where the runner
+  chart's does even when nothing ran on the period's first days.
   """
-  def usage_chart_dates(%{days: days, projected_days: projected_days}) do
-    (days ++ projected_days)
-    |> Enum.map(& &1.date)
-    |> Enum.uniq()
-    |> Enum.sort(Date)
+  def usage_chart_dates(%{days: days, projected_days: projected_days} = usage) do
+    dates = (days ++ projected_days) |> Enum.map(& &1.date) |> Enum.uniq() |> Enum.sort(Date)
+
+    case {Map.get(usage, :period_start), dates} do
+      {%Date{} = period_start, [_ | _]} -> period_start |> Date.range(List.last(dates)) |> Enum.to_list()
+      _ -> dates
+    end
   end
 
   @doc """
@@ -531,11 +560,53 @@ defmodule TuistWeb.UsageLive do
   defp chart_value(value, :dollars), do: Float.round(value / 1, 2)
   defp chart_value(value, _field), do: round(value)
 
+  @doc """
+  The average bytes each repository's cache volumes held each day, followed
+  by the days the period has not reached at what is saved now.
+  """
+  def storage_chart_series(%{days: days, projected_days: projected_days} = storage) do
+    dates = usage_chart_dates(storage)
+
+    days
+    |> Enum.group_by(& &1.repository)
+    |> Enum.sort_by(fn {_repository, rows} -> -Enum.sum(Enum.map(rows, & &1.bytes)) end)
+    |> Enum.with_index()
+    |> Enum.map(fn {{repository, rows}, index} ->
+      bar_series(
+        repository_label(repository),
+        Enum.at(@repository_colors, rem(index, length(@repository_colors))),
+        dates,
+        rows,
+        :bytes
+      )
+    end)
+    |> Kernel.++(projected_series(projected_days, dates, :bytes))
+  end
+
+  def storage_used?(%{byte_months: byte_months, stored_bytes: stored_bytes}), do: byte_months > 0 or stored_bytes > 0
+  def storage_used?(_storage), do: false
+
+  def storage_rate_label, do: "$0.10 " <> dgettext("dashboard_usage", "per GB-month")
+
+  def gigabyte_months_label(byte_months),
+    do:
+      dgettext("dashboard_usage", "%{count} GB-months",
+        count: CldrHelpers.format_number(byte_months / 1_000_000_000, fractional_digits: 1)
+      )
+
+  def storage_pace_label(%{projected: nil}), do: nil
+
+  def storage_pace_label(%{projected: projected}),
+    do:
+      dgettext("dashboard_usage", "At what is saved now, this period comes to about %{amount}.",
+        amount: gigabyte_months_label(projected)
+      )
+
   def vcpu_hours(value) when value < 10, do: CldrHelpers.format_number(value, fractional_digits: 1)
   def vcpu_hours(value), do: CldrHelpers.format_number(value)
 
   @doc """
-  The daily value of the period's sandbox vCPU-hours, followed by the
+  The daily value of the period's sandbox usage, CPU and memory, followed by the
   projection for the days the period has not reached yet.
   """
   def sandbox_chart_series(%{days: days, projected_days: projected_days} = sandboxes) do
@@ -545,10 +616,28 @@ defmodule TuistWeb.UsageLive do
       projected_series(projected_days, dates, :dollars)
   end
 
+  @doc """
+  The daily value of the period's remote execution time by project, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def remote_execution_chart_series(%{days: days, projected_days: projected_days} = usage) do
+    dates = usage_chart_dates(usage)
+
+    project_series(days, dates, :dollars) ++ projected_series(projected_days, dates, :dollars)
+  end
+
+  def execution_minutes(value) when value < 10, do: CldrHelpers.format_number(value, fractional_digits: 1)
+  def execution_minutes(value), do: CldrHelpers.format_number(round(value))
+
   def vcpu_hour_rate_label,
     do:
-      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 2)} " <>
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_vcpu_hour() / 100, decimals: 3)} " <>
         dgettext("dashboard_usage", "per vCPU-hour")
+
+  def gib_hour_rate_label,
+    do:
+      "$#{:erlang.float_to_binary(SandboxPricing.cents_per_gib_hour() / 100, decimals: 3)} " <>
+        dgettext("dashboard_usage", "per GiB-hour")
 
   def sandbox_pace_label(%{projected_vcpu_hours: nil, previous_vcpu_hours: previous}) when previous > 0,
     do: dgettext("dashboard_usage", "Last period came to %{count} vCPU-hours.", count: vcpu_hours(previous))

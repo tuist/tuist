@@ -70,6 +70,9 @@ public enum Constants {
         public static let detailedLog = "TUIST_CONFIG_DETAILED_LOG"
         public static let osLog = "TUIST_CONFIG_OS_LOG"
         public static let useSwifterPM = "TUIST_USE_SWIFTERPM"
+        /// The byte budget of the shared dependencies cache. `tuist/install` stages it from the
+        /// capacity of the volume the cache lives on, as runners stage `TUIST_CACHE_MAX_BYTES`.
+        public static let dependenciesCacheMaxBytes = "TUIST_DEPENDENCIES_CACHE_MAX_BYTES"
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
         public static let token = "TUIST_TOKEN"

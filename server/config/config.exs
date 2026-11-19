@@ -12,6 +12,124 @@ noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
 build_path = Mix.Project.build_path()
 
+blocked_account_handles = [
+  "admin",
+  "settings",
+  "docs",
+  "api",
+  "login",
+  "logout",
+  "signup",
+  "register",
+  "dashboard",
+  "profile",
+  "account",
+  "billing",
+  "payments",
+  "subscriptions",
+  "help",
+  "support",
+  "faq",
+  "terms",
+  "privacy",
+  "cookie",
+  "legal",
+  "about",
+  "contact",
+  "feedback",
+  "status",
+  "system",
+  "blog",
+  "news",
+  "newsletter",
+  "compare",
+  "solutions",
+  "build-systems",
+  "announcements",
+  "features",
+  "pricing",
+  "plan",
+  "plans",
+  "upgrade",
+  "downgrade",
+  "cancel",
+  "home",
+  "index",
+  "search",
+  "explore",
+  "discover",
+  "notifications",
+  "messages",
+  "inbox",
+  "mail",
+  "team",
+  "organization",
+  "groups",
+  "projects",
+  "tasks",
+  "reports",
+  "analytics",
+  "stats",
+  "metrics",
+  "integrations",
+  "apps",
+  "marketplace",
+  "store",
+  "shop",
+  "cart",
+  "checkout",
+  "orders",
+  "invoices",
+  "downloads",
+  "uploads",
+  "files",
+  "media",
+  "images",
+  "videos",
+  "users",
+  "members",
+  "roles",
+  "permissions",
+  "security",
+  "ssl",
+  "oauth",
+  "auth",
+  "2fa",
+  "mfa",
+  "verification",
+  "confirm",
+  "reset",
+  "recover",
+  "backup",
+  "restore",
+  "import",
+  "export",
+  "webhooks",
+  "developer",
+  "console",
+  "logs",
+  "health",
+  "maintenance",
+  "changelog",
+  "roadmap",
+  "beta",
+  "alpha",
+  "test",
+  "staging",
+  "production",
+  "www",
+  "app",
+  "web",
+  "mobile",
+  "desktop",
+  "sitemap",
+  "robots",
+  "rss",
+  "feed",
+  "careers",
+  "jobs"
+]
+
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
   cache_backend: Tuist.OAuth.AuthoritativeCache,
@@ -28,6 +146,11 @@ config :boruta, Boruta.Oauth,
     clients: Tuist.OAuth.Clients
   ],
   token_generator: Tuist.OAuth.TokenGenerator
+
+# Condukt sessions are registered cluster-wide, so a thread run's session is
+# reached by id from any node, as `Tuist.Threads.ExitWatchWorker` does when it
+# runs on another pod than the session.
+config :condukt, session_registry: Condukt.Sessions.Registry.PG
 
 config :ecto_ch,
   default_table_engine: "MergeTree"
@@ -303,6 +426,12 @@ config :logger, :console,
     :restore_ms,
     :admit_ms,
     :node_call_ms,
+    :placement_ms,
+    # Each connected macOS host's warm VM and why it was or was not chosen
+    :shape,
+    :hosts,
+    :spawn_ms,
+    :spawn_result,
     :snapshot_ms,
     :mem_bytes,
     :disks_synced,
@@ -311,6 +440,17 @@ config :logger, :console,
     :archive_bytes,
     :stored_bytes,
     :disk_snapshot_id,
+    :disk_snapshot_copy,
+    :bytes,
+    :preferred_node,
+    :cache_offered,
+    :cache_attached,
+    :checkout_nodes,
+    :placement_path,
+    # Why each node holding a disk snapshot refused a sandbox
+    # (`Capacity.refusal_reasons/2`).
+    :refusals,
+    :amp_snapshot_id,
     :last_used_at,
     :freed_bytes,
     :memory_bytes,
@@ -354,9 +494,11 @@ config :phoenix, :filter_parameters, [
   "password",
   "secret",
   "token",
+  "api_key",
   "credential",
   "mfa_code",
   "installation_receipt",
+  "search_query",
   "arguments"
 ]
 
@@ -383,6 +525,9 @@ config :tuist, Oban,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
+# Durable agent sessions by kind (`Tuist.Agents.Runner`).
+config :tuist, Tuist.Agents.Runner, kinds: %{"thread" => Tuist.Threads.Host}
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
@@ -391,7 +536,7 @@ config :tuist, Oban,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
-config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
+config :tuist, Tuist.Vault, keys: {Tuist.Environment, :encryption_keys, []}
 
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
@@ -402,125 +547,14 @@ config :tuist, TuistWeb.Endpoint,
   pubsub_server: Tuist.PubSub,
   live_view: [signing_salt: "laTbtzV8"]
 
-config :tuist, :blocked_handles, [
-  "admin",
-  "settings",
-  "docs",
-  "api",
-  "login",
-  "logout",
-  "signup",
-  "register",
-  "dashboard",
-  "profile",
-  "account",
-  "billing",
-  "payments",
-  "subscriptions",
-  "help",
-  "support",
-  "faq",
-  "terms",
-  "privacy",
-  "cookie",
-  "legal",
-  "about",
-  "contact",
-  "feedback",
-  "status",
-  "system",
-  "blog",
-  "news",
-  "newsletter",
-  "compare",
-  "solutions",
-  "build-systems",
-  "announcements",
-  "features",
-  "pricing",
-  "plan",
-  "plans",
-  "upgrade",
-  "downgrade",
-  "cancel",
-  "home",
-  "index",
-  "search",
-  "explore",
-  "discover",
-  "notifications",
-  "messages",
-  "inbox",
-  "mail",
-  "team",
-  "organization",
-  "groups",
-  "projects",
-  "tasks",
-  "reports",
-  "analytics",
-  "stats",
-  "metrics",
-  "integrations",
-  "apps",
-  "marketplace",
-  "store",
-  "shop",
-  "cart",
-  "checkout",
-  "orders",
-  "invoices",
-  "downloads",
-  "uploads",
-  "files",
-  "media",
-  "images",
-  "videos",
-  "users",
-  "members",
-  "roles",
-  "permissions",
-  "security",
-  "ssl",
-  "oauth",
-  "auth",
-  "2fa",
-  "mfa",
-  "verification",
-  "confirm",
-  "reset",
-  "recover",
-  "backup",
-  "restore",
-  "import",
-  "export",
-  "webhooks",
-  "developer",
-  "console",
-  "logs",
-  "health",
-  "maintenance",
-  "changelog",
-  "roadmap",
-  "beta",
-  "alpha",
-  "test",
-  "staging",
-  "production",
-  "www",
-  "app",
-  "web",
-  "mobile",
-  "desktop",
-  "sitemap",
-  "robots",
-  "rss",
-  "feed",
-  "careers",
-  "jobs"
-]
+config :tuist, :blocked_account_handles, blocked_account_handles
 
+# Retained for migrations that read the original account reservation list.
+config :tuist, :blocked_handles, blocked_account_handles
+config :tuist, :blocked_project_handles, blocked_account_handles -- ["app"]
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
+# Share of each platform's runner fleet Air accounts may hold together (Tuist.Runners.AirShare).
+config :tuist, :runner_air_fleet_share_percent, 15
 
 # Baseline machine-minutes of each platform every account gets free per
 # billing period. Each must match the first tier of the environment's runner
@@ -569,7 +603,7 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# the Helm side: the 16 vCPU shape needs a whole alder rack host and is not offered in
 # environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
   %{vcpus: 8, memory_gb: 24, default: true},
@@ -578,13 +612,20 @@ config :tuist, :runner_macos_shapes, [
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
 # macOS fleet; the profile's `xcode_version` field validates against
-# this list. The list must stay in sync with the
-# `runner-image-build.strategy.matrix.xcode` matrix in `release.yml`
-# (the Helm value the chart renders is the source of truth in managed
-# deploys; this config is the dev/test/CI fallback). Exactly one
-# entry should carry `default: true`.
+# this list. Managed deploys override it at boot from
+# `TUIST_RUNNER_MACOS_XCODE_VERSIONS`, which Helm renders from
+# `runnersFleet.xcodeVersions` in
+# `infra/helm/tuist/values-managed-common.yaml`; this config is the
+# dev/test/CI fallback and the list the docs render locally, so keep it
+# in step with that catalog. Exactly one entry should carry
+# `default: true`.
 config :tuist, :runner_macos_xcode_versions, [
-  %{xcode_version: "26.5", default: true},
+  %{xcode_version: "27.3-beta"},
+  %{xcode_version: "27.2", default: true},
+  %{xcode_version: "27.1"},
+  %{xcode_version: "27.0"},
+  %{xcode_version: "26.6"},
+  %{xcode_version: "26.5"},
   %{xcode_version: "26.4.1"},
   %{xcode_version: "26.3"},
   %{xcode_version: "26.1.1"},
@@ -594,7 +635,6 @@ config :tuist, :runner_macos_xcode_versions, [
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",
-  grafana_dashboard: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
   slack: "https://slack.tuist.dev",
   bluesky: "https://bsky.app/profile/tuist.dev",
   github: "https://github.com/tuist",
@@ -613,8 +653,7 @@ config :tuist, :urls,
   feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
   feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
-  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
-  shop: "https://shop.tuist.dev"
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights"
 
 config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 

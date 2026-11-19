@@ -31,13 +31,47 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     authenticator = authenticator()
     registered = register(login(user), authenticator, "MacBook")
 
-    assert redirected_to(registered) == ~p"/users/settings/passkeys"
+    assert redirected_to(registered) == ~p"/#{user.account.name}/settings/authentication"
     assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_added"})
 
     assert [%UserPasskey{name: "MacBook", backup_eligible: true, transports: ["hybrid", "internal"]}] =
              UserPasskey.list(user)
 
     assert Phoenix.Flash.get(registered.assigns.flash, :info) == "Passkey added."
+
+    authentication =
+      registered |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
+
+    assert authentication =~ "Passkey added."
+
+    assert registered |> recycle() |> get(~p"/users/settings/passkeys") |> redirected_to() ==
+             ~p"/#{user.account.name}/settings/authentication"
+
+    document = Floki.parse_document!(authentication)
+
+    assert document |> Floki.find("#passkey-list th") |> Enum.map(&Floki.text/1) ==
+             ["Name", "Created", "Last used", ""]
+
+    assert Floki.text(Floki.find(document, "#passkey-list")) =~ "MacBook"
+    assert Floki.find(document, "#passkey-actions-#{hd(UserPasskey.list(user)).id}[aria-label='Actions']") != []
+
+    assert Floki.find(
+             document,
+             "[phx-click='open-security-modal'][phx-value-id='rename-passkey-#{hd(UserPasskey.list(user)).id}']"
+           ) != []
+
+    assert Floki.find(
+             document,
+             "[phx-click='open-security-modal'][phx-value-id='remove-passkey-#{hd(UserPasskey.list(user)).id}']"
+           ) != []
+
+    assert Floki.find(
+             document,
+             "form[action='/users/settings/passkeys/#{hd(UserPasskey.list(user)).id}/delete'] input[name='confirm'][value='true']"
+           ) != []
+
+    refute authentication =~ "Manage passkeys"
+
     settings = registered |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys") |> html_response(200)
     assert settings =~ "Passkey added."
     assert settings =~ "MacBook"
@@ -171,6 +205,11 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     [passkey] = UserPasskey.list(user)
 
     stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+
+    settings = current |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
+    document = Floki.parse_document!(settings)
+    assert Floki.text(Floki.find(document, "#passkey-list")) =~ "MacBook"
+    assert Floki.find(document, "#passkey-list button") == []
 
     # The refusal comes before the browser ceremony, so no unusable
     # credential is saved in the user's password manager.
@@ -368,20 +407,43 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     })
   end
 
+  test "passkeys created without a name get distinct labels and can be renamed", %{user: user} do
+    conn = login(user)
+    settings = conn |> recycle() |> get(~p"/users/settings/passkeys/new") |> html_response(200)
+    assert settings =~ "Create a passkey"
+    refute settings =~ ~s(id="passkey-name")
+
+    conn = register(conn, authenticator(), nil)
+    assert redirected_to(conn) == ~p"/#{user.account.name}/settings/authentication"
+    assert [%UserPasskey{name: "Passkey"} = first] = UserPasskey.list(user)
+
+    conn = register(conn, authenticator(), nil)
+    assert Enum.sort(Enum.map(UserPasskey.list(user), & &1.name)) == ["Passkey", "Passkey 2"]
+
+    conn |> recycle() |> post(~p"/users/settings/passkeys/#{first.id}/rename", %{"name" => "My vault"})
+    assert Repo.get!(UserPasskey, first.id).name == "My vault"
+
+    register(conn, authenticator(), nil)
+    assert Enum.sort(Enum.map(UserPasskey.list(user), & &1.name)) == ["My vault", "Passkey", "Passkey 2"]
+  end
+
   defp register(conn, authenticator, name) do
     options_conn = conn |> recycle() |> post(~p"/users/settings/passkeys/options")
     %{"publicKey" => options, "token" => token} = json_response(options_conn, 200)
     assert options["authenticatorSelection"]["userVerification"] == "required"
 
-    options_conn
-    |> recycle()
-    |> post(~p"/users/settings/passkeys", %{
+    params = %{
       "challenge_token" => token,
-      "name" => name,
       "transports" => "hybrid,internal,unknown",
       "attestation_object" => encode(attestation_object(authenticator)),
       "client_data_json" => encode(client_data("webauthn.create", options["challenge"]))
-    })
+    }
+
+    params = if name, do: Map.put(params, "name", name), else: params
+
+    options_conn
+    |> recycle()
+    |> post(~p"/users/settings/passkeys", params)
   end
 
   defp authentication_options(conn, path) do

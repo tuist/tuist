@@ -2,12 +2,16 @@
 set -euo pipefail
 
 : "${CACHE_EXPERIMENT:?Use the same experiment key across all phases}"
-: "${CACHE_PHASE:?cold, warm-layers, changed-source, or same-size-write}"
+: "${CACHE_PHASE:?cold, warm-layers, changed-source, seed, or same-size-write}"
 : "${CACHE_DRIVER:?docker or docker-container}"
 [[ "$CACHE_DRIVER" == docker || "$CACHE_DRIVER" == docker-container ]]
 case "$CACHE_PHASE" in
   cold|warm-layers) version=first; previous= ;;
   changed-source) version=second; previous=first ;;
+  # Writes the changed source into an empty mount for the next job without
+  # any cache claim: BuildKit may drop a cache mount between two builds at
+  # any time, so only a later job's MOUNT_REUSED proves persistence.
+  seed) version=second; previous= ;;
   same-size-write) version=third!; previous=second ;;
   verify-final) version=third!; previous= ;;
   *) echo 'Invalid phase' >&2; exit 1 ;;
@@ -37,6 +41,12 @@ printf 'package main\nimport ("fmt"; _ "net/http")\nfunc main() { fmt.Println("%
 
 docker version > "$results/docker-version.txt"
 docker buildx inspect "${CACHE_BUILDER:-default}" > "$results/builder.txt"
+# When BuildKit drops the mount between the cold and seed builds, the seed
+# writes a new record and the cold one survives under the same id, so the
+# next job may read `first`. Leave the seed's record as the only one.
+if [ "$CACHE_PHASE" = seed ]; then
+  docker buildx prune --builder "${CACHE_BUILDER:-default}" --all --force --filter type=exec.cachemount
+fi
 start=$(date +%s%N)
 docker buildx build --builder "${CACHE_BUILDER:-default}" --progress=plain \
   --build-arg "EXPERIMENT=$experiment" --output "type=local,dest=$work/output" \
@@ -45,6 +55,7 @@ elapsed_ms=$(( ($(date +%s%N) - start) / 1000000 ))
 test "$("$work/output/app")" = "$version"
 case "$CACHE_PHASE" in
   cold) grep -Eq '^#[0-9]+ [0-9.]+ MOUNT_COLD$' "$results/build.log" ;;
+  seed) ;;
   warm-layers|verify-final)
     # Require the compile vertex itself to hit, not an unrelated FROM/COPY.
     awk '/^#[0-9]+ .*RUN --mount=type=cache/ { vertex=$1 }
@@ -56,15 +67,17 @@ case "$CACHE_PHASE" in
     grep -F "fmt.Println(\"$previous\")" "$results/build.log"
     ;;
 esac
+assertions=Passed
+[ "$CACHE_PHASE" != seed ] || assertions='None (seeds the next job)'
 jq -n --arg phase "$CACHE_PHASE" --arg driver "$CACHE_DRIVER" \
   --arg experiment "$CACHE_EXPERIMENT" --arg source "$GITHUB_SHA" \
   --arg run "$GITHUB_RUN_ID" --arg arch "$(uname -m)" --argjson elapsed_ms "$elapsed_ms" \
   '{phase:$phase, driver:$driver, experiment:$experiment, source:$source, run:$run, arch:$arch,
-    build_ms:$elapsed_ms, assertions_passed:true}' > "$results/result.json"
+    build_ms:$elapsed_ms, assertions_passed:($phase != "seed")}' > "$results/result.json"
 {
   echo '| Driver | Phase | Build duration | Cache assertions |'
   echo '| --- | --- | ---: | --- |'
-  echo "| $CACHE_DRIVER | $CACHE_PHASE | ${elapsed_ms} ms | Passed |"
+  echo "| $CACHE_DRIVER | $CACHE_PHASE | ${elapsed_ms} ms | $assertions |"
   echo
   echo 'Timing includes the Docker build and local output export, excluding builder setup, queueing and post-job publication.'
   echo 'Run cold → warm-layers → changed-source → same-size-write with the same experiment key, revision and profile. Wait for each saved cache to publish before the next job.'

@@ -7,13 +7,15 @@ defmodule Tuist.Sandboxes.Query do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Analytics
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
+  alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Schemas
 
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
-  @create_fields ~w(platform template vcpus memory_mb workspace_gb)
+  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb)
 
   def run(:list, %Account{} = account, params) do
     with {:ok, page, size} <- pagination(params),
@@ -32,10 +34,17 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   # The changeset validates each platform's shapes; omitted fields take the platform's defaults.
+  # A macOS sandbox for a `repository` boots from its Claude Code macOS
+  # snapshot when one is ready, and has one built otherwise.
   def run(:create, account, params) do
     attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
+    attrs = put_guarantee(attrs, params["guaranteed_vcpus"])
 
-    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(created)}
+    with {:ok, source} <- ClaudeCodeSnapshots.mac_source(account, params["repository"], attrs),
+         {:ok, created} <- Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: source && source.snapshot) do
+      ClaudeCodeSnapshots.request_mac_build(source)
+      {:ok, sandbox(kept(created))}
+    end
   end
 
   def run(:show, account, params) do
@@ -43,7 +52,7 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   def run(:pause, account, params), do: transition(account, params, &Sandboxes.pause/1)
-  def run(:resume, account, params), do: transition(account, params, &Sandboxes.resume/1)
+  def run(:resume, account, params), do: transition(account, params, &resume_and_keep/1)
 
   def run(:archive, account, params) do
     with {:ok, found} <- find(account, params),
@@ -71,6 +80,7 @@ defmodule Tuist.Sandboxes.Query do
          period: %{start: iso(start), end: iso(finish)},
          bucket: Atom.to_string(Analytics.bucket_for_window(start, finish)),
          vcpu_hours: usage.vcpu_hours,
+         memory_gib_hours: usage.memory_gib_hours,
          created: %{
            count: overview.created.count,
            trend: overview.created.trend,
@@ -82,21 +92,19 @@ defmodule Tuist.Sandboxes.Query do
          concurrency: %{
            limits: %{
              vcpus: account.sandbox_vcpus_limit,
-             memory_gb: account.sandbox_memory_gb_limit * 1.0,
-             disk_gb: account.sandbox_disk_gb_limit * 1.0
+             memory_gb: account.sandbox_memory_gb_limit * 1.0
            },
+           # Guarantees can be fractions of a vCPU; the API's vCPUs are whole.
            in_use: %{
-             vcpus: in_use.vcpus,
-             memory_gb: Float.round(in_use.memory_mb / 1024, 1),
-             disk_gb: Float.round(Concurrency.disk_usage_mb(account.id) / 1024, 1)
+             vcpus: ceil(in_use.vcpus),
+             memory_gb: Float.round(in_use.memory_mb / 1024, 1)
            },
            points:
              points(
                concurrency.dates,
                &%{
-                 vcpus: Enum.at(concurrency.vcpus, &1),
-                 memory_gb: Enum.at(concurrency.memory_gb, &1) * 1.0,
-                 disk_gb: Enum.at(concurrency.disk_gb, &1) * 1.0
+                 vcpus: ceil(Enum.at(concurrency.vcpus, &1)),
+                 memory_gb: Enum.at(concurrency.memory_gb, &1) * 1.0
                }
              )
          }
@@ -110,22 +118,15 @@ defmodule Tuist.Sandboxes.Query do
   def error({:invalid_state, state}), do: {:conflict, "The sandbox is #{state}."}
   def error(:not_found), do: {:not_found, "Sandbox not found."}
 
+  def error({:invalid_cwd, cwd}),
+    do: {:bad_request, "The working directory #{cwd} does not exist in the sandbox or is not a directory."}
+
   def error(:invalid_parameters),
     do:
       {:bad_request,
        "Invalid identifier, pagination, filter, sorting or time range. Use an ordered range of at most 90 days ending no later than now."}
 
   def error(:no_node), do: {:service_unavailable, "No sandbox node with the template ready is connected."}
-
-  def error(:sandbox_limit),
-    do:
-      {:forbidden,
-       "The account has reached its sandbox disk limit, which paused sandboxes count toward. Delete some first."}
-
-  def error(:sandbox_disk_limit),
-    do:
-      {:too_many_requests,
-       "The account has reached its sandbox disk limit. Its oldest paused Orb is being archived to make room; retry shortly."}
 
   def error(:sandbox_concurrency_limit),
     do:
@@ -142,11 +143,42 @@ defmodule Tuist.Sandboxes.Query do
 
   def error(:stdin_not_attached), do: {:conflict, "The command was not started with stdin attached."}
   def error(:stdin_closed), do: {:conflict, "The command's stdin is closed."}
-  def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
-  def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
 
-  def error(:archive_storage_full),
-    do: {:conflict, "The account's archive storage is full. Delete archived sandboxes first."}
+  def error(:stdin_offset_mismatch),
+    do: {:conflict, "The write does not continue the command's stdin: its offset is not the number of bytes stdin holds."}
+
+  def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
+
+  def error(:command_id_taken),
+    do: {:conflict, "Another command already uses this id. Choose a new id for a new command."}
+
+  def error(:no_capacity),
+    do:
+      {:service_unavailable,
+       "No sandbox node has memory or disk left for this sandbox right now. Macs are shared with CI jobs, which free up within minutes: retry shortly, and prefer the default shape, which more hosts can take."}
+
+  # A paused macOS sandbox resumes warm only on the Mac that holds it, which
+  # it shares with CI. A refused resume also moves it to storage, so a later
+  # resume can cold-boot it on another Mac.
+  def error({:host_busy, :ci}),
+    do:
+      {:service_unavailable,
+       "The Mac this sandbox runs on is busy with CI jobs, which take priority. The sandbox resumes when a CI job finishes there, or on another Mac once it has moved there; a move keeps its files but not its running processes."}
+
+  def error({:host_busy, :full}),
+    do:
+      {:service_unavailable,
+       "The Mac this sandbox runs on has no CPU, memory or VM slot free; CI jobs and other sandboxes are using them. The sandbox resumes when one frees up there, or on another Mac once it has moved there; a move keeps its files but not its running processes."}
+
+  def error({:host_busy, :no_grant}),
+    do:
+      {:service_unavailable,
+       "The Mac this sandbox runs on is waiting for the CI scheduler to confirm it has room for sandboxes."}
+
+  def error({:host_busy, :not_connected}), do: {:service_unavailable, "The Mac this sandbox runs on is not connected."}
+
+  def error({:host_busy, :replaced}),
+    do: {:service_unavailable, "The Mac this sandbox ran on was replaced, so the sandbox can't resume."}
 
   def error(:archive_store_unavailable),
     do:
@@ -156,9 +188,19 @@ defmodule Tuist.Sandboxes.Query do
   def error(:not_connected), do: {:service_unavailable, "The sandbox's node is not connected."}
   def error(:node_disconnected), do: {:service_unavailable, "The sandbox's node disconnected during the operation."}
   def error(:timeout), do: {:gateway_timeout, "The sandbox's node did not answer in time."}
+
+  def error(:snapshot_not_saved),
+    do: {:service_unavailable, "The Orb paused, but its project snapshot could not be saved."}
+
   def error(%Ecto.Changeset{} = changeset), do: {:bad_request, changeset_message(changeset)}
   def error(reason) when is_binary(reason), do: {:bad_gateway, "The sandbox node rejected the operation: #{reason}"}
   def error(reason), do: {:internal_server_error, "Sandbox operation failed: #{inspect(reason)}"}
+
+  # vCPUs to millicores; anything else reaches the changeset as is, which
+  # refuses it.
+  defp put_guarantee(attrs, nil), do: attrs
+  defp put_guarantee(attrs, vcpus) when is_number(vcpus), do: Map.put(attrs, :guaranteed_cpu_milli, round(vcpus * 1000))
+  defp put_guarantee(attrs, vcpus), do: Map.put(attrs, :guaranteed_cpu_milli, vcpus)
 
   @doc """
   The public fields of a sandbox, with the status the dashboard shows.
@@ -190,6 +232,7 @@ defmodule Tuist.Sandboxes.Query do
       :updated_at
     ])
     |> Map.put(:status, status(sandbox))
+    |> Map.put(:guaranteed_vcpus, Sandbox.vcpus(Sandbox.guaranteed_cpu_milli(sandbox)))
   end
 
   defp status(%Sandbox{state: :running, residency_work_id: work}) when is_binary(work), do: "active"
@@ -202,6 +245,21 @@ defmodule Tuist.Sandboxes.Query do
     with {:ok, found} <- find(account, params),
          {:ok, updated} <- fun.(found) do
       {:ok, sandbox(updated)}
+    end
+  end
+
+  defp resume_and_keep(sandbox) do
+    with {:ok, resumed} <- Sandboxes.resume(sandbox), do: {:ok, kept(resumed)}
+  end
+
+  # A macOS sandbox started here is about to run the caller's commands, so
+  # it takes their session lease. A running VM needs no grant for it; the
+  # sandbox is still returned when the lease is refused, such as when its
+  # host was replaced, and the next command tries again.
+  defp kept(sandbox) do
+    case Commands.keep(sandbox) do
+      {:ok, kept} -> kept
+      {:error, _reason} -> sandbox
     end
   end
 

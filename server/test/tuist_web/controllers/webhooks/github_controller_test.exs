@@ -7,6 +7,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.DispatchWorker
+  alias Tuist.Runners.Workers.RecordWorkflowRunWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -1012,6 +1013,63 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           "delivery_guid" => delivery_guid
         }
       )
+    end
+  end
+
+  describe "handle/2 workflow_run" do
+    defp workflow_run_params(action) do
+      %{
+        "action" => action,
+        "installation" => %{"id" => 42},
+        "workflow_run" => %{
+          "id" => 30_433_642,
+          "run_attempt" => 1,
+          "event" => "push",
+          "head_branch" => "main",
+          "head_commit" => %{"message" => "Fix the thing"},
+          "head_repository" => %{"id" => 123},
+          "repository" => %{"id" => 123},
+          "pull_requests" => []
+        },
+        "repository" => %{"id" => 123, "full_name" => "org/repo", "default_branch" => "main"}
+      }
+    end
+
+    test "enqueues the requested run's scope inputs", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_run")
+        |> put_req_header("x-github-delivery", "run-delivery")
+        |> GitHubController.handle(workflow_run_params("requested"))
+
+      assert conn.status == 200
+
+      assert_enqueued(
+        worker: RecordWorkflowRunWorker,
+        args: %{
+          "installation_id" => 42,
+          "delivery_guid" => "run-delivery",
+          "run" => %{
+            "id" => 30_433_642,
+            "run_attempt" => 1,
+            "event" => "push",
+            "head_branch" => "main",
+            "head_repository" => %{"id" => 123},
+            "pull_requests" => [],
+            "repository" => %{"id" => 123, "full_name" => "org/repo", "default_branch" => "main"}
+          }
+        }
+      )
+    end
+
+    test "200s without enqueueing other actions", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_run")
+        |> GitHubController.handle(workflow_run_params("completed"))
+
+      assert conn.status == 200
+      refute_enqueued(worker: RecordWorkflowRunWorker)
     end
   end
 

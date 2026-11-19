@@ -13,7 +13,7 @@
     <div data-part="title">
       <h1>{display_name(@sandbox)}</h1>
       <% status = status(@sandbox) %>
-      <.badge label={status.label} color={status.color} style="light-fill" size="large" />
+      <.badge label={status.label} color={status.color} style="light-fill" size="medium" />
     </div>
     <div :if={@can_manage} data-part="actions">
       <.button
@@ -100,6 +100,10 @@
         <div data-part="metadata">
           <div data-part="title">{dgettext("dashboard_sandboxes", "Sandbox ID")}</div>
           <span data-part="label">{@sandbox.id}</span>
+        </div>
+        <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Created by")}</div>
+          <SandboxesLive.creator_badge_cell creator={@sandbox.creator_actor} />
         </div>
         <div data-part="metadata">
           <div data-part="title">{dgettext("dashboard_sandboxes", "vCPUs")}</div>

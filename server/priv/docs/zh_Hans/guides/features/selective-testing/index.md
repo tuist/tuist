@@ -7,10 +7,10 @@
 ---
 # 选择性测试 {#selective-testing}
 
-随着项目规模扩大，在每次推送时运行所有测试已不再可行。Tuist 选择性测试通过仅运行自上次成功运行以来受变更影响的测试，大幅缩短测试时间，这得益于我们的 <.localized_link href="/guides/features/projects/hashing">哈希算法</.localized_link>。
+随着项目规模扩大，每次推送都运行所有测试已不再可行。Tuist 选择性测试通过仅运行自上次成功运行以来发生更改所影响的测试，大幅缩短测试时间，这依赖于我们的 <.localized_link href="/guides/features/projects/hashing">哈希算法</.localized_link>。如需了解其他缩短测试时间的方法，例如分片和修复慢速测试，请参阅 [慢速测试](https://tuist.dev/solutions/slow-tests)。
 
 ## 支持的构建系统 {#supported-build-systems}
 
 - <.localized_link href="/guides/features/selective-testing/generated-xcode-project">Generated Xcode project</.localized_link>
 
-我们计划支持其他构建系统。
+计划支持其他构建系统。

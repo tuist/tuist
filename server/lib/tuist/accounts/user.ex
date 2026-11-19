@@ -18,7 +18,6 @@ defmodule Tuist.Accounts.User do
   @valid_email_regex ~r/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
   schema "users" do
-    field :token, :string
     field :email, :string
     field :password, :string, virtual: true
     field :encrypted_password, :string, default: ""
@@ -54,7 +53,6 @@ defmodule Tuist.Accounts.User do
   def create_user_changeset(user, attrs) do
     user
     |> cast(attrs, [
-      :token,
       :email,
       :password,
       :encrypted_password,
@@ -64,11 +62,10 @@ defmodule Tuist.Accounts.User do
       :email_verified_at
     ])
     |> update_change(:email, &String.downcase/1)
-    |> validate_required([:token, :email])
+    |> validate_required([:email])
     |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
     |> validate_password_strength()
     |> encrypt_password()
-    |> unique_constraint(:token, name: "index_users_on_token")
     |> unique_constraint(:email, name: "index_users_on_email")
   end
 

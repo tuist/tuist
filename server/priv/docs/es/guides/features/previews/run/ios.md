@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Ejecutar previews con la app para iPhone",
+  "title": "Ejecutar previsualizaciones con la app de iPhone",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Encuentra, filtra y accede a previews de Apple con la app de Tuist para iOS."
+  "description": "Encuentra, filtra y accede a previsualizaciones de Apple con la app de Tuist para iOS."
 }
 ---
-# Ejecuta previews con la app para iPhone
+# Ejecuta previews con la app de iPhone
 
 Instala la [app de Tuist para iOS desde la App Store](https://apps.apple.com/us/app/tuist/id6748460335) para encontrar y acceder a tus previews de Apple. Siguen aplicándose los requisitos de firma y elegibilidad de dispositivos del flujo de publicación.
 
@@ -17,11 +17,11 @@ Instala la [app de Tuist para iOS desde la App Store](https://apps.apple.com/us/
     </a>
 </div>
 
-Busca por nombre de la app o notas de la versión, luego selecciona un track para filtrar las previews. Elige **Todas** para navegar por todos los tracks, incluidas las previews sin track. Abre una preview para leer sus notas de la versión completas.
+Busca por nombre de la app o notas de lanzamiento, luego selecciona un track para filtrar las previews. Elige **Todas** para explorar todos los tracks, incluidas las previews sin track. Abre una preview para leer sus notas de lanzamiento completas.
 
 ## Compatibilidad entre cliente y servidor {#client-and-server-compatibility}
 
-Mantén la app de Tuist actualizada. Si alojas Tuist tú mismo, actualiza tu servidor para usar el filtrado por track y las notas de la versión. Aún puedes navegar por las previews sin filtrado en servidores antiguos.
+Mantén la app de Tuist actualizada. Si alojas Tuist tú mismo, actualiza tu servidor para usar el filtrado por track y las notas de lanzamiento. En servidores más antiguos, aún puedes explorar las previews sin filtrado.
 
 ## Notificaciones de actualización en la app {#in-app-update-notifications}
 
@@ -75,7 +75,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### Detener la monitorización de actualizaciones {#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` devuelve un `Task` que se puede cancelar:
+`monitorPreviewUpdates` devuelve una `Task` que se puede cancelar:
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in

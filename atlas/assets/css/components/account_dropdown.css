@@ -21,12 +21,12 @@
     }
 
     &[data-state="open"] .noora-avatar {
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
     }
   }
 
   & [data-part="content"] {
-    box-shadow: var(--noora-border-heavy);
+    box-shadow: var(--noora-border-large);
     border-radius: var(--noora-radius-2xlarge);
     background-color: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-0) var(--noora-spacing-7);

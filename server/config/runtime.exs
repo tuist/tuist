@@ -26,9 +26,7 @@ config :tuist, :pulse,
   account_id:
     if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
   base_url: System.get_env("TUIST_PULSE_URL"),
-  tenant: System.get_env("TUIST_PULSE_TENANT"),
-  token: System.get_env("TUIST_PULSE_TOKEN"),
-  token_file: System.get_env("TUIST_PULSE_TOKEN_FILE")
+  token: System.get_env("TUIST_PULSE_TOKEN")
 
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
@@ -152,7 +150,8 @@ end
 
 for {env_var, key} <- [
       {"TUIST_RUNNER_FREE_MONTHLY_MINUTES", :runner_free_monthly_minutes},
-      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes}
+      {"TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES", :runner_linux_free_monthly_minutes},
+      {"TUIST_RUNNER_AIR_FLEET_SHARE_PERCENT", :runner_air_fleet_share_percent}
     ] do
   case System.get_env(env_var) do
     nil ->
@@ -553,6 +552,13 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
       http_options: [
         log_protocol_errors: :verbose
       ],
+      # Bandit rejects requests with more than 50 headers by default (431).
+      # Cloudflare and ingress-nginx add about 26 forwarding headers, and
+      # Chromium sends the client hints tuist.dev requests via Accept-CH, so a
+      # plain form POST from Chrome went over the limit.
+      http_1_options: [
+        max_header_count: 60
+      ],
       thousand_island_options: [
         read_timeout: to_timeout(second: 15),
         shutdown_timeout: to_timeout(second: 15)
@@ -603,6 +609,10 @@ if Tuist.Environment.error_tracking_enabled?() do
 
   if pod_name do
     config :sentry, server_name: pod_name
+  end
+
+  if pulse_dsn = Tuist.Environment.sentry_pulse_dsn(secrets) do
+    config :tuist_common, sentry_pulse_dsn: pulse_dsn
   end
 end
 
@@ -783,8 +793,13 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # cannot delay either.
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
+# Disk snapshot archive uploads each hold a slot for up to half an hour, so
+# they take turns on their own queue instead of filling :default.
 base_queues = [
   threads: 10,
+  # A parked thread command's exit watch long-polls its sandbox, so the watches
+  # take turns here instead of holding `threads` slots that runs need.
+  thread_exit_watches: 20,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
@@ -797,11 +812,19 @@ base_queues = [
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,
-  coverage_deltas: 2
+  coverage_deltas: 2,
+  # Copies coverage rows into a new layout once per release that changes it.
+  coverage_backfills: 1,
+  sandbox_archives: 2,
+  sandbox_snapshot_copies: 1
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
+# Snapshot comparisons decode and diff full-resolution images, a few hundred
+# megabytes per job: they run on the processor pods with the other heavy
+# parsing, or on web pods with a bounded concurrency when there are none.
+process_snapshots_queue = {:process_snapshots, Tuist.Environment.process_snapshots_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
 # `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
@@ -814,7 +837,7 @@ swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build_queue, process_bazel_tests_queue]
+      [process_build_queue, process_bazel_tests_queue, process_snapshots_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
       # Every queue start, including an Oban-only supervisor restart, is
@@ -826,6 +849,10 @@ oban_queues =
     Tuist.Environment.swift_registry_sync_mode?() ->
       swift_registry_sync_queues
 
+    # Agents pods host sessions, not jobs. They still insert jobs.
+    Tuist.Environment.agents_mode?() ->
+      []
+
     true ->
       base = base_queues
       base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
@@ -834,6 +861,11 @@ oban_queues =
         if Tuist.Environment.delegate_process_bazel_tests?(),
           do: base,
           else: base ++ [process_bazel_tests_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_snapshots?(),
+          do: base,
+          else: base ++ [process_snapshots_queue]
 
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
@@ -882,6 +914,8 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron, crontab: crontab}
   ]
+
+config :tuist, Tuist.Agents.Runner, memory_limit_bytes: Tuist.Environment.agents_memory_limit_bytes()
 
 if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
@@ -1057,6 +1091,10 @@ cache_token_signing_jwk =
     nil -> nil
     pem -> Tuist.CacheGuardian.signing_jwk!(pem)
   end
+
+# ID tokens carry Boruta's issuer as `iss`, which must equal the `issuer` the
+# OpenID Provider metadata advertises (OpenID Connect Discovery 1.0, section 3).
+config :boruta, Boruta.Oauth, issuer: Tuist.Environment.app_url([route_type: :app], secrets)
 
 config :tuist, Tuist.CacheGuardian,
   issuer: "tuist",

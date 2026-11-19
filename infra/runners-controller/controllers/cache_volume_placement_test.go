@@ -96,8 +96,8 @@ func TestCreateRunnerPrefersTheHostPickedForItsQueuedJob(t *testing.T) {
 	if got := preferredNodes(pod); len(got) != 1 || got[0] != "b09" {
 		t.Fatalf("preferred nodes = %v, want [b09]", got)
 	}
-	if got := preferredKeys(pod); len(got) != 1 || got[0] != podtemplate.GoldenNodeAffinityKey(pool.Spec.Image) {
-		t.Fatalf("preferred node labels = %v, want only the golden one", got)
+	if got := preferredKeys(pod); len(got) != 2 || got[0] != podtemplate.GoldenNodeAffinityKey(pool.Spec.Image) || got[1] != podtemplate.MacosSandboxSessionsLabel {
+		t.Fatalf("preferred node labels = %v, want the golden and session-free ones", got)
 	}
 }
 
@@ -128,8 +128,8 @@ func TestCreateRunnerKeepsTheGoldenPreferenceWithoutSignals(t *testing.T) {
 
 	pod := createdPod(t, r, name)
 	got := preferredKeys(pod)
-	if len(got) != 1 || got[0] != podtemplate.GoldenNodeAffinityKey(pool.Spec.Image) {
-		t.Fatalf("preferred node labels = %v, want only the golden one", got)
+	if len(got) != 2 || got[0] != podtemplate.GoldenNodeAffinityKey(pool.Spec.Image) || got[1] != podtemplate.MacosSandboxSessionsLabel {
+		t.Fatalf("preferred node labels = %v, want the golden and session-free ones", got)
 	}
 	if nodes := preferredNodes(pod); len(nodes) != 0 {
 		t.Fatalf("preferred nodes = %v, want none", nodes)

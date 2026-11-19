@@ -2,10 +2,12 @@
 <!-- Push installation IDs and notification permission state belong to one physical device and must not be restored onto another. -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="sharedpref" path="tuist_secure_prefs.xml" />
         <exclude domain="sharedpref" path="tuist_push.xml" />
         <exclude domain="sharedpref" path="tuist_notifications.xml" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="sharedpref" path="tuist_secure_prefs.xml" />
         <exclude domain="sharedpref" path="tuist_push.xml" />
         <exclude domain="sharedpref" path="tuist_notifications.xml" />
     </device-transfer>

@@ -288,6 +288,20 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- with .Values.runnersFleet.networkPolicy.rustfsNamespace }}
+    # Presigned object requests to the RustFS store's private endpoint.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+          podSelector:
+            matchLabels:
+              app: rustfs
+              component: store
+      ports:
+        - protocol: TCP
+          port: 9000
+    {{- end }}
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy

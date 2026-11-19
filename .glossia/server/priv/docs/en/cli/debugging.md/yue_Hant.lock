@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1d0a6319f7c3e0318f32bbc656fadd3952e53bf7c440c91f3d26d1422e1eceb7",
+  "hash": "ba51424c899430bd4c3446b525c02af7b8e1a0c8e50f7a64427f4d10b995d23c",
   "hash_tree": {
     "root": {
       "children": [
@@ -47,7 +47,7 @@
                   "content_hash": "8e46af5e70c3152b8926be78bcdaba9d5005a57776e74a9e565cd05899e1805f"
                 },
                 "### Visualizing HAR files {#visualizing-har-files}": {
-                  "content_hash": "90a3f2cbde27386653dac165b4857a67b45c3525e5eca2b1af87fa403119bdb6"
+                  "content_hash": "f08d2185906d20810f46da478942ddcd8fc867c61263bf43654000d1ac9c7659"
                 },
                 "### Xcode cache debugging {#cache-daemon-debugging}": {
                   "content_hash": "e82bf5226bdd435e3f47ffb3d6a82830760c3305de823cf51df2d8c766be799c"
@@ -59,11 +59,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "af6dce1ebb2e14e2b8fe98f3b99e92f717bbe92e3f94bca086803af7ecb4a6f2",
+          "hash": "a908cc358f577040cee29ab344a0335b8adf33f4d425740087019ac48815084d",
           "kind": "source",
           "label": "server/priv/docs/en/cli/debugging.md",
           "metadata": {
-            "content_hash": "4c6b392ac4a11feced95e8af63c225a0ec5ac9dacccd775dbf2082574d3a410d"
+            "content_hash": "f4139fe285b3c64dfe1e9ab66c1288beac0e8100001ecf822ab46a0bb9a1099f"
           }
         },
         {
@@ -124,7 +124,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -143,7 +143,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -172,11 +172,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -253,21 +253,21 @@
             }
           ],
           "details": {},
-          "hash": "7828e09ce4d11caa8388e17aac31091b06993ef879109b6d9deecbfa1a8f1352",
+          "hash": "d964b1074f9ca0258306c2839ee411dc4b447cf98f36e80510e3de4156fae489",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "1d0a6319f7c3e0318f32bbc656fadd3952e53bf7c440c91f3d26d1422e1eceb7",
+      "hash": "ba51424c899430bd4c3446b525c02af7b8e1a0c8e50f7a64427f4d10b995d23c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/cli/debugging.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5e038d0710ad0dc09bee826227c1faf28ebd77d38a456100e36fe81f40fa9051",
+  "output_hash": "c8ac54eba3778ec64949f2dea82250554bc9332695158441549aec51949e02ae",
   "output_path": "server/priv/docs/yue_Hant/cli/debugging.md",
   "protection_state": "recorded",
   "provider": "",
@@ -287,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "3f12ee0ec60940c5fb24bd1be70d7dedfd83ff50",
+  "source_commit_sha": "fefa839a20d051f13f1edd1533d4b86fb1b53d52",
   "source_path": "server/priv/docs/en/cli/debugging.md",
-  "translated_at": "2026-11-04T17:31:15.273525Z",
-  "translation_session_id": "01a1a79b-5bea-7125-be4b-946b0e79956a"
+  "translated_at": "2026-11-18T19:05:17.255302Z",
+  "translation_session_id": "01a1f008-da29-7849-88c1-1c80e0af752d"
 }

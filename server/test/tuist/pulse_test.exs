@@ -4,17 +4,65 @@ defmodule Tuist.PulseTest do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Pulse
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  @log_columns ~w(timestamp service level message trace_id)
+  @span_columns ~w(timestamp service name duration_ms trace_id)
+
   setup do
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: user)
-    config = [account_id: organization.account.id, base_url: "https://pulse.internal/", tenant: "tuist", token: "secret"]
+    config = [account_id: organization.account.id, base_url: "https://pulse.internal/", token: "secret"]
     stub(Environment, :pulse_config, fn -> config end)
     stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> true end)
+    # Tests read different upstream responses for one window; the reuse of a
+    # computed window has its own test.
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
     %{user: user, account: organization.account, organization: organization, config: config}
+  end
+
+  test "logs use readonly SQL rows in the configured database", ctx do
+    expect(Req, :request, 3, fn request ->
+      assert request.url.path == "/v1/sql"
+      assert request.options[:auth] == {:basic, "dashboard:secret"}
+      assert request.headers["x-pulse-db-name"] == ["public"]
+
+      response(
+        sql_body(@log_columns, [
+          [1_794_329_254_406_000_001, "worker", "WARN", "can't cache", "abc"],
+          [1_794_329_254_406_000_002, "server", "ERROR", "can't connect", "def"]
+        ])
+      )
+    end)
+
+    assert Pulse.default_query("metrics") == "up"
+    assert Pulse.default_query("logs") == "*"
+    assert Pulse.default_query("traces") == "*"
+    assert Pulse.default_query("errors") == "*"
+
+    assert {:ok, %{rows: [%{"message" => "can't connect", "timestamp" => "1794329254406000002"}], meta: meta}} =
+             Pulse.query(ctx.user, ctx.account, "logs", %{"query" => "can't", "service" => "server"})
+
+    assert meta["total_count"] == 1
+  end
+
+  test "metrics use the Prometheus API and spans retain measured milliseconds", ctx do
+    expect(Req, :request, fn request ->
+      assert request.url.path == "/v1/prometheus/api/v1/query"
+      response(scalar_body([1_794_329_254, "17"]))
+    end)
+
+    assert {:ok, %{rows: [%{"value" => 17.0}]}} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
+
+    stub(Req, :request, fn _ ->
+      response(sql_body(@span_columns, [[1_794_329_254_406_000_001, "worker", "cache.get", 17.25, "abc"]]))
+    end)
+
+    assert {:ok, %{rows: [%{"name" => "cache.get", "duration_ms" => 17.25, "trace_id" => "abc"}]}} =
+             Pulse.query(ctx.user, ctx.account, "traces", %{})
   end
 
   test "availability requires the configured account and its feature flag", %{account: account} do
@@ -31,6 +79,23 @@ defmodule Tuist.PulseTest do
     end
   end
 
+  test "own telemetry follows the configured account's enrollment", %{config: config} do
+    assert Pulse.own_telemetry?()
+
+    stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> false end)
+    refute Pulse.own_telemetry?()
+
+    # An account that no longer exists, or none configured, takes nothing.
+    stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> true end)
+    stub(Environment, :pulse_config, fn -> Keyword.put(config, :account_id, config[:account_id] + 1_000_000) end)
+    refute Pulse.own_telemetry?()
+
+    for id <- [nil, 0, "1"] do
+      stub(Environment, :pulse_config, fn -> [account_id: id] end)
+      refute Pulse.own_telemetry?()
+    end
+  end
+
   test "disabling the flag denies every read even for the configured organization's member", ctx do
     stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> false end)
     reject(Req, :request, 1)
@@ -39,8 +104,6 @@ defmodule Tuist.PulseTest do
     refute Pulse.authorized?(ctx.user, ctx.account)
     assert {:error, :forbidden} = Pulse.query(ctx.user, ctx.account, "logs", %{})
     assert {:error, :forbidden} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
-    assert {:error, :forbidden} = Pulse.error_issue(ctx.user, ctx.account, "issue", %{})
-    assert {:error, :forbidden} = Pulse.error_event(ctx.user, ctx.account, "issue", "event", %{})
   end
 
   test "denies outsiders, anonymous visitors, public dashboard readers and other organizations before HTTP", ctx do
@@ -102,58 +165,99 @@ defmodule Tuist.PulseTest do
   end
 
   for {signal, path} <- [
-        {"metrics", "/api/v1/query"},
-        {"logs", "/loki/api/v1/query_range"},
-        {"traces", "/api/search"}
+        {"metrics", "/v1/prometheus/api/v1/query"},
+        {"logs", "/v1/sql"},
+        {"traces", "/v1/sql"}
       ] do
     test "#{signal} uses the canonical endpoint, units and bounded read-only options", ctx do
       signal = unquote(signal)
       now = ~U[2026-11-06 12:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
       finish = DateTime.to_unix(now)
+      order = "ORDER BY timestamp DESC, trace_id ASC LIMIT 100"
+      test = self()
 
-      expect(Req, :request, fn request ->
+      # Without 100 matches, the table widens from the newest minute to the
+      # newest 15 minutes and then the whole hour.
+      windows =
+        for seconds <- [60, 900, 3600] do
+          "timestamp > to_timestamp_seconds(#{finish - seconds}) AND timestamp <= to_timestamp_seconds(#{finish})"
+        end
+
+      expect(Req, :request, if(signal == "metrics", do: 1, else: 3), fn request ->
         assert request.method == :get
         assert request.url.host == "pulse.internal"
         assert request.url.path == unquote(path)
-        assert Req.Request.get_header(request, "x-scope-orgid") == ["tuist"]
-        assert request.options.auth == {:bearer, "secret"}
+        assert Req.Request.get_header(request, "x-pulse-db-name") == ["public"]
+        assert Req.Request.get_header(request, "accept") == ["application/json"]
+        assert request.options.auth == {:basic, "dashboard:secret"}
         assert request.options.redirect == false
         assert request.options.retry == false
         assert request.options.receive_timeout == 30_000
         assert request.options.connect_options == [timeout: 10_000]
         params = request.options.params
 
-        if signal == "logs" do
-          assert params[:start] == Integer.to_string((finish - 3600) * 1_000_000_000)
-          assert params[:end] == Integer.to_string(finish * 1_000_000_000)
-          assert params[:limit] == 100
-          assert params[:direction] == "backward"
-        end
-
-        if signal == "traces" do
-          assert params[:start] == finish - 3600
-          assert params[:end] == finish
-        end
-
         case signal do
           "metrics" ->
-            assert params[:query] == "up"
-            assert params[:time] == finish
-            refute Keyword.has_key?(params, :step)
+            assert params == [query: "up", time: finish]
+            response(metric_body([]))
 
-          "traces" ->
-            assert params[:q] == "{}"
-            assert params[:limit] == 100
-
-          "logs" ->
-            assert params[:query] == ~s({service_name=~".+"})
+          _ ->
+            assert [sql: sql] = params
+            send(test, {:sql, sql})
+            response(sql_body(if(signal == "logs", do: @log_columns, else: @span_columns), []))
         end
-
-        response(empty_body(signal))
       end)
 
       assert {:ok, %{rows: [], series: [], warnings: []}} = Pulse.query(ctx.user, ctx.account, signal, %{})
+
+      select =
+        case signal do
+          "metrics" ->
+            nil
+
+          "logs" ->
+            "SELECT arrow_cast(timestamp, 'Int64') AS timestamp, " <>
+              ~s|json_get_string(resource_attributes, '["service.name"]') AS service, | <>
+              "severity_text AS level, body AS message, trace_id FROM opentelemetry_logs"
+
+          "traces" ->
+            "SELECT arrow_cast(timestamp, 'Int64') AS timestamp, service_name AS service, span_name AS name, " <>
+              "duration_nano / 1000000.0 AS duration_ms, trace_id FROM opentelemetry_traces"
+        end
+
+      if select, do: assert(flush_sql() == Enum.map(windows, &"#{select} WHERE #{&1} #{order}"))
+    end
+  end
+
+  test "the table stops widening at the first window holding 100 matches", ctx do
+    stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
+    finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+    rows = fn count -> Enum.map(1..count, &[finish * 1_000_000_000 - &1, "server", "span", 1, "trace"]) end
+
+    expect(Req, :request, 2, fn request ->
+      sql = request.options.params[:sql]
+
+      cond do
+        sql =~ "timestamp > to_timestamp_seconds(#{finish - 60}) AND" -> response(sql_body(@span_columns, rows.(40)))
+        sql =~ "timestamp > to_timestamp_seconds(#{finish - 900}) AND" -> response(sql_body(@span_columns, rows.(100)))
+      end
+    end)
+
+    assert {:ok, %{rows: [newest | _], meta: %{"total_count" => 100}}} =
+             Pulse.query(ctx.user, ctx.account, "traces", %{"range" => "24h"})
+
+    assert newest["timestamp"] == Integer.to_string(finish * 1_000_000_000 - 1)
+  end
+
+  test "log and span text search is a literal, case-insensitive SQL string", ctx do
+    for {signal, column} <- [{"logs", "body"}, {"traces", "span_name"}] do
+      expect(Req, :request, 3, fn request ->
+        assert request.options.params[:sql] =~ " AND strpos(lower(#{column}), lower('it''s %_')) > 0 ORDER BY"
+        response(sql_body(if(signal == "logs", do: @log_columns, else: @span_columns), []))
+      end)
+
+      assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, signal, %{"query" => "it's %_"})
     end
   end
 
@@ -163,7 +267,7 @@ defmodule Tuist.PulseTest do
     for range <- ~w(15m 1h 6h 24h) do
       expect(Req, :request, fn request ->
         params = request.options.params
-        assert request.url.path == "/api/v1/query"
+        assert request.url.path == "/v1/prometheus/api/v1/query"
         assert params[:query] == "sum(up)"
         assert params[:time] == DateTime.to_unix(finish)
         refute Keyword.has_key?(params, :start)
@@ -228,64 +332,38 @@ defmodule Tuist.PulseTest do
     assert meta["total_pages"] == 6
   end
 
-  test "logs project safe fields and preserve exact nanosecond ordering", ctx do
-    event = %{
-      "exception" => %{"values" => [%{"type" => "RuntimeError", "value" => "boom"}]},
-      "contexts" => %{"trace" => %{"trace_id" => "trace"}},
-      "request" => %{"password" => "private"}
-    }
+  test "logs and traces project SQL rows with exact nanosecond strings", ctx do
+    stub(Req, :request, fn _ ->
+      response(
+        sql_body(@log_columns, [
+          [1_793_966_400_000_000_001, nil, nil, "plain", nil],
+          [1_793_966_400_000_000_002, "server", "ERROR", "boom", "trace"]
+        ])
+      )
+    end)
 
-    values = [
-      ["1793966400000000001", JSON.encode!(event)],
-      ["1793966400000000002", "plain", %{"trace_id" => "metadata-trace", "private" => "secret"}]
-    ]
+    assert {:ok, %{rows: [newer, older], series: []}} = Pulse.query(ctx.user, ctx.account, "logs", %{})
 
-    body =
-      stream_body([
-        %{"stream" => %{"service_name" => "server", "severity_text" => "error", "secret" => "hidden"}, "values" => values}
-      ])
+    assert newer == %{
+             "timestamp" => "1793966400000000002",
+             "service" => "server",
+             "level" => "ERROR",
+             "message" => "boom",
+             "trace_id" => "trace"
+           }
 
-    stub(Req, :request, fn _ -> response(body) end)
+    assert older == %{
+             "timestamp" => "1793966400000000001",
+             "service" => nil,
+             "level" => nil,
+             "message" => "plain",
+             "trace_id" => nil
+           }
 
-    for signal <- ~w(logs) do
-      assert {:ok, %{rows: [newer, older], series: []}} = Pulse.query(ctx.user, ctx.account, signal, %{})
+    stub(Req, :request, fn _ ->
+      response(sql_body(@span_columns, [[1_793_966_400_000_000_001, "server", "GET /", nil, "abc"]]))
+    end)
 
-      assert newer == %{
-               "timestamp" => "1793966400000000002",
-               "service" => "server",
-               "level" => "error",
-               "message" => "plain",
-               "trace_id" => "metadata-trace"
-             }
-
-      assert older["timestamp"] == "1793966400000000001"
-      assert older["message"] == "RuntimeError: boom"
-      assert older["trace_id"] == "trace"
-      refute inspect(older) =~ "private"
-      refute inspect(newer) =~ "secret"
-    end
-  end
-
-  test "structured logs without a display message do not expose arbitrary payloads", ctx do
-    values = [["1", ~s({"secret":"hidden"})], ["2", ~s(["hidden"])], ["3", String.duplicate("x", 5000)]]
-    stub(Req, :request, fn _ -> response(stream_body([%{"stream" => %{}, "values" => values}])) end)
-    assert {:ok, %{rows: [long, structured, object]}} = Pulse.query(ctx.user, ctx.account, "logs", %{})
-    assert String.length(long["message"]) == 4096
-    assert structured["message"] == "Structured log"
-    assert object["message"] == "Structured log"
-  end
-
-  test "traces retain nanoseconds and milliseconds without raw span metadata", ctx do
-    trace = %{
-      "traceID" => "abc",
-      "startTimeUnixNano" => "1793966400000000001",
-      "rootServiceName" => "server",
-      "rootTraceName" => "GET /",
-      "durationMs" => 1.25,
-      "spanSet" => %{"secret" => "hidden"}
-    }
-
-    stub(Req, :request, fn _ -> response(%{"traces" => [trace]}) end)
     assert {:ok, %{rows: [row], series: []}} = Pulse.query(ctx.user, ctx.account, "traces", %{})
 
     assert row == %{
@@ -293,18 +371,335 @@ defmodule Tuist.PulseTest do
              "timestamp" => "1793966400000000001",
              "service" => "server",
              "name" => "GET /",
-             "duration_ms" => 1.25
+             "duration_ms" => nil
            }
   end
 
   test "logs and traces reject upstream responses exceeding the requested bound", ctx do
-    values = Enum.map(1..101, &[Integer.to_string(&1), "line"])
-    stub(Req, :request, fn _ -> response(stream_body([%{"stream" => %{}, "values" => values}])) end)
+    rows = Enum.map(1..101, &[&1, "server", "INFO", "line", "trace"])
+    stub(Req, :request, fn _ -> response(sql_body(@log_columns, rows)) end)
     assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "logs", %{})
 
-    traces = Enum.map(1..101, &%{"traceID" => "trace", "startTimeUnixNano" => &1})
-    stub(Req, :request, fn _ -> response(%{"traces" => traces}) end)
+    rows = Enum.map(1..101, &[&1, "server", "span", 1, "trace"])
+    stub(Req, :request, fn _ -> response(sql_body(@span_columns, rows)) end)
     assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "traces", %{})
+  end
+
+  defp flush_sql(statements \\ []) do
+    receive do
+      {:sql, sql} -> flush_sql([sql | statements])
+    after
+      0 -> Enum.reverse(statements)
+    end
+  end
+
+  @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id environment environments)
+  @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle sdk)
+  @fingerprint String.duplicate("a1", 32)
+
+  test "errors list issues by service and fingerprint, filtered and sorted before paging", ctx do
+    expect(Req, :request, 6, fn request ->
+      sql = request.options.params[:sql]
+      assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
+
+      if sql =~ "GROUP BY service, fingerprint, bucket",
+        do: issue_buckets(sql),
+        else: issue_rows(sql)
+    end)
+
+    assert {:ok, %{rows: rows, meta: meta}} =
+             Pulse.query(ctx.user, ctx.account, "errors", %{
+               "query" => "can't",
+               "service" => "server",
+               "sort_by" => "events"
+             })
+
+    assert Enum.map(rows, & &1["fingerprint"]) == [@fingerprint, String.duplicate("c3", 32)]
+
+    assert %{
+             "first_seen" => "1794329254000000001",
+             "last_seen" => "1794329255000000002",
+             "accounts" => 1,
+             "environment" => "production",
+             "environments" => 2
+           } = hd(rows)
+
+    assert meta["total_count"] == 2
+
+    # The worker's events under the same fingerprint stay out of the server issue's trend.
+    series = hd(rows)["occurrence_series"]
+    assert length(series) == 60
+    assert series |> Enum.at(3) |> List.last() == 2
+    assert series |> Enum.map(&List.last/1) |> Enum.sum() == 3
+    assert rows |> List.last() |> Map.fetch!("occurrence_series") |> Enum.all?(&(List.last(&1) == 0))
+
+    assert {:ok, %{rows: rows}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't"})
+    assert Enum.map(rows, & &1["latest_event_id"]) == ~w(bb aa cc)
+
+    # Search matches an issue's fields, not its trend's bucket labels.
+    label = series |> Enum.at(30) |> hd() |> to_string()
+    assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't", "search" => label})
+  end
+
+  test "an error environment filter selects events before they are grouped into issues", ctx do
+    expect(Req, :request, 2, fn request ->
+      sql = request.options.params[:sql]
+
+      assert sql =~ "AND environment = 'production' GROUP BY service, fingerprint ORDER BY" or
+               sql =~
+                 "AND strpos(lower(coalesce(environment, '')), lower('stag')) = 0 GROUP BY service, fingerprint ORDER BY"
+
+      response(sql_body(@issue_columns, []))
+    end)
+
+    assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"environment" => "production"})
+
+    assert {:ok, %{rows: []}} =
+             Pulse.query(ctx.user, ctx.account, "errors", %{
+               "environment" => "stag",
+               "environment_op" => "not_contains"
+             })
+
+    assert {:error, :invalid_params} = Pulse.query(ctx.user, ctx.account, "logs", %{"environment" => "production"})
+  end
+
+  defp issue_buckets(sql) do
+    assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 AND fingerprint IN ("
+    assert sql =~ "'#{String.duplicate("b2", 32)}'"
+
+    response(
+      sql_body(~w(service fingerprint bucket events), [
+        ["server", @fingerprint, 3, 2],
+        ["server", @fingerprint, 70, 1],
+        ["worker", @fingerprint, 3, 5],
+        ["worker", String.duplicate("b2", 32), 0, 9]
+      ])
+    )
+  end
+
+  defp issue_rows(sql) do
+    assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
+    assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 GROUP BY service, fingerprint ORDER BY last_seen DESC"
+    assert sql =~ "count(DISTINCT nullif(account_handle, '')) AS accounts"
+    assert sql =~ "last_value(environment ORDER BY timestamp) AS environment, "
+    assert sql =~ "count(DISTINCT nullif(environment, '')) AS environments"
+    assert String.ends_with?(sql, " LIMIT 100")
+
+    response(
+      sql_body(@issue_columns, [
+        [
+          "server",
+          @fingerprint,
+          3,
+          1,
+          ns(1_794_329_254) + 1,
+          ns(1_794_329_255) + 2,
+          "RuntimeError: can't",
+          "f/1",
+          "error",
+          "elixir",
+          "aa",
+          "production",
+          2
+        ],
+        [
+          "worker",
+          String.duplicate("b2", 32),
+          9,
+          0,
+          ns(1_794_329_250),
+          ns(1_794_329_256),
+          "KeyError: can't",
+          nil,
+          "warning",
+          nil,
+          "bb",
+          "staging",
+          1
+        ],
+        [
+          "server",
+          String.duplicate("c3", 32),
+          1,
+          0,
+          ns(1_794_329_251),
+          ns(1_794_329_251),
+          "Exit: can't",
+          nil,
+          "fatal",
+          nil,
+          "cc",
+          nil,
+          0
+        ]
+      ])
+    )
+  end
+
+  test "an error issue returns its summary, 60 occurrence buckets and the latest scrubbed event", ctx do
+    finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+    start = finish - 3600
+    parent = self()
+    event = ["ee", "RuntimeError: boom", "error", "production", "1.0", "pod", "0af7", "tuist", "sentry-elixir/11.0"]
+
+    stub(Req, :request, fn request ->
+      sql = request.options.params[:sql]
+      send(parent, :sql)
+
+      assert sql =~
+               " FROM errors WHERE timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"
+
+      assert sql =~ " AND service = 'server''s' AND fingerprint = '#{@fingerprint}'"
+
+      cond do
+        sql =~ "GROUP BY service, fingerprint" ->
+          response(
+            sql_body(@issue_columns, [
+              [
+                "server's",
+                @fingerprint,
+                4,
+                1,
+                ns(start) + 5,
+                ns(finish),
+                "RuntimeError: boom",
+                "f/1",
+                "error",
+                "elixir",
+                "ee",
+                "production",
+                1
+              ]
+            ])
+          )
+
+        sql =~ "GROUP BY bucket" ->
+          assert sql =~ "(arrow_cast(timestamp, 'Int64') - #{ns(start)}) / 60000000000 AS bucket"
+          # An event at the window's inclusive end falls into the last bucket.
+          response(sql_body(~w(bucket events), [[0, 2], [30, 1], [60, 1]]))
+
+        sql =~ ", event FROM errors" ->
+          payload = %{
+            "exception" => [%{"type" => "RuntimeError", "frames" => []}],
+            "tags" => %{"a" => "b"},
+            "user" => %{"id" => "1"}
+          }
+
+          response(sql_body(@event_columns ++ ["event"], [[ns(finish) | event] ++ [payload]]))
+
+        true ->
+          assert String.ends_with?(sql, "ORDER BY timestamp DESC, event_id ASC LIMIT 2 OFFSET 2")
+
+          response(
+            sql_body(@event_columns, [
+              [ns(finish) | event],
+              [ns(start) + 5, "dd", nil, "error", nil, nil, nil, nil, nil, nil]
+            ])
+          )
+      end
+    end)
+
+    assert {:ok, detail} =
+             Pulse.error_issue(ctx.user, ctx.account, @fingerprint, %{
+               "service" => "server's",
+               "end_at" => "2026-11-06T12:00:00Z",
+               "page" => "2",
+               "page_size" => "2"
+             })
+
+    assert detail.issue["events"] == 4
+
+    assert detail.meta == %{
+             "page" => 2,
+             "page_size" => 2,
+             "total_count" => 4,
+             "total_pages" => 2,
+             "end_at" => "2026-11-06T12:00:00Z",
+             "has_next_page" => false,
+             "has_previous_page" => true
+           }
+
+    assert detail.issue["first_seen"] == Integer.to_string(ns(start) + 5)
+    assert length(detail.occurrence_series) == 60
+    assert hd(detail.occurrence_series) == [start, 2]
+    assert Enum.at(detail.occurrence_series, 30) == [start + 1800, 1]
+    assert List.last(detail.occurrence_series) == [finish - 60, 1]
+    assert detail.occurrence_series |> Enum.map(&List.last/1) |> Enum.sum() == 4
+    assert detail.latest_event["event_id"] == "ee"
+    assert detail.latest_event["timestamp"] == Integer.to_string(ns(finish))
+    assert detail.latest_event["exception"] == [%{"type" => "RuntimeError", "frames" => []}]
+    assert detail.latest_event["tags"] == %{"a" => "b"}
+    refute Map.has_key?(detail.latest_event, "user")
+    assert Enum.map(detail.events, & &1["event_id"]) == ~w(ee dd)
+
+    for _ <- 1..4, do: assert_received(:sql)
+    refute_received :sql
+  end
+
+  test "error issues report a missing issue and validate before HTTP", ctx do
+    expect(Req, :request, fn _ -> response(sql_body(@issue_columns, [])) end)
+    assert {:error, :not_found} = Pulse.error_issue(ctx.user, ctx.account, @fingerprint, %{"service" => "server"})
+
+    reject(Req, :request, 1)
+
+    for {fingerprint, params} <- [
+          {String.upcase(@fingerprint), %{"service" => "server"}},
+          {"a1", %{"service" => "server"}},
+          {@fingerprint, %{}},
+          {@fingerprint, %{"service" => ""}},
+          {@fingerprint, %{"service" => 1}},
+          {@fingerprint, %{"service" => "server", "query" => "x"}},
+          {@fingerprint, %{"service" => "server", "range" => "7d"}},
+          {@fingerprint, %{"service" => "server", "page" => "0"}},
+          {@fingerprint, nil}
+        ] do
+      assert {:error, :invalid_params} = Pulse.error_issue(ctx.user, ctx.account, fingerprint, params)
+    end
+
+    outsider = AccountsFixtures.user_fixture()
+    assert {:error, :forbidden} = Pulse.error_issue(outsider, ctx.account, @fingerprint, %{"service" => "server"})
+    assert {:error, :forbidden} = Pulse.error_issue(nil, ctx.account, "bad", %{})
+  end
+
+  test "an error event is read by its issue and ID within the window", ctx do
+    event_id = String.duplicate("e5", 16)
+
+    expect(Req, :request, fn request ->
+      sql = request.options.params[:sql]
+      assert sql =~ " AND service = 'server' AND fingerprint = '#{@fingerprint}' AND event_id = '#{event_id}'"
+
+      response(
+        sql_body(@event_columns ++ ["event"], [
+          [ns(1_794_329_254), event_id, "KeyError", "error", "production", nil, "pod", nil, nil, "sentry-elixir/11.0"] ++
+            [%{"contexts" => %{"trace.span_id" => "b7ad"}, "request" => %{"url" => "/x"}, "user" => %{}}]
+        ])
+      )
+    end)
+
+    assert {:ok, %{event: event}} =
+             Pulse.error_event(ctx.user, ctx.account, @fingerprint, event_id, %{"service" => "server"})
+
+    assert event["title"] == "KeyError"
+    assert event["sdk"] == "sentry-elixir/11.0"
+    assert event["contexts"] == %{"trace.span_id" => "b7ad"}
+    refute Map.has_key?(event, "user")
+
+    expect(Req, :request, fn _ -> response(sql_body(@event_columns ++ ["event"], [])) end)
+
+    assert {:error, :not_found} =
+             Pulse.error_event(ctx.user, ctx.account, @fingerprint, event_id, %{"service" => "server"})
+
+    reject(Req, :request, 1)
+
+    for {id, params} <- [
+          {String.upcase(event_id), %{"service" => "server"}},
+          {event_id, %{"service" => "server", "page" => "2"}},
+          {event_id, %{}}
+        ] do
+      assert {:error, :invalid_params} = Pulse.error_event(ctx.user, ctx.account, @fingerprint, id, params)
+    end
+
+    assert {:error, :forbidden} = Pulse.error_event(nil, ctx.account, @fingerprint, event_id, %{"service" => "server"})
   end
 
   test "malformed upstream results return fixed errors", ctx do
@@ -317,9 +712,14 @@ defmodule Tuist.PulseTest do
           {"metrics", scalar_body([1, 2])},
           {"metrics", scalar_body([])},
           {"metrics", metric_body([%{"metric" => %{"label" => 1}, "values" => []}])},
-          {"metrics", Map.put(empty_body("metrics"), "warnings", [1])},
-          {"logs", stream_body([%{"stream" => %{}, "values" => [["bad", "line"]]}])},
-          {"traces", %{"traces" => [%{"traceID" => "trace", "startTimeUnixNano" => "1", "durationMs" => "bad"}]}}
+          {"metrics", Map.put(metric_body([]), "warnings", [1])},
+          {"logs", %{}},
+          {"logs", %{"output" => []}},
+          {"logs", sql_body(@log_columns, [["bad", "server", "INFO", "line", "trace"]])},
+          {"logs", sql_body(@log_columns, [[-1, "server", "INFO", "line", "trace"]])},
+          {"logs", sql_body(@log_columns, [[1, "server", "INFO", 1, "trace"]])},
+          {"logs", sql_body(@log_columns, [[1, "server"]])},
+          {"traces", sql_body(@span_columns, [[1, "server", "span", "bad", "trace"]])}
         ] do
       stub(Req, :request, fn _ -> response(body) end)
       assert {:error, :malformed_response} = Pulse.query(ctx.user, ctx.account, signal, %{})
@@ -353,36 +753,12 @@ defmodule Tuist.PulseTest do
           base_url: "file:///tmp/pulse",
           base_url: "https://user:pass@pulse.internal",
           base_url: "https://pulse.internal?query=up",
-          tenant: "bad\ntenant",
           token: "",
           token: "bad\rtoken"
         ] do
       stub(Environment, :pulse_config, fn -> Keyword.put(ctx.config, key, value) end)
       assert {:error, :not_configured} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
     end
-  end
-
-  @tag :tmp_dir
-  test "projected token files rotate each request and never fall back to a static token", %{tmp_dir: tmp_dir} = ctx do
-    path = Path.join(tmp_dir, "token")
-    stub(Environment, :pulse_config, fn -> Keyword.put(ctx.config, :token_file, path) end)
-
-    for token <- ["first", "rotated"] do
-      File.write!(path, token <> "\n")
-
-      expect(Req, :request, fn request ->
-        assert request.options.auth == {:bearer, token}
-        response(empty_body("metrics"))
-      end)
-
-      assert {:ok, _} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
-    end
-
-    File.rm!(path)
-    reject(Req, :request, 1)
-    assert {:error, :not_configured} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
-    File.write!(path, "\n")
-    assert {:error, :not_configured} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
   end
 
   describe "analytics" do
@@ -413,6 +789,9 @@ defmodule Tuist.PulseTest do
             %{"range" => nil},
             %{"range" => :hour},
             %{"range" => "7d"},
+            %{"widgets" => []},
+            %{"widgets" => "reporting"},
+            %{"widgets" => ["fatal"]},
             %{"query" => "up"},
             %{"base_url" => "https://evil.test"},
             %{"tenant" => "other"},
@@ -427,377 +806,413 @@ defmodule Tuist.PulseTest do
       assert {:error, :not_configured} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
     end
 
-    test "fixed end gauges and range queries share a bounded snapshot, with missing distinct from zero", ctx do
+    test "one count_values range query yields every gauge from a bounded snapshot, with missing distinct from zero",
+         ctx do
       now = ~U[2026-11-06 12:00:07Z]
       stub(DateTime, :utc_now, fn -> now end)
       parent = self()
 
       for {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
         finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
+        start = finish - seconds
 
         stub(Req, :request, fn request ->
           send(parent, {:analytics_request, request})
           params = request.options.params
-          assert params[:query] in ["count(up)", "sum(up == bool 1)", "sum(up == bool 0)"]
-          value = if params[:query] == "sum(up == bool 0)", do: "0", else: "2"
+          assert params[:query] == ~s|count_values("value", up)|
+          assert request.url.path == "/v1/prometheus/api/v1/query_range"
+          assert {params[:start], params[:end], params[:step]} == {start, finish, step}
 
-          assert request.url.path == "/api/v1/query_range"
-          assert params[:start] == finish - seconds
-          assert params[:end] == finish
-          assert params[:step] == step
-          points = Enum.map((finish - seconds)..finish//step, &[&1 / 1, if(&1 == finish - seconds, do: "3", else: value)])
-          response(metric_body([%{"metric" => %{}, "values" => points}]))
+          # At the start 3 targets report 1 and one reports 0; afterwards 2
+          # report 1 and none report 0. Pulse sends float timestamps and
+          # formats whole sample values as floats.
+          response(
+            counts_body(%{
+              "1" => Enum.map(start..finish//step, &[&1 / 1, if(&1 == start, do: "3.0", else: "2.0")]),
+              "0" => [[start, "1.0"]]
+            })
+          )
         end)
 
         assert {:ok, %{widgets: [reporting, healthy, unhealthy], warnings: []}} =
                  Pulse.analytics(ctx.user, ctx.account, "metrics", %{"range" => range})
 
         assert Enum.map([reporting, healthy, unhealthy], & &1.id) == ~w(reporting healthy unhealthy)
-        assert reporting.value == 2
-        assert healthy.unit == :count
-        assert unhealthy.value == 0
-        assert Enum.all?([reporting, healthy, unhealthy], &(&1.previous_value == 3))
+        assert Enum.all?([reporting, healthy, unhealthy], &(&1.unit == :count))
+        assert {reporting.value, healthy.value, unhealthy.value} == {2, 2, 0}
+        assert {reporting.previous_value, healthy.previous_value, unhealthy.previous_value} == {4, 3, 1}
+        assert Enum.take(unhealthy.points, 2) == [[start, 1], [start + step, 0]]
         assert length(reporting.points) <= 361
 
-        for _ <- 1..3 do
-          assert_receive {:analytics_request, request}
-          assert request.method == :get
-          assert request.url.host == "pulse.internal"
-          assert request.options.auth == {:bearer, "secret"}
-          assert Req.Request.get_header(request, "x-scope-orgid") == ["tuist"]
-          assert request.options.redirect == false
-          assert request.options.retry == false
-          assert request.options.receive_timeout == 30_000
-          assert request.options.connect_options == [timeout: 10_000]
-        end
-
+        assert_receive {:analytics_request, request}
+        assert request.method == :get
+        assert request.url.host == "pulse.internal"
+        assert request.options.auth == {:basic, "dashboard:secret"}
+        assert Req.Request.get_header(request, "x-pulse-db-name") == ["public"]
+        assert request.options.redirect == false
+        assert request.options.retry == false
+        assert request.options.receive_timeout == 30_000
+        assert request.options.connect_options == [timeout: 10_000]
         refute_receive {:analytics_request, _}
       end
 
-      stub(Req, :request, fn request ->
-        response(if request.url.path == "/api/v1/query", do: vector_body([]), else: metric_body([]))
-      end)
+      stub(Req, :request, fn _request -> response(metric_body([])) end)
 
       assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
       assert Enum.all?(widgets, &(&1.value == nil and &1.previous_value == nil and &1.points == []))
     end
 
-    test "preserves measured zero, maps nonfinite observations to nil and deduplicates warnings", ctx do
-      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
-      finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
-
-      stub(Req, :request, fn request ->
-        body =
-          if request.url.path == "/api/v1/query" do
-            value = if request.options.params[:time] == finish, do: "NaN", else: "0"
-            vector_body([%{"value" => [request.options.params[:time], value]}])
-          else
-            metric_body([%{"values" => [[finish - 3600, "0"], [finish - 10, "0"], [finish, "+Inf"]]}])
-          end
-
-        response(Map.put(body, "warnings", ["upstream notice"]))
-      end)
-
-      assert {:ok, %{widgets: widgets, warnings: ["upstream notice"]}} =
-               Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
-
-      assert Enum.all?(
-               widgets,
-               &(&1.value == nil and &1.previous_value == 0 and
-                   &1.points == [[finish - 3600, 0.0], [finish - 10, 0.0], [finish, nil]])
-             )
-    end
-
-    test "current and previous missing, nonfinite and measured zero values stay independent", ctx do
-      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
-      finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
-
-      for signal <- ~w(metrics logs errors),
-          {current, previous} <- [{nil, "0"}, {"0", nil}, {"0", "NaN"}, {"1", "+Inf"}, {"-Inf", "2"}] do
-        stub(Req, :request, fn request ->
-          params = request.options.params
-
-          cond do
-            signal == "metrics" ->
-              points =
-                Enum.reject([[finish - 3600, previous], [finish - 10, "7"], [finish, current]], &is_nil(List.last(&1)))
-
-              response(metric_body([%{"values" => points}]))
-
-            String.ends_with?(request.url.path, "query_range") ->
-              response(metric_body([]))
-
-            true ->
-              time = String.to_integer(params[:time]) / 1_000_000_000
-              value = if time == finish, do: current, else: previous
-              entries = if is_nil(value), do: [], else: [%{"value" => [time, value]}]
-              response(vector_body(entries))
-          end
-        end)
-
-        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{})
-        expected_current = if current in ["0", "1"], do: String.to_integer(current)
-        expected_previous = if previous in ["0", "2"], do: String.to_integer(previous)
-        assert Enum.all?(widgets, &(&1.value == expected_current and &1.previous_value == expected_previous))
-      end
-    end
-
-    test "event comparison windows keep the selected duration and aligned boundaries for every range", ctx do
-      now = ~U[2026-11-06 12:00:07Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      parent = self()
-
-      for signal <- ~w(logs errors traces),
-          {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
-        finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
-
-        stub(Req, :request, fn request ->
-          params = request.options.params
-          instant = String.ends_with?(request.url.path, "/query")
-
-          if signal == "traces" do
-            assert params[:end] in [finish, finish - seconds]
-            assert params[:start] == params[:end] - seconds
-            if instant, do: send(parent, {:comparison_end, params[:end]})
-            response(%{"series" => []})
-          else
-            duration = if instant, do: seconds, else: step
-            assert params[:query] =~ "[#{duration}s]"
-
-            if instant do
-              time = div(String.to_integer(params[:time]), 1_000_000_000)
-              assert time in [finish, finish - seconds]
-              send(parent, {:comparison_end, time})
-            else
-              assert params[:start] == Integer.to_string((finish - seconds + step) * 1_000_000_000)
-              assert params[:end] == Integer.to_string(finish * 1_000_000_000)
-            end
-
-            response(if instant, do: vector_body([]), else: metric_body([]))
-          end
-        end)
-
-        assert {:ok, _} = Pulse.analytics(ctx.user, ctx.account, signal, %{"range" => range})
-
-        ends =
-          for _ <- 1..6,
-              do:
-                (
-                  assert_receive {:comparison_end, time}
-                  time
-                )
-
-        assert Enum.sort(ends) == List.duplicate(finish - seconds, 3) ++ List.duplicate(finish, 3)
-        refute_receive {:comparison_end, _}
-      end
-    end
-
-    @tag :tmp_dir
-    test "analytics reads projected credentials afresh for each complete snapshot", %{tmp_dir: tmp_dir} = ctx do
-      path = Path.join(tmp_dir, "analytics-token")
-      stub(Environment, :pulse_config, fn -> Keyword.put(ctx.config, :token_file, path) end)
-
-      for token <- ["initial", "rotated"] do
-        File.write!(path, token <> "\n")
-
-        stub(Req, :request, fn request ->
-          assert request.options.auth == {:bearer, token}
-          response(if request.url.path == "/api/v1/query", do: vector_body([]), else: metric_body([]))
-        end)
-
-        assert {:ok, _} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
-      end
-
-      File.rm!(path)
-      reject(Req, :request, 1)
-      assert {:error, :not_configured} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
-    end
-
-    for signal <- ~w(logs errors) do
-      test "#{signal} uses period totals and nonoverlapping bucket counts, including distinct services", ctx do
-        signal = unquote(signal)
-        stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
-        finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
-        parent = self()
-
-        selectors =
-          if signal == "logs" do
-            [
-              ~s({service_name=~".+"}),
-              ~s'{service_name=~".+",level=~"(?i)(error|fatal)"}',
-              ~s'{service_name=~".+",level=~"(?i)(warning|warn)"}'
-            ]
-          else
-            [
-              ~s({error_source="sentry"}),
-              ~s'{error_source="sentry",level=~"(?i)fatal"}',
-              ~s({error_source="sentry",service_name=~".+"})
-            ]
-          end
-
-        stub(Req, :request, fn request ->
-          params = request.options.params
-          instant = request.url.path == "/loki/api/v1/query"
-          duration = if instant, do: 3600, else: 10
-
-          expected =
-            Enum.with_index(selectors, fn selector, index ->
-              counts = "count_over_time(#{selector}[#{duration}s])"
-              if signal == "errors" and index == 2, do: "count(sum by (service_name) (#{counts}))", else: "sum(#{counts})"
-            end)
-
-          assert params[:query] in expected
-          send(parent, {:log_query, params[:query]})
-          refute Keyword.has_key?(params, :limit)
-
-          if instant do
-            assert params[:time] in Enum.map([finish, finish - 3600], &Integer.to_string(&1 * 1_000_000_000))
-            value = if params[:time] == Integer.to_string(finish * 1_000_000_000), do: "12345", else: "23456"
-            response(vector_body([%{"value" => [finish, value]}]))
-          else
-            assert request.url.path == "/loki/api/v1/query_range"
-            assert params[:start] == Integer.to_string((finish - 3590) * 1_000_000_000)
-            assert params[:end] == Integer.to_string(finish * 1_000_000_000)
-            assert params[:step] == 10
-            response(metric_body([%{"values" => [[finish, "7"]]}]))
-          end
-        end)
-
-        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{})
-
-        assert Enum.map(widgets, & &1.id) ==
-                 if(signal == "logs", do: ~w(entries errors warnings), else: ~w(events fatal services))
-
-        assert Enum.all?(
-                 widgets,
-                 &(&1.value == 12_345 and &1.previous_value == 23_456 and &1.points == [[finish, 7.0]] and
-                     &1.unit == :count)
-               )
-
-        for _ <- 1..9, do: assert_receive({:log_query, _})
-        refute_receive {:log_query, _}
-      end
-    end
-
-    test "Tempo full-window p95 is independent of bucket quantiles, seconds become milliseconds and empty buckets are gaps",
+    test "other up values count only as reporting, steps without targets are missing and warnings deduplicate",
          ctx do
       stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
       finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
-      parent = self()
+      start = finish - 3600
 
-      stub(Req, :request, fn request ->
-        send(parent, {:trace_request, request})
-        params = request.options.params
-        assert params[:end] in [finish, finish - 3600]
-        assert params[:start] == params[:end] - 3600
+      stub(Req, :request, fn _request ->
+        body =
+          counts_body(%{
+            "1" => [[start, "2"], [finish - 10, "2"]],
+            "NaN" => [[finish - 10, "1"]],
+            "0" => [[start, "1"]]
+          })
 
-        assert params[:q] in [
-                 "{} | count_over_time()",
-                 "{status=error} | count_over_time()",
-                 "{} | quantile_over_time(duration,0.95)"
-               ]
+        response(Map.put(body, "warnings", ["upstream notice", "upstream notice"]))
+      end)
 
-        duration = String.contains?(params[:q], "quantile")
+      assert {:ok, %{widgets: [reporting, healthy, unhealthy], warnings: ["upstream notice"]}} =
+               Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
 
-        if request.url.path == "/api/metrics/query" do
-          refute Keyword.has_key?(params, :step)
+      assert reporting.points == [[start, 3], [finish - 10, 3]]
+      assert healthy.points == [[start, 2], [finish - 10, 2]]
+      assert unhealthy.points == [[start, 1], [finish - 10, 0]]
+      assert Enum.map([reporting, healthy, unhealthy], &{&1.value, &1.previous_value}) == [{nil, 3}, {nil, 2}, {nil, 1}]
 
-          value =
-            case {duration, params[:end] == finish} do
-              {true, true} -> 0.45
-              {true, false} -> 0.25
-              {false, true} -> 500
-              {false, false} -> 250
+      # The previous gauge is missing independently of the current one.
+      stub(Req, :request, fn _request -> response(counts_body(%{"1" => [[finish - 10, "2"], [finish, "2"]]})) end)
+
+      assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
+      assert Enum.map(widgets, &{&1.value, &1.previous_value}) == [{2, nil}, {2, nil}, {0, nil}]
+    end
+
+    for signal <- ~w(logs traces errors) do
+      test "#{signal} aggregates through SQL with aligned buckets and full-window totals", ctx do
+        signal = unquote(signal)
+        now = ~U[2026-11-06 12:03:59Z]
+        stub(DateTime, :utc_now, fn -> now end)
+        parent = self()
+        table = %{"logs" => "opentelemetry_logs", "traces" => "opentelemetry_traces", "errors" => "errors"}[signal]
+
+        ids =
+          %{
+            "logs" => ~w(entries errors warnings),
+            "traces" => ~w(spans errors duration_p95),
+            "errors" => ~w(events fatal services)
+          }[signal]
+
+        # Each widget gets its own values, and Pulse returns the columns in
+        # reverse order, so a widget reading another's column fails.
+        weights = ids |> Enum.with_index(1) |> Map.new()
+        columns = Enum.reverse(ids)
+
+        steps =
+          if signal in ~w(logs errors),
+            do: [{"15m", 900, 60}, {"1h", 3600, 60}, {"6h", 21_600, 60}, {"24h", 86_400, 240}],
+            else: [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}]
+
+        for {range, seconds, step} <- steps do
+          finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
+
+          stub(Req, :request, fn request ->
+            assert request.url.path == "/v1/sql"
+            assert request.options.auth == {:basic, "dashboard:secret"}
+            sql = request.options.params[:sql]
+            assert sql =~ " FROM #{table} WHERE "
+
+            [start, stop] =
+              ~r/timestamp > to_timestamp_seconds\((\d+)\) AND timestamp <= to_timestamp_seconds\((\d+)\)/
+              |> Regex.run(sql, capture: :all_but_first)
+              |> Enum.map(&String.to_integer/1)
+
+            if sql =~ "GROUP BY bucket" do
+              # Counts read one bucketed scan of both periods; other widgets
+              # bucket only the current one.
+              assert {start, stop} == {finish - if(signal == "logs", do: 2 * seconds, else: seconds), finish}
+
+              assert String.starts_with?(
+                       sql,
+                       "SELECT ((arrow_cast(timestamp, 'Int64') - 1) / #{step * 1_000_000_000} + 1) * #{step} AS bucket, "
+                     )
+
+              assert String.ends_with?(sql, " GROUP BY bucket ORDER BY bucket")
+              send(parent, {:sql, :range})
+
+              rows =
+                Enum.map((start + step)..stop//step, fn time ->
+                  [time | Enum.map(columns, &(if(time > finish - seconds, do: 7, else: 5) * weights[&1]))]
+                end)
+
+              response(sql_body(["bucket" | columns], rows))
+            else
+              assert stop - start == seconds
+              assert stop in [finish, finish - seconds]
+              send(parent, {:sql, stop})
+              value = if(stop == finish, do: 12_345, else: 23_456)
+              response(sql_body(columns, [Enum.map(columns, &(value * weights[&1]))]))
+            end
+          end)
+
+          assert {:ok, %{widgets: widgets, warnings: []}} =
+                   Pulse.analytics(ctx.user, ctx.account, signal, %{"range" => range})
+
+          assert Enum.map(widgets, & &1.id) == ids
+
+          for widget <- widgets do
+            factor = weights[widget.id] * if(widget.id == "duration_p95", do: 1000, else: 1)
+
+            if signal == "logs" do
+              # Totals are the sums of each period's buckets.
+              assert widget.value == 7 * factor * div(seconds, step)
+              assert widget.previous_value == 5 * factor * div(seconds, step)
+            else
+              assert widget.value == 12_345 * factor
+              assert widget.previous_value == 23_456 * factor
             end
 
-          response(%{"series" => [%{"labels" => [], "value" => value}]})
-        else
-          assert request.url.path == "/api/metrics/query_range"
-          assert params[:end] == finish
-          assert params[:step] == "10s"
+            assert widget.points == Enum.map((finish - seconds + step)..finish//step, &[&1, 7 * factor])
+            assert length(widget.points) <= 360
+          end
 
-          samples =
-            Enum.map(
-              [
-                {finish - 3600, 999},
-                {finish - 20, 0},
-                {finish - 10, if(duration, do: 0.1, else: 4)},
-                {finish, if(duration, do: 0.9, else: 6)}
-              ],
-              fn {time, value} ->
-                %{"timestampMs" => Integer.to_string(time * 1000), "value" => value}
-              end
+          # One statement per period computes every widget, and counts share one.
+          expected = if signal == "logs", do: [:range], else: [:range, finish, finish - seconds]
+
+          received =
+            for _ <- expected do
+              assert_receive {:sql, period}
+              period
+            end
+
+          assert Enum.sort(received) == Enum.sort(expected)
+          refute_receive {:sql, _}
+        end
+      end
+    end
+
+    test "a node shares one computation of a window across refreshes, never caching failures", ctx do
+      stub(KeyValueStore, :get_or_update, fn key, opts, func ->
+        Mimic.call_original(KeyValueStore, :get_or_update, [key, opts, func])
+      end)
+
+      test = self()
+
+      # A failure is returned without being kept, so the next load retries.
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:05Z] end)
+      stub(Req, :request, fn _request -> {:ok, %Req.Response{status: 503}} end)
+      assert {:error, :upstream_error} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+
+      stub(Req, :request, fn _request ->
+        send(test, :sql)
+        response(sql_body(~w(bucket entries errors warnings), []))
+      end)
+
+      # The hour of logs has 60-second steps.
+      assert {:ok, first} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+      assert_received :sql
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:59Z] end)
+      assert {:ok, ^first} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+      refute_received :sql
+
+      # Other widgets and ranges are separate windows.
+      assert {:ok, _} = Pulse.analytics(ctx.user, ctx.account, "logs", %{"widgets" => ["errors"]})
+      assert_received :sql
+      assert {:ok, _} = Pulse.analytics(ctx.user, ctx.account, "logs", %{"range" => "15m"})
+      assert_received :sql
+
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:01:00Z] end)
+      assert {:ok, second} = Pulse.analytics(ctx.user, ctx.account, "logs", %{})
+      assert_received :sql
+      assert hd(hd(second.widgets).points) != hd(hd(first.widgets).points)
+    end
+
+    test "trace span and error counts come from one scan of both periods", ctx do
+      now = ~U[2026-11-06 12:03:59Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      test = self()
+
+      for {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}] do
+        finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
+
+        stub(Req, :request, fn request ->
+          sql = request.options.params[:sql]
+          send(test, {:sql, sql})
+          refute sql =~ "approx_percentile_cont"
+
+          # Pulse omits empty buckets; every present one counts 3 spans and 1
+          # error now, 2 spans and no errors in the previous period.
+          rows =
+            for time <- (finish - 2 * seconds + step)..finish//(2 * step) do
+              if time > finish - seconds, do: [time, 3, 1], else: [time, 2, 0]
+            end
+
+          response(sql_body(~w(bucket spans errors), rows))
+        end)
+
+        assert {:ok, %{widgets: [spans, errors]}} =
+                 Pulse.analytics(ctx.user, ctx.account, "traces", %{"range" => range, "widgets" => ~w(spans errors)})
+
+        assert [sql] = flush_sql()
+
+        assert sql =~
+                 "/ #{step * 1_000_000_000} + 1) * #{step} AS bucket, " <>
+                   ~s{count(*) AS "spans", count(*) FILTER (WHERE span_status_code = 'STATUS_CODE_ERROR') AS "errors" } <>
+                   "FROM opentelemetry_traces WHERE timestamp > to_timestamp_seconds(#{finish - 2 * seconds}) " <>
+                   "AND timestamp <= to_timestamp_seconds(#{finish}) GROUP BY bucket"
+
+        # Every other bucket is present, so each period has half its buckets.
+        present = div(seconds, step * 2)
+        assert {spans.value, spans.previous_value} == {3 * present, 2 * present}
+        assert {errors.value, errors.previous_value} == {present, 0}
+        assert length(spans.points) == div(seconds, step)
+        # The newest bucket is one Pulse omitted: a zero count, not a gap.
+        assert Enum.take(spans.points, -2) == [[finish - step, 3], [finish, 0]]
+      end
+
+      # A count is never null, so a null bucket is malformed, not a crash.
+      finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), 3)
+      stub(Req, :request, fn _request -> response(sql_body(~w(bucket spans errors), [[finish, nil, 0]])) end)
+
+      assert {:error, :malformed_response} =
+               Pulse.analytics(ctx.user, ctx.account, "traces", %{"range" => "15m", "widgets" => ~w(spans errors)})
+    end
+
+    test "log, trace and error widgets share one statement per period with fixed filters and expressions", ctx do
+      parent = self()
+
+      for {signal, table, ids, fragments} <- [
+            {"logs", "opentelemetry_logs", ~w(entries errors warnings),
+             [
+               ~s|count(*) AS "entries"|,
+               ~s|count(*) FILTER (WHERE upper(severity_text) IN ('ERROR', 'FATAL')) AS "errors"|,
+               ~s|count(*) FILTER (WHERE upper(severity_text) IN ('WARN', 'WARNING')) AS "warnings"|
+             ]},
+            {"traces", "opentelemetry_traces", ~w(spans errors duration_p95),
+             [
+               ~s|count(*) AS "spans"|,
+               ~s|count(*) FILTER (WHERE span_status_code = 'STATUS_CODE_ERROR') AS "errors"|,
+               ~s|approx_percentile_cont(duration_nano, 0.95) / 1000000000.0 AS "duration_p95"|
+             ]},
+            {"errors", "errors", ~w(events fatal services),
+             [
+               ~s|count(*) AS "events"|,
+               ~s|count(*) FILTER (WHERE "level" = 'fatal') AS "fatal"|,
+               ~s|count(DISTINCT nullif(service, '')) AS "services"|
+             ]}
+          ] do
+        stub(Req, :request, fn request ->
+          sql = request.options.params[:sql]
+          send(parent, {:sql, sql})
+
+          if sql =~ "GROUP BY bucket",
+            do: response(sql_body(["bucket" | ids], [])),
+            else: response(sql_body(ids, [[1, 1, 1]]))
+        end)
+
+        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{})
+
+        # With no rows in any bucket, counts are zero and durations are gaps.
+        for widget <- widgets do
+          empty = if widget.id == "duration_p95", do: nil, else: 0
+          assert length(widget.points) == if(signal in ~w(logs errors), do: 60, else: 360)
+          assert Enum.all?(widget.points, &match?([_, ^empty], &1))
+        end
+
+        statements =
+          for _ <- 1..if(signal == "logs", do: 1, else: 3) do
+            assert_receive {:sql, sql}
+            sql
+          end
+
+        refute_receive {:sql, _}
+
+        # The filters apply to their own widget only: the window bound is the
+        # whole WHERE clause.
+        assert Enum.all?(
+                 statements,
+                 &(&1 =~
+                     ~r/ FROM #{table} WHERE timestamp > to_timestamp_seconds\(\d+\) AND timestamp <= to_timestamp_seconds\(\d+\)( GROUP BY bucket ORDER BY bucket)?$/)
+               )
+
+        for fragment <- fragments do
+          assert Enum.all?(statements, &String.contains?(&1, fragment))
+        end
+      end
+    end
+
+    test "span duration seconds become milliseconds and periods without spans are gaps", ctx do
+      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
+      finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+
+      ids = ~w(spans errors duration_p95)
+      test = self()
+
+      stub(Req, :request, fn request ->
+        sql = request.options.params[:sql]
+        send(test, {:sql, sql})
+        current = sql =~ "to_timestamp_seconds(#{finish})"
+
+        cond do
+          sql =~ "GROUP BY bucket" ->
+            response(
+              sql_body(["bucket" | ids], [[finish - 20, 0, 0, 0.0], [finish - 10, 4, 0, 0.1], [finish, 6, 1, 0.9]])
             )
 
-          response(%{"series" => [%{"labels" => [], "samples" => samples}]})
+          current ->
+            response(sql_body(ids, [[500, 1, 0.45]]))
+
+          true ->
+            response(sql_body(ids, [[250, 0, 0.25]]))
         end
       end)
 
       assert {:ok, %{widgets: [spans, errors, duration]}} = Pulse.analytics(ctx.user, ctx.account, "traces", %{})
-      assert spans.id == "spans"
-      assert spans.value == 500
-      assert spans.previous_value == 250
-      assert errors.id == "errors"
+      assert {spans.id, spans.value, spans.previous_value} == {"spans", 500, 250}
+      assert {errors.id, errors.value, errors.previous_value} == {"errors", 1, 0}
+      assert Enum.take(errors.points, -3) == [[finish - 20, 0], [finish - 10, 0], [finish, 1]]
 
-      assert duration == %{
-               id: "duration_p95",
-               value: 450.0,
-               previous_value: 250.0,
-               unit: :milliseconds,
-               points: [[finish - 20, nil], [finish - 10, 100.0], [finish, 900.0]]
-             }
+      assert {duration.id, duration.unit, duration.value, duration.previous_value} ==
+               {"duration_p95", :milliseconds, 450.0, 250.0}
 
-      for _ <- 1..9, do: assert_receive({:trace_request, _})
-      refute_receive {:trace_request, _}
+      assert Enum.take(duration.points, 1) == [[finish - 3600 + 10, nil]]
+      assert Enum.take(duration.points, -3) == [[finish - 20, nil], [finish - 10, 100.0], [finish, 900.0]]
+      assert Enum.take(spans.points, -3) == [[finish - 20, 0], [finish - 10, 4], [finish, 6]]
+      # Buckets Pulse omits are zero counts, not gaps.
+      assert hd(spans.points) == [finish - 3600 + 10, 0]
+      assert hd(errors.points) == [finish - 3600 + 10, 0]
 
-      stub(Req, :request, fn request ->
-        response(
-          if request.url.path == "/api/metrics/query", do: %{"series" => [%{"value" => 0}]}, else: %{"series" => []}
-        )
-      end)
+      # Loaded on its own, the p95 still takes its gaps from the span counts,
+      # and its statements never compute the error count.
+      flush_sql()
 
-      assert {:ok,
-              %{
-                widgets: [
-                  %{value: 0, previous_value: 0},
-                  %{value: 0, previous_value: 0},
-                  %{value: nil, previous_value: nil}
-                ]
-              }} =
-               Pulse.analytics(ctx.user, ctx.account, "traces", %{})
-    end
+      assert {:ok, %{widgets: [^duration]}} =
+               Pulse.analytics(ctx.user, ctx.account, "traces", %{"widgets" => ["duration_p95"]})
 
-    test "Tempo duration availability is determined independently by each period's span count", ctx do
-      stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
-      finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+      statements = flush_sql()
+      assert length(statements) == 3
+      assert Enum.all?(statements, &(&1 =~ ~s|count(*) AS "spans"| and &1 =~ ~s|AS "duration_p95"|))
+      refute Enum.any?(statements, &(&1 =~ "STATUS_CODE_ERROR"))
 
-      for {current_count, previous_count, current_duration, previous_duration, expected, previous_expected} <- [
-            {0, 2, 0, 0.125, nil, 125.0},
-            {2, 0, 0.125, 0, 125.0, nil},
-            {nil, 2, 0, 0, nil, 0.0},
-            {2, nil, 0, 0, 0.0, nil},
-            {2, 2, "NaN", 0.125, nil, 125.0},
-            {2, 2, 0.125, "+Inf", 125.0, nil}
+      for {current_count, previous_count, expected, previous_expected} <- [
+            {0, 2, nil, 125.0},
+            {2, 0, 125.0, nil},
+            {nil, 2, nil, 125.0},
+            {2, nil, 125.0, nil}
           ] do
         stub(Req, :request, fn request ->
-          params = request.options.params
+          sql = request.options.params[:sql]
+          current = sql =~ "to_timestamp_seconds(#{finish})"
 
-          if request.url.path == "/api/metrics/query_range" do
-            response(%{"series" => []})
-          else
-            current = params[:end] == finish
-            duration = String.contains?(params[:q], "quantile")
-
-            value =
-              case {current, duration} do
-                {true, true} -> current_duration
-                {false, true} -> previous_duration
-                {true, false} -> current_count
-                {false, false} -> previous_count
-              end
-
-            response(%{"series" => if(is_nil(value), do: [], else: [%{"value" => value}])})
-          end
+          if sql =~ "GROUP BY bucket",
+            do: response(sql_body(["bucket" | ids], [])),
+            else: response(sql_body(ids, [[if(current, do: current_count, else: previous_count), 0, 0.125]]))
         end)
 
         assert {:ok, %{widgets: [spans, _, duration]}} = Pulse.analytics(ctx.user, ctx.account, "traces", %{})
@@ -832,34 +1247,58 @@ defmodule Tuist.PulseTest do
       for body <- [
             "bad",
             %{},
-            metric_body([%{"values" => [[finish, "bad"]]}]),
-            metric_body([%{"values" => List.duplicate([finish, "1"], 362)}]),
-            metric_body([%{"values" => [[finish, "1"], [finish, "2"]]}]),
-            metric_body([%{"values" => [[finish + 1, "1"]]}]),
-            metric_body([%{"values" => []}, %{"values" => []}]),
+            counts_body(%{"1" => [[finish, "bad"]]}),
+            counts_body(%{"1" => [[finish, "1.5"]]}),
+            counts_body(%{"1" => [[finish, "1.0x"]]}),
+            counts_body(%{"1" => [[finish, "-1"]]}),
+            counts_body(%{"1" => [[finish, "+Inf"]]}),
+            counts_body(%{"1" => List.duplicate([finish, "1"], 362)}),
+            counts_body(%{"1" => [[finish, "1"], [finish, "2"]]}),
+            counts_body(%{"1" => [[finish + 1, "1"]]}),
+            counts_body(%{"1" => [[finish - 0.5, "1"]]}),
+            # Off the 10-second step grid, so unions of series could exceed 361 points.
+            counts_body(%{"1" => [[finish, "1"]], "0" => [[finish - 5, "1"]]}),
+            # count_values has one series per value; repeats or a flood are malformed.
+            metric_body([
+              %{"metric" => %{"value" => "1"}, "values" => [[finish, "2"]]},
+              %{"metric" => %{"value" => "1"}, "values" => [[finish, "3"]]}
+            ]),
+            counts_body(%{"1" => [[finish, "1.0"]], "1.0" => [[finish, "1.0"]]}),
+            counts_body(Map.new(0..100, &{"#{&1}", [[finish, "1"]]})),
+            metric_body([%{"metric" => %{}, "values" => []}]),
+            metric_body(["x"]),
+            metric_body([[finish, "1"]]),
+            metric_body([%{"metric" => "x", "values" => []}]),
+            metric_body([%{"metric" => [1], "values" => []}]),
             Map.put(metric_body([]), "warnings", [1])
           ] do
-        stub(Req, :request, fn request ->
-          response(if request.url.path == "/api/v1/query", do: vector_body([]), else: body)
-        end)
+        stub(Req, :request, fn _request -> response(body) end)
 
         assert {:error, :malformed_response} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
       end
 
-      for body <- [
-            %{"series" => [%{"samples" => [%{"timestampMs" => "bad", "value" => 1}]}]},
-            %{"series" => [%{"samples" => List.duplicate(%{"timestampMs" => "1", "value" => 1}, 362)}]},
-            %{"series" => [%{"samples" => []}, %{"samples" => []}]}
+      ids = ~w(spans errors duration_p95)
+      buckets = ["bucket" | ids]
+
+      for {range_body, instant_body} <- [
+            {sql_body(buckets, [[finish + 10, 1, 1, 1]]), sql_body(ids, [[1, 1, 1]])},
+            {sql_body(buckets, [[finish - 3600, 1, 1, 1]]), sql_body(ids, [[1, 1, 1]])},
+            {sql_body(buckets, [["bad", 1, 1, 1]]), sql_body(ids, [[1, 1, 1]])},
+            {sql_body(buckets, [[finish, "1", 1, 1]]), sql_body(ids, [[1, 1, 1]])},
+            {sql_body(buckets, []), sql_body(ids, [])},
+            {sql_body(buckets, []), sql_body(ids, [[1, 1, 1], [2, 2, 2]])},
+            {sql_body(buckets, []), sql_body(~w(spans errors), [[1, 1]])},
+            {sql_body(buckets, []), %{}}
           ] do
         stub(Req, :request, fn request ->
-          response(if request.url.path == "/api/metrics/query", do: %{"series" => []}, else: body)
+          response(if request.options.params[:sql] =~ "GROUP BY bucket", do: range_body, else: instant_body)
         end)
 
         assert {:error, :malformed_response} = Pulse.analytics(ctx.user, ctx.account, "traces", %{})
       end
     end
 
-    test "uses three metric requests with bounded workers, preserving safe failure reasons", ctx do
+    test "uses one metric request, preserving safe failure reasons", ctx do
       parent = self()
 
       stub(Req, :request, fn _request ->
@@ -872,14 +1311,9 @@ defmodule Tuist.PulseTest do
 
       task = Task.async(fn -> Pulse.analytics(ctx.user, ctx.account, "metrics", %{}) end)
 
-      first =
-        for _ <- 1..3 do
-          assert_receive {:blocked_request, pid}, 1000
-          pid
-        end
-
+      assert_receive {:blocked_request, pid}, 1000
       refute_receive {:blocked_request, _}
-      Enum.each(first, &send(&1, :release))
+      send(pid, :release)
 
       assert Task.await(task) == {:error, :rate_limited}
       refute_receive {:blocked_request, _}
@@ -924,15 +1358,13 @@ defmodule Tuist.PulseTest do
 
     test "pinned logs sort numerically in both directions and filter before paging", ctx do
       stub(Req, :request, fn request ->
-        assert request.options.params[:end] == "1793966400000000000"
+        assert request.options.params[:sql] =~ "AND timestamp <= to_timestamp_seconds(1793966400) ORDER BY"
 
         response(
-          stream_body([
-            %{
-              "stream" => %{"service_name" => "api-server", "level" => "error"},
-              "values" => [["9", "needle"], ["10", "needle"]]
-            },
-            %{"stream" => %{"service_name" => "worker", "level" => "info"}, "values" => [["11", "needle"]]}
+          sql_body(@log_columns, [
+            [11, "worker", "info", "needle", nil],
+            [10, "api-server", "error", "needle", nil],
+            [9, "api-server", "error", "needle", nil]
           ])
         )
       end)
@@ -985,12 +1417,8 @@ defmodule Tuist.PulseTest do
         assert Enum.map(rows, & &1["name"]) == names
       end
 
-      traces =
-        Enum.map([{1, 10}, {2, 2}, {3, nil}], fn {id, duration} ->
-          %{"traceID" => "#{id}", "startTimeUnixNano" => id, "durationMs" => duration}
-        end)
-
-      stub(Req, :request, fn _ -> response(%{"traces" => traces}) end)
+      spans = Enum.map([{1, 10}, {2, 2}, {3, nil}], fn {id, duration} -> [id, nil, nil, duration, "#{id}"] end)
+      stub(Req, :request, fn _ -> response(sql_body(@span_columns, spans)) end)
 
       assert {:ok, %{rows: rows}} =
                Pulse.query(ctx.user, ctx.account, "traces", %{"sort_by" => "duration_ms", "sort_order" => "asc"})
@@ -999,12 +1427,8 @@ defmodule Tuist.PulseTest do
     end
 
     test "equal log timestamps preserve every tied row across stable pages", ctx do
-      stub(Req, :request, fn request ->
-        direction = request.options.params[:direction]
-        assert direction == "backward"
-        values = [["10", "a"], ["10", "b"], ["10", "c"]]
-        values = if direction == "forward", do: Enum.reverse(values), else: values
-        response(stream_body([%{"stream" => %{}, "values" => values}]))
+      stub(Req, :request, fn _ ->
+        response(sql_body(@log_columns, [[10, nil, nil, "a", nil], [10, nil, nil, "b", nil], [10, nil, nil, "c", nil]]))
       end)
 
       for order <- ~w(asc desc) do
@@ -1025,22 +1449,17 @@ defmodule Tuist.PulseTest do
       end
     end
 
-    test "full log and trace searches return bounded pages with explicit incomplete-cohort warnings", ctx do
+    test "full log and trace searches stay bounded without generated warnings", ctx do
       for count <- [99, 100], signal <- ~w(logs traces) do
         stub(Req, :request, fn request ->
-          assert request.options.params[:limit] == 100
+          assert String.ends_with?(request.options.params[:sql], " LIMIT 100")
 
-          body =
-            if signal == "logs" do
-              stream_body([%{"stream" => %{}, "values" => Enum.map(1..count, &["#{&1}", "line"])}])
-            else
-              %{"traces" => Enum.map(1..count, &%{"traceID" => "#{&1}", "startTimeUnixNano" => &1})}
-            end
-
-          response(body)
+          if signal == "logs",
+            do: response(sql_body(@log_columns, Enum.map(1..count, &[&1, nil, nil, "line", nil]))),
+            else: response(sql_body(@span_columns, Enum.map(1..count, &[&1, nil, "span", nil, "#{&1}"])))
         end)
 
-        assert {:ok, %{rows: rows, meta: meta, warnings: warnings}} =
+        assert {:ok, %{rows: rows, meta: meta, warnings: []}} =
                  Pulse.query(ctx.user, ctx.account, signal, %{"page" => 2, "page_size" => 20, "sort_order" => "asc"})
 
         assert length(rows) == 20
@@ -1048,28 +1467,20 @@ defmodule Tuist.PulseTest do
         assert meta["total_count"] == count
         assert meta["total_pages"] == 5
 
-        if count == 100 do
-          assert [warning] = warnings
-          assert warning =~ "100-result limit"
-          assert warning =~ "totals cover only returned results"
-        else
-          assert warnings == []
-        end
-
-        assert {:ok, %{rows: [], warnings: ^warnings, meta: %{"total_count" => 0}}} =
+        assert {:ok, %{rows: [], warnings: [], meta: %{"total_count" => 0}}} =
                  Pulse.query(ctx.user, ctx.account, signal, %{"service" => "absent"})
       end
     end
 
     test "responses beyond the requested ceiling still fail whole", ctx do
       stub(Req, :request, fn _ ->
-        response(stream_body([%{"stream" => %{}, "values" => Enum.map(1..5000, &["#{&1}", "line"])}]))
+        response(sql_body(@log_columns, Enum.map(1..5000, &[&1, nil, nil, "line", nil])))
       end)
 
       assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "logs", %{"service" => "absent"})
 
       stub(Req, :request, fn _ ->
-        response(%{"traces" => Enum.map(1..1000, &%{"traceID" => "#{&1}", "startTimeUnixNano" => &1})})
+        response(sql_body(@span_columns, Enum.map(1..1000, &[&1, nil, nil, nil, "#{&1}"])))
       end)
 
       assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "traces", %{"sort_by" => "duration_ms"})
@@ -1084,7 +1495,7 @@ defmodule Tuist.PulseTest do
 
         assert {:cont, {_, response}} =
                  request.into.(
-                   {:data, JSON.encode!(empty_body("metrics"))},
+                   {:data, JSON.encode!(metric_body([]))},
                    {request, %Req.Response{status: 200, body: ""}}
                  )
 
@@ -1104,585 +1515,23 @@ defmodule Tuist.PulseTest do
     end
   end
 
-  describe "native error issues and event details" do
-    test "native issues collect byte pages in one snapshot before literal search and sorting", ctx do
-      first = issue_row(1, 2, "first")
-      second = issue_row(2, 10, "literal .* title")
-
-      expect(Req, :request, fn request ->
-        assert request.method == :post
-        assert request.url.path == "/mcp"
-        assert request.options.auth == {:bearer, "secret"}
-        assert Req.Request.get_header(request, "mcp-protocol-version") == ["2026-07-28"]
-        assert Req.Request.get_header(request, "mcp-method") == ["tools/call"]
-        assert Req.Request.get_header(request, "mcp-name") == ["query_errors"]
-
-        assert request.options.json["params"]["_meta"] == %{
-                 "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
-                 "io.modelcontextprotocol/clientCapabilities" => %{},
-                 "io.modelcontextprotocol/clientInfo" => %{"name" => "Tuist", "version" => Environment.version()}
-               }
-
-        args = request.options.json["params"]["arguments"]
-        assert args["tenant"] == "tuist"
-        assert args["limit"] == 5000
-        assert args["end_ts_ns"] == 1_793_966_400_000_000_000
-        assert args["start_ts_ns"] == 1_793_962_800_000_000_000
-        assert args["environment"] == "production"
-        response(error_page([first], 2, "next"))
-      end)
-
-      expect(Req, :request, fn request ->
-        assert request.options.json["params"]["arguments"]["cursor"] == "next"
-        response(error_page([second], 2))
-      end)
-
-      assert {:ok, %{rows: [row], meta: meta}} =
-               Pulse.query(ctx.user, ctx.account, "errors", %{
-                 "end_at" => "2026-11-06T12:00:00Z",
-                 "environment" => "production",
-                 "query" => ".*",
-                 "sort_by" => "count"
-               })
-
-      assert row["title"] == "literal .* title"
-      assert row["latest_event_id"] == second["event_id"]
-      assert row["count"] == 1
-      assert meta["total_count"] == 1
-
-      stub(Req, :request, fn request ->
-        if request.options.json["params"]["arguments"]["cursor"],
-          do: response(error_page([second], 2)),
-          else: response(error_page([first], 2, "next"))
-      end)
-
-      assert {:ok, %{rows: [row], meta: %{"total_count" => 2}}} =
-               Pulse.query(ctx.user, ctx.account, "errors", %{
-                 "sort_by" => "count",
-                 "sort_order" => "desc",
-                 "page_size" => 1,
-                 "page" => 2
-               })
-
-      assert row["latest_event_id"] == first["event_id"]
-    end
-
-    test "native scan errors and excessive byte pages fail with fixed bounds", ctx do
-      for {diagnostic, reason} <- [
-            {":query_scan_limit: secret", :query_result_limit},
-            {":error_query_reset_required", :query_reset_required}
-          ] do
-        stub(Req, :request, fn _ ->
-          response(%{"result" => %{"isError" => true, "content" => [%{"type" => "text", "text" => diagnostic}]}})
-        end)
-
-        assert {:error, ^reason} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-      end
-
-      expect(Req, :request, 32, fn request ->
-        number = String.to_integer(request.options.json["params"]["arguments"]["cursor"] || "0") + 1
-        response(error_page([issue_row(number, 1, "issue")], 33, "#{number}"))
-      end)
-
-      assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-    end
-
-    test "changed snapshots, missing continuations and native errors never return partial issues", ctx do
-      for final <- [
-            error_page([issue_row(2, 1, "b")], 2, nil, "changed"),
-            error_page([], 2),
-            %{"result" => %{"isError" => true, "content" => [%{"type" => "text", "text" => "secret diagnostic"}]}}
-          ] do
-        expect(Req, :request, fn _ -> response(error_page([issue_row(1, 1, "a")], 2, "next")) end)
-        expect(Req, :request, fn _ -> response(final) end)
-        assert {:error, reason} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-        assert reason in [:malformed_response, :upstream_error]
-      end
-    end
-
-    test "native occurrence ceiling is accepted exactly and never yields a partial larger cohort", ctx do
-      records =
-        Enum.map(1..5000, fn id ->
-          id |> event_row(id) |> Map.put("event", %{"message" => "bounded"})
-        end)
-
-      stub(Req, :request, fn _ -> response(error_page(records, 5000)) end)
-      assert {:ok, %{rows: [row]}} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-      assert row["count"] == 5000
-      assert row["latest_event_id"] == hex(5000, 32)
-      assert Enum.sum(Enum.map(row["occurrence_series"], &List.last/1)) == 5000
-
-      stub(Req, :request, fn _ -> response(error_page(records, 5001, "more")) end)
-      assert {:error, :malformed_response} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-    end
-
-    test "text operators filter occurrences before grouping and counting", ctx do
-      records = [
-        event_row(1, 10, "api", "production"),
-        event_row(2, 9, "api", "preview"),
-        event_row(3, 8, "worker", "production")
-      ]
-
-      expect(Req, :request, fn request ->
-        assert request.options.json["params"]["name"] == "query_errors"
-        refute Map.has_key?(request.options.json["params"]["arguments"], "environment")
-        response(error_page(records, 3))
-      end)
-
-      assert {:ok, %{rows: [row]}} =
-               Pulse.query(ctx.user, ctx.account, "errors", %{
-                 "environment" => "PROD",
-                 "environment_op" => "contains",
-                 "service" => "work",
-                 "service_op" => "not_contains"
-               })
-
-      assert row["count"] == 1
-      assert row["latest_event_id"] == hex(1, 32)
-    end
-
-    test "issue pages are newest first, exact, bounded and never contain raw payloads", ctx do
-      records = [event_row(1, 9), event_row(2, 10)]
-
-      stub(Req, :request, fn request ->
-        assert request.options.json["params"]["arguments"]["issue_id"] == issue_id()
-        response(error_page(records, 2))
-      end)
-
-      assert {:ok, %{issue: issue, events: [event], meta: meta, warnings: []}} =
-               Pulse.error_issue(ctx.user, ctx.account, issue_id(), %{"page_size" => 1, "page" => 2})
-
-      assert issue["count"] == 2
-      assert issue["last_seen_ns"] == 10
-      assert event["event_id"] == hex(1, 32)
-      assert event["timestamp"] == "9"
-      assert event["exception"]["type"] == "RuntimeError"
-      assert length(event["exception"]["frames"]) == 100
-      refute inspect(event) =~ "private"
-      refute inspect(event) =~ "locals"
-      assert event["contexts"] == %{"secret" => "[REDACTED]"}
-      assert meta["total_count"] == 2
-      assert {:ok, %{events: []}} = Pulse.error_issue(ctx.user, ctx.account, issue_id(), %{"page" => 50})
-    end
-
-    test "issue overview covers the full selected period before numbered pagination", ctx do
-      finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
-
-      for {range, seconds} <- [{"15m", 900}, {"1h", 3600}, {"6h", 21_600}, {"24h", 86_400}] do
-        start = finish - seconds
-        width = div(seconds, 60)
-
-        records = [
-          event_row(1, start * 1_000_000_000),
-          event_row(2, (start + width) * 1_000_000_000 - 1),
-          event_row(3, (start + width) * 1_000_000_000),
-          event_row(4, (start + 17 * width + 2) * 1_000_000_000),
-          event_row(5, finish * 1_000_000_000),
-          event_row(6, (finish - 1) * 1_000_000_000, "api", "preview")
-        ]
-
-        # Each detail request follows the existing native continuation only;
-        # neither the histogram nor the latest preview makes another request.
-        expect(Req, :request, 8, fn request ->
-          args = request.options.json["params"]["arguments"]
-          assert args["start_ts_ns"] == start * 1_000_000_000
-          assert args["end_ts_ns"] == finish * 1_000_000_000
-          refute Map.has_key?(args, "environment")
-
-          if args["cursor"],
-            do: response(error_page(Enum.drop(records, 2), 6)),
-            else: response(error_page(Enum.take(records, 2), 6, "next"))
-        end)
-
-        params = %{
-          "range" => range,
-          "end_at" => "2026-11-06T12:00:00Z",
-          "environment" => "PROD",
-          "environment_op" => "contains",
-          "page_size" => 1
-        }
-
-        assert {:ok, first} = Pulse.error_issue(ctx.user, ctx.account, issue_id(), params)
-        assert {:ok, second} = Pulse.error_issue(ctx.user, ctx.account, issue_id(), Map.put(params, "page", 2))
-        assert {:ok, empty} = Pulse.error_issue(ctx.user, ctx.account, issue_id(), Map.put(params, "page", 50))
-        assert {:ok, %{rows: [listed]}} = Pulse.query(ctx.user, ctx.account, "errors", params)
-        assert listed == first.issue
-
-        assert [first.latest_event] == first.events
-        assert first.latest_event["event_id"] == hex(5, 32)
-        assert first.latest_event == second.latest_event
-        assert first.latest_event == empty.latest_event
-        assert length(first.latest_event["exception"]["frames"]) == 100
-        refute inspect(first.latest_event) =~ "private"
-        refute inspect(first.latest_event) =~ "locals"
-        assert Enum.map(second.events, & &1["event_id"]) == [hex(4, 32)]
-        assert empty.events == []
-
-        expected =
-          Enum.map(0..59, fn bucket ->
-            [start + bucket * width, Map.get(%{0 => 2, 1 => 1, 17 => 1, 59 => 1}, bucket, 0)]
-          end)
-
-        assert first.occurrence_series == expected
-        assert second.occurrence_series == expected
-        assert empty.occurrence_series == expected
-        assert listed["occurrence_series"] == expected
-
-        for result <- [first, second, empty] do
-          total = Enum.sum(Enum.map(result.occurrence_series, fn [_, count] -> count end))
-          assert total == 5
-          assert total == result.issue["count"]
-          assert total == result.meta["total_count"]
-          assert result.issue["latest_event_id"] == result.latest_event["event_id"]
-        end
-      end
-    end
-
-    test "issue rows use latest filtered metadata and whole-cohort counts before sorting and paging", ctx do
-      finish = 1_793_966_400
-      start = finish - 3600
-      older = event_row(1, start * 1_000_000_000)
-      newer = event_row(2, finish * 1_000_000_000, "worker")
-      newer = put_in(newer, ["event", "platform"], "elixir")
-      newer = put_in(newer, ["event", "level"], "fatal")
-
-      newer =
-        put_in(newer, ["event", "exception", "values"], [
-          %{
-            "type" => "LatestError",
-            "value" => "latest title",
-            "stacktrace" => %{
-              "frames" =>
-                [%{"module" => "Recorded", "function" => "run", "in_app" => true}] ++
-                  List.duplicate(%{"module" => "Dependency", "function" => "last"}, 101)
-            }
-          }
-        ])
-
-      excluded = event_row(3, finish * 1_000_000_000, "preview", "preview")
-      other = 4 |> event_row((finish - 10) * 1_000_000_000) |> Map.put("project", "2")
-      records = [newer, excluded, older, other]
-
-      expect(Req, :request, 8, fn request ->
-        assert request.options.json["params"]["name"] == "query_errors"
-        args = request.options.json["params"]["arguments"]
-        refute Map.has_key?(args, "issue_id")
-        refute Map.has_key?(args, "environment")
-
-        if args["cursor"],
-          do: response(error_page(Enum.drop(records, 2), 4)),
-          else: response(error_page(Enum.take(records, 2), 4, "next"))
-      end)
-
-      params = %{
-        "end_at" => "2026-11-06T12:00:00Z",
-        "page_size" => 1,
-        "sort_by" => "count",
-        "environment" => "PROD",
-        "environment_op" => "contains"
-      }
-
-      assert {:ok, %{rows: [row], meta: %{"total_count" => 2}}} = Pulse.query(ctx.user, ctx.account, "errors", params)
-      assert row["count"] == 2
-      assert row["service"] == "worker"
-      assert row["title"] == "LatestError: latest title"
-      assert row["platform"] == "elixir"
-      assert row["level"] == "fatal"
-      assert row["culprit"] == "Recorded.run"
-      assert row["latest_event_id"] == hex(2, 32)
-      assert row["first_seen_ns"] == start * 1_000_000_000
-      assert row["last_seen_ns"] == finish * 1_000_000_000
-      assert row["occurrence_series"] == Enum.map(0..59, &[start + &1 * 60, if(&1 in [0, 59], do: 1, else: 0)])
-
-      assert {:ok, %{rows: [second]}} = Pulse.query(ctx.user, ctx.account, "errors", Map.put(params, "page", 2))
-      assert second["project"] == "2"
-      assert second["count"] == 1
-      assert Enum.sum(Enum.map(second["occurrence_series"], &List.last/1)) == 1
-
-      assert {:ok, %{rows: [^row, ^second]}} =
-               Pulse.query(ctx.user, ctx.account, "errors", Map.put(params, "page_size", 100))
-
-      assert {:ok, %{rows: [^second]}} =
-               Pulse.query(ctx.user, ctx.account, "errors", Map.put(params, "sort_order", "asc"))
-    end
-
-    test "recorded detail sections preserve typed JSON, redact sensitive data and remain untrusted text", ctx do
-      malicious = ~s|<script>alert("payload")</script>|
-      record = event_row(1, 10)
-
-      record =
-        update_in(
-          record["event"],
-          &Map.merge(&1, %{
-            "platform" => "javascript",
-            "culprit" => "invented root culprit",
-            "tags" => [
-              ["region", "eu"],
-              ["attempt", 3],
-              ["enabled", true],
-              ["empty", nil],
-              ["API-Key", "private-key"],
-              ["bad"],
-              2
-            ],
-            "contexts" => %{"runtime" => %{"name" => "BEAM", "version" => 29, "Authorization" => "private-auth"}},
-            "extra" => %{
-              "html" => malicious,
-              "nested" => [%{"password" => "private-password", "vars" => %{"value" => "private-local"}}],
-              "command" => "--token private-token",
-              "url" => "https://admin:private-pass@example.com",
-              "ratio" => 1.5
-            },
-            "modules" => %{"package" => "1.2.3", "access_token" => "private-access"}
-          })
-        )
-
-      stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
-      assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-      assert event["platform"] == "javascript"
-      assert event["culprit"] == "app.ex.run"
-
-      assert event["tags"] == %{
-               "region" => "eu",
-               "attempt" => 3,
-               "enabled" => true,
-               "empty" => nil,
-               "API-Key" => "[REDACTED]"
-             }
-
-      assert event["contexts"]["runtime"]["version"] == 29
-      assert event["contexts"]["runtime"]["Authorization"] == "[REDACTED]"
-      assert event["extra"]["html"] == malicious
-      assert event["extra"]["ratio"] == 1.5
-      assert event["extra"]["nested"] == [%{"password" => "[REDACTED]", "vars" => "[REDACTED]"}]
-      assert event["modules"] == %{"package" => "1.2.3", "access_token" => "[REDACTED]"}
-      assert Phoenix.HTML.safe_to_string(Phoenix.HTML.html_escape(event["extra"]["html"])) =~ "&lt;script&gt;"
-      refute Map.has_key?(event, "request")
-      refute Map.has_key?(event, "user")
-      refute JSON.encode!(event) =~ "private"
-      refute JSON.encode!(event) =~ "invented"
-    end
-
-    test "metadata bounds deep, wide, multibyte and serialization-expanding input with visible markers", ctx do
-      deep = Enum.reduce(1..100, "private-deep", fn _, value -> %{"child" => value} end)
-      many = Map.new(1..100, &{"field#{&1}", &1})
-      oversized = Map.new(1..50, &{"field#{&1}", String.duplicate("\"", 1024)})
-      record = event_row(1, 10)
-
-      for {section, value} <- [
-            {"tags", many},
-            {"tags", Enum.map(1..100, &["tag#{&1}", &1])},
-            {"contexts", %{"deep" => deep}},
-            {"extra", %{"list" => Enum.to_list(1..100)}},
-            {"extra", %{"text" => String.duplicate("😀", 1000)}},
-            {"extra", %{"combining" => "x" <> String.duplicate("\u0301", 10_000)}},
-            {"modules", oversized},
-            {"extra", %{String.duplicate("key", 100) => "private-key"}},
-            {"extra", %{"nodes" => List.duplicate(Enum.to_list(1..50), 50)}}
-          ] do
-        record = put_in(record, ["event", section], value)
-        stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
-        assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-        encoded = JSON.encode!(event[section])
-        assert byte_size(encoded) <= 4096
-        assert encoded =~ "[TRUNCATED]"
-        refute encoded =~ "private"
-        assert String.valid?(encoded)
-        assert JSON.decode!(encoded) == event[section]
-      end
-    end
-
-    test "sparse and malformed metadata never manufactures platform, culprit or recorded sections", ctx do
-      for payload <- [%{}, %{"platform" => 12, "tags" => "bad", "contexts" => [], "extra" => true, "modules" => nil}] do
-        record = Map.put(event_row(1, 10), "event", payload)
-        stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
-        assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-        assert is_nil(event["platform"])
-        assert is_nil(event["culprit"])
-        assert Map.take(event, ~w(tags contexts extra modules)) == Map.new(~w(tags contexts extra modules), &{&1, %{}})
-      end
-    end
-
-    test "metadata accepts exact entry, depth, key, text and serialized byte bounds", ctx do
-      sections = %{
-        "tags" => Map.new(1..50, &{"key#{&1}", &1}),
-        "contexts" => %{"child" => Enum.reduce(1..4, false, fn _, value -> %{"child" => value} end)},
-        "extra" => %{String.duplicate("k", 128) => String.duplicate("x", 1024)},
-        "modules" => %{
-          "a" => String.duplicate("x", 1024),
-          "b" => String.duplicate("x", 1024),
-          "c" => String.duplicate("x", 1024),
-          "d" => ""
-        }
-      }
-
-      size = byte_size(JSON.encode!(sections["modules"]))
-      sections = put_in(sections, ["modules", "d"], String.duplicate("x", 4096 - size))
-      assert byte_size(JSON.encode!(sections["modules"])) == 4096
-      record = update_in(event_row(1, 10)["event"], &Map.merge(&1, sections))
-      stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
-      assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-      assert Map.take(event, Map.keys(sections)) == sections
-
-      record = update_in(record, ["event", "modules", "d"], &(&1 <> "x"))
-      stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
-      assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-      assert event["modules"] == %{"[TRUNCATED]" => "[TRUNCATED]"}
-    end
-
-    test "shared HTTP and MCP issue schemas require the overview fields" do
-      schema = Pulse.Schemas.response(:issue)
-      assert :latest_event in schema.required
-      assert :occurrence_series in schema.required
-      assert schema.properties.latest_event == Pulse.Schemas.event()
-
-      json = Pulse.Schemas.json_schema(schema)
-      assert "latest_event" in json["required"]
-      assert "occurrence_series" in json["required"]
-      assert json["properties"]["occurrence_series"]["type"] == "array"
-      assert json["properties"]["issue"]["properties"]["occurrence_series"]["type"] == "array"
-      assert json["properties"]["occurrence_series"]["minItems"] == 60
-      assert json["properties"]["occurrence_series"]["maxItems"] == 60
-      assert json["properties"]["occurrence_series"]["items"]["minItems"] == 2
-      assert json["properties"]["occurrence_series"]["items"]["items"]["type"] == "integer"
-
-      for field <- ~w(tags contexts extra modules) do
-        metadata = json["properties"]["latest_event"]["properties"][field]
-        assert metadata["type"] == "object"
-        assert metadata["additionalProperties"] == %{}
-        assert metadata["description"] =~ "4096"
-      end
-
-      refute "platform" in json["properties"]["issue"]["required"]
-    end
-
-    test "event detail validates identities, returns safe fields and distinguishes not found", ctx do
-      expect(Req, :request, fn request ->
-        args = request.options.json["params"]["arguments"]
-        assert args["event_id"] == hex(1, 32)
-        assert args["issue_id"] == issue_id()
-        response(error_page([event_row(1, 10)], 1))
-      end)
-
-      assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-      assert event["environment"] == "production"
-      assert event["release"] == "v1"
-      assert event["title"] == "RuntimeError: boom"
-      stub(Req, :request, fn _ -> response(error_page([], 0)) end)
-      assert {:error, :not_found} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-      assert {:error, :not_found} = Pulse.error_issue(ctx.user, ctx.account, issue_id(), %{})
-      assert {:error, :invalid_params} = Pulse.error_event(ctx.user, ctx.account, "bad", hex(1, 32), %{})
-      assert {:error, :invalid_params} = Pulse.error_event(ctx.user, ctx.account, issue_id(), "bad", %{})
-      assert {:error, :invalid_params} = Pulse.error_issue(ctx.user, ctx.account, issue_id(), %{"tenant" => "other"})
-    end
-
-    test "error details recheck current membership before HTTP", ctx do
-      outsider = AccountsFixtures.user_fixture()
-      :ok = Accounts.add_user_to_organization(outsider, ctx.organization)
-      Accounts.remove_user_from_organization(outsider, ctx.organization)
-      reject(Req, :request, 1)
-
-      for user <- [nil, outsider] do
-        assert {:error, :forbidden} = Pulse.error_issue(user, ctx.account, issue_id(), %{})
-        assert {:error, :forbidden} = Pulse.error_event(user, ctx.account, issue_id(), hex(1, 32), %{})
-      end
-    end
-
-    @tag :tmp_dir
-    test "cursor requests reread rotated token files", %{tmp_dir: tmp_dir} = ctx do
-      path = Path.join(tmp_dir, "token")
-      File.write!(path, "first")
-      stub(Environment, :pulse_config, fn -> Keyword.put(ctx.config, :token_file, path) end)
-
-      expect(Req, :request, fn request ->
-        assert request.options.auth == {:bearer, "first"}
-        File.write!(path, "rotated")
-        response(error_page([issue_row(1, 1, "a")], 2, "next"))
-      end)
-
-      expect(Req, :request, fn request ->
-        assert request.options.auth == {:bearer, "rotated"}
-        response(error_page([issue_row(2, 1, "b")], 2))
-      end)
-
-      assert {:ok, %{rows: rows}} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-      assert length(rows) == 2
-    end
-  end
-
-  defp hex(id, size), do: id |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(size, "0")
-  defp issue_id, do: "v1_" <> hex(1, 64)
-
-  defp issue_row(id, timestamp, title) do
-    id
-    |> event_row(timestamp)
-    |> Map.put("issue_id", "v1_" <> hex(id, 64))
-    |> Map.put("event", %{"message" => title, "environment" => "production"})
-  end
-
-  defp event_row(id, timestamp, service \\ "api", environment \\ "production") do
-    %{
-      "issue_id" => issue_id(),
-      "project" => "1",
-      "service" => service,
-      "event_id" => hex(id, 32),
-      "timestamp_ns" => timestamp,
-      "event" => %{
-        "level" => "error",
-        "environment" => environment,
-        "release" => "v1",
-        "request" => %{"authorization" => "private"},
-        "user" => %{"email" => "private"},
-        "contexts" => %{"secret" => "private"},
-        "exception" => %{
-          "values" => [
-            %{
-              "type" => "RuntimeError",
-              "value" => "boom",
-              "stacktrace" => %{
-                "frames" =>
-                  List.duplicate(
-                    %{"filename" => "app.ex", "function" => "run", "lineno" => 12, "vars" => %{"locals" => "private"}},
-                    101
-                  )
-              }
-            }
-          ]
-        }
-      }
-    }
-  end
-
-  defp error_page(rows, count, cursor \\ nil, snapshot \\ "snapshot") do
-    %{
-      "jsonrpc" => "2.0",
-      "id" => 1,
-      "result" => %{
-        "isError" => false,
-        "content" => [
-          %{
-            "type" => "text",
-            "text" =>
-              JSON.encode!(%{
-                "results" => rows,
-                "matched_results" => count,
-                "matched_events" => count,
-                "snapshot_id" => snapshot,
-                "next_cursor" => cursor
-              })
-          }
-        ]
-      }
-    }
-  end
-
   defp response(body), do: {:ok, %Req.Response{status: 200, body: body}}
+  defp ns(seconds), do: seconds * 1_000_000_000
   defp vector_body(entries), do: %{"status" => "success", "data" => %{"resultType" => "vector", "result" => entries}}
-
   defp scalar_body(value), do: %{"status" => "success", "data" => %{"resultType" => "scalar", "result" => value}}
-  defp empty_body("metrics"), do: metric_body([])
-  defp empty_body("traces"), do: %{"traces" => []}
-  defp empty_body(_signal), do: stream_body([])
+
+  defp counts_body(counts) do
+    metric_body(
+      Enum.map(counts, fn {value, values} ->
+        %{"metric" => %{"__name__" => "up", "value" => value}, "values" => values}
+      end)
+    )
+  end
+
   defp metric_body(entries), do: %{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}}
-  defp stream_body(entries), do: %{"status" => "success", "data" => %{"resultType" => "streams", "result" => entries}}
+
+  defp sql_body(columns, rows) do
+    columns = Enum.map(columns, &%{"name" => &1})
+    %{"output" => [%{"records" => %{"schema" => %{"column_schemas" => columns}, "rows" => rows}}]}
+  end
 end

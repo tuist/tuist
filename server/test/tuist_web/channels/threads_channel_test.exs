@@ -9,6 +9,7 @@ defmodule TuistWeb.ThreadsChannelTest do
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias Tuist.Repo
+  alias Tuist.Threads.Clients, as: AppClients
   alias Tuist.Threads.Thread
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.ThreadsChannel
@@ -29,9 +30,9 @@ defmodule TuistWeb.ThreadsChannelTest do
   end
 
   test "the endpoint hands the native clients' bearer subprotocol to the socket", %{token: token} do
-    handshake = fn credential ->
+    handshake = fn collection, credential ->
       :get
-      |> Plug.Test.conn("/threads/socket/websocket?vsn=2.0.0")
+      |> Plug.Test.conn("/#{collection}/socket/websocket?vsn=2.0.0")
       |> Plug.Conn.put_req_header("connection", "Upgrade")
       |> Plug.Conn.put_req_header("upgrade", "websocket")
       |> Plug.Conn.put_req_header("sec-websocket-version", "13")
@@ -45,8 +46,10 @@ defmodule TuistWeb.ThreadsChannelTest do
 
     # A refused connect answers 403. An accepted one proceeds to the upgrade,
     # which the test adapter cannot perform and answers with 400.
-    assert handshake.("not-a-token").status == 403
-    assert handshake.(token).status == 400
+    for collection <- ["threads", "jams"] do
+      assert handshake.(collection, "not-a-token").status == 403
+      assert handshake.(collection, token).status == 400
+    end
   end
 
   test "rejects a genuinely expired user JWT", %{user: user} do
@@ -72,9 +75,11 @@ defmodule TuistWeb.ThreadsChannelTest do
   end
 
   test "inbox snapshots contain only invalidation metadata", %{token: token, topic: topic} do
-    {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
-    assert {:ok, snapshot, _socket} = subscribe_and_join(socket, ThreadsChannel, topic)
-    assert snapshot |> Map.keys() |> Enum.sort() == [:agent_status, :revision]
+    for topic <- [topic, String.replace_prefix(topic, "threads:", "jams:")] do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      assert {:ok, snapshot, _socket} = subscribe_and_join(socket, topic)
+      assert snapshot |> Map.keys() |> Enum.sort() == [:activity, :agent_status, :revision]
+    end
   end
 
   test "denies foreign accounts and malformed IDs", %{token: token, user: user} do
@@ -111,7 +116,7 @@ defmodule TuistWeb.ThreadsChannelTest do
   test "flag withdrawal closes a previously authorized subscription", %{token: token, topic: topic} do
     {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
     {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic)
-    stub(FeatureFlags, :ai_enabled?, fn _user -> false end)
+    stub(FeatureFlags, :luft_enabled?, fn _user -> false end)
     allow(FeatureFlags, self(), socket.channel_pid)
     monitor = Process.monitor(socket.channel_pid)
     send(socket.channel_pid, :poll_snapshot)
@@ -161,6 +166,131 @@ defmodule TuistWeb.ThreadsChannelTest do
     thread |> Ecto.Changeset.change(revision: 1, agent_status: "running") |> Repo.update!()
     send(socket.channel_pid, :poll_snapshot)
     assert_push "snapshot", %{revision: 1, agent_status: "running"}, 1_000
+  end
+
+  describe "app tools" do
+    setup %{user: user} do
+      thread =
+        Repo.insert!(%Thread{
+          account_id: user.account.id,
+          owner_id: user.id,
+          request_id: Ecto.UUID.generate(),
+          request_hash: :crypto.hash(:sha256, "test"),
+          title: "Theme",
+          provider: "chatgpt",
+          model: "selected-model",
+          goal: "Theme"
+        })
+
+      tool = %{
+        "name" => "set_theme",
+        "description" => "Restyles the app.",
+        "parameters" => %{"type" => "object", "properties" => %{"appearance" => %{"type" => "string"}}}
+      }
+
+      %{thread: thread, tool: tool, topic: "threads:#{user.account.name}:#{thread.id}"}
+    end
+
+    test "the agent's call reaches the app that offered the tool and returns its answer", %{
+      token: token,
+      thread: thread,
+      tool: tool,
+      topic: topic
+    } do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
+
+      assert [%{name: "set_theme", description: "Restyles the app."}] = AppClients.tools(thread.id, thread.owner_id)
+
+      call = Task.async(fn -> AppClients.call(thread.id, thread.owner_id, "set_theme", %{"appearance" => "dark"}) end)
+      assert_push "tool_call", %{id: id, name: "set_theme", arguments: %{"appearance" => "dark"}}, 1_000
+      push(socket, "tool_result", %{"id" => id, "ok" => "Applied a dark theme."})
+      assert Task.await(call) == {:ok, "Applied a dark theme."}
+    end
+
+    test "another person's app showing the thread is neither offered nor called", %{
+      token: token,
+      thread: thread,
+      tool: tool,
+      topic: topic
+    } do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      {:ok, _, _socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
+      other = AccountsFixtures.user_fixture()
+
+      assert AppClients.tools(thread.id, other.id) == []
+
+      assert {:error, "The person's app isn't showing this thread" <> _} =
+               AppClients.call(thread.id, other.id, "set_theme", %{})
+
+      refute_push "tool_call", _
+    end
+
+    test "a call fails once the app that offered the tool leaves", %{
+      token: token,
+      thread: thread,
+      tool: tool,
+      topic: topic
+    } do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
+
+      call = Task.async(fn -> AppClients.call(thread.id, thread.owner_id, "set_theme", %{}) end)
+      assert_push "tool_call", _, 1_000
+      Process.unlink(socket.channel_pid)
+      close(socket)
+      assert {:error, "The person's app disconnected" <> _} = Task.await(call)
+
+      assert {:error, "The person's app isn't showing this thread" <> _} =
+               AppClients.call(thread.id, thread.owner_id, "set_theme", %{})
+    end
+
+    test "joins without tools it doesn't accept, and without tools on the inbox", %{
+      token: token,
+      user: user,
+      thread: thread,
+      tool: tool,
+      topic: topic
+    } do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+
+      for tools <- [
+            [Map.put(tool, "name", "Set Theme")],
+            [Map.put(tool, "parameters", %{"type" => "string"})],
+            [tool, tool],
+            List.duplicate(tool, 9)
+          ] do
+        assert {:ok, _snapshot, joined} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => tools})
+        assert AppClients.tools(thread.id, thread.owner_id) == []
+        Process.unlink(joined.channel_pid)
+        leave(joined)
+      end
+
+      assert {:ok, _, _} =
+               subscribe_and_join(socket, ThreadsChannel, "threads:#{user.account.name}:inbox", %{"tools" => [tool]})
+    end
+
+    test "forgets a call nobody answered once its caller stopped waiting", %{
+      token: token,
+      thread: thread,
+      tool: tool,
+      topic: topic
+    } do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic, %{"tools" => [tool]})
+
+      assert {:error, "The person's app didn't answer" <> _} =
+               AppClients.call(thread.id, thread.owner_id, "set_theme", %{}, 50)
+
+      assert_push "tool_call", %{id: id}
+      forgotten? = fn -> :sys.get_state(socket.channel_pid).assigns.tool_calls == %{} end
+      Enum.find(1..50, fn _ -> forgotten?.() || (Process.sleep(10) && false) end)
+      assert forgotten?.()
+      # A late answer finds nothing to deliver to.
+      push(socket, "tool_result", %{"id" => id, "ok" => "late"})
+      :sys.get_state(socket.channel_pid)
+      refute_received {:client_tool_result, _, _}
+    end
   end
 
   defp oauth_token(user, client) do

@@ -1,3 +1,0 @@
-defmodule SDKFixtureRepo do
-  def __adapter__, do: Ecto.Adapters.Postgres
-end

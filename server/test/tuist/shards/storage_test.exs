@@ -25,6 +25,7 @@ defmodule Tuist.Shards.StorageTest do
 
     stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => config} end)
     stub(FeatureFlags, :runner_shard_storage_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> false end)
     key = JOSE.JWK.generate_key({:okp, :Ed25519})
     pem = JOSE.JWK.to_pem(key)
     pem = if is_tuple(pem), do: elem(pem, 1), else: pem
@@ -36,6 +37,33 @@ defmodule Tuist.Shards.StorageTest do
   test "selects a ready store only for an enrolled signed Linux runner", ctx do
     expect(Storage, :available?, fn %S3Target{id: "gra-v1"} -> true end)
     assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == "gra-v1"
+  end
+
+  test "a Linux runner's plan goes to a public store's private endpoint once it is ready", ctx do
+    public =
+      Map.merge(ctx.config, %{
+        "access" => "public",
+        "endpoint" => "https://s3.example.com",
+        "region" => "us-east-1",
+        "private_endpoint" => "http://rustfs-s3.rustfs.svc.cluster.local:9000"
+      })
+
+    stub(Environment, :shard_storage_targets, fn -> %{"rustfs-v1" => public} end)
+
+    expect(Storage, :available?, fn %S3Target{id: "rustfs-v1", config: %{host: host}} ->
+      assert host == "rustfs-s3.rustfs.svc.cluster.local"
+      true
+    end)
+
+    assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == "rustfs-v1"
+
+    # Never through the public host, and not before the store is ready.
+    reject(&Storage.available?/1)
+
+    for config <- [Map.delete(public, "private_endpoint"), %{public | "private_network_ready" => false}] do
+      stub(Environment, :shard_storage_targets, fn -> %{"rustfs-v1" => config} end)
+      assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == ""
+    end
   end
 
   test "fails back before persistence when readiness fails", ctx do
@@ -99,5 +127,78 @@ defmodule Tuist.Shards.StorageTest do
     account = %{ctx.account | s3_bucket_name: "custom", s3_access_key_id: "key", s3_secret_access_key: "secret"}
     assert ShardStorage.select(ctx.project, account, ctx.grant) == ""
     assert {:ok, ^account} = ShardStorage.resolve(%ShardPlan{}, account)
+  end
+
+  test "public targets require enrollment and HTTPS but no runner grant", ctx do
+    public =
+      Map.merge(ctx.config, %{"access" => "public", "endpoint" => "https://shards.example.com", "region" => "us-east-1"})
+
+    stub(Environment, :shard_storage_targets, fn -> %{"public-v1" => public} end)
+    project = %Project{build_system: :xcode}
+    assert ShardStorage.select(project, ctx.account, nil, true) == ""
+    stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> true end)
+    stub(Storage, :available?, fn _ -> true end)
+
+    for system <- [:xcode, :mix, :cargo] do
+      assert ShardStorage.select(%Project{build_system: system}, ctx.account, nil, true) == "public-v1"
+    end
+
+    assert ShardStorage.select(project, ctx.account, nil) == ""
+
+    stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => ctx.config, "public-v1" => public} end)
+    assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == "gra-v1"
+    assert ShardStorage.select(ctx.project, ctx.account, nil, true) == "public-v1"
+
+    stub(Storage, :available?, fn _ -> false end)
+    assert ShardStorage.select(project, ctx.account, nil, true) == ""
+    stub(Storage, :available?, fn _ -> true end)
+
+    account = %{ctx.account | s3_bucket_name: "custom", s3_access_key_id: "key", s3_secret_access_key: "secret"}
+    assert ShardStorage.select(project, account, nil, true) == ""
+
+    for config <- [
+          Map.put(public, "endpoint", "http://shards.example.com"),
+          Map.delete(public, "region"),
+          Map.put(public, "enabled", false)
+        ] do
+      stub(Environment, :shard_storage_targets, fn -> %{"public-v1" => config} end)
+      assert ShardStorage.select(project, ctx.account, nil, true) == ""
+    end
+  end
+
+  test "public plans retain identity across public and verified private requests after enrollment stops", ctx do
+    config =
+      Map.merge(ctx.config, %{
+        "access" => "public",
+        "endpoint" => "https://shards.example.com",
+        "region" => "us-east-1",
+        "private_endpoint" => "http://shards.internal:8080",
+        "enabled" => false
+      })
+
+    stub(Environment, :shard_storage_targets, fn -> %{"public-v1" => config} end)
+    plan = %ShardPlan{storage_target: "public-v1"}
+    key = "42/1/shards/plan/shared.aar"
+
+    for grant <- [
+          nil,
+          "forged",
+          CacheGrant.mint(43, site: "gra", platform: :linux),
+          CacheGrant.mint(42, site: "gra", platform: :macos),
+          CacheGrant.mint(42, site: "other", platform: :linux)
+        ] do
+      assert {:ok, %S3Target{id: "public-v1"} = target} = ShardStorage.resolve_for_request(plan, ctx.account, grant)
+      assert URI.parse(Storage.generate_download_url(key, target)).host == "shards.example.com"
+    end
+
+    assert {:ok, %S3Target{id: "public-v1"} = target} = ShardStorage.resolve_for_request(plan, ctx.account, ctx.grant)
+    assert URI.parse(Storage.generate_download_url(key, target)).host == "shards.internal"
+    assert {:ok, cleanup_target} = ShardStorage.resolve(plan, ctx.account)
+    assert cleanup_target.bucket == target.bucket
+    assert URI.parse(Storage.generate_download_url(key, cleanup_target)).host == "shards.example.com"
+
+    stub(Environment, :shard_storage_targets, fn -> %{"public-v1" => %{config | "private_network_ready" => false}} end)
+    assert {:ok, target} = ShardStorage.resolve_for_request(plan, ctx.account, ctx.grant)
+    assert URI.parse(Storage.generate_download_url(key, target)).host == "shards.example.com"
   end
 end

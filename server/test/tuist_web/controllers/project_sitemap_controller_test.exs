@@ -41,7 +41,7 @@ defmodule TuistWeb.ProjectSitemapControllerTest do
     organization =
       AccountsFixtures.organization_fixture(
         sso_provider: :okta,
-        sso_organization_id: "example.okta.com",
+        sso_organization_id: "sitemap-example.okta.com",
         oauth2_client_id: "client-id",
         oauth2_client_secret: "client-secret"
       )

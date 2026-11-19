@@ -32,6 +32,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
@@ -39,7 +40,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.TargetSources
-  alias Tuist.Tests.Coverage.TestSources
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
@@ -106,10 +106,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   @publish_attempts 3
   @pending_completions "coverage_commit_completions"
 
-  # Paths bind as 63-bit hashes (at most 19 digits), so a chunk's size doesn't
-  # depend on how long the paths are; 5,000 stay under 128 KiB.
-  @path_hashes_per_query 5_000
-
   @doc """
   Republishes the commit's totals from its runs' retained reports and
   returns the row published, or nil when no run measured the commit.
@@ -129,10 +125,13 @@ defmodule Tuist.Tests.Coverage.Commits do
       # than that one or finding the branch already holds it, moves nothing.
       if row.git_repository_id > 0, do: GitHistory.sync_coverage_places(row.git_repository_id, [sha])
 
-      # The targets the commit's runs executed whole, and the versions of the
-      # tests they ran, become carry sources for the commits that skip them.
+      # The targets the commit's runs executed whole become carry sources for
+      # the commits that skip them.
       TargetSources.record(project.id, runs)
-      TestSources.record(project.id, runs)
+
+      # The test maps coverage-based test selection and coverage carry
+      # will read, for every project with coverage.
+      Snapshots.record(project, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
@@ -247,7 +246,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   # The row the commit's runs make, unwritten, or nil when there is none.
   defp fold(project, sha, previous, opts) do
     runs = runs(project.id, sha)
-    reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
+    reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carry])))
 
     cond do
       # Every scheme was skipped whole, so no run measured the commit, but
@@ -444,17 +443,19 @@ defmodule Tuist.Tests.Coverage.Commits do
            Repo.one(
              from(c in Tuist.GitHistory.Commit,
                where: c.repository_id == ^repository_id and c.sha == ^sha,
-               select: %{ref_id: c.ref_id, position: c.position, committed_at: c.committed_at}
+               select: c.committed_at
              )
            ) do
       nil ->
         %{ref_id: nil, position: nil, committed_at: ran_at, ran_at: ran_at}
 
-      commit ->
+      committed_at ->
+        {ref_id, position} = GitHistory.position(repository_id, sha) || {nil, nil}
+
         %{
-          ref_id: commit.ref_id,
-          position: commit.position,
-          committed_at: usec(commit.committed_at),
+          ref_id: ref_id,
+          position: position,
+          committed_at: usec(committed_at),
           ran_at: ran_at
         }
     end
@@ -628,11 +629,11 @@ defmodule Tuist.Tests.Coverage.Commits do
       end
 
     nearest =
-      case first_parent_distance_in(measured, repository_id, sha) do
+      case nearest_first_parent_in(measured, repository_id, sha) do
         nil ->
           nil
 
-        distance ->
+        {_sha, distance} ->
           ancestors = repository_id |> GitHistory.ancestors(sha, max_depth: distance) |> Enum.reject(&(elem(&1, 1) == 0))
           found = shas_in(measured, Enum.map(ancestors, &elem(&1, 0)))
           Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(found, ancestor) end)
@@ -641,47 +642,55 @@ defmodule Tuist.Tests.Coverage.Commits do
     nearest || GitHistory.nearest_ancestor(repository_id, sha, Repo.all(select(measured, [c], c.git_commit_sha)))
   end
 
-  defp first_parent_distance_in(measured, repository_id, sha) do
+  @doc """
+  The nearest commit matching `query` (a query over `CoverageCommit`) on a
+  commit's first-parent chain, the commit itself included at distance 0, as
+  `{sha, distance}`, or nil when none does. The chain is the commits no ref
+  placed yet, then the refs' segments down from where it meets them (each
+  ref's commits up to its fork, then its parent's), so it follows the branch
+  the commit sits on and never a branch merged into it.
+  """
+  def nearest_first_parent_in(query, repository_id, sha) do
     {unowned, owned} = repository_id |> GitHistory.first_parents_to_segment(sha) |> Enum.split_with(&is_nil(&1.ref_id))
-    found = shas_in(measured, Enum.map(unowned, & &1.sha))
+    found = shas_in(query, Enum.map(unowned, & &1.sha))
 
     case Enum.find(unowned, &MapSet.member?(found, &1.sha)) do
-      %{depth: depth} ->
-        depth
+      %{sha: nearest, depth: depth} ->
+        {nearest, depth}
 
       nil ->
         with [%{depth: depth, ref_id: ref_id, position: position}] <- owned,
-             distance when is_integer(distance) <- segments_distance_in(measured, ref_id, position, 0) do
-          depth + distance
+             {nearest, distance} <- segments_nearest_in(query, ref_id, position, 0) do
+          {nearest, depth + distance}
         else
           _ -> nil
         end
     end
   end
 
-  defp segments_distance_in(_measured, nil, _position, _distance), do: nil
+  defp segments_nearest_in(_query, nil, _position, _distance), do: nil
 
-  defp segments_distance_in(measured, ref_id, position, distance) do
+  defp segments_nearest_in(query, ref_id, position, distance) do
     nearest =
-      measured
+      query
       |> where([c], c.ref_id == ^ref_id and c.position <= ^position)
       |> order_by([c], desc: c.position)
       |> limit(1)
-      |> select([c], c.position)
+      |> select([c], {c.git_commit_sha, c.position})
       |> Repo.one()
 
     case nearest do
       nil ->
         case GitHistory.get_ref(ref_id) do
           %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
-            segments_distance_in(measured, parent_id, fork, distance + position - fork)
+            segments_nearest_in(query, parent_id, fork, distance + position - fork)
 
           _ ->
             nil
         end
 
-      found ->
-        distance + position - found
+      {sha, found} ->
+        {sha, distance + position - found}
     end
   end
 
@@ -772,10 +781,41 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   def reported_figure(_summary), do: nil
 
+  @max_measured_run_ids 900
+
+  @doc """
+  The signed runs of a published commit (`summary/2`), as a query over
+  `Tuist.Tests.Test.query/0` that reads those runs rather than the project's
+  history. The view reads `test_runs` with `FINAL`, under which the commit
+  SHA's skip index narrows nothing (its granules are expanded back to whole
+  key ranges), so the runs are found by the table's partition (`inserted_at`,
+  from a day before the commit was made or first folded, whichever is
+  earlier) and by the run ids the fold recorded, the primary key, falling
+  back to the SHA when it recorded none or too many to bind.
+  """
+  def measured_runs_query(%{project_id: project_id} = summary) do
+    since =
+      [summary.committed_at, summary.inserted_at]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.min(DateTime, fn -> DateTime.utc_now() end)
+      |> DateTime.add(-1, :day)
+
+    query =
+      from(t in Test.query(),
+        where: t.project_id == ^project_id and t.inserted_at >= ^since and t.submission_auth != "network_trusted"
+      )
+
+    case summary.test_run_ids do
+      ids when ids != [] and length(ids) <= @max_measured_run_ids -> where(query, [t], t.id in ^ids)
+      _ids -> where(query, [t], t.git_commit_sha == ^summary.git_commit_sha)
+    end
+  end
+
   @doc """
   The runs that measured the commit and count towards it: one row per run
-  with its scheme, whether it was partial, and its repository. Runs from a
-  dirty checkout are left out.
+  with its scheme, whether it was partial, its repository, and the impact
+  run that selected its tests, if any. Runs from a dirty checkout are left
+  out.
   """
   def runs(project_id, sha) when is_binary(sha), do: runs(project_id, [sha])
 
@@ -818,6 +858,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
           only_test_identifiers: fragment("argMax(?, ?)", t.only_test_identifiers, t.inserted_at),
           skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
+          test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -846,6 +887,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: t.coverage_evidence_status,
           only_test_identifiers: t.only_test_identifiers,
           skip_test_identifiers: t.skip_test_identifiers,
+          test_impact_run_id: t.test_impact_run_id,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines
@@ -860,8 +902,8 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   One page of the runs with coverage of a subject, newest first: a commit's
-  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`), run
-  between `since` and `until`.
+  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`) or a
+  pull request (`{:pull_request, number}`), run between `since` and `until`.
   Runs from a dirty checkout are left out, as `runs/2` does, unless
   `dirty: true` lists them too, with `git_dirty` set, to show why a scheme
   is missing from a figure.
@@ -954,6 +996,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
   defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
+  defp run_scope(query, {:pull_request, number}), do: where(query, [t], t.pull_request_number == ^number)
 
   defp run_dirty(query, true), do: query
   defp run_dirty(query, false), do: having(query, [t], fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false)
@@ -1095,7 +1138,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp report_paths(project_id, run_ids) do
     ClickHouseRepo.all(
-      from(f in Coverage.report_files_for_runs(project_id, run_ids), distinct: true, select: f.path),
+      from(f in Coverage.report_files_for_runs(project_id, run_ids, lines: false), distinct: true, select: f.path),
       settings: [select_sequential_consistency: 1]
     )
   end
@@ -1431,11 +1474,23 @@ defmodule Tuist.Tests.Coverage.Commits do
         {[], 0}
 
       ids ->
+        excluded = Coverage.excluded(project_id, opts)
+        search = Keyword.get(opts, :search, "")
+
         files_query =
           project_id
-          |> Coverage.merged_files_query_for_runs(ids, Coverage.excluded(project_id, opts))
+          |> Coverage.merged_files_query_for_runs(ids, excluded)
           |> subquery()
-          |> search_paths(Keyword.get(opts, :search, ""))
+          |> search_paths(search)
+
+        # The merged files are the product paths, which the count reads off the
+        # rows without their layouts.
+        paths_query =
+          project_id
+          |> Coverage.report_files_for_runs(ids, lines: false)
+          |> Coverage.without_excluded(excluded)
+          |> where([f], not f.is_test)
+          |> search_paths(search)
 
         [files, count] =
           Tuist.Tasks.parallel_tasks([
@@ -1448,7 +1503,7 @@ defmodule Tuist.Tests.Coverage.Commits do
                 )
               )
             end,
-            fn -> ClickHouseRepo.one(from(f in files_query, select: count(f.path))) || 0 end
+            fn -> ClickHouseRepo.one(from(f in paths_query, select: fragment("uniqExact(?)", f.path))) || 0 end
           ])
 
         {files, count}
@@ -1469,60 +1524,6 @@ defmodule Tuist.Tests.Coverage.Commits do
       {direction, dynamic([f], fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines))},
       {direction, dynamic([f], f.path)}
     ]
-
-  @doc """
-  The merged per-line execution counts of the given paths at the commit,
-  keyed by path, as `{line, count}` pairs in line order. The paths are bound
-  as hashes, in chunks: a list travels as one parameter, which ClickHouse
-  refuses past `http_max_field_value_size` (128 KiB by default), and a hash's
-  size doesn't depend on the path's length.
-  """
-  def line_counts(project_id, sha, paths, opts \\ [])
-
-  def line_counts(_project_id, _sha, [], _opts), do: %{}
-
-  def line_counts(project_id, sha, paths, opts) do
-    case run_ids(project_id, sha) do
-      [] ->
-        %{}
-
-      ids ->
-        files =
-          Coverage.without_excluded(Coverage.report_files_for_runs(project_id, ids), Coverage.excluded(project_id, opts))
-
-        wanted = MapSet.new(paths)
-
-        wanted
-        |> Enum.map(&path_hash/1)
-        |> Enum.chunk_every(@path_hashes_per_query)
-        |> Enum.flat_map(fn hashes ->
-          ClickHouseRepo.all(
-            from(f in files,
-              where:
-                fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})) and
-                  not f.is_test,
-              select: {f.path, f.line_numbers, f.execution_counts}
-            )
-          )
-        end)
-        |> Enum.filter(&MapSet.member?(wanted, elem(&1, 0)))
-        |> Enum.group_by(&elem(&1, 0), fn {_path, lines, counts} -> Enum.zip(lines, counts) end)
-        |> Map.new(fn {path, rows} ->
-          {path,
-           rows
-           |> List.flatten()
-           |> Enum.reduce(%{}, fn {line, count}, acc -> Map.update(acc, line, count, &(&1 + count)) end)
-           |> Enum.sort()}
-        end)
-    end
-  end
-
-  # `halfMD5` in ClickHouse: the first 8 bytes of the MD5, big-endian, shifted
-  # into a non-negative Int64.
-  defp path_hash(path) do
-    <<hash::unsigned-big-64, _::binary>> = :crypto.hash(:md5, path)
-    Bitwise.bsr(hash, 1)
-  end
 
   @doc """
   One file's merged coverage at the commit (`Tuist.Tests.Coverage.detail/2`

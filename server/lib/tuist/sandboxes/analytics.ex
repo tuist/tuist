@@ -8,10 +8,14 @@ defmodule Tuist.Sandboxes.Analytics do
   yet runs until now. Compute, session durations and peak vCPUs and memory
   are derived from those sessions.
 
-  Disk is held for longer: a sandbox keeps its workspace and memory image on
-  its node from `created` (or the `started` of a restore) until it is
-  archived, fails or is deleted, paused or not, as `Concurrency` charges it.
-  Peak disk is derived from those holds.
+  The vCPU-hours an account is billed for (`compute/2`) come from two
+  sources. A sandbox that bursts (its `started` event's guaranteed CPU is
+  below its vCPUs) is metered at every node report, the larger of its
+  CPU floor and the CPU it used, in `sandbox_usage_events`. Any other
+  session counts its vCPUs for as long as it runs, up to its sandbox's first
+  metered report, which is where a session that began before metering hands
+  over. Memory (GiB-hours) counts every running session's memory for as
+  long as it runs, bursting or not: it stays reserved on the host.
 
   Setup and time to start come straight from the durations events carry: a
   `setup` event's is how long an Orb's `.agents/setup` ran, and a
@@ -24,6 +28,7 @@ defmodule Tuist.Sandboxes.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.UsageEvent
 
   @hourly_bucket_max_hours 36
   @session_lookback_days 7
@@ -51,7 +56,6 @@ defmodule Tuist.Sandboxes.Analytics do
 
     by_sandbox = account_id |> lifecycle_events(prev_start_dt, query_end_dt) |> Enum.chunk_by(& &1.sandbox_id)
     sessions = sessions(by_sandbox, query_end_dt)
-    holds = holds(by_sandbox, query_end_dt)
     events = List.flatten(by_sandbox)
     durations = &event_durations(events, &1, buckets, prev_start_dt, start_dt, query_end_dt)
 
@@ -61,25 +65,96 @@ defmodule Tuist.Sandboxes.Analytics do
       session_duration: session_duration(sessions, buckets, prev_start_dt, start_dt, end_dt),
       setup: durations.(&(&1.event == "setup")),
       time_to_start: durations.(&(&1.event == "started" and &1.boot_source != "")),
-      concurrency: concurrency(clip(sessions, start_dt, end_dt), clip(holds, start_dt, end_dt), buckets)
+      concurrency: concurrency(clip(sessions, start_dt, end_dt), buckets)
     }
   end
 
   @doc """
-  The vCPU-hours the account's sandboxes ran between `start_datetime` and
-  `end_datetime`, in total and per day.
+  The vCPU-hours and memory GiB-hours the account's sandboxes were billed
+  for between `start_datetime` and `end_datetime`, in total and per day.
   """
   def compute(account_id, opts) when is_integer(account_id) do
     end_dt = Keyword.fetch!(opts, :end_datetime)
     start_dt = Keyword.fetch!(opts, :start_datetime)
     query_end_dt = DateTime.add(end_dt, 1, :second)
 
-    account_id
-    |> lifecycle_events(start_dt, query_end_dt)
-    |> Enum.chunk_by(& &1.sandbox_id)
-    |> sessions(query_end_dt)
-    |> clip(start_dt, end_dt)
-    |> vcpu_usage(buckets(start_dt, end_dt, :day))
+    buckets = buckets(start_dt, end_dt, :day)
+    metered = metered_usage(account_id, start_dt, query_end_dt)
+
+    sessions =
+      account_id
+      |> lifecycle_events(start_dt, query_end_dt)
+      |> Enum.chunk_by(& &1.sandbox_id)
+      |> sessions(query_end_dt)
+
+    vcpu_sessions =
+      sessions
+      |> Enum.reject(& &1.bursting?)
+      |> Enum.map(&until_metered(&1, metered.first_at))
+      |> clip(start_dt, end_dt)
+
+    vcpus =
+      vcpu_sessions
+      |> bucket_seconds(buckets, & &1.vcpus)
+      |> Map.merge(metered.by_bucket.(buckets), fn _index, a, b -> a + b end)
+      |> hours(buckets)
+
+    memory =
+      sessions
+      |> clip(start_dt, end_dt)
+      |> bucket_seconds(buckets, fn session -> session.memory_mb / 1024 end)
+      |> hours(buckets)
+
+    %{
+      vcpu_hours: vcpus.total,
+      memory_gib_hours: memory.total,
+      dates: Enum.map(buckets, & &1.date),
+      values: vcpus.values,
+      memory_values: memory.values
+    }
+  end
+
+  # Billed CPU of bursting sandboxes, by the bucket of the report that
+  # metered it, and each metered sandbox's first report.
+  defp metered_usage(account_id, start_dt, end_dt) do
+    rows =
+      ClickHouseRepo.all(
+        from(u in UsageEvent,
+          where: u.account_id == ^account_id and u.inserted_at >= ^start_dt and u.inserted_at < ^end_dt,
+          group_by: [u.sandbox_id, fragment("toStartOfHour(?)", u.inserted_at)],
+          select: %{
+            sandbox_id: u.sandbox_id,
+            hour: fragment("toStartOfHour(?)", u.inserted_at),
+            first_at: min(u.inserted_at),
+            billed_cpu_ms: sum(u.billed_cpu_ms)
+          }
+        )
+      )
+
+    %{
+      first_at:
+        rows
+        |> Enum.group_by(& &1.sandbox_id, &to_utc(&1.first_at))
+        |> Map.new(fn {id, ats} -> {id, Enum.min(ats, DateTime)} end),
+      by_bucket: fn buckets ->
+        Enum.reduce(rows, %{}, fn row, acc ->
+          case bucket_index(buckets, to_utc(row.hour)) do
+            nil -> acc
+            index -> Map.update(acc, index, row.billed_cpu_ms / 1000, &(&1 + row.billed_cpu_ms / 1000))
+          end
+        end)
+      end
+    }
+  end
+
+  defp until_metered(session, first_metered_at) do
+    case Map.get(first_metered_at, session.sandbox_id) do
+      %DateTime{} = at ->
+        %{session | ended_at: Enum.min([session.ended_at, Enum.max([at, session.started_at], DateTime)], DateTime)}
+
+      nil ->
+        session
+    end
   end
 
   defp event_count(account_id, event, buckets, prev_start_dt, start_dt, end_dt) do
@@ -105,37 +180,28 @@ defmodule Tuist.Sandboxes.Analytics do
     }
   end
 
-  defp vcpu_usage(sessions, buckets) do
-    vcpu_hours = vcpu_hours(sessions)
-
-    by_bucket =
-      Enum.reduce(sessions, %{}, fn session, acc ->
-        buckets
-        |> Enum.with_index()
-        |> Enum.reduce(acc, fn {bucket, index}, acc ->
-          case overlap_seconds(session, bucket.start, bucket.end) do
-            0 -> acc
-            seconds -> Map.update(acc, index, seconds * session.vcpus, &(&1 + seconds * session.vcpus))
-          end
-        end)
+  # Seconds times `amount` of each session, per bucket.
+  defp bucket_seconds(sessions, buckets, amount) do
+    Enum.reduce(sessions, %{}, fn session, acc ->
+      buckets
+      |> Enum.with_index()
+      |> Enum.reduce(acc, fn {bucket, index}, acc ->
+        case overlap_seconds(session, bucket.start, bucket.end) do
+          0 -> acc
+          seconds -> Map.update(acc, index, seconds * amount.(session), &(&1 + seconds * amount.(session)))
+        end
       end)
+    end)
+  end
 
+  defp hours(by_bucket, buckets) do
     %{
-      vcpu_hours: vcpu_hours,
-      dates: Enum.map(buckets, & &1.date),
+      total: by_bucket |> Map.values() |> Enum.sum() |> Kernel./(3600) |> Float.round(1),
       values:
         buckets
         |> Enum.with_index()
         |> Enum.map(fn {_bucket, index} -> by_bucket |> Map.get(index, 0) |> Kernel./(3600) |> Float.round(1) end)
     }
-  end
-
-  defp vcpu_hours(sessions) do
-    sessions
-    |> Enum.map(&(DateTime.diff(&1.ended_at, &1.started_at, :second) * &1.vcpus))
-    |> Enum.sum()
-    |> Kernel./(3600)
-    |> Float.round(1)
   end
 
   defp session_duration(sessions, buckets, prev_start_dt, start_dt, end_dt) do
@@ -202,13 +268,13 @@ defmodule Tuist.Sandboxes.Analytics do
     duration_summary(current, previous, buckets, & &1.at, & &1.ms, nil)
   end
 
-  # Peak vCPUs and memory in use, and disk held on nodes, within each bucket.
-  defp concurrency(sessions, holds, buckets) do
+  # Peak guaranteed vCPUs, what the account's limit counts, and memory in
+  # use within each bucket.
+  defp concurrency(sessions, buckets) do
     %{
       dates: Enum.map(buckets, & &1.date),
-      vcpus: peaks(sessions, buckets, & &1.vcpus),
-      memory_gb: sessions |> peaks(buckets, & &1.memory_mb) |> Enum.map(&gigabytes/1),
-      disk_gb: holds |> peaks(buckets, & &1.disk_mb) |> Enum.map(&gigabytes/1)
+      vcpus: peaks(sessions, buckets, & &1.guaranteed_vcpus),
+      memory_gb: sessions |> peaks(buckets, & &1.memory_mb) |> Enum.map(&gigabytes/1)
     }
   end
 
@@ -250,7 +316,7 @@ defmodule Tuist.Sandboxes.Analytics do
     ClickHouseRepo.all(
       from(e in SandboxEvent,
         where:
-          e.account_id == ^account_id and e.event in ^["created", "started", "setup" | Events.stop_events()] and
+          e.account_id == ^account_id and e.event in ^["started", "setup" | Events.stop_events()] and
             e.inserted_at >= ^lookback_dt and e.inserted_at < ^end_dt,
         order_by: [e.sandbox_id, e.inserted_at],
         select: %{
@@ -261,7 +327,7 @@ defmodule Tuist.Sandboxes.Analytics do
           duration_ms: e.duration_ms,
           vcpus: e.vcpus,
           memory_mb: e.memory_mb,
-          workspace_gb: e.workspace_gb,
+          guaranteed_cpu_milli: e.guaranteed_cpu_milli,
           inserted_at: e.inserted_at
         }
       )
@@ -273,37 +339,6 @@ defmodule Tuist.Sandboxes.Analytics do
 
     Enum.flat_map(by_sandbox, fn events ->
       events |> Enum.filter(&(&1.event in ["started" | Events.stop_events()])) |> pair_sessions(open_until)
-    end)
-  end
-
-  # Each sandbox's stretches on a node, holding its workspace and memory
-  # image: from `created`, or a `started` while off any node (a restore),
-  # until it is archived, fails or is deleted. One still on a node holds
-  # until now.
-  defp holds(by_sandbox, end_dt) do
-    open_until = open_until(end_dt)
-
-    Enum.flat_map(by_sandbox, fn events ->
-      {holds, open} =
-        Enum.reduce(events, {[], nil}, fn event, {holds, open} ->
-          at = to_utc(event.inserted_at)
-
-          cond do
-            is_nil(open) and event.event in ["created", "started"] ->
-              {holds, %{started_at: at, ended_at: nil, disk_mb: event.workspace_gb * 1024 + event.memory_mb}}
-
-            open && event.event in ["archived", "failed", "deleted"] ->
-              {[%{open | ended_at: at} | holds], nil}
-
-            true ->
-              {holds, open}
-          end
-        end)
-
-      case open do
-        nil -> holds
-        open -> [%{open | ended_at: Enum.max([open.started_at, open_until], DateTime)} | holds]
-      end
     end)
   end
 
@@ -331,8 +366,22 @@ defmodule Tuist.Sandboxes.Analytics do
     end
   end
 
-  defp start_session(event, at),
-    do: %{started_at: at, ended_at: nil, stopped?: false, vcpus: event.vcpus, memory_mb: event.memory_mb}
+  # Events from before guarantees were recorded hold 0: those sandboxes were
+  # guaranteed every vCPU.
+  defp start_session(event, at) do
+    guaranteed = if event.guaranteed_cpu_milli > 0, do: event.guaranteed_cpu_milli, else: event.vcpus * 1000
+
+    %{
+      sandbox_id: event.sandbox_id,
+      started_at: at,
+      ended_at: nil,
+      stopped?: false,
+      vcpus: event.vcpus,
+      guaranteed_vcpus: guaranteed / 1000,
+      bursting?: guaranteed < event.vcpus * 1000,
+      memory_mb: event.memory_mb
+    }
+  end
 
   defp stop_session(session, at), do: %{session | ended_at: at, stopped?: true}
 

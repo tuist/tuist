@@ -1537,6 +1537,43 @@ and follows a release together.
 {{- end -}}
 
 {{/*
+The Xcodes macOS sandboxes serve, as a JSON array of version strings with
+`sandboxes.macos.xcodeVersion` (the default) first, then each
+`sandboxes.macos.xcodeVersions` entry. Each one is a sandbox template,
+`macos-xcode-<xcode-dashes>`, that boots the Xcode's catalog runner image, and
+`macos` boots the default. A version beyond the default needs the rack's
+golden budget, which keeps the served images on every rack host
+(`tuist.dev/macos-sandbox-template` on their catalog pools), and has to be in
+`runnersFleet.xcodeVersions`. The server validates `xcode_version` against
+this list (`TUIST_MACOS_SANDBOX_XCODE_VERSIONS`).
+*/}}
+{{- define "tuist.macosSandboxXcodeVersions" -}}
+{{- $macos := .Values.sandboxes.macos -}}
+{{- $versions := list ($macos.xcodeVersion | toString) -}}
+{{- $catalog := list -}}
+{{- range (.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- $catalog = append $catalog (.xcodeVersion | toString) -}}
+{{- end -}}
+{{- $budget := int (dig "goldenBudget" 0 (.Values.rackFleet.runners | default dict)) -}}
+{{- range ($macos.xcodeVersions | default list) -}}
+{{- $version := . | toString -}}
+{{- if not (has $version $versions) -}}
+{{- if not (has $version $catalog) -}}
+{{- fail (printf "sandboxes.macos.xcodeVersions: %s is not in runnersFleet.xcodeVersions" $version) -}}
+{{- end -}}
+{{- if $macos.image -}}
+{{- fail "sandboxes.macos.xcodeVersions needs the catalog images: leave sandboxes.macos.image empty" -}}
+{{- end -}}
+{{- $versions = append $versions $version -}}
+{{- end -}}
+{{- end -}}
+{{- if and (gt (len $versions) 1) (lt $budget (len $versions)) -}}
+{{- fail (printf "sandboxes.macos.xcodeVersions: %d Xcodes need rackFleet.runners.goldenBudget of at least %d, which keeps their images on every rack host" (len $versions) (len $versions)) -}}
+{{- end -}}
+{{- toJson $versions -}}
+{{- end -}}
+
+{{/*
 The stacked runner image for a catalog Xcode version:
 `<runnersFleet.runnerImageRepository>@<digest>` with the digest
 `runnersFleet.runnerImageStackedDigests` resolves for it, or empty when it has
@@ -1572,6 +1609,28 @@ can serve. Empty unless the rack's runners are enabled, which does not need
 `rackFleet.enabled`: an env whose rack hosts are lent to it by another env
 (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
+{{/*
+The RuntimeClass an exclusive-CPU Kata pool runs under, as JSON
+`{name, memoryMiB}`. Its host cgroup is the budget plus podFixed, and the
+guest's kernel memory and virtiofsd's page cache grow with the budget, so
+podFixed is `kataContainers.podFixed.memory` (in Mi or Gi) plus
+`kataContainers.exclusivePodFixedMemoryPercent` of the budget, rounded up to
+256 MiB. Called with `dict "root" $ "podMemMiB" <budget>`.
+*/}}
+{{- define "tuist.kataExclusiveRuntimeClass" -}}
+{{- $base := toString .root.Values.kataContainers.podFixed.memory -}}
+{{- $baseMiB := 0 -}}
+{{- if hasSuffix "Gi" $base -}}
+{{- $baseMiB = mul (trimSuffix "Gi" $base | int) 1024 -}}
+{{- else if hasSuffix "Mi" $base -}}
+{{- $baseMiB = trimSuffix "Mi" $base | int -}}
+{{- end -}}
+{{- $podMemMiB := int .podMemMiB -}}
+{{- $extraMiB := mul (div (add (div (mul $podMemMiB (int (.root.Values.kataContainers.exclusivePodFixedMemoryPercent | default 0))) 100) 255) 256) 256 -}}
+{{- $name := ternary (printf "kata-qemu-%dg" (div $podMemMiB 1024)) (printf "kata-qemu-%dmi" $podMemMiB) (eq (mod $podMemMiB 1024) 0) -}}
+{{- dict "name" $name "memoryMiB" (add $baseMiB $extraMiB) | toJson -}}
+{{- end -}}
+
 {{/*
 Linux OS versions the shape pools run on, as a JSON array of
 `{osVersion, tag, default, image, autoscaling}`. `runnersFleetLinux.osVersions`
@@ -1691,7 +1750,7 @@ Secret, and the new name drifts the host onto it.
 
 {{/*
 The node pools that host node-local Kura cache volumes, as a JSON list of pool
-names: the kura runner-cache pool, the single OVH pool, and every OVH or Vultr
+names: the single OVH pool and every OVH or Vultr
 fleet whose nodes carry the kura-cache taint. Fleets in those maps that are not
 cache pools (the OVH Linux runner boxes) set their own taints and stay out, so
 nothing privileged that targets this list lands on a box with no cache volumes.
@@ -1701,9 +1760,6 @@ may run a pod on a rack node (see infra/rack-nodes/AGENTS.md).
 */}}
 {{- define "tuist.kuraCachePools" -}}
 {{- $pools := list -}}
-{{- if .Values.kuraFleet.enabled -}}
-{{- $pools = append $pools (.Values.kuraFleet.nodePool | default "kura-scw-fr-par") -}}
-{{- end -}}
 {{- if .Values.ovhFleet.enabled -}}
 {{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") -}}
 {{- end -}}
@@ -1769,3 +1825,63 @@ than routing nothing.
 {{- end -}}
 {{- join "," $routed -}}
 {{- end -}}
+
+{{/*
+The ExternalSecret template expression for a service's Pulse Sentry DSN (see
+sentryPulse in values.yaml). Pass the service name and the ExternalSecret data
+key holding the Pulse user's password.
+*/}}
+{{- define "tuist.sentryPulseDsn" -}}
+{{- $p := .root.Values.sentryPulse -}}
+http://{{ $p.user }}:{{ printf "{{ .%s | trim }}" .key }}@{{ $p.host }}/v1/sentry/{{ .service }}/1
+{{- end }}
+
+{{/*
+Whether the agents Deployment runs. Its pods join the server's Erlang cluster
+for session wakes and the Condukt session registry, so without clustering the
+server pods host agent sessions themselves.
+*/}}
+{{- define "tuist.agentsEnabled" -}}
+{{- if and .Values.server.enabled .Values.agents.enabled .Values.server.cluster.enabled }}true{{- end }}
+{{- end }}
+
+{{/*
+Which keys Tuist.Vault holds and which one it encrypts new values with. Plain
+env vars on every workload that reads the server config Secret, rather than
+keys in that Secret, so changing either rolls the pods. A pod refuses to boot
+while the synced Secret lacks a listed key, so no pod can be serving without a
+key another pod writes with.
+*/}}
+{{- define "tuist.encryptionCurrentKeyEnv" -}}
+{{- $keys := .Values.server.config.encryptionKeys -}}
+{{- $ids := $keys.keyIds | default list -}}
+{{- with $keys.currentKeyId }}
+{{- if and $ids (not (has . $ids)) }}
+{{- fail (printf "server.config.encryptionKeys.currentKeyId %q must be listed in keyIds, so every pod holds it before any pod writes with it." .) }}
+{{- end }}
+{{- if and (eq . "V1") (not $keys.legacyKey) }}
+{{- fail "server.config.encryptionKeys.currentKeyId is V1, which legacyKey: false stops syncing." }}
+{{- end }}
+- name: TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY
+  value: {{ . | quote }}
+{{- end }}
+{{- if and (has "V1" $ids) (not $keys.legacyKey) }}
+{{- fail "server.config.encryptionKeys.keyIds lists V1, which legacyKey: false stops syncing." }}
+{{- end }}
+{{- with $ids }}
+- name: TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS
+  value: {{ join "," . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+A Kubernetes CPU quantity ("250m", "2", "1.5") in millicores.
+*/}}
+{{- define "tuist.milliCPU" -}}
+{{- $cpu := toString . -}}
+{{- if hasSuffix "m" $cpu -}}
+{{- trimSuffix "m" $cpu | int -}}
+{{- else -}}
+{{- mulf (float64 $cpu) 1000 | int -}}
+{{- end -}}
+{{- end }}

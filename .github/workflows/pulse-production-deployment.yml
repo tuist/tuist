@@ -1,0 +1,106 @@
+name: Pulse Production Deployment
+
+# Continuous deployment for Pulse, as server-production-deployment.yml does for
+# Kura: every push to main that changes Pulse or its deployment publishes a
+# canary when pulse/ changed, then deploys staging, canary and production in
+# turn. Each leg is pulse-deployment.yml, which deploys the newest pulse@
+# canary the commit contains and qualifies it: smoke writes and reads, a reread
+# after restarting every stateful component, and recent real collector
+# telemetry. Production only follows a canary that passed.
+#
+# Rollbacks and redeploys of one environment go through pulse-deployment.yml's
+# own dispatch.
+on:
+  push:
+    branches: [main]
+    paths:
+      - pulse/**
+      - infra/helm/pulse/**
+      - infra/helm/pulse-grafana/**
+      - .github/workflows/pulse-deployment.yml
+      - .github/workflows/pulse-production-deployment.yml
+      - .github/scripts/pulse-*
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Queued pushes collapse into the newest; a cascade is never cancelled
+  # mid-rollout.
+  group: pulse-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check for a Pulse change
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      pulse-changed: ${{ steps.check.outputs.pulse-changed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - id: check
+        # Compared against the newest canary rather than the previous push:
+        # queued runs of this workflow collapse, and a Pulse change in a
+        # replaced run must still be released and deployed.
+        run: |
+          set -euo pipefail
+          latest="$(git tag --list 'pulse@*' --merged HEAD \
+            | grep -E '^pulse@[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [[ -z "$latest" ]] || ! git diff --quiet "$latest" HEAD -- pulse/; then
+            echo "pulse-changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pulse-changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: Pulse canary release
+    needs: check
+    if: needs.check.outputs.pulse-changed == 'true'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/pulse-release.yml
+    secrets: inherit
+
+  # The legs wait for the release without requiring it, as Kura's do: a failed
+  # canary release must not hold back chart changes, and the legs then deploy
+  # the newest canary that did publish. Each leg re-asserts its predecessor's
+  # success explicitly, because a plain `if` would be skipped along with the
+  # skipped release.
+  staging:
+    needs: [check, release]
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
+    uses: ./.github/workflows/pulse-deployment.yml
+    with:
+      environment: staging
+      dashboard: true
+      verify_telemetry: true
+    secrets: inherit
+
+  canary:
+    needs: staging
+    if: ${{ !cancelled() && needs.staging.result == 'success' }}
+    uses: ./.github/workflows/pulse-deployment.yml
+    with:
+      environment: canary
+      dashboard: true
+      verify_telemetry: true
+    secrets: inherit
+
+  production:
+    needs: canary
+    if: ${{ !cancelled() && needs.canary.result == 'success' }}
+    uses: ./.github/workflows/pulse-deployment.yml
+    with:
+      environment: production
+      dashboard: true
+      verify_telemetry: true
+    secrets: inherit

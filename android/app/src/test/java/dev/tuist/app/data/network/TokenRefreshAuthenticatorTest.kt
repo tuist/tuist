@@ -66,9 +66,20 @@ class TokenRefreshAuthenticatorTest {
         tokenStorage = mockk {
             every { getAccessToken() } answers { storedAccessToken }
             every { getRefreshToken() } answers { storedRefreshToken }
-            every { storeTokens(any(), any()) } answers {
-                storedAccessToken = firstArg()
-                storedRefreshToken = secondArg()
+            every { retryPendingRotation() } returns true
+            every { snapshot() } returns TokenStorage.Session("profile", 0)
+            every { credentials(any()) } returns null
+            every { profiles } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+            every { isCurrent(any()) } returns true
+            every { rotate(any(), any(), any(), any()) } answers {
+                storedAccessToken = thirdArg()
+                storedRefreshToken = arg(3)
+                true
+            }
+            every { clearIfCurrent(any(), selectFallback = true) } answers {
+                storedAccessToken = null
+                storedRefreshToken = null
+                true
             }
             every { clear() } answers {
                 storedAccessToken = null
@@ -114,6 +125,24 @@ class TokenRefreshAuthenticatorTest {
             "grant_type=refresh_token&refresh_token=old-refresh&client_id=client-id",
             refreshRequest.body.readUtf8(),
         )
+    }
+
+    @Test
+    fun `pending durability failure prevents sending another refresh grant`() {
+        every { tokenStorage.retryPendingRotation() } returns false
+        assertThrows(TokenRefreshException::class.java) { execute() }
+        assertEquals(0, refreshCount.get())
+        assertEquals("old-refresh", storedRefreshToken)
+        assertTrue(authEvents.isEmpty())
+    }
+
+    @Test
+    fun `saved issuing client takes priority over environment client on the same origin`() {
+        every { tokenStorage.credentials("profile") } returns TokenStorage.Credentials(
+            "profile", server.url("/").toString(), "old-access", "old-refresh", "saved-client",
+        )
+        assertEquals(200, execute().code)
+        assertTrue(refreshRequests.single().body.readUtf8().contains("client_id=saved-client"))
     }
 
     @Test

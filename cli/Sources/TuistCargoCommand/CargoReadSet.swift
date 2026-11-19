@@ -15,6 +15,22 @@ struct CargoReadSet: Codable, Equatable {
     var entries: [Entry]
 
     static let maximumEntries = 20000
+    /// Files under `/proc/self` that describe the process reading them, as Rust's standard library and allocators
+    /// read them to size thread pools, and the cgroup limits and CPUs they consult for the same. Their times are always
+    /// now.
+    static let processStatus = ["auxv", "cgroup", "cmdline", "exe", "limits", "maps", "mountinfo", "stat", "statm", "status"]
+    static let processLimits = ["/sys/fs/cgroup/", "/sys/devices/system/cpu/"]
+
+    /// The path below a process's own directory in `/proc` (`/proc/self`, `/proc/thread-self` or `/proc/<pid>`), which
+    /// names something different in every process: evaluated again by this one, it would key what this process sees.
+    static func processFile(_ path: String) -> String? {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.count >= 3, components[0].isEmpty, components[1] == "proc" else { return nil }
+        let process = components[2]
+        guard process == "self" || process == "thread-self" || (!process.isEmpty && process.allSatisfy(\.isNumber))
+        else { return nil }
+        return components.dropFirst(3).joined(separator: "/")
+    }
 
     /// Parses a recorder log. `nil` when the run cannot be cached: a child process that did not load the recorder
     /// (other than an allowed one, such as the system linker), a network connection, a write outside `allowedWrites`,
@@ -38,12 +54,21 @@ struct CargoReadSet: Codable, Equatable {
         }
         var commands: Set<Entry> = []
         // Processes of query programs and tools that loaded the recorder, such as a Homebrew `git` or swiftly's
-        // `swiftc`, and their children: what they print or produce is keyed, so their own events are not the run's.
+        // `swiftc`, and their children: what they print or produce is keyed, so their own events, including the
+        // programs they start, are not the run's. Without SIP every program loads the recorder: `/usr/bin/ar` runs
+        // Xcode's `ar`, which runs `ranlib`.
         var queryProcesses: Set<String> = []
+        // Children of those processes. A forked child logs its `execve` before the program it starts says whose
+        // child it is, so an attempt of one is dropped once that is known.
+        var queryChildren: Set<String> = []
         // The index files of working trees a keyed git query asked about.
         var queriedIndexes: Set<String> = []
         var counted: Set<String> = []
         var attempts: [String: String] = [:]
+        var programs: [String: String] = [:]
+        // Processes that loaded the recorder and have not logged `F` yet: the recorder buffers events, so one that died
+        // before writing them may have read more than the log says.
+        var open: Set<String> = []
         func model(_ value: String) {
             let parts = value.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
             guard parts.count >= 4, !allowedSpawn(parts[0]) else { return }
@@ -70,28 +95,37 @@ struct CargoReadSet: Codable, Equatable {
             }
             let pid = String(fields[0])
             let value = String(fields[2])
-            if queryProcesses.contains(pid) {
-                if "XQJ".contains(kind) { spawns += 1; unrecorded.append(value) }
+            if kind == "F" {
+                open.remove(pid)
                 continue
             }
+            if kind == "p", queryProcesses.contains(value) {
+                queryProcesses.insert(pid)
+                queryChildren.insert(pid)
+                if counted.remove(pid) != nil { processes -= 1 }
+                continue
+            }
+            if queryProcesses.contains(pid) { continue }
             switch kind {
             // An allowed program that loaded the recorder must not stand in for a child that did not.
             case "P":
-                if CargoQuery.programs.union(CargoTool.programs).contains(URL(fileURLWithPath: value).lastPathComponent) {
+                programs[pid] = value
+                open.insert(pid)
+                if CargoReadRecorder.modeledPrograms.contains(URL(fileURLWithPath: value).lastPathComponent) {
                     queryProcesses.insert(pid)
                 } else if !allowedSpawn(value) { processes += 1; counted.insert(pid) }
-            case "p":
-                if queryProcesses.contains(value) {
-                    queryProcesses.insert(pid)
-                    if counted.remove(pid) != nil { processes -= 1 }
-                }
+            case "p": break
             case "Q": model(value)
             // An `execve` of a modeled program, as a forked child's `execvp` tries each `PATH` directory: `Z`
             // withdraws an attempt that failed, so only the last one stands.
             case "J": attempts[pid] = value
-            case "Z": attempts[pid] = nil
+            case "Z":
+                attempts[pid] = nil
+                // A failed exec continues the program it sealed.
+                if programs[pid] != nil { open.insert(pid) }
             case "X": if !allowedSpawn(value) { spawns += 1; unrecorded.append(value) }
             case "Y":
+                if programs[pid] != nil { open.insert(pid) }
                 if !allowedSpawn(value) {
                     spawns -= 1
                     if let last = unrecorded.lastIndex(of: value) { unrecorded.remove(at: last) }
@@ -108,12 +142,18 @@ struct CargoReadSet: Codable, Equatable {
                 written.insert(path)
             case "R", "S", "A", "D": observed.append((kind, standardized(value)))
             default:
-                explain(kind == "N" ? "connected to the network" : "event \(kind) \(value)")
+                explain(kind == "N" ? "connected to \(value) from \(programs[pid] ?? "an unknown program")" :
+                    "event \(kind) \(value)")
                 return nil
             }
         }
-        for attempt in attempts.values.sorted() {
+        for (pid, attempt) in attempts.sorted(by: { $0.value < $1.value }) where !queryChildren.contains(pid) {
             model(attempt)
+        }
+        guard open.isEmpty else {
+            let unfinished = open.compactMap { programs[$0] }.sorted().prefix(4)
+            explain("has a recorded process that did not finish logging: " + unfinished.joined(separator: "; "))
+            return nil
         }
         // Every process started must have loaded the recorder, the first one included.
         guard processes >= 1, processes >= spawns + 1 else {
@@ -124,6 +164,12 @@ struct CargoReadSet: Codable, Equatable {
             return nil
         }
         var entries = commands
+        #if os(Linux)
+            // Shells, `make` and interpreters take every variable they inherit from `environ`, which no call reveals,
+            // and glibc reads its own (`LANG`, `TZ`, `POSIXLY_CORRECT`) without `getenv`. The run's own program is
+            // rustc or a build script, which read variables through `getenv`; any program it starts may have read any.
+            if processes > 1 { entries.insert(Entry(kind: "environment", name: "*")) }
+        #endif
         for (pid, count) in environReads where count > passedThrough[pid, default: 0] {
             entries.insert(Entry(kind: "environment", name: "*"))
         }
@@ -140,6 +186,15 @@ struct CargoReadSet: Codable, Equatable {
             // Devices are not inputs: rustc opens `/dev/null`, whose modification time changes whenever any process
             // writes to it, so keying it would refuse every run whose build output is discarded.
             if path.hasPrefix("/dev/") { continue }
+            // Other `/proc` and `/sys` files, such as `/proc/cpuinfo`, stay inputs: their times keep a run that reads
+            // them from being stored.
+            if let file = Self.processFile(path) {
+                if file == "environ" { entries.insert(Entry(kind: "environment", name: "*")); continue }
+                if Self.processStatus.contains(file) || (kind == "D" && file == "fd") { continue }
+                explain("read \(path)")
+                return nil
+            }
+            if Self.processLimits.contains(where: { path.hasPrefix($0) }) { continue }
             // The index of a working tree the run asked git about: bat's `git_version!` reads `.git/index` through
             // `include_bytes!` only so Cargo reruns it when the tree changes, discarding the bytes, and embeds what git
             // printed, keyed above. The index holds each file's inode and times, so its bytes differ in every checkout
@@ -174,11 +229,22 @@ struct CargoReadSet: Codable, Equatable {
     /// Whether every recorded file is older than `date`: an input that changed while the run read it would key new
     /// content with old output.
     func unchanged(since date: Date, relocation: CargoRelocation) -> Bool {
+        changedInput(since: date, relocation: relocation) == nil
+    }
+
+    /// The first recorded file that changed at or after `date`, if any.
+    func changedInput(since date: Date, relocation: CargoRelocation) -> String? {
         let limit = date.timeIntervalSince1970
-        return entries.allSatisfy { entry in
-            guard entry.kind == "path", let path = relocation.absolute(entry.name) else { return true }
+        return entries.first { entry in
+            guard entry.kind == "path", let path = relocation.absolute(entry.name) else { return false }
             var value = stat()
-            guard stat(path, &value) == 0 else { return true }
+            guard stat(path, &value) == 0 else { return false }
+            // A directory looked up is keyed only as a directory: entries created in it, as git does in `.git`, do
+            // not change what the run saw, unless it is itself new, where the run may have seen something else.
+            // Directories it listed are keyed by their listing.
+            if value.st_mode & S_IFMT == S_IFDIR, let born = Self.birth(of: path, status: value), born < limit {
+                return false
+            }
             #if os(Linux)
                 let (changedTime, modifiedTime) = (value.st_ctim, value.st_mtim)
             #else
@@ -186,8 +252,34 @@ struct CargoReadSet: Codable, Equatable {
             #endif
             let changed = Double(changedTime.tv_sec) + Double(changedTime.tv_nsec) / 1e9
             let modified = Double(modifiedTime.tv_sec) + Double(modifiedTime.tv_nsec) / 1e9
-            return max(changed, modified) < limit
+            return max(changed, modified) >= limit
+        }?.name
+    }
+
+    #if os(Linux)
+        /// glibc's `statx`, which Swift does not import, for the birth time `stat` lacks.
+        private static let statx = dlsym(UnsafeMutableRawPointer(bitPattern: 0), "statx").map {
+            unsafeBitCast(
+                $0, to: (@convention(c) (Int32, UnsafePointer<CChar>, Int32, UInt32, UnsafeMutableRawPointer) -> Int32).self
+            )
         }
+    #endif
+
+    /// When `path` was created, if its file system records it.
+    private static func birth(of path: String, status: stat) -> Double? {
+        #if os(Linux)
+            /// The kernel's `struct statx`: `stx_mask` first, `stx_btime` at byte 80.
+            let birthTime: UInt32 = 0x800
+            guard let statx else { return nil }
+            let buffer = UnsafeMutableRawPointer.allocate(byteCount: 256, alignment: 8)
+            defer { buffer.deallocate() }
+            guard statx(AT_FDCWD, path, 0, birthTime, buffer) == 0, buffer.load(as: UInt32.self) & birthTime != 0
+            else { return nil }
+            return Double(buffer.load(fromByteOffset: 80, as: Int64.self))
+                + Double(buffer.load(fromByteOffset: 88, as: UInt32.self)) / 1e9
+        #else
+            return Double(status.st_birthtimespec.tv_sec) + Double(status.st_birthtimespec.tv_nsec) / 1e9
+        #endif
     }
 
     mutating func bind(_ roots: [CargoRelocation.Root]) {

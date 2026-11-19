@@ -25,6 +25,12 @@ config :sentry, dsn: nil
 # Oban
 config :tuist, Oban, testing: :manual
 
+# Tests start their own runners.
+config :tuist, Tuist.Agents.Runner, enabled: false
+
+# Agent sessions keep their objects in memory (started in test_helper.exs).
+config :tuist, Tuist.Agents.SessionStore, bucket: {Condukt.SessionStore.ObjectStore.Memory, Tuist.Agents.TestBucket}
+
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
@@ -109,8 +115,11 @@ config :tuist, Tuist.Repo,
 
 config :tuist, Tuist.Runners, volume_master_readable_interval_ms: 0
 config :tuist, Tuist.Sandboxes.Capacity, grow_wait_ms: 300, admission_grow_wait_ms: 300
+config :tuist, Tuist.Sandboxes.Commands, host_poll_ms: 10
 config :tuist, Tuist.Sandboxes.Nodes, presence_wait_ms: 0
 config :tuist, Tuist.Tasks, sync: true
+# Threads start without waiting for an app to offer its tools.
+config :tuist, Tuist.Threads.Host, client_wait_ms: 0
 
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
 config :tuist, TuistCommon.Ingestion.Bufferable, write_through_repo: true

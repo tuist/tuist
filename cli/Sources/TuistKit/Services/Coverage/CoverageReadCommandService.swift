@@ -49,6 +49,26 @@ struct CoverageReadContext {
     static func percentage(_ value: Double) -> String {
         String(format: "%.1f%%", value)
     }
+
+    /// One cursor page as a table, followed by the options that read the pages around it.
+    static func cursorTable(
+        headers: [String],
+        rows: [[String]],
+        olderCursor: String?,
+        newerCursor: String?
+    ) async throws {
+        try await Noora.current.paginatedTable(
+            headers: headers,
+            pageSize: max(rows.count, 1),
+            totalPages: 1,
+            startPage: 0,
+            loadPage: { _ in rows }
+        )
+        var hints: [String] = []
+        if let olderCursor { hints.append("Older: --after \(olderCursor)") }
+        if let newerCursor { hints.append("Newer: --before \(newerCursor)") }
+        if !hints.isEmpty { Noora.current.passthrough("\(hints.joined(separator: "\n"))\n") }
+    }
 }
 
 struct CoverageShowCommandService {
@@ -333,5 +353,286 @@ struct CoverageFileCommandService {
         }
         if let start, let previous { ranges.append(start == previous ? "\(start)" : "\(start)-\(previous)") }
         return ranges.joined(separator: ", ")
+    }
+}
+
+struct CoverageTargetsCommandService {
+    private let coverageService: CoverageServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let configLoader: ConfigLoading
+
+    init(
+        coverageService: CoverageServicing = CoverageService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
+    ) {
+        self.coverageService = coverageService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.configLoader = configLoader
+    }
+
+    func run(
+        path: String?,
+        fullHandle: String?,
+        branch: String?,
+        commit: String?,
+        search: String?,
+        sortBy: String?,
+        sortOrder: String?,
+        page: Int?,
+        pageSize: Int?,
+        json: Bool
+    ) async throws {
+        let context = try await CoverageReadContext.resolve(
+            path: path,
+            fullHandle: fullHandle,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        let sha = try await context.commitSHA(commit: commit, branch: branch, coverageService: coverageService)
+        let startPage = (page ?? 1) - 1
+        let pageSize = pageSize ?? 20
+
+        let fetch = { (pageIndex: Int) in
+            try await coverageService.listCoverageTargets(
+                fullHandle: context.fullHandle,
+                serverURL: context.serverURL,
+                commitSHA: sha,
+                search: search,
+                sortBy: sortBy,
+                sortOrder: sortOrder,
+                page: pageIndex + 1,
+                pageSize: pageSize
+            )
+        }
+
+        let initialPage = try await fetch(startPage)
+
+        if json {
+            try Noora.current.json(initialPage)
+            return
+        }
+
+        if initialPage.targets.isEmpty {
+            Noora.current.passthrough("No target coverage found for commit \(sha).")
+            return
+        }
+
+        try await Noora.current.paginatedTable(
+            headers: ["Target", "Coverage", "Files", "Covered Lines", "Executable Lines"],
+            pageSize: pageSize,
+            totalPages: initialPage.pagination_metadata.total_pages ?? 1,
+            startPage: startPage,
+            loadPage: { pageIndex in
+                let page = pageIndex == startPage ? initialPage : try await fetch(pageIndex)
+                return page.targets.map { target in
+                    guard target.measured else {
+                        return [target.name, "Not measured", "-", "-", "-"]
+                    }
+                    return [
+                        target.name,
+                        target.coverage.map(CoverageReadContext.percentage) ?? "-",
+                        "\(target.files_count)",
+                        "\(target.covered_lines)",
+                        "\(target.executable_lines)",
+                    ]
+                }
+            }
+        )
+        if initialPage.targets.contains(where: { !$0.measured }) {
+            Noora.current.passthrough(
+                "A target not measured came from the binary cache without coverage counters, so its runs measured none of its code.\n"
+            )
+        }
+    }
+}
+
+struct CoverageCommitsCommandService {
+    private let coverageService: CoverageServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let configLoader: ConfigLoading
+
+    init(
+        coverageService: CoverageServicing = CoverageService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
+    ) {
+        self.coverageService = coverageService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.configLoader = configLoader
+    }
+
+    func run(
+        path: String?,
+        fullHandle: String?,
+        branch: String?,
+        status: String?,
+        search: String?,
+        after: String?,
+        before: String?,
+        pageSize: Int?,
+        json: Bool
+    ) async throws {
+        let context = try await CoverageReadContext.resolve(
+            path: path,
+            fullHandle: fullHandle,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        let page = try await coverageService.listCoverageCommits(
+            fullHandle: context.fullHandle,
+            serverURL: context.serverURL,
+            branch: branch,
+            status: status,
+            search: search,
+            after: after,
+            before: before,
+            pageSize: pageSize
+        )
+
+        if json {
+            try Noora.current.json(page)
+            return
+        }
+
+        if page.commits.isEmpty {
+            Noora.current.passthrough("No commits with coverage found on \(page.branch).")
+            return
+        }
+
+        let rows = page.commits.map { commit in
+            [
+                commit.git_commit_sha,
+                commit.status.replacingOccurrences(of: "_", with: " "),
+                commit.coverage.map(CoverageReadContext.percentage) ?? "-",
+                commit.change.map { String(format: "%+.1f pp", $0) } ?? "-",
+                commit.committed_at.map { Formatters.formatDate($0) } ?? "-",
+            ]
+        }
+        try await CoverageReadContext.cursorTable(
+            headers: ["Commit", "Status", "Coverage", "Change", "Committed At"],
+            rows: rows,
+            olderCursor: page.pagination.has_next_page ? page.pagination.end_cursor : nil,
+            newerCursor: page.pagination.has_previous_page ? page.pagination.start_cursor : nil
+        )
+    }
+}
+
+struct CoverageRunsCommandService {
+    private let coverageService: CoverageServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let configLoader: ConfigLoading
+
+    init(
+        coverageService: CoverageServicing = CoverageService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
+    ) {
+        self.coverageService = coverageService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.configLoader = configLoader
+    }
+
+    func run(
+        path: String?,
+        fullHandle: String?,
+        branch: String?,
+        commit: String?,
+        scheme: String?,
+        after: String?,
+        before: String?,
+        pageSize: Int?,
+        json: Bool
+    ) async throws {
+        let context = try await CoverageReadContext.resolve(
+            path: path,
+            fullHandle: fullHandle,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        let page = try await coverageService.listCoverageRuns(
+            fullHandle: context.fullHandle,
+            serverURL: context.serverURL,
+            commitSHA: commit,
+            branch: branch,
+            scheme: scheme,
+            after: after,
+            before: before,
+            pageSize: pageSize
+        )
+
+        if json {
+            try Noora.current.json(page)
+            return
+        }
+
+        if page.runs.isEmpty {
+            Noora.current.passthrough("No test runs with coverage found.")
+            return
+        }
+
+        let rows = page.runs.map { run in
+            [
+                run.test_run_id,
+                run.git_commit_sha,
+                run.scheme.isEmpty ? "-" : run.scheme,
+                run.status,
+                CoverageReadContext.percentage(run.coverage),
+                run.ran_at.map { Formatters.formatDate($0) } ?? "-",
+            ]
+        }
+        try await CoverageReadContext.cursorTable(
+            headers: ["Test Run", "Commit", "Scheme", "Status", "Coverage", "Ran At"],
+            rows: rows,
+            olderCursor: page.pagination.has_next_page ? page.pagination.end_cursor : nil,
+            newerCursor: page.pagination.has_previous_page ? page.pagination.start_cursor : nil
+        )
+        if page.runs.contains(where: { $0.status != "full" }) {
+            Noora.current.passthrough(
+                "A partial run skipped tests on purpose, so it measured only what it ran. A discarded run ran from a dirty checkout, so its coverage doesn't join its commit's.\n"
+            )
+        }
+    }
+}
+
+struct CoverageBranchesCommandService {
+    private let coverageService: CoverageServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let configLoader: ConfigLoading
+
+    init(
+        coverageService: CoverageServicing = CoverageService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
+    ) {
+        self.coverageService = coverageService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.configLoader = configLoader
+    }
+
+    func run(path: String?, fullHandle: String?, json: Bool) async throws {
+        let context = try await CoverageReadContext.resolve(
+            path: path,
+            fullHandle: fullHandle,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService
+        )
+        let branches = try await coverageService.listCoverageBranches(
+            fullHandle: context.fullHandle,
+            serverURL: context.serverURL
+        )
+
+        if json {
+            try Noora.current.json(branches)
+            return
+        }
+
+        if branches.branches.isEmpty {
+            Noora.current.passthrough("No branch has coverage yet.")
+            return
+        }
+
+        let lines = branches.branches.map { $0 == branches.default_branch ? "\($0) (default)" : $0 }
+        Noora.current.passthrough("\(lines.joined(separator: "\n"))")
     }
 }

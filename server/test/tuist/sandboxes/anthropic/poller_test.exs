@@ -5,10 +5,12 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
   alias Tuist.Sandboxes.Anthropic.Poller
   alias Tuist.Sandboxes.Anthropic.Supervisor, as: AnthropicSupervisor
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
+  alias Tuist.Sandboxes.Workers.DispatchWorkItemWorker
 
   setup :set_mimic_global
 
@@ -60,30 +62,42 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
     assert Poller.whereis(agent_environment.id)
   end
 
-  test "leaves a session item queued and backs off when no node has room for the platform its session asks for" do
-    agent_environment = agent_environment_fixture(anthropic_environment_id: "env_full", environment_key: "sk-full")
+  test "acknowledges a session item no node has room for and holds it in an encrypted dispatch job" do
+    agent_environment =
+      agent_environment_fixture(
+        anthropic_environment_id: "env_full",
+        environment_key: "sk-full",
+        anthropic_api_key: "sk-ant-api"
+      )
+
     test_pid = self()
+    item = work_item("work_full", %{"id" => "session_full", "type" => "session"})
 
-    item =
-      work_item("work_full", %{"id" => "session_full", "type" => "session", "metadata" => %{"tuist_platform" => "macos"}})
-
-    queue_poll_responses([{:ok, item}, {:ok, item}])
-
-    stub(Capacity, :admissible?, fn %{platform: :darwin} = environment, "session_full" ->
-      send(test_pid, {:checked, environment.id, System.monotonic_time(:millisecond)})
-      false
+    stub(ControlPlane, :get_session, fn {:api_key, "sk-ant-api"}, "session_full" ->
+      {:ok, %{"id" => "session_full", "metadata" => %{"tuist_platform" => "macos"}}}
     end)
 
-    reject(&Client.ack/3)
+    queue_poll_responses([{:ok, item}])
+
+    stub(Capacity, :admission, fn %{platform: :darwin}, "session_full" -> {:error, :no_room} end)
+
+    expect(Client, :ack, fn "env_full", "sk-full", "work_full" ->
+      send(test_pid, :acked)
+      {:ok, Map.put(item, "state", "starting")}
+    end)
+
     reject(&Router.dispatch/2)
     reject(&Client.stop/4)
 
     start_supervised!({Poller, agent_environment_id: agent_environment.id, idle_delay_ms: 20})
 
-    environment_id = agent_environment.id
-    assert_receive {:checked, ^environment_id, first}, 2_000
-    assert_receive {:checked, ^environment_id, second}, 3_000
-    assert second - first >= 900
+    assert_receive :acked, 2_000
+    assert [%Oban.Job{args: args}] = all_enqueued(worker: DispatchWorkItemWorker)
+    assert %{"agent_environment_id" => environment_id, "work_id" => "work_full", "item" => held} = args
+    assert environment_id == agent_environment.id
+    assert held == Map.delete(item, "secret")
+    refute args["secret"] == "secret"
+    assert {:ok, "secret"} = args["secret"] |> Base.decode64!() |> Tuist.Vault.decrypt()
   end
 
   test "force-stops a work item that is not a session" do

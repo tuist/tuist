@@ -2,6 +2,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -9,6 +10,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
 
@@ -62,6 +64,35 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     assert {:ok, _} = Capacity.place(sandbox())
   end
 
+  test "a Claude Code snapshot builder is placed only on a host whose granted slots are both free", %{node: node} do
+    environment =
+      agent_environment_fixture(
+        kind: :claude_code,
+        anthropic_environment_id: "ccpool_01macos",
+        platform: :darwin,
+        template: "macos",
+        vcpus: 8,
+        memory_mb: 8192,
+        setup_script: "brew bundle\n"
+      )
+
+    {:ok, build} = DiskSnapshots.start_build(environment, "acme/app", "sha")
+    builder = sandbox(id: build.id, vcpus: 4, memory_mb: 4096)
+
+    one_slot = %{node | admission: Map.put(node.admission, "slots", 1)}
+    stub(Nodes, :connected_nodes, fn -> [one_slot] end)
+    assert {:error, :no_capacity} = Capacity.place(builder)
+
+    stub(Nodes, :connected_nodes, fn -> [node] end)
+    session = sandbox(vcpus: 4, memory_mb: 4096)
+    assert {:ok, _name} = Capacity.place(session)
+    assert {:error, :no_capacity} = Capacity.place(builder)
+
+    session |> Repo.reload!() |> Repo.delete!()
+    assert {:ok, name} = Capacity.place(builder)
+    assert name == node.name
+  end
+
   test "placement prefers a host with a warm VM of the requested shape", %{node: node} do
     cold = %{node | name: "cold-#{System.unique_integer([:positive])}"}
     warm_template = %{name: "macos", ready: true, tag: "image@sha256:abc", warm: ["8x8192"]}
@@ -75,7 +106,24 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     assert name == warm.name
   end
 
-  test "a turn starts on a VM resumed for it even when CI closed the grant during the restore", %{node: node} do
+  test "placement logs why a host holding a warm VM was not chosen", %{node: node} do
+    Logger.put_module_level(MacosCapacity, :info)
+    on_exit(fn -> Logger.delete_module_level(MacosCapacity) end)
+    warm_template = %{name: "macos", ready: true, tag: "image@sha256:abc", warm: ["8x8192"]}
+    warm = %{node | name: "rack-b04", templates: [warm_template], admission: Map.put(node.admission, "slots", 0)}
+    stale = %{node | name: "rack-b05", admission: Map.put(node.admission, "observed_at", "2020-01-01T00:00:00Z")}
+    cold = %{node | name: "rack-b06"}
+
+    stub(Nodes, :connected_nodes, fn -> [cold, stale, warm] end)
+
+    log = capture_log([level: :info], fn -> assert {:ok, "rack-b06"} = Capacity.place(sandbox()) end)
+
+    assert log =~ "sandboxes: macOS placement"
+    assert log =~ "shape=8x8192"
+    assert log =~ "hosts=b04=warm:refused_no_capacity_no_slot b05=grant_stale b06=chosen"
+  end
+
+  test "turns on a running VM need no grant, even when CI closed it during the restore", %{node: node} do
     sandbox = sandbox(state: :paused, node_name: node.name, node_uid: "node-uid", resident: false)
     closed = %{node | admission: Map.put(node.admission, "allow", false)}
     restored = start_supervised!({Agent, fn -> false end})
@@ -87,7 +135,8 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end)
 
     assert {:ok, %{state: :running, residency_work_id: "amp:orb"}} = Sandboxes.prepare_residency(sandbox, "amp:orb")
-    assert {:error, :no_capacity} = Sandboxes.begin_residency(Repo.reload!(sandbox), "amp:other")
+    # First come, first served: the running VM keeps its place for its next turn.
+    assert {:ok, %{residency_work_id: "amp:other"}} = Sandboxes.begin_residency(Repo.reload!(sandbox), "amp:other")
   end
 
   test "CI revocation, stale grants and replaced control identities deny new work", %{node: node} do
@@ -101,9 +150,30 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end
   end
 
+  test "a refused resume names why its own host can't take it", %{node: node} do
+    stale = DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -16))
+
+    for {host, why} <- [
+          {%{node | admission: Map.put(node.admission, "allow", false)}, :ci},
+          {%{node | admission: Map.put(node.admission, "observed_at", stale)}, :no_grant},
+          {%{node | admission: Map.put(node.admission, "memory_bytes", 4 * 1024 * 1024 * 1024)}, :full},
+          {:not_connected, :not_connected}
+        ] do
+      paused = sandbox(state: :paused, node_name: node.name, node_uid: node.generation, resident: true)
+
+      stub(Nodes, :lookup, fn _name ->
+        if host == :not_connected, do: {:error, :not_connected}, else: {:ok, self(), host}
+      end)
+
+      assert {:error, {:host_busy, ^why}} = Capacity.admit(paused)
+      assert Repo.reload!(paused).state == :paused
+      paused |> Repo.reload!() |> Ecto.Changeset.change(state: :deleted, resident: false) |> Repo.update!()
+    end
+  end
+
   test "a replacement Node cannot resume the previous owner's environment", %{node: node} do
     prior = sandbox(state: :paused, node_name: node.name, node_uid: "old-node", resident: false)
-    assert {:error, :no_capacity} = Capacity.admit(prior)
+    assert {:error, {:host_busy, :replaced}} = Capacity.admit(prior)
     assert Repo.reload!(prior).state == :paused
   end
 
@@ -119,6 +189,71 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end
   end
 
+  test "placement counts evicted environments against the disk the host reports", %{node: node} do
+    gib = 1024 * 1024 * 1024
+    rootfs = 101_000_000_000
+    # What the host's diskRoom reserves for one 8 GiB environment.
+    ceiling = rootfs + 2 * 8 * gib + 128 * 1024 * 1024
+    templates = [%{name: "macos", ready: true, tag: "image@sha256:abc", rootfs_bytes: rootfs}]
+    disk = %{budget_bytes: 2 * ceiling + gib, available_bytes: 500 * gib}
+    full = Map.merge(node, %{name: "a-#{System.unique_integer([:positive])}", templates: templates, disk: disk})
+
+    roomy = %{full | name: "b-#{System.unique_integer([:positive])}", disk: %{disk | budget_bytes: 10 * ceiling}}
+
+    nodes = [full, roomy]
+    stub(Nodes, :connected_nodes, fn -> nodes end)
+    stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)
+
+    # One evicted environment still leaves room for a second.
+    sandbox(state: :paused, node_name: full.name, node_uid: node.generation, resident: false)
+    first = sandbox()
+    assert {:ok, name} = Capacity.place(first)
+    assert name == full.name
+    first |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
+
+    # Two evicted environments hold none of the grant's slots, but their disks fill the budget.
+    assert {:ok, name} = Capacity.place(sandbox())
+    assert name == roomy.name
+
+    # Free space below two memory images and 20 GiB rules a host out too.
+    low = %{roomy | disk: %{roomy.disk | available_bytes: 2 * 8 * gib + 19 * gib}}
+    stub(Nodes, :connected_nodes, fn -> [full, low] end)
+    assert {:error, :no_capacity} = Capacity.place(sandbox())
+
+    # A host that reports no disk (an older tart-kubelet) is not budgeted.
+    stub(Nodes, :connected_nodes, fn -> [%{full | disk: %{}}] end)
+    assert {:ok, _name} = Capacity.place(sandbox())
+  end
+
+  test "a create the host refuses moves on to the next host", %{node: node} do
+    refusing = %{node | name: "a-#{System.unique_integer([:positive])}"}
+    accepting = %{node | name: "b-#{System.unique_integer([:positive])}", generation: "other-uid"}
+    accepting = put_in(accepting.admission["node_uid"], "other-uid")
+    nodes = [refusing, accepting]
+    stub(Nodes, :connected_nodes, fn -> nodes end)
+    stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(nodes, &(&1.name == name))} end)
+
+    refusing_name = refusing.name
+    accepting_name = accepting.name
+
+    expect(Nodes, :call, 2, fn
+      ^refusing_name, "create", %{node_uid: "node-uid"}, _opts ->
+        {:error, "macOS sandbox capacity unavailable: sandbox disk reserve"}
+
+      ^accepting_name, "create", %{node_uid: "other-uid"}, _opts ->
+        {:ok, %{}}
+    end)
+
+    assert {:ok, created} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+    assert %{state: :running, node_uid: "other-uid"} = created
+    assert created.node_name == accepting.name
+
+    # A refusal whose cleanup also failed is not only a refusal.
+    error = "macOS sandbox capacity unavailable: sandbox disk reserve\nreservation release failed"
+    expect(Nodes, :call, fn _name, "create", _args, _opts -> {:error, error} end)
+    assert {:error, ^error} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+  end
+
   test "Linux placement never chooses a macOS node advertising the same template" do
     assert Capacity.ready_nodes("macos") == []
   end
@@ -129,7 +264,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     reject(&Nodes.call/4)
 
     assert {:error, :sandbox_concurrency_limit} = Sandboxes.create_sandbox(account, %{platform: :darwin})
-    assert Concurrency.usage(account.id) == %{vcpus: 0, memory_mb: 0}
+    assert Concurrency.usage(account.id) == %{vcpus: 0.0, memory_mb: 0}
   end
 
   test "resident and evicted resumes acquire the account quota again", %{node: node} do
@@ -161,7 +296,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
       held |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
       assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
-      assert Concurrency.usage(account.id) == %{vcpus: 8, memory_mb: 8192}
+      assert Concurrency.usage(account.id) == %{vcpus: 8.0, memory_mb: 8192}
       paused |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
     end
   end
@@ -175,9 +310,9 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
         {:error, "macOS sandbox capacity unavailable"}
       end)
 
-      assert {:error, :no_capacity} = Sandboxes.resume(paused)
+      assert {:error, {:host_busy, :ci}} = Sandboxes.resume(paused)
       assert %{state: :paused, resident: true, error_message: nil} = Repo.reload!(paused)
-      assert Concurrency.usage(paused.account_id) == %{vcpus: 0, memory_mb: 0}
+      assert Concurrency.usage(paused.account_id) == %{vcpus: 0.0, memory_mb: 0}
 
       assert :ok =
                Sandboxes.reconcile_node_report(node.name, %{
@@ -266,5 +401,61 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
              })
 
     assert Repo.reload!(sandbox).state == :running
+  end
+
+  test "admission names why each host cannot take a session's work item", %{node: node} do
+    environment = agent_environment_fixture(platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+    stale = DateTime.utc_now() |> DateTime.add(-20, :second) |> DateTime.to_iso8601()
+
+    hosts = %{
+      "building" => %{node | templates: [%{name: "macos", ready: false, tag: "t"}]},
+      "other-template" => %{node | templates: [%{name: "linux", ready: true, tag: "t"}]},
+      "stale" => put_in(node.admission["observed_at"], stale),
+      "denied" => put_in(node.admission["allow"], false),
+      "replaced" => put_in(node.admission["node_uid"], "old-node-uid"),
+      "full" => put_in(node.admission["slots"], 0)
+    }
+
+    stub(Nodes, :connected_nodes, fn -> Enum.map(hosts, fn {name, host} -> Map.put(host, :name, name) end) end)
+
+    assert {:error,
+            {:no_node,
+             %{
+               "building" => :template_not_ready,
+               "other-template" => :no_template,
+               "stale" => :grant_stale,
+               "denied" => :grant_denied,
+               "replaced" => :grant_mismatch,
+               "full" => :no_room
+             }}} = Capacity.admission(environment, "new-session")
+
+    stub(Nodes, :connected_nodes, fn -> [node | Enum.map(hosts, fn {name, host} -> Map.put(host, :name, name) end)] end)
+    assert :ok = Capacity.admission(environment, "new-session")
+
+    stub(Nodes, :lookup, fn _name -> {:error, :not_connected} end)
+
+    sandbox(
+      state: :paused,
+      node_name: node.name,
+      node_uid: node.generation,
+      agent_environment_id: environment.id,
+      anthropic_session_id: "paused-session"
+    )
+
+    assert {:error, {node_name, :not_connected}} = Capacity.admission(environment, "paused-session")
+    assert node_name == node.name
+
+    # An archived session's sandbox left its host, so any host with room admits it.
+    sandbox(
+      state: :archived,
+      agent_environment_id: environment.id,
+      anthropic_session_id: "archived-session",
+      archive_key: "k",
+      archived_at: DateTime.utc_now()
+    )
+
+    assert :ok = Capacity.admission(environment, "archived-session")
+    stub(Nodes, :connected_nodes, fn -> [put_in(node.admission["slots"], 0)] end)
+    assert {:error, {:no_node, %{}}} = Capacity.admission(environment, "archived-session")
   end
 end

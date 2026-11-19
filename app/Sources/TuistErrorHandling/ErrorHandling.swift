@@ -30,10 +30,13 @@ public final class ErrorHandling: ObservableObject {
                     message: clientError.underlyingError.localizedDescription,
                     withLogExport: true
                 )
+                let sessionID = ServerAuthenticationSession.current.id
+                let serverURL = AppServerEnvironmentService().url()
                 Task {
-                    try await ServerCredentialsStore.current.delete(
-                        serverURL: AppServerEnvironmentService().url()
-                    )
+                    guard sessionID == ServerAuthenticationSession.current.id else { return }
+                    try await ServerAuthenticationSession.$expectedID.withValue(sessionID) {
+                        try await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                    }
                 }
                 return
             }
@@ -158,10 +161,13 @@ extension View {
 
 extension ErrorHandling {
     public func fireAndHandleError(_ action: @escaping () async throws -> Void) {
+        let sessionID = ServerAuthenticationSession.current.id
         Task {
+            guard sessionID == ServerAuthenticationSession.current.id else { return }
             do {
                 try await action()
             } catch {
+                guard !Task.isCancelled, sessionID == ServerAuthenticationSession.current.id else { return }
                 await handle(error: error)
             }
         }

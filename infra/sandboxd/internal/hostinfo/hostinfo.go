@@ -2,17 +2,22 @@
 // pod: memory capacity and usage, CPU count and the pod's resolvers.
 //
 // Memory comes from the pod's own cgroup when it has a limit: every guest
-// runs inside the daemon's cgroup, so that limit, not the node's MemTotal,
+// runs inside the daemon container's cgroup (in its own child cgroup, see
+// VMCgroups), so that limit, not the node's MemTotal,
 // is the wall the server places sandboxes against. Without a cgroup limit
 // the node's meminfo is the fallback.
 package hostinfo
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
@@ -27,7 +32,19 @@ func Capacity() protocol.Capacity {
 	if !ok {
 		total, _ = meminfo()
 	}
-	return protocol.Capacity{MemoryBytes: total, CPUs: runtime.NumCPU()}
+	return protocol.Capacity{MemoryBytes: total, CPUs: CPUs()}
+}
+
+// CPUs counts the cores the daemon, and so every guest, may run on now.
+// runtime.NumCPU reads the affinity once at startup, but under the kubelet's
+// static CPU manager the shared pool shrinks and grows as exclusive-CPU Pods
+// come and go, and the kubelet rewrites this container's cpuset to match.
+func CPUs() int {
+	var set unix.CPUSet
+	if err := unix.SchedGetaffinity(0, &set); err == nil && set.Count() > 0 {
+		return set.Count()
+	}
+	return runtime.NumCPU()
 }
 
 func MemoryUsed() uint64 {
@@ -54,11 +71,11 @@ func MemoryUsed() uint64 {
 // guests cannot be reclaimed without swap; the cgroup then stays above
 // target, which the result shows.
 func Reclaim(target uint64) protocol.ReclaimResult {
-	data, err := os.ReadFile(procSelfCgroup)
-	if err != nil {
+	path, ok := ownCgroup()
+	if !ok {
 		return protocol.ReclaimResult{MemoryBytes: Capacity().MemoryBytes, UsedBytes: MemoryUsed()}
 	}
-	return ReclaimCgroup(cgroupRoot, ParseCgroupPath(string(data)), target)
+	return ReclaimCgroup(cgroupRoot, path, target)
 }
 
 // ReclaimCgroup is Reclaim against an explicit cgroupfs root and path.
@@ -78,11 +95,24 @@ func ReclaimCgroup(root, path string, target uint64) protocol.ReclaimResult {
 }
 
 func cgroupValue(file string, walkUp bool) (uint64, bool) {
-	data, err := os.ReadFile(procSelfCgroup)
-	if err != nil {
+	path, ok := ownCgroup()
+	if !ok {
 		return 0, false
 	}
-	return ReadCgroupValue(cgroupRoot, ParseCgroupPath(string(data)), file, walkUp)
+	return ReadCgroupValue(cgroupRoot, path, file, walkUp)
+}
+
+// ownCgroup is the container's cgroup: the daemon's own until
+// SetupVMCgroups moves it into a leaf that holds none of the guests.
+func ownCgroup() (string, bool) {
+	if path := containerCgroup.Load(); path != nil {
+		return *path, true
+	}
+	data, err := os.ReadFile(procSelfCgroup)
+	if err != nil {
+		return "", false
+	}
+	return ParseCgroupPath(string(data)), true
 }
 
 func ReadCgroupValue(root, path, file string, walkUp bool) (uint64, bool) {
@@ -182,4 +212,39 @@ func ParseResolvConf(text string) []string {
 		}
 	}
 	return servers
+}
+
+// SnapshotCompat names what a Firecracker memory snapshot taken on this
+// node needs from the node it is restored on: the CPU (vendor, family,
+// model, stepping, model name and the feature flags the host kernel
+// exposes, which also catch microcode and kernel changes), the host
+// kernel's version without its distribution build, and the Firecracker
+// version. Nodes with the same value can restore each other's snapshots.
+func SnapshotCompat(firecrackerVersion string) string {
+	cpuinfo, _ := os.ReadFile("/proc/cpuinfo")
+	release, _ := os.ReadFile("/proc/sys/kernel/osrelease")
+	return ParseSnapshotCompat(string(cpuinfo), string(release), firecrackerVersion)
+}
+
+func ParseSnapshotCompat(cpuinfo, release, firecrackerVersion string) string {
+	fields := map[string]string{}
+	for _, line := range strings.Split(cpuinfo, "\n") {
+		if strings.TrimSpace(line) == "" && len(fields) > 0 {
+			break
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if ok {
+			fields[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		}
+	}
+	kernel, _, _ := strings.Cut(strings.TrimSpace(release), "-")
+	hash := sha256.New()
+	for _, part := range []string{
+		fields["vendor_id"], fields["cpu family"], fields["model"], fields["stepping"], fields["model name"],
+		fields["flags"], kernel, firecrackerVersion,
+	} {
+		hash.Write([]byte(part))
+		hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))[:16]
 }

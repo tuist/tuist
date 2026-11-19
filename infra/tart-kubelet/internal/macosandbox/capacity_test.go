@@ -106,6 +106,37 @@ func TestRecoveryRecreatesChargeWhileAdmissionRevoked(t *testing.T) {
 	}
 }
 
+// The server tries one Mac after another for a restore, and the reservation
+// Pod is named after the sandbox, so a Mac whose create was refused can find
+// it held by another Mac.
+func TestRefusedCreateLeavesAnotherMacsReservationAndCIUnblocked(t *testing.T) {
+	k, _, record := capacityFixture()
+	m, _, _, args := harness(t)
+	args.SandboxID = record.SandboxID
+	m.Capacity = k
+	ctx := context.Background()
+	other := &KubeCapacity{Kube: k.Kube, Node: "mac-2", NodeUID: "node-2", Namespace: Namespace}
+	if err := other.Hold(ctx, &Record{NodeUID: "node-2", CreateArgs: args}); err != nil {
+		t.Fatal(err)
+	}
+	if m.Create(ctx, args) == nil {
+		t.Fatal("created over another Mac's reservation")
+	}
+	pod, err := k.Kube.CoreV1().Pods(Namespace).Get(ctx, "macos-sbx-"+args.SandboxID, metav1.GetOptions{})
+	if err != nil || pod.Spec.NodeName != "mac-2" || pod.DeletionTimestamp != nil {
+		t.Fatalf("released another Mac's reservation: %v", err)
+	}
+	service := &Service{manager: m, capacity: k, ready: true}
+	release, err := service.LaunchGuard(ctx, "ci")
+	if err != nil {
+		t.Fatalf("CI launch blocked: %v", err)
+	}
+	release()
+	if err := m.Delete(ctx, args.SandboxID); err != nil {
+		t.Fatalf("server delete of the refused sandbox failed: %v", err)
+	}
+}
+
 func TestCILaunchRepairsForceDeletedResidentCharge(t *testing.T) {
 	k, _, record := capacityFixture()
 	m, runtime, _, args := harness(t)

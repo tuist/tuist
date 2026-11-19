@@ -1309,7 +1309,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # segment and 3% for the index are taken: a region-derived budget would
       # hand all three the same ring and let a small instance overrun the claim
       # its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}] do
+      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}, {"6Gi", 3.40}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-west-1",
@@ -2164,11 +2164,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end
     end
 
-    test "keeps BER1 unchanged until its LVM region is enrolled" do
+    test "keeps alder unchanged until its LVM region is enrolled" do
       assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
     end
 
-    test "enrolled BER1 uses encrypted LVM without the account flag" do
+    test "enrolled alder uses encrypted LVM without the account flag" do
       stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["ber1-runners"] end)
       stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> false end)
       region = Regions.get("ber1-runners")
@@ -2375,7 +2375,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                "http://actual-ref.kura.svc.cluster.local:4000"
     end
 
-    test "places the BER1 rack's cache on its storage node, in the mesh on the cluster network" do
+    test "places the alder rack's cache on its storage node, in the mesh on the cluster network" do
       stub(Tuist.Environment, :env, fn -> :stag end)
       stub(Tuist.Environment, :kura_tuist_base_url, fn -> "http://tuist.tuist.svc.cluster.local" end)
       region = Regions.get("ber1-runners")

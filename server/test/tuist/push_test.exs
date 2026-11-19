@@ -153,6 +153,90 @@ defmodule Tuist.PushTest do
     assert {:error, :oauth_session_required} = Push.oauth_session(bearer, user)
   end
 
+  describe "Luft" do
+    # Luft signs in through its first-party client; `client_id` stands in for another client.
+    defp luft_bearer(user, client_id \\ Clients.luft_client_id()) do
+      client = %{id: client_id}
+
+      bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
+
+      grant =
+        Repo.insert!(%Token{
+          type: "access_token",
+          value: bearer,
+          refresh_token: Ecto.UUID.generate(),
+          client_id: client.id,
+          sub: to_string(user.id),
+          scope: ""
+        })
+
+      {bearer, grant}
+    end
+
+    test "signs in through its first-party client, only where Luft is admitted" do
+      user = AccountsFixtures.user_fixture()
+      {bearer, _grant} = luft_bearer(user)
+
+      assert {:ok, %{app: "luft"}} = Push.oauth_session(bearer, user, ["tuist", "luft"])
+      assert {:error, :oauth_session_required} = Push.oauth_session(bearer, user)
+      assert Push.first_party_session?(bearer, user)
+
+      # A dynamically registered client claiming Luft's redirect URI isn't Luft.
+      {:ok, impostor} = Clients.create_client(%{redirect_uris: ["luft://oauth-callback"], name: "Luft"})
+      {other_client, _} = luft_bearer(user, impostor.id)
+      assert {:error, :oauth_session_required} = Push.oauth_session(other_client, user, ["tuist", "luft"])
+      refute Push.first_party_session?(other_client, user)
+    end
+
+    test "keeps Luft and Tuist app installations apart", %{client: client} do
+      user = AccountsFixtures.user_fixture()
+      {_grant, app_session} = sign_in(user, client)
+      {bearer, grant} = luft_bearer(user)
+      {:ok, luft_session} = Push.oauth_session(bearer, user, ["luft"])
+      [app_id, luft_id] = [installation_id(), installation_id()]
+
+      assert {:ok, _} = Push.register(user, app_session, app_id, ios())
+      mac = %{platform: "macos", token: apns_token(), environment: "production"}
+      assert {:ok, %Installation{app: "luft", platform: "macos"}} = Push.register(user, luft_session, luft_id, mac)
+
+      assert ids(Push.live_installations(user.id)) == [app_id]
+      assert ids(Push.live_installations(user.id, "luft")) == [luft_id]
+      # An installation ID never moves to the other app.
+      assert {:error, :conflict} = Push.register(user, app_session, luft_id, ios())
+      # Nor can one app unregister or remove the other's devices.
+      [app_installation] = Push.live_installations(user.id)
+      assert :ok = Push.unregister(user, app_id, "luft")
+      assert :ok = Push.remove_device(user, app_installation.id, "luft")
+      assert ids(Push.live_installations(user.id)) == [app_id]
+
+      # Every app shares one FCM project, so Luft can't register Android tokens.
+      android = %{platform: "android", token: Base.encode64(:crypto.strong_rand_bytes(32)), environment: "production"}
+      assert {:error, :invalid} = Push.register(user, luft_session, installation_id(), android)
+
+      # Each app has its own device cap: Luft registrations never evict the Tuist app's.
+      Installation
+      |> Repo.get_by!(installation_id: luft_id)
+      |> Ecto.Changeset.change(
+        last_registered_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.truncate(:second)
+      )
+      |> Repo.update!()
+
+      for _ <- 1..10 do
+        mac = %{platform: "macos", token: apns_token(), environment: "production"}
+        assert {:ok, _} = Push.register(user, luft_session, installation_id(), mac)
+      end
+
+      assert ids(Push.live_installations(user.id)) == [app_id]
+      assert length(Push.live_installations(user.id, "luft")) == 10
+      assert %Installation{retired_reason: "evicted"} = Repo.get_by!(Installation, installation_id: luft_id)
+
+      # The Luft registration lasts as long as the Luft client's grant.
+      grant |> Ecto.Changeset.change(refresh_token_revoked_at: DateTime.utc_now()) |> Repo.update!()
+      assert Push.live_installations(user.id, "luft") == []
+      assert ids(Push.live_installations(user.id)) == [app_id]
+    end
+  end
+
   test "keeps at most ten live installations per user", %{client: client} do
     user = AccountsFixtures.user_fixture()
     {_grant, session} = sign_in(user, client)

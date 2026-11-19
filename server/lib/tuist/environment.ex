@@ -12,6 +12,10 @@ defmodule Tuist.Environment do
   @runtime_envs ~w(prod can stag preview)
   @default_database_schema "public"
   @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
+  # Id of the single key every ciphertext was written under before the key
+  # ring, so its tag stays `AES.GCM.V1`.
+  @legacy_encryption_key_id "V1"
+  @encryption_key_id_regex ~r/\A[A-Za-z0-9_.-]{1,32}\z/
   @agent_auth_default_trusted_providers [
     %{
       "issuer" => "https://auth0.openai.com/",
@@ -32,7 +36,7 @@ defmodule Tuist.Environment do
   # ...) fails the pod fast at boot rather than landing it in `:web`
   # silently — exactly the failure mode that previously masked the
   # xcresult-processor leader-election bug.
-  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync]
+  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync, :agents]
 
   @doc """
   All pod roles `mode/0` may return. Stable list — used by
@@ -85,6 +89,10 @@ defmodule Tuist.Environment do
   Returns an list with all the supported environments.
   """
   def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
+
+  def blocked_account_handles, do: Application.fetch_env!(:tuist, :blocked_account_handles)
+
+  def blocked_project_handles, do: Application.fetch_env!(:tuist, :blocked_project_handles)
 
   def test? do
     @compile_env == :test
@@ -150,6 +158,10 @@ defmodule Tuist.Environment do
       back from the same bucket. Booted by
       swift-registry-sync-deployment.yaml. Future ecosystems get
       their own mode (e.g. `:maven_registry_sync`) and Deployment.
+    * `:agents` — no Phoenix listener and no Oban queues. Hosts durable
+      agent sessions (`Tuist.Agents.Runner`), such as Threads', on pods
+      sized and scaled by memory. Booted by agents-deployment.yaml; web
+      pods with `TUIST_DELEGATE_AGENTS=1` leave sessions to them.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -167,6 +179,7 @@ defmodule Tuist.Environment do
   def mode("processor"), do: :processor
   def mode("xcresult_processor"), do: :xcresult_processor
   def mode("swift_registry_sync"), do: :swift_registry_sync
+  def mode("agents"), do: :agents
 
   def mode(other) do
     raise """
@@ -182,6 +195,8 @@ defmodule Tuist.Environment do
   def xcresult_processor_mode?, do: mode() == :xcresult_processor
 
   def swift_registry_sync_mode?, do: mode() == :swift_registry_sync
+
+  def agents_mode?, do: mode() == :agents
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -366,7 +381,7 @@ defmodule Tuist.Environment do
     end
   end
 
-  @coverage_retention_defaults %{files: 90, runs: 365}
+  @coverage_retention_defaults %{files: 31, runs: 365}
   @coverage_retention_environment_variables %{
     files: "TUIST_COVERAGE_FILE_RETENTION_DAYS",
     runs: "TUIST_COVERAGE_RUN_RETENTION_DAYS"
@@ -374,8 +389,10 @@ defmodule Tuist.Environment do
 
   @doc """
   How long coverage rows are kept in ClickHouse, in days: `files` for the
-  per-file detail (`coverage_files`) and `runs` for the run totals the trend
-  reads (`coverage_runs`). The tables' time-to-live is set from these when
+  per-file detail (`coverage_files`, 31 by default) and `runs` for the run
+  totals the trend reads (`coverage_runs`, 365 by default). A commit's totals
+  and per-file figures (`coverage_commits`, `coverage_file_deltas`) outlive
+  the detail. The tables' time-to-live is set from these when
   they are created, or when `mix tuist.coverage.retention` (in a release,
   `Tuist.Release.apply_coverage_retention/0`) re-applies them.
   """
@@ -405,16 +422,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The size, in bytes of the DEFLATE-compressed coverage, above which a client
-  that processed the result bundle itself uploads the coverage to object
-  storage instead of sending it inline with the run. Set with
-  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 5 MB by default, well under the
-  request body limit the inline form is held to.
+  The size, in bytes, of a run's coverage above which a client that processed
+  the result bundle itself uploads the coverage to object storage instead of
+  sending it inline with the run. Set with
+  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 500 KB by default. The request body
+  limit the inline form is held to applies after a compressed body is
+  inflated, and coverage compresses tenfold to fiftyfold, so the default stays
+  under it however a client measures the coverage: the Xcode CLI compares the
+  uncompressed size, while older Xcode CLIs, Mix and Gradle compare the
+  compressed size.
   """
   def coverage_inline_threshold_bytes(environment \\ System.get_env()) when is_map(environment) do
     case Map.get(environment, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") do
-      nil -> 5_000_000
-      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 5_000_000
+      nil -> 500_000
+      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 500_000
     end
   end
 
@@ -542,6 +563,14 @@ defmodule Tuist.Environment do
 
   def kura_thin_region_ids do
     "TUIST_KURA_THIN_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_thin_enrolled_region_ids do
+    "TUIST_KURA_THIN_ENROLLED_REGIONS"
     |> System.get_env("")
     |> String.split(",", trim: true)
     |> Enum.map(&String.trim/1)
@@ -964,11 +993,16 @@ defmodule Tuist.Environment do
     end
   end
 
-  @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
+  @doc """
+  Configured immutable shard target IDs. Each store release publishes its own
+  map, so the runner-local and public stores arrive in separate variables. A
+  malformed map contributes no targets.
+  """
   def shard_storage_targets do
-    case JSON.decode(System.get_env("TUIST_SHARD_STORAGE_TARGETS") || "{}") do
-      {:ok, targets} when is_map(targets) -> targets
-      _ -> %{}
+    for name <- ["TUIST_SHARD_STORAGE_TARGETS", "TUIST_PUBLIC_SHARD_STORAGE_TARGETS"],
+        {:ok, targets} when is_map(targets) <- [JSON.decode(System.get_env(name) || "{}")],
+        reduce: %{} do
+      acc -> Map.merge(targets, acc)
     end
   end
 
@@ -1701,6 +1735,27 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BAZEL_TESTS", "0"))
   end
 
+  @doc "Whether `:agents` pods host agent sessions, so web pods do not."
+  def delegate_agents? do
+    truthy?(System.get_env("TUIST_DELEGATE_AGENTS", "0"))
+  end
+
+  @doc """
+  The memory the pod may use, from `TUIST_AGENTS_MEMORY_LIMIT_BYTES` (the
+  container's `limits.memory` through the downward API). The agents runner
+  stops claiming sessions as the VM approaches it.
+  """
+  def agents_memory_limit_bytes do
+    case Integer.parse(System.get_env("TUIST_AGENTS_MEMORY_LIMIT_BYTES", "")) do
+      {bytes, ""} when bytes > 0 -> bytes
+      _ -> nil
+    end
+  end
+
+  def delegate_process_snapshots? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_SNAPSHOTS", "0"))
+  end
+
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
@@ -1716,6 +1771,13 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)
       _ -> if processor_mode?(), do: 5, else: 2
+    end
+  end
+
+  def process_snapshots_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_SNAPSHOTS_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 2
     end
   end
 
@@ -2000,6 +2062,17 @@ defmodule Tuist.Environment do
     get([:sentry, :dsn], secrets)
   end
 
+  # A second DSN that receives a copy of every error, for comparing Pulse with
+  # the primary backend. See TuistCommon.SentryHTTPClient. Only web instances
+  # copy: the processors and registry sync read the same config Secret, but
+  # Pulse's NetworkPolicy admits only the web pods.
+  def sentry_pulse_dsn(secrets \\ secrets(), mode \\ mode()) do
+    case {mode, get([:sentry, :pulse_dsn], secrets)} do
+      {:web, dsn} when dsn not in [nil, ""] -> dsn
+      _ -> nil
+    end
+  end
+
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
   end
@@ -2036,8 +2109,131 @@ defmodule Tuist.Environment do
     truthy?(get([:cache_token, :signing_enabled], secrets, default_value: "0"))
   end
 
-  def secret_key_encryption(secrets \\ secrets()) do
-    get([:secret_key, :encryption], secrets, default_value: secret_key_base(secrets))
+  @doc """
+  The keys `Tuist.Vault` decrypts stored secrets with, as `{id, 32-byte key}`
+  pairs, the one it encrypts with first. The id is part of every ciphertext's
+  tag (`AES.GCM.<id>`), so it decides which key a value is decrypted with.
+
+  - `TUIST_SECRET_KEY_ENCRYPTION_KEYS`: comma-separated `id:base64` entries,
+    each decoding to exactly 32 bytes.
+  - `TUIST_SECRET_KEY_ENCRYPTION`: the original single key, id `V1`. Its raw
+    value is cut or zero-padded to 32 bytes, the derivation every value
+    written before the key ring used, so it stays readable. Without either
+    variable it falls back to `secret_key_base`, except in hosted production.
+  - `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY`: the id to encrypt with; the
+    first ring entry by default, or `V1` without a ring.
+  - `TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS`: comma-separated ids the node must
+    hold; it refuses to boot when one is missing.
+
+  Hosted production and canary refuse to start unless the current key is
+  explicit, a full 32 bytes, and not derived from `secret_key_base`.
+  Rotation is in `Tuist.Release.reencrypt_vault/2`.
+  """
+  def encryption_keys(secrets \\ secrets(), hosted_production? \\ tuist_hosted?() and env() in [:prod, :can]) do
+    base = secret_key_base(secrets)
+    explicit_legacy = get([:secret_key, :encryption], secrets)
+    keys = encryption_key_ring(secrets) ++ legacy_encryption_keys(explicit_legacy || if(!hosted_production?, do: base))
+
+    keys = current_encryption_key_first(keys, get([:secret_key, :encryption_current_key], secrets))
+    require_encryption_key_ids!(keys, get([:secret_key, :encryption_key_ids], secrets))
+
+    case keys do
+      _keys when not hosted_production? ->
+        keys
+
+      [] ->
+        raise "Set TUIST_SECRET_KEY_ENCRYPTION_KEYS: production must not encrypt stored secrets with a key derived from TUIST_SECRET_KEY_BASE"
+
+      [current | _retired] ->
+        validate_production_encryption_key!(current, explicit_legacy, base)
+        keys
+    end
+  end
+
+  defp current_encryption_key_first(keys, current_id) when current_id in [nil, ""], do: keys
+
+  defp current_encryption_key_first(keys, current_id) do
+    case Enum.split_with(keys, fn {id, _key} -> id == current_id end) do
+      {[current], retired} ->
+        [current | retired]
+
+      {[], _keys} ->
+        raise "TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY is #{inspect(current_id)}, which is not a configured encryption key id"
+    end
+  end
+
+  # The ids the deployment says every node must hold. A node started before
+  # the synced Secret has a new key refuses to boot, and picks the key up when
+  # it restarts, instead of serving without being able to read what other
+  # nodes will write with it.
+  defp require_encryption_key_ids!(_keys, ids) when ids in [nil, ""], do: :ok
+
+  defp require_encryption_key_ids!(keys, ids) do
+    held = Enum.map(keys, &elem(&1, 0))
+    missing = ids |> String.split(",", trim: true) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 in held))
+
+    if missing != [] do
+      raise "TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS lists #{Enum.join(missing, ", ")}, which this node has no key for; " <>
+              "wait for the configuration Secret to sync and restart"
+    end
+  end
+
+  defp encryption_key_ring(secrets) do
+    case get([:secret_key, :encryption_keys], secrets) do
+      value when value in [nil, ""] -> []
+      value -> parse_encryption_keys!(value)
+    end
+  end
+
+  defp legacy_encryption_keys(nil), do: []
+  defp legacy_encryption_keys(raw), do: [{@legacy_encryption_key_id, legacy_encryption_key(raw)}]
+
+  # The single key's original derivation, kept bit for bit so data already
+  # stored under it decrypts: a longer value is cut to its first 32 bytes, a
+  # shorter one padded with zero bytes. It is not a key decoding, which is why
+  # the key ring takes base64 instead.
+  defp legacy_encryption_key(raw) when byte_size(raw) >= 32, do: binary_part(raw, 0, 32)
+  defp legacy_encryption_key(raw), do: raw <> :binary.copy(<<0>>, 32 - byte_size(raw))
+
+  @doc false
+  def parse_encryption_keys!(value) do
+    entries =
+      value
+      |> String.split(",", trim: true)
+      |> Enum.with_index(1)
+      |> Enum.map(fn {entry, position} ->
+        with [id, encoded] <- entry |> String.trim() |> String.split(":", parts: 2),
+             true <- Regex.match?(@encryption_key_id_regex, id) and id != @legacy_encryption_key_id,
+             {:ok, <<_::binary-size(32)>> = key} <- Base.decode64(String.trim(encoded)) do
+          {id, key}
+        else
+          # Never echo the entry: it holds key material.
+          _ ->
+            raise "TUIST_SECRET_KEY_ENCRYPTION_KEYS entry #{position} must be `id:base64` with an id of " <>
+                    "letters, digits, `_`, `.` or `-` other than #{@legacy_encryption_key_id}, and a key decoding to 32 bytes"
+        end
+      end)
+
+    ids = Enum.map(entries, &elem(&1, 0))
+
+    if entries == [] or length(Enum.uniq(ids)) != length(ids) do
+      raise "TUIST_SECRET_KEY_ENCRYPTION_KEYS must list at least one key and no id twice"
+    end
+
+    entries
+  end
+
+  defp validate_production_encryption_key!({id, key}, explicit_legacy, base) do
+    cond do
+      id == @legacy_encryption_key_id and byte_size(explicit_legacy) < 32 ->
+        raise "TUIST_SECRET_KEY_ENCRYPTION is shorter than 32 bytes and would be zero-padded; encrypt with a TUIST_SECRET_KEY_ENCRYPTION_KEYS entry instead"
+
+      is_binary(base) and key == legacy_encryption_key(base) ->
+        raise "The current encryption key (#{id}) is derived from TUIST_SECRET_KEY_BASE; encrypt with a distinct TUIST_SECRET_KEY_ENCRYPTION_KEYS entry"
+
+      true ->
+        :ok
+    end
   end
 
   def oauth_client_id(secrets \\ secrets()) do
@@ -2058,6 +2254,36 @@ defmodule Tuist.Environment do
 
   def oauth_private_key(secrets \\ secrets()) do
     get([:oauth, :private_key], secrets)
+  end
+
+  @doc """
+  RSA private key (PEM) that signs OpenID Connect ID tokens. Without it the
+  server is no OpenID Provider: discovery answers 404 and no relying party
+  client is registered.
+  """
+  def oidc_signing_key(secrets \\ secrets()) do
+    get([:oidc, :signing_key], secrets)
+  end
+
+  @doc """
+  The Luft server (`luft.work`), a confidential OpenID Connect relying
+  party. Configured on the deployment that Luft signs people in to. The ID
+  must be a UUID: Boruta stores client IDs as `binary_id`.
+  """
+  def luft_server_oauth_client_id(secrets \\ secrets()) do
+    get([:luft_server, :oauth_client_id], secrets)
+  end
+
+  def luft_server_oauth_client_secret(secrets \\ secrets()) do
+    get([:luft_server, :oauth_client_secret], secrets)
+  end
+
+  @doc "Comma-separated exact redirect URIs of the Luft server."
+  def luft_server_oauth_redirect_uris(secrets \\ secrets()) do
+    case get([:luft_server, :oauth_redirect_uris], secrets) do
+      value when is_binary(value) -> value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+      _ -> []
+    end
   end
 
   def oauth_configured?(secrets \\ secrets()) do
@@ -2111,6 +2337,17 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
   end
 
+  @doc """
+  The NSH command line (https://nsh.dev) that builds and checks the cards a
+  Thread's model writes (`Tuist.Threads.Cards`): `TUIST_NSH_PATH`, else `nsh`
+  on the `PATH`. The release image ships NSH's official release and
+  `mise install` installs it for development; without it the `show_ui` tool
+  is not offered.
+  """
+  def nsh_path do
+    System.get_env("TUIST_NSH_PATH") || System.find_executable("nsh")
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
@@ -2157,6 +2394,19 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  The most the server raises a Linux sandbox daemon's CPU request to, in
+  millicores (chart `sandboxes.maxCpu`). It wins over the ceiling the daemon
+  reports, so raising it needs no daemon restart. Unset falls back to the
+  daemon's.
+  """
+  def sandbox_cpu_ceiling_milli do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_CPU_CEILING_MILLI", "")) do
+      {milli, ""} when milli > 0 -> milli
+      _ -> nil
+    end
+  end
+
+  @doc """
   Hours an Amp Orb stays paused on its node before its disks are archived
   to object storage and the node copy is deleted
   (`Tuist.Sandboxes.Archives`). Unset or `0` keeps paused Orbs on their
@@ -2165,6 +2415,18 @@ defmodule Tuist.Environment do
   def sandbox_archive_after_hours do
     case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_AFTER_HOURS", "")) do
       {hours, ""} when hours > 0 -> hours
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Percentage of a node's reserved sandbox disk budget above which the
+  archive sweep also archives recently paused Orbs. Defaults to 85; `0`
+  disables pressure archiving. Requires the archive tier to be enabled.
+  """
+  def sandbox_archive_disk_high_water_percent do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT", "85")) do
+      {percent, ""} when percent in 1..100 -> percent
       _ -> nil
     end
   end
@@ -2206,6 +2468,31 @@ defmodule Tuist.Environment do
 
   def anthropic_api_url do
     anthropic_api_url_override() || "https://api.anthropic.com"
+  end
+
+  @doc """
+  Tuist's Claude Platform OAuth app for linked billing
+  (`Tuist.Accounts.ClaudeLinkedBilling`): its client ID, the client
+  assertion audience its Client authentication tab shows, and the
+  Workload Identity Federation ids of its operator service account.
+  Linked billing stays unavailable until every value is set.
+  """
+  def anthropic_linked_billing_config(secrets \\ secrets()) do
+    Map.new(
+      [
+        :client_id,
+        :client_assertion_audience,
+        :organization_id,
+        :workspace_id,
+        :service_account_id,
+        :federation_rule_id
+      ],
+      &{&1, get([:anthropic, :linked_billing, &1], secrets)}
+    )
+  end
+
+  def anthropic_auth_url do
+    get([:anthropic, :auth_url], secrets(), default_value: "https://auth.claude.com")
   end
 
   @doc """
@@ -2381,6 +2668,21 @@ defmodule Tuist.Environment do
   """
   def runner_macos_xcode_versions do
     Application.get_env(:tuist, :runner_macos_xcode_versions, [])
+  end
+
+  @doc """
+  The Xcodes macOS sandboxes serve, the default first, from
+  `TUIST_MACOS_SANDBOX_XCODE_VERSIONS` (comma-separated), which the chart
+  renders from `sandboxes.macos.xcodeVersion` and `xcodeVersions`. Empty
+  when unset: sandboxes then boot only the `macos` template's Xcode.
+  `Tuist.Sandboxes.Xcode` validates `xcode_version` against it.
+  """
+  def macos_sandbox_xcode_versions do
+    "TUIST_MACOS_SANDBOX_XCODE_VERSIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
   @doc """

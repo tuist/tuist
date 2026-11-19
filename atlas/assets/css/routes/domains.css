@@ -124,7 +124,7 @@
   }
 
   & [data-part="delete-domain-card-section"] {
-    box-shadow: var(--noora-border-light-error);
+    box-shadow: var(--noora-border-small-error);
     display: flex;
     flex-direction: row;
     align-items: center;

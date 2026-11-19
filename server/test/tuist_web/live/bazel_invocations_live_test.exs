@@ -1,6 +1,7 @@
 defmodule TuistWeb.BazelInvocationsLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
+  use Mimic
 
   import Phoenix.LiveViewTest
 
@@ -9,9 +10,11 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.ReapiCache.CacheEvent
+  alias Tuist.RemoteExecution.Scheduler
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   @render_async_timeout 1_000
 
@@ -67,6 +70,154 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(view, "[data-part=build-details]", "Targets")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
     refute has_element?(view, "[data-part=build-details] #build-environment")
+  end
+
+  test "remote execution tab shows reported phases, missing values and both sort orders", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    Bazel.create_invocations([
+      invocation_attributes(project, "remote-ui", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/remote-ui"
+    {:ok, view, _} = live(conn, path <> "?tab=remote-execution")
+    render_async(view)
+    assert has_element?(view, "#remote-actions-table", "No remote action timings")
+
+    events = [
+      %{
+        ph: "X",
+        pid: 1,
+        tid: 2,
+        cat: "action processing",
+        name: "Compile App",
+        ts: 0,
+        dur: 100_000,
+        args: %{target: "//:app"}
+      },
+      %{ph: "X", pid: 1, tid: 2, cat: "Remote execution process wall time", name: "execute", ts: 1000, dur: 37_000}
+    ]
+
+    # A later-starting but longer action, so the two sorts disagree on the first row.
+    events =
+      events ++
+        Enum.map(events, fn event ->
+          event = %{event | tid: 3, ts: event.ts + 200_000}
+          if event.cat == "action processing", do: %{event | name: "Link App", dur: 300_000}, else: event
+        end)
+
+    assert :ok =
+             Profile.ingest(
+               project,
+               "remote-ui",
+               :zlib.gzip(JSON.encode!(%{otherData: %{build_id: "remote-ui"}, traceEvents: events}))
+             )
+
+    render_patch(view, path <> "?tab=remote-execution")
+    render_async(view)
+    assert has_element?(view, "#remote-actions-table", "Compile App")
+    assert has_element?(view, "#remote-actions-table", "37ms")
+    # The tooltip lists only the phases the profile recorded.
+    assert has_element?(view, "#remote-actions-table [data-part=series-item][data-phase=execution]", "37ms")
+    refute has_element?(view, "#remote-actions-table [data-part=series-item][data-phase=queue]")
+    # 37ms of execution in a 100ms action fills 37% of the bar; unrecorded phases draw nothing.
+    assert has_element?(view, "#remote-actions-table [data-phase=execution][style*=\"flex-basis: 37.0%\"]")
+    refute has_element?(view, "#remote-actions-table [data-part=phase-bar] [data-phase=queue]")
+
+    # Duration sort (default): the longer, later action comes first.
+    assert remote_action_titles(view) == ["Link App", "Compile App"]
+    assert has_element?(view, "#remote-actions-table tbody", "200ms")
+
+    render_patch(view, path <> "?tab=remote-execution&remote-sort-by=started-at")
+    render_async(view)
+    assert has_element?(view, "#remote-actions-sort-by-label-portal", "Started at")
+    assert remote_action_titles(view) == ["Compile App", "Link App"]
+
+    # Each column's header reverses its default order.
+    render_patch(view, path <> "?tab=remote-execution&remote-sort-by=started-at&remote-sort-order=desc")
+    render_async(view)
+    assert remote_action_titles(view) == ["Link App", "Compile App"]
+    render_patch(view, path <> "?tab=remote-execution&remote-sort-by=duration&remote-sort-order=asc")
+    render_async(view)
+    assert remote_action_titles(view) == ["Compile App", "Link App"]
+    assert has_element?(view, "#remote-actions-table thead a[href*=\"remote-sort-order=desc\"]", "Duration")
+
+    render_patch(view, path <> "?tab=overview")
+    refute has_element?(view, "#remote-actions-table")
+    render_patch(view, path <> "?tab=remote-execution")
+    render_async(view)
+    assert has_element?(view, "#remote-actions-table", "Compile App")
+  end
+
+  test "a running invocation shows its live remote actions until its finished row replaces it", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/running-ui"
+    assert_raise NotFoundError, fn -> live(conn, path) end
+
+    now = DateTime.utc_now()
+
+    :ok =
+      Bazel.create_invocation_starts([
+        %{
+          project_id: project.id,
+          invocation_id: "running-ui",
+          command: "test",
+          target_patterns: ["//app/..."],
+          git_branch: "main",
+          is_ci: true,
+          started_at: now |> DateTime.add(-60, :second) |> DateTime.to_naive()
+        }
+      ])
+
+    action = fn state, invocation_id, mnemonic, memory_gb ->
+      %{
+        id: Ecto.UUID.generate(),
+        state: state,
+        action_digest: "0123456789abcdef/10",
+        invocation_id: invocation_id,
+        mnemonic: mnemonic,
+        target: "//app:lib",
+        memory_gb: memory_gb,
+        since: DateTime.add(now, -5, :second)
+      }
+    end
+
+    stub(Scheduler, :activity, fn _account_id, _project_id ->
+      {:ok,
+       [
+         action.("running", "running-ui", "CppCompile", 8),
+         action.("queued", "running-ui", nil, 16),
+         action.("running", "another-build", "Javac", 8)
+       ]}
+    end)
+
+    {:ok, view, _} = live(conn, path <> "?tab=remote-execution")
+    assert has_element?(view, "#bazel-invocation [data-part=badge-processing]")
+    assert has_element?(view, "#bazel-invocation-command", "bazel test //app/...")
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "Running")
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "CppCompile")
+    # An action Bazel did not describe falls back to its digest.
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "Queued")
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "0123456789ab")
+    assert has_element?(view, "#running-remote-actions", "8 vCPU · 16 GB")
+    refute has_element?(view, "#running-remote-actions", "Javac")
+
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:error, :unavailable} end)
+    send(view.pid, :refresh_running)
+    render_async(view)
+    assert has_element?(view, "#running-remote-actions", "Running executions are unavailable")
+
+    Bazel.create_invocations([
+      invocation_attributes(project, "running-ui", "test", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    send(view.pid, :refresh_running)
+    assert_redirect(view, path <> "?tab=remote-execution")
   end
 
   test "the build Status filter scopes the summary and analytics", %{
@@ -209,7 +360,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     refute has_element?(lv, "[data-part=legend] button[data-kind=transform]")
     refute has_element?(lv, "[data-part=timeline-coverage]")
     tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=tabs] a") |> Enum.map(&Floki.text/1)
-    assert tabs == ["Overview", "Timeline", "Bazel Cache"]
+    assert tabs == ["Overview", "Timeline", "Bazel Cache", "Remote execution"]
     [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
     render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
     assert has_element?(lv, "#build-timeline")
@@ -1170,5 +1321,11 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
       project_handle: project.name,
       cache_endpoint: "cache.tuist.dev"
     }
+  end
+
+  defp remote_action_titles(view) do
+    html = view |> element("#remote-actions-table tbody") |> render()
+    titles = for [_, label] <- Regex.scan(~r/data-part="label">\s*([^<]+?)\s*</, html), do: label
+    Enum.filter(titles, &String.ends_with?(&1, " App"))
   end
 end

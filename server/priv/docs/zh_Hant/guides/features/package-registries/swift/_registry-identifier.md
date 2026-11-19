@@ -1,4 +1,4 @@
-註冊表識別符號一律採用 `{organization}.{repository}` 格式。例如，若要為 `swift-composable-architecture` 套件使用註冊表，請執行以下操作：
+Registry 識別碼一律採用 `{organization}.{repository}` 格式。例如，若要使用 `swift-composable-architecture` 套件的 Registry，請執行以下操作：
 
 ```diff
 dependencies: [

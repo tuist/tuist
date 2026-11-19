@@ -2,8 +2,8 @@ name: Linux Shard Storage Smoke
 
 # Plans a two-shard Mix suite on an environment's Linux runners and checks
 # where each shard downloaded the build from. With the account's
-# `runner_shard_storage` flag on, that is the environment's Garage store;
-# with it off, default storage.
+# `runner_shard_storage` flag on, that is the environment's in-cluster store
+# (Garage on canary, RustFS on production); with it off, default storage.
 
 on:
   workflow_dispatch:
@@ -32,14 +32,21 @@ jobs:
     outputs:
       label: ${{ steps.select.outputs.label }}
       server: ${{ steps.select.outputs.server }}
+      store: ${{ steps.select.outputs.store }}
     steps:
       - id: select
         env:
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           case "${ENVIRONMENT}" in
-            canary) echo "label=tuist-canary-linux" >> "$GITHUB_OUTPUT"; echo "server=https://canary.tuist.dev" >> "$GITHUB_OUTPUT" ;;
-            production) echo "label=tuist-linux" >> "$GITHUB_OUTPUT"; echo "server=https://tuist.dev" >> "$GITHUB_OUTPUT" ;;
+            canary)
+              echo "label=tuist-canary-linux" >> "$GITHUB_OUTPUT"
+              echo "server=https://canary.tuist.dev" >> "$GITHUB_OUTPUT"
+              echo "store=http://shard-storage.kura.svc.cluster.local:3900" >> "$GITHUB_OUTPUT" ;;
+            production)
+              echo "label=tuist-linux" >> "$GITHUB_OUTPUT"
+              echo "server=https://tuist.dev" >> "$GITHUB_OUTPUT"
+              echo "store=http://rustfs-s3.rustfs-production.svc.cluster.local:9000" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
           esac
 
@@ -61,7 +68,7 @@ jobs:
       run:
         working-directory: tuist_ex/.shard-smoke
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - name: Create the fixture project
@@ -97,7 +104,7 @@ jobs:
       run:
         working-directory: tuist_ex/.shard-smoke
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - name: Create the fixture project
@@ -116,10 +123,11 @@ jobs:
       - name: Check where the build came from
         env:
           EXPECT_RUNNER_LOCAL: ${{ inputs.expect_runner_local }}
+          STORE: ${{ needs.plan.outputs.store }}
         run: |
           origin=$(sed -n 's/^Downloading the shard build from //p' "$RUNNER_TEMP/shard.log" | tail -1)
           echo "Shard build origin: ${origin:-none}"
-          if [ "${EXPECT_RUNNER_LOCAL}" = true ] && [ "${origin}" != "http://shard-storage.kura.svc.cluster.local:3900" ]; then
+          if [ "${EXPECT_RUNNER_LOCAL}" = true ] && [ "${origin}" != "${STORE}" ]; then
             echo "::error::The shard did not download its build from the runner-local store"
             exit 1
           fi

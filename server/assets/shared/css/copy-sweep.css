@@ -1,0 +1,40 @@
+/* Copy confirmation shared by every copyable code box (the code window, code
+   groups, and terminals): a band of brand purple sweeps once along the box's
+   edge, left to right.
+
+   A box opts in by giving its code surface a transparent 1px border and
+   painting it with three layers, where S is its surface color:
+
+     border: 1px solid transparent;
+     background:
+       linear-gradient(S, S) padding-box,
+       var(--copy-sweep),
+       linear-gradient(S, S) border-box;
+
+   then running `animation: copy-sweep var(--copy-sweep-duration)
+   var(--ease-out-cubic)` while its copy button carries data-copied, inside
+   `@media (prefers-reduced-motion: no-preference)`. Only the middle layer
+   moves. A scroll container's backgrounds stay put while its content
+   scrolls, and its border wraps the scrollbar, so the sweep follows the
+   box's real edge. */
+:root {
+  --copy-sweep: linear-gradient(90deg, transparent 35%, var(--noora-surface-label-brand) 50%, transparent 65%) 100% 0 /
+    300% 100% no-repeat border-box;
+  --copy-sweep-duration: 1000ms;
+}
+
+@keyframes copy-sweep {
+  from {
+    background-position:
+      0 0,
+      100% 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      0 0,
+      0% 0,
+      0 0;
+  }
+}

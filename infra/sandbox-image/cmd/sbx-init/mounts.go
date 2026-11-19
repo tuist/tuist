@@ -46,6 +46,13 @@ func mountFilesystems(log *slog.Logger) {
 			log.Error("mount", slog.String("target", m.target), slog.String("fstype", m.fstype), slog.Any("error", err))
 		}
 	}
+	// systemd-tmpfiles would create /run/lock (what /var/lock links to) on a
+	// systemd guest; Amp Desktop's app installer locks there.
+	if err := os.MkdirAll("/run/lock", 0o755); err != nil {
+		log.Error("mkdir", slog.String("target", "/run/lock"), slog.Any("error", err))
+	} else if err := os.Chmod("/run/lock", 0o777|os.ModeSticky); err != nil {
+		log.Error("chmod", slog.String("target", "/run/lock"), slog.Any("error", err))
+	}
 	// These must be created after mounting /dev: links baked into the rootfs
 	// would be hidden by devtmpfs, including when the kernel mounts it first.
 	if err := ensureDeviceLinks("/dev"); err != nil {

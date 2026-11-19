@@ -41,7 +41,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
             let changes: [(String, (Shop) async throws -> Void)] = [
                 ("A source change", sourceChangeRunsTheTestsThatExecutedIt),
                 ("A test file change", testFileChangeRunsItsSuite),
-                ("A Swift Testing change", swiftTestingTestsRunWithoutEvidence),
+                ("A Swift Testing change", swiftTestingChangeRunsTheTestsThatExecutedIt),
                 ("A merge checkout", mergeCheckoutFindsTheBaselineThroughItsAncestors),
                 ("An app change", appChangeRunsTheUITestsThatLaunchedIt),
                 ("A sharded checkout", shardedCheckoutSelectsLikeAnUnshardedOne),
@@ -68,6 +68,9 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
         XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
         XCTAssertTrue(run.ran("RoundingTests/testRoundsDownToWholeCents"), run.output)
         XCTAssertFalse(run.ran("MoneyTests/testFormatsDollars"), run.output)
+        // A Swift Testing test skipped on its own, in a module that runs: the trait cancels it.
+        XCTAssertTrue(run.ran("CartTests/discountAppliesToTotal"), run.output)
+        XCTAssertFalse(run.ran("CartTests/totalSumsItems"), run.output)
     }
 
     private func testFileChangeRunsItsSuite(_ shop: Shop) async throws {
@@ -87,8 +90,10 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
         XCTAssertFalse(run.ran("RoundingTests/testRoundsDownToWholeCents"), run.output)
     }
 
-    /// Swift Testing tests record no per-test evidence, so a change their target depends on runs them.
-    private func swiftTestingTestsRunWithoutEvidence(_ shop: Shop) async throws {
+    /// The fixture's Swift Testing suites have TestCoverageAttribution's `.coverageAttribution` trait,
+    /// so their tests record per-test evidence. Nothing in AppTests is selected here, so CartTests is
+    /// skipped with its module; the source change covers a single Swift Testing test the trait cancels.
+    private func swiftTestingChangeRunsTheTestsThatExecutedIt(_ shop: Shop) async throws {
         try shop.git.run("checkout", "-q", "-b", "feature/search")
         try shop.git.edit(
             "Catalog/Sources/Search.swift",
@@ -101,7 +106,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
 
         XCTAssertTrue(run.selected, run.output)
         XCTAssertTrue(run.ran("SearchTests/matchesName"), run.output)
-        XCTAssertTrue(run.ran("CartTests/totalSumsItems"), run.output)
+        XCTAssertFalse(run.ran("CartTests/totalSumsItems"), run.output)
         XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
     }
 

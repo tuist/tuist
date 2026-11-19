@@ -44,13 +44,6 @@ func (p *RackPDU) SetV1Beta1Conditions(c v1beta2.Conditions) {
 	p.SetConditions(conditionsToV1(c))
 }
 
-func (m *ScalewayElasticMetalMachine) GetV1Beta1Conditions() v1beta2.Conditions {
-	return conditionsToV2(m.GetConditions())
-}
-func (m *ScalewayElasticMetalMachine) SetV1Beta1Conditions(c v1beta2.Conditions) {
-	m.SetConditions(conditionsToV1(c))
-}
-
 func (c *TuistCluster) GetV1Beta1Conditions() v1beta2.Conditions {
 	return conditionsToV2(c.GetConditions())
 }

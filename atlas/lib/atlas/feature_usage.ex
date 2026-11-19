@@ -75,7 +75,8 @@ defmodule Atlas.FeatureUsage do
   Recent "stopped using a feature" transitions across accounts, newest first.
 
   A transition is a snapshot that is inactive now but whose immediately previous
-  snapshot for the same (account, feature) was active.
+  snapshot for the same (account, feature) was active. Snapshots of features
+  that have since been removed from the catalog are left out.
   """
   def list_recent_stops(opts \\ []) do
     limit = opts |> Keyword.get(:limit, 50) |> min(200) |> max(1)
@@ -84,6 +85,7 @@ defmodule Atlas.FeatureUsage do
 
     Snapshot
     |> where([s], s.active == false and s.active_previous == true)
+    |> where([s], s.feature in ^Catalog.all_slugs())
     |> maybe_since(since)
     |> maybe_feature(feature)
     |> order_by([s], desc: s.computed_at)

@@ -42,33 +42,13 @@ defmodule Tuist.AuthenticationTest do
     assert subject.last_sign_in_at
   end
 
-  test "authenticated_subject returns the user associated to the token" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-
-    # When
-    subject = Authentication.authenticated_subject(user.token)
-
-    # Then
-    assert subject.id == user.id
-    assert subject.last_sign_in_at
-  end
-
-  test "authenticated_subject returns the project associated to the legacy token" do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-
-    # When/Then
-    assert Authentication.authenticated_subject(project.token) == project
-  end
-
   test "authenticated_subject returns the project associated to the token" do
     # Given
     project = ProjectsFixtures.project_fixture()
     token = Projects.create_project_token(project)
 
     # When/Then
-    assert token |> Authentication.authenticated_subject() |> Repo.preload(:account) == project
+    assert (token |> Authentication.authenticated_subject() |> Repo.preload(:account)).id == project.id
   end
 
   test "authenticated_subject return the authenticated account associated to the token" do

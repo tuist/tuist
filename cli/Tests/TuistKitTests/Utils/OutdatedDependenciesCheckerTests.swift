@@ -109,4 +109,45 @@ struct OutdatedDependenciesCheckerTests {
 
         #expect(got == false)
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func packageDependenciesAreOutdated_whenALinkedCacheEntryWasPruned() async throws {
+        let projectDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = projectDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.SwiftPackageManager.packageSwiftName
+        )
+        let packageDirectory = packagePath.parentDirectory
+        let scratchDirectory = packageDirectory.appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(packagePath)
+        let savedPackageResolvedPath = scratchDirectory.appending(components: [
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        try await fileSystem.makeDirectory(at: savedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: savedPackageResolvedPath)
+        try await fileSystem.writeText(
+            "resolved", at: packageDirectory.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        let cachedSource = projectDirectory.appending(components: "cache", "sources", "alamofire", "5.0.0-abc")
+        let cachedArtifact = projectDirectory.appending(components: "cache", "artifacts", "firebase", "Core-abc")
+        try await fileSystem.makeDirectory(at: cachedSource)
+        try await fileSystem.makeDirectory(at: cachedArtifact)
+        try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "checkouts"))
+        try await fileSystem.makeDirectory(at: scratchDirectory.appending(components: "artifacts", "firebase"))
+        try await fileSystem.createSymbolicLink(
+            from: scratchDirectory.appending(components: "checkouts", "Alamofire"), to: cachedSource
+        )
+        try await fileSystem.createSymbolicLink(
+            from: scratchDirectory.appending(components: "artifacts", "firebase", "Core"), to: cachedArtifact
+        )
+
+        #expect(try await subject.packageDependenciesAreOutdated(at: projectDirectory) == false)
+
+        try await fileSystem.remove(cachedArtifact)
+
+        #expect(try await subject.packageDependenciesAreOutdated(at: projectDirectory) == true)
+    }
 }

@@ -1194,9 +1194,29 @@
       </div>
     </form>
   </.card_section>
+  <.card_section data-part="amp-card-section">
+    <div data-part="header">
+      <span data-part="title">Amp</span>
+      <span data-part="subtitle">
+        {dgettext("dashboard_integrations", "Connect your Amp workspaces to Tuist.")}
+      </span>
+    </div>
+    <.live_component
+      module={TuistWeb.Components.AmpWorkspaces}
+      id="amp-workspaces"
+      account={@selected_account}
+      current_user={@current_user}
+    />
+    <.live_component
+      module={TuistWeb.Components.AmpIntegration}
+      id="amp-integration"
+      account={@selected_account}
+      current_user={@current_user}
+    />
+  </.card_section>
   <.live_component
-    module={TuistWeb.Components.AmpIntegration}
-    id="amp-integration"
+    module={TuistWeb.Components.ClaudeIntegration}
+    id="claude-integration"
     account={@selected_account}
     current_user={@current_user}
   />

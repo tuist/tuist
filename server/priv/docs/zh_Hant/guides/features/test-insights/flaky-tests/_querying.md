@@ -2,7 +2,7 @@
 
 ### CLI {#querying-cli}
 
-`tuist test case` 命令樹公開 Tuist 針對測試案例追蹤的所有資訊：
+`tuist test case` 指令樹公開 Tuist 針對測試案例追蹤的所有資訊：
 
 ```sh
 tuist test case list --flaky                       # only flaky test cases
@@ -17,4 +17,4 @@ tuist test case run show <test_case_run_id>        # single run, including failu
 
 ### REST API {#querying-rest-api}
 
-相同資料可透過 HTTP 取得。請參閱 API 參考文件中的 [測試案例端點](https://tuist.dev/api/docs#tag/test-cases)，以取得完整的路由、篩選器與回應欄位清單。若要變更測試案例的狀態（標記或取消標記為不穩定、靜音、略過），請傳送 `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` 並附上 `is_flaky` 或 `state`。相同的變更也可透過 `tuist test case update` 以及 `update_test_case` MCP 工具完成。
+相同資料可透過 HTTP 取得。請參閱 API 參考文件中的 [測試案例端點](https://tuist.dev/api/docs#tag/test-cases)，查看完整的路由、篩選器與回應欄位清單。若要變更測試案例的狀態（標記或取消標記為不穩定、靜音、跳過），請傳送 `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` 並附上 `is_flaky` 或 `state`。相同的變更也可透過 `tuist test case update` 以及 `update_test_case` MCP 工具完成。

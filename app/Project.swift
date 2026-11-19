@@ -78,8 +78,6 @@ let bundleId =
     default: "dev.tuist.app"
     }
 
-let threadRichUI = Environment.threadRichUi.getBoolean(default: false)
-
 let project = Project(
     name: "TuistApp",
     settings: .settings(
@@ -129,7 +127,7 @@ let project = Project(
             resources: .resources([
                 .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
                 .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
-            ] + (threadRichUI ? [.folderReference(path: "../.build/nsh-threads/ui", inclusionCondition: .when([.ios]))] : [])),
+            ]),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -143,7 +141,6 @@ let project = Project(
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
-                .target(name: "TuistFeatureFlags", condition: .when([.ios])),
                 .target(name: "TuistNotifications", condition: .when([.ios])),
                 // Imported directly only by the iOS sources, but reached on
                 // every platform through TuistSupport -> SwifterPMCore. An
@@ -151,10 +148,7 @@ let project = Project(
                 // and leaves the macOS build unable to resolve the module.
                 .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
-            ] + (threadRichUI ? [.xcframework(
-                path: "../.build/nsh-threads/nsh/embed/ios/NativeShell.xcframework",
-                condition: .when([.ios])
-            )] : []),
+            ],
             settings: .settings(
                 base: [
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
@@ -213,6 +207,20 @@ let project = Project(
                 .external(name: "Mockable"),
             ]
         ),
+        // Renders every SwiftUI preview in the iOS app and uploads it to Tuist Snapshots in CI.
+        .target(
+            name: "TuistAppSnapshotTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.app-snapshot-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistAppSnapshotTests/**"],
+            dependencies: [
+                .target(name: "TuistApp"),
+                .external(name: "TuistSnapshotsTesting"),
+            ]
+        ),
         .target(
             name: "TuistNavigation",
             destinations: [.mac, .iPhone],
@@ -267,39 +275,10 @@ let project = Project(
             sources: ["Sources/TuistProfile/**"],
             dependencies: [
                 .target(name: "TuistAuthentication"),
-                .target(name: "TuistFeatureFlags"),
                 .target(name: "TuistNotifications"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistErrorHandling"),
                 .project(target: "TuistServer", path: "../"),
-            ]
-        ),
-        .target(
-            name: "TuistFeatureFlags",
-            destinations: .iOS,
-            product: .staticFramework,
-            bundleId: "dev.tuist.feature-flags",
-            deploymentTargets: .iOS("18.0"),
-            sources: ["Sources/TuistFeatureFlags/**"],
-            dependencies: [
-                .target(name: "TuistAuthentication"),
-                .project(target: "TuistServer", path: "../"),
-                .project(target: "TuistLogging", path: "../"),
-            ]
-        ),
-        .target(
-            name: "TuistFeatureFlagsTests",
-            destinations: .iOS,
-            product: .unitTests,
-            bundleId: "dev.tuist.feature-flags-tests",
-            deploymentTargets: .iOS("18.0"),
-            infoPlist: .default,
-            sources: ["Tests/TuistFeatureFlagsTests/**"],
-            dependencies: [
-                .target(name: "TuistFeatureFlags"),
-                .target(name: "TuistAuthentication"),
-                .project(target: "TuistServer", path: "../"),
-                .external(name: "Mockable"),
             ]
         ),
         .target(
@@ -328,6 +307,7 @@ let project = Project(
             sources: ["Tests/TuistNotificationsTests/**"],
             dependencies: [
                 .target(name: "TuistNotifications"),
+                .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
                 .project(target: "TuistServer", path: "../"),
                 .external(name: "Mockable"),
@@ -367,6 +347,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
+                .external(name: "OpenAPIRuntime"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -397,6 +378,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "FileSystemTesting"),
                 .external(name: "TestCoverageAttribution"),
             ]
         ),
@@ -413,9 +395,9 @@ let project = Project(
             testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
         ),
         .scheme(
-            name: "TuistFeatureFlags",
-            buildAction: .buildAction(targets: [.target("TuistFeatureFlags")]),
-            testAction: .targets([.testableTarget(target: "TuistFeatureFlagsTests")])
+            name: "TuistAppSnapshots",
+            buildAction: .buildAction(targets: [.target("TuistApp")]),
+            testAction: .targets([.testableTarget(target: "TuistAppSnapshotTests")])
         ),
         .scheme(
             name: "TuistNotifications",

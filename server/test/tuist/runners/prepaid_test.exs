@@ -120,6 +120,29 @@ defmodule Tuist.Runners.PrepaidTest do
       assert Enum.map(balance.grants, & &1.id) == [live.id]
     end
 
+    test "strict pools stop showing spendable credit at the usage cutoff, before settlement grace ends" do
+      stub(DateTime, :utc_now, fn -> ~U[2027-06-01 00:00:00Z] end)
+
+      settled_later =
+        grant(%{
+          expires_at: DateTime.to_unix(~U[2027-06-05 00:00:00Z]),
+          metadata: %{"tuist_runner_credit" => "pool", "tuist_prepaid_expires_on" => "2027-05-31"}
+        })
+
+      stub(CreditGrants, :list_for_customer, fn _ -> {:ok, [settled_later]} end)
+      assert is_nil(Prepaid.balance(account()))
+    end
+
+    test "a warmed balance cannot remain spendable past its contractual cutoff" do
+      cutoff = ~U[2027-06-01 00:00:00Z]
+      stub(DateTime, :utc_now, fn -> cutoff end)
+      cached = %{available: Money.new(694_500, :USD), expires_at: cutoff}
+      stub(KeyValueStore, :get, fn _, _ -> cached end)
+      stub(CreditGrants, :list_for_customer, fn _ -> {:ok, []} end)
+
+      assert is_nil(Prepaid.balance(account()))
+    end
+
     test "ignores grants that are not runner credit" do
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
         {:ok, [grant(%{metadata: %{"some_other_product" => "true"}}), grant(%{metadata: nil})]}
@@ -306,6 +329,31 @@ defmodule Tuist.Runners.PrepaidTest do
       end)
 
       assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs())
+    end
+
+    test "an audited strict activation funds the exact minutes but only the final contract-boundary invoice" do
+      stub(Billing, :current_billing_period, fn _account -> {~U[2026-09-21 08:48:39Z], ~U[2026-10-21 08:48:39Z]} end)
+      activation_id = Ecto.UUID.generate()
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 694_500
+        assert attrs.price_ids == [@macos_price]
+        assert attrs.expires_at == ~U[2027-06-05 00:00:00Z]
+        assert attrs.metadata["tuist_prepaid_activation_id"] == activation_id
+        assert attrs.metadata["tuist_prepaid_expires_on"] == "2027-05-31"
+        {:ok, %{id: "credgr_order"}}
+      end)
+
+      assert {:ok, _} =
+               Prepaid.grant_pool(
+                 pool_account(),
+                 pool_attrs(%{
+                   paid_cents: 625_000,
+                   credit_multiplier: Decimal.new("1.1112"),
+                   expires_on: ~D[2027-05-31],
+                   activation_id: activation_id
+                 })
+               )
     end
 
     test "dates the pool from the contract alone when the account has no billing cycle" do

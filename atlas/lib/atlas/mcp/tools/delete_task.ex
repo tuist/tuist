@@ -16,7 +16,7 @@ defmodule Atlas.MCP.Tools.DeleteTask do
   alias Atlas.Tasks
 
   @impl EMCP.Tool
-  def description, do: "Delete a shared Atlas task. Pending reminders become harmless."
+  def description, do: "Delete a shared Atlas task."
 
   def execute(conn, %{"task_id" => id}) do
     with :ok <- Tool.authorize_authenticated(conn, "Task tools"),

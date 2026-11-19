@@ -25,6 +25,7 @@ enum SandboxOutput {
             "Created: \(Formatters.formatDate(sandbox.inserted_at))",
             "Last active: \(sandbox.last_active_at.map(Formatters.formatDate) ?? "Never")",
         ]
+        if let guaranteed = sandbox.guaranteed_vcpus { lines.insert("Guaranteed: \(guaranteed.formatted()) vCPUs", at: 5) }
         if let pausedAt = sandbox.paused_at { lines.append("Paused: \(Formatters.formatDate(pausedAt))") }
         if let archivedAt = sandbox.archived_at {
             let size = sandbox.archive_bytes.map { " (\(Formatters.formatBytes($0)))" } ?? ""
@@ -38,8 +39,7 @@ enum SandboxOutput {
         let concurrency = analytics.concurrency
         let peak = (
             vcpus: concurrency.points.map(\.vcpus).max() ?? 0,
-            memory: concurrency.points.map(\.memory_gb).max() ?? 0,
-            disk: concurrency.points.map(\.disk_gb).max() ?? 0
+            memory: concurrency.points.map(\.memory_gb).max() ?? 0
         )
         return [
             "Sandbox analytics".bold(),
@@ -51,7 +51,6 @@ enum SandboxOutput {
             "Time to start: \(duration(analytics.time_to_start.count, analytics.time_to_start.p50_ms, analytics.time_to_start.p90_ms))",
             "Peak vCPUs: \(peak.vcpus) of \(concurrency.limits.vcpus) (\(concurrency.in_use.vcpus) in use now)",
             "Peak memory: \(gigabytes(peak.memory)) of \(gigabytes(concurrency.limits.memory_gb)) (\(gigabytes(concurrency.in_use.memory_gb)) in use now)",
-            "Peak disk: \(gigabytes(peak.disk)) of \(gigabytes(concurrency.limits.disk_gb)) (\(gigabytes(concurrency.in_use.disk_gb)) on nodes now)",
         ].joined(separator: "\n")
     }
 

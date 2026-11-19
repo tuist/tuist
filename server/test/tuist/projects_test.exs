@@ -832,17 +832,6 @@ defmodule Tuist.ProjectsTest do
       assert got == project
     end
 
-    test "returns project with a legacy token" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      got = Projects.get_project_by_full_token(project.token)
-
-      # Then
-      assert got == project
-    end
-
     test "returns nil when the token does not exist" do
       # When
       got = Projects.get_project_by_full_token("some-non-existing-token")
@@ -912,31 +901,6 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert [] == Projects.get_project_tokens(project)
-    end
-  end
-
-  describe "legacy_token?/1" do
-    test "returns true if the token is a legacy token" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      got = Projects.legacy_token?(project.token)
-
-      # Then
-      assert got == true
-    end
-
-    test "returns false if the token is not a legacy token" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      token = Projects.create_project_token(project)
-
-      # When
-      got = Projects.legacy_token?(token)
-
-      # Then
-      assert got == false
     end
   end
 

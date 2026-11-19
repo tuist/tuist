@@ -7,7 +7,7 @@
 ---
 # 選擇性測試 {#selective-testing}
 
-隨著專案規模擴大，每次推送都執行所有測試已不再可行。Tuist 選擇性測試能大幅縮短測試時間，僅執行自上次成功執行以來受變更影響的測試，並運用我們的 <.localized_link href="/guides/features/projects/hashing">雜湊演算法</.localized_link>。
+隨著專案規模擴大，每次推送都執行所有測試已不再可行。Tuist 選擇性測試運用我們的 <.localized_link href="/guides/features/projects/hashing">雜湊演算法</.localized_link>，僅執行自上次成功執行以來受變更影響的測試，大幅縮短測試時間。如需其他縮短測試時間的方法，例如測試分片與修復緩慢測試，請參閱 [緩慢測試](https://tuist.dev/solutions/slow-tests)。
 
 ## 支援的建置系統 {#supported-build-systems}
 

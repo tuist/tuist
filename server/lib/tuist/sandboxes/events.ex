@@ -10,7 +10,7 @@ defmodule Tuist.Sandboxes.Events do
 
   @events ~w(created started paused archived failed deleted setup)
   @stop_events ~w(paused archived failed deleted)
-  @boot_sources ~w(template disk_snapshot archive warm)
+  @boot_sources ~w(template disk_snapshot disk_snapshot_archive archive warm)
 
   def stop_events, do: @stop_events
 
@@ -31,6 +31,7 @@ defmodule Tuist.Sandboxes.Events do
       workspace_gb: sandbox.workspace_gb || 0,
       boot_source: Map.get(extra, :boot_source, ""),
       duration_ms: Map.get(extra, :duration_ms, 0),
+      guaranteed_cpu_milli: Sandbox.guaranteed_cpu_milli(sandbox),
       inserted_at: Map.get_lazy(extra, :inserted_at, &NaiveDateTime.utc_now/0)
     })
 
@@ -39,8 +40,8 @@ defmodule Tuist.Sandboxes.Events do
 
   @doc """
   The extra attributes of a boot's `started` event: what it booted from
-  (a template, a disk snapshot or an archive) and the `duration_ms` it
-  took to place and boot the VM.
+  (a template, a disk snapshot on its node or from its archive, or a
+  sandbox archive) and the `duration_ms` it took to place and boot the VM.
   """
   def boot(source, duration_ms) when source in @boot_sources and is_integer(duration_ms),
     do: %{boot_source: source, duration_ms: max(duration_ms, 0)}

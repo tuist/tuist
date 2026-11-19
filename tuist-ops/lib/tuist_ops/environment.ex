@@ -85,4 +85,21 @@ defmodule TuistOps.Environment do
   `"ops.tuist.dev"`; set `POMERIUM_AUDIENCE`.
   """
   def pomerium_audience, do: System.get_env("POMERIUM_AUDIENCE") || "ops.tuist.dev"
+
+  # --- Atlas workload identity -------------------------------------------
+
+  @doc """
+  The Atlas cluster's public JWKS (JSON), which signs the projected
+  ServiceAccount token Atlas calls `/api/v1/atlas/*` with. nil when
+  unset, which rejects every Atlas call.
+  """
+  def atlas_token_jwks, do: System.get_env("ATLAS_TOKEN_JWKS")
+
+  def atlas_token_issuer,
+    do: System.get_env("ATLAS_TOKEN_ISSUER") || "https://kubernetes.default.svc.cluster.local"
+
+  def atlas_token_audience, do: System.get_env("ATLAS_TOKEN_AUDIENCE") || "ops.tuist.dev"
+
+  def atlas_service_account,
+    do: System.get_env("ATLAS_SERVICE_ACCOUNT") || "system:serviceaccount:atlas-production:atlas"
 end

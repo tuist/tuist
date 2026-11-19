@@ -408,10 +408,10 @@ jobs:
           kubectl wait --for=condition=Ready node --all --timeout=120s
           kubectl -n kube-system rollout status deployment/coredns --timeout=120s
 
+      # The node pulls the image itself: `kind load` exports it from Docker with
+      # every platform, which fails once Docker's store holds only the runner's.
       - name: Pre-pull pod image into the kind cluster
-        run: |
-          docker pull debian:bookworm-slim
-          kind load docker-image debian:bookworm-slim --name condukt-smoke
+        run: docker exec condukt-smoke-control-plane crictl pull docker.io/library/debian:bookworm-slim
 
       - name: Prepare NIF and patch out exit-time destructors
         run: |

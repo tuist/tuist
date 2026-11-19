@@ -249,34 +249,59 @@ defmodule TuistWeb.CoverageLiveTest do
              )
 
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
-
-      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
-
-      assert_raise NotFoundError, fn ->
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
-      end
     end
-  end
 
-  describe "early access" do
-    test "shows a Mix project's page without the coverage flag and hides an Xcode project's", %{
+    test "says what a complete commit is and leads to the recent coverage commits when none is charted", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      mix_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :mix)
+      # Measured on main but never signalled complete, so nothing is charted.
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])], %{complete: false})
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "[data-part='empty-analytics'] [data-part='description']", "tuist coverage complete")
+
+      assert has_element?(
+               lv,
+               ~s([data-part='empty-analytics'] a[href="/#{organization.account.name}/#{project.name}/tests/coverage/commits"])
+             )
+    end
+  end
+
+  describe "build systems" do
+    test "shows the pages of Xcode, Mix, Cargo and Gradle projects in every account and no others", %{
+      conn: conn,
+      organization: organization
+    } do
+      # Production, where coverage once needed an account flag.
       stub(Tuist.Environment, :env, fn -> :prod end)
 
-      stub(FunWithFlags, :enabled?, fn
-        :xcode_coverage, _opts -> false
-        flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
-      end)
-
-      assert {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{mix_project.name}/tests/coverage")
-
-      assert_raise NotFoundError, fn ->
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+      for build_system <- [:xcode, :mix, :cargo, :gradle] do
+        project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
+        assert {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       end
+
+      for build_system <- [:bazel, :once] do
+        project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
+        base = "/#{organization.account.name}/#{project.name}/tests/coverage"
+
+        for path <- [base, base <> "/commits/#{String.duplicate("a", 40)}", base <> "/files/Sources/A.swift"] do
+          assert_raise NotFoundError, fn -> live(conn, path) end
+        end
+      end
+    end
+  end
+
+  describe "sidebar" do
+    test "lists Code Coverage for a Cargo project", %{conn: conn, organization: organization} do
+      cargo_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :cargo)
+      base = ~p"/#{organization.account.name}/#{cargo_project.name}/tests/coverage"
+
+      {:ok, lv, _html} = live(conn, base)
+
+      assert has_element?(lv, "a[href='#{base}']", "Code Coverage")
     end
   end
 

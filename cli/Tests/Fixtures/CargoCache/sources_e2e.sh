@@ -4,7 +4,8 @@
 # Strict admission keys a path library by the sources an earlier compilation read, without running rustc to discover
 # them. The library has a warning, which a hit must replay. A list that no longer matches must never hide a change: a
 # new submodule misses and is cached on that same build, an edited submodule misses, and a file that makes module
-# resolution ambiguous fails compilation instead of hitting. A library whose sources strict admission refuses
+# resolution ambiguous fails compilation instead of hitting. Without its list, a served hook keys the library from
+# rustc's dep-info while rustc runs and stops it on a hit. A library whose sources strict admission refuses
 # (`#[link]`) learns that only after rustc ran: that same build must record its reads, so the next build hits.
 # Expected values are computed here.
 set -euo pipefail
@@ -41,14 +42,23 @@ write app/Cargo.toml '[package]\nname = "app"\nversion = "0.1.0"\nedition = "202
 write app/src/main.rs 'fn main() { println!("{}", m::value() + linked::magnitude() as u64 - 4); }\n'
 (cd "$ws" && cargo generate-lockfile --offline 2> /dev/null)
 
-# The read recorder supports arm64 macOS only; elsewhere the refused library stays uncached.
+# The read recorder supports arm64 macOS and x86_64/aarch64 Linux; elsewhere the refused library stays uncached.
 warm_linked=
-[ "$(uname -sm)" != "Darwin arm64" ] || warm_linked=hit
+case "$(uname -sm)" in "Darwin arm64" | "Linux x86_64" | "Linux aarch64") warm_linked=hit ;; esac
 
 build_sources cold
 expect cold "0 1 miss miss" "$STATUS $OUTPUT $M $LINKED"
 build_sources warm
 expect warm "0 1 hit $warm_linked" "$STATUS $OUTPUT $M $LINKED"
+
+# Without its remembered list, a session's hook keys `m` from the dep-info rustc writes right after macro expansion and
+# stops rustc on that hit; the warning is shown once, from the replay. Elsewhere `m` compiles first, as before.
+rm -rf "$XDG_CACHE_HOME"/tuist/Cargo/*/reads
+early=miss
+[ "$(uname -s)" != Darwin ] || early=hit
+build_sources forgotten-list
+expect forgotten-list "0 1 $early" "$STATUS $OUTPUT $M"
+expect forgotten-list-warnings 1 "$(grep -cF 'function `unused` is never used' "$ROOT/forgotten-list.log")"
 
 write m/src/a.rs 'mod b;\npub const A: u64 = b::B + 1;\n'
 write m/src/a/b.rs 'pub const B: u64 = 10;\n'

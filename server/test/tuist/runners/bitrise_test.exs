@@ -12,6 +12,7 @@ defmodule Tuist.Runners.BitriseTest do
   alias Tuist.Runners.Bitrise.Client
   alias Tuist.Runners.Bitrise.ReportToken
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -103,6 +104,26 @@ defmodule Tuist.Runners.BitriseTest do
 
       refute lifecycle(started.build_slug)
       refute lifecycle(elsewhere.build_slug)
+    end
+
+    test "does not queue a build whose shape exceeds the account's whole limit", %{
+      connection: connection,
+      account: account
+    } do
+      # The pool's target is 6 vCPU / 14 GB on macOS.
+      {:ok, _} =
+        Concurrency.update_limits(account, %{
+          runner_linux_vcpus_limit: 16,
+          runner_linux_memory_gb_limit: 64,
+          runner_macos_vcpus_limit: 5,
+          runner_macos_memory_gb_limit: 14
+        })
+
+      waiting = remote_build()
+      stub(Client, :list_unfinished_builds, fn _connection -> {:ok, [waiting]} end)
+
+      assert {:ok, 0} = Bitrise.poll(connection)
+      refute lifecycle(waiting.build_slug)
     end
 
     test "does not queue a build twice", %{connection: connection} do

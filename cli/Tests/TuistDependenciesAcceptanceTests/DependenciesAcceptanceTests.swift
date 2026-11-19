@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -18,7 +19,7 @@ import TuistTesting
 @testable import TuistKit
 
 /// SwiftPM stores the registry configuration globally, and that prevents us from running these tests in parallel.
-@Suite(.serialized)
+@Suite(.coverageAttribution, .serialized)
 struct DependenciesAcceptanceTests {
     @Test(
         .disabled(),
@@ -287,6 +288,7 @@ struct DependenciesAcceptanceTests {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall {
     @Test(.withFixture("generated_app_with_spm_dependencies"))
     func test() async throws {
@@ -313,6 +315,7 @@ struct DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall {
 ///
 /// The fixture uses a local SPM package so the test does not require network access
 /// during `tuist install`.
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
     @Test(
         .withFixture("generated_ios_app_with_local_spm_package"),
@@ -334,6 +337,7 @@ struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies {
     @Test(
         .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
@@ -417,6 +421,7 @@ struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppAlamofire {
     @Test(.disabled(), .withFixture("generated_app_with_alamofire"), .inTemporaryDirectory)
     func app_with_alamofire() async throws {
@@ -431,6 +436,7 @@ struct DependenciesAcceptanceTestAppAlamofire {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
     @Test(
         .disabled(),
@@ -602,6 +608,7 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
     #endif
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppPocketSVG {
     @Test(.disabled(), .withFixture("generated_app_with_pocket_svg"), .inTemporaryDirectory)
     func app_with_pocket_svg() async throws {
@@ -616,6 +623,7 @@ struct DependenciesAcceptanceTestAppPocketSVG {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppSBTUITestTunnel {
     @Test(.disabled(), .withFixture("generated_app_with_sbtuitesttunnel"), .inTemporaryDirectory)
     func app_with_sbtuitesttunnel() async throws {
@@ -630,6 +638,7 @@ struct DependenciesAcceptanceTestAppSBTUITestTunnel {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestIosAppWithSPMDependencies {
     @Test(.disabled(), .withFixture("generated_ios_app_with_spm_dependencies"), .inTemporaryDirectory)
     func ios_app_spm_dependencies() async throws {
@@ -652,6 +661,7 @@ struct DependenciesAcceptanceTestIosAppWithSPMDependencies {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions {
     @Test(
         .disabled(),
@@ -678,6 +688,7 @@ struct DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions 
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies {
     @Test(.disabled(), .withFixture("generated_ios_app_with_spm_dependencies"), .withMockedDependencies())
     func test() async throws {
@@ -697,6 +708,7 @@ struct DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependenci
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppWithComposableArchitecture {
     @Test(.disabled(), .withFixture("generated_app_with_composable_architecture"), .inTemporaryDirectory)
     func app_with_composable_architecture() async throws {
@@ -711,6 +723,7 @@ struct DependenciesAcceptanceTestAppWithComposableArchitecture {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppWithRealm {
     @Test(.disabled(), .withFixture("generated_app_with_realm"), .inTemporaryDirectory)
     func app_with_realm() async throws {
@@ -725,6 +738,7 @@ struct DependenciesAcceptanceTestAppWithRealm {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppSPMXCFrameworkDependency {
     @Test(.disabled(), .withFixture("generated_app_with_spm_xcframework_dependency"), .inTemporaryDirectory)
     func app_spm_xcframework_dependency() async throws {
@@ -739,6 +753,7 @@ struct DependenciesAcceptanceTestAppSPMXCFrameworkDependency {
     }
 }
 
+@Suite(.coverageAttribution)
 struct DependenciesAcceptanceTestAppWithAirshipSDK {
     @Test(.disabled(), .withFixture("generated_app_with_airship_sdk"), .inTemporaryDirectory)
     func app_with_airship_sdk() async throws {

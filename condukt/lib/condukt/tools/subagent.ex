@@ -5,16 +5,45 @@ defmodule Condukt.Tools.Subagent do
   This tool is injected automatically when an agent declares `subagents/0`.
   It starts a fresh child `Condukt.Session`, runs the task once, returns the
   child's final response, and terminates the child session.
+
+  The child belongs to the call: it runs under a supervisor linked to the
+  call's process, so when the parent's turn is aborted and the call goes down,
+  the supervisor shuts the child down, and the child's own turn with it. While
+  the parent streams, the child streams too, and its events reach the parent's
+  stream as `{:subagent, tool_call_id, event}`.
+
+  Roles registered with `background: true` are served by
+  `Condukt.Tools.BackgroundSubagent` instead.
   """
 
   use Condukt.Tool
 
+  alias Condukt.Message
   alias Condukt.Operation.SubmitTool
+  alias Condukt.Sandbox
+  alias Condukt.Session
   alias Condukt.Telemetry
+  alias Condukt.Tools.BackgroundSubagent
   alias Condukt.TraceContext
 
-  @contract_keys [:input, :input_schema, :output, :output_schema]
+  @contract_keys [:input, :input_schema, :output, :output_schema, :background]
   @run_opt_keys [:timeout, :max_turns, :images]
+  @default_timeout 300_000
+
+  @doc false
+  # The tools a session with these normalized registrations gets: this one for
+  # one-shot roles, and the background tool, with its manager started under
+  # `supervisor`, for roles registered with `background: true`.
+  def tools([], _supervisor), do: []
+
+  def tools(subagents, supervisor) do
+    {background, foreground} = Enum.split_with(subagents, &background?/1)
+
+    foreground_tools = if foreground == [], do: [], else: [{__MODULE__, subagents: foreground}]
+    foreground_tools ++ BackgroundSubagent.tools(background, supervisor)
+  end
+
+  defp background?({_role, {_module, opts}}), do: Keyword.get(opts, :background, false) == true
 
   @impl true
   def name, do: "subagent"
@@ -146,14 +175,13 @@ defmodule Condukt.Tools.Subagent do
         :subagent,
         base_metadata,
         fn ->
-          with {:ok, input} <- validate_input(args, registration.input_schema),
-               {:ok, supervisor} <- fetch_supervisor(context),
-               prepared = prepare_child(registration, context),
-               {:ok, child} <- start_child(supervisor, registration.agent_module, prepared.session_opts) do
-            child_id = safe_session_id(child)
-            {run_and_stop(supervisor, child, task, input, prepared), child_id}
-          else
-            error -> {error, nil}
+          case validate_input(args, registration.input_schema) do
+            {:ok, input} ->
+              prepared = prepare_child(registration, context, self())
+              run_owned(registration.agent_module, task, input, prepared, context)
+
+            error ->
+              {error, nil}
           end
         end,
         fn {result, child_session_id} ->
@@ -197,7 +225,8 @@ defmodule Condukt.Tools.Subagent do
   defp error_name(reason) when is_binary(reason), do: :error
   defp error_name(_reason), do: :error
 
-  defp lookup(context, role) when is_binary(role) do
+  @doc false
+  def lookup(context, role) when is_binary(role) do
     context
     |> subagents()
     |> Enum.find(fn {registered_role, _registration} -> Atom.to_string(registered_role) == role end)
@@ -212,7 +241,7 @@ defmodule Condukt.Tools.Subagent do
     end
   end
 
-  defp lookup(_context, role), do: {:error, "no sub-agent registered as #{inspect(role)}"}
+  def lookup(_context, role), do: {:error, "no sub-agent registered as #{inspect(role)}"}
 
   defp normalize_registration(module) when is_atom(module) do
     {:ok, %{agent_module: module, opts: [], input_schema: nil, output_schema: nil}}
@@ -247,23 +276,50 @@ defmodule Condukt.Tools.Subagent do
 
   defp normalize_registration(registration), do: {:error, {:invalid_subagent_registration, registration}}
 
+  @doc false
+  # Whether a call to the role in `args` changes nothing a later call could
+  # observe, so consecutive such calls run together: the role starts a
+  # sandbox of its own, from a spec, or has only read-only tools and no
+  # sub-agents of its own. A role that shares its parent's sandbox and can
+  # change it runs alone, in call order.
+  def read_only_call?(opts, args) do
+    role = Map.get(args, "role") || Map.get(args, :role)
+
+    case lookup(%{opts: opts}, role) do
+      {:ok, _role, %{agent_module: module, opts: role_opts}} ->
+        own_sandbox?(role_opts) or
+          (Code.ensure_loaded?(module) and module.subagents() == [] and
+             Enum.all?(Keyword.get_lazy(role_opts, :tools, &module.tools/0), &Condukt.Tool.read_only?/1))
+
+      # It only answers with an error.
+      {:error, _reason} ->
+        true
+    end
+  end
+
+  defp own_sandbox?(role_opts) do
+    case Keyword.get(role_opts, :sandbox) do
+      nil -> false
+      %Sandbox{} -> false
+      _spec -> true
+    end
+  end
+
   defp subagents(context) do
     context
     |> Map.get(:opts, [])
     |> Keyword.get(:subagents, Map.get(context, :subagents, []))
   end
 
-  defp fetch_supervisor(%{subagent_supervisor: supervisor}) when is_pid(supervisor), do: {:ok, supervisor}
-  defp fetch_supervisor(_context), do: {:error, :subagent_supervisor_unavailable}
-
-  defp validate_input(args, nil) do
+  @doc false
+  def validate_input(args, nil) do
     case fetch_input(args) do
       {:ok, input} -> {:ok, stringify_keys(input)}
       :error -> {:ok, nil}
     end
   end
 
-  defp validate_input(args, schema) do
+  def validate_input(args, schema) do
     input =
       case fetch_input(args) do
         {:ok, input} -> stringify_keys(input)
@@ -293,7 +349,9 @@ defmodule Condukt.Tools.Subagent do
     end
   end
 
-  defp prepare_child(registration, context) do
+  @doc false
+  # `reply_to` receives the child's structured submissions.
+  def prepare_child(registration, context, reply_to) do
     {run_opts, session_opts} = Keyword.split(registration.opts, @run_opt_keys)
 
     prepared = %{
@@ -304,14 +362,14 @@ defmodule Condukt.Tools.Subagent do
       ref: nil
     }
 
-    maybe_prepare_structured_output(prepared, registration.agent_module)
+    maybe_prepare_structured_output(prepared, registration.agent_module, reply_to)
   end
 
-  defp maybe_prepare_structured_output(%{output_schema: nil} = prepared, _agent_module), do: prepared
+  defp maybe_prepare_structured_output(%{output_schema: nil} = prepared, _agent_module, _reply_to), do: prepared
 
-  defp maybe_prepare_structured_output(prepared, agent_module) do
+  defp maybe_prepare_structured_output(prepared, agent_module, reply_to) do
     ref = make_ref()
-    submit_tool = {SubmitTool, schema: prepared.output_schema, reply_to: self(), ref: ref}
+    submit_tool = {SubmitTool, schema: prepared.output_schema, reply_to: reply_to, ref: ref}
 
     session_opts =
       prepared.session_opts
@@ -358,6 +416,7 @@ defmodule Condukt.Tools.Subagent do
     opts
     |> Keyword.put_new(:sandbox, Map.fetch!(context, :sandbox))
     |> Keyword.put_new(:cwd, Map.fetch!(context, :cwd))
+    |> put_new_present(:parent, Map.get(context, :session_id))
     |> put_new_present(:secrets, Map.get(context, :secrets))
     |> put_new_present(:model, Map.get(context, :model))
     |> put_new_present(:thinking_level, Map.get(context, :thinking_level))
@@ -370,7 +429,8 @@ defmodule Condukt.Tools.Subagent do
   defp put_new_present(opts, _key, nil), do: opts
   defp put_new_present(opts, key, value), do: Keyword.put_new(opts, key, value)
 
-  defp start_child(supervisor, agent_module, opts) do
+  @doc false
+  def start_child(supervisor, agent_module, opts) do
     child_spec = %{
       id: {__MODULE__, make_ref()},
       start: {Condukt.Session, :start_link, [agent_module, opts]},
@@ -385,43 +445,130 @@ defmodule Condukt.Tools.Subagent do
     end
   end
 
-  defp run_and_stop(supervisor, child, task, input, prepared) do
-    result = run_child(child, child_prompt(task, input), prepared.run_opts, prepared.trace_context)
+  # The child runs under a supervisor this call starts linked to itself, the
+  # call's own branch of the parent's process tree. When the parent's turn is
+  # aborted, the call goes down, and the supervisor, hearing its parent exit,
+  # shuts the child down. A child that crashes takes only itself down, and the
+  # call reports it as an error. Stopping the supervisor at the end of the call
+  # stops the child, so it never outlives the call.
+  defp run_owned(agent_module, task, input, prepared, context) do
+    {:ok, supervisor} = DynamicSupervisor.start_link(strategy: :one_for_one)
 
-    terminate_child(supervisor, child)
+    try do
+      case start_child(supervisor, agent_module, prepared.session_opts) do
+        {:ok, child} ->
+          child_id = safe_session_id(child)
+          {run_child_task(child, task, input, prepared, context), child_id}
+
+        error ->
+          {error, nil}
+      end
+    after
+      Supervisor.stop(supervisor)
+    end
+  end
+
+  defp run_child_task(child, task, input, prepared, context) do
+    prompt = child_prompt(task, input)
+
+    result =
+      if Map.get(context, :stream?, false),
+        do: stream_child(child, prompt, prepared, context),
+        else: run_child(child, prompt, prepared)
 
     case {result, prepared.output_schema} do
       {{:ok, _text}, nil} -> result
       {{:ok, _text}, output_schema} -> await_submission(output_schema, prepared.ref)
       {result, _output_schema} -> result
     end
+  catch
+    :exit, reason -> {:error, {:session_exit, reason}}
   end
 
-  defp run_child(child, prompt, run_opts, trace_context) do
-    caller = self()
+  defp run_child(child, prompt, prepared) do
+    opts = Keyword.put(prepared.run_opts, :trace_context, prepared.trace_context)
+    Condukt.run(child, prompt, opts)
+  end
+
+  # Streams the child's turn into the parent's, collecting the same final
+  # answer `Condukt.run/3` would return.
+  defp stream_child(child, prompt, prepared, context) do
     ref = make_ref()
+    monitor = Process.monitor(child)
+    deadline = System.monotonic_time(:millisecond) + (prepared.run_opts[:timeout] || @default_timeout)
 
-    pid =
-      spawn(fn ->
-        TraceContext.attach(trace_context)
-        send(caller, {ref, Condukt.run(child, prompt, run_opts)})
-      end)
+    opts =
+      prepared.run_opts
+      |> Keyword.take([:max_turns, :images])
+      |> Keyword.put(:trace_context, prepared.trace_context)
 
-    monitor_ref = Process.monitor(pid)
+    :ok = Session.stream_to(child, prompt, opts, ref)
 
-    receive do
-      {^ref, result} ->
-        Process.demonitor(monitor_ref, [:flush])
+    case await_stream(child, ref, monitor, deadline, forwarder(context), nil) do
+      # A runtime without streaming did not run anything, so run it instead.
+      {:error, {:streaming_not_supported_by_runtime, _runtime}} ->
+        Process.demonitor(monitor, [:flush])
+        run_child(child, prompt, prepared)
+
+      result ->
+        Process.demonitor(monitor, [:flush])
         result
-
-      {:DOWN, ^monitor_ref, :process, ^pid, reason} ->
-        {:error, reason}
     end
   end
 
-  defp child_prompt(task, nil), do: task
+  defp await_stream(child, ref, monitor, deadline, forward, error) do
+    receive do
+      {^ref, :done} when not is_nil(error) ->
+        if !match?({:streaming_not_supported_by_runtime, _}, error), do: forward.(:done)
+        {:error, error}
 
-  defp child_prompt(task, input) do
+      {^ref, :done} ->
+        forward.(:done)
+        {:ok, final_text(child)}
+
+      {^ref, {:error, {:streaming_not_supported_by_runtime, _} = reason}} ->
+        await_stream(child, ref, monitor, deadline, forward, error || reason)
+
+      {^ref, {:error, reason} = event} ->
+        forward.(event)
+        await_stream(child, ref, monitor, deadline, forward, error || reason)
+
+      {^ref, event} ->
+        forward.(event)
+        await_stream(child, ref, monitor, deadline, forward, error)
+
+      {:DOWN, ^monitor, :process, ^child, reason} ->
+        {:error, {:session_exit, reason}}
+    after
+      # Stopping the call's supervisor stops the child.
+      max(deadline - System.monotonic_time(:millisecond), 0) ->
+        {:error, {:session_exit, :timeout}}
+    end
+  end
+
+  defp forwarder(context) do
+    parent = Map.fetch!(context, :agent)
+    turn_ref = Map.get(context, :turn_ref)
+    call_id = Map.get(context, :tool_call_id)
+    fn event -> Session.forward_event(parent, turn_ref, {:subagent, call_id, event}) end
+  end
+
+  # The text of the child's last assistant message, as `Condukt.run/3` returns.
+  defp final_text(child) do
+    child
+    |> Condukt.history()
+    |> Enum.reverse()
+    |> Enum.find(&(&1.role == :assistant))
+    |> case do
+      nil -> ""
+      message -> Message.text(message)
+    end
+  end
+
+  @doc false
+  def child_prompt(task, nil), do: task
+
+  def child_prompt(task, input) do
     "Run this task:\n\n#{task}\n\nStructured input:\n\n```json\n#{JSON.encode!(input)}\n```"
   end
 
@@ -434,7 +581,8 @@ defmodule Condukt.Tools.Subagent do
     end
   end
 
-  defp validate_output(schema, data) do
+  @doc false
+  def validate_output(schema, data) do
     with {:ok, root} <- JSV.build(schema),
          {:ok, validated} <- JSV.validate(data, root) do
       {:ok, atomize_top_level(validated, schema)}
@@ -474,12 +622,4 @@ defmodule Condukt.Tools.Subagent do
 
   defp to_string_key(key) when is_atom(key), do: Atom.to_string(key)
   defp to_string_key(key) when is_binary(key), do: key
-
-  defp terminate_child(supervisor, child) do
-    if Process.alive?(child) do
-      _ = DynamicSupervisor.terminate_child(supervisor, child)
-    end
-
-    :ok
-  end
 end

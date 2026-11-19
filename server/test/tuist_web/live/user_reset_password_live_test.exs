@@ -147,14 +147,12 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
       :ok
     end
 
-    test "resetting the password revokes the user's refresh tokens and legacy token", %{token: token, user: user} do
+    test "resetting the password revokes the user's refresh tokens", %{token: token, user: user} do
       %{"access_token" => access_token, "refresh_token" => refresh_token} =
         build_conn()
         |> put_req_header("content-type", "application/json")
         |> post("/api/auth", %{email: user.email, password: valid_user_password()})
         |> json_response(:ok)
-
-      assert Tuist.Authentication.authenticated_subject(user.token).id == user.id
 
       # Account tokens share `guardian_tokens`, with `sub` holding an account
       # ID that can equal the user's ID. They are not the user's credentials.
@@ -173,10 +171,12 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
 
       assert api_refresh(refresh_token).status == 401
       refute Tuist.Authentication.authenticated_subject(access_token)
-      refute Tuist.Authentication.authenticated_subject(user.token)
       assert {:ok, _, _} = Tuist.Guardian.resource_from_token(account_refresh_token, %{"typ" => "refresh"})
       assert api_refresh(other_refresh_token).status == 200
-      assert Tuist.Authentication.authenticated_subject(other.token).id == other.id
+
+      assert Tuist.Authentication.authenticated_subject(
+               TuistTestSupport.Fixtures.AccountsFixtures.user_access_token(other)
+             ).id == other.id
     end
   end
 

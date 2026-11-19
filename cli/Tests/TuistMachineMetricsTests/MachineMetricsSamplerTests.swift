@@ -44,6 +44,11 @@
             #expect(sample.memoryTotalBytes > 0)
             #expect(sample.memoryUsedBytes > 0)
             #expect(sample.memoryUsedBytes <= sample.memoryTotalBytes)
+            let diskTotal = try #require(sample.diskTotalBytes)
+            let diskAvailable = try #require(sample.diskAvailableBytes)
+            #expect(diskTotal > 0)
+            #expect(diskAvailable >= 0)
+            #expect(diskAvailable <= diskTotal)
             #expect(sample.timestamp > 0)
         }
 

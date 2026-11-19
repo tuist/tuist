@@ -232,35 +232,6 @@ defmodule Atlas.FeatureUsage.CollectorTest do
                  pg_query: fn _sql, _opts -> {:error, "boom"} end
                )
     end
-
-    test "collects Model Context Protocol usage from Grafana Loki by account handle" do
-      parent = self()
-
-      loki_query = fn "acme" ->
-        send(parent, :loki_queried)
-
-        {:ok,
-         %{
-           events_last_24h: 2,
-           events_last_7d: 9,
-           events_prior_7d: 0,
-           last_used_at: ~U[2026-08-26 09:30:00Z]
-         }}
-      end
-
-      assert {:ok, metrics} =
-               Collector.measure(%{account_handle: "acme", account_id: 42, project_ids: [1, 2]},
-                 ch_query: fn _sql, _opts -> {:ok, %{"rows" => [grouped_row()]}} end,
-                 pg_query: configuration_pg_query(),
-                 loki_query: loki_query
-               )
-
-      usage = Enum.find(metrics, &(&1.feature == "model_context_protocol"))
-      assert usage.events_last_24h == 2
-      assert usage.events_last_7d == 9
-      assert usage.last_used_at == ~U[2026-08-26 09:30:00Z]
-      assert_received :loki_queried
-    end
   end
 
   defp collect_queries(acc) do

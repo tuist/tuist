@@ -130,6 +130,17 @@ defmodule Tuist.Sandboxes.Nodes do
     end
   end
 
+  @doc """
+  `args` for a disk or sandbox command to `node_name`: a macOS host runs
+  only commands that name its current incarnation (`node_uid`).
+  """
+  def command_args(node_name, args) do
+    case __MODULE__.lookup(node_name) do
+      {:ok, _pid, %{platform: "darwin", generation: generation}} -> Map.put(args, :node_uid, generation)
+      _ -> args
+    end
+  end
+
   def connected?(node_name) do
     match?({:ok, _pid, _info}, lookup(node_name))
   end

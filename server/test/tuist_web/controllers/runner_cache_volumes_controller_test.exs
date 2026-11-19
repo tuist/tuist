@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.ActionsCache
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.ExecutionTokens
   alias Tuist.Runners.VolumePrefetch
@@ -322,6 +323,49 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
 
       expect(CacheVolumes, :mark_docker_seen, fn _ -> {:error, :unavailable} end)
       assert Controller.docker_seen(conn(), %{}).status == 403
+    end
+  end
+
+  describe "actions cache" do
+    setup do
+      namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+      name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+      :ok
+    end
+
+    test "answers whether a job uses the cache, a lookup, a pending job, a taken key, an upload and a commit" do
+      expect(ActionsCache, :enabled, fn _ -> {:ok, false} end)
+      assert %{status: 200, resp_body: ~s({"enabled":false})} = Controller.actions_cache_enabled(conn(), %{})
+
+      expect(ActionsCache, :lookup, fn _ -> {:ok, nil} end)
+      assert %{status: 200, resp_body: ~s({"entry":null})} = Controller.actions_cache_lookup(conn(), %{})
+
+      expect(ActionsCache, :lookup, fn _ -> {:error, :pending} end)
+      assert Controller.actions_cache_lookup(conn(), %{}).status == 425
+
+      expect(ActionsCache, :reserve, fn _ -> {:error, :conflict} end)
+      assert Controller.actions_cache_reserve(conn(), %{}).status == 409
+
+      expect(ActionsCache, :upload, fn _ -> {:ok, %{upload_url: "https://store/object", checksum: "c2hh"}} end)
+      upload = Controller.actions_cache_upload(conn(), %{})
+      assert upload.status == 200
+      assert JSON.decode!(upload.resp_body) == %{"upload_url" => "https://store/object", "checksum" => "c2hh"}
+
+      expect(ActionsCache, :commit, fn _ -> :ok end)
+      assert Controller.actions_cache_commit(conn(), %{}).status == 204
+
+      expect(ActionsCache, :commit, fn _ -> {:error, :not_found} end)
+      assert Controller.actions_cache_commit(conn(), %{}).status == 404
+    end
+
+    test "refuses workflow credentials" do
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" ->
+        {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+      end)
+
+      reject(&ActionsCache.lookup/1)
+      assert Controller.actions_cache_lookup(conn(), %{}).status == 403
     end
   end
 end

@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Görüntüler" },
       "implicit-dependencies": { "text": "Örtük bağımlılıklar" },
       "iphone-app": { "text": "iPhone uygulaması" },
       "macos-app": { "text": "macOS uygulaması" },
@@ -38,7 +39,7 @@
       "once": { "text": "Once" },
       "once-cache": { "text": "Once önbelleği" },
       "once-project": { "text": "Once projesi" },
-      "once-remote-execution": { "text": "Once uzaktan yürütme" },
+      "once-remote-execution": { "text": "Once uzak yürütme" },
       "origin": { "text": "Kaynak" },
       "profiles": { "text": "Profiller" },
       "project-description": { "text": "Proje açıklaması" },
@@ -49,12 +50,12 @@
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust önbelleği" },
       "rust-project": { "text": "Rust projesi" },
-      "sandboxes": { "text": "Sandboxlar" },
+      "sandboxes": { "text": "Sanal alanlar" },
       "scim-provisioning": { "text": "SCIM sağlama" },
       "server-api": { "text": "Sunucu API'si" },
       "single-sign-on": { "text": "Tek Oturum Açma" },
       "supported-types": { "text": "Desteklenen türler" },
-      "webhooks": { "text": "Webhook'lar" },
+      "webhooks": { "text": "Web kancaları" },
       "xcodegen-project": { "text": "XcodeGen projesi" },
       "xcodeproj-integration": { "text": "Xcodeproj entegrasyonu" },
       "ufeatures-architecture": { "text": "uFeatures mimarisi" }
@@ -66,7 +67,7 @@
         "text": "Diller 🌍"
       },
       "description": {
-        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğinin iyileştirilmesine yardımcı olabilirsiniz."
+        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
       },
       "cta": {
         "text": "Katkıda bulun"
@@ -125,7 +126,7 @@
       "text": "Sunucu"
     },
     "tutorials": {
-      "text": "Öğreticiler"
+      "text": "Eğitimler"
     },
     "resources": {
       "text": "Kaynaklar",
@@ -177,6 +178,17 @@
         },
         "examples": {
           "text": "Örnekler"
+        },
+        "concepts": {
+          "text": "Kavramlar",
+          "items": {
+            "flaky-test": {
+              "text": "Kararsız testler"
+            },
+            "build-cache": {
+              "text": "Derleme önbelleği"
+            }
+          }
         },
         "libraries": {
           "text": "Kütüphaneler"
@@ -282,20 +294,17 @@
         },
         "status": {
           "text": "Durum"
-        },
-        "metrics-dashboard": {
-          "text": "Metrik panosu"
         }
       }
     },
     "tutorials": {
-      "text": "Öğreticiler",
+      "text": "Eğitimler",
       "items": {
         "xcode": {
           "text": "Xcode",
           "items": {
             "create-a-generated-project": {
-              "text": "Oluşturulmuş bir proje oluştur"
+              "text": "Oluşturulan bir proje oluşturun"
             }
           }
         }
@@ -314,7 +323,7 @@
               "text": "Xcode projesi"
             },
             "generated-xcode-project": {
-              "text": "Oluşturulmuş Xcode projesi"
+              "text": "Oluşturulan Xcode projesi"
             },
             "gradle-project": {
               "text": "Gradle projesi"
@@ -328,7 +337,7 @@
           }
         },
         "install-tuist": {
-          "text": "Tuist'i Kur"
+          "text": "Tuist'i Kurun"
         },
         "tuist": {
           "text": "Tuist",
@@ -342,7 +351,7 @@
           "text": "Hızlı başlangıç",
           "items": {
             "install-tuist": {
-              "text": "Tuist'i Kur"
+              "text": "Tuist'i Kurun"
             },
             "get-started": {
               "text": "Başlangıç"
@@ -361,7 +370,7 @@
           }
         },
         "develop": {
-          "text": "Geliştir",
+          "text": "Geliştirme",
           "items": {
             "generated-projects": {
               "text": "Oluşturulan projeler",
@@ -373,7 +382,7 @@
                       "text": "Yeni proje oluştur"
                     },
                     "swift-package": {
-                      "text": "Swift Paketi ile dene"
+                      "text": "Swift Paketi ile deneyin"
                     },
                     "migrate": {
                       "text": "Geçiş yap",
@@ -425,7 +434,7 @@
                   "text": "Hashing"
                 },
                 "inspect": {
-                  "text": "İncele",
+                  "text": "İnceleme",
                   "items": {
                     "implicit-imports": {
                       "text": "Örtük içe aktarmalar"
@@ -492,7 +501,7 @@
               "text": "Seçim",
               "items": {
                 "generated-xcode-project": {
-                  "text": "Oluşturulmuş Xcode projesi"
+                  "text": "Oluşturulan Xcode projesi"
                 }
               }
             },
@@ -500,7 +509,7 @@
               "text": "Parçalama",
               "items": {
                 "generated-xcode-project": {
-                  "text": "Oluşturulmuş Xcode projesi"
+                  "text": "Oluşturulan Xcode projesi"
                 }
               }
             },
@@ -508,7 +517,7 @@
               "text": "İçgörüler",
               "items": {
                 "generated-xcode-project": {
-                  "text": "Oluşturulmuş Xcode projesi"
+                  "text": "Oluşturulan Xcode projesi"
                 }
               }
             },
@@ -519,7 +528,7 @@
                   "text": "Kararsızlık",
                   "items": {
                     "generated-xcode-project": {
-                      "text": "Oluşturulmuş Xcode projesi"
+                      "text": "Oluşturulan Xcode projesi"
                     }
                   }
                 }
@@ -564,7 +573,7 @@
               "text": "Sürekli entegrasyon"
             },
             "http-proxy": {
-              "text": "HTTP proxy"
+              "text": "HTTP vekil sunucusu"
             },
             "sso": {
               "text": "SSO"
@@ -573,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git forjları",
+              "text": "Git platformları",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -595,7 +604,7 @@
               "text": "Ağ"
             },
             "self-hosting": {
-              "text": "Kendi kendine barındırma",
+              "text": "Kendi sunucunuzda barındırma",
               "items": {
                 "server": {
                   "text": "Sunucu"
@@ -611,7 +620,7 @@
           }
         },
         "share": {
-          "text": "Paylaş",
+          "text": "Paylaşım",
           "items": {
             "previews": {
               "text": "Önizlemeler"

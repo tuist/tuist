@@ -103,6 +103,13 @@ defmodule Tuist.PromEx do
         plugins
       end
 
+    # Pods that host agent sessions, or delegate them to agents pods, read
+    # the sessions table.
+    plugins =
+      if Tuist.Environment.mode() in [:web, :agents],
+        do: plugins ++ [Tuist.Agents.PromExPlugin],
+        else: plugins
+
     plugins =
       if Tuist.Environment.tuist_hosted?() do
         plugins ++

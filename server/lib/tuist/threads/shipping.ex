@@ -55,7 +55,11 @@ defmodule Tuist.Threads.Shipping do
           metadata, path = entry.split(b'\t', 1)
           mode, kind, oid = metadata.decode('ascii').split()
           original[path] = (mode, kind, oid)
-      paths = set(git(['ls-files', '--cached', '--others', '--exclude-standard', '-z'], limit=16777216).split(b'\x00')) - {b''}
+      # A .struo/ or legacy .once/ directory, at the root or next to any project,
+      # is build cache and runtime state, never part of the change, even
+      # where the repository does not ignore it. Tracked paths under it are
+      # left alone.
+      paths = set(git(['ls-files', '--cached', '--others', '--exclude-standard', '--exclude=.struo/', '--exclude=.once/', '-z'], limit=16777216).split(b'\x00')) - {b''}
       if len(paths) > 50000: raise ValueError()
       tree, total = {}, 0
       for raw in sorted(paths):
@@ -172,7 +176,7 @@ defmodule Tuist.Threads.Shipping do
            true <- thread.owner_id == user.id,
            :ok <- Threads.authorize(user, account),
            :ok <- ready(thread),
-           {:ok, repository} <- Repository.authorize(account, thread.repository) do
+           {:ok, repository} <- Repository.authorize(account, user, thread.repository, :write) do
         request_id = Ecto.UUID.generate()
 
         with_residency(thread, "preview:#{thread.id}", fn sandbox ->
@@ -223,7 +227,7 @@ defmodule Tuist.Threads.Shipping do
            {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
            user when not is_nil(user) <- Accounts.get_user_by_id(approval.approved_by_id),
            :ok <- Threads.authorize(user, account),
-           {:ok, _} <- Repository.authorize(account, approval.repository) do
+           {:ok, _} <- Repository.authorize(account, user, approval.repository, :write) do
         with_residency(thread, approval.request_id, fn sandbox ->
           publish_reviewed(account, sandbox, thread, approval, run)
         end)
@@ -398,7 +402,7 @@ defmodule Tuist.Threads.Shipping do
   end
 
   defp target(%{ship_mode: :direct} = thread), do: thread.base_branch
-  defp target(thread), do: "threads/#{thread.id}"
+  defp target(thread), do: thread.branch
 
   defp success(approval),
     do:

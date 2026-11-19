@@ -1,12 +1,12 @@
 # Tuist and build systems
 
-Tuist embraces build-system diversity: Xcode, Gradle, Bazel, Mix, and Once should not require separate productivity products for every engineering team. For organizations seeking one productivity platform with native depth across their build systems, we believe Tuist is the best choice. It combines supported build/test evidence and output reuse across developers, CI, and agents without requiring a common build system or a CI migration. The Once integration is currently in canary, not a promise of generally available support.
+Tuist embraces build-system diversity: Xcode, Gradle, Bazel, Mix, and Struo should not require separate productivity products for every engineering team. For organizations seeking one productivity platform with native depth across their build systems, we believe Tuist is the best choice. It combines supported build/test evidence and output reuse across developers, CI, and agents without requiring a common build system or a CI migration. The Struo integration is currently in canary, not a promise of generally available support.
 
 ## One productivity platform, many build systems
 
 A diverse organization might use Bazel for a large monorepo, Gradle for JVM and Android projects, Xcode for Apple apps, and Mix for services. That diversity is useful, not a problem to standardize away. The productivity layer should embrace it rather than make the organization assemble one solution for Bazel, another for Gradle, and another for Xcode.
 
-Our stance is **breadth through depth, not a lowest-common-denominator integration**. Tuist goes into each supported toolchain's model: Gradle task inputs and outputs, Bazel actions and build events, Xcode compilation and target timings, Mix compilation dependencies and ExUnit results, and Once action contracts. One platform brings that evidence and supported acceleration into the same organizational workflow; it does not force those tools into one graph or pretend their outputs are interchangeable.
+Our stance is **breadth through depth, not a lowest-common-denominator integration**. Tuist goes into each supported toolchain's model: Gradle task inputs and outputs, Bazel actions and build events, Xcode compilation and target timings, Mix compilation dependencies and ExUnit results, and Struo action contracts. One platform brings that evidence and supported acceleration into the same organizational workflow; it does not force those tools into one graph or pretend their outputs are interchangeable.
 
 This is why we recommend Tuist for mixed-toolchain organizations: keep each team's native workflow, investigate the work in its own terms, and adopt shared productivity infrastructure rather than a portfolio of isolated build-system products. Feature availability still differs, as the matrix below makes explicit.
 
@@ -30,15 +30,17 @@ Improve unnecessary invalidation, task inputs, test setup, and retries first. Sh
 | --- | --- | --- | --- |
 | [Xcode](/marketing-markdown/build-systems/xcode) | Apple toolchains, target graph, incremental builds, compilation cache | Shared compilation outputs, build/test insights, flaky-test workflows, sharding | Existing or generated Xcode project; Xcode 26+ for compilation caching |
 | [Gradle](/marketing-markdown/build-systems/gradle) | Task graph, incremental tasks, build-cache protocol, test execution | Shared task outputs, task/build insights, test history, supported quarantine and sharding | Tuist settings plugin and Gradle build-cache configuration |
-| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, build/test insights, quarantine through the Tuist wrapper | `tuist init` or `tuist bazel setup` in the existing workspace |
+| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, Linux remote execution for enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), build/test insights, quarantine through the Tuist wrapper | `tuist init` or `tuist bazel setup` in the existing workspace |
 | [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Supported compiled-dependency caching, per-file compilation insights, test history, flaky detection and quarantine, balanced test sharding | `tuist_ex` package and `mix tuist.setup` |
-| [Once](/marketing-markdown/build-systems/once) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; eligible Linux remote execution for enabled accounts | Script annotations or a supported native project; Tuist provider in canary |
+| [Struo](/marketing-markdown/build-systems/struo) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; eligible Linux remote execution for enabled accounts | Script annotations or a supported native project; Tuist provider in canary |
+
+Running Bazel and Gradle side by side, or deciding between them? See [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle).
 
 Support is feature-specific. Previews accept supported mobile apps, macOS apps, and macOS/Linux command-line distributions; bundle insights analyze supported Apple and Android bundles. Their eligibility depends on the artifact and publishing workflow, not just the build-system name.
 
 ## First experiment
 
-Read the matching guide, connect one project, and measure one representative workload. For a cache integration, demonstrate reuse on a second compatible machine with an empty local cache. For Mix, verify a compilation or test report and investigate the recorded bottleneck. For Once, first confirm access to a compatible canary environment.
+Read the matching guide, connect one project, and measure one representative workload. For a cache integration, demonstrate reuse on a second compatible machine with an empty local cache. For Mix, verify a compilation or test report and investigate the recorded bottleneck. For Struo, first confirm access to a compatible canary environment.
 
 Use project-scoped or provider-appropriate automation credentials rather than copying a developer's login. Keep the baseline's toolchain and inputs comparable. Lower wall-clock latency and lower total execution cost are different results.
 
@@ -52,7 +54,7 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 - [Tuist getting-started paths](/en/docs-markdown/guides/get-started)
 - [Build insights](/en/docs-markdown/guides/features/build-insights) and [test insights](/en/docs-markdown/guides/features/test-insights)
-- [Once's Tuist provider](https://buildonce.dev/docs/guide/infrastructure/tuist)
+- [Struo's Tuist provider](https://struo.run/docs/guide/infrastructure/tuist)
 - [Problem guides](/marketing-markdown/solutions/slow-builds) and [provider comparisons](/marketing-markdown/compare)
 
 Written by Tuist. Sources reviewed on **2026-10-09**; the individual guides link primary build-system documentation and feature-specific setup references.

@@ -62,8 +62,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   that live field. Every Linux job uses the existing regional cache directly.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
-  and a published versioned runner image containing stable. Keep 26.6 as the
-  default. Follow the prerequisites, rollback floor and required
+  and a published versioned runner image containing stable. Follow the prerequisites, rollback floor and required
   post-rollout reconciliation in
   [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
 
@@ -71,9 +70,12 @@ Helm-installed resource; publishing it is a separate rollout step.
   under 10 s, and a pool without one starts every job cold (scale-up plus VM
   boot, 10 to 75 s), while a floor on an image without jobs holds a slot
   other images' bursts wait for. Images with a job in most weekday working
-  hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
+  hours keep one: on the alder rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
   one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
-  27.0 keeps two and the default image 26.6 one (`runnersFleet.xcodeOverrides`).
+  27.0 keeps two and 26.6 one (`runnersFleet.xcodeOverrides`). The catalog
+  default is 27.2, but it only seeds new accounts' protected `macos`
+  profile; existing accounts' `tuist-macos` stays on 26.6, so 26.6 keeps
+  its floors and the rack also keeps one 27.2 runner for new accounts.
   Re-measure from `tuist.runner_jobs` before changing them.
   The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
   Staging and canary run one lent rack host with two slots: staging warms
@@ -134,8 +136,9 @@ Helm-installed resource; publishing it is a separate rollout step.
   OVH uses both. Staging reuses its prepared Gravelines host as ordinary EU-West
   capacity after retiring the private Linux experiment; its platform overlay
   enables the same public EU-West gateway as production. Staging also retains
-  OVH `ca-east` for remote comparisons; canary uses `ca-east`. Retain the
-  separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
+  OVH `ca-east` for remote comparisons; canary uses `ca-east`. The Scaleway
+  Elastic Metal Mac runner cache (`kuraFleet`) is retired and its chart support
+  removed; the `scw-local-nvme` storage it introduced follows `tuist.kuraCachePools`.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
 - Cilium policy inspection uses the same read tier, limited to
@@ -190,11 +193,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
 - `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
-  **Runner cache volumes** group (five Loki rules and one Postgres rule,
+  **Runner cache volumes** group (five log rules on Pulse SQL and one Postgres rule,
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
   the backtests. The warm-rate rule reads the production database as
   `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
-  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` undercounts:
+  allowlist. The log rules read agent and server logs because `tuist_runner_cache_volume_operations_total` undercounts:
   its `sum:counter` Adaptive Metrics rule (2026-10-22) makes it rate-able, but
   both agents create series on first increment, so isolated failures vanish. Keep the macOS
   queries line-filtered and the windows short: that stream carries the runner
@@ -223,7 +226,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   quarantined-volume reaper exclusion belong together; see
   [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
 
-- Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
+- Runner Kura uses `platform`'s per-site `kura-<site>-runners` ingress-nginx DaemonSets with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. The catalog configures the process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
 
 - The Once events listener (`once.events.v1`, gRPC on the server's port 4001) is served by `platform`'s `grpc-ingress-nginx` controller (`nginx-grpc` class), and its hosts are DNS-only with a cert-manager certificate. Do not move it to the main `nginx` class or turn Cloudflare proxying back on. The main controller keeps upstream keepalive off for the Bandit backends, which makes ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that header, and Cowboy resets the stream with PROTOCOL_ERROR (nginx logs `upstream rejected request with error 1`). Cloudflare answers gRPC to a proxied host with a 403. To check a change, send a gRPC-shaped request (`content-type: application/grpc`) to the host: a healthy listener answers HTTP 200 with a `grpc-status` header.
 
@@ -280,6 +283,11 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   `kuraVolumesCSI.enabled`. It only makes a region thin-capable; accounts move
   through the `kura_thin_volumes` flag. Keep it empty in every managed overlay
   until a region has `tuist.dev/kura-thin-ready=true` nodes.
+- `kuraVolumesCSI.thinEnrolledRegions` renders `TUIST_KURA_THIN_ENROLLED_REGIONS`:
+  every account in a listed region moves to thin without the flag. Existing
+  instances still move only through the source-node gate. Enroll a region only
+  while converting it host by host with enough thin-ready capacity, since new
+  instances and claim growth there are admitted only against thin-ready nodes.
 
 - Kura CSI's retained admission policies constrain its pod-bound identity to
   its own node's PV lifecycle and disk capacity, and preserve PVC ownership.

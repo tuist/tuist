@@ -8,7 +8,6 @@ import {
   ICON_ATOM,
   ICON_CIRCLE_CHECK,
   ICON_DEVICE_DESKTOP,
-  ICON_EXTERNAL_LINK,
   ICON_MOON,
   ICON_RSS,
   ICON_SUN_HIGH,
@@ -139,7 +138,7 @@ function statusBadge(status: ComponentStatus): Renderable {
 
 function severityBadge(severity: IncidentSeverity): Renderable {
   const color = SEVERITY_TO_BADGE_COLOR[severity];
-  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="large"
+  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="medium"
     ><span>${SEVERITY_LABEL[severity]}</span></span
   >`;
 }
@@ -191,7 +190,7 @@ function stateBadge(status: ComponentStatus): Renderable {
     class="noora-badge"
     data-style="light-fill"
     data-color="${color}"
-    data-size="large"
+    data-size="medium"
     data-icon="true"
   >
     <div data-part="icon">${raw(glyph)}</div>
@@ -269,10 +268,9 @@ interface SectionOptions {
   title: string;
   empty: string;
   items: Renderable[];
-  action?: Renderable;
 }
 
-function section({ id, title, empty, items, action }: SectionOptions): Renderable {
+function section({ id, title, empty, items }: SectionOptions): Renderable {
   const body =
     items.length === 0
       ? html`<p class="status-empty">${empty}</p>`
@@ -287,7 +285,6 @@ function section({ id, title, empty, items, action }: SectionOptions): Renderabl
   >
     <header data-part="header">
       <h2 data-part="title" id="${id}-title">${title}</h2>
-      ${action ?? ""}
     </header>
     ${body}
   </section>`;
@@ -516,15 +513,6 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
             title: "Past 14 days",
             empty: "No incidents reported in the last 14 days.",
             items: snapshot.recentIncidents.map(incidentBlock),
-            action: html`<a
-              class="noora-link-button"
-              data-variant="secondary"
-              data-size="large"
-              href="https://hive.tuist.dev/postmortems"
-              target="_blank"
-              rel="noopener noreferrer"
-              ><span>Incident history</span>${raw(ICON_EXTERNAL_LINK)}</a
-            >`,
           })}
 
           <footer class="status-frame status-footer">

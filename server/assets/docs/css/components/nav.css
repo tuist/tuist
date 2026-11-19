@@ -90,7 +90,7 @@
       }
 
       &:focus-visible {
-        box-shadow: var(--noora-button-border-secondary-focus);
+        box-shadow: var(--noora-button-border-focus);
         background: var(--noora-button-background-secondary-hover);
       }
     }
@@ -218,7 +218,7 @@ html[data-theme="dark"] {
     z-index: var(--noora-z-index-2);
     inset-inline-end: var(--noora-spacing-5);
     inset-inline-start: var(--noora-spacing-5);
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-5);

@@ -77,12 +77,12 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
       conn: conn,
       user: user
     } do
-      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "amp-example.com")
       {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
       account = organization.account
 
       session_token =
-        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+        Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "amp-example.com"})
 
       conn = put_session(conn, :user_token, session_token)
       {:ok, _} = AmpIntegrations.connect(account.id, user, "aop_live_guard_control")
@@ -114,7 +114,7 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
           Accounts.delete_user_session_token(session_token)
 
         :sso_policy ->
-          {:ok, _} = Accounts.update_organization(organization, %{sso_organization_id: "new.example.com"})
+          {:ok, _} = Accounts.update_organization(organization, %{sso_organization_id: "new.amp-example.com"})
       end
 
       view |> with_target("#amp-integration") |> render_hook("disconnect", %{})
@@ -125,7 +125,10 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
       challenged = get(conn, path)
 
       assert redirected_to(challenged) ==
-               if(unquote(invalidation) == :sso_policy, do: "/users/auth/google", else: "/users/log_in")
+               if(unquote(invalidation) == :sso_policy,
+                 do: ~p"/users/auth/google?#{%{return_to: path}}",
+                 else: ~p"/users/log_in?#{%{return_to: path}}"
+               )
 
       assert get_session(challenged, :user_return_to) == path
     end
@@ -136,7 +139,10 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     user: owner
   } do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-    organization = organization_fixture(creator: owner, sso_provider: :google, sso_organization_id: "customer.example")
+
+    organization =
+      organization_fixture(creator: owner, sso_provider: :google, sso_organization_id: "amp-customer.example")
+
     {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
     operator = user_fixture(email: "component-support@tuist.dev")
     oauth2_identity_fixture(user: operator, provider: :google, provider_organization_id: "tuist.dev")

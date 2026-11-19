@@ -1,5 +1,23 @@
 defmodule Tuist.Threads.Workspace do
-  @moduledoc "Persistent thread checkouts, with one attempt-scoped sandbox residency per run."
+  @moduledoc """
+  Every thread's sandbox, with one attempt-scoped residency per run, and the
+  thread's repository checkout in it at `/workspace/repository`.
+
+  The sandbox is created on the thread's first run, whether or not the
+  thread has a repository; one that failed to boot is replaced while the
+  thread holds no checkout. A thread gets its one repository, which Ship
+  publishes to, when its owner names it at creation, and `prepare/2` checks
+  it out before any tool runs; or when the agent asks for one its owner can
+  read on GitHub (`Tuist.Threads.request_repository/2`), and `attach/1`
+  checks it out during that run.
+
+  The guest is untrusted: the agent's shell may have run there as root. A
+  checkout's base is the commit GitHub reports for the base branch, read by
+  the server (`Repository.branch_head/3`). The server fetches it and stages
+  an archive (`Tuist.Threads.Checkout`), so no repository credential ever
+  enters the guest; the guest only unpacks it into a fresh directory, which
+  replaces `/workspace/repository` (moving whatever was there aside).
+  """
 
   import Ecto.Query
 
@@ -9,63 +27,42 @@ defmodule Tuist.Threads.Workspace do
   alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Threads
+  alias Tuist.Threads.Checkout
   alias Tuist.Threads.Repository
 
+  require Logger
+
   @root "/workspace/repository"
-  @limit 65_536
 
-  # This is the descriptor-relative O_NOFOLLOW approach used by
-  # ProviderEnvironments. Its helper is private and read-only; writes and edits
-  # additionally open the final component without truncating before validation.
-  @files ~S"""
-  import os, sys, stat
-  op, path = sys.argv[1:3]
-  parts = path.split('/')
-  if path.startswith('/') or any(p in ('', '.', '..', '.git') for p in parts):
-      sys.exit(2)
-  fd = os.open('/workspace', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-  for part in ['repository'] + parts[:-1]:
-      nxt = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-      os.close(fd)
-      fd = nxt
-  flags = os.O_NOFOLLOW | os.O_NONBLOCK
-  flags |= os.O_RDONLY if op == 'read' else os.O_RDWR
-  if op == 'write': flags |= os.O_CREAT
-  file = os.open(parts[-1], flags, 0o644, dir_fd=fd)
-  if not stat.S_ISREG(os.fstat(file).st_mode) or os.fstat(file).st_nlink != 1: sys.exit(2)
-  if op == 'read':
-      print(os.read(file, 65536).decode('utf-8', errors='replace'))
-  else:
-      content = sys.argv[3]
-      if op == 'edit':
-          old = os.read(file, 1048577)
-          if len(old) > 1048576: sys.exit(2)
-          old = old.decode('utf-8')
-          if old.count(content) != 1: sys.exit(2)
-          content = old.replace(content, sys.argv[4], 1)
-      os.lseek(file, 0, os.SEEK_SET)
-      data = content.encode('utf-8')
-      while data:
-          data = data[os.write(file, data):]
-      os.ftruncate(file, os.lseek(file, 0, os.SEEK_CUR))
-      print('File updated.')
-  os.close(file)
-  os.close(fd)
-  """
+  # How long each step of a checkout may take. A run's `prepare/2` is under no
+  # other deadline; the unpack stays under `Sandboxes.exec/3`'s 600 s cap,
+  # with `curl` leaving the rest of it to unpack. `attach/1` runs in a tool
+  # call, which Condukt ends after 300 s: what does not fit is left bound for
+  # the next run's `prepare/2`.
+  @budgets %{
+    prepare: %{fetch_ms: 300_000, archive_ms: 120_000, download_s: 480, unpack_ms: 600_000},
+    attach: %{fetch_ms: 120_000, archive_ms: 30_000, download_s: 60, unpack_ms: 90_000}
+  }
 
-  @initialize ~S"""
-  import os, sys
-  fd = os.open('/workspace', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-  try: os.mkdir('repository', dir_fd=fd)
-  except FileExistsError: pass
-  root = os.open('repository', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-  try:
-      metadata = os.open('.git', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=root)
-      os.close(metadata)
-      print('initialized')
-  except FileNotFoundError:
-      if os.listdir(root): sys.exit(2)
-      print('empty')
+  # Unpacks the server's checkout archive (`Tuist.Threads.Checkout`) into a
+  # fresh directory, checks out the thread's branch at the base, then moves
+  # any previous /workspace/repository aside and puts the new one in its
+  # place. The archive URL reads one object and carries no other credential.
+  @unpack ~S"""
+  set -eu
+  cd "$WORKSPACE"
+  mkdir -- "$STAGING"
+  curl -fsS --retry 3 --max-time "$DOWNLOAD_SECONDS" -o "$STAGING.tar" -- "$CHECKOUT_URL"
+  mkdir -- "$STAGING/.git"
+  tar -xf "$STAGING.tar" -C "$STAGING/.git"
+  rm -f -- "$STAGING.tar"
+  cd "$STAGING"
+  git config core.bare false
+  git checkout -q -b "$BRANCH" "$BASE"
+  test "$(git rev-parse --verify 'HEAD^{commit}')" = "$BASE"
+  cd "$WORKSPACE"
+  if [ -e repository ] || [ -L repository ]; then mv -- repository "repository.previous-$(date +%s%N)"; fi
+  mv -- "$STAGING" repository
   """
 
   def prepare(thread, run) do
@@ -74,14 +71,14 @@ defmodule Tuist.Threads.Workspace do
            thread = Repo.reload!(thread),
            true <- thread.status == :active,
            {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
-           {:ok, repository} <- Repository.authorize(account, thread.repository),
+           {:ok, repository} <- authorize(account, thread),
            {:ok, sandbox} <- sandbox(thread, account),
            {:ok, thread} <- Threads.bind_sandbox(thread.id, run.id, run.attempt, sandbox.id),
            work_id = "threads:#{run.id}:#{run.attempt}",
            {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id) do
         context = %{thread: thread, sandbox: sandbox, residency: work_id, run_id: run.id, attempt: run.attempt}
 
-        case checkout(context, account, repository) do
+        case checkout(context, account, repository, @budgets.prepare) do
           {:ok, thread} ->
             {:ok, %{context | thread: thread}}
 
@@ -91,7 +88,28 @@ defmodule Tuist.Threads.Workspace do
         end
       else
         false -> {:error, :stale_run}
+        {:error, reason} -> {:error, reason}
         _ -> {:error, :workspace_unavailable}
+      end
+    end)
+  end
+
+  @doc """
+  Checks out the repository the agent bound during the run of `context`
+  (`prepare/2`'s), in that run's sandbox. A failure leaves the thread's
+  repository bound and unchecked out, for the next run's `prepare/2`.
+  """
+  def attach(context) do
+    exclusive(context.thread.id, fn ->
+      thread = Repo.reload!(context.thread)
+
+      with true <- Threads.owns_run?(context.run_id, context.attempt) || {:error, :stale_run},
+           {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
+           {:ok, repository} when not is_nil(repository) <- authorize(account, thread) do
+        checkout(%{context | thread: thread}, account, repository, @budgets.attach)
+      else
+        {:ok, nil} -> {:error, :workspace_unavailable}
+        {:error, _} = error -> error
       end
     end)
   end
@@ -108,21 +126,6 @@ defmodule Tuist.Threads.Workspace do
       end)
 
     :ok
-  end
-
-  def call(context, name, args) do
-    exclusive(context.thread.id, fn ->
-      with true <- Threads.owns_run?(context.run_id, context.attempt),
-           {:ok, argv, timeout} <- command(name, args),
-           {:ok, sandbox} <- resident(context),
-           {:ok, result} <- Sandboxes.exec(sandbox, argv, cwd: @root, env: %{}, timeout_ms: timeout) do
-        {:ok, bounded("exit_code=#{result.exit_code}\n" <> result.stdout <> result.stderr)}
-      else
-        false -> {:error, :stale_run}
-        {:error, :invalid_arguments} = error -> error
-        _ -> {:error, :workspace_command_failed}
-      end
-    end)
   end
 
   @doc false
@@ -163,21 +166,10 @@ defmodule Tuist.Threads.Workspace do
   @doc false
   def sha?(sha), do: is_binary(sha) and Regex.match?(~r/\A[0-9a-f]{40}\z/, sha)
 
-  defp resident(context) do
-    case Sandboxes.get_sandbox_by_id(context.sandbox.id) do
-      %Sandbox{account_id: account_id, residency_work_id: work_id} = sandbox
-      when account_id == context.thread.account_id and work_id == context.residency ->
-        {:ok, sandbox}
-
-      _ ->
-        {:error, :workspace_unavailable}
-    end
-  end
-
   # Retention nilifies the binding. A fresh VM cannot recover unpushed work.
   defp sandbox(%{sandbox_id: nil, workspace_ready: true}, _account), do: {:error, :workspace_missing}
 
-  defp sandbox(%{sandbox_id: id, account_id: account_id}, _account) when not is_nil(id) do
+  defp sandbox(%{sandbox_id: id, account_id: account_id, workspace_ready: true}, _account) do
     case Sandboxes.get_sandbox_by_id(id) do
       %Sandbox{account_id: ^account_id} = sandbox -> {:ok, sandbox}
       _ -> {:error, :workspace_missing}
@@ -193,18 +185,43 @@ defmodule Tuist.Threads.Workspace do
         Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{thread.id}"})
 
     case Repo.get_by(Sandbox, provider_environment_id: binding.id) do
-      nil -> Sandboxes.create_sandbox(account, %{provider_environment_id: binding.id})
-      %Sandbox{} = sandbox -> {:ok, sandbox}
+      nil ->
+        Sandboxes.create_sandbox(account, %{provider_environment_id: binding.id})
+
+      # A create that never booted (`last_active_at` is set once one runs)
+      # and has no archive holds nothing: replace it rather than refuse every
+      # later run until retention deletes it. Any other error keeps what may
+      # hold the thread's /workspace files, such as a node that left the
+      # cluster and could come back.
+      %Sandbox{state: :error, last_active_at: nil, archive_key: nil} = errored ->
+        with {:ok, _deleted} <- Sandboxes.delete(errored),
+             do: Sandboxes.create_sandbox(account, %{provider_environment_id: binding.id})
+
+      %Sandbox{} = sandbox ->
+        {:ok, sandbox}
     end
   end
 
-  defp checkout(%{thread: %{workspace_ready: true} = thread} = context, _account, repository) do
+  # Every run rechecks the owner's GitHub access, so one who lost it stops
+  # getting the repository's newer commits and tool access to its checkout.
+  defp authorize(_account, %{repository: nil}), do: {:ok, nil}
+
+  defp authorize(account, thread) do
+    case Accounts.get_user_by_id(thread.owner_id) do
+      nil -> {:error, :forbidden}
+      owner -> Repository.authorize(account, owner, thread.repository)
+    end
+  end
+
+  defp checkout(context, _account, nil, _budget), do: {:ok, context.thread}
+
+  defp checkout(%{thread: %{workspace_ready: true} = thread} = context, _account, repository, _budget) do
     with {:ok, root} <- git(context.sandbox, ["rev-parse", "--show-toplevel"]),
          true <- root == @root,
          {:ok, remote} <- git(context.sandbox, ["remote", "get-url", "origin"]),
          true <- remote == "https://github.com/#{repository.name}.git",
          {:ok, branch} <- git(context.sandbox, ["symbolic-ref", "--short", "HEAD"]),
-         true <- branch == "threads/#{thread.id}",
+         true <- branch == thread.branch,
          {:ok, _} <- git(context.sandbox, ["cat-file", "-e", "#{thread.base_sha}^{commit}"]) do
       {:ok, thread}
     else
@@ -212,128 +229,72 @@ defmodule Tuist.Threads.Workspace do
     end
   end
 
-  defp checkout(context, account, repository) do
+  defp checkout(context, account, repository, budget) do
     thread = context.thread
+    staging = ".tuist-checkout-#{Ecto.UUID.generate()}"
+    stage_opts = [fetch_ms: budget.fetch_ms, archive_ms: budget.archive_ms]
 
-    with :ok <- initialize(context.sandbox),
-         :ok <- origin(context.sandbox, repository.name),
-         {:ok, base} <- base(context.sandbox, thread, account, repository),
-         :ok <- branch(context.sandbox, thread, base),
-         {:ok, updated} <- Threads.bind_workspace(thread.id, context.run_id, context.attempt, context.sandbox.id, base) do
-      {:ok, updated}
-    else
-      _ -> {:error, :workspace_clone_failed}
+    result =
+      with {:ok, base} <- Repository.branch_head(account, repository.name, thread.base_branch),
+           true <- sha?(base) || {:error, :invalid_base},
+           {:ok, url} <- Checkout.stage(account, context.sandbox, repository.name, base, stage_opts),
+           :ok <- unpack(context.sandbox, staging, url, base, thread.branch, budget) do
+        Threads.bind_workspace(thread, context.run_id, context.attempt, context.sandbox.id, base)
+      end
+
+    case result do
+      {:ok, updated} ->
+        {:ok, updated}
+
+      {:error, reason} = error ->
+        Logger.warning("threads: checking out #{repository.name} for thread #{thread.id} failed: #{inspect(reason)}")
+        remove(context.sandbox, staging)
+        failed(context, error)
     end
   end
 
-  defp initialize(sandbox) do
-    case Sandboxes.exec(sandbox, ["python3", "-c", @initialize], cwd: "/workspace", env: %{}, timeout_ms: 10_000) do
-      {:ok, %{exit_code: 0, stdout: "initialized\n"}} ->
+  defp failed(_context, {:error, reason}) when reason in [:repository_attached, :stale_run], do: {:error, reason}
+
+  # A checkout that can never succeed would fail every later run of the
+  # thread; nothing is checked out, so the thread gives the repository up.
+  defp failed(context, {:error, :checkout_too_large}) do
+    _ = Threads.unbind_repository(context.thread, context.run_id, context.attempt)
+    {:error, :repository_too_large}
+  end
+
+  defp failed(_context, _error), do: {:error, :workspace_clone_failed}
+
+  defp unpack(sandbox, staging, url, base, branch, budget) do
+    env = %{
+      "WORKSPACE" => "/workspace",
+      "STAGING" => staging,
+      "CHECKOUT_URL" => url,
+      "BASE" => base,
+      "BRANCH" => branch,
+      "DOWNLOAD_SECONDS" => to_string(budget.download_s)
+    }
+
+    case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @unpack], cwd: "/workspace", env: env, timeout_ms: budget.unpack_ms) do
+      {:ok, %{exit_code: 0}} ->
         :ok
 
-      {:ok, %{exit_code: 0, stdout: "empty\n"}} ->
-        with {:ok, _} <- git(sandbox, ["init", "--", @root], %{}, "/workspace"), do: :ok
-
-      _ ->
+      result ->
+        Logger.warning("threads: unpacking a checkout failed: #{inspect(exit_status(result))}", sandbox_id: sandbox.id)
         {:error, :workspace_clone_failed}
     end
   end
 
-  defp origin(sandbox, name) do
-    url = "https://github.com/#{name}.git"
+  defp exit_status({:ok, %{exit_code: code}}), do: code
+  defp exit_status({:error, reason}), do: reason
 
-    case git(sandbox, ["remote", "get-url", "origin"]) do
-      {:ok, ^url} -> :ok
-      {:error, _} -> with {:ok, _} <- git(sandbox, ["remote", "add", "origin", url]), do: :ok
-      _ -> {:error, :workspace_clone_failed}
-    end
+  defp remove(sandbox, staging) do
+    _ =
+      Sandboxes.exec(sandbox, ["rm", "-rf", "--", "/workspace/" <> staging, "/workspace/#{staging}.tar"],
+        cwd: "/workspace",
+        env: %{},
+        timeout_ms: 30_000
+      )
+
+    :ok
   end
-
-  defp base(sandbox, thread, account, repository) do
-    case git(sandbox, ["rev-parse", "--verify", "refs/tuist/base^{commit}"]) do
-      {:ok, sha} ->
-        if sha?(sha), do: {:ok, sha}, else: {:error, :workspace_clone_failed}
-
-      {:error, _} ->
-        # Init precedes fetch, so an interrupted network operation can be
-        # repeated without cloning over or deleting any existing working tree.
-        with {:ok, env} <- Repository.environment(account, repository.name, :read),
-             {:ok, _} <-
-               git(
-                 sandbox,
-                 [
-                   "fetch",
-                   "--no-tags",
-                   "--",
-                   "origin",
-                   "refs/heads/#{thread.base_branch}:refs/remotes/origin/#{thread.base_branch}"
-                 ],
-                 env
-               ),
-             {:ok, sha} <- git(sandbox, ["rev-parse", "--verify", "refs/remotes/origin/#{thread.base_branch}^{commit}"]),
-             true <- sha?(sha),
-             {:ok, _} <- git(sandbox, ["update-ref", "refs/tuist/base", sha, ""]) do
-          {:ok, sha}
-        else
-          _ -> {:error, :workspace_clone_failed}
-        end
-    end
-  end
-
-  defp branch(sandbox, thread, base) do
-    name = "threads/#{thread.id}"
-
-    case git(sandbox, ["show-ref", "--verify", "--hash", "refs/heads/#{name}"]) do
-      {:ok, ^base} ->
-        case git(sandbox, ["symbolic-ref", "--short", "HEAD"]) do
-          {:ok, ^name} -> :ok
-          _ -> {:error, :workspace_clone_failed}
-        end
-
-      {:error, _} ->
-        with {:ok, _} <- git(sandbox, ["checkout", "-b", name, base]), do: :ok
-
-      _ ->
-        {:error, :workspace_clone_failed}
-    end
-  end
-
-  defp command("bash", %{"command" => command} = args) do
-    if map_size(args) == 1 and text?(command, 8000),
-      do: {:ok, ["/bin/bash", "--noprofile", "--norc", "-c", command], 60_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command("read", %{"path" => path} = args) do
-    if map_size(args) == 1 and path?(path),
-      do: {:ok, ["python3", "-c", @files, "read", path], 10_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command("write", %{"path" => path, "content" => content} = args) do
-    if map_size(args) == 2 and path?(path) and text?(content, @limit, true),
-      do: {:ok, ["python3", "-c", @files, "write", path, content], 10_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command("edit", %{"path" => path, "old_text" => old, "new_text" => new} = args) do
-    if map_size(args) == 3 and path?(path) and text?(old, @limit) and text?(new, @limit, true),
-      do: {:ok, ["python3", "-c", @files, "edit", path, old, new], 10_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command(_, _), do: {:error, :invalid_arguments}
-
-  defp path?(path) do
-    text?(path, 4096) and not String.starts_with?(path, "/") and
-      Enum.all?(String.split(path, "/"), &(&1 not in ["", ".", "..", ".git"]))
-  end
-
-  defp text?(value, limit, empty \\ false),
-    do:
-      is_binary(value) and String.valid?(value) and byte_size(value) <= limit and (empty or value != "") and
-        not String.contains?(value, <<0>>)
-
-  defp bounded(output) when byte_size(output) <= @limit, do: output
-  defp bounded(output), do: String.replace_invalid(binary_part(output, 0, @limit - 32)) <> "\n[Output truncated]"
 end

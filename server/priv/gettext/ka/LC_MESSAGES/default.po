@@ -11,17 +11,22 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/components/chart_type_toggle.ex:39
+#: lib/tuist_web/components/chart_type_toggle.ex:40
 #, elixir-autogen, elixir-format
 msgid "Group by:"
 msgstr "დაჯგუფება:"
 
-#: lib/tuist_web/components/chart_type_toggle.ex:53
+#: lib/tuist_web/components/chart_type_toggle.ex:65
 #, elixir-autogen, elixir-format
 msgid "Line"
 msgstr "ხაზი"
 
-#: lib/tuist_web/components/chart_type_toggle.ex:59
+#: lib/tuist_web/components/chart_type_toggle.ex:66
 #, elixir-autogen, elixir-format
 msgid "Scatter plot"
 msgstr "წერტილოვანი დიაგრამა"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:67
+#, elixir-autogen, elixir-format
+msgid "Bar"
+msgstr "ბარი"

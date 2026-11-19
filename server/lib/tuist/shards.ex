@@ -88,7 +88,12 @@ defmodule Tuist.Shards do
       test_impact_run_id: test_impact_run_id,
       inserted_at: now,
       storage_target:
-        ShardStorage.select(project, Repo.preload(project, :account).account, Keyword.get(opts, :runner_grant)),
+        ShardStorage.select(
+          project,
+          Repo.preload(project, :account).account,
+          Keyword.get(opts, :runner_grant),
+          Keyword.get(opts, :public_storage, false)
+        ),
       reporting_version:
         if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account)), do: 1, else: 0)
     }
@@ -124,8 +129,7 @@ defmodule Tuist.Shards do
   defp plan_inputs(project, params) do
     with run_id when is_binary(run_id) <- Map.get(params, :test_impact_run_id),
          {:ok, selection} <- TestImpactAnalysis.Runs.shard_units(project.id, run_id) do
-      skipped = MapSet.new(Map.get(params, :skipped_test_suites) || [])
-      units = selection.durations |> Map.keys() |> Enum.sort() |> Enum.reject(&MapSet.member?(skipped, &1))
+      units = selection.durations |> Map.keys() |> Enum.sort() |> reject_skipped_suites(project, params)
       {"suite", units, nil, selection.durations, run_id}
     else
       _ ->
@@ -206,12 +210,17 @@ defmodule Tuist.Shards do
         opts \\ []
       ) do
     with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
-      Storage.multipart_complete_upload(
-        artifact_object_key(account, project, plan_id, artifact),
-        upload_id,
-        parts,
-        actor
-      )
+      key = artifact_object_key(account, project, plan_id, artifact)
+
+      # Clients replay a completion whose response they lost, for example while the shard store
+      # restarts; the store then no longer knows the upload, but the object is there.
+      case Storage.multipart_complete_upload(key, upload_id, parts, actor) do
+        {:error, :multipart_upload_not_found} = error ->
+          if Storage.object_exists?(key, actor), do: :ok, else: error
+
+        result ->
+          result
+      end
     end
   end
 
@@ -253,7 +262,7 @@ defmodule Tuist.Shards do
   end
 
   # Uploads start right after the plan is written, before every ClickHouse replica has it. Only
-  # projects that can route to runner-local storage need the plan's target; the rest always use
+  # projects that can route to explicit storage need the plan's target; the rest always use
   # the account's storage.
   defp plan_storage(project, account, plan_id, opts) do
     if ShardStorage.routable?(project) do
@@ -316,7 +325,8 @@ defmodule Tuist.Shards do
   defp shard_download_urls(account, project, %{id: plan_id} = plan, modules, actor) do
     shared_key = artifact_object_key(account, project, plan_id, "shared")
 
-    if plan.storage_target in [nil, ""] and Storage.object_exists?(shared_key, actor) do
+    if (project.build_system == :xcode or plan.storage_target in [nil, ""]) and
+         Storage.object_exists?(shared_key, actor) do
       shared_url = Storage.generate_download_url(shared_key, actor)
 
       module_urls =
@@ -600,14 +610,38 @@ defmodule Tuist.Shards do
   # resolved from history either: the products limit it to suites that no longer run, and history
   # would answer with ones outside that limit.
   defp resolve_units(project, params, "suite") do
-    skipped = MapSet.new(Map.get(params, :skipped_test_suites) || [])
     selected = Map.get(params, :test_suites) || []
     selected_modules = MapSet.new(selected, &suite_module/1)
     unselected_modules = Enum.reject(params_modules(params), &MapSet.member?(selected_modules, &1))
 
-    units = selected ++ latest_branch_suite_units(project, params, unselected_modules)
+    reject_skipped_suites(selected ++ latest_branch_suite_units(project, params, unselected_modules), project, params)
+  end
 
-    Enum.reject(units, &MapSet.member?(skipped, &1))
+  # The Xcode CLI names a suite the products skip by its innermost name
+  # (`Module/Inner`), while runs record a nested Swift Testing suite by its whole
+  # path (`Module/Outer/Inner`), so a skip also takes out the nested suites with
+  # that innermost name. One of them that wasn't skipped is left out of the plan
+  # and runs in the catch-all shard.
+  defp reject_skipped_suites(units, project, params) do
+    case Map.get(params, :skipped_test_suites) || [] do
+      [] ->
+        units
+
+      skipped ->
+        skipped = MapSet.new(skipped)
+        innermost? = project.build_system == :xcode
+
+        Enum.reject(units, fn unit ->
+          MapSet.member?(skipped, unit) or (innermost? and MapSet.member?(skipped, innermost_suite_unit(unit)))
+        end)
+    end
+  end
+
+  defp innermost_suite_unit(unit) do
+    case String.split(unit, "/") do
+      [module, _outer, _ | _] = parts -> "#{module}/#{List.last(parts)}"
+      _ -> unit
+    end
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []

@@ -53,9 +53,14 @@ brew install --formula tuist@x.y.z
 > You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
 >
 > ```bash
-> curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+> curl -fsSL "https://tuist.dev/verify.sh" | bash
 > ```
 
 ## HTTP proxy {#http-proxy}
 
 If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
+
+## Next steps {#next-steps}
+
+- Follow the <.localized_link href="/guides/get-started">Get started guide</.localized_link> to connect your project to Tuist.
+- Explore [Tuist's build infrastructure for engineering teams and coding agents](https://tuist.dev) for the broader product context.

@@ -14,6 +14,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.ActivateInsurancePolicy
+  alias Atlas.MCP.Tools.ActivateTuistRunnerPrepaidPool
   alias Atlas.MCP.Tools.ActOnBriefItem
   alias Atlas.MCP.Tools.AddAssetToInsurance
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
@@ -62,6 +63,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateManualFinanceInvoice
   alias Atlas.MCP.Tools.CreateMCPServer
   alias Atlas.MCP.Tools.CreateMoodboardResource
+  alias Atlas.MCP.Tools.CreateMyGmailDraft
   alias Atlas.MCP.Tools.CreateNote
   alias Atlas.MCP.Tools.CreatePOC
   alias Atlas.MCP.Tools.CreatePostmortem
@@ -156,6 +158,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
   alias Atlas.MCP.Tools.GetMoodboardResource
   alias Atlas.MCP.Tools.GetMyBusinessProfile
+  alias Atlas.MCP.Tools.GetMyGmailDraft
   alias Atlas.MCP.Tools.GetMyGmailMessage
   alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
@@ -173,7 +176,12 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetSupportThread
   alias Atlas.MCP.Tools.GetTimeOffCalendar
   alias Atlas.MCP.Tools.GetTimeOffOverview
+  alias Atlas.MCP.Tools.GetTuistAccount
+  alias Atlas.MCP.Tools.GetTuistAccountPlan
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
+  alias Atlas.MCP.Tools.GetTuistKuraRollout
+  alias Atlas.MCP.Tools.GetTuistRunnerBilling
+  alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
   alias Atlas.MCP.Tools.ImportPublicHolidays
@@ -229,6 +237,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListOVHInvoices
   alias Atlas.MCP.Tools.ListPeople
   alias Atlas.MCP.Tools.ListPOCs
   alias Atlas.MCP.Tools.ListPostmortemActionItems
@@ -245,6 +254,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
   alias Atlas.MCP.Tools.ManageAccountConnections
+  alias Atlas.MCP.Tools.ManageLabelSession
   alias Atlas.MCP.Tools.MarkAccountNotAccount
   alias Atlas.MCP.Tools.MarkAssetInRepair
   alias Atlas.MCP.Tools.MarkAssetLost
@@ -276,6 +286,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RemovePublicHoliday
   alias Atlas.MCP.Tools.ReplyToSupportThread
   alias Atlas.MCP.Tools.ReportHoliday
+  alias Atlas.MCP.Tools.RequestClusterElevation
   alias Atlas.MCP.Tools.RequestSpecReview
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
   alias Atlas.MCP.Tools.ResolveErrorIssue
@@ -289,6 +300,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RunGTMSignalSearch
   alias Atlas.MCP.Tools.SaveErrorAlertRule
   alias Atlas.MCP.Tools.SaveMemory
+  alias Atlas.MCP.Tools.SaveMyGmailAttachment
+  alias Atlas.MCP.Tools.SaveOVHInvoice
   alias Atlas.MCP.Tools.SearchApolloOutreach
   alias Atlas.MCP.Tools.SearchAtlas
   alias Atlas.MCP.Tools.SearchDocuments
@@ -299,6 +312,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SearchWeb
   alias Atlas.MCP.Tools.SendAccountEmail
   alias Atlas.MCP.Tools.SendEmailBroadcast
+  alias Atlas.MCP.Tools.SendMyGmailDraft
   alias Atlas.MCP.Tools.SendNudge
   alias Atlas.MCP.Tools.SendTestPushNotification
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
@@ -327,6 +341,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
   alias Atlas.MCP.Tools.UpdateMoodboardResource
   alias Atlas.MCP.Tools.UpdateMyBusinessProfile
+  alias Atlas.MCP.Tools.UpdateMyGmailDraft
   alias Atlas.MCP.Tools.UpdateMyProfile
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
@@ -339,7 +354,10 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
   alias Atlas.MCP.Tools.UpdateTask
+  alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
+  alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
+  alias Atlas.MCP.Tools.UpdateTuistRunnerTrial
   alias Atlas.MCP.Tools.UploadPostalLetter
   alias Atlas.Users.BusinessProfile
 
@@ -414,6 +432,7 @@ defmodule Atlas.MCP.Server do
   @prompts [GenerateEnterpriseContractPrompt]
   @finance_tools [
     ListInvoices,
+    ListOVHInvoices,
     GetFinanceOverview,
     GetFinanceExpenseHistory,
     GetFinanceExpenseReconciliation,
@@ -439,10 +458,13 @@ defmodule Atlas.MCP.Server do
     SearchDocuments,
     CreateDocumentUpload,
     FinalizeDocumentUpload,
+    SaveMyGmailAttachment,
+    SaveOVHInvoice,
     ListAccountServiceLevels,
     ListAccountIncidentContacts
   ]
   @hardware_tools [
+    ManageLabelSession,
     ListAssets,
     GetAsset,
     ListAssetFinancings,
@@ -558,10 +580,34 @@ defmodule Atlas.MCP.Server do
     EvaluateTuistFeatureFlags,
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
-    UpdateTuistFeatureFlag
+    UpdateTuistFeatureFlag,
+    GetTuistAccount,
+    GetTuistRunnerConcurrencyLimits,
+    UpdateTuistRunnerConcurrencyLimits,
+    GetTuistAccountPlan,
+    UpdateTuistAccountPlan,
+    GetTuistRunnerBilling,
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial,
+    GetTuistKuraRollout
   ]
-  @feature_flag_read_tools [ListTuistFeatureFlags, GetTuistFeatureFlag, EvaluateTuistFeatureFlags]
-  @feature_flag_write_tools [UpdateTuistFeatureFlag]
+  # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
+  @feature_flag_read_tools [
+    ListTuistFeatureFlags,
+    GetTuistFeatureFlag,
+    EvaluateTuistFeatureFlags,
+    GetTuistAccount,
+    GetTuistRunnerConcurrencyLimits,
+    GetTuistAccountPlan,
+    GetTuistRunnerBilling
+  ]
+  @feature_flag_write_tools [
+    UpdateTuistFeatureFlag,
+    UpdateTuistRunnerConcurrencyLimits,
+    UpdateTuistAccountPlan,
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial
+  ]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
   @automation_read_tools Interfaces.tools(:read)
@@ -578,8 +624,16 @@ defmodule Atlas.MCP.Server do
     ManageAccountConnections,
     SearchMyGmail,
     GetMyGmailMessage,
+    SaveMyGmailAttachment,
+    GetMyGmailDraft,
+    CreateMyGmailDraft,
+    UpdateMyGmailDraft,
+    SendMyGmailDraft,
     SearchMySlack,
     SetOVHServerDisplayName,
+    ListOVHInvoices,
+    SaveOVHInvoice,
+    RequestClusterElevation,
     ListCodingRepositories,
     UpdateCodingRepositorySettings,
     ListLLMProviderConnections,
@@ -818,6 +872,15 @@ defmodule Atlas.MCP.Server do
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
     UpdateTuistFeatureFlag,
+    GetTuistAccount,
+    GetTuistRunnerConcurrencyLimits,
+    UpdateTuistRunnerConcurrencyLimits,
+    GetTuistAccountPlan,
+    UpdateTuistAccountPlan,
+    GetTuistRunnerBilling,
+    ActivateTuistRunnerPrepaidPool,
+    UpdateTuistRunnerTrial,
+    GetTuistKuraRollout,
     ListAssets,
     GetAsset,
     ListAssetFinancings,
@@ -900,7 +963,7 @@ defmodule Atlas.MCP.Server do
 
   @static_tools @static_tools ++
                   @automation_read_tools ++
-                  @automation_write_tools ++ @error_alert_read_tools ++ @error_alert_write_tools
+                  @automation_write_tools ++ @error_alert_read_tools ++ @error_alert_write_tools ++ [ManageLabelSession]
 
   def static_tools, do: @static_tools
 
@@ -1029,12 +1092,25 @@ defmodule Atlas.MCP.Server do
   end
 
   defp personal_connection_tool_allowed?(conn, module)
-       when module in [ManageAccountConnections, SearchMyGmail, GetMyGmailMessage, SearchMySlack],
-       do: ManageAccountConnections.allowed_context?(conn)
+       when module in [
+              ManageAccountConnections,
+              SearchMyGmail,
+              GetMyGmailMessage,
+              SaveMyGmailAttachment,
+              ListOVHInvoices,
+              SaveOVHInvoice,
+              GetMyGmailDraft,
+              CreateMyGmailDraft,
+              UpdateMyGmailDraft,
+              SendMyGmailDraft,
+              SearchMySlack
+            ], do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)
        when module in [ListCodingRepositories, UpdateCodingRepositorySettings],
        do: CodingRepositories.allowed_context?(conn)
+
+  defp personal_connection_tool_allowed?(conn, ManageLabelSession), do: ManageLabelSession.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module) when module in [GetMyBusinessProfile, UpdateMyBusinessProfile],
     do: BusinessProfile.allowed_context?(conn)
@@ -1069,6 +1145,7 @@ defmodule Atlas.MCP.Server do
   defp tool_group(GetErrorEventContexts), do: "observability"
   # Same group as the proxied OVH tools it sits beside.
   defp tool_group(SetOVHServerDisplayName), do: "observability"
+  defp tool_group(RequestClusterElevation), do: "observability"
   defp tool_group(_tool_module), do: "default"
 
   defp error_context_tool_allowed?(conn, GetErrorEventContexts),
@@ -1152,7 +1229,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message search_my_slack),
+       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message save_my_gmail_attachment get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

@@ -1,5 +1,5 @@
 {
-  "originHash" : "43f3638455bdf500ce1fee02365975c0f5494da19d731a6e165b62bd8444d6fb",
+  "originHash" : "3842d80fc3b192b08a4f602ded1971ea074efe5bb05aa54b0c7db71e65b0d475",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -543,6 +543,15 @@
       }
     },
     {
+      "identity" : "snapshots",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/snapshots",
+      "state" : {
+        "revision" : "10a89665c735325c78fe7717711ae3228aa29091",
+        "version" : "0.1.0"
+      }
+    },
+    {
       "identity" : "sparkle-project.Sparkle",
       "kind" : "registry",
       "location" : "",
@@ -707,7 +716,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.3.1"
+        "version" : "0.5.3"
       }
     },
     {

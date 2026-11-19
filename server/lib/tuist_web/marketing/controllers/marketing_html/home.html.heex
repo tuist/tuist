@@ -40,7 +40,7 @@
         <p>
           {dgettext(
             "marketing",
-            "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+            "Faster machines run wasted work faster. Tuist helps you skip it, with faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
           )}
         </p>
         <div data-part="actions" role="group" aria-labelledby="hero-title">
@@ -169,7 +169,7 @@
 
       <div data-part="compute">
         <div data-part="text">
-          <span data-part="eyebrow">{dgettext("marketing", "Compute")}</span>
+          <span data-part="eyebrow">{dgettext("marketing", "Runners")}</span>
           <h2>{dgettext("marketing", "Stop waiting on the queue.")}</h2>
           <p>
             {dgettext(
@@ -178,7 +178,7 @@
             )}
           </p>
           <.button
-            href={localized_href("/compute")}
+            href={localized_href("/runners")}
             variant="secondary"
             size="medium"
             label={dgettext("marketing", "Learn more")}
@@ -694,6 +694,13 @@
             role="tabpanel"
             aria-labelledby={"customers-tab-#{slide.slug}"}
           >
+            <%!-- How long the customer has used Tuist, above its story;
+            slides without a confirmed date show none. --%>
+            <span :if={slide.since} data-part="since">
+              {dgettext("marketing", "Using Tuist since %{date}",
+                date: Timex.format!(slide.since, "{Mfull} {YYYY}")
+              )}
+            </span>
             <p>{slide.statement}</p>
             <.button
               :if={slide.href}

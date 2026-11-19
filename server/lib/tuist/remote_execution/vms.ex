@@ -14,6 +14,7 @@ defmodule Tuist.RemoteExecution.VMs do
   alias Tuist.Cache
   alias Tuist.Projects
   alias Tuist.RemoteExecution.Settings
+  alias Tuist.RemoteExecution.Usage
   alias Tuist.Repo
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
@@ -35,7 +36,9 @@ defmodule Tuist.RemoteExecution.VMs do
 
   def lease_seconds, do: @lease_seconds
 
-  def reserve(account_id, %Settings{} = settings) do
+  def reserve(account_id, %Settings{} = settings, memory_gb \\ Settings.default_memory_gb()) do
+    shape = Settings.shape(memory_gb)
+
     Repo.transaction(fn ->
       lock_account(account_id)
 
@@ -47,7 +50,7 @@ defmodule Tuist.RemoteExecution.VMs do
           )
         )
 
-      if vcpus + Settings.vm_vcpus() > settings.vcpus or memory_mb + Settings.vm_memory_mb() > settings.memory_gb * 1024,
+      if vcpus + shape.vcpus > settings.vcpus or memory_mb + shape.memory_mb > settings.memory_gb * 1024,
         do: Repo.rollback(:busy)
 
       %Sandbox{}
@@ -55,9 +58,9 @@ defmodule Tuist.RemoteExecution.VMs do
         account_id: account_id,
         purpose: :remote_execution,
         template: "bazel",
-        vcpus: Settings.vm_vcpus(),
-        memory_mb: Settings.vm_memory_mb(),
-        workspace_gb: 10
+        vcpus: shape.vcpus,
+        memory_mb: shape.memory_mb,
+        workspace_gb: Settings.vm_workspace_gb()
       })
       |> Ecto.Changeset.change(
         template_tag: settings.image_tag,
@@ -85,7 +88,9 @@ defmodule Tuist.RemoteExecution.VMs do
           memory_mb: sandbox.memory_mb,
           workspace_gb: sandbox.workspace_gb,
           hostname: "rbe-" <> String.slice(sandbox.id, 0, 8),
-          expires_at_unix: DateTime.to_unix(deadline)
+          expires_at_unix: DateTime.to_unix(deadline),
+          # Its whole shape, against agents' guarantees on the node.
+          cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
         }
 
         case Nodes.call(node, "create", args, timeout: @node_timeout_ms) do
@@ -125,7 +130,7 @@ defmodule Tuist.RemoteExecution.VMs do
     result =
       case token do
         nil -> {:error, 14, "execution cache unavailable"}
-        token -> run(sandbox, request, token)
+        token -> run(sandbox, request, project_id, token)
       end
 
     {result, issued}
@@ -154,7 +159,12 @@ defmodule Tuist.RemoteExecution.VMs do
       with token when is_binary(token) <- token,
            {:ok, data} <-
              Nodes.call(sandbox.node_name, "exec", args, timeout: @claim_timeout_ms + @exec_timeout_ms + 10_000) do
-        if data["unclaimed"] == true, do: :unclaimed, else: :claimed
+        if data["unclaimed"] == true do
+          :unclaimed
+        else
+          Usage.record(sandbox, project_id, "leased", data)
+          :claimed
+        end
       else
         _ -> {:error, :lease_failed}
       end
@@ -180,7 +190,7 @@ defmodule Tuist.RemoteExecution.VMs do
     end
   end
 
-  defp run(sandbox, request, token) do
+  defp run(sandbox, request, project_id, token) do
     args = %{
       sandbox_id: sandbox.id,
       cmd: ["/usr/local/bin/sbx-executor"],
@@ -198,6 +208,10 @@ defmodule Tuist.RemoteExecution.VMs do
 
     result = Nodes.call(sandbox.node_name, "exec", args, timeout: @exec_timeout_ms + 10_000, on_stream: on_stream)
     stdout = IO.iodata_to_binary(Process.delete(:remote_execution_stdout))
+
+    # The VM ran the executor whatever it printed, so its time counts even
+    # when the result cannot be decoded.
+    with {:ok, data} <- result, do: Usage.record(sandbox, project_id, "scheduled", data)
 
     case result do
       {:ok, %{"exit_code" => 0}} when byte_size(stdout) <= @max_stdout_bytes -> decode(stdout)
@@ -217,6 +231,10 @@ defmodule Tuist.RemoteExecution.VMs do
   @doc """
   Deletes the VM and then its row. `not_before` holds an unconfirmed create's
   reservation until the node can no longer accept that create.
+
+  Deleting a placed VM frees room on its node for every account, so it is
+  announced on `room_topic/0`: schedulers waiting for node room retry then,
+  not on their next tick.
   """
   def destroy(%Sandbox{} = sandbox, not_before \\ nil) do
     if not_before do
@@ -226,9 +244,15 @@ defmodule Tuist.RemoteExecution.VMs do
 
     with :ok <- delete_vm(sandbox) do
       Repo.delete_all(from(s in Sandbox, where: s.id == ^sandbox.id and s.purpose == :remote_execution))
+
+      if sandbox.node_name,
+        do: Phoenix.PubSub.broadcast(Tuist.PubSub, room_topic(), {:remote_execution_room, sandbox.node_name})
+
       :ok
     end
   end
+
+  def room_topic, do: "remote_execution:room"
 
   defp delete_vm(%Sandbox{node_name: nil}), do: :ok
 

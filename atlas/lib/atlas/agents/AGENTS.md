@@ -18,7 +18,7 @@ ready for independent installation.
   network-policy control-channel supervisor. No cluster connection or sandbox
   starts just because that supervisor exists. Its transitive K8s package remains
   a build dependency. Atlas disables both bundled Rust NIFs in compile config,
-  including Once's isolated dependency builds; it does not need their native
+  including Struo's isolated dependency builds; it does not need their native
   release artifacts.
 - `Atlas.LLMs.Runner` builds model client options. Local mode dispatches through
   `Atlas.LLMs.LocalTransport` to Atlas' inference relay in-process; the relay

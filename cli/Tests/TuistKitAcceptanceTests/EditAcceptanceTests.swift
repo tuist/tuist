@@ -1,4 +1,5 @@
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistProcess
@@ -7,6 +8,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct EditAcceptanceTests {
     @Test(.withFixture("generated_ios_app_with_helpers"))
     func ios_app_with_helpers() async throws {

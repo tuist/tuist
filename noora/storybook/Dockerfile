@@ -46,8 +46,6 @@ COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 COPY package.json aube-lock.yaml /app/noora/
 COPY js/ /app/noora/js/
 COPY css/ /app/noora/css/
-COPY components/ /app/noora/components/
-COPY scripts/ /app/noora/scripts/
 COPY lib/ /app/noora/lib/
 COPY mix.exs README.md /app/noora/
 

@@ -31,8 +31,17 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @OptionGroup var options: SandboxOptions
 
-    @Option(name: .long, help: "linux or macos. Defaults to linux.")
-    var platform: Platform = .linux
+    @Option(name: .long, help: "linux or macos. Defaults to linux, or macos with --xcode.")
+    var platform: Platform?
+
+    @Option(
+        name: .long,
+        help: """
+        macOS: the exact Xcode version to boot, such as 26.1.1, from those the server's macOS sandboxes serve. \
+        Implies --platform macos. Defaults to the server's default Xcode. A sandbox keeps its Xcode.
+        """
+    )
+    var xcode: String?
 
     @Option(name: .long, help: "Template name. Defaults to the server's default template for the platform.")
     var template: String?
@@ -49,9 +58,31 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     @Option(name: .long, help: "Workspace disk size in GB (1–100).")
     var workspaceGb: Int?
 
+    /// The guarantees the server offers, in vCPUs.
+    static let guarantees: [Double] = [1, 2, 4, 8]
+
+    @Option(
+        name: .customLong("guaranteed-vcpus"),
+        help: """
+        Linux: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4 or 8. \
+        Without it, a quarter vCPU per GB of memory; with it, the larger of the two. The sandbox bursts into idle cores \
+        past its guarantee, and is billed for at least it. A sandbox keeps its guarantee.
+        """
+    )
+    var guaranteedVCPUs: Double?
+
     public var jsonThroughNoora: Bool { true }
 
+    /// The platform the sandbox boots: --platform, else macOS when an Xcode is named, else Linux.
+    var resolvedPlatform: Platform {
+        platform ?? (xcode == nil ? .linux : .macos)
+    }
+
     public func validate() throws {
+        if xcode != nil, platform == .linux {
+            throw ValidationError("--xcode picks a macOS sandbox's Xcode; drop --platform linux.")
+        }
+        let platform = resolvedPlatform
         switch (vcpus, memoryGB) {
         case (nil, nil): break
         case let (vcpus?, memory?) where platform.shapes[memory] == vcpus: break
@@ -64,16 +95,26 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
         if let workspaceGb, !(1 ... 100).contains(workspaceGb) {
             throw ValidationError("Workspace size must be 1–100 GB.")
         }
+        if let guaranteedVCPUs {
+            if platform != .linux {
+                throw ValidationError("--guaranteed-vcpus is for Linux sandboxes; a macOS sandbox holds every vCPU.")
+            }
+            if !Self.guarantees.contains(guaranteedVCPUs) {
+                throw ValidationError("--guaranteed-vcpus must be one of 1, 2, 4 or 8.")
+            }
+        }
     }
 
     public func run() async throws {
         try await SandboxCommandService().create(
             options: options.values,
-            platform: platform.server,
+            platform: resolvedPlatform.server,
             template: template,
+            xcodeVersion: xcode,
             vcpus: vcpus,
             memoryGB: memoryGB,
-            workspaceGB: workspaceGb
+            workspaceGB: workspaceGb,
+            guaranteedVCPUs: guaranteedVCPUs
         )
     }
 }

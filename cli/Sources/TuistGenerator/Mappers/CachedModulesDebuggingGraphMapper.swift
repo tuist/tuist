@@ -275,6 +275,15 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                 requiresLinkedDebugInformation: requiresLinkedDebugInformation
             ))
         )
+        // Binaries warmed with a debug prefix map record `/^root/<relative>`. When every such source sits at the same
+        // relative path here, the source map resolves them and they need no per-UUID plist or static companion.
+        let debugPrefixMapRoots = Set(mappings.compactMap { mapping -> String? in
+            let relative = mapping.original.pathString.dropFirst("/^root/".count)
+            guard mapping.original.pathString.hasPrefix("/^root/"),
+                  mapping.current.pathString.hasSuffix("/" + relative)
+            else { return nil }
+            return String(mapping.current.pathString.dropLast(relative.count + 1))
+        })
         let initialContents = renderer.lldbInitContents(
             originalLLDBInitFile: originalLLDBInitFile,
             frameworkSearchPaths: searchPaths,
@@ -287,7 +296,8 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                 overlayPath: overlayPath,
                 originalLLDBInitFile: originalLLDBInitFile,
                 searchPaths: searchPaths,
-                sourceMappingsPath: sourceMappingsFile?.path
+                sourceMappingsPath: sourceMappingsFile?.path,
+                debugPrefixMapRoot: debugPrefixMapRoots.count == 1 ? debugPrefixMapRoots.first : nil
             ),
             target: target,
             shellPath: "/bin/sh",
@@ -413,11 +423,14 @@ private struct CacheDebuggerSettingsRenderer {
         overlayPath: AbsolutePath,
         originalLLDBInitFile: AbsolutePath?,
         searchPaths: [AbsolutePath],
-        sourceMappingsPath: AbsolutePath?
+        sourceMappingsPath: AbsolutePath?,
+        debugPrefixMapRoot: String? = nil
     ) -> String {
         let moduleSettings = searchPaths.isEmpty ? "" : cachedModulesUpdateScript(searchPaths: searchPaths)
+        // An explicit initializer that replaces the source map would also drop the debug-prefix-map root, which cached
+        // binaries need for every source and which per-UUID plists no longer cover, so it is appended again afterwards.
         let sourceOriginal = originalLLDBInitFile.map {
-            "lldb_setting command-source \(shellQuoted($0.pathString))"
+            "lldb_setting command-source \(shellQuoted($0.pathString))\n  cat \"$debug_prefix_map_file\""
         } ?? ""
         let sourceHome = originalLLDBInitFile == nil ? """
         if [ -n "${HOME:-}" ]; then
@@ -431,8 +444,18 @@ private struct CacheDebuggerSettingsRenderer {
 
         // Replace home-file and stale source maps, but let an explicit initializer extend or override the map.
         // Resolve it separately so an unreadable prefix map still leaves the user initializer sourced.
+        // Nothing attaches a debugger to tests on CI, and preparing relocations runs dsymutil for every test bundle.
+        // Jenkins doesn't set CI; BUILD_NUMBER is not checked because projects commonly define it as a build setting.
         return """
         set -eu
+
+        case "${CI:-}" in
+          "" | 0 | false | FALSE | False | no | NO) ;;
+          *) exit 0 ;;
+        esac
+        if [ -n "${JENKINS_URL:-}" ]; then
+          exit 0
+        fi
 
         lldb_init_file=\(shellQuoted(lldbInitPath.pathString))
         overlay_file=\(shellQuoted(overlayPath.pathString))
@@ -465,9 +488,10 @@ private struct CacheDebuggerSettingsRenderer {
         }
 
         source_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
-        trap 'rm -f "$source_map_file"' EXIT
+        debug_prefix_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
+        trap 'rm -f "$source_map_file" "$debug_prefix_map_file"' EXIT
         source_map_status=0
-        \(sourceMappingScript(sourceMappingsPath: sourceMappingsPath))
+        \(sourceMappingScript(sourceMappingsPath: sourceMappingsPath, debugPrefixMapRoot: debugPrefixMapRoot))
 
         {
           \(sourceHome)
@@ -546,10 +570,11 @@ private struct CacheDebuggerSettingsRenderer {
     ///
     /// Multiplatform targets export `SDKROOT=auto`, which the `/usr/bin/python3` and `/usr/bin/xcrun` shims cannot
     /// resolve: they fail and ask to install the Command Line Tools. Neither the interpreter nor the symbol tools need it.
-    private func sourceMappingScript(sourceMappingsPath: AbsolutePath?) -> String {
+    private func sourceMappingScript(sourceMappingsPath: AbsolutePath?, debugPrefixMapRoot: String?) -> String {
         #"""
         /usr/bin/env -u SDKROOT /usr/bin/python3 - "$source_map_file" \#(shellQuoted(sourceMappingsPath?
-                .pathString ?? "")) <<'TUIST_SOURCE_MAP' || source_map_status=$?
+                .pathString ?? "")) \#(shellQuoted(debugPrefixMapRoot ?? "")) "$debug_prefix_map_file" \
+            <<'TUIST_SOURCE_MAP' || source_map_status=$?
         import json
         import os
         import sys
@@ -580,6 +605,24 @@ private struct CacheDebuggerSettingsRenderer {
             if toolchain_path:
                 mappings.setdefault("/^toolchain", toolchain_path)
 
+        # Cached binaries warmed with a debug prefix map record the repository root as `/^root`, the alias
+        # Xcode 27's compilation-cache prefix mapping uses for the same directory.
+        if sys.argv[3]:
+            mappings.setdefault("/^root", sys.argv[3])
+
+        def spellings(path):
+            # LLDB matches a breakpoint by the spelling of its file's path and does not resolve symlinks. Map the
+            # spelling Xcode opened the project with first, since LLDB reports locations through the first entry.
+            real = os.path.realpath(path)
+            project = environment.get("PROJECT_DIR", "")
+            relative = os.path.relpath(os.path.realpath(project), real) if project else os.pardir
+            opened = []
+            if relative == os.curdir:
+                opened = [project]
+            elif not relative.startswith(os.pardir) and project.endswith("/" + relative):
+                opened = [project[:-len(relative) - 1]]
+            return list(dict.fromkeys(opened + [path, real]))
+
         def lldb_quoted(value):
             return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r") + '"'
 
@@ -594,11 +637,19 @@ private struct CacheDebuggerSettingsRenderer {
             return (-len(path.rstrip("/")), -passed_later, alias)
 
         if mappings:
-            arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), key=compiler_precedence) for value in mapping)
+            arguments = " ".join(
+                lldb_quoted(alias) + " " + lldb_quoted(spelling)
+                for alias, path in sorted(mappings.items(), key=compiler_precedence) for spelling in spellings(path)
+            )
             # Xcode keeps one LLDB process across runs and sources this file into its global settings, so
             # appending would leave earlier runs' entries, including other checkouts', ahead of these.
             with open(sys.argv[1], "w", encoding="utf-8") as output:
                 output.write("settings set target.source-map " + arguments + "\n")
+            if sys.argv[3]:
+                with open(sys.argv[4], "w", encoding="utf-8") as output:
+                    output.write("settings append target.source-map " + " ".join(
+                        lldb_quoted("/^root") + " " + lldb_quoted(spelling) for spelling in spellings(mappings["/^root"])
+                    ) + "\n")
 
         try:
             if sys.argv[2]:

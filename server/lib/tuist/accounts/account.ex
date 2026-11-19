@@ -11,6 +11,7 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
+  alias Tuist.Environment
   alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Projects.Project
   alias Tuist.Runners.ConcurrencyLimit
@@ -53,6 +54,8 @@ defmodule Tuist.Accounts.Account do
     field :current_month_cache_egress_megabytes, :integer
     field :current_month_cache_requests, :integer
     field :free_tier_reset_at, :utc_datetime
+    # See `Tuist.Accounts.account_credentials_revoked?/2`.
+    field :credentials_revoked_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
 
@@ -69,7 +72,6 @@ defmodule Tuist.Accounts.Account do
     field :custom_cache_endpoints_enabled, :boolean, default: false
     field :sandbox_vcpus_limit, :integer, default: 32
     field :sandbox_memory_gb_limit, :integer, default: 64
-    field :sandbox_disk_gb_limit, :integer, default: 420
     field :remote_execution_vcpus_limit, :integer, default: 16
     field :remote_execution_memory_gb_limit, :integer, default: 32
     field :runner_trial_started_at, :utc_datetime
@@ -234,7 +236,7 @@ defmodule Tuist.Accounts.Account do
     |> validate_format(:name, ~r/^[a-zA-Z0-9](?:.*[a-zA-Z0-9])?$/s, message: "must start and end with a letter or number")
     |> validate_format(:name, ~r/^(?!.*-(?:staging|canary)$)/i, message: "must not end in -staging or -canary")
     |> validate_length(:name, min: 1, max: 32)
-    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+    |> validate_exclusion(:name, Environment.blocked_account_handles())
     |> unique_constraint(:name, name: "index_accounts_on_name")
     |> unique_constraint(:name, name: "accounts_name_reserved", message: "is reserved by another account")
     |> unique_constraint(:name, name: "accounts_kura_tenant_id_index", message: "is reserved by another account")

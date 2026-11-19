@@ -188,17 +188,23 @@ defmodule Atlas.MCP.ProxyTest do
     assert message =~ "not available"
   end
 
-  # Every per-environment Pulse upstream reads production-adjacent telemetry,
-  # so each one sits behind the observability toggle, not just one named entry.
-  test "gates every Pulse environment upstream on observability access" do
+  # The bare-metal providers' reads describe the production fleet, so a
+  # restricted session without the observability toggle must not reach them.
+  test "gates the bare-metal provider upstreams on observability access" do
     stub(Config, :get, fn ->
-      [servers: [%{"name" => "pulse_canary", "url" => "https://pulse-canary.example/mcp", "bearer_token" => "t"}]]
+      [
+        servers:
+          for name <- ["ovh-servers", "vultr-compute"] do
+            %{"name" => name, "url" => "https://#{name}.example/mcp", "bearer_token" => "t"}
+          end
+      ]
     end)
 
     conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => []}}}
 
     assert Proxy.list_hoisted_tools(conn) == []
-    assert {:error, message} = Proxy.call_hoisted_tool(conn, "pulse_canary__query_promql", %{"query" => "up"})
+
+    assert {:error, message} = Proxy.call_hoisted_tool(conn, "vultr-compute__vultr_compute_baremetal_list", %{})
     assert message =~ "not available"
   end
 
@@ -307,8 +313,8 @@ defmodule Atlas.MCP.ProxyTest do
       [
         servers: [
           %{
-            "name" => "pulse_staging",
-            "url" => "https://pulse-staging.example/mcp",
+            "name" => "stateless",
+            "url" => "https://stateless.example/mcp",
             "auth_type" => "service_account_token",
             "token_path" => token_path,
             "protocol_version" => "2026-07-28",
@@ -346,7 +352,7 @@ defmodule Atlas.MCP.ProxyTest do
     end)
 
     assert {:ok, %{"content" => [%{"text" => "ok"}]}} =
-             Proxy.call_tool("pulse_staging", "query_promql", %{"query" => "up"})
+             Proxy.call_tool("stateless", "query_promql", %{"query" => "up"})
 
     File.write!(token_path, "rotated-token")
 
@@ -360,10 +366,10 @@ defmodule Atlas.MCP.ProxyTest do
        }}
     end)
 
-    assert {:ok, []} = Proxy.list_tools("pulse_staging")
+    assert {:ok, []} = Proxy.list_tools("stateless")
 
     File.rm!(token_path)
-    assert {:error, message} = Proxy.list_tools("pulse_staging")
+    assert {:error, message} = Proxy.list_tools("stateless")
     assert message =~ "workload identity token"
   end
 

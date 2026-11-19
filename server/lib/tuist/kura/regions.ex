@@ -145,7 +145,7 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 13.1 GiB for enterprise and 5.3 GiB for the rest.
+  # rings these leave are 13.1 GiB for enterprise and 3.4 GiB for the rest.
   #
   # These are where an account starts, not what it ends up with:
   # `Tuist.Kura.ClaimSizing` grows the claim from measured shedding, and it
@@ -161,18 +161,20 @@ defmodule Tuist.Kura.Regions do
   # that proves it grow four times past where Air stops. Enterprise starts a step higher only because it is
   # the plan whose accounts predictably arrive with a working set already.
   #
-  # They are also powers of two so that growth lands squarely. Sizing clamps a
-  # step at twice the current claim, so a ladder of doubles reaches each plan's
-  # ceiling exactly, where an off-ladder constant spends most of a step being
-  # clamped short of it.
+  # Enterprise's is a power of two so that growth lands squarely. Sizing clamps
+  # a step at twice the current claim, so a ladder of doubles reaches each
+  # plan's ceiling exactly, where an off-ladder constant spends most of a step
+  # being clamped short of it. Air's is not (6, 12, 24, 48, then clamped to its
+  # 64Gi ceiling): it is the smallest claim that keeps the full reserve below,
+  # and three quarters of the volumes at the floor never evict off it.
   #
   # Measured on 2026-08-20 rather than projected, and the measurement is why
   # they came down. Every provisioned Kura instance was enterprise then, and
   # six of the ten held under 2.4 GiB against a 40 GiB ring: the reserve those
   # instances stood on was refusing neighbours it never used. Air's own volume
   # comes from the legacy lane, where 55 air accounts uploaded anything at all
-  # in 30 days: the median moves 0.17 GiB a day, which a 5.3 GiB ring holds for
-  # a month.
+  # in 30 days: the median moves 0.17 GiB a day, which a 3.4 GiB ring holds for
+  # three weeks.
   #
   # The tier is long-tailed, and the tail is no longer left where it lands. Its
   # p90 moves 2.5 GiB a day and its heaviest account 21.7 GiB, which this ring
@@ -180,13 +182,20 @@ defmodule Tuist.Kura.Regions do
   # starting value instead, up to the ceiling their plan funds. What the
   # constant has to serve is the account the tier is actually full of.
   #
-  # Air is the floor as well as the default. It is this small because the
-  # staging budget scales with the claim rather than staying at Kura's flat
-  # 8 GiB default (see `staging_bytes/1` in the Kubernetes controller
-  # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
-  # at all.
+  # Air is the floor as well as the default, and it came down from 8Gi on
+  # 2026-11-17 because the small volumes were most of the gap between reserved
+  # and used disk: of the 226 production volumes at 8Gi, 169 evicted nothing in
+  # 30 days and 158 peaked under 60% of a 6Gi claim. It stops at 6Gi rather
+  # than lower because of the reserve, not the cache. Staging keeps a 2 GiB
+  # floor so a max-size module upload still fits (`staging_bytes/1` in the
+  # Kubernetes controller provisioner), one rotation segment takes another
+  # 512 MiB, and Kura will not run a ring under five segments (2.5 GiB): a 6Gi
+  # claim leaves a 3.4 GiB ring with all three intact, and a 4Gi claim would
+  # leave under 1.5 GiB, short of the floor. Instances already built keep the
+  # claim pinned on them; only new and returning instances start here, and
+  # sizing shrinks the rest on its usual occupancy evidence.
   @enterprise_storage_claim "16Gi"
-  @air_storage_claim "8Gi"
+  @air_storage_claim "6Gi"
 
   # Which countries `accounts.region == :europe` accepts a datacenter in. The
   # European Economic Area plus Switzerland and the United Kingdom, because
@@ -480,22 +489,16 @@ defmodule Tuist.Kura.Regions do
   # `runner_platforms` declares which runner fleets a region's nodes are
   # provisioned for and routed to — the cluster-locality boundary from
   # the runner's side. A region only serves fleets whose runtime is
-  # network-adjacent to its node pool:
-  #
-  #   * `scw-fr-par-runners` is pinned to Scaleway fr-par capacity next
-  #     to the Apple-Silicon Mac mini fleet, so it serves `:macos` only —
-  #     handing its URL to a Linux runner would route cache traffic
-  #     across the WAN, which is worse than the public ingress it's
-  #     meant to replace.
+  # network-adjacent to its node pool: the rack sites' regions sit beside
+  # their Mac minis, so they serve `:macos` only — handing their URL to a
+  # Linux runner would route cache traffic across the WAN, which is worse
+  # than the public ingress it's meant to replace.
   #
   # Linux runners have no private cache region. `hetzner-staging-runners`
   # was one, on the staging cluster's Hetzner node pool, but that pool is
-  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
-  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
-  # The spec outlived the pool and kept minting instances that could
-  # never schedule, so it was removed rather than repointed — staging's
-  # Mac minis already exercise the co-located topology through
-  # `scw-fr-par-runners`, the same spec production uses.
+  # gone and its spec is now a retired tombstone. `scw-fr-par-runners`, on
+  # Scaleway Elastic Metal beside the rented Apple-Silicon fleet, retired
+  # the same way once every macOS job moved to a rack site.
   #
   # Each rack site's cache, on its storage node beside the site's minis, one
   # region per site named after it (`<site>-runners`, on node pool
@@ -514,7 +517,7 @@ defmodule Tuist.Kura.Regions do
   @rack_sites [
     # The machines segment of each site, where its minis sit
     # (infra/rack-switch-fleet/sites/<site>.json).
-    %{site: "ber1", display_name: "BER1 rack (runner cache)", client_cidr: "10.10.0.0/24"},
+    %{site: "ber1", display_name: "Alder rack (runner cache)", client_cidr: "10.10.0.0/24"},
     %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24"}
   ]
 
@@ -553,8 +556,13 @@ defmodule Tuist.Kura.Regions do
   @rack_site_region_specs rack_site_region_specs
 
   @private_region_specs [
+                          # A catalog tombstone. The rented Mac fleet it sat beside is gone (every
+                          # macOS job runs on a rack site), so the region is retired: it is never
+                          # offered for provisioning, and the reconciler destroys the servers left
+                          # in it while its node pool still exists to run their teardown.
                           %{
                             id: "scw-fr-par-runners",
+                            retired: true,
                             replicas: 2,
                             ingress_class_name: "kura-runners",
                             display_name: "Scaleway fr-par (runner cache)",
@@ -747,10 +755,11 @@ defmodule Tuist.Kura.Regions do
   Kura clamps its ring up to five segments; a claim too small to clear that
   leaves `cas_capacity_bytes/1` emitting no `KURA_CAS_CAPACITY_BYTES` at all and
   the runtime sizes its ring from the whole box instead, which is the failure
-  that derivation exists to prevent. Now that staging scales with the claim
-  (`staging_bytes/1` in the Kubernetes controller provisioner) the cliff sits
-  below air rather than above it, so air clears it with margin; `regions_test`
-  asserts that against the derivation rather than against a number.
+  that derivation exists to prevent. Staging scales with the claim above a
+  2 GiB floor (`staging_bytes/1` in the Kubernetes controller provisioner), so
+  the cliff sits at about 5.1Gi and air's 6Gi clears it by nearly two
+  segments; `regions_test` asserts that against the derivation rather than
+  against a number.
   """
   def minimum_storage_claim, do: @air_storage_claim
 
@@ -988,7 +997,7 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   The site a private region's nodes are racked at, beside that site's runner
-  pools, or `nil` for a region that serves fleets at no particular site.
+  pools. `nil` for public regions and the retired private tombstones.
   """
   def site(%__MODULE__{site: site}), do: site
   def site(_), do: nil
@@ -1037,17 +1046,28 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   Whether `account`'s instance in the region is built on
-  `kura-thin-encrypted-nvme`: the region is thin-capable and the account is on
-  the `kura_thin_volumes` flag. The flag is read only in thin-capable regions.
+  `kura-thin-encrypted-nvme`: the region is thin-capable and either every
+  account in it is enrolled (`TUIST_KURA_THIN_ENROLLED_REGIONS`) or the account
+  is on the `kura_thin_volumes` flag. The flag is read only in thin-capable
+  regions that are not enrolled as a whole.
   """
-  def thin_volumes?(%__MODULE__{} = region, account) do
-    thin_volumes?(region) and Tuist.FeatureFlags.kura_thin_volumes_enabled?(account)
+  def thin_volumes?(%__MODULE__{provisioner_config: config} = region, account) do
+    thin_volumes?(region) and
+      (config[:thin_enrolled] == true or Tuist.FeatureFlags.kura_thin_volumes_enabled?(account))
   end
 
+  # A region enrolled as a whole is thin-capable too, so listing it in
+  # `TUIST_KURA_THIN_ENROLLED_REGIONS` alone is enough. `:thin_enrolled` is only
+  # ever added, so a thin-capable region's config is unchanged when no region is
+  # enrolled.
   defp configure_thin(%__MODULE__{provisioner_config: config} = region) do
-    if region.id in Tuist.Environment.kura_thin_region_ids() and
+    enrolled? = region.id in Tuist.Environment.kura_thin_enrolled_region_ids()
+
+    if (enrolled? or region.id in Tuist.Environment.kura_thin_region_ids()) and
          config[:storage_class] in ["scw-local-nvme", "kura-lvm-nvme"] do
-      %{region | provisioner_config: Map.put(config, :thin_volumes, true)}
+      config = Map.put(config, :thin_volumes, true)
+      config = if enrolled?, do: Map.put(config, :thin_enrolled, true), else: config
+      %{region | provisioner_config: config}
     else
       region
     end

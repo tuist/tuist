@@ -82,6 +82,21 @@ fn a_local_only_lookup_still_reads_through_when_nothing_else_queries_the_remote(
     assert_eq!(env.proxy.resolves_for(&key), 2);
 }
 
+/// The build system's own handles get `remote-service-path` and no other option,
+/// but the build service also opens a handle from the Swift compiler flags, which
+/// carry `tuist-instance`, a moment after its first. On a store the proxy has not
+/// registered (a CI host reset between jobs), a key query that names no project
+/// misses without asking the remote.
+#[test]
+fn the_build_systems_key_query_names_the_project_another_handle_declared_for_its_store() {
+    let Some(env) = Fixture::new("inherited-instance", Remote::QueriedByBuildSystem) else { return };
+    let key = env.cas.key_digest(b"inherited-instance");
+    let _swift_driver = PluginCas::open(env.store.path(), Remote::DeclaredBy("acme/app"));
+
+    assert_eq!(env.cas.get(&key, true), LLCAS_LOOKUP_RESULT_NOTFOUND);
+    assert_eq!(env.proxy.instances_resolving(&key), ["acme/app"]);
+}
+
 // --- Fixture -------------------------------------------------------------------
 
 const VALUE_CONTENT: &[u8] = b"a value that exists only on the remote";
@@ -91,6 +106,8 @@ enum Remote {
     /// The build system queries the remote itself: `remote-service-path` is set.
     QueriedByBuildSystem,
     Unconfigured,
+    /// A handle opened from compiler flags, which name the project.
+    DeclaredBy(&'static str),
 }
 
 struct Fixture {
@@ -148,9 +165,14 @@ impl PluginCas {
             );
             let path = CString::new(store.to_str().expect("utf-8 store path")).unwrap();
             tuist_cas_plugin::llcas_cas_options_set_ondisk_path(options, path.as_ptr());
-            if let Remote::QueriedByBuildSystem = remote {
-                let name = CString::new("remote-service-path").unwrap();
-                let value = CString::new("/tmp/build-system-remote.sock").unwrap();
+            let option = match remote {
+                Remote::QueriedByBuildSystem => Some(("remote-service-path", "/tmp/build-system-remote.sock")),
+                Remote::DeclaredBy(instance) => Some(("tuist-instance", instance)),
+                Remote::Unconfigured => None,
+            };
+            if let Some((name, value)) = option {
+                let name = CString::new(name).unwrap();
+                let value = CString::new(value).unwrap();
                 let mut error: *mut c_char = ptr::null_mut();
                 tuist_cas_plugin::llcas_cas_options_set_option(
                     options,
@@ -265,7 +287,7 @@ type MaterializeOnRequest = Arc<Mutex<Option<Box<dyn FnOnce() + Send>>>>;
 /// scripted materialization, and records every request it receives.
 struct FakeProxy {
     socket: PathBuf,
-    seen: Arc<Mutex<Vec<(u8, Vec<u8>)>>>,
+    seen: Arc<Mutex<Vec<(u8, Vec<u8>, String)>>>,
     resolve_answer: Arc<Mutex<Option<Vec<u8>>>>,
     materialize: MaterializeOnRequest,
     stopping: Arc<AtomicBool>,
@@ -294,7 +316,7 @@ impl FakeProxy {
                 }
                 let Ok(mut stream) = stream else { return };
                 let Ok(request) = read_request(&mut stream) else { continue };
-                seen.lock().unwrap().push((request.op, request.payload.clone()));
+                seen.lock().unwrap().push((request.op, request.payload.clone(), request.instance.clone()));
                 let (status, body) = match request.op {
                     OP_RESOLVE => match resolve_answer.lock().unwrap().clone() {
                         Some(value) => (STATUS_HIT, value),
@@ -324,8 +346,18 @@ impl FakeProxy {
             .lock()
             .unwrap()
             .iter()
-            .filter(|(seen_op, seen_payload)| *seen_op == op && seen_payload == payload)
+            .filter(|(seen_op, seen_payload, _)| *seen_op == op && seen_payload == payload)
             .count()
+    }
+
+    fn instances_resolving(&self, key: &[u8]) -> Vec<String> {
+        self.seen
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(op, payload, _)| *op == OP_RESOLVE && payload == key)
+            .map(|(_, _, instance)| instance.clone())
+            .collect()
     }
 
     fn resolves_for(&self, key: &[u8]) -> usize {

@@ -147,7 +147,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
       Accounts.add_user_to_organization(user, organization, role: :admin)
       project = ProjectsFixtures.project_fixture(account: organization.account)
 
-      response = Introspection.token_response(user.token)
+      response = Introspection.token_response(AccountsFixtures.user_access_token(user))
 
       assert %{
                active: true,
@@ -185,7 +185,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
                  "account" => %{"read" => account_reads, "write" => account_writes},
                  "project" => %{"read" => project_reads, "write" => project_writes}
                }
-             } = Introspection.token_response(user.token)
+             } = Introspection.token_response(AccountsFixtures.user_access_token(user))
 
       project_handle = "#{account.name}/#{project.name}"
 
@@ -399,7 +399,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
       %{user: user, granted: granted, refused: refused} = two_tenants_one_refused_for_a_failed_payment()
       {:ok, cache_token, _claims} = Cache.issue_cache_token(user)
 
-      for token <- [user.token, cache_token] do
+      for token <- [AccountsFixtures.user_access_token(user), cache_token] do
         assert %{active: true, cache_payment_required: [], cache_payment_failed: []} =
                  Introspection.token_response(token, granted.account)
       end
@@ -423,7 +423,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
                  "account" => %{"read" => account_reads, "write" => account_writes},
                  "project" => %{"read" => project_reads, "write" => project_writes}
                }
-             } = Introspection.token_response(user.token, organization.account)
+             } = Introspection.token_response(AccountsFixtures.user_access_token(user), organization.account)
 
       assert account_reads == [organization.account.name]
       assert account_writes == [organization.account.name]
@@ -445,7 +445,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
                  "account" => %{"read" => account_reads, "write" => account_writes},
                  "project" => %{"read" => project_reads, "write" => project_writes}
                }
-             } = Introspection.token_response(user.token, account)
+             } = Introspection.token_response(AccountsFixtures.user_access_token(user), account)
 
       assert account_reads == [account.name]
       assert account_writes == []
@@ -509,7 +509,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
       user = AccountsFixtures.user_fixture(preload: [:account])
       unrelated = AccountsFixtures.organization_fixture(name: "unrelated-org")
 
-      assert Introspection.token_response(user.token, unrelated.account) == %{active: false}
+      assert Introspection.token_response(AccountsFixtures.user_access_token(user), unrelated.account) == %{active: false}
     end
 
     test "scopes project tokens to their own account" do

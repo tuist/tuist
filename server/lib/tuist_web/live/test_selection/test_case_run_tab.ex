@@ -3,9 +3,10 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
   One test's part in the impact run of the test run it ran in, in the test
   case run's Selective Testing tab: why the selection kept it (the rule that
   selected it and the changed path that matched), the shard it was planned
-  on, and the repository files the baseline's per-test evidence says it
-  executed, the changed ones first, each with how it changed since the
-  baseline. Its query parameters are prefixed with `selection-`.
+  on, and the repository files the baseline's test map says it depends on
+  (`Tuist.Tests.Selections.baseline_covered_paths/2`), the changed ones
+  first, each with how it changed since the baseline. Its query parameters
+  are prefixed with `selection-`.
   """
   use TuistWeb, :html
   use Noora
@@ -64,7 +65,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
   end
 
   defp executed_files(run, test) do
-    covered = Selections.baseline_covered_paths(run.project_id, run.baseline_sha, test)
+    covered = Selections.baseline_covered_paths(run, test)
 
     covered =
       if test.matched_path == "" or test.matched_path in covered,

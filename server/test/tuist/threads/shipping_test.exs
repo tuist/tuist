@@ -81,6 +81,14 @@ defmodule Tuist.Threads.ShippingTest do
       ]
     }
 
+    # The owner's own GitHub access (`Repository.authorize/4`).
+    oauth2_identity_fixture(user: user, provider: :github, id_in_provider: "42")
+    stub(Client, :get_user_by_id, fn %{id: "42"} -> {:ok, %Tuist.VCS.User{username: "owner"}} end)
+
+    stub(Client, :get_repository_permission, fn %{username: "owner", repository_full_handle: "Tuist/Example"} ->
+      {:ok, "write"}
+    end)
+
     stub(Repository, :review, fn _, _, ^objects -> {:ok, "reviewed diff"} end)
 
     {:ok, remote} = Agent.start_link(fn -> @base end)
@@ -192,6 +200,14 @@ defmodule Tuist.Threads.ShippingTest do
     assert Repo.reload!(c.sandbox).residency_work_id == nil
   end
 
+  test "an owner who can only read the repository cannot ship to it", c do
+    stub(Client, :get_repository_permission, fn _ -> {:ok, "read"} end)
+    reject(Sandboxes, :exec, 3)
+    assert {:error, :repository_access_denied} = Shipping.preview(c.user, c.thread)
+    assert {:error, :repository_access_denied} = Shipping.execute(c.thread, c.approval, c.run)
+    assert Agent.get(c.remote, & &1) == @base
+  end
+
   test "retry reconciles a remotely completed Ship without snapshotting or writing again", c do
     Agent.update(c.remote, fn _ -> @head end)
     reject(Sandboxes, :exec, 3)
@@ -199,7 +215,8 @@ defmodule Tuist.Threads.ShippingTest do
   end
 
   test "branch mode creates only the thread branch with an atomic absent-ref precondition", c do
-    thread = Repo.update!(Ecto.Changeset.change(c.thread, ship_mode: :branch))
+    # Existing repository branches survive the feature rename, including Ship consent.
+    thread = Repo.update!(Ecto.Changeset.change(c.thread, ship_mode: :branch, branch: "threads/#{c.thread.id}"))
     approval = Repo.update!(Ecto.Changeset.change(c.approval, mode: :branch, target_branch: thread.branch))
     Agent.update(c.remote, fn _ -> nil end)
     assert {:ok, %{target_branch: target}} = Shipping.execute(thread, approval, c.run)
@@ -380,6 +397,14 @@ defmodule Tuist.Threads.ShippingTest do
     File.rm!(Path.join(root, "b"))
     File.mkdir_p!(Path.join(root, "b"))
     File.write!(Path.join(root, "b/child"), "replacement child\n")
+    File.mkdir_p!(Path.join(root, ".once/out"))
+    File.write!(Path.join(root, ".once/out/build.log"), "once runtime state\n")
+    File.mkdir_p!(Path.join(root, "app/.once/analysis"))
+    File.write!(Path.join(root, "app/.once/analysis/state"), "nested once state\n")
+    File.mkdir_p!(Path.join(root, ".struo/out"))
+    File.write!(Path.join(root, ".struo/out/build.log"), "struo runtime state\n")
+    File.mkdir_p!(Path.join(root, "app/.struo/analysis"))
+    File.write!(Path.join(root, "app/.struo/analysis/state"), "nested struo state\n")
     thread = Repo.update!(Ecto.Changeset.change(c.thread, base_sha: base))
 
     stub(Repository, :review, fn account, snapshot, objects ->
@@ -415,6 +440,8 @@ defmodule Tuist.Threads.ShippingTest do
     assert preview.diff =~ "+replacement child"
     assert preview.diff =~ "-old file"
     refute preview.diff =~ "forged benign"
+    refute preview.diff =~ "once runtime state"
+    refute preview.diff =~ "nested once state"
     assert preview.actor =~ "GitHub App"
     assert {:ok, repeat} = Shipping.preview(c.user, thread)
     assert repeat.head_sha == preview.head_sha

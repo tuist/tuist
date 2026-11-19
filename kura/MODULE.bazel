@@ -11,6 +11,11 @@ module(
     name = "kura",
 )
 
+# Declared ahead of rules_cc so apple_support's Xcode cc toolchain is registered before rules_cc's
+# autodetected one. Apple clang 21 (Xcode 27+) lists the SDK's SDKSettings.json in depfiles, which
+# the autodetected toolchain's builtin include directories don't cover, so Bazel rejects every
+# macOS C/C++ compile as an absolute path inclusion.
+bazel_dep(name = "apple_support", version = "1.24.2")
 bazel_dep(name = "rules_cc", version = "0.2.19")
 
 # Referenced by //bazel/platforms' constraint values; @platforms is only visible from the root
@@ -65,6 +70,20 @@ crate.annotation(
         "@lz4//:lz4_hc",
         "@lz4//:lz4_frame",
     ],
+)
+
+# rules_rust runs every Cargo build script with NUM_JOBS=1, so cc-rs compiles aws-lc's C one file at
+# a time and jemalloc's build runs `make -j1`. Both lie on the path to the test binary, and a
+# build script action gets two CPUs (the default remote-execution VM is 2 vCPUs), so let them use
+# both: on two cores this halves aws-lc-sys (52 s to 25 s) and tikv-jemalloc-sys (38 s to 20 s).
+crate.annotation(
+    crate = "aws-lc-sys",
+    build_script_env = {"NUM_JOBS": "2"},
+)
+
+crate.annotation(
+    crate = "tikv-jemalloc-sys",
+    build_script_env = {"NUM_JOBS": "2"},
 )
 
 # librocksdb-sys's build script compiles rocksdb's C++ with the LZ4 backend (#include <lz4.h>) and

@@ -109,14 +109,14 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
 
   defp approve(%{assigns: %{current_user: %User{} = user, audit_interface: "mcp"}}, args) do
     case MCPContext.authorize_tool_call(user, @server, @approval_tool, args) do
-      :ok ->
+      {:ok, _approval} ->
         :ok
 
       {:approval_required, approval} ->
         {:error,
          "Renaming #{args["serviceName"]} to #{args["displayName"]} needs a person's approval for this exact call. " <>
            "Ask the person you are working for to approve request #{approval.id} at " <>
-           "#{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
+           "#{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
            "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
            "Never approve it yourself."}
     end

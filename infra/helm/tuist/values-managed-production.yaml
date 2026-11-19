@@ -55,15 +55,16 @@ registry:
     limits:
       cpu: "4"
       memory: "4Gi"
-  # Point registry's Sentry envelopes at the Registry domain DSN in the
-  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
-  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
-  # item in `tuist-k8s-production` holding the Registry-domain Hive DSN;
-  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
-  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  # Point registry's Sentry envelopes at the Registry domain DSN of the
+  # Tuist project in the self-hosted Atlas ingest (atlas.tuist.dev); Hive
+  # is retired. Prereq (MUST land before this merges): add a
+  # SENTRY_DSN_REGISTRY_ATLAS field to the REGISTRY 1Password item in
+  # `tuist-k8s-production` holding that DSN; otherwise the ES sync errors on a
+  # missing remoteRef. The old SENTRY_DSN_REGISTRY_HIVE field stays put
+  # until the Hive cluster is deleted.
   externalSecrets:
     fields:
-      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
+      sentryDsn: SENTRY_DSN_REGISTRY_ATLAS
 
 server:
   # Production mail goes through Mailgun until sesStartsAt, then through SES
@@ -104,8 +105,8 @@ server:
   appUrl: https://tuist.dev
 
   config:
-    # PULSE_TOKEN/password already backs the production Pulse tenant in the
-    # observability namespace. ESO supplies it without copying a cluster Secret.
+    # Reuse the existing environment-scoped readonly dashboard credential,
+    # which also backs the pulse release's pulse-dashboard-auth Secret.
     pulse:
       enabled: true
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
@@ -116,9 +117,17 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    # Only production: the Claude Console's federation trusts the
+    # https://tuist.dev/oidc/claude-linked-billing issuer alone.
+    claudeLinkedBilling:
+      enabled: true
     apns:
       enabled: true
     fcm:
+      enabled: true
+    # Luft (luft.work) runs only against production, where the OIDC_PROVIDER
+    # and LUFT_SERVER items live in tuist-k8s-production.
+    luftServerOidc:
       enabled: true
     entirePluginKey:
       enabled: true
@@ -140,8 +149,10 @@ server:
   externalSecrets:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
+    # RustFS publishes every production store, including Garage's retired
+    # ID as an alias of its buckets (infra/helm/shard-storage-rustfs).
     shardStorage:
-      secret: shard-storage-targets
+      publicSecret: rustfs-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
@@ -192,6 +203,12 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXkpzLWue9IBlPSCGV7NlAg"
         runner_macos_compute_unit_milliseconds: "price_1UY5HTLWue9IBlPSxLGHE0iW"
+        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
+        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
+        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
+        # Meter has to exist before this key does; the empty id reports without
+        # charging.
+        runner_cache_volume_megabyte_months: "price_1UZphxLWue9IBlPSaUVhYmSs"
       retired_runners:
         runner_macos_compute_unit_milliseconds:
           - "price_1UXO5iLWue9IBlPSX793RSDB"
@@ -239,14 +256,13 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Stable account ID, not organization ID (which is 1). Membership and the
-    # default-off account feature flag are still required on every surface.
+    # Production's tuist account ID is 3 (staging uses 2; production's
+    # organization ID is 1). Membership and the account-scoped pulse feature
+    # flag remain independently required.
     - name: TUIST_PULSE_ACCOUNT_ID
       value: "3"
     - name: TUIST_PULSE_URL
       value: http://pulse.observability.svc.cluster.local:4000
-    - name: TUIST_PULSE_TENANT
-      value: tuist
     # Registered production plugin; its private signing key stays in ESO.
     - name: TUIST_ENTIRE_PLUGIN_SLUG
       value: tuist
@@ -267,14 +283,13 @@ server:
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
-    # scw-fr-par-runners is the macOS-serving private (runner-cache)
-    # region: this cluster's Elastic Metal node (kuraFleet) hosts the
-    # per-account cache pods and dispatch routes the Mac fleet's build
-    # cache to it over the Private Network. ber1-runners is the BER1 rack's
-    # cache on ber1-store-a, beside the rack's minis; only the accounts the
-    # runner_site_cache flag enables get a node there.
+    # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
+    # rack's minis; only the accounts the runner_site_cache flag enables get a
+    # node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
+    # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
+    # or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT
@@ -326,9 +341,8 @@ server:
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
       value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
-    # resolves to the node-port form (http://<node PN address>:<NodePort>
-    # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # resolves to its rack site's private gateway (ber1-runners), and jobs
+    # at no site fall back to the public cache. linux resolves through
     # the public-region fallback (`runner_cache_endpoint_url/2` tier 2):
     # prod has no Linux private cache region, and the public ingress is
     # unreachable from runner pods (its host is a cluster node IP, which
@@ -467,6 +481,7 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
     - pulse.observability.svc.cluster.local:4000
+    - pulse.observability.svc.cluster.local:4003
 
 capi:
   ovhRunnerEgress:
@@ -547,12 +562,8 @@ kuraController:
       # either and reroll.
       item: kura-sentry-atlas
 
-# Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
-# Private Network, not the 1 Gbit/s public bandwidth every budget here is
-# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
-# nothing for a tree to rate its root against. Each tenant is still ceilinged
-# on that path by the Cilium bandwidth manager (egress_burst_mbps).
+# Only the shared mesh cache pools are listed: every budget here is denominated
+# in their public bandwidth.
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
@@ -565,10 +576,28 @@ kuraVolumesCSI:
   enabled: true
   # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
-  # Thin-ready nodes: eu-west qvv7x-ndgzl (lvm-v1 since 2026-11-05) and
-  # sa-west gnbzx-gmn2k (lvm-v1 since 2026-11-06). Only accounts on the
-  # kura_thin_volumes flag move; listing a region changes no other manifest.
-  thinRegions: [eu-west, sa-west]
+  # BER1's storage node gets the rack plugin (the rack-nodes release), so an
+  # offline rack never holds the main release. Until ber1-store-a is
+  # reinstalled lvm-v1 it has no kura-volumes VG and advertises no capacity.
+  rackPools: [rack-storage-ber1]
+  # Thin-ready nodes: eu-west qvv7x-ndgzl (lvm-v1 since 2026-11-05), sa-west
+  # gnbzx-gmn2k and gnbzx-d5ltg, us-central 9bg76-5kr98 and 9bg76-9rhgh, every
+  # us-east host (converted 2026-11-11 to 11-13 through the landing box
+  # 5764k-5p29k), every us-west host, the eu-east landing box nh9pb-7bnjr
+  # (lvm-v1 since 2026-11-13), and both ap-southeast hosts.
+  # Only accounts on the kura_thin_volumes flag move; listing a region changes
+  # no other manifest.
+  thinRegions: [eu-west, sa-west, us-central, us-east, eu-east, us-west, ap-southeast]
+  # Every account in these regions is on thin. sa-west and us-central were
+  # converted host by host (2026-11-09), us-east, us-west and ap-southeast the
+  # same way (2026-11-13 and 11-14); eu-east is converting through its landing
+  # box, and eu-west host by host through ndgzl (wise and bumble moved to
+  # eu-east meanwhile). New instances land only on thin-ready nodes.
+  #
+  # ber1-runners stays off thin until ber1-store-a is reinstalled lvm-v1. Its
+  # firmware has no network boot entry and no install stick is plugged in, so
+  # the reinstall needs someone at the rack first.
+  thinEnrolledRegions: [eu-west, sa-west, us-central, us-east, eu-east, us-west, ap-southeast]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -803,6 +832,32 @@ registryCache:
   s3:
     bucket: tuist-prod-storage
     rootDirectory: docker-mirror
+
+agents:
+  enabled: true
+  # Off the processor pool, which has no memory to spare beside the processor:
+  # two 4Gi agents pods there left no node room for the processor's 10Gi surge
+  # pod, so every deploy timed out on it and rolled back.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+  # Two pods so a deploy or a node drain always leaves one to take the
+  # drained sessions; memory adds up to six.
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+  podDisruptionBudget:
+    enabled: true
+  # An idle pod holds about 750Mi; 4Gi leaves room for hundreds of
+  # sessions before a pod stops admitting at 70%. Requests equal limits, as
+  # the memory autoscaler requires.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "4Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
 
 processor:
   extraEnv:
@@ -1040,25 +1095,9 @@ xcresultProcessor:
     # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
     # appends /loki/api/v1/push, matching the loki.source.api endpoint the
     # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
-    # forwards to Grafana Cloud with the ones it already holds.
+    # forwards to Pulse with the ones it already holds.
     - name: TUIST_LOKI_URL
       value: http://tuist-alloy-receiver-production.taild6d7bb.ts.net:3100
-
-# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
-# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
-# the runner-cache PN, mints a kubelet identity, and renders a self-join
-# cloud-init that registers the Node with the runner-cache taint. The control
-# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
-# bootstraps the node itself.
-kuraFleet:
-  enabled: true
-  replicas: 2
-  machine:
-    # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
-    # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
-    # capacity are the per-account density limiters here, not PN bandwidth or
-    # CPU, so we pay for memory + disk rather than a bigger NIC.
-    offerType: EM-I220E-NVME
 
 # Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
 # all have no presence there, which is what put a fourth provider in the fleet.
@@ -1085,9 +1124,21 @@ vultrFleets:
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
   # controller in the platform chart. Both are open. Closing either one takes the
   # region out of service without touching the box.
+  #
+  # Both boxes are lvm-v1 with thin pools: the region was moved onto encrypted
+  # thin volumes through a temporary third box, which was emptied and removed
+  # on 2026-11-09. The fleet deletes a random Machine on scale-down, so annotate
+  # the Machine to drop with cluster.x-k8s.io/delete-machine=yes before lowering
+  # replicas.
+  #
+  # The third box is permanent capacity: on 2026-11-18 the region had 121 GiB of
+  # admission headroom, short of the 268 to 403 GiB that growing tuist's and
+  # monzo's caches to 256Gi adds here. It joins as lvm-v1 like the others (its
+  # VultrMachine is annotated tuist.dev/kura-storage-layout=lvm-v1 before the box
+  # is tagged), then gets its thin pool and the kura-thin-ready label.
   us-central-8c:
     enabled: true
-    replicas: 2
+    replicas: 3
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
@@ -1160,14 +1211,22 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these six OVH nodes in Gravelines: five Advance-1
-  # 2024 (EPYC 4244P) and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
+  # Public EU West runs on these OVH nodes in Gravelines: Advance-1 2024 (EPYC
+  # 4244P) boxes and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
   # The offer matches both ranges. Keep the historical pool name: live
   # KuraInstances, local PVs and gateways still select it. All Dedibox hosts
   # have been retired.
+  #
+  # The eighth box (Advance-1 2026, 4x960 NVMe, ordered 2026-11-18) is for cache
+  # growth: a 256Gi instance needs about 542 GiB on one node, and after
+  # qvv7x-8lb8j (2026-11-18) took wise and delivery-hero-se no eu-west node had
+  # more than 161 GiB free, so tuist's and monzo's claim growths were refused.
+  # Four disks give about 1,587 GiB of thin capacity (eu-east's nh9pb-7bnjr)
+  # against 689 GiB on two, enough for both. Its Machine is annotated
+  # tuist.dev/kura-storage-layout=lvm-v1 before the box is renamed for prep.
   eu-west:
     enabled: true
-    replicas: 6
+    replicas: 8
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -1197,8 +1256,9 @@ ovhFleets:
     # Four boxes: three Advance-1-2024 (ns3263234 added 2026-11-03) plus ns3128245
     # (Advance-1-2026, 2026-10-19). At three the region's admission headroom was
     # down to 4 GiB, so placement expansions and claim growths for the accounts it
-    # hosts were refused.
-    replicas: 4
+    # hosts were refused. A fifth (Advance-1-2024, 4x960 NVMe, ordered
+    # 2026-11-13) is the landing box for converting the region to thin LVM.
+    replicas: 5
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1224,7 +1284,12 @@ ovhFleets:
     # the fifth Machine 65 ms after the scale-up, still with offer advance-1. It
     # never matched the Advance-2, and the release rolled back on the
     # MachineDeployment wait (2026-11-04).
-    replicas: 5
+    #
+    # The sixth box is temporary landing room for moving the region onto
+    # encrypted thin volumes: an Advance-1 (EPYC 4244P, 4x960 GB NVMe, order
+    # 9501675), sized to take a whole host's instances while that host is
+    # reinstalled as lvm-v1. It is retired once every host is converted.
+    replicas: 6
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -1244,7 +1309,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 3
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1264,7 +1329,7 @@ ovhFleets:
   # answered from Virginia.
   ap-southeast:
     enabled: true
-    replicas: 1
+    replicas: 2
     # The endpoint names the OVHcloud entity holding the account, not the box's
     # geography — APAC datacenters bill under the US subsidiary, the same way
     # ca-east's Quebec box does. Every OVH fleet must share one endpoint:
@@ -1275,12 +1340,11 @@ ovhFleets:
     nodePool: kura-ap-southeast
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-ap-southeast
-      # Matched case-insensitively as a substring of the box's commercialRange,
-      # which OVH's 2026 range spells with a CPU suffix rather than a year. A
-      # value matching nothing adopts nothing, silently, so this is the range
-      # string verbatim — and in full, so a differently specced Advance-2 cannot
-      # land in this pool by accident.
-      offer: "ADVANCE-2 | AMD EPYC 4344P"
+      # Substring of the box's commercialRange, matched case-insensitively, so
+      # this adopts the Advance-2 box and the Advance-1 box added for the thin
+      # LVM conversion alike, as us-east does. The displayName prefix, set only
+      # by the pool prep, is what keeps other boxes out of the pool.
+      offer: advance
       # Prefix-matched, so this claims a box in any sgp* datacenter.
       datacenter: sgp
       os: ubuntu_24.04
@@ -1348,6 +1412,11 @@ ovhFleets:
     # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
     # concurrent 16 vCPU jobs.
     replicas: 10
+    # A fresh join installs this kubelet minor; from v1.36 the Kata host also
+    # runs the pod-level resource managers. Keep it at or below the control
+    # plane's version. OnDelete: the box only moves when its Machine is deleted
+    # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    kubernetesVersion: "v1.36.6"
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -1642,7 +1711,7 @@ rackFleet:
   # than spilling over.
   #
   # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the fleet allocator. A 16 vCPU
+  # and the `ber1` smoke pool share through the compute allocator. A 16 vCPU
   # profile's guest takes a whole host, so that shape's ceiling is the host
   # count.
   #
@@ -1651,13 +1720,20 @@ rackFleet:
   # median 20 to 26 s on the rack. The server sizes each pool's floor to the
   # burst its jobs arrive in and keeps it while the pool has had a job in the
   # last day (`Tuist.Runners.LearnedWarmFloors`). What is set here is only
-  # the cap on that floor, which is what it costs: up to three idle guests
+  # the cap on that floor, which is what it costs: up to eight idle guests
   # per image, one host for the 16 vCPU shape. The floor yields to every
   # pool's queued jobs (infra/runners-controller/AGENTS.md), so the cap is
-  # the most a pool keeps idle while the rack has room.
+  # the most a pool keeps idle while the rack has room. It is one value for
+  # every image rather than one per image, so it does not need moving as
+  # customers move between Xcodes. At three, 27.1's 10-job fan-outs left
+  # 9 to 23% of its jobs a day over the 10 s queue-time target in the week
+  # to 2026-11-13; eight covers the p90 burst of every image but 27.1's 11
+  # (raised below) and 26.3's nightly 12, and the in-use pools are funded
+  # first when floors sum past the rack's seats.
   #
-  # 26.6 also keeps one runner whatever its history, since a new account's
-  # first job lands there and `tuist-macos` resolves there.
+  # 26.6 and 27.2 also keep one runner each whatever their history.
+  # `tuist-macos` resolves to 26.6 for the accounts created before 27.2
+  # became the catalog default, and a new account's first job lands on 27.2.
   #
   runners:
     enabled: true
@@ -1673,14 +1749,30 @@ rackFleet:
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
-      maxLearnedWarmPoolFloor: 3
+      maxLearnedWarmPoolFloor: 8
       maxReplicas: 32
     xcodeOverrides:
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxLearnedWarmPoolFloor: 3
+          maxLearnedWarmPoolFloor: 8
+          maxReplicas: 32
+      "27.2":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxLearnedWarmPoolFloor: 8
+          maxReplicas: 32
+      # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
+      # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
+      # first while it is the most recently used pool, so on a full rack the
+      # extra three come out of other pools' idle floors, never their jobs.
+      "27.1":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxLearnedWarmPoolFloor: 11
           maxReplicas: 32
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
@@ -1766,8 +1858,9 @@ rackLinuxFleet:
       nodeTaints:
         - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
   # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its hosts set `site:
-  # larch`; none is declared until primeLine's unit sheets give their UUIDs and
-  # TPM check codes.
+  # larch`. Each is declared once racked with its real TPM check code, read on
+  # the box: primeLine's unit sheets give e3b0-c442-98fc-1c14, the SHA-256 of
+  # empty input, which is no TPM's.
   sites:
     larch:
       roles:
@@ -1818,6 +1911,15 @@ rackLinuxFleet:
       # Reinstalled so it registers with its pool and machines-address labels.
       reinstallGeneration: 1
       amt: {activate: true}
+    # Rack 2 (larch). The ASUS RS501A benched on 25 Oct 2026 (S/N
+    # TAS0CG000177), which holds the production preinstall image (6 Nov
+    # handover), racked on 11 Nov. Its check code is the SHA-256 of the TPM
+    # endorsement key it announced to staging on 25 Oct, as in #14724.
+    - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
+      hostname: larch-edge-a
+      role: edge
+      site: larch
+      tpmCheckCode: 921d-3fe4-7a7b-a3ea
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
@@ -1906,7 +2008,7 @@ macosFleet:
   controlPlane:
     host: api.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private
-  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # Network the retired kura-scw-fr-par cache node used, so
   # the CAPI operator resolves each host's VLAN and bootstrap
   # materializes the VLAN interface + VM egress pass + NAT. Dispatch
   # hands the Mac fleet the node-port endpoint because
@@ -2114,6 +2216,7 @@ runnersFleet:
         runnerCacheVolumeGiB: 512
   networkPolicy:
     enabled: true
+    rustfsNamespace: rustfs-production
     exceptCIDRs:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
@@ -2154,7 +2257,7 @@ runnersFleet:
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
   # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the fleet's GUEST-slot budget
+  # compute allocator, which apportions the fleet's GUEST-slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; `maxReplicas: 16` lets either pool absorb the whole
@@ -2177,14 +2280,13 @@ runnersFleet:
   # without a floor. Images with jobs in fewer hours (27.1 in 9, the 16 vCPU
   # pools, older Xcodes) sit cold so an unused runner doesn't tie up a host.
   #
-  # The default (26.6) keeps one although it had a job in only 3 of those
-  # hours, since a new account's first job lands there and `tuist-macos`
-  # resolves there. That resolution goes through each account's
-  # protected `macos` profile, which stores `xcode_version` at account
-  # creation — so bumping the catalog default only redirects new
-  # accounts. Move existing accounts' profile in the same change, or
-  # their traffic stays on the old pool while the floor warms an idle
-  # one. Revisit once we open the runners to general signups where the
+  # 26.6 keeps one although it had a job in only 3 of those hours, since
+  # it was the default until 2026-11-16 and `tuist-macos` still resolves
+  # there for existing accounts. That resolution goes through each
+  # account's protected `macos` profile, which stores `xcode_version` at
+  # account creation, so moving the catalog default to 27.2 only
+  # redirected new accounts; existing profiles were deliberately left on
+  # 26.6, and the floor stays with their traffic. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
     "27.3-beta":
@@ -2250,7 +2352,7 @@ runnersFleet:
   # and Helm never warns.
   #
   # It autoscales from zero so it shares the rack's guest slots with the
-  # catalog's rack pools through the fleet allocator, which only counts
+  # catalog's rack pools through the compute allocator, which only counts
   # autoscaling pools: a fixed count would hold slots the allocator believes
   # free. Thirty-two is every guest slot in the rack, so a load run still reaches
   # all of them when nothing else is running.
@@ -2289,17 +2391,16 @@ runnersFleet:
 #
 # Shares the `tuist-pool-` host pool with macosFleet and runnersFleet.
 #
-# The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
-# to a new macOS release" in vm-image-builder.md. The two Tahoe builders
-# keep their own os pin and the `vm-image-builder` label, and run the
-# Layer 1, xcresult processor and opt-in standalone builds. Machines
-# created from here on adopt a Golden Gates host and register with
-# `macos-27`, so they take a release's stacked builds, one at a time
-# each. Three macOS 27 builders run a release's nine stacked builds in
-# three rounds.
+# Every builder runs macOS 27 (Golden Gates) and registers with
+# `macos-27`, so it takes a release's stacked builds, one at a time
+# each: three run a release's nine stacked builds in three rounds. The
+# Layer 1, xcresult processor and opt-in standalone builds select
+# `vm-image-builder`, which is added by hand to these runners in the
+# org's Actions settings (vm-image-builder.md). They boot Tahoe guests,
+# which a macOS 27 host runs, so no builder needs a Tahoe host.
 buildersFleet:
   enabled: true
-  replicas: 5
+  replicas: 3
   adoptPoolPrefix: "tuist-pool-"
   ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
   machine:
@@ -2317,6 +2418,10 @@ buildersFleet:
 sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
+  # Keep 20 remote execution slots ready across the 10 workers (about two
+  # each, 9 GiB per worker) through the compute allocator. Queued CI jobs
+  # still outrank it.
+  remoteExecutionFloorSlots: 20
   image:
     tag: "sha-1949e6dfc6f9"
   templateImage:
@@ -2328,21 +2433,74 @@ sandboxes:
       operator: Equal
       value: bare-metal
       effect: NoSchedule
-  maxMemoryGiB: 32
-  diskGiB: 200
-  archiveAfterHours: 24
+  maxMemoryGiB: 48
+  # Below the chart's 24 while guarantees first take CPU from CI: the
+  # daemon's request grows to the floor plus its sandboxes' guarantees, into
+  # free CPU and idle warm runners' CPU (which the runners-controller
+  # retires, never one with a job), at most 8 cores per node. Raise it
+  # toward 24 once runner retirements for sandboxes and runner queue age
+  # stay acceptable.
+  maxCpu: "8"
+  # What the daemons were started with, so raising maxCpu (read by the
+  # server) restarts none of them.
+  daemonMaxCpu: "250m"
+  # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
+  # (about 38 GiB each) per node. The nodes have about 830 GiB.
+  diskGiB: 240
+  checkoutWorkspacesGiB: 20
+  # Paused Orbs otherwise pile up on their nodes over a working day; a resume
+  # after four hours cold boots from the archive instead.
+  archiveAfterHours: 4
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true
+    rustfsNamespace: rustfs-production
+  macos:
+    # Besides the default 26.6: the Xcode 27 minors, and 26.1.1, which
+    # customers' CI still runs. They rank first in the rack's golden budget
+    # above, so five of its seven images are these and every rack host has
+    # them.
+    xcodeVersions: ["26.1.1", "27.0", "27.1", "27.2"]
+    # A booted 8 vCPU / 8 GiB sandbox VM on the BER1 rack, where macOS
+    # sandboxes run. A create of that shape claims it and only adds its
+    # workspace volume, instead of the clone and boot that took 17 to 19 s on
+    # a host with room (template creates: p50 21 s, p90 27 s). It holds one of
+    # the rack's 26 VM slots and gives it up to CI like an idle warm runner.
+    warm:
+      enabled: true
+      fleetSelector: tuist-tuist-rack-fleet
+      # Only the 8 GiB shape, the default of Claude Code, Amp Orbs and (since
+      # 2026-11-13) the tuist-mac plugin. A create claims only its own shape.
+      # Larger shapes are asked for explicitly, about five independent
+      # creates a day on 2026-11-13; add them here if that grows. On a
+      # 16 vCPU / 48 GiB rack host any warm VM takes one of its two 8 vCPU
+      # slots, so a larger shape costs CI no more, only disk.
+      memoryMB: [8192]
+      minWarmPoolFloor: 1
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
+  # Exclusive-CPU Pods' host cgroup is their budget plus podFixed, so it must
+  # cover Kata's 2 GiB guest base plus QEMU's page tables and slab. Raised
+  # ahead of turning exclusive CPUs back on, one shape at a time. Exclusive
+  # pools run under a kata-qemu-<size> RuntimeClass that adds
+  # exclusivePodFixedMemoryPercent of the budget to this (see values.yaml).
+  podFixed:
+    memory: "3584Mi"
 
 runnersController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
+  # The chart's 256Mi default OOM-killed the manager in a loop (peak working
+  # set 258 MB on 2026-11-19). Each restart leaves every macOS host's sandbox
+  # grant stale past the server's 15 s window, so no Mac sandbox can be placed.
+  resources:
+    requests:
+      memory: 256Mi
+    limits:
+      memory: 1Gi
   features:
     dindImage: true
     registryMirror: true
@@ -2375,16 +2533,40 @@ runnersFleetLinux:
       # The fleet's /data is 889 GB, shared with containerd and kubelet, which
       # evict Pods below 15% free (about 133 GB). With images collected after a
       # day, everything else peaked near 330 GB, so 350 GB keeps about 200 GB
-      # free at peak. Existing hosts keep their image until they are rebuilt
-      # (cache-volumes.md, "Changing the cache size").
+      # free at peak. Existing images keep their size until an operator grows
+      # them online (cache-volumes.md, "Changing the cache size").
       sizeGB: 350
     # Every Linux pool runs the dind supervisor; the per-account
     # `:runner_docker_cache` flag decides who gets an image cache. Turning this off
     # returns every Linux Pod to the plain dockerd sidecar.
     dockerCache:
       enabled: true
+    # Hosts serve the GitHub Actions cache from the gra shard store only to
+    # accounts with the `:runner_actions_cache` flag; every other job keeps
+    # GitHub's cache. Turning this off returns every job to GitHub's cache.
+    # New entries go to the RustFS store, so hosts gate on its private endpoint.
+    actionsCache:
+      enabled: true
+      store: http://rustfs-s3.rustfs-production.svc.cluster.local:9000
   name: runners-linux
-  pools: []
+  # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet. It
+  # injects the device only into Pods the controller annotates, which it does
+  # only for exclusive-CPU pools; odd shapes keep the device plugin.
+  nestedVirtualization:
+    nri:
+      enabled: true
+  # Off by default since 2026-11-17, when the Pod-level limit plus the then
+  # 2560Mi podFixed capped each VM's host cgroup at its guest RAM plus 512 MiB,
+  # and the host OOM killer stopped full guests mid-job (GitHub's "runner lost
+  # communication"). Shapes come back one at a time with `exclusiveCPUs: true`
+  # once the runners-vm-memory-probe workflow passes on them, under a
+  # kata-qemu-<size> RuntimeClass whose podFixed grows with the guest:
+  # 8vcpu-32gb, 16vcpu-32gb and 16vcpu-64gb since 2026-11-19.
+  # Turning it back on rolls idle Pods; never restart the kubelet on a host
+  # running exclusive Pods: it leaks their cores (kubernetes/kubernetes#140989,
+  # see infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+  exclusiveCPUs:
+    defaultEnabled: false
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
@@ -2415,8 +2597,8 @@ runnersFleetLinux:
     # Default shape: all `tuist-default` + `linux` default-profile
     # (`tuist-linux`) traffic lands here, so it carries the fleet's warm
     # floor. Sized against RAM, not slots: request == limit == the
-    # advertised shape, so the floor reserves `floor * 10.5 GiB` (8 GiB
-    # + the kata RuntimeClass's 2.5 GiB podFixed) on the fleet whether or
+    # advertised shape, so the floor reserves `floor * 11.5 GiB` (8 GiB
+    # + the kata RuntimeClass's 3.5 GiB podFixed) on the fleet whether or
     # not those Pods ever touch it. At 30 it reserved 315 GiB and left no
     # 16 GiB hole, so `4vcpu-16gb` could not place a single Pod while
     # running well under a third of the fleet's real memory.
@@ -2443,17 +2625,24 @@ runnersFleetLinux:
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
-    # Each idle 32 GiB runner reserves 34.5 GiB with the kata overhead.
+    # Exclusive CPUs again since 2026-11-19, under kata-qemu-32g (5120Mi
+    # podFixed), so each idle 32 GiB runner reserves 37 GiB.
     - vcpus: 8
       memoryGb: 32
+      exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
+    # Exclusive CPUs since 2026-11-19, under kata-qemu-32g (5120Mi podFixed),
+    # so each Pod reserves 37 GiB instead of 35.5 GiB.
     - vcpus: 16
       memoryGb: 32
+      exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
-    # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
-    # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
+    # Ceiling shape, production-only. On exclusive CPUs since 2026-11-19, under
+    # kata-qemu-64g, whose 6400Mi podFixed makes 70.25 GiB per Pod (67.5 GiB
+    # with the 3.5 GiB kata podFixed the figures below were written for). That
+    # still seats 1 to a RISE-L. At 67.5 GiB it seated 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
     # (16c/32t, 128 GB — see ovhFleets.runners-linux above), so the shape
     # survives the migration but stops being a small slice of a host.
@@ -2479,21 +2668,32 @@ runnersFleetLinux:
     # CPU does not. This rung is bought for memory and priced for it.
     #
     # Warm floor 1, unlike every other long-tail shape. This Pod needs a
-    # contiguous 16,250m / 66.5 GiB, which is 52% of a RISE-L's CPU and
-    # 57% of its memory, so at floor 0 each arrival waits for that hole
+    # contiguous 16,250m / 67.5 GiB, which is 52% of a RISE-L's CPU and
+    # 58% of its memory, so at floor 0 each arrival waits for that hole
     # to be manufactured by draining a host. The drain cannot converge
     # here: `reservationTimeout` is 15m and the `16vcpu-32gb` jobs it
     # queues behind run a p50 of 28m, so the reservation expires and the
     # node then rests for `reservationCooldown`. Production 2026-09-11
     # spent 36 minutes queued that way with the fleet at 88% committed
     # and the account 96 GB under its own limit. Holding one Pod costs
-    # the same 66.5 GiB continuously and removes both the cold start and
+    # the same 67.5 GiB continuously and removes both the cold start and
     # the drain, against ~4 jobs/day at a 46-minute median.
+    #
+    # Raised to 3 when the pool also took PR matrices that enqueue two jobs
+    # at once, 70 to 80 a day with up to six running together (2026-11-18).
+    # One warm Pod served the first job of each pair; the second waited on a
+    # seat no host could give, at a p90 of 147 s. Replaying that day, 3 warm
+    # Pods hold a 2 s p90 even when a replacement Pod needs a 3-minute drain.
+    # The minimum counts busy Pods too, so the learned floor (2 for these
+    # pairs) is what keeps idle Pods ahead of load during a burst. Each Pod
+    # holds one of the fleet's ten 16 vCPU seats, which `16vcpu-32gb`
+    # shares; raise this as the fleet grows.
     - vcpus: 16
       memoryGb: 64
+      exclusiveCPUs: true
       autoscaling:
-        minWarmPoolFloor: 1
-        maxLearnedWarmPoolFloor: 1
+        minWarmPoolFloor: 3
+        maxLearnedWarmPoolFloor: 3
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
@@ -2504,3 +2704,12 @@ redis:
 ampOrbProvider:
   enabled: true
   url: https://tuist.dev
+
+# A copy of every error from the server's web instances and Kura to Pulse,
+# beside Atlas, to compare the two (sentryPulse in values.yaml). Needs
+# PULSE_SENTRY_WRITER/password in this vault and production in the Pulse
+# chart's sentryWriter.environments.
+sentryPulse:
+  services:
+    server: true
+    kura: true

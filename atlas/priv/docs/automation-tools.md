@@ -87,6 +87,49 @@ hidden from shared Slack identities, are never mounted in Pip threads or
 workflows, and their queries are not stored in the audit trail. Gmail tools need
 **Allow Gmail access**; Slack search uses the `search:read` user scope.
 
+When Gmail refuses a request, the error says why. An expired or revoked grant
+asks you to reconnect; Atlas first refreshes a rejected token once. A Google
+403, such as the Gmail API being disabled for Atlas's Google Cloud project or a
+Workspace policy, names Google's reason and needs an administrator, because
+reconnecting cannot fix it.
+
+`get_my_gmail_message` also lists the message's attachments, each with a
+`part_id`. `save_my_gmail_attachment` copies one of them into the document
+library and returns its `document_id`, for example to attach a receipt to a
+finance transaction with `finance_add_transaction_attachment`. The saved
+document is visible to everyone with document access, so this tool also needs
+the `documents:write` scope, and it is processed like any other upload.
+
+## Prepare and send Gmail drafts
+
+Choose **Allow Gmail drafts** in Settings → Connections to grant the separate
+[`gmail.compose`](https://developers.google.com/workspace/gmail/api/auth/scopes)
+scope. It is opt-in, like Gmail access, and the two consents are kept together
+when you reconnect. MCP clients then get four caller-only tools:
+
+- `create_my_gmail_draft` creates a draft from `to`, optional `cc`,
+  `subject` and `body`. Set `body_format` to `markdown` or `html` for rich text,
+  including links, lists and emphasis. Omit it for plain text. Atlas writes rich
+  drafts with HTML and a plain-text alternative. Recipients are plain email addresses. An optional
+  `reply_to_message_id` (from `search_my_gmail`) files the draft in that thread
+  and sets `In-Reply-To` and `References`; it also needs Gmail access.
+- `get_my_gmail_draft` reads a draft by `draft_id`: recipients, subject, reply
+  headers, attachment names, a plain-text body and `body_html` source, each body
+  bounded to 20,000 characters.
+- `update_my_gmail_draft` replaces a draft's recipients, subject and body. It
+  keeps the draft's thread unless you pass a new `reply_to_message_id`. Pass
+  `body_format` on each replacement; omitting it replaces the body with plain text.
+- `send_my_gmail_draft` sends the current draft immediately, including its
+  recipients, body and attachments. Your MCP client handles confirmation;
+  Atlas does not ask for a separate approval. If Gmail does not confirm the
+  send, check the Sent folder with `search_my_gmail` (`in:sent`) before retrying,
+  because Gmail may already have sent the message.
+
+Like the read tools, these are hidden from shared Slack identities and never
+mounted in Pip threads or workflows. Sending only works over your own Atlas MCP
+session. Atlas stores no draft content: tool audits omit arguments, and send
+audit events keep only the draft ID, Gmail message ID and recipient count.
+
 ## Monitor personal Gmail and Slack
 
 Connect your personal account in Settings → Connections. For Gmail, choose
@@ -111,7 +154,7 @@ Optional `subjects` and `topics` arrays attach stable account/service identifier
 and expertise tags for the same business-profile routing used by signed events.
 Enable the source explicitly after configuring its pinned policy. Gmail needs
 the [read-only Gmail scope](https://developers.google.com/workspace/gmail/api/auth/scopes);
-no sending, mailbox writes or attachments are supported.
+monitors never write to the mailbox or read attachments.
 
 Polls begin at source creation, with a short overlap for delayed search indexing;
 they do not scan older mailbox history. Pages checkpoint durably with admission,

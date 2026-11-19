@@ -1274,6 +1274,38 @@ func (b *LocalImages) ColdReason(slot Slot) string {
 	return string(data)
 }
 
+// ErrNoMaster is CloneMaster's answer when this host holds no master of the
+// identity, and ErrInvalidMaster when the identity names no saved head.
+var (
+	ErrNoMaster      = errors.New("no local master")
+	ErrInvalidMaster = errors.New("invalid master identity")
+)
+
+// CloneMaster reflinks the immutable master of a saved head to dst, under the
+// scope lock that eviction takes too. dst must be on this filesystem and not
+// exist. It never fetches: a host without the master answers ErrNoMaster.
+func (b *LocalImages) CloneMaster(ctx context.Context, identity Identity, dst string) error {
+	if identity.BaseGeneration <= 0 || !validHead(identity) || !scopePattern.MatchString(identity.Scope) {
+		return ErrInvalidMaster
+	}
+	unlock, err := b.lockContext(ctx, identity.Scope)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	master := b.master(Slot{Identity: identity})
+	if _, err := os.Stat(master); os.IsNotExist(err) {
+		return ErrNoMaster
+	} else if err != nil {
+		return err
+	}
+	if err := b.cloneContext(ctx, master, dst); err != nil {
+		return err
+	}
+	markUsed(master)
+	return nil
+}
+
 // HasMaster reports whether the immutable master a warm identity clones from is
 // already on this host.
 func (b *LocalImages) HasMaster(identity Identity) bool {

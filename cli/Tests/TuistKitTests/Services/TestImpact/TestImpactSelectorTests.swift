@@ -13,25 +13,24 @@ struct TestImpactSelectorTests {
     private let gitController = MockGitControlling()
     private let resolveBaselineService = MockResolveTestImpactBaselineServicing()
     private let createRunService = MockCreateTestImpactRunServicing()
+    private let gitHistoryService = MockGitHistoryServicing()
     private let repository = try! AbsolutePath(validating: "/repo")
     private let serverURL = URL(string: "https://tuist.dev")!
     private let subject: TestImpactSelector
 
     init() {
-        subject = TestImpactSelector(
-            invocation: TestImpactSelector.Invocation(
-                fullHandle: "acme/shop",
-                serverURL: serverURL,
-                path: repository.appending(component: "App"),
-                scheme: "Shop",
-                testPlan: nil,
-                destination: "platform=iOS Simulator,name=iPhone 17",
-                platform: .iOS
-            ),
+        subject = Self.selector(
             gitController: gitController,
             resolveBaselineService: resolveBaselineService,
-            createRunService: createRunService
+            createRunService: createRunService,
+            gitHistoryService: gitHistoryService,
+            repository: repository,
+            serverURL: serverURL,
+            reportsWithoutCredentials: false
         )
+        given(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
+            .willReturn(nil)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(repository)
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
@@ -92,8 +91,8 @@ struct TestImpactSelectorTests {
             fullHandle: .value("acme/shop"),
             serverURL: .value(serverURL),
             request: .value(TestImpactRunRequest(
-                headSHA: "head",
-                commitSHA: "merge",
+                headSHA: "merge",
+                commitSHA: nil,
                 parentSHAs: ["main-tip", "head"],
                 basis: .baseline(
                     sha: "baseline",
@@ -122,6 +121,72 @@ struct TestImpactSelectorTests {
         verify(gitController).ancestorSHAs(workingDirectory: .any, limit: .any).called(0)
     }
 
+    @Test func publishes_the_history_of_the_reported_commit_before_asking_for_a_baseline() async throws {
+        givenPullRequestCheckout()
+        final class Calls {
+            var names: [String] = []
+        }
+        let calls = Calls()
+        gitHistoryService.reset()
+        given(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
+            .willProduce { _, _, _, _, _ in
+                calls.names.append("publish")
+                return nil
+            }
+        given(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).willProduce { _, _, _, _, _, _, _, _, _ in
+            calls.names.append("baseline")
+            return .baseline(sha: "baseline", diffCached: true)
+        }
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
+
+        _ = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
+
+        #expect(calls.names == ["publish", "baseline"])
+        // The merge commit `gitInfo` reports, from the repository's top level, where the run's
+        // report reads the history too.
+        verify(gitHistoryService).publish(
+            gitInfo: .matching { $0.sha == "merge" },
+            workingDirectory: .value(repository),
+            fullHandle: .value("acme/shop"),
+            serverURL: .value(serverURL),
+            coverage: .value(true)
+        ).called(1)
+        verify(resolveBaselineService).resolveTestImpactBaseline(
+            fullHandle: .any, serverURL: .any, commitSHA: .value("merge"), parentSHAs: .value(["main-tip", "head"]),
+            ancestorSHAs: .value([]),
+            platform: .any, scheme: .any, testPlan: .any, destination: .any
+        ).called(1)
+        verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(0)
+    }
+
+    @Test func publishes_no_history_when_the_run_reports_without_credentials() async throws {
+        let subject = Self.selector(
+            gitController: gitController,
+            resolveBaselineService: resolveBaselineService,
+            createRunService: createRunService,
+            gitHistoryService: gitHistoryService,
+            repository: repository,
+            serverURL: serverURL,
+            reportsWithoutCredentials: true
+        )
+        givenPullRequestCheckout()
+        givenBaseline(.baseline(sha: "baseline", diffCached: true))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.fallback(runID: "run", reason: .trackedFileChanged, matchedPath: "Package.resolved"))
+
+        _ = await subject.decide(modules: ["CoreTests"], skippedModules: [], platform: "ios") { _ in [] }
+
+        verify(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
+            .called(0)
+        verify(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any).called(1)
+    }
+
     @Test func reuses_the_diff_the_server_has() async throws {
         givenPullRequestCheckout()
         givenBaseline(.baseline(sha: "baseline", diffCached: true))
@@ -141,6 +206,8 @@ struct TestImpactSelectorTests {
         ).called(1)
     }
 
+    /// What happens when the history the selector published didn't reach the server: the upload failed,
+    /// or `TUIST_GIT_UPLOAD_ENABLED=false` turned it off.
     @Test func deepens_once_and_asks_again_with_the_ancestors_when_the_server_doesnt_know_the_history() async throws {
         givenPullRequestCheckout()
         final class Requests {
@@ -412,12 +479,41 @@ struct TestImpactSelectorTests {
         #expect(XcodeGraph.Platform(xcodebuildDestination: "id=1234") == nil)
     }
 
+    // swiftlint:disable:next function_parameter_count
+    private static func selector(
+        gitController: MockGitControlling,
+        resolveBaselineService: MockResolveTestImpactBaselineServicing,
+        createRunService: MockCreateTestImpactRunServicing,
+        gitHistoryService: MockGitHistoryServicing,
+        repository: AbsolutePath,
+        serverURL: URL,
+        reportsWithoutCredentials: Bool
+    ) -> TestImpactSelector {
+        TestImpactSelector(
+            invocation: TestImpactSelector.Invocation(
+                fullHandle: "acme/shop",
+                serverURL: serverURL,
+                path: repository.appending(component: "App"),
+                scheme: "Shop",
+                testPlan: nil,
+                destination: "platform=iOS Simulator,name=iPhone 17",
+                platform: .iOS,
+                coverage: true
+            ),
+            gitController: gitController,
+            resolveBaselineService: resolveBaselineService,
+            createRunService: createRunService,
+            gitHistoryService: gitHistoryService,
+            reportsWithoutCredentials: { _ in reportsWithoutCredentials }
+        )
+    }
+
     /// A pull request's merge commit, as GitHub Actions checks it out.
     private func givenPullRequestCheckout() {
         given(gitController).gitInfo(workingDirectory: .any).willReturn(.test(
             ref: "refs/pull/7/merge",
             branch: "feature",
-            sha: "head",
+            sha: "merge",
             baseBranch: "main",
             pullRequestNumber: 7
         ))

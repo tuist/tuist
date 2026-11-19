@@ -4,7 +4,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeRuntime do
   orchestrator (`infra/claude-code-runners`): a ServiceAccount whose projected
   token, of audience `tuist-claude-code-runners`, identifies the environment to
   `TuistWeb.ClaudeCodeRunnersController`, a Secret with the environment secret,
-  and a single-replica Deployment. It lives in the Amp provider namespace.
+  and a Deployment of two orchestrator replicas. It lives in the Amp provider
+  namespace.
   """
   alias Tuist.Kubernetes.Client
 
@@ -46,11 +47,20 @@ defmodule Tuist.Sandboxes.ClaudeCodeRuntime do
         "kind" => "Deployment",
         "metadata" => metadata,
         "spec" => %{
-          "replicas" => 1,
+          # An orchestrator polls Anthropic for spawn requests every 5 s (with
+          # 20% jitter, not configurable), and Anthropic hands each request to
+          # the first replica that polls: with two, a session's request
+          # reaches Tuist after about 1.7 s on average instead of 2.5 s.
+          "replicas" => 2,
           "strategy" => %{"type" => "Recreate"},
           "selector" => %{"matchLabels" => %{"app" => name}},
           "template" => %{
-            "metadata" => %{"labels" => Map.put(labels, "app", name)},
+            "metadata" => %{
+              "labels" => Map.put(labels, "app", name),
+              # The orchestrator's /metrics: queue wait, hook durations and
+              # queue counts, with no session or account labels.
+              "annotations" => %{"prometheus.io/scrape" => "true", "prometheus.io/port" => "8080"}
+            },
             "spec" => %{
               "serviceAccountName" => name,
               "automountServiceAccountToken" => false,
@@ -77,6 +87,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRuntime do
                     %{"name" => "TUIST_URL", "value" => config.url},
                     %{"name" => "TUIST_WORKLOAD_TOKEN_FILE", "value" => "/identity/token"}
                   ],
+                  "ports" => [%{"name" => "metrics", "containerPort" => 8080}],
                   "resources" => %{
                     "requests" => %{"cpu" => "100m", "memory" => "256Mi"},
                     "limits" => %{"memory" => "1Gi"}

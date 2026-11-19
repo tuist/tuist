@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
@@ -28,8 +29,14 @@ type Accounter struct {
 	TemplatesDir string
 	SnapshotsDir string
 	JailDir      string
-	BudgetBytes  uint64
-	Exclusive    Exclusive
+	// BlobCacheDir is node-wide like the templates and counted with them.
+	BlobCacheDir string
+	// CheckoutsDir holds the prepared checkout workspaces, node-wide too.
+	CheckoutsDir string
+	// CacheImagesDir holds runner-cache masters copied for cache drives.
+	CacheImagesDir string
+	BudgetBytes    uint64
+	Exclusive      Exclusive
 }
 
 type inode struct {
@@ -53,25 +60,56 @@ func (a Accounter) Report() (protocol.DiskReport, error) {
 		exclusive = exclusiveBytes
 	}
 	seen := map[inode]struct{}{}
-	templates, err := sum(a.TemplatesDir, seen, exclusive)
+	templates, err := sum(a.TemplatesDir, seen, exclusive, nil)
 	if err != nil {
 		return report, err
 	}
-	snapshots, err := sum(a.SnapshotsDir, seen, exclusive)
+	snapshots, err := sum(a.SnapshotsDir, seen, exclusive, nil)
 	if err != nil {
 		return report, err
 	}
-	sandboxes, err := sum(a.JailDir, seen, exclusive)
+	report.Jails = map[string]uint64{}
+	sandboxes, err := sum(a.JailDir, seen, exclusive, func(path string, bytes uint64) {
+		if id := jailID(a.JailDir, path); id != "" {
+			report.Jails[id] += bytes
+		}
+	})
 	if err != nil {
 		return report, err
 	}
-	report.TemplatesBytes = templates
+	blobs, err := sum(a.BlobCacheDir, seen, exclusive, nil)
+	if err != nil {
+		return report, err
+	}
+	checkouts, err := sum(a.CheckoutsDir, seen, exclusive, nil)
+	if err != nil {
+		return report, err
+	}
+	cacheImages, err := sum(a.CacheImagesDir, seen, exclusive, nil)
+	if err != nil {
+		return report, err
+	}
+	report.TemplatesBytes = templates + blobs + checkouts + cacheImages
 	report.SnapshotsBytes = snapshots
 	report.SandboxesBytes = sandboxes
 	return report, nil
 }
 
-func sum(root string, seen map[inode]struct{}, exclusive Exclusive) (uint64, error) {
+// jailID names the sandbox a file under the jail directory belongs to: the
+// jailer keeps each one under firecracker/<id>.
+func jailID(jailDir, path string) string {
+	rel, err := filepath.Rel(filepath.Join(jailDir, "firecracker"), path)
+	if err != nil {
+		return ""
+	}
+	id, _, found := strings.Cut(filepath.ToSlash(rel), "/")
+	if !found || id == ".." {
+		return ""
+	}
+	return id
+}
+
+func sum(root string, seen map[inode]struct{}, exclusive Exclusive, each func(path string, bytes uint64)) (uint64, error) {
 	var total uint64
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -107,6 +145,9 @@ func sum(root string, seen map[inode]struct{}, exclusive Exclusive) (uint64, err
 			return err
 		}
 		total += bytes
+		if each != nil {
+			each(path, bytes)
+		}
 		return nil
 	})
 	if errors.Is(err, fs.ErrNotExist) {

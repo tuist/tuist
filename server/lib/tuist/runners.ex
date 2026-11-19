@@ -107,6 +107,7 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.AirShare
   alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
@@ -118,6 +119,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.LearnedWarmFloors
+  alias Tuist.Runners.MacosSandboxWarmPools
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -682,9 +684,19 @@ defmodule Tuist.Runners do
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
     * `learned_warm_floor` — the burst this fleet's jobs arrive in, or 0
-      when it had no job in the last day (`LearnedWarmFloors`). The
-      controller keeps up to that many runners idle above load, capped per
-      pool by `maxLearnedWarmPoolFloor`.
+      when it had no job in the last day (`LearnedWarmFloors`), capped at
+      the jobs the accounts that ran on it in the last 14 days can still
+      claim under their concurrency limits. The controller keeps up to
+      that many runners idle above load, capped per pool by
+      `maxLearnedWarmPoolFloor`.
+    * `cold_jobs` — how many of this fleet's jobs of the last 14 days
+      arrived with another of its jobs in the 30 s before them, the jobs
+      one warm runner does not cover, or 0 when it had no job in the last
+      day (`LearnedWarmFloors`). The controller funds warm floors on a full
+      fleet most cold jobs first.
+    * `hours_with_jobs` — how many hours of the last 14 days had one of
+      this fleet's jobs, or 0 when it had no job in the last day
+      (`LearnedWarmFloors`). Breaks ties between equal `cold_jobs`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -703,16 +715,52 @@ defmodule Tuist.Runners do
     occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
     {queued, withheld} = dispatchable_queued_count(fleet_name)
 
-    %{
-      fleet: fleet_name,
-      claimed: claimed,
-      occupied: occupied,
-      queued: queued,
-      withheld: withheld,
-      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
-      learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
-      preferred_nodes: preferred_nodes(fleet_name)
-    }
+    Map.merge(
+      %{
+        fleet: fleet_name,
+        claimed: claimed,
+        occupied: occupied,
+        queued: queued,
+        withheld: withheld,
+        p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+        learned_warm_floor: claimable_learned_warm_floor(fleet_name),
+        hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
+        cold_jobs: LearnedWarmFloors.cold_jobs(fleet_name),
+        preferred_nodes: preferred_nodes(fleet_name)
+      },
+      macos_sandbox_warm_signals(fleet_name)
+    )
+  end
+
+  # Warm runners beyond what the pool's accounts can claim go unused while
+  # they hold seats: on 2026-11-18 the internal-only 27.0 and 27.2 pools
+  # kept their learned floors while their one account sat at its limit, and
+  # outranked 27.1, whose customer bursts then booted cold. Headroom is
+  # account-wide, so an account using several pools counts in each of them.
+  defp claimable_learned_warm_floor(fleet_name) do
+    with floor when floor > 0 <- LearnedWarmFloors.for_fleet(fleet_name),
+         {:ok, resources} <- Catalog.resources_for_fleet(fleet_name) do
+      claimable =
+        fleet_name
+        |> LearnedWarmFloors.account_ids()
+        |> Concurrency.headroom_jobs_by_account(resources)
+        |> Map.values()
+        |> Enum.sum()
+
+      min(floor, claimable)
+    else
+      0 -> 0
+      {:error, _reason} -> LearnedWarmFloors.for_fleet(fleet_name)
+    end
+  end
+
+  # A warm macOS sandbox pool runs no job; its usage is the sandbox creates
+  # of its shape.
+  defp macos_sandbox_warm_signals(fleet_name) do
+    case MacosSandboxWarmPools.shape(fleet_name) do
+      nil -> %{}
+      shape -> MacosSandboxWarmPools.signals(shape)
+    end
   end
 
   # macOS Pods are placed before a job is assigned, so the queued jobs are the
@@ -759,11 +807,21 @@ defmodule Tuist.Runners do
       case Catalog.resources_for_fleet(fleet_name) do
         {:ok, resources} ->
           headrooms = Concurrency.headroom_jobs_by_account(Map.keys(queued_by_account), resources)
+          air_ids = AirShare.air_account_ids(Map.keys(queued_by_account))
 
-          dispatchable =
-            Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
-              acc + min(count, Map.get(headrooms, account_id, 0))
+          {paid, air} =
+            Enum.reduce(queued_by_account, {0, 0}, fn {account_id, count}, {paid, air} ->
+              jobs = min(count, Map.get(headrooms, account_id, 0))
+              if MapSet.member?(air_ids, account_id), do: {paid, air + jobs}, else: {paid + jobs, air}
             end)
+
+          # Air jobs past the Air fleet share are no more claimable than
+          # jobs past their account's own limit.
+          dispatchable =
+            case air do
+              0 -> paid
+              _ -> paid + capped(air, AirShare.remaining_jobs(resources))
+            end
 
           {dispatchable, raw - dispatchable}
 
@@ -779,6 +837,9 @@ defmodule Tuist.Runners do
 
     {dispatchable, withheld}
   end
+
+  defp capped(count, :unlimited), do: count
+  defp capped(count, remaining), do: min(count, remaining)
 
   @doc """
   Claims the next eligible queued job for the SA's fleet and mints the
@@ -984,6 +1045,19 @@ defmodule Tuist.Runners do
       sa: sa_name,
       account_id: candidate.account_id,
       reason: inspect({:concurrency_limit_reached, details})
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, {:air_fleet_share_reached, details}}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: Air accounts hold their fleet share; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id,
+      reason: inspect({:air_fleet_share_reached, details})
     )
 
     retry_claim_and_serve(context, :account)

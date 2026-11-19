@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -164,9 +165,13 @@ type KuraInstanceReconciler struct {
 	// account issues nothing against the ACME per-registered-domain limit.
 	PublicTLSSecretName string
 
-	OTLPTracesEndpoint  string
-	Environment         string
-	PrivateReplication  bool
+	OTLPTracesEndpoint string
+	Environment        string
+	PrivateReplication bool
+	// EgressTreeNodePools are the node pools infra/egress-tree-agent shapes.
+	// Pods scheduled there drop the Cilium egress-bandwidth annotation; see
+	// configurePodEgressBandwidth.
+	EgressTreeNodePools []string
 	RuntimeStatusClient RuntimeStatusClient
 	// NodeLocalRuntimeStatusClient samples the pods of instances with
 	// spec.nodeLocalNetwork, whose pod IPs the controller cannot reach.
@@ -2022,7 +2027,10 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 // would render as `location /build.bazel.remote.execution.v2./` plus an
 // exact `= /build.bazel.remote.execution.v2.`, and the method path (no `/`
 // after the package prefix) matches neither, falling through to the HTTP
-// `/` location. Verified against ingress-nginx v1.11.3.
+// `/` location. Verified against ingress-nginx v1.11.8 and v1.15.1. Since
+// v1.13.7 the controller escapes backslashes inside the quoted location
+// (`"^/build\\.bazel\\.remote\\.execution\\.v2\\."`), which nginx unescapes
+// to the same regex.
 //
 // The values must start with `/` (the Kubernetes Ingress API rejects a path
 // that does not begin with a slash); ingress-nginx adds the leading `^`
@@ -3488,9 +3496,15 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 			return err
 		}
 		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
+		disk, err := r.templateDiskReservation(ctx, instance, sts)
+		if err != nil {
+			return err
+		}
 		previousTemplate := sts.Spec.Template.DeepCopy()
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
+		setKuraDiskReservation(&sts.Spec.Template.Spec, instance, disk)
 		sts.Spec.Template.Spec.Tolerations = tolerations
+		configurePodEgressBandwidth(instance, &sts.Spec.Template, previousTemplate, r.EgressTreeNodePools)
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template, previousTemplate)
 		if err := r.configurePrivateReplication(ctx, instance, &sts.Spec.Template, previousTemplate); err != nil {
 			return err
@@ -3725,8 +3739,12 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 		if err != nil || !held {
 			return true, err
 		}
+		desiredDisk, err := r.templateDiskReservation(ctx, instance, sts)
+		if err != nil {
+			return true, err
+		}
 		request := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource)
-		if request.Cmp(diskReservation(instance)) != 0 {
+		if request.Cmp(desiredDisk) != 0 {
 			return true, r.applyStatefulSet(ctx, instance, true)
 		}
 	}
@@ -4699,6 +4717,41 @@ func egressClassPodAnnotation(instance *kurav1alpha1.KuraInstance) (string, bool
 	return string(encoded), true
 }
 
+// configurePodEgressBandwidth drops the Cilium egress-bandwidth annotation from
+// pods the egress-tree agent shapes. The agent's HTB class already enforces the
+// same ceiling (egressClassPodAnnotation carries it), and Cilium's per-pod pacing
+// on top of it stalls a busy cache: its EDT program keeps one departure time per
+// pod, every BBR-paced packet with a later timestamp moves it forward, and so the
+// slowest connection sets the departure time for all of them. A remote-execution build
+// measured input fetches at 23 s through one such pod and 1.1 s with only the
+// annotation removed. Pods elsewhere keep it, since there it is the only cap.
+//
+// Dropping it changes the template, so it lands only with a change that
+// restarts the pods anyway (a new StatefulSet or a new image) and stays dropped
+// once a template no longer carries it.
+func configurePodEgressBandwidth(instance *kurav1alpha1.KuraInstance, template, previous *corev1.PodTemplateSpec, egressTreePools []string) {
+	if _, ok := template.Annotations[egressBandwidthAnnotation]; !ok {
+		return
+	}
+	if _, ok := template.Annotations[egressClassAnnotation]; !ok {
+		return
+	}
+	if !slices.Contains(egressTreePools, template.Spec.NodeSelector[nodePoolLabel]) {
+		return
+	}
+	_, retained := previous.Annotations[egressBandwidthAnnotation]
+	imageChanged := false
+	for _, container := range previous.Spec.Containers {
+		if container.Name == kuraContainerName && container.Image != instance.Spec.Image {
+			imageChanged = true
+		}
+	}
+	if retained && !imageChanged {
+		return
+	}
+	delete(template.Annotations, egressBandwidthAnnotation)
+}
+
 // egressMbpsResource is the integer extended resource a shared bare-metal node
 // advertises as capacity (the CAPI provider patches it from the box's egress
 // budget) and a cache pod reserves as a request==limit. It lets the scheduler
@@ -4960,8 +5013,12 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 	return err
 }
 
+// nodePoolLabel names a node's Cluster API pool, which every instance's node
+// selector pins.
+const nodePoolLabel = "node.cluster.x-k8s.io/pool"
+
 func defaultNodeSelector() map[string]string {
-	return map[string]string{"node.cluster.x-k8s.io/pool": "kura"}
+	return map[string]string{nodePoolLabel: "kura"}
 }
 
 func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
@@ -5020,7 +5077,7 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 // sync with the pod's terminationGracePeriodSeconds, and bounded cache
 // budgets for the managed memory profile (see defaultResources). Other
 // resource-shaped knobs are derived from the pod's cgroup and rlimit
-// at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
+// at runtime startup. See kura/crates/kura-core/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
 	if environment == "" {
 		environment = "production"

@@ -55,39 +55,39 @@
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "cancelled"}
                 label={dgettext("dashboard_tests", "Cancelled")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "interrupted"}
                 label={dgettext("dashboard_tests", "Interrupted")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={status(@run) == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
                 color="neutral"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Once version")}</div>
+              <div data-part="title">{dgettext("dashboard_tests", "Struo version")}</div>
               <span data-part="value">
                 {@run.once_version || dgettext("dashboard_tests", "Unknown")}
               </span>

@@ -2,7 +2,7 @@
 
 ## Responsibilities
 - `LlmsTxt` builds and independently caches the `/llms.txt` index and `/llms-full.txt` documentation export from `Tuist.Docs.pages/1` for English only, which loads pages individually instead of rendering every locale. Keep exports English-only, deterministically ordered, and sourced from the same Markdown as individual docs endpoints.
-- `SEO` owns query-free canonical URLs and informational project-route classification. `RobotsTxt` advertises both marketing and public-project sitemaps; never treat crawler policy as authorization.
+- `SEO` owns query-free canonical URLs and informational project-route classification. `RobotsTxt` advertises the marketing sitemap only; do not advertise the project sitemap while it remains challenged pending visibility/SSO-safe caching. Never treat crawler policy as authorization.
 - Provide query string manipulation utilities.
 - Provide helpers like SHA and misc web utilities.
 - Provide reusable content transformation helpers for the web layer, including HTML-to-Markdown conversion for agent-facing responses.

@@ -8,6 +8,9 @@ defmodule Tuist.MCP.AuthorizationTest do
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage.Query, as: CoverageQuery
+  alias Tuist.Tests.Coverage.Report
+  alias Tuist.Tests.Selections.Query, as: SelectionQuery
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -76,6 +79,8 @@ defmodule Tuist.MCP.AuthorizationTest do
     end)
 
     stub(Tuist.Storage, :generate_download_url, fn _key, _actor, _opts -> "https://storage.test/signed" end)
+    stub(CoverageQuery, :test_run, fn run -> Report.run_coverage(run, nil) end)
+    stub(SelectionQuery, :test_run, fn _run -> nil end)
   end
 
   describe "an OAuth-token MCP session from an operator calling through Atlas" do

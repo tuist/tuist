@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "73a85ce5d71779a225006e19f05aab3574903edd61e67bc2cb1e02e18de52d7b",
+  "hash": "5d4f02b207a5e4fdc49e749650b7046634b5ee6ca70955a938620980c5d583ed",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "4725ddafef47a875b0ae989890b86060e9a66dbe00b27f62df58c79e3b4a2551"
+                  "content_hash": "3dad7fa4f99e94ab994424596df4e9a2038ed9fda78d63878686bce04f67d0f7"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "f004e60b4be46710b6026ac57062bed9ff6e21dc3a4bfc830e53f8bb9e9230b7",
+          "hash": "69818b2a275ac829a80417f02e9e9a999a156959f7444953256ea073f82f13c6",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/_xcode-early-access.md",
           "metadata": {
-            "content_hash": "a825865bdfa7cfc455e73b9ce1dcae614021d18ae408e96085e20b60d7bf431d"
+            "content_hash": "6f9f4c6387fc0efffac6820c4697986afc87acaba27facc81998f469d3e19a82"
           }
         },
         {
@@ -211,14 +211,14 @@
         }
       ],
       "details": {},
-      "hash": "73a85ce5d71779a225006e19f05aab3574903edd61e67bc2cb1e02e18de52d7b",
+      "hash": "5d4f02b207a5e4fdc49e749650b7046634b5ee6ca70955a938620980c5d583ed",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/_xcode-early-access.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f947786fcf049ecb0d01c4a4b251b1e70dddb701063426b75d9d77df86e9c4fd",
+  "output_hash": "19ad49d476caeed35831fea928764fac2029d8899758345999a98d72829099e4",
   "output_path": "server/priv/docs/ja/guides/features/test-code-coverage/_xcode-early-access.md",
   "protection_state": "recorded",
   "provider": "",
@@ -236,8 +236,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "dbf39aca1be3c3fe3629c66ebb48e390bc00668d",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/_xcode-early-access.md",
-  "translated_at": "2026-11-06T21:25:51.761301Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-13T19:03:15.973672Z",
+  "translation_session_id": "01a1d646-7503-79da-bd6b-e38fb43b8d53"
 }

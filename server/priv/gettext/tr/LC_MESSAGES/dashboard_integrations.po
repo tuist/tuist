@@ -18,8 +18,10 @@ msgstr "Language: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "Add new project connection"
 msgstr "Yeni proje bağlantısı ekle"
 
-#: lib/tuist_web/components/amp_integration.ex:233
-#: lib/tuist_web/components/amp_integration.ex:274
+#: lib/tuist_web/components/amp_integration.ex:228
+#: lib/tuist_web/components/amp_integration.ex:269
+#: lib/tuist_web/components/amp_workspaces.ex:214
+#: lib/tuist_web/components/claude_integration.ex:593
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -114,7 +116,7 @@ msgstr "Bu işlemi gerçekleştirmek için yetkiniz yok."
 #: lib/tuist_web/live/integrations_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "Depolara erişiminiz GitHub ve Tuist entegrasyon yapılandırmanıza bağlıdır."
+msgstr "Depolara erişiminiz GitHub ve Tuist entegrasyon ayarlarınıza bağlıdır."
 
 #: lib/tuist_web/live/integrations_live.ex:552
 #: lib/tuist_web/live/integrations_live.ex:950
@@ -178,7 +180,7 @@ msgstr "Kurulum kılavuzunu okuyun"
 #: lib/tuist_web/live/integrations_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
-msgstr "Bu Tuist sunucusunun github.com üzerinde bir uygulama yükleyebilmesi için kendi GitHub Uygulamasına sahip olması gerekir. Uygulamayı kaydedin, ardından TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET ve TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 ortam değişkenlerini ayarlayıp sunucuyu yeniden başlatın."
+msgstr "Bu Tuist sunucusu, github.com üzerinde bir uygulama kurabilmesi için kendi GitHub Uygulamasına sahip olmalıdır. Uygulamayı kaydedin, ardından TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET ve TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 değişkenlerini ayarlayıp sunucuyu yeniden başlatın."
 
 #: lib/tuist_web/live/integrations_live.ex:1025
 #, elixir-autogen, elixir-format
@@ -191,8 +193,11 @@ msgstr "Buildkite"
 msgid "Cluster agent token"
 msgstr "Küme aracı jetonu"
 
-#: lib/tuist_web/components/amp_integration.ex:129
-#: lib/tuist_web/components/amp_integration.ex:240
+#: lib/tuist_web/components/amp_integration.ex:124
+#: lib/tuist_web/components/amp_integration.ex:235
+#: lib/tuist_web/components/amp_workspaces.ex:221
+#: lib/tuist_web/components/claude_integration.ex:344
+#: lib/tuist_web/components/claude_integration.ex:600
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -211,11 +216,12 @@ msgstr "Buildkite Bağla"
 #: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
-msgstr "Buildkite'te kümenizin Agent Tokens (Ajan Jetonları) bölümünden bir ajan jetonu oluşturun. İşler, runner profillerinizin adını taşıyan kendi sunucunuzda barındırılan kuyruklardan alınır."
+msgstr "Buildkite'te kümenizin Agent Tokens bölümünden bir aracı jetonu oluşturun. İşler, runner profillerinizin adını taşıyan kendi sunucularınızda barındırılan kuyruklardan alınır."
 
-#: lib/tuist_web/components/amp_integration.ex:121
-#: lib/tuist_web/components/amp_integration.ex:249
-#: lib/tuist_web/components/amp_integration.ex:281
+#: lib/tuist_web/components/amp_integration.ex:116
+#: lib/tuist_web/components/amp_integration.ex:244
+#: lib/tuist_web/components/amp_integration.ex:276
+#: lib/tuist_web/components/amp_workspaces.ex:133
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #: lib/tuist_web/live/integrations_live.html.heex:997
@@ -231,13 +237,13 @@ msgstr "Organizasyon kısaltması"
 #: lib/tuist_web/live/integrations_live.ex:1027
 #, elixir-autogen, elixir-format
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-msgstr "Buildkite işlerini Tuist runner'larında çalıştırın. Tuist, kümenizdeki kendi sunucunuzda barındırılan kuyrukları izler ve bulduğu işleri çalıştırır."
+msgstr "Buildkite işlerini Tuist runner'larında çalıştırın. Tuist, kümenizdeki kendi sunucularınızda barındırılan kuyrukları izler ve bulduklarını çalıştırır."
 
-#: lib/tuist_web/components/amp_integration.ex:224
+#: lib/tuist_web/components/amp_integration.ex:219
 #: lib/tuist_web/live/integrations_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
-msgstr "Şifrelenerek saklanır ve bir daha gösterilmez."
+msgstr "Şifrelenmiş olarak saklanır ve bir daha gösterilmez."
 
 #: lib/tuist_web/live/integrations_live.html.heex:703
 #, elixir-autogen, elixir-format
@@ -249,7 +255,7 @@ msgstr "Organizasyon"
 msgid "Buildkite connection saved."
 msgstr "Buildkite bağlantısı kaydedildi."
 
-#: lib/tuist_web/components/amp_integration.ex:169
+#: lib/tuist_web/components/amp_integration.ex:164
 #: lib/tuist_web/live/integrations_live.html.heex:656
 #: lib/tuist_web/live/integrations_live.html.heex:722
 #, elixir-autogen, elixir-format
@@ -259,7 +265,7 @@ msgstr "Değişiklikleri kaydet"
 #: lib/tuist_web/live/integrations_live.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Connect GitLab CI"
-msgstr "GitLab CI bağla"
+msgstr "GitLab CI'yi bağla"
 
 #: lib/tuist_web/live/integrations_live.html.heex:611
 #, elixir-autogen, elixir-format
@@ -275,7 +281,7 @@ msgstr "GitLab CI"
 #: lib/tuist_web/live/integrations_live.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "GitLab URL"
-msgstr "GitLab URL'i"
+msgstr "GitLab URL'si"
 
 #: lib/tuist_web/live/integrations_live.html.heex:554
 #: lib/tuist_web/live/integrations_live.html.heex:633
@@ -286,22 +292,22 @@ msgstr "Runner kimlik doğrulama jetonu"
 #: lib/tuist_web/live/integrations_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Check the GitLab URL and runner authentication token."
-msgstr "GitLab URL'ini ve runner kimlik doğrulama jetonunu kontrol edin."
+msgstr "GitLab URL'sini ve runner kimlik doğrulama jetonunu kontrol edin."
 
 #: lib/tuist_web/live/integrations_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
-msgstr "Tuist profil etiketlerinizi kullanarak bir GitLab runner oluşturun, etiketsiz işleri devre dışı bırakın ve jetonunu buraya yapıştırın. Boru hattınızdaki makineyi [tuist-macos] gibi etiketlerle seçin."
+msgstr "Tuist profil etiketlerinizle bir GitLab runner oluşturun, etiketsiz işleri devre dışı bırakın ve jetonunu buraya yapıştırın. Pipeline'ınızda makineyi [tuist-macos] gibi etiketlerle seçin."
 
 #: lib/tuist_web/live/integrations_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
-msgstr "GitLab CI işlerini Tuist çalıştırıcılarında çalıştırın. Her iş için pipeline etiketlerini kullanarak bir makine seçin."
+msgstr "GitLab CI işlerini Tuist runner'larında çalıştırın. Her iş için pipeline etiketlerini kullanarak bir makine seçin."
 
 #: lib/tuist_web/live/integrations_live.ex:655
 #, elixir-autogen, elixir-format
 msgid "The selected repository is not accessible to this account's GitHub App installation."
-msgstr "Seçilen depoya bu hesabın GitHub Uygulaması kurulumu üzerinden erişilemiyor."
+msgstr "Seçilen depoya bu hesabın GitHub App kurulumu üzerinden erişilemiyor."
 
 #: lib/tuist_web/live/integrations_live.ex:648
 #, elixir-autogen, elixir-format
@@ -321,7 +327,7 @@ msgstr "GitHub Enterprise entegrasyonu bulunamadı."
 #: lib/tuist_web/live/integrations_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Save API URL"
-msgstr "API URL'sini Kaydet"
+msgstr "API URL'sini kaydet"
 
 #: lib/tuist_web/live/integrations_live.html.heex:54
 #, elixir-autogen, elixir-format
@@ -343,7 +349,7 @@ msgstr "GitHub Enterprise Server"
 #: lib/tuist_web/live/integrations_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
-msgstr "Tuist sunucularının erişebileceği REST API temel URL'si, /api/v3 dahil. Sunucu URL'sinin ardından /api/v3 kullanmak için boş bırakın."
+msgstr "Tuist sunucularının erişebileceği REST API temel URL'si, /api/v3 dahil. Sunucu URL'sinin ardından /api/v3 kullanılacaksa boş bırakın."
 
 #: lib/tuist_web/live/integrations_live.ex:232
 #, elixir-autogen, elixir-format
@@ -400,12 +406,12 @@ msgstr "Yeniden dene"
 #: lib/tuist_web/live/integrations_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "Try again or manage the integration to check its repository access."
-msgstr "Tekrar deneyin veya depo erişimini kontrol etmek için entegrasyonu yönetin."
+msgstr "Depo erişimini kontrol etmek için tekrar deneyin veya entegrasyonu yönetin."
 
 #: lib/tuist_web/live/integrations_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Connect any of your Origin repositories to a project"
-msgstr "Origin depolarınızdan herhangi birini bir projeye bağlayın"
+msgstr "Herhangi bir Origin deponuzu bir projeye bağlayın"
 
 #: lib/tuist_web/live/integrations_live.html.heex:332
 #, elixir-autogen, elixir-format
@@ -422,14 +428,14 @@ msgstr "API erişim belirteci"
 #: lib/tuist_web/live/integrations_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
-msgstr "Birleştirme isteği işlem hatlarının önbellek birimlerini kaydetmesine izin ver. read_api kapsamı gerekir."
+msgstr "Birleştirme isteği işlem hatlarının önbellek birimlerini kaydetmesine olanak tanır. read_api kapsamı gereklidir."
 
-#: lib/tuist_web/components/amp_integration.ex:178
+#: lib/tuist_web/components/amp_integration.ex:173
 #, elixir-autogen, elixir-format
 msgid "Connect Amp"
 msgstr "Amp'i Bağla"
 
-#: lib/tuist_web/components/amp_integration.ex:207
+#: lib/tuist_web/components/amp_integration.ex:202
 #, elixir-autogen, elixir-format
 msgid "Copy the provider token and paste it below. Tuist will run the provider for this account."
 msgstr "Sağlayıcı jetonunu kopyalayıp aşağıya yapıştırın. Tuist, bu hesap için sağlayıcıyı çalıştıracaktır."
@@ -439,13 +445,13 @@ msgstr "Sağlayıcı jetonunu kopyalayıp aşağıya yapıştırın. Tuist, bu h
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
 msgstr "Bağlantı kaydedilemedi. Sağlayıcı jetonunuzu, hesap izinlerinizi ve bu sağlayıcının başka bir hesaba bağlı olup olmadığını kontrol edin."
 
-#: lib/tuist_web/components/amp_integration.ex:201
+#: lib/tuist_web/components/amp_integration.ex:196
 #, elixir-autogen, elixir-format
 msgid "In Amp, open Workspace Settings → Orbs and add an Orb provider."
-msgstr "Amp'te Çalışma Alanı Ayarları → Orbs seçeneğine gidin ve bir Orb sağlayıcısı ekleyin."
+msgstr "Amp'te Çalışma Alanı Ayarları → Orbs bölümünü açın ve bir Orb sağlayıcısı ekleyin."
 
-#: lib/tuist_web/components/amp_integration.ex:161
-#: lib/tuist_web/components/amp_integration.ex:218
+#: lib/tuist_web/components/amp_integration.ex:156
+#: lib/tuist_web/components/amp_integration.ex:213
 #, elixir-autogen, elixir-format
 msgid "Orb provider token"
 msgstr "Orb sağlayıcı jetonu"
@@ -455,20 +461,20 @@ msgstr "Orb sağlayıcı jetonu"
 msgid "You no longer have permission to disconnect this integration."
 msgstr "Bu entegrasyonun bağlantısını kesme izniniz artık yok."
 
-#: lib/tuist_web/components/amp_integration.ex:114
+#: lib/tuist_web/components/amp_integration.ex:109
 #, elixir-autogen, elixir-format
 msgid "Run your Amp workspace’s Orbs on Tuist sandboxes."
-msgstr "Amp çalışma alanınızın Orblarını Tuist sanal ortamlarında çalıştırın."
+msgstr "Amp çalışma alanınızın Orb'larını Tuist sanal ortamlarında çalıştırın."
 
-#: lib/tuist_web/components/amp_integration.ex:149
+#: lib/tuist_web/components/amp_integration.ex:144
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically."
 msgstr "Tuist sağlayıcıyı hazırlayamadı veya durduramadı. Otomatik olarak yeniden deneniyor."
 
-#: lib/tuist_web/components/amp_integration.ex:251
+#: lib/tuist_web/components/amp_integration.ex:246
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
-msgstr "Bu, yeni işleri durdurur ve bu entegrasyonun çalışan Orblarını bekletir. Kaydedilen diskler siz silene kadar saklanır. Tuist'te saklanan token kaldırılacaktır."
+msgstr "Bu, yeni işleri durdurur ve bu entegrasyonun çalışan Orblarını askıya alır. Kaydedilen diskler siz silene kadar kalır. Tuist'te saklanan token kaldırılacaktır."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1060
 #: lib/tuist_web/live/integrations_live.html.heex:1176
@@ -491,17 +497,17 @@ msgstr "Bitrise"
 #: lib/tuist_web/live/integrations_live.html.heex:1009
 #, elixir-autogen, elixir-format
 msgid "Connect Bitrise"
-msgstr "Bitrise'ı Bağla"
+msgstr "Bitrise Bağla"
 
 #: lib/tuist_web/live/integrations_live.ex:1167
 #, elixir-autogen, elixir-format
 msgid "Pool token"
-msgstr "Havuz token'ı"
+msgstr "Havuz token"
 
 #: lib/tuist_web/live/integrations_live.html.heex:1101
 #, elixir-autogen, elixir-format
 msgid "Runner pools"
-msgstr "Çalıştırıcı havuzları"
+msgstr "Runner havuzları"
 
 #: lib/tuist_web/live/integrations_live.ex:1135
 #, elixir-autogen, elixir-format
@@ -511,7 +517,7 @@ msgstr "Yığın Kimliği"
 #: lib/tuist_web/live/integrations_live.html.heex:1102
 #, elixir-autogen, elixir-format
 msgid "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
-msgstr "Bir derleme, Bitrise'teki Yığınlar ve Makineler altında havuzun yığını seçildiğinde Tuist üzerinde çalışır."
+msgstr "Bir derleme, Bitrise'te Yığınlar ve Makineler altında havuzun yığını seçildiğinde Tuist üzerinde çalışır."
 
 #: lib/tuist_web/live/integrations_live.ex:329
 #, elixir-autogen, elixir-format
@@ -526,7 +532,7 @@ msgstr "Bitrise bu API belirtecini reddetti."
 #: lib/tuist_web/live/integrations_live.ex:1169
 #, elixir-autogen, elixir-format
 msgid "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
-msgstr "Bitrise, bir havuzun belirtecini yalnızca havuzu oluşturduğunuzda bir kez gösterir. Kaydetmediyseniz, havuzu yeniden oluşturun."
+msgstr "Bitrise, bir havuz oluşturduğunuzda havuzun belirtecini yalnızca bir kez gösterir. Kaydetmediyseniz havuzu yeniden oluşturun."
 
 #: lib/tuist_web/live/integrations_live.ex:375
 #, elixir-autogen, elixir-format
@@ -541,63 +547,63 @@ msgstr "Tuist profillerinizden birini seçin."
 #: lib/tuist_web/live/integrations_live.html.heex:988
 #, elixir-autogen, elixir-format
 msgid "Connected to %{workspace}. Pair each runner pool with a Tuist profile to run its builds on Tuist runners."
-msgstr "%{workspace} bağlantısı kuruldu. Derlemelerini Tuist çalıştırıcılarında yürütmek için her çalıştırıcı havuzunu bir Tuist profiliyle eşleştirin."
+msgstr "%{workspace} ile bağlantı kuruldu. Derlemelerini Tuist çalıştırıcılarında çalıştırmak için her çalıştırıcı havuzunu bir Tuist profiliyle eşleştirin."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1011
 #, elixir-autogen, elixir-format
 msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
-msgstr "Bitrise'te Çalışma Alanı ayarlarını, ardından Güvenlik sekmesini açın ve Bitrise CI için Görüntüleyici rolüne ve Test/QA erişimine sahip bir çalışma alanı API anahtarı oluşturun. Tuist bunu yalnızca derlemelerinizi okumak için kullanır."
+msgstr "Bitrise'da Çalışma Alanı ayarlarını, ardından Güvenlik'i açın ve Bitrise CI için Görüntüleyici rolü ile Test/QA erişimine sahip bir çalışma alanı API belirteci oluşturun. Tuist bunu yalnızca derlemelerinizi okumak için kullanır."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1155
 #, elixir-autogen, elixir-format
 msgid "Loading runner pools from Bitrise…"
-msgstr "Bitrise'ten çalıştırıcı havuzları yükleniyor…"
+msgstr "Runner havuzları Bitrise'dan yükleniyor…"
 
 #: lib/tuist_web/live/integrations_live.ex:1050
 #, elixir-autogen, elixir-format
 msgid "Reload pools"
-msgstr "Havuzları Yenile"
+msgstr "Havuzları yeniden yükle"
 
 #: lib/tuist_web/live/integrations_live.html.heex:984
 #, elixir-autogen, elixir-format
 msgid "Run builds of your self-hosted Bitrise runner pools on Tuist runners. Your workflows stay on Bitrise; only the machines change."
-msgstr "Barındırdığınız Bitrise çalıştırıcı havuzlarının derlemelerini Tuist çalıştırıcılarında çalıştırın. İş akışlarınız Bitrise'te kalır; yalnızca makineler değişir."
+msgstr "Kendi sunucularınızda barındırdığınız Bitrise runner havuzlarının derlemelerini Tuist runner'larında çalıştırın. İş akışlarınız Bitrise'ta kalır; yalnızca makineler değişir."
 
 #: lib/tuist_web/live/integrations_live.ex:1120
 #: lib/tuist_web/live/integrations_live.ex:1124
 #, elixir-autogen, elixir-format
 msgid "Runner pool"
-msgstr "Çalıştırıcı havuzu"
+msgstr "Runner havuzu"
 
 #: lib/tuist_web/live/integrations_live.ex:1229
 #, elixir-autogen, elixir-format
 msgid "This API token can't see any Bitrise workspace."
-msgstr "Bu API anahtarı herhangi bir Bitrise çalışma alanını göremiyor."
+msgstr "Bu API belirteci herhangi bir Bitrise çalışma alanını göremez."
 
 #: lib/tuist_web/live/integrations_live.ex:1233
 #, elixir-autogen, elixir-format
 msgid "This API token can't see the connected workspace. Disconnect first to switch workspaces."
-msgstr "Bu API anahtarı bağlı çalışma alanını göremiyor. Çalışma alanlarını değiştirmek için önce bağlantıyı kesin."
+msgstr "Bu API belirteci bağlı çalışma alanını göremez. Çalışma alanlarını değiştirmek için önce bağlantıyı kesin."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1041
 #, elixir-autogen, elixir-format
 msgid "This token can see several workspaces. Choose the one whose runner pools Tuist should serve."
-msgstr "Bu anahtar birkaç çalışma alanını görebiliyor. Tuist'in hangi çalışma alanının çalıştırıcı havuzlarını sunacağını seçin."
+msgstr "Bu belirteç birden fazla çalışma alanını görebilir. Runner havuzlarını Tuist'in sunması gereken çalışma alanını seçin."
 
 #: lib/tuist_web/live/integrations_live.ex:1043
 #, elixir-autogen, elixir-format
 msgid "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
-msgstr "Bu çalışma alanında henüz kendi sunucunuzda barındırılan runner havuzu bulunmuyor. Bitrise'te Çalışma alanı ayarları, ardından Altyapı altında bir tane oluşturun."
+msgstr "Bu çalışma alanında henüz kendi barındırdığınız runner havuzu yok. Bitrise'te Çalışma Alanı ayarları altında, ardından Altyapı bölümünde bir tane oluşturun."
 
 #: lib/tuist_web/live/integrations_live.ex:1137
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
-msgstr "Tuist, Bitrise'ten runner havuzlarınızı yükleyemedi. agent-pool- ile başlayan havuzun yığın kimliğini girin."
+msgstr "Tuist, runner havuzlarınızı Bitrise'ten yükleyemedi. agent-pool- ile başlayan havuzun yığın kimliğini girin."
 
 #: lib/tuist_web/live/integrations_live.ex:1239
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't reach Bitrise. Try again in a moment."
-msgstr "Tuist, Bitrise'e erişemedi. Biraz sonra tekrar deneyin."
+msgstr "Tuist, Bitrise'e ulaşamadı. Birazdan tekrar deneyin."
 
 #: lib/tuist_web/live/integrations_live.ex:1148
 #: lib/tuist_web/live/integrations_live.ex:1156
@@ -608,17 +614,17 @@ msgstr "Tuist profili"
 #: lib/tuist_web/live/integrations_live.html.heex:1039
 #, elixir-autogen, elixir-format
 msgid "Workspace"
-msgstr "Çalışma alanı"
+msgstr "Çalışma Alanı"
 
 #: lib/tuist_web/live/integrations_live.html.heex:1178
 #, elixir-autogen, elixir-format
 msgid "Paste a new token to replace the stored one. It must belong to the same workspace."
-msgstr "Kaydedilen token'ı değiştirmek için yeni bir token yapıştırın. Token aynı çalışma alanına ait olmalıdır."
+msgstr "Kaydedilen jetonun yerine geçecek yeni bir jetonu yapıştırın. Jeton aynı çalışma alanına ait olmalıdır."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1191
 #, elixir-autogen, elixir-format
 msgid "Update token"
-msgstr "Token'ı güncelle"
+msgstr "Jetonu güncelle"
 
 #: lib/tuist_web/live/integrations_live.ex:1150
 #, elixir-autogen, elixir-format
@@ -628,18 +634,18 @@ msgstr "Bu havuzdaki derlemelerin çalıştığı makine."
 #: lib/tuist_web/live/integrations_live.ex:1078
 #, elixir-autogen, elixir-format
 msgid "Add a runner pool"
-msgstr "Bir runner havuzu ekleyin"
+msgstr "Çalıştırıcı havuzu ekle"
 
 #: lib/tuist_web/live/integrations_live.ex:1062
 #: lib/tuist_web/live/integrations_live.html.heex:1160
 #, elixir-autogen, elixir-format
 msgid "No runner pools are paired yet."
-msgstr "Henüz eşleştirilmiş runner havuzu yok."
+msgstr "Henüz eşleştirilmiş çalıştırıcı havuzu yok."
 
 #: lib/tuist_web/live/integrations_live.ex:1080
 #, elixir-autogen, elixir-format
 msgid "Pair a Bitrise runner pool with the Tuist profile its builds should run on."
-msgstr "Bitrise runner havuzunu, derlemelerinin üzerinde çalıştırılması gereken Tuist profiliyle eşleştirin."
+msgstr "Bitrise çalıştırıcı havuzunu, derlemelerinin üzerinde çalıştırılması gereken Tuist profiliyle eşleştirin."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1145
 #, elixir-autogen, elixir-format
@@ -649,12 +655,12 @@ msgstr "Havuzu kaldır"
 #: lib/tuist_web/live/integrations_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Could not connect the Entire repository."
-msgstr "Tüm depoyu bağlanamadı."
+msgstr "Entire deposu bağlanamadı."
 
 #: lib/tuist_web/live/integrations_live.html.heex:869
 #, elixir-autogen, elixir-format
 msgid "Could not load Entire repositories."
-msgstr "Tüm depolar yüklenemedi."
+msgstr "Entire depoları yüklenemedi."
 
 #: lib/tuist_web/live/integrations_live.html.heex:828
 #, elixir-autogen, elixir-format
@@ -664,7 +670,7 @@ msgstr "Entire eklentisini yükle"
 #: lib/tuist_web/live/integrations_live.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Keep build, test, bundle, and preview insights up to date on your Trails."
-msgstr "Trails'de derleme, test, paket ve önizleme analizlerini güncel tutun."
+msgstr "Trails üzerinde derleme, test, paket ve önizleme içgörülerinizi güncel tutun."
 
 #: lib/tuist_web/live/integrations_live.html.heex:866
 #, elixir-autogen, elixir-format
@@ -674,4 +680,309 @@ msgstr "Tüm depolar yükleniyor…"
 #: lib/tuist_web/live/integrations_live.html.heex:847
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your Entire and Tuist integration setup."
-msgstr "Depolara erişiminiz, Entire ve Tuist entegrasyon kurulumunuza bağlıdır."
+msgstr "Depolara erişiminiz Entire ve Tuist entegrasyon ayarlarınıza bağlıdır."
+
+#: lib/tuist_web/components/amp_workspaces.ex:143
+#, elixir-autogen, elixir-format
+msgid "Connect an Amp workspace"
+msgstr "Amp çalışma alanı bağla"
+
+#: lib/tuist_web/components/amp_workspaces.ex:104
+#, elixir-autogen, elixir-format
+msgid "Connect workspace"
+msgstr "Çalışma alanı bağla"
+
+#: lib/tuist_web/components/amp_workspaces.ex:126
+#, elixir-autogen, elixir-format
+msgid "Connected %{time}"
+msgstr "Bağlandı %{time}"
+
+#: lib/tuist_web/components/amp_workspaces.ex:174
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr "Komutu kopyala"
+
+#: lib/tuist_web/components/amp_workspaces.ex:59
+#, elixir-autogen, elixir-format
+msgid "This Amp workspace is already connected."
+msgstr "Bu Amp çalışma alanı zaten bağlı."
+
+#: lib/tuist_web/components/amp_workspaces.ex:118
+#, elixir-autogen, elixir-format
+msgid "Workspace %{id}"
+msgstr "Çalışma alanı %{id}"
+
+#: lib/tuist_web/live/integrations_live.html.heex:1201
+#, elixir-autogen, elixir-format
+msgid "Connect your Amp workspaces to Tuist."
+msgstr "Amp çalışma alanlarınızı Tuist'e bağlayın."
+
+#: lib/tuist_web/components/amp_workspaces.ex:95
+#, elixir-autogen, elixir-format
+msgid "Let Orbs in your Amp workspaces sign in to Tuist without a stored token. They get CI access, including cache uploads, to every project in this account."
+msgstr "Amp çalışma alanlarınızdaki Orbs'un, kayıtlı bir token olmadan Tuist'te oturum açmasına olanak tanır. Bu hesaptaki her projeye önbellek yüklemeleri dahil olmak üzere CI erişimi sağlarlar."
+
+#: lib/tuist_web/components/amp_integration.ex:107
+#, elixir-autogen, elixir-format
+msgid "Orb provider"
+msgstr "Orb sağlayıcısı"
+
+#: lib/tuist_web/components/amp_workspaces.ex:93
+#, elixir-autogen, elixir-format
+msgid "Workspace sign-in"
+msgstr "Çalışma alanı oturumu"
+
+#: lib/tuist_web/components/amp_workspaces.ex:62
+#, elixir-autogen, elixir-format
+msgid "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-426614174000."
+msgstr "123e4567-e89b-12d3-a456-426614174000 gibi bir UUID olan çalışma alanı kimliğini girin."
+
+#: lib/tuist_web/components/amp_workspaces.ex:191
+#: lib/tuist_web/components/claude_integration.ex:497
+#, elixir-autogen, elixir-format
+msgid "Workspace ID"
+msgstr "Çalışma Alanı Kimliği"
+
+#: lib/tuist_web/components/amp_workspaces.ex:124
+#, elixir-autogen, elixir-format
+msgid "All projects"
+msgstr "Tüm projeler"
+
+#: lib/tuist_web/components/amp_workspaces.ex:65
+#, elixir-autogen, elixir-format
+msgid "Enter the project ID as a UUID, or leave it empty for the whole workspace."
+msgstr "Proje kimliğini UUID olarak girin veya tüm çalışma alanı için boş bırakın."
+
+#: lib/tuist_web/components/amp_workspaces.ex:160
+#, elixir-autogen, elixir-format
+msgid "In a thread of the workspace that runs in an Orb, print its workspace and project IDs:"
+msgstr "Bir Orb'da çalışan iş alanı thread'inde, iş alanı ve proje kimliklerini yazdırın:"
+
+#: lib/tuist_web/components/amp_workspaces.ex:203
+#, elixir-autogen, elixir-format
+msgid "Optional. Leave empty for every project in the workspace."
+msgstr "İsteğe bağlı. İş alanındaki her proje için boş bırakın."
+
+#: lib/tuist_web/components/amp_workspaces.ex:181
+#, elixir-autogen, elixir-format
+msgid "Paste the workspace ID below. Add the project ID to limit access to that Amp project's Orbs. Those Orbs get CI access, including cache uploads, to every project in this account."
+msgstr "Aşağıya iş alanı kimliğini yapıştırın. Erişimi yalnızca bu Amp projesinin Orb'larıyla sınırlamak için proje kimliğini ekleyin. Bu Orb'lar, bu hesaptaki tüm projeler için önbellek yüklemeleri dahil olmak üzere CI erişimi alır."
+
+#: lib/tuist_web/components/amp_workspaces.ex:122
+#, elixir-autogen, elixir-format
+msgid "Project %{id}"
+msgstr "Proje %{id}"
+
+#: lib/tuist_web/components/amp_workspaces.ex:201
+#, elixir-autogen, elixir-format
+msgid "Project ID"
+msgstr "Proje Kimliği"
+
+#: lib/tuist_web/components/claude_integration.ex:251
+#: lib/tuist_web/components/claude_integration.ex:384
+#, elixir-autogen, elixir-format
+msgid "API key"
+msgstr "API anahtarı"
+
+#: lib/tuist_web/components/claude_integration.ex:222
+#, elixir-autogen, elixir-format
+msgid "Anthropic answered %{status}: %{message}"
+msgstr "Anthropic yanıt verdi %{status}: %{message}"
+
+#: lib/tuist_web/components/claude_integration.ex:186
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the request: %{message}"
+msgstr "Anthropic isteği reddetti: %{message}"
+
+#: lib/tuist_web/components/claude_integration.ex:469
+#, elixir-autogen, elixir-format
+msgid "Audience"
+msgstr "Hedef kitle"
+
+#: lib/tuist_web/components/claude_integration.ex:374
+#, elixir-autogen, elixir-format
+msgid "Connect Claude Managed Agents"
+msgstr "Claude Yönetilen Ajanları Bağla"
+
+#: lib/tuist_web/components/claude_integration.ex:345
+#, elixir-autogen, elixir-format
+msgid "Connect environment"
+msgstr "Ortamı bağla"
+
+#: lib/tuist_web/components/claude_integration.ex:601
+#, elixir-autogen, elixir-format
+msgid "Connecting…"
+msgstr "Bağlanıyor…"
+
+#: lib/tuist_web/components/claude_integration.ex:302
+#, elixir-autogen, elixir-format
+msgid "Copy %{label}"
+msgstr "%{label} öğesini kopyala"
+
+#: lib/tuist_web/components/claude_integration.ex:88
+#, elixir-autogen, elixir-format
+msgid "Could not connect the environment. It may already be connected."
+msgstr "Ortam bağlanamadı. Zaten bağlı olabilir."
+
+#: lib/tuist_web/components/claude_integration.ex:226
+#, elixir-autogen, elixir-format
+msgid "Could not reach Anthropic. Try again."
+msgstr "Anthropic'a ulaşılamadı. Tekrar deneyin."
+
+#: lib/tuist_web/components/claude_integration.ex:558
+#, elixir-autogen, elixir-format
+msgid "Environment ID"
+msgstr "Ortam Kimliği"
+
+#: lib/tuist_web/components/claude_integration.ex:568
+#, elixir-autogen, elixir-format
+msgid "Environment key"
+msgstr "Ortam anahtarı"
+
+#: lib/tuist_web/components/claude_integration.ex:525
+#, elixir-autogen, elixir-format
+msgid "Federation rule ID"
+msgstr "Federasyon kuralı kimliği"
+
+#: lib/tuist_web/components/claude_integration.ex:459
+#, elixir-autogen, elixir-format
+msgid "Issuer URL"
+msgstr "Yayınlayıcı URL'si"
+
+#: lib/tuist_web/components/claude_integration.ex:252
+#, elixir-autogen, elixir-format
+msgid "No credentials"
+msgstr "Kimlik bilgisi yok"
+
+#: lib/tuist_web/components/claude_integration.ex:419
+#, elixir-autogen, elixir-format
+msgid "Open the authentication history"
+msgstr "Kimlik doğrulama geçmişini aç"
+
+#: lib/tuist_web/components/claude_integration.ex:483
+#, elixir-autogen, elixir-format
+msgid "Organization ID"
+msgstr "Organizasyon kimliği"
+
+#: lib/tuist_web/components/claude_integration.ex:576
+#: lib/tuist_web/components/claude_integration.ex:581
+#, elixir-autogen, elixir-format
+msgid "Sandbox shape"
+msgstr "Sandbox boyutu"
+
+#: lib/tuist_web/components/claude_integration.ex:474
+#, elixir-autogen, elixir-format
+msgid "Scope"
+msgstr "Kapsam"
+
+#: lib/tuist_web/components/claude_integration.ex:511
+#, elixir-autogen, elixir-format
+msgid "Service account ID"
+msgstr "Hizmet hesabı kimliği"
+
+#: lib/tuist_web/components/claude_integration.ex:464
+#, elixir-autogen, elixir-format
+msgid "Subject prefix"
+msgstr "Konu ön eki"
+
+#: lib/tuist_web/components/claude_integration.ex:430
+#, elixir-autogen, elixir-format
+msgid "Anthropic API key"
+msgstr "Anthropic API anahtarı"
+
+#: lib/tuist_web/components/claude_integration.ex:197
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the API key. Check that you copied all of it."
+msgstr "Anthropic API anahtarını reddetti. Anahtarın tamamını kopyaladığınızdan emin olun."
+
+#: lib/tuist_web/components/claude_integration.ex:331
+#, elixir-autogen, elixir-format
+msgid "Run Claude Managed Agents sessions on Tuist sandboxes."
+msgstr "Claude Yönetilen Ajanlar oturumlarını Tuist sanal alanlarında çalıştırın."
+
+#: lib/tuist_web/components/claude_integration.ex:391
+#, elixir-autogen, elixir-format
+msgid "Federated identity"
+msgstr "Birleşik kimlik"
+
+#: lib/tuist_web/components/claude_integration.ex:215
+#, elixir-autogen, elixir-format
+msgid "Anthropic has no environment with this ID in the credential's workspace. Check the ID, and that the credential belongs to the environment's workspace."
+msgstr "Anthropic'in kimlik bilgilerinin çalışma alanında bu kimliğe sahip bir ortamı yok. Kimliği ve kimlik bilgilerinin ortamın çalışma alanına ait olduğunu kontrol edin."
+
+#: lib/tuist_web/components/claude_integration.ex:208
+#, elixir-autogen, elixir-format
+msgid "Anthropic refused the federated token. Set the federation rule's scope to workspace:developer."
+msgstr "Anthropic birleşik jetonu reddetti. Birleştirme kuralının kapsamını workspace:developer olarak ayarlayın."
+
+#: lib/tuist_web/components/claude_integration.ex:179
+#, elixir-autogen, elixir-format
+msgid "Anthropic rejected the token. Check that the rule uses the issuer URL and subject prefix above and names this service account. The authentication history in the Claude Console shows the reason."
+msgstr "Anthropic jetonu reddetti. Kuralın yukarıdaki veren URL'sini ve konu önekini kullandığından ve bu hizmet hesabını adlandırdığından emin olun. Claude Console'daki kimlik doğrulama geçmişi nedeni gösterir."
+
+#: lib/tuist_web/components/claude_integration.ex:89
+#, elixir-autogen, elixir-format
+msgid "Could not connect the environment."
+msgstr "Ortam bağlanamadı."
+
+#: lib/tuist_web/components/claude_integration.ex:436
+#, elixir-autogen, elixir-format
+msgid "Needs the developer role in the environment's workspace. Stored encrypted. Use a federated identity for environments you rely on."
+msgstr "Ortamın çalışma alanında geliştirici rolü gerekir. Şifrelenerek saklanır. Güvendiğiniz ortamlar için birleşik kimlik kullanın."
+
+#: lib/tuist_web/components/claude_integration.ex:540
+#, elixir-autogen, elixir-format
+msgid "Self-hosted environment"
+msgstr "Kendi barındırdığınız ortam"
+
+#: lib/tuist_web/components/claude_integration.ex:201
+#, elixir-autogen, elixir-format
+msgid "This API key cannot read the environment. Use a key with the developer role in the environment's workspace."
+msgstr "Bu API anahtarı ortamı okuyamaz. Ortamın çalışma alanında geliştirici rolüne sahip bir anahtar kullanın."
+
+#: lib/tuist_web/components/claude_integration.ex:190
+#, elixir-autogen, elixir-format
+msgid "This environment is not self-hosted. Create a self-hosted environment in the Claude Console."
+msgstr "Bu ortam kendi barındırılan bir ortam değil. Claude Console'da kendi barındırılan bir ortam oluşturun."
+
+#: lib/tuist_web/components/claude_integration.ex:109
+#: lib/tuist_web/components/claude_integration.ex:121
+#, elixir-autogen, elixir-format
+msgid "can't be blank"
+msgstr "boş bırakılamaz"
+
+#: lib/tuist_web/components/claude_integration.ex:551
+#, elixir-autogen, elixir-format
+msgid "Claude Console"
+msgstr "Claude Console"
+
+#: lib/tuist_web/components/claude_integration.ex:544
+#, elixir-autogen, elixir-format
+msgid "Create one in the %{link}, open it and click Generate environment key."
+msgstr "%{link} bağlantısında bir tane oluşturun, açın ve Ortam anahtarı oluştur'a tıklayın."
+
+#: lib/tuist_web/components/claude_integration.ex:447
+#, elixir-autogen, elixir-format
+msgid "In %{link}, connect a Custom OIDC workload with these values and add its service account to the environment's workspace."
+msgstr "%{link} içinde bu değerlerle bir Özel OIDC iş yükü bağlayın ve hizmet hesabını ortamın çalışma alanına ekleyin."
+
+#: lib/tuist_web/components/claude_integration.ex:454
+#, elixir-autogen, elixir-format
+msgid "Workload identity"
+msgstr "İş yükü kimliği"
+
+#: lib/tuist_web/components/claude_integration.ex:485
+#, elixir-autogen, elixir-format
+msgid "Settings → Organization in the Claude Console."
+msgstr "Claude Console'da Ayarlar → Kuruluş."
+
+#: lib/tuist_web/components/claude_integration.ex:499
+#, elixir-autogen, elixir-format
+msgid "Settings → Workspaces in the Claude Console. Use the workspace that runs the environment."
+msgstr "Claude Console'da Ayarlar → Çalışma Alanları. Ortamı çalıştıran çalışma alanını kullanın."
+
+#: lib/tuist_web/components/claude_integration.ex:513
+#: lib/tuist_web/components/claude_integration.ex:527
+#, elixir-autogen, elixir-format
+msgid "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
+msgstr "İş yükünü bağlama işlemi tamamlandığında ve İş yükü kimliği sayfasındaki federasyon kuralında gösterilir."

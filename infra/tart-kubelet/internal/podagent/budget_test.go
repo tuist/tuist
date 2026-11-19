@@ -82,7 +82,7 @@ func TestRankImageLinesGroupsPoolsByTheImageTheyRunNext(t *testing.T) {
 	}
 }
 
-// From 2026-10-24 to 10-28 every BER1 rack runner Pod Pending for over a
+// From 2026-10-24 to 10-28 every alder rack runner Pod Pending for over a
 // minute with most guest slots free waited 3 to 29 minutes on a pull, on a
 // host without its pool's image. With a budget, a host stages the images of
 // the top of the ranking it lacks, whether or not it holds their current
@@ -166,5 +166,24 @@ func TestApplyBudget(t *testing.T) {
 	}
 	if _, followed := e.successions[goldenVMName("ghcr.io/tuist/tuist-runner@sha256:264prev")]; followed || len(e.successions) != 1 {
 		t.Fatalf("successions = %v, want only the release of a kept image followed", e.successions)
+	}
+}
+
+// The Xcodes macOS sandboxes serve rank above warm floors and demand, so a
+// sandbox template's golden is never the one a host lets go.
+func TestRankImageLinesKeepsSandboxTemplatesFirst(t *testing.T) {
+	sandbox := catalogPool("macos-ber1-26-4-1", img264, "26.4.1", "stacked", 0, 0)
+	sandbox.SetLabels(map[string]string{xcodeVersionLabel: "26.4.1", runnerImageVariantLabel: "stacked", sandboxTemplateLabel: "true"})
+	pools := []unstructured.Unstructured{
+		sandbox,
+		withDemand(catalogPool("macos-ber1-27-1", img271, "27.1", "stacked", 0, 0), budgetNow.Add(-2*time.Hour)),
+		catalogPool("macos-ber1-26-6", img266, "26.6", "stacked", 1, 1),
+	}
+
+	got := rankedNext(t, pools, nil, nil)
+
+	want := []string{img264, img266, img271}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ranking = %v, want %v: sandbox templates, then floor, then demand", got, want)
 	}
 }

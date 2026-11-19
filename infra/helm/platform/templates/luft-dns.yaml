@@ -1,0 +1,98 @@
+{{- /*
+external-dns for luft.work, separate from the tuist.dev instance. luft.work is a
+zone apex, and the shared instance's TXT registry names an apex record's
+ownership entry `a-luft.work`, a sibling domain outside the zone, so it can never
+be written and every sync rewrites the record. A `%{record_type}` prefix ending in
+a dot keeps the entry inside the zone (`_extdns-a.luft.work`). Changing the prefix
+on the shared instance would orphan every tuist.dev ownership record.
+*/ -}}
+{{- if .Values.luftDNS.enabled }}
+{{- $dns := .Values.luftDNS }}
+{{- $owner := required "luftDNS.ownerId must identify this cluster uniquely" $dns.ownerId }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: luft-external-dns
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-luft-external-dns
+rules:
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-luft-external-dns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-luft-external-dns
+subjects:
+  - kind: ServiceAccount
+    name: luft-external-dns
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: luft-external-dns
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: luft-external-dns
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: luft-external-dns
+    spec:
+      serviceAccountName: luft-external-dns
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: external-dns
+          image: {{ $dns.image | quote }}
+          args:
+            - --provider=cloudflare
+            - --source=ingress
+            # Only the Luft server's ingress (namespace luft) publishes under luft.work.
+            - --namespace={{ $dns.namespace }}
+            - --domain-filter=luft.work
+            - --registry=txt
+            - --txt-owner-id={{ $owner }}
+            - --txt-prefix=_extdns-%{record_type}.
+            - --policy=sync
+            - --interval=1m
+            - --events
+          env:
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cloudflare.apiTokenSecret.name }}
+                  key: {{ .Values.cloudflare.apiTokenSecret.key }}
+          ports:
+            - name: metrics
+              containerPort: 7979
+          readinessProbe:
+            httpGet: {path: /healthz, port: metrics}
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 20m, memory: 48Mi}
+            limits: {memory: 128Mi}
+{{- end }}

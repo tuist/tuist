@@ -15,8 +15,11 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.Billing.UsagePricing
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.CacheVolumeBilling
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Trials
 
   # Unfortunately, this data can't be obtained and cached
@@ -119,7 +122,8 @@ defmodule Tuist.Billing do
   job without recalculating usage when that job retries.
 
   Reports the cache egress, cache request, and passing test case meters
-  that exist in Stripe, plus the language model and runner meters.
+  that exist in Stripe, plus the language model, runner compute, and
+  cache volume storage meters.
   """
   def customer_meter_values(
         %Account{customer_id: customer_id, id: account_id} = account,
@@ -149,17 +153,34 @@ defmodule Tuist.Billing do
     # so neither Meter exists yet, and reporting to an unprovisioned meter
     # just errors the job and adds Sentry noise. Each platform turns on
     # independently, the moment its key lands in config.
+    # Remote execution rides on the Linux meter, so its time is part of
+    # that platform's value rather than a meter of its own.
     runner_values =
       account_id
-      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
+      |> RemoteExecutionUsage.metered_units_by_platform(period_start, period_end)
       |> Enum.map(fn usage ->
         %{event_name: RunnerBilling.meter_event_name(usage.platform), value: usage.total_units}
       end)
       |> Enum.filter(&runner_meter_provisioned?(&1.event_name))
 
+    # Cache volume storage is a runner Price, so a runner trial leaves it
+    # off the subscription like the compute Prices, and it turns on the
+    # same way once its key is in `stripe.prices.runners`.
+    storage_values =
+      if runner_meter_provisioned?(CacheVolumeBilling.meter_event_name()) do
+        [
+          %{
+            event_name: CacheVolumeBilling.meter_event_name(),
+            value: CacheVolumeBilling.meter_value(account_id, period_start, period_end)
+          }
+        ]
+      else
+        []
+      end
+
     # Drop zero-value meters uniformly so an idle customer fans out no
     # Stripe reporting jobs at all, rather than one no-op POST per meter.
-    Enum.reject(usage_values ++ language_model_values ++ runner_values, &(&1.value == 0))
+    Enum.reject(usage_values ++ language_model_values ++ runner_values ++ storage_values, &(&1.value == 0))
   end
 
   # A platform reports as soon as its Meter exists in Stripe, which the
@@ -621,6 +642,27 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Whether a Stripe customer already has the name, email and address an
+  invoice-billed Enterprise subscription needs, so `upgrade_to_enterprise/2`
+  can run with `%{}` instead of asking for them.
+  """
+  def billing_details_complete?(%{address: %{} = address} = customer) do
+    Enum.all?(
+      [
+        Map.get(customer, :name),
+        Map.get(customer, :email),
+        address.line1,
+        address.city,
+        address.postal_code,
+        address.country
+      ],
+      &(is_binary(&1) and &1 != "")
+    )
+  end
+
+  def billing_details_complete?(_customer), do: false
+
+  @doc """
   Puts an account with no live subscription on the open source plan.
 
   The subscription carries only the open source Prices, both $0. It carries
@@ -1078,7 +1120,8 @@ defmodule Tuist.Billing do
         lookback = DateTime.add(now, -@runner_price_swap_lookback_days, :day)
         since = Enum.min([DateTime.from_unix!(period_start), lookback], DateTime)
 
-        RunnerBilling.compute_milliseconds(account_id, since, now) > 0
+        RunnerBilling.compute_milliseconds(account_id, since, now) > 0 or
+          RemoteExecutionUsage.compute_units(account_id, since, now) > 0
 
       _ ->
         true
@@ -1226,37 +1269,45 @@ defmodule Tuist.Billing do
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
-    cond do
-      plan == :none ->
-        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
+    stored =
+      cond do
+        plan == :none ->
+          raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
-      is_nil(current_subscription) ->
-        %Subscription{}
-        |> Subscription.create_changeset(%{
-          plan: plan,
-          subscription_id: subscription.id,
-          status: subscription.status,
-          account_id: account.id,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.insert!()
+        is_nil(current_subscription) ->
+          %Subscription{}
+          |> Subscription.create_changeset(%{
+            plan: plan,
+            subscription_id: subscription.id,
+            status: subscription.status,
+            account_id: account.id,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.insert!()
 
-      true ->
-        current_subscription
-        |> Subscription.update_changeset(%{
-          plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end,
-          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
-          current_period_start: current_period_start,
-          current_period_end: current_period_end
-        })
-        |> Repo.update!()
+        true ->
+          current_subscription
+          |> Subscription.update_changeset(%{
+            plan: plan,
+            status: subscription.status,
+            default_payment_method: subscription.default_payment_method,
+            trial_end: trial_end,
+            cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false,
+            current_period_start: current_period_start,
+            current_period_end: current_period_end
+          })
+          |> Repo.update!()
+      end
+
+    # Air starts with lower runner limits than the paid plans; a live paid
+    # subscription brings the account up to its plan's. `plan` is
+    # `get_plan/1`'s string, the stored row's is the atom.
+    if stored.status in @live_subscription_statuses do
+      RunnerConcurrency.raise_to_plan_defaults(account, stored.plan)
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)
@@ -1569,14 +1620,21 @@ defmodule Tuist.Billing do
   Whether the account's metered cache usage this month has reached either
   cache allowance, regardless of its plan.
 
+  An account on a runner trial never has: the trial is extended to accounts
+  we are bringing onto runners, typically before they subscribe, and it would
+  defeat it to cut their cache off at Air's caps meanwhile. Every Air limit
+  that reads this (`cache_access_blocked?/1`, `cache_blocked_account_ids/1`
+  and the API's `BillingPlug`) therefore leaves a trial account alone.
+
   Both counters are refreshed nightly, so the check never reaches ClickHouse
   from the cache authorization path.
   """
   def over_free_tier?(%Account{} = account) do
-    UsagePricing.cache_allowance_reached?(%{
-      egress_megabytes: account.current_month_cache_egress_megabytes,
-      requests: account.current_month_cache_requests
-    })
+    not Trials.on_trial?(account) and
+      UsagePricing.cache_allowance_reached?(%{
+        egress_megabytes: account.current_month_cache_egress_megabytes,
+        requests: account.current_month_cache_requests
+      })
   end
 
   defp latest_subscription([subscription | subscriptions]) do

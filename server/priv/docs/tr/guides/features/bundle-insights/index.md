@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Paket içgörüler",
+  "title": "Paket içgörüleri",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "iOS ve Android paket boyutunu izleyin, sürümden önce gerilemeleri tespit edin ve Tuist Paket İçgörüler ile uygulamanızı hafif tutun."
+  "description": "iOS ve Android paket boyutunu izleyin, sürüm öncesi gerilemeleri tespit edin ve Tuist Paket İçgörüleri ile uygulamanızı hafif tutun."
 }
 ---
-# Paket içgörüleri {#bundle-insights}
+# Paket içgörüler {#bundle-insights}
 
-Uygulamanıza daha fazla özellik ekledikçe paket boyutunuz büyümeye devam eder. Bu büyümenin bir kısmı kaçınılmazdır, ancak büyük bir bölümü değildir: yinelenen varlıklar, kullanılmayan semboller ve platforma özgü israf birikerek artar. Tuist Paket İçgörüler hem **Apple** hem de **Android** paketlerini destekler; uygulamanızın boyutunun küçük kalmasına yardımcı olacak araçlar ve içgörüler sunar ve zaman içindeki eğilimi izler.
+Uygulamanıza daha fazla özellik ekledikçe paket boyutunuz büyümeye devam eder. Bu büyümenin bir kısmı kaçınılmazdır, ancak büyük bir kısmı değildir: yinelenen varlıklar, kullanılmayan semboller ve platforma özgü israf birikir. Tuist Paket İçgörüler hem **Apple** hem de **Android** paketlerini destekler; uygulamanızın boyutunun küçük kalmasına yardımcı olacak araçlar ve içgörüler sunar ve zaman içindeki eğilimi takip eder.
 
 <.home_cards>
   <.home_card

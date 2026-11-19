@@ -20,6 +20,8 @@ interviewee_x_handle: 'KamilPyc'
 interviewee_avatar: https://pbs.twimg.com/profile_images/745018488184516608/Skzxzejl_400x400.jpg
 ---
 
+> **Editor's note:** Since this interview, Tuist has added support for Bazel itself: a remote cache and build and test insights that work with your existing `BUILD` files and `bazel` commands. See [Tuist with Bazel](/build-systems/bazel), or [Bazel vs Gradle](/build-systems/bazel-vs-gradle) if you are weighing build systems.
+
 When we announced the idea of publishing a series of interviews around app development at scale Kamil offered to participate and tell us more about iOS development in the biggest e-commerce company in Poland, [Allegro](https://allegro.pl)
 
 ### Tell us more about yourself and the project you work on

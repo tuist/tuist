@@ -23,8 +23,12 @@ struct CargoRecordedInvocation: CargoCacheAction {
     let toolchain: URL
     let externs: [URL]
     let linksWithSystemLinker: Bool
+    /// The `.dSYM` a linked binary is stored with when its debug map names objects (`hasDebugMap`).
+    let debugBundle: String?
+    /// The program a miss runs recorded: the toolchain's own rustc, or its `clippy-driver` for `cargo clippy`.
+    let program: String
 
-    static let keyVersion = "tuist-swift-cargo-recorded-v1"
+    static let keyVersion = "tuist-swift-cargo-recorded-v2"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
     /// A linked binary, the only output without an extension.
@@ -33,23 +37,26 @@ struct CargoRecordedInvocation: CargoCacheAction {
     func storedOutput(_ data: Data) -> Data? { relocation.relative(data) }
     func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
 
-    func unkeyedRoots(in data: Data) -> [String] {
+    func unkeyedRoots(in file: URL) throws -> [String] {
+        // A `.dSYM` holds only debug information, like the binary's link-edit segment `boundRoots` skips.
+        if let debugBundle, file.path.hasPrefix(output.appendingPathComponent(debugBundle).path + "/") { return [] }
         let keyed = Set((reads?.entries ?? []).filter { $0.kind == "root" }.map(\.name))
-        return relocation.boundRoots(in: data).filter { !keyed.contains($0.placeholder) }.map(\.path)
+        return try relocation.boundRoots(of: file).filter { !keyed.contains($0.placeholder) }.map(\.path)
     }
 
     static func prepare(
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, process: CargoProcess
     ) async throws -> CargoRecordedInvocation? {
+        // `cargo clippy` starts the workspace's crates as `clippy-driver rustc <arguments>`.
+        let driven = CargoClippy.compilerArguments(arguments, environment: environment)
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil, let recorder = environment["TUIST_CARGO_RECORDER"],
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
-              environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
-              !environment.keys.contains(where: { $0.hasPrefix("LD_") || $0.hasPrefix("DYLD_") }),
-              let executable = arguments.first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
+              CargoClippy.admitsWorkspaceWrapper(environment),
+              let executable = (driven ?? arguments).first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
               !arguments.contains(where: {
                   $0.hasPrefix("@") || $0.hasPrefix("--print") || $0 == "--test" || $0 == "-o"
                       || $0.hasPrefix("--remap-path-prefix") || $0.hasPrefix("--sysroot") || $0.hasSuffix(".json")
-                      || $0.hasPrefix("incremental=") || $0.hasPrefix("-Cincremental") || $0.hasPrefix("-Zincremental")
+                      || $0.hasPrefix("-Zincremental")
               }),
               let name = CargoCacheInputs.values("--crate-name", in: arguments).first,
               !name.isEmpty, name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }),
@@ -63,26 +70,31 @@ struct CargoRecordedInvocation: CargoCacheAction {
             .map { String($0.dropFirst(15)) } ?? ""
         guard suffix.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else { return nil }
         let emitted = Set(emit.split(separator: ",").map(String.init))
-        let files: [String]
+        var files: [String]
+        var debugBundle: String?
         switch kind {
         case "lib", "rlib":
-            guard emitted == ["dep-info", "metadata", "link"] else { return nil }
-            files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
+            // `cargo check` and `cargo clippy` emit metadata only; `--emit` is keyed with the other arguments.
+            guard emitted == ["dep-info", "metadata", "link"] || emitted == ["dep-info", "metadata"] else { return nil }
+            files = (emitted.contains("link") ? ["lib\(name)\(suffix).rlib"] : [])
+                + ["lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
         case "proc-macro":
+            guard emitted == ["dep-info", "link"] else { return nil }
             #if os(macOS)
-                guard emitted == ["dep-info", "link"] else { return nil }
                 files = ["lib\(name)\(suffix).dylib", "\(name)\(suffix).d"]
             #else
-                return nil
+                files = ["lib\(name)\(suffix).so", "\(name)\(suffix).d"]
             #endif
         case "bin":
             // Linking reads every rlib of the dependency closure through `-L dependency=`, which the read set keys.
             // A build script's binary is stored before `CargoBuildScript` replaces it with a shim, and a hit installs one.
+            guard emitted == ["dep-info", "link"] else { return nil }
+            files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
             #if os(macOS)
-                guard emitted == ["dep-info", "link"] else { return nil }
-                files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
-            #else
-                return nil
+                if hasDebugMap(arguments) {
+                    debugBundle = "\(name)\(suffix).dSYM"
+                    files.insert(contentsOf: debugBundleFiles("\(name)\(suffix)"), at: 1)
+                }
             #endif
         default:
             return nil
@@ -90,14 +102,24 @@ struct CargoRecordedInvocation: CargoCacheAction {
         let identity = try await CargoToolchainIdentity.resolve(
             executable, environment: environment, directory: directory, process: process
         )
+        guard identity.admitsLoader(environment) else { return nil }
         let relocation = CargoRelocation(environment: environment, sysroot: identity.sysroot)
         let inputHasher = CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0) })
         let base = URL(fileURLWithPath: directory.pathString)
         var inputs = [
             keyVersion, CargoReadRecorder.version, directory.pathString, identity.version,
         ]
-        inputs += arguments.dropFirst().filter { !$0.hasPrefix("--diagnostic-width") }
-        inputs += environment.sorted { $0.key < $1.key }.filter { !CargoCacheInvocation.isIgnored($0.key) }
+        var program = identity.sysroot.appendingPathComponent("bin/rustc").path
+        if driven != nil {
+            guard !emitted.contains("link"), let clippy = try await CargoClippy.prepare(
+                arguments, sysroot: identity.sysroot, environment: environment, directory: directory, process: process
+            ) else { return nil }
+            program = clippy.driver.path
+            inputs += try clippy.keyInputs(environment: environment, directory: directory, hasher: inputHasher)
+        }
+        inputs += CargoCacheInputs.keyArguments(Array(arguments.dropFirst()))
+        // Package metadata the run reads is keyed with its reads.
+        inputs += environment.sorted { $0.key < $1.key }.filter { CargoCacheInvocation.isKeyed($0.key) }
             .map { "\($0.key)=\($0.value)" }
         var externs: [URL] = []
         for value in CargoCacheInputs.values("--extern", in: arguments) {
@@ -114,7 +136,14 @@ struct CargoRecordedInvocation: CargoCacheAction {
         }
         let linksWithSystemLinker = kind == "proc-macro" || kind == "bin"
         if linksWithSystemLinker {
-            inputs += try await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
+            // macOS's linker runs from protected programs the recorder cannot load into, so the declared key names it.
+            // On Linux `cc`, `collect2` and `ld` load the recorder: the read set holds their binaries, CRT objects and
+            // the C library they link against.
+            #if os(macOS)
+                inputs += try await CargoToolchainIdentity.linker(
+                    environment: environment, directory: directory, process: process
+                )
+            #endif
             // The linker runs unrecorded and searches these directories for the native libraries build scripts built
             // or found, so what it can find there is keyed by content.
             for value in CargoCacheInputs.values("-L", in: arguments) {
@@ -143,8 +172,65 @@ struct CargoRecordedInvocation: CargoCacheAction {
             arguments: arguments, environment: environment, directory: directory,
             output: URL(fileURLWithPath: out, relativeTo: base).standardizedFileURL, name: name, files: files,
             key: declared, declared: declared, reads: nil, relocation: relocation, inputHasher: inputHasher,
-            recorder: recorder, toolchain: identity.sysroot, externs: externs, linksWithSystemLinker: linksWithSystemLinker
+            recorder: recorder, toolchain: identity.sysroot, externs: externs, linksWithSystemLinker: linksWithSystemLinker,
+            debugBundle: debugBundle, program: program
         )
+    }
+
+    /// Whether a link's debug map names the objects lldb reads debug information from: ld64 writes their absolute
+    /// paths, so a binary restored into another checkout, or after `cargo clean`, names objects that are elsewhere or
+    /// gone. Cargo's macOS default leaves debug information unpacked in the objects; packed debug information has
+    /// rustc run `dsymutil` itself, which recording does not admit, and a stripped binary has no debug map.
+    /// Options are read as rustc reads them: `-C`, `-Cx` and `--codegen`, `-` and `_` alike in names, the last value
+    /// winning, and `-g` as `-C debuginfo=2`.
+    static func hasDebugMap(_ arguments: [String]) -> Bool {
+        var options: [String: String] = [:]
+        for (index, argument) in arguments.enumerated() {
+            let next = index + 1 < arguments.count ? arguments[index + 1] : nil
+            let codegen = argument == "-C" || argument == "--codegen" ? next
+                : argument.hasPrefix("--codegen=") ? String(argument.dropFirst(10))
+                : argument.hasPrefix("-C") ? String(argument.dropFirst(2)) : nil
+            if argument == "-g" { options["debuginfo"] = "2" }
+            guard let parts = codegen?.split(separator: "=", maxSplits: 1), parts.count == 2 else { continue }
+            options[parts[0].replacingOccurrences(of: "-", with: "_")] = String(parts[1])
+        }
+        return !["0", "none"].contains(options["debuginfo"] ?? "0") && options["split_debuginfo"] == "unpacked"
+            && !["debuginfo", "symbols"].contains(options["strip"] ?? "none")
+    }
+
+    /// The files of a binary's `.dSYM` that lldb reads. `dsymutil` also writes a relocation map, which it alone uses.
+    static func debugBundleFiles(_ binary: String) -> [String] {
+        ["\(binary).dSYM/Contents/Info.plist", "\(binary).dSYM/Contents/Resources/DWARF/\(binary)"]
+    }
+
+    /// Writes the `.dSYM` of a linked binary that has a debug map, while the objects it names still exist, so the
+    /// binary is stored and restored with debug information that does not depend on them. lldb prefers a
+    /// UUID-matched `.dSYM` beside a binary over its debug map. `dsymutil` comes with the linker the declared key
+    /// already identifies. `false` when it could not.
+    ///
+    /// An earlier build's bundle is overwritten in place, never removed first: Cargo uplifts it (links it beside the
+    /// binary in the profile) as soon as it hears the compiler exit, which is when this runs, and a bundle that
+    /// disappears between its existence and directory checks fails the build.
+    func bundleDebugInformation(process: CargoProcess) async -> Bool {
+        guard let debugBundle, let binary = files.first, let directory = try? AbsolutePath(validating: output.path)
+        else { return true }
+        let bundle = output.appendingPathComponent(debugBundle)
+        // The parallel DWARF linker bundles a binary such as Codex's 1 GB `codex` in about half the time, with the same
+        // functions, inlined calls, line tables and located variables. Toolchains without it get the classic one.
+        var linked = false
+        for linker in [["--linker", "parallel"], []] where !linked {
+            // From the output directory, by name: the relocation map records the binary's path as given.
+            linked = (try? await process.captureOutput(
+                "/usr/bin/xcrun", arguments: ["dsymutil"] + linker + [binary, "-o", debugBundle], environment: environment,
+                directory: directory
+            )) != nil
+        }
+        guard linked else {
+            try? FileManager.default.removeItem(at: bundle)
+            return false
+        }
+        return Self.debugBundleFiles(binary)
+            .allSatisfy { FileManager.default.fileExists(atPath: output.appendingPathComponent($0).path) }
     }
 
     /// A file the system linker may take from a search directory: `-l` resolves to `lib<name>` with one of these
@@ -190,8 +276,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
         CargoReadRecorder.environment(environment, library: recorder, log: log, toolchain: toolchain.path)
     }
 
-    /// The inputs of a finished, successful recorded compilation, or `nil` when it cannot be cached.
-    func recorded(log: URL, started: Date) -> CargoRecordedInvocation? {
+    /// The inputs of a finished, successful recorded compilation, or `nil` when it cannot be cached, with the reason
+    /// passed to `explain`.
+    func recorded(log: URL, started: Date, explain: (String) -> Void = { _ in }) -> CargoRecordedInvocation? {
         let excluded = ["TUIST_CARGO_SESSION", "TUIST_CARGO_CACHE_DIR"].compactMap { environment[$0] }
             .map { URL(fileURLWithPath: $0).standardizedFileURL.path } + [log.path]
         let temporary = [NSTemporaryDirectory(), "/tmp", "/private/tmp", "/var/folders", "/private/var/folders"]
@@ -202,23 +289,38 @@ struct CargoRecordedInvocation: CargoCacheAction {
             log: log, relocation: relocation, excludedRoots: excluded,
             targetDirectory: environment["TUIST_CARGO_TARGET_DIR"].map { URL(fileURLWithPath: $0).standardizedFileURL.path },
             keepsLinkedLibraries: linksWithSystemLinker,
-            allowedWrites: [output.path] + temporary,
+            // rustc's incremental session holds only scratch state for its next compilation of this crate.
+            allowedWrites: [output.path] + temporary
+                + [CargoCacheInputs.incrementalDirectory(arguments, directory: directory)?.path].compactMap { $0 },
             allowedSpawn: { [linksWithSystemLinker] path in
-                guard linksWithSystemLinker else { return false }
-                let program = URL(fileURLWithPath: path).lastPathComponent
-                // rustc finds the SDK with `xcrun` and links with `cc`; both are keyed by `CargoToolchainIdentity.linker`.
-                return ["cc", "xcrun"].contains(program) || program == linker
+                #if os(macOS)
+                    guard linksWithSystemLinker else { return false }
+                    let program = URL(fileURLWithPath: path).lastPathComponent
+                    // rustc finds the SDK with `xcrun` and links with `cc`; both are keyed by `CargoToolchainIdentity.linker`.
+                    return ["cc", "xcrun"].contains(program) || program == linker
+                #else
+                    // On Linux every program the link starts must load the recorder.
+                    _ = (path, linker, linksWithSystemLinker)
+                    return false
+                #endif
             },
-            keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) }
+            keyedEnvironment: CargoCacheInvocation.isKeyed,
+            explain: explain
         ),
             let depInfo = try? String(contentsOf: output.appendingPathComponent(files.last!), encoding: .utf8)
         else { return nil }
-        reads.addEnvironmentDependencies(depInfo, keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) })
-        guard reads.unchanged(since: started, relocation: relocation) else { return nil }
+        reads.addEnvironmentDependencies(depInfo, keyedEnvironment: CargoCacheInvocation.isKeyed)
+        if let changed = reads.changedInput(since: started, relocation: relocation) {
+            explain("read \(changed), which changed while it ran")
+            return nil
+        }
         // Outputs that name a root behave the same only at that root, so their key names it too.
-        for file in (try? outputFiles()) ?? [] where !file.hasSuffix(".d") {
-            guard let data = try? Data(contentsOf: output.appendingPathComponent(file)) else { return nil }
-            reads.bind(relocation.boundRoots(in: data))
+        for file in (try? outputFiles()) ?? [] where !file.hasSuffix(".d") && !file.contains("/") {
+            guard let roots = try? relocation.boundRoots(of: output.appendingPathComponent(file)) else {
+                explain("could not read its output \(file)")
+                return nil
+            }
+            reads.bind(roots)
         }
         return with(reads)
     }
@@ -243,9 +345,10 @@ struct CargoRecordedInvocation: CargoCacheAction {
     }
 
     func outputFiles() throws -> [String] {
-        let additional = try FileManager.default.contentsOfDirectory(atPath: output.path)
+        let additional = try CargoCacheInputs.entries(of: output, prefix: String(files.last!.dropLast(2)) + ".")
             .filter { !files.contains($0) && acceptsOutput($0) }.sorted()
-        guard files.count + additional.count <= 128 else { throw CargoCacheInvocation.CacheError.unsupported }
+        guard files.count + additional.count <= CargoCompilationCache.maximumOutputFiles
+        else { throw CargoCacheInvocation.CacheError.unsupported }
         return files + additional
     }
 }
@@ -259,6 +362,35 @@ struct CargoToolchainIdentity: Codable {
 
     var sysroot: URL { URL(fileURLWithPath: sysrootPath) }
     var compilerFiles: [URL] { compilerPaths.map { URL(fileURLWithPath: $0) } }
+
+    /// Whether the dynamic loader settings in `environment` leave caching on. Cargo sets `LD_LIBRARY_PATH` for every
+    /// process it starts: directories in the target (a unit's or the profile's `deps`, native search paths printed
+    /// inside it), then what it inherited, which rustup's proxy starts with the toolchain's `lib`; empty when
+    /// there is nothing to add. Those hold the toolchain's libraries and the build's own outputs. Any other loader
+    /// setting, such as another search directory, `LD_PRELOAD`, `LD_AUDIT` or `DYLD_*`, can inject code or reads that
+    /// hashing its value cannot cover. Paths compare resolved, as the loader opens them: rustup names a linked
+    /// toolchain through its link, and an entry inside the target can link elsewhere.
+    func admitsLoader(_ environment: [String: String]) -> Bool {
+        func resolved(_ path: String) -> String {
+            guard let real = realpath(path, nil) else { return URL(fileURLWithPath: path).standardizedFileURL.path }
+            defer { free(real) }
+            return String(cString: real)
+        }
+        let toolchain = [sysroot.appendingPathComponent("lib").path, targetLibdirPath].map(resolved)
+        let target = environment["TUIST_CARGO_TARGET_DIR"].map { resolved($0) + "/" }
+        return environment.allSatisfy { name, value in
+            guard name.hasPrefix("LD_") || name.hasPrefix("DYLD_") else { return true }
+            // glibc separates entries with `:` or `;`. An empty value searches nothing, but an empty entry in a list
+            // searches the working directory.
+            return name == "LD_LIBRARY_PATH" && (value.isEmpty || value.split(
+                omittingEmptySubsequences: false, whereSeparator: { $0 == ":" || $0 == ";" }
+            ).allSatisfy { entry in
+                guard entry.hasPrefix("/") else { return false }
+                let path = resolved(String(entry))
+                return toolchain.contains(path) || target.map { (path + "/").hasPrefix($0) } == true
+            })
+        }
+    }
 
     static func resolve(
         _ executable: String, environment: [String: String], directory: AbsolutePath, process: CargoProcess

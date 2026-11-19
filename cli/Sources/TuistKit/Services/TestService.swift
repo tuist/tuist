@@ -469,7 +469,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             sdkSelection: cacheDestination.sdkSelection
         )
 
-        Logger.current.notice("Generating project for testing", metadata: .section)
+        Logger.current.info("Generating project for testing", metadata: .section)
         let (_, graph, mapperEnvironment) = try await TestImpactSelector.$current.withValue(testImpactSelector) {
             try await testGenerator.generateWithGraph(
                 path: path,
@@ -883,11 +883,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlan: testPlan,
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
-                    ?? resolvedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
+                    ?? resolvedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)),
+                coverage: UploadResultBundleService.uploadsCoverage(config: config)
             ),
             gitController: gitController,
             resolveBaselineService: resolveTestImpactBaselineService,
-            createRunService: createTestImpactRunService
+            createRunService: createTestImpactRunService,
+            gitHistoryService: gitHistoryService
         )
     }
 

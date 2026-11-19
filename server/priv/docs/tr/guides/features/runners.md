@@ -2,7 +2,7 @@
 {
   "title": "Çalıştırıcılar",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Çalıştırıcıları, GitHub Actions, Buildkite, GitLab CI ve Bitrise için yönetilen macOS ve Linux çalıştırıcılarıdır; önbellek, hesaplama kaynağının yanında konumlandırılır ve yerel makinelerinizle paylaşılır."
+  "description": "Tuist Çalıştırıcıları; GitHub Actions, Buildkite, GitLab CI ve Bitrise için yönetilen macOS ve Linux çalıştırıcılardır. Önbellek, hesaplama kaynaklarının yanında konumlandırılır ve yerel makinelerinizle paylaşılır."
 }
 ---
 # Runner'lar {#runners}
@@ -10,12 +10,12 @@
 > [!IMPORTANT]
 > **Davet usulü**
 >
-> Tuist Runner'lar, kapasiteyi ölçeklendirirken şu anda davet usulüyle erişime açıktır. Hesabınız için erişim talep etmek üzere [bize ulaşın](mailto:contact@tuist.dev) veya [topluluk Slack](https://slack.tuist.dev) kanalından bize yazın. Fiyatlandırma, Runner'lar genel kullanıma sunulduğunda duyurulacaktır.
+> Tuist Runner'lar, kapasiteyi ölçeklendirirken şu anda davet usulü erişime açık. Hesabınız için erişim talep etmek üzere [bize ulaşın](mailto:contact@tuist.dev) veya [topluluk Slack](https://slack.tuist.dev) kanalında bize yazın. Fiyatlandırma, Runner'lar genel kullanıma sunulduğunda duyurulacaktır.
 
 
-Tuist Runner'lar, GitHub Actions, Buildkite, GitLab CI ve Bitrise pipeline'larınız için yönetilen macOS ve Linux runner'lardır. İşleri CI sağlayıcınızın barındırdığı makinelerde çalıştırmak yerine, bir işi bir Tuist <.localized_link href="/guides/features/runners/profiles">profili</.localized_link>ne yönlendirirsiniz; iş, Tuist filolarında, ekibinizin zaten kullandığı aynı <.localized_link href="/guides/features/cache">önbelleğin</.localized_link> yanında çalışır. Kurulması gereken bir runner aracısı veya bakımı yapılacak bir altyapı yoktur.
+Tuist Runner'lar, GitHub Actions, Buildkite, GitLab CI ve Bitrise pipeline'larınız için yönetilen macOS ve Linux runner'lardır. İşleri CI sağlayıcınızın barındırdığı makinelerde çalıştırmak yerine, bir işi bir Tuist <.localized_link href="/guides/features/runners/profiles">profiline</.localized_link> yönlendirirsiniz; iş, Tuist filolarında, ekibinizin zaten kullandığı aynı <.localized_link href="/guides/features/cache">önbelleğin</.localized_link> yanında çalışır. Kurulması gereken bir runner aracısı veya bakımını yapmanız gereken bir altyapı yoktur. Makineleri değiştirmeden önce CI faturanızı neyin etkilediğini anlamak için [CI maliyetleri](https://tuist.dev/solutions/ci-costs) sayfasına bakın.
 
-Benimsemeleri genellikle bir işte tek satırlık bir değişiklikle yapılır:
+Benimsemek genellikle bir işte tek satırlık bir değişikliktir:
 
 ::: code-group
 
@@ -40,11 +40,11 @@ Benimsemeleri genellikle bir işte tek satırlık bir değişiklikle yapılır:
 <!-- -->
 :::
 
-## Linux üzerinde Android öykünücüleri {#android-emulators}
+## Linux üzerinde Android emülatörleri {#android-emulators}
 
-Linux runner'lar varsayılan olarak `/dev/kvm` üzerinden donanım hızlandırmalı sanallaştırma sağlar. Gradle Yönetilen Cihazlar dahil olmak üzere x86_64 Android öykünücülerini çalıştırmak için olağan Linux <.localized_link href="/guides/features/runners/profiles">profilinizi</.localized_link>, örneğin `tuist-linux`, kullanın. Cihaza erişmek için özel bir runner profili, KVM kurulum eylemi, izin değişikliği veya `sudo` gerekmez.
+Linux runner'lar varsayılan olarak `/dev/kvm` üzerinden donanım hızlandırmalı sanallaştırma sağlar. Gradle Yönetilen Cihazlar dahil olmak üzere x86_64 Android emülatörlerini çalıştırmak için olağan Linux <.localized_link href="/guides/features/runners/profiles">profilinizi</.localized_link>, örneğin `tuist-linux`, kullanın. Cihaza erişmek için özel bir runner profili, KVM kurulum eylemi, izin değişikliği veya `sudo` gerekmez.
 
-Runner imajı Android SDK'yı içerir. Bir cihazı başlatmadan önce öykünücüyü ve çalışma zamanı kütüphanelerini yükleyin. Zaten `pixel6` adlı bir Gradle Yönetilen Cihaz tanımlayan bir proje için GitHub Actions işi şu şekilde görünür:
+Runner imajı Android SDK'yı içerir. Bir cihazı başlatmadan önce emülatörü ve çalışma zamanı kütüphanelerini yükleyin. Zaten `pixel6` adlı bir Gradle Yönetilen Cihaz tanımlayan bir proje için GitHub Actions işi şu şekilde görünür:
 
 ```yaml
 jobs:
@@ -72,19 +72,21 @@ jobs:
         run: ./gradlew :app:pixel6DebugAndroidTest
 ```
 
-Android Gradle Eklentinizin gerektirdiği Java sürümünü kullanın ve test görevini projenizin yönetilen-cihaz göreviyle değiştirin. Bir **x86_64** sistem imajı yapılandırın. Hem Gradle hem de öykünücüler için yeterli belleğe sahip bir runner şekli seçin; eşzamanlı cihazlar işin CPU ve bellek tahsisini paylaşır.
+Android Gradle Eklentinizin gerektirdiği Java sürümünü kullanın ve test görevini projenizin yönetilen-cihaz göreviyle değiştirin. Bir **x86_64** sistem imajı yapılandırın. Hem Gradle hem de emülatörler için yeterli belleğe sahip bir runner şekli seçin; eşzamanlı cihazlar işin CPU ve bellek tahsisini paylaşır.
 
-Öykünücüyü normal runner kullanıcısı olarak çalıştırın. Bu örnekte `sudo` yalnızca işletim sistemi paketlerini yüklemek içindir.
+Emülatörü normal runner kullanıcısı olarak çalıştırın. Bu örnekte `sudo` yalnızca işletim sistemi paketlerini yüklemek içindir.
 
-Öykünücüler iç içe sanallaştırma kullanır, bu nedenle zamanlamaları fiziksel bir Android cihazdan farklı olabilir. Öykünücü kıyaslamalarını fiziksel cihaz performansı yerine o CI ortamının ölçümleri olarak değerlendirin.
+Emülatörler iç içe sanallaştırma kullanır, bu nedenle zamanlamaları fiziksel bir Android cihazdan farklı olabilir. Emülatör kıyaslamalarını fiziksel cihaz performansı yerine o CI ortamının ölçümleri olarak değerlendirin.
 
 ## Eşzamanlılık sınırları {#concurrency-limits}
 
-Her hesabın macOS ve Linux için bağımsız vCPU ve bellek eşzamanlılık sınırları vardır. Tuist bir işi kabul etmeden önce, işin <.localized_link href="/guides/features/runners/profiles#machine-shapes">makine şeklini</.localized_link> o platformda şu anda çalışan tüm işlere göre kontrol eder. İş, yalnızca vCPU'su ve belleği kalan kapasiteye sığdığında başlar; aksi takdirde kapasite uygun hale gelene kadar kuyrukta kalır. Bir platformdaki işler asla diğer platformun kapasitesini tüketmez.
+Her hesabın macOS ve Linux için bağımsız vCPU ve bellek eşzamanlılık sınırları vardır. Tuist bir işi kabul etmeden önce, işin <.localized_link href="/guides/features/runners/profiles#machine-shapes">makine şeklini</.localized_link> o platformda şu anda çalışan tüm işlerle karşılaştırır. İş, hem vCPU'su hem de belleği kalan kapasiteye sığdığında başlar; aksi takdirde kapasite uygun hale gelene kadar kuyrukta kalır. Bir platformdaki işler asla diğer platformun kapasitesini tüketmez.
 
-Runner'lar panosundaki **Eşzamanlılık** bölümü, her saat için kabul edilen en yüksek vCPU ve bellek kullanımını gösterir. Kırmızı bir çubuk, o saat içinde kullanımın yapılandırılan sınıra ulaştığı anlamına gelir. Kullanım çizgiyi aşamaz çünkü herhangi bir kaynağı sınırının üzerine çıkaracak işler kuyrukta kalır.
+Air hesapları sabit eşzamanlılık sınırlarına sahiptir. Pro ve Enterprise hesapları için Tuist, tekrarlayan kullanıma ve aktif runner'ların yanına sığmayan son kuyruk işlerine dayanarak otomatik olarak ek kapasite alanı ekler. Otomatik ayarlamalar yalnızca sınırları artırır: mevcut haklar ve sözleşmeli minimum kapasite korunur. Büyüme kademeli olur ve güvenlik tavanlarıyla sınırlıdır, bu nedenle ani bir artış sınırsız eşzamanlılık sağlamaz. Daha yüksek bir hesap limiti, makinelerin hemen kullanılabilir olacağını garanti etmez.
 
-Mevcut sınırlarınız her grafiğin yanında gösterilir. İş akışlarınız düzenli olarak bu sınırlara ulaşıyor ve kuyrukta zaman geçiriyorsa, hesap adınızı, platformu ve beklenen paralel iş yükünüzü belirterek [bizimle iletişime geçin](mailto:contact@tuist.dev). Gerekli kapasiteyi inceleyip sınırları artırmaya yardımcı olacağız.
+Runner'lar panosundaki **Eşzamanlılık** bölümü, her saat için kabul edilen en yüksek vCPU ve bellek kullanımını gösterir; her saatin başında bilinen limit için basamaklı bir çizgi bulunur. Kırmızı çubuklar o geçmiş eşiğe ulaşmıştır; bunlar tek başına bir işin beklediğini kanıtlamaz. Bir saat içindeki artış, zirveyi kova-başlangıç çizgisinin üzerine çıkarabilir. Mevcut limitler her grafiğin yanında gösterilir. Geçmiş izlemenin başlamasından önceki dönemlerde varsayılan bir geçmiş değeri yerine limit çizgisi bulunmaz.
+
+İş akışları güvenlik tavanında kuyruğa alınmaya devam ederse, gerekli kapasiteyi inceleyebilmemiz için hesap adınızı, platformu ve beklenen paralel iş yükünüzü belirterek [bize ulaşın](mailto:contact@tuist.dev).
 
 ## Ağ erişimi {#network-access}
 
@@ -92,15 +94,15 @@ Mevcut sınırlarınız her grafiğin yanında gösterilir. İş akışlarınız
 
 | Platform | Giden portlar |
 | --- | --- |
-| Linux | TCP 22 (SSH), 80 (HTTP) ve 443 (HTTPS), ayrıca DNS |
+| Linux | TCP 22 (SSH), 80 (HTTP) ve 443 (HTTPS), artı DNS |
 | macOS | Tüm portlar |
 
-SSH, `git@` bağımlılıklarını, SSH alt modüllerini, dağıtım anahtarlarını ve `ssh` veya `scp` dağıtımlarını kapsar. Bir Linux iş akışı başka bir giden porta ihtiyaç duyuyorsa [bizimle iletişime geçin](mailto:contact@tuist.dev).
+SSH, `git@` bağımlılıklarını, SSH alt modüllerini, dağıtım anahtarlarını ve `ssh` veya `scp` dağıtımlarını kapsar. Bir Linux iş akışı başka bir giden porta ihtiyaç duyuyorsa [bize ulaşın](mailto:contact@tuist.dev).
 
 <.home_cards>
   <.home_card
     title="GitHub Actions"
-    details="GitHub'ı bağlayın, runs-on ayarını bir Tuist profiline yönlendirin ve ilk işinizi filoda çalıştırın."
+    details="GitHub'ı bağlayın, runs-on değerini bir Tuist profiline yönlendirin ve filoda ilk işinizi çalıştırın."
     link="/guides/features/runners/ci-providers/github-actions"
 />
   <.home_card
@@ -120,7 +122,7 @@ SSH, `git@` bağımlılıklarını, SSH alt modüllerini, dağıtım anahtarlar�
 />
   <.home_card
     title="API"
-    details="Kendi git forgenizden veya orkestratörünüzden tek bir istekle işleri çalıştırın ve webhook'larla takip edin."
+    details="Kendi git forgenizden veya düzenleyicinizden tek bir istekle işleri çalıştırın ve webhook'larla takip edin."
     link="/guides/features/runners/ci-providers/api"
 />
   <.home_card
@@ -129,26 +131,31 @@ SSH, `git@` bağımlılıklarını, SSH alt modüllerini, dağıtım anahtarlar�
     link="/guides/features/runners/profiles"
 />
   <.home_card
+    title="İmajlar"
+    details="macOS ve Linux runner'larda önceden yüklü olanları görün: Xcode, simülatörler, Metal araç zinciri, Docker, Android SDK ve daha fazlası."
+    link="/guides/features/runners/images"
+/>
+  <.home_card
     title="Önbellek birimleri"
-    details="Xcode, modül ve Gradle önbelleklerini ve diğer dizinleri işler arasında koruyun; her çalıştırma için özel, yazılabilir bir kopya ile."
+    details="İşler arasında Xcode, modül ve Gradle önbelleklerini ve diğer dizinleri koruyun; her çalıştırma için özel, yazılabilir bir kopya sağlar."
     link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>
 
 ## Once grafik eylemleri {#once-graph-actions}
 
-Once, hesapta uzaktan yürütme etkinleştirildiğinde ve sunucu uyumlu worker yeteneklerini duyurduğunda, uygun grafik komut eylemlerini Tuist'in Linux worker'larında yürütebilir. Bu, yukarıdaki CI sağlayıcı işlerinden ayrı olarak eylem düzeyinde bir yürütmedir. Kurulum, imaj gereksinimleri ve uyumluluk kontrolleri için <.localized_link href="/guides/features/runners/once">Once uzaktan yürütme</.localized_link> bölümüne bakın.
+Hesapta uzaktan yürütme etkinse ve sunucu uyumlu worker yeteneklerini duyuruyorsa Once, uygun grafik komut eylemlerini Tuist'in Linux worker'larında yürütebilir. Bu, yukarıdaki CI sağlayıcı işlerinden ayrı, eylem düzeyinde bir yürütmedir. Kurulum, imaj gereksinimleri ve uyumluluk kontrolleri için <.localized_link href="/guides/features/runners/once">Once uzaktan yürütme</.localized_link> bölümüne bakın.
 
 ## Neden Tuist Runner'lar {#why-tuist-runners}
 
-Çoğu CI runner sağlayıcısı, daha güçlü makineler ve kalıcı bir önbellek (genellikle CI çalıştırmalarınıza yeniden monte edilen paylaşılan bir birim) sunarak işleri hızlandırır. Bu yardımcı olur ancak bir birim sadece bir diskten ibarettir: önceki CI çalıştırmalarının üzerinde bıraktığı her şeyi taşır. En güncel yapıtları derlemelerin çalıştığı yere yakın tutmak için çoğaltılmaz ve kodunuzun derlendiği diğer yerlere asla ulaşmaz.
+Çoğu CI runner sağlayıcısı, daha güçlü makineler ve kalıcı bir önbellek sunarak işleri hızlandırır; bu genellikle CI çalıştırmalarınıza yeniden monte edilen paylaşılan bir birimdir. Bu yardımcı olur ancak bir birim yalnızca bir diskten ibarettir: önceki CI çalıştırmalarının üzerinde bıraktığı her şeyi taşır. Yalnızca en güncel yapıtları derlemelerin çalıştığı yere yakın tutmak için çoğaltılmaz ve kodunuzun derlendiği diğer ortamlara asla ulaşmaz.
 
-Derleme artık tek bir yerde gerçekleşmiyor. Aynı kod, geliştirici dizüstü bilgisayarlarında, CI ortamlarında ve giderek artan şekilde kodlama ajanları ile diğer otomatik ortamlarda derleniyor. Tuist Runner'lar farklıdır çünkü kullandığınız derleme sisteminden bağımsız olarak, tüm bu ortamların zaten okuyup yazdığı aynı <.localized_link href="/guides/features/cache">önbelleği</.localized_link> paylaşır. Bir ekip arkadaşının dizüstü bilgisayarında ısıttığı, bir ajanın ürettiği veya önceki bir derlemenin geride bıraktığı yapıtlar runner'da isabet oluşturur ve tersi de geçerlidir. Isıtılması gereken ayrı bir CI önbelleği yoktur ve hızlanma yalnızca CI ile sınırlı değildir.
+Derleme artık tek bir yerde gerçekleşmiyor. Aynı kod geliştirici dizüstü bilgisayarlarında, CI ortamında ve giderek artan şekilde kodlama ajanları ile diğer otomatik ortamlarda derleniyor. Tuist Runner'lar farklıdır çünkü kullandığınız derleme sisteminden bağımsız olarak tüm bu ortamların zaten okuyup yazdığı aynı <.localized_link href="/guides/features/cache">önbelleği</.localized_link> paylaşır. Bir ekip arkadaşının dizüstü bilgisayarında ısıttığı, bir ajanın ürettiği veya önceki bir derlemenin geride bıraktığı yapıtlar runner'da isabet oluşturur ve tam tersi de geçerlidir. Isıtılması gereken ayrı bir CI önbelleği yoktur ve hızlanma yalnızca CI ile sınırlı değildir.
 
-Buna ek olarak, önbellek runner ile aynı özel ağ üzerinde birlikte konumlandırılır; böylece önbellek okuma ve yazma işlemleri genel interneti geçmek yerine dahili kalır ve hesaplama kaynağına yakın gerçekleşir.
+Buna ek olarak, önbellek runner ile aynı özel ağda birlikte konumlandırılır; böylece önbellek okuma ve yazma işlemleri genel interneti geçmek yerine dahili kalır ve hesaplama kaynağına yakın gerçekleşir.
 
-Özetle:
+Bir araya getirildiğinde:
 
-- **Tüm ortamlarda paylaşılır.** Runner, geliştirici makineleriniz, CI ve kodlama ajanlarınızla aynı önbelleği okur ve yazar; böylece herhangi bir yerde yapılan iş, önbelleği her yerde ısıtır.
-- **Hesaplama kaynağıyla birlikte konumlandırılır.** Önbellek trafiği, genel bir giriş noktası üzerinden değil, runner'ın yanındaki dahili ağda kalır.
-- **Tek bir sistem, sonradan eklenmiş değil.** Önbellekleme, <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link>, <.localized_link href="/guides/features/test-sharding">test parçalama</.localized_link> ve <.localized_link href="/guides/features/build-insights">derleme içgörüleri</.localized_link> aynı proje ve hesap üzerinden çalışır; bu sayede runner, derleme verilerinin ayrı bir yalıtılmış bölümü haline gelmez.
+- **Tüm ortamlarda paylaşılır.** Runner, geliştirici makineleriniz, CI ve kodlama ajanlarınızla aynı önbelleği okur ve yazar; bu sayede herhangi bir yerde yapılan iş her yerde önbelleği ısıtır.
+- **Hesaplama kaynağıyla birlikte konumlandırılır.** Önbellek trafiği genel bir giriş noktası üzerinden değil, runner'ın yanındaki dahili ağda kalır.
+- **Tek bir sistem, sonradan eklenmiş değil.** Önbellekleme, <.localized_link href="/guides/features/selective-testing">seçici test</.localized_link>, <.localized_link href="/guides/features/test-sharding">test parçalama</.localized_link> ve <.localized_link href="/guides/features/build-insights">derleme içgörülerinin</.localized_link> tümü aynı proje ve hesap üzerinden çalışır; bu nedenle runner ayrı bir derleme verisi silosu değildir.

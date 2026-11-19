@@ -191,7 +191,7 @@
       flex-direction: column;
       gap: var(--noora-spacing-4);
       box-sizing: border-box;
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-5);
@@ -290,7 +290,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--noora-spacing-3);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     padding: var(--noora-spacing-2) var(--noora-spacing-4);
     min-height: 44px;
@@ -302,7 +302,7 @@
 
     &:focus-visible {
       outline: none;
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     @media (max-width: 640px) {
@@ -366,7 +366,7 @@
     & > [data-part="step"] {
       display: flex;
       flex-direction: column;
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       background: var(--noora-surface-background-primary);
       overflow: hidden;
@@ -454,7 +454,7 @@
             align-items: center;
             gap: var(--noora-spacing-3);
             cursor: pointer;
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
             border-radius: var(--noora-radius-3);
             background: var(--noora-surface-background-primary);
             padding-inline: var(--noora-spacing-2) var(--noora-spacing-3);
@@ -470,7 +470,7 @@
 
             &:focus-visible {
               outline: none;
-              box-shadow: var(--noora-button-border-secondary-focus);
+              box-shadow: var(--noora-button-border-focus);
             }
           }
 
@@ -688,7 +688,7 @@
     align-self: center;
     cursor: pointer;
     margin-bottom: var(--noora-spacing-3);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border: none;
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
@@ -1088,7 +1088,7 @@
     cursor: text;
     box-sizing: border-box;
     outline: none;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--runner-terminal-background);
     padding: var(--noora-spacing-5) var(--noora-spacing-6);
@@ -1105,7 +1105,7 @@
     }
 
     &:focus {
-      box-shadow: var(--noora-border-light-focus), var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-focus), var(--noora-border-small-default);
     }
 
     & > [data-part="interactive-terminal-output"] {

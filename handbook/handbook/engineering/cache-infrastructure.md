@@ -25,7 +25,7 @@ That is the substantive change. The old fleet had its own operating system, its 
 | Storage | Local disk: a metadata store for manifests and replication state, append-only segment files for artifact bodies |
 | Ingress and certificates | Regional ingress controllers with certificates issued through cert-manager |
 | Secrets | 1Password, synchronized into the cluster by the External Secrets Operator |
-| Observability | Grafana Cloud, through the in-cluster telemetry agent that covers every workload |
+| Observability | The environment's Pulse, fed by the in-cluster telemetry agent that covers every workload, and read by Grafana Cloud |
 
 ## Regions
 
@@ -34,9 +34,8 @@ That is the substantive change. The old fleet had its own operating system, its 
 | `eu-west` | OVHcloud | Gravelines, France |
 | `us-east` | OVHcloud | Vint Hill, Virginia |
 | `us-west` | OVHcloud | Hillsboro, Oregon |
-| `scw-fr-par-runners` | Scaleway Elastic Metal | Paris |
 
-The first three serve customers. `scw-fr-par-runners` is private: it serves the macOS runner fleet's build cache over the private network the Mac minis attach to.
+These serve customers. Each rack site also has a private region (`<site>-runners`) on the site's storage node, which serves the build cache of the macOS runners racked there over the site's network.
 
 Customers do not choose among them. An account is placed in the region its cache traffic comes from, and the placement follows that traffic when it durably moves; what an account states is where its data may live (the storage region setting), which is a compliance boundary rather than a placement. Each account also has a cache hostname without a region in it, so a client that writes the endpoint down keeps working when its cache moves.
 
@@ -91,7 +90,7 @@ Kura is a mesh, and it is deployed with rolling updates, so nodes running differ
 
 **Secrets.** Held in 1Password and synchronized by the External Secrets Operator. Rotating one means updating the item and letting the operator resynchronize.
 
-**Observability.** Metrics, logs, and traces reach Grafana Cloud through the in-cluster agent. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
+**Observability.** Metrics, logs, and traces reach the environment's Pulse through the in-cluster agent, and Grafana Cloud reads them for dashboards and alerts. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
 
 **Release.** Releasing an OVHcloud or Scaleway Elastic Metal box wipes and reinstalls it before it can be re-adopted. This does not cancel its provider subscription. The Dedibox fleet has been retired and its provisioning support removed.
 

@@ -45,6 +45,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+  `sparse` finds those extents and zero runs for sandboxd's `SBXARC1`
+  archives too, so a change there also changes sandboxd's image (its tag
+  follows `sparse/` and `go.mod`). Keep it free of other dependencies.
 - Archive downloads, compression and both restoration formats flush every 16 MiB
   written, in addition to their final sync. Dirty filesystem pages count toward
   the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
@@ -67,8 +70,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `/execution` endpoint or a macOS `execution_token` mailbox request, with the
   pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
-  goes through `DoServer`: up to four attempts on a connection failure or a
-  502/503/504, jittered backoff from 250 ms to 2 s, never past the request
+  goes through `DoServer`: up to four attempts on a connection failure (also
+  one that cuts the response body short: `DoServer` reads the body inside the
+  attempt) or a 502/503/504, jittered backoff from 250 ms to 2 s, never past the request
   context (an attach keeps its 25 s budget). The server keeps them idempotent:
   an allocation returns the pod's existing use, a report restates a use, and an
   `image` request reads a HEAD, signs another URL or returns the generation the
@@ -291,6 +295,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded from a host-built master; attach fails rather than format an empty image.
   The host publishes and restores checkout masters itself, with `CompressImage`
   and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- `CloneMaster` lends a saved head's master to sandboxd (the agent's
+  `/sandbox-cache/image`): a reflink under the scope lock eviction takes,
+  streamed with `WriteImage` in the `CompressImage` format and received with
+  `ReceiveImage`. It never fetches, records no use and writes nothing back.
 - A restore downloads into `restore-<generation>-<content digest>` beside the
   master, because the transfer resumes a partial it finds at the same path: a
   fixed name let a restart splice another HEAD's archive into this one. Other
@@ -335,6 +343,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   pull request's test merge, read with `cat-file commit` because a depth-1 fetch
   leaves its parents out). That master is published like a moved tip. Once a
   master exists, other exports only add objects.
+- A cold build refuses an export that is not the job's checkout or lacks LFS
+  objects its commit references, as `withheld`. Every later job of that lineage
+  exports the same way, so the host remembers the refusal (`Refusing`, in memory,
+  `checkoutRefusedFor`) and both agents answer the lineage's checkout requests
+  without a HEAD `denied` meanwhile, which keeps guests from exporting at all.
 - `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
   share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
   within the export bounds, written through `os.Root`, else the whole stream is
@@ -381,3 +394,44 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   aside before creating the replacement). Unlinking and immediately recreating
   a file can reuse its inode on Linux, so it does not reliably exercise the
   different-inode guard.
+
+- `ActionsCache` (`actions_cache.go`) serves GitHub's cache v2 protocol on the
+  Linux agent's :8090: the three JSON twirp cache methods, plus Put Blob, Put
+  Block, Put Block List and ranged reads (`Range` or `x-ms-range`) on
+  `/actions-cache/blobs/<id>`, the parts of Azure Blob Storage `@actions/cache`
+  and buildkit's `type=gha` client use. Every other `/twirp/` request goes to
+  GitHub unchanged. Jobs reach it only through the runner image's node shim.
+- Any failure is a miss (`ok: false`) or a refused save, never a 5xx: clients
+  retry those with backoff, which costs more than rebuilding. Blob refusals are
+  4xx for the same reason (413 without room). The index call shares a 5-second
+  budget; never wait longer for the server.
+- A lookup the mirror misses, or cannot answer, is asked of GitHub's cache
+  with the job's own request and token, within the same budget, and GitHub's
+  answer goes back unchanged: an account's first runs still restore what it
+  saved on GitHub. Saves never go to GitHub. An entry GitHub still holds is
+  restored from there, so an exact hit is not saved again; it moves to the
+  mirror once GitHub drops it.
+- Blob links carry an HMAC over operation, entry, expiry and the caller Pod's
+  UID, keyed per process, and the caller is resolved again by source address.
+  A link never authorizes another Pod or the other operation.
+- Entries live in a store, never on the host: the in-rack shard store's
+  quota-capped bucket at the host's site, or the account's own storage, as the
+  server places them. A restore relays ranged reads from the store's presigned
+  URL. `/actions-cache/healthz` fails while the store has not answered for 30
+  seconds, so the node shim leaves jobs on GitHub's cache during an outage.
+  It also fails for a Pod until the server says its job's account uses the
+  mirror (`Enabled`), asked once per Pod and kept; the probe waits 100 ms of the
+  shim's 150 ms for it, and the check finishes in the background for the next
+  probe.
+- `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
+  filesystem until `Run` copies them to the store (a presigned PUT bound to the
+  SHA-256) and the server commits them; a failed copy drops the entry. A block
+  list commits by hard-linking its blocks into `parts/` in list order
+  and hashing them; the copy streams the parts. Never reassemble them into one
+  file before answering: the job waits on it, seconds per GB. Never fsync per
+  block either: buildx sends 1 MiB blocks one at a time, and an fsync on the
+  loop-mounted cache costs 11 ms. Each stream starts writeback every 16 MiB and
+  at its end, and the store fsyncs once all streams staged 16 MiB, which bounds
+  dirty pages the loop device's backing file still charges to the agent. It
+  writes at most four streams at a time and admits only above the reserve.
+  Staging never evicts masters; uploads idle for an hour are removed.

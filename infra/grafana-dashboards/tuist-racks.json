@@ -32,8 +32,8 @@
         {
           "current": {
             "selected": false,
-            "text": "grafanacloud-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": 0,
           "includeAll": false,
@@ -43,7 +43,7 @@
           "options": [],
           "query": "prometheus",
           "refresh": 1,
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false,
           "type": "datasource"
         },
@@ -167,7 +167,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum((rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8",
+            "expr": "sum((rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1)) * 8",
             "legendFormat": "download",
             "refId": "A",
             "range": true,
@@ -176,7 +176,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8",
+            "expr": "sum((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1)) * 8",
             "legendFormat": "upload",
             "refId": "B",
             "range": true,
@@ -240,7 +240,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "quantile_over_time(0.95, (sum((rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8)[30d:5m])",
+            "expr": "quantile_over_time(0.95, (sum((rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1)) * 8)[30d:5m])",
             "legendFormat": "download",
             "refId": "A",
             "range": false,
@@ -249,7 +249,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "quantile_over_time(0.95, (sum((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8)[30d:5m])",
+            "expr": "quantile_over_time(0.95, (sum((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1)) * 8)[30d:5m])",
             "legendFormat": "upload",
             "refId": "B",
             "range": false,
@@ -303,7 +303,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) ((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 8",
+            "expr": "sum by (instance) ((rate(node_network_transmit_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_receive_bytes_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1)) * 8",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -348,7 +348,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) ((rate(node_network_receive_errs_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_transmit_errs_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "sum by (instance) ((rate(node_network_receive_errs_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_transmit_errs_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "errors {{instance}}",
             "refId": "A",
             "range": true,
@@ -357,7 +357,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) ((rate(node_network_receive_drop_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_transmit_drop_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "sum by (instance) ((rate(node_network_receive_drop_total{cluster=\"$cluster\", device=\"wan0\"}[5m]) + rate(node_network_transmit_drop_total{cluster=\"$cluster\", device=\"wan0\"}[5m])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "drops {{instance}}",
             "refId": "B",
             "range": true,
@@ -429,7 +429,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "min by (target) (((probe_success{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\"} or probe_success{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\"})) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "min by (target) (((probe_success{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\"} or probe_success{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\"})) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": false,
@@ -474,7 +474,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "avg by (target) (((probe_icmp_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\", phase=\"rtt\"} or probe_icmp_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\", phase=\"rtt\"})) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "avg by (target) (((probe_icmp_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\", phase=\"rtt\"} or probe_icmp_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\", phase=\"rtt\"})) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": true,
@@ -519,7 +519,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "avg by (target) ((probe_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target!~\"uplink-gateway|anycast-reference\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "avg by (target) ((probe_duration_seconds{job=\"rack-path\", cluster=\"$cluster\", target!~\"uplink-gateway|anycast-reference\"}) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": true,
@@ -564,7 +564,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - avg by (target) ((avg_over_time((probe_success{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\", target=~\"uplink-gateway|anycast-reference\"} or probe_success{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\", target=~\"uplink-gateway|anycast-reference\"})[15m:])) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "1 - avg by (target) ((avg_over_time((probe_success{job=\"rack-path\", cluster=\"$cluster\", target!=\"uplink-gateway\", target=~\"uplink-gateway|anycast-reference\"} or probe_success{job=\"rack-path\", cluster=\"$cluster\", target=\"uplink-gateway\", gateway_site=\"$site\", target=~\"uplink-gateway|anycast-reference\"})[15m:])) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{target}}",
             "refId": "A",
             "range": true,
@@ -622,7 +622,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (instance) ((macos_sensor_temperature_celsius{cluster=\"$cluster\", rack_host=\"true\", sensor=~\"PMU tdie.*\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "max by (instance) ((macos_sensor_temperature_celsius{cluster=\"$cluster\", rack_host=\"true\", sensor=~\"PMU tdie.*\"}) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -667,7 +667,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (instance) ((macos_thermal_pressure_level{cluster=\"$cluster\", rack_host=\"true\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "max by (instance) ((macos_thermal_pressure_level{cluster=\"$cluster\", rack_host=\"true\"}) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,
@@ -712,7 +712,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (instance) ((macos_fan_speed_rpm{cluster=\"$cluster\", rack_host=\"true\"}) and on (instance) label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\"))",
+            "expr": "max by (instance) ((macos_fan_speed_rpm{cluster=\"$cluster\", rack_host=\"true\"}) * on (instance) group_left () (max by (instance) (label_replace(max by (node) (kube_node_labels{cluster=\"$cluster\", label_node_cluster_x_k8s_io_rack_site=\"$site\"}), \"instance\", \"$1\", \"node\", \"(.*)\")) * 0 + 1))",
             "legendFormat": "{{instance}}",
             "refId": "A",
             "range": true,

@@ -17,29 +17,41 @@
   );
   --noora-banner-error-background: light-dark(
     var(--noora-red-50),
-    var(--noora-alpha-red)
+    var(--noora-alpha-red-24)
   );
   --noora-banner-error-border: var(--noora-red-500);
   --noora-banner-success-background: light-dark(
     var(--noora-green-50),
-    var(--noora-alpha-green)
+    var(--noora-alpha-green-24)
   );
-  --noora-banner-success-border: var(--noora-green-600);
+  --noora-banner-success-border: light-dark(
+    var(--noora-green-600),
+    var(--noora-green-400)
+  );
   --noora-banner-warning-background: light-dark(
     var(--noora-orange-50),
-    var(--noora-alpha-orange)
+    var(--noora-alpha-orange-24)
   );
-  --noora-banner-warning-border: var(--noora-orange-600);
+  --noora-banner-warning-border: light-dark(
+    var(--noora-orange-600),
+    var(--noora-orange-400)
+  );
   --noora-banner-information-background: light-dark(
     var(--noora-azure-50),
-    var(--noora-alpha-azure)
+    var(--noora-alpha-azure-24)
   );
   --noora-banner-information-border: var(--noora-azure-500);
-  --noora-banner-grid-color: light-dark(
-    var(--noora-neutral-light-1200),
-    var(--noora-neutral-light-50)
+  /* The primary banner's dither wave, shallow to deep. */
+  --noora-banner-dither-shallow: light-dark(
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-800)
+  );
+  --noora-banner-dither-deep: light-dark(
+    var(--noora-neutral-light-500),
+    var(--noora-neutral-dark-700)
   );
   display: flex;
+  isolation: isolate;
   position: relative;
   box-sizing: border-box;
   justify-content: center;
@@ -52,14 +64,15 @@
   overflow-x: hidden;
   color: var(--noora-banner-label);
 
+  /* The dither wave: a canvas behind the content (the banner isolates its
+     stacking context, so z-index -1 stays above its background). */
   & [data-part="background"] {
     position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: auto;
+    z-index: -1;
+    inset: 0;
+    width: 100%;
     height: 100%;
-    color: var(--noora-banner-grid-color);
+    pointer-events: none;
   }
 
   & [data-part="icon"] {
@@ -85,6 +98,17 @@
 
   & [data-part="description"] {
     font: var(--noora-font-body-medium);
+  }
+
+  /* The link takes the banner's label color, so it reads on every status
+     background. */
+  & [data-part="action"] {
+    display: flex;
+    flex: 0 0 auto;
+
+    & .noora-link-button:not(:disabled) {
+      color: var(--noora-banner-label);
+    }
   }
 
   & [data-part="dismiss-icon"] {
@@ -129,7 +153,7 @@
     background: var(--noora-banner-success-background);
 
     & [data-part="icon"] {
-      color: var(--noora-green-600);
+      color: var(--noora-banner-success-border);
     }
   }
 
@@ -138,7 +162,7 @@
     background: var(--noora-banner-warning-background);
 
     & [data-part="icon"] {
-      color: var(--noora-orange-600);
+      color: var(--noora-banner-warning-border);
     }
   }
 

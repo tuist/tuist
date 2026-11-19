@@ -6,40 +6,35 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.Accounts.Account
-  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
 
   test "CPU and RAM independently reject starts before placement and do not insert failed rows" do
-    for limits <- [
-          %{sandbox_vcpus_limit: 2, sandbox_memory_gb_limit: 64},
-          %{sandbox_vcpus_limit: 32, sandbox_memory_gb_limit: 4}
+    # CPU counts guarantees: a quarter vCPU per GiB of a Linux sandbox's
+    # memory, whatever its vCPUs, and every vCPU of a macOS one.
+    for {limits, running} <- [
+          {%{sandbox_vcpus_limit: 1, sandbox_memory_gb_limit: 64}, List.duplicate([vcpus: 16], 4)},
+          {%{sandbox_vcpus_limit: 8, sandbox_memory_gb_limit: 64}, [[platform: :darwin, vcpus: 8, memory_mb: 8192]]},
+          # A picked guarantee counts in full.
+          {%{sandbox_vcpus_limit: 4, sandbox_memory_gb_limit: 64}, [[vcpus: 16, guaranteed_cpu_milli: 4000]]},
+          {%{sandbox_vcpus_limit: 32, sandbox_memory_gb_limit: 4}, [[]]}
         ] do
       account = account_fixture()
       {:ok, _} = Concurrency.update_limits(account, limits)
-      sandbox_fixture(account: account)
+      for attrs <- running, do: sandbox_fixture([account: account] ++ attrs)
       reject(Capacity, :place, 1)
       assert {:error, :sandbox_concurrency_limit} = Sandboxes.create_sandbox(account)
-      assert length(Sandboxes.list_sandboxes(account)) == 1
+      assert length(Sandboxes.list_sandboxes(account)) == length(running)
     end
   end
 
-  test "the disk limit charges every sandbox on a node, paused included, with its workspace and memory image" do
-    account = account_fixture()
-    sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
-    sandbox_fixture(account: account, state: :paused, workspace_gb: 20, memory_mb: 8192)
-    sandbox_fixture(account: account, state: :archived, node_name: nil, workspace_gb: 50)
-    sandbox_fixture(account: account, state: :error, workspace_gb: 50)
-    sandbox_fixture(account: account_fixture(), state: :running, workspace_gb: 50)
-
-    assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096 + (20 * 1024 + 8192)
-  end
-
   test "execution VMs count against the account's execution concurrency, not its sandbox limits" do
+    stub(Nodes, :connected_nodes, fn -> [] end)
     account = account_fixture()
     agent = sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
 
@@ -48,29 +43,23 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     |> Ecto.Changeset.change(purpose: :remote_execution)
     |> Repo.update!()
 
-    assert Concurrency.usage(account.id) == %{vcpus: agent.vcpus, memory_mb: 4096}
-    assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096
+    assert agent.vcpus == 2
+    assert Concurrency.usage(account.id) == %{vcpus: 1.0, memory_mb: 4096}
   end
 
-  test "the disk limit refuses a create past it, admits one up to it, and never refuses a resume" do
-    stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+  test "Tuist threads' sandboxes, hidden from the account, do not use its limits" do
     account = account_fixture()
-    # Two default-shape sandboxes: 10 GB workspace and a 4 GB memory image each.
-    {:ok, _} = Concurrency.update_limits(account, %{sandbox_disk_gb_limit: 28})
-    sandbox_fixture(account: account, state: :running)
+    sandbox_fixture(account: account, state: :running, vcpus: 2, memory_mb: 4096)
+    other = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "orb-environment"})
+    sandbox_fixture(account: account, state: :running, vcpus: 4, memory_mb: 8192, provider_environment_id: other.id)
 
-    expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
-    assert {:error, :no_capacity} = Sandboxes.create_sandbox(account)
+    for _ <- 1..2 do
+      thread = Repo.insert!(%ProviderEnvironment{account_id: account.id, external_key: "threads/#{Ecto.UUID.generate()}"})
+      sandbox_fixture(account: account, state: :running, vcpus: 8, memory_mb: 16_384, provider_environment_id: thread.id)
+    end
 
-    paused = sandbox_fixture(account: account, state: :paused)
-    rows = length(Sandboxes.list_sandboxes(account))
-    reject(Capacity, :place, 1)
-    assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account)
-    assert length(Sandboxes.list_sandboxes(account)) == rows
-
-    {:ok, _} = Concurrency.update_limits(Repo.get!(Account, account.id), %{sandbox_disk_gb_limit: 1})
-    stub(Nodes, :await_lookup, fn _ -> {:error, :not_connected} end)
-    assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
+    # Guaranteed vCPUs: a quarter vCPU per GiB of the two account sandboxes.
+    assert Concurrency.usage(account.id) == %{vcpus: 1.0 + 2.0, memory_mb: 4096 + 8192}
   end
 
   test "in-flight starts reserve quota on different nodes; paused and failed starts release it" do
@@ -80,18 +69,18 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     resuming = sandbox_fixture(account: account, state: :resuming)
     assert {:error, :sandbox_concurrency_limit} = Sandboxes.create_sandbox(account)
     Repo.update!(Sandbox.update_changeset(creating, %{state: :paused}))
-    assert Concurrency.usage(account.id) == %{vcpus: 2, memory_mb: 4096}
+    assert Concurrency.usage(account.id) == %{vcpus: 1.0, memory_mb: 4096}
 
     expect(Capacity, :place, fn sandbox ->
-      assert Concurrency.usage(account.id) == %{vcpus: 4, memory_mb: 8192}
+      assert Concurrency.usage(account.id) == %{vcpus: 2.0, memory_mb: 8192}
       assert sandbox.state == :creating
       {:error, :no_capacity}
     end)
 
     assert {:error, :no_capacity} = Sandboxes.create_sandbox(account)
-    assert Concurrency.usage(account.id) == %{vcpus: 2, memory_mb: 4096}
+    assert Concurrency.usage(account.id) == %{vcpus: 1.0, memory_mb: 4096}
     Repo.update!(Sandbox.update_changeset(resuming, %{state: :running}))
-    assert Concurrency.usage(account.id) == %{vcpus: 2, memory_mb: 4096}
+    assert Concurrency.usage(account.id) == %{vcpus: 1.0, memory_mb: 4096}
   end
 
   test "resume checks quota and reserves it before issuing a node command" do
@@ -104,13 +93,13 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     assert Repo.reload!(paused).state == :paused
     Repo.update!(Sandbox.update_changeset(running, %{state: :paused}))
     assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
-    assert Concurrency.usage(account.id) == %{vcpus: 2, memory_mb: 4096}
+    assert Concurrency.usage(account.id) == %{vcpus: 1.0, memory_mb: 4096}
   end
 
   test "limits are independent of other accounts and cannot be changed in account settings" do
     account = account_fixture()
     sandbox_fixture(account: account_fixture(), vcpus: 8, memory_mb: 16_384)
-    assert Concurrency.usage(account.id) == %{vcpus: 0, memory_mb: 0}
+    assert Concurrency.usage(account.id) == %{vcpus: 0.0, memory_mb: 0}
     changeset = Account.update_changeset(account, %{sandbox_vcpus_limit: 999, sandbox_memory_gb_limit: 999})
     refute Map.has_key?(changeset.changes, :sandbox_vcpus_limit)
     refute Map.has_key?(changeset.changes, :sandbox_memory_gb_limit)

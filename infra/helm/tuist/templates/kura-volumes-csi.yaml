@@ -38,7 +38,7 @@ of the class is left.
 {{- $pools = without $pools . }}
 {{- end }}
 {{- if not (or $pools $rackPools) }}
-{{- fail "kuraVolumesCSI.enabled needs at least one Kura cache pool (kuraFleet, ovhFleet, ovhFleets or vultrFleets) to run the node plugin on" }}
+{{- fail "kuraVolumesCSI.enabled needs at least one Kura cache pool (ovhFleet, ovhFleets or vultrFleets) to run the node plugin on" }}
 {{- end }}
 ---
 apiVersion: v1

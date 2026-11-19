@@ -18,7 +18,7 @@
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "キャッシュボリューム" },
       "calendar": { "text": "カレンダー" },
-      "channels": { "text": "チャンネル" },
+      "channels": { "text": "チャネル" },
       "claude": { "text": "Claude" },
       "compatibility": { "text": "互換性" },
       "coverage": { "text": "カバレッジ" },
@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "イメージ" },
       "implicit-dependencies": { "text": "暗黙的な依存関係" },
       "iphone-app": { "text": "iPhoneアプリ" },
       "macos-app": { "text": "macOSアプリ" },
@@ -44,7 +45,7 @@
       "project-description": { "text": "プロジェクトの説明" },
       "release": { "text": "リリース" },
       "release-calendar": { "text": "リリースカレンダー" },
-      "release-channels": { "text": "リリースチャンネル" },
+      "release-channels": { "text": "リリースチャネル" },
       "run-previews": { "text": "プレビューの実行" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rustキャッシュ" },
@@ -66,7 +67,7 @@
         "text": "言語 🌍"
       },
       "description": {
-        "text": "Tuistの対応言語を増やしたり、このページの言語ガイドを改善するのに協力できます。"
+        "text": "Tuistがより多くの言語をサポートしたり、このページの言語ガイダンスを改善するのにご協力いただけます。"
       },
       "cta": {
         "text": "貢献する"
@@ -89,7 +90,7 @@
         },
         "start-screen": {
           "recent-searches-title": "検索履歴",
-          "no-recent-searches-text": "検索履歴なし",
+          "no-recent-searches-text": "検索履歴はありません",
           "save-recent-search-button-title": "検索履歴に保存",
           "remove-recent-search-button-title": "検索履歴から削除",
           "favorite-searches-title": "お気に入り",
@@ -106,7 +107,7 @@
           "search-by-text": "検索プロバイダー"
         },
         "no-results-screen": {
-          "no-results-text": "関連する結果が見つかりません",
+          "no-results-text": "関連する結果が見つかりませんでした",
           "suggested-query-text": "次のクエリを試してみてください",
           "report-missing-results-text": "このクエリに結果があるべきだと思いますか？",
           "report-missing-results-link-text": "クリックしてフィードバックを送信"
@@ -155,7 +156,7 @@
               "text": "ディレクトリ"
             },
             "shell-completions": {
-              "text": "シェル補完"
+              "text": "シェルの補完"
             }
           }
         },
@@ -177,6 +178,17 @@
         },
         "examples": {
           "text": "例"
+        },
+        "concepts": {
+          "text": "概念",
+          "items": {
+            "flaky-test": {
+              "text": "不安定なテスト"
+            },
+            "build-cache": {
+              "text": "ビルドキャッシュ"
+            }
+          }
         },
         "libraries": {
           "text": "ライブラリ"
@@ -220,7 +232,7 @@
           }
         },
         "issue-reporting": {
-          "text": "Issue報告"
+          "text": "Issueの報告"
         },
         "code-reviews": {
           "text": "コードレビュー"
@@ -282,9 +294,6 @@
         },
         "status": {
           "text": "ステータス"
-        },
-        "metrics-dashboard": {
-          "text": "メトリクスダッシュボード"
         }
       }
     },
@@ -410,7 +419,7 @@
                   "text": "コード共有"
                 },
                 "synthesized-files": {
-                  "text": "自動生成ファイル"
+                  "text": "合成ファイル"
                 },
                 "dynamic-configuration": {
                   "text": "動的設定"
@@ -489,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "選択的テスト",
+              "text": "選択",
               "items": {
                 "generated-xcode-project": {
                   "text": "生成されたXcodeプロジェクト"
@@ -516,7 +525,7 @@
               "text": "インサイト",
               "items": {
                 "flaky-tests": {
-                  "text": "不安定なテスト",
+                  "text": "不安定性",
                   "items": {
                     "generated-xcode-project": {
                       "text": "生成されたXcodeプロジェクト"

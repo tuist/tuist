@@ -45,6 +45,7 @@ defmodule TuistWeb.SSOLinkController do
       |> delete_session(:pending_sso_link)
       |> put_session(:user_return_to, return_to(link, user))
       |> Authentication.log_in_user(user, %{
+        "remember_me" => "true",
         auth_method: link.provider,
         provider_organization_id: link.provider_organization_id,
         sso_organization_id: link.organization_id

@@ -349,7 +349,7 @@
         <div data-part="concurrency-chart-header">
           <div>
             <h3>{chart.title}</h3>
-            <p>{chart.limit_label}</p>
+            <p>{dgettext("dashboard_runners", "Current: %{limit}", limit: chart.limit_label)}</p>
           </div>
         </div>
         <.chart
@@ -360,7 +360,7 @@
           series={
             TuistWeb.RunnersLive.concurrency_chart_series(
               chart.values,
-              chart.limit,
+              chart.limits,
               chart.usage_label
             )
           }

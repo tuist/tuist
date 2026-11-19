@@ -7,7 +7,7 @@
 ---
 # コードカバレッジ {#code-coverage}
 
-コードカバレッジは、テストが実行したコードの行を示します。Tuist は各テスト実行のカバレッジをアップロードし、コミットごとの実行をファイル単位およびプロジェクト全体で集約して 1 つの数値にまとめます。これにより、ダッシュボード上でコミットごとに推移を追跡できます。
+コードカバレッジは、テストが実行したコードの行を示します。Tuist は各テスト実行のカバレッジをアップロードし、コミット内の実行をファイルごとおよびプロジェクト全体で1つの数値に集約するため、ダッシュボード上でコミットごとの推移を追跡できます。
 
 <.home_cards>
   <.home_card
@@ -24,5 +24,15 @@
     title="Elixir"
     details="mix test --cover でテストした Elixir プロジェクトの行カバレッジをアップロードします。"
     link="/guides/features/test-code-coverage/elixir"
+/>
+  <.home_card
+    title="Rust"
+    details="cargo test でテストした Rust プロジェクトの行カバレッジをアップロードします。"
+    link="/guides/features/test-code-coverage/rust"
+/>
+  <.home_card
+    title="Gradle"
+    details="各テストが実行したファイルとともに、Gradle プロジェクトのコードカバレッジをアップロードします。"
+    link="/guides/features/test-code-coverage/gradle"
 />
 </.home_cards>

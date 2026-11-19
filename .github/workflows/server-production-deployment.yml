@@ -161,9 +161,13 @@ jobs:
       # with inverted logic.
       is-hotfix: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+      # Every deploy leg needs this job, so a version collision from two
+      # PRs merged independently stops before canary migrates.
+      - name: Check migration versions are unique
+        run: .github/scripts/server-migration-versions.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked git-cliff jq"
@@ -275,7 +279,7 @@ jobs:
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
-            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|condukt/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/sandbox-image/|infra/amp-orbs/|infra/claude-code-runners/|infra/sandboxd/|\.github/scripts/sandbox-(image-version|image-exists|live-image-tag)\.sh$|\.github/scripts/sandboxd-image-version\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image|sandboxd-image)\.yml)' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|condukt/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/sandbox-image/|infra/amp-orbs/|infra/claude-code-runners/|infra/sandboxd/|infra/runner-cache/(sparse/|go\.mod$)|\.github/scripts/sandbox-(image-version|image-exists|live-image-tag)\.sh$|\.github/scripts/sandboxd-image-version\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image|sandboxd-image)\.yml)' \
             || true)"
           if [ -n "$deployable_paths" ]; then
             echo "Deployable paths changed since $base:"
@@ -315,7 +319,7 @@ jobs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -378,7 +382,7 @@ jobs:
 
       - name: Upload Helm artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: helm-artifacts
           path: |
@@ -397,7 +401,7 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -427,17 +431,34 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: infra/cluster-api-provider-tuist/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:latest
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/cluster-api-provider-tuist/Dockerfile
@@ -458,7 +479,7 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -489,20 +510,23 @@ jobs:
       # The cache-volumes stage runs apt-get for linux/arm64, which needs
       # emulation on the amd64 runner.
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/runners-controller/Dockerfile
@@ -515,9 +539,45 @@ jobs:
           # images on main, so releases reuse its layers.
           cache-from: type=gha,scope=runners-controller
           cache-to: type=gha,mode=max,scope=runners-controller
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runners-controller:latest
+          cache-from: type=gha,scope=runners-controller
+          cache-to: type=gha,mode=max,scope=runners-controller
 
-      - name: Build and push cache volume agent
-        uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push-cache-volumes
+        name: Build and push cache volume agent
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          target: cache-volumes
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runner-cache-volumes:latest
+          cache-from: type=gha,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes
+      - name: Wait before retrying build and push cache volume agent
+        if: steps.build-push-cache-volumes.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push cache volume agent
+        if: steps.build-push-cache-volumes.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/runners-controller/Dockerfile
@@ -541,7 +601,7 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -568,17 +628,34 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: infra/stable-egress-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
+            ghcr.io/tuist/tuist-stable-egress-controller:latest
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/stable-egress-controller/Dockerfile
@@ -599,7 +676,7 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -626,17 +703,34 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: infra/egress-tree-agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/egress-tree-agent:${{ needs.check-releases.outputs.egress-tree-agent-next-version-number }}
+            ghcr.io/tuist/egress-tree-agent:latest
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/egress-tree-agent/Dockerfile
@@ -664,7 +758,7 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
@@ -787,7 +881,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -800,7 +894,7 @@ jobs:
 
       - name: Download Helm artifacts
         if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: helm-artifacts
           path: infra/helm
@@ -819,7 +913,7 @@ jobs:
 
       - name: Create Helm GitHub Release
         if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -835,7 +929,7 @@ jobs:
 
       - name: Create CAPI Scaleway GitHub Release
         if: needs.tag-infra-releases.outputs.capi-scaleway-tagged == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -849,7 +943,7 @@ jobs:
 
       - name: Create runners-controller GitHub Release
         if: needs.tag-infra-releases.outputs.runners-controller-tagged == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -863,7 +957,7 @@ jobs:
 
       - name: Create stable-egress-controller GitHub Release
         if: needs.tag-infra-releases.outputs.stable-egress-controller-tagged == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -877,7 +971,7 @@ jobs:
 
       - name: Create egress-tree-agent GitHub Release
         if: needs.tag-infra-releases.outputs.egress-tree-agent-tagged == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -891,7 +985,7 @@ jobs:
 
       - name: Create xcresult-processor-image GitHub Release
         if: needs.tag-infra-releases.outputs.xcresult-processor-image-tagged == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -956,7 +1050,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -1151,7 +1245,7 @@ jobs:
       codebase_search_image_tag: ${{ steps.tag.outputs.image_tag }}
       registry_image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           submodules: false
@@ -1160,8 +1254,8 @@ jobs:
           DEPLOY_SHA: ${{ github.sha }}
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
       - id: buildx
-        uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1187,7 +1281,7 @@ jobs:
       # `mode=max` exports layers, not cache-mount contents.
       - name: Restore OG image render cache
         id: og-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             og-cache-marketing
@@ -1196,7 +1290,7 @@ jobs:
           restore-keys: |
             server-og-cache-
       - name: Seed OG cache mounts into BuildKit
-        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
         with:
           builder: ${{ steps.buildx.outputs.name }}
           cache-map: |
@@ -1205,8 +1299,11 @@ jobs:
               "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
             }
           skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
-      - uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
         name: Build and push server image
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: ./server/Dockerfile
@@ -1232,11 +1329,33 @@ jobs:
             TUIST_HOSTED=1
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
+      - name: Wait before retrying build and push server image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push server image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          build-args: |
+            TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
+            MIX_ENV=prod
       - name: Export production project builds
         id: project-export
         if: steps.project-cache.outcome == 'success'
         continue-on-error: true
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         env:
           DOCKER_BUILD_RECORD_UPLOAD: "false"
           DOCKER_BUILD_SUMMARY: "false"
@@ -1298,7 +1417,7 @@ jobs:
             file: ./registry/Dockerfile
             build-args: MIX_ENV=prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           submodules: false
@@ -1306,14 +1425,36 @@ jobs:
         env:
           DEPLOY_SHA: ${{ github.sha }}
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      # Base images come straight from Docker Hub and gcr.io, and their
+      # metadata lookups occasionally fail (a gcr.io digest that exists has
+      # come back "not found"). One failed lookup should not stop the deploy,
+      # so a failed build waits and runs once more; the builder's layer cache
+      # makes the second attempt cheap.
+      - id: build-push
         name: Build and push ${{ matrix.name }} image
+        continue-on-error: true
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: ${{ matrix.cache && format('type=registry,ref={0}/{1}', env.REGISTRY, matrix.cache) || '' }}
+          cache-to: ${{ matrix.cache && format('type=registry,ref={0}/{1},mode=max', env.REGISTRY, matrix.cache) || '' }}
+      - name: Wait before retrying build and push ${{ matrix.name }} image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push ${{ matrix.name }} image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -1347,7 +1488,7 @@ jobs:
     # The pool the acceptance tests already need, so this job adds no runner
     # dependency to the run: a queued job does not count toward
     # `timeout-minutes` and would hold the release concurrency group.
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read
@@ -1355,7 +1496,7 @@ jobs:
     outputs:
       tarball_digest: ${{ steps.release.outputs.tarball-digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           submodules: false
@@ -1405,7 +1546,7 @@ jobs:
     name: Acceptance Tests
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     # A degraded remote cache can force a correct cold build, which must still
     # have enough time to complete before production promotion.
     timeout-minutes: 45
@@ -1418,7 +1559,7 @@ jobs:
     env:
       TUIST_DEV_INSTANCE: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
@@ -1473,7 +1614,7 @@ jobs:
           working_directory: cas-plugin
           cache: "false"
       # ~/.cargo/bin is on the tools volume above.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: cas-plugin-rust-${{ runner.os }}
           cache-bin: "false"
@@ -1527,9 +1668,10 @@ jobs:
     name: Backward-Compatibility Acceptance
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    # Any Xcode 26 works for the build floor below. `tuist-macos` (Xcode 26.6)
-    # keeps a warm runner; the other Xcode 26 pools start cold.
-    runs-on: tuist-macos
+    # Any Xcode 26 works for the build floor below. 26.6 keeps a warm runner;
+    # the other Xcode 26 pools start cold. Pinned rather than `tuist-macos`,
+    # which follows the newest Xcode (.github/AGENTS.md, "Runner profiles").
+    runs-on: tuist-macos-26-6
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:
@@ -1552,7 +1694,7 @@ jobs:
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           submodules: false
@@ -1613,7 +1755,7 @@ jobs:
     runs-on: tuist-linux
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           # Full history + tags to resolve the same kura@ canary tag the
@@ -1682,7 +1824,7 @@ jobs:
   # runner, round-trips a blob through the cache endpoint dispatch handed it
   # with a token minted from its OIDC identity, and rebuilds a fixture from an
   # empty local CAS, which must be served entirely from the remote cache.
-  # Production's own fleets, the BER1 rack among them, are covered by the
+  # Production's own fleets, the alder rack among them, are covered by the
   # workflow's hourly schedule, since a check of them here would test the
   # release production is still on rather than this one.
   #
@@ -1699,7 +1841,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -1713,6 +1855,27 @@ jobs:
           EXPECTED_LINUX_IMAGE: ${{ needs.canary.outputs.linux_runner_image }}
           EXPECTED_MACOS_IMAGES: ${{ needs.canary.outputs.macos_runner_images }}
         run: .github/scripts/runners-acceptance/gate.sh
+
+  # Remote execution on canary - installs the RE release with this run's
+  # template and sandboxd images after the canary server and runners
+  # controller, and replaces canary's workers (OnDelete) so they run those
+  # images. Production waits on it, so an RE chart or image that cannot start
+  # stops here rather than in production.
+  remote-execution-canary:
+    name: Remote execution (canary)
+    needs: [check-releases, build-sandbox-template, build-sandboxd, canary]
+    if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/remote-execution-deployment.yml
+    with:
+      environment: canary
+      commit_sha: ${{ github.sha }}
+      template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
+      replace_workers: true
+    secrets: inherit
 
   # Production leg - standard path: canary ready + tests green. Promotes the
   # same image bytes tests ran against. Skipped on a hotfix. The
@@ -1735,6 +1898,7 @@ jobs:
         backward-compatibility-acceptance,
         kura-canary-rollout-gate,
         runners-acceptance,
+        remote-execution-canary,
         tag-infra-releases,
       ]
     if: >-
@@ -1750,6 +1914,7 @@ jobs:
       needs.backward-compatibility-acceptance.result == 'success' &&
       needs.kura-canary-rollout-gate.result == 'success' &&
       needs.runners-acceptance.result == 'success' &&
+      needs.remote-execution-canary.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
     # See `canary` above: grant the callee's full permission union.
     permissions:

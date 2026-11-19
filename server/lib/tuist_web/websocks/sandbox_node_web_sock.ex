@@ -41,12 +41,20 @@ defmodule TuistWeb.SandboxNodeWebSock do
       memory: %{},
       disk: %{},
       templates: [],
+      default_template: nil,
+      default_template_tag: nil,
       sandboxes: [],
       daemon_version: nil,
       execution_deadlines: false,
       execution_slots: 0,
       direct_exec_endpoint: nil,
-      firecracker_version: nil
+      firecracker_version: nil,
+      snapshot_compat: nil,
+      lazy_disks: false,
+      archives: false,
+      cpu_guarantees: false,
+      cache_grants: false,
+      cache_drive_in_template: false
     }
   end
 
@@ -186,10 +194,20 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp put_info(%{tracked?: true} = state, info) do
     _ = Nodes.update(state.node_name, info)
+    ready = ready_templates(info.templates)
+
+    # Placement only uses a node's ready templates, so a change there is when
+    # the node starts or stops taking sandboxes of a template.
+    if ready != ready_templates(state.info.templates) do
+      Logger.info("sandboxes: node ready templates changed to #{inspect(ready)}", node: state.node_name)
+    end
+
     %{state | info: info}
   end
 
   defp put_info(state, info), do: %{state | info: info}
+
+  defp ready_templates(templates), do: templates |> Enum.filter(& &1.ready) |> Enum.map(& &1.name) |> Enum.sort()
 
   defp result(%{"ok" => true} = frame), do: {:ok, Map.get(frame, "data") || %{}}
   defp result(%{"ok" => false} = frame), do: {:error, Map.get(frame, "error") || "unknown node error"}
@@ -216,6 +234,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
     |> maybe_merge(:memory, frame["memory"], &memory/1)
     |> maybe_merge(:disk, frame["disk"], &disk/1)
     |> maybe_merge(:templates, frame["templates"], &templates/1)
+    |> maybe_merge(:default_template, frame["default_template"], &string/1)
+    |> maybe_merge(:default_template_tag, frame["default_template_tag"], &string/1)
     |> maybe_merge(:sandboxes, frame["sandboxes"], &sandboxes/1)
     |> maybe_merge(:daemon_version, frame["daemon_version"], & &1)
     |> maybe_merge(:execution_deadlines, frame["execution_deadlines"], &(&1 == true))
@@ -223,11 +243,20 @@ defmodule TuistWeb.SandboxNodeWebSock do
       if is_integer(value) and value in 0..128, do: value, else: 0
     end)
     |> maybe_merge(:firecracker_version, frame["firecracker_version"], & &1)
+    |> maybe_merge(:snapshot_compat, frame["snapshot_compat"], &string/1)
+    |> maybe_merge(:lazy_disks, frame["lazy_disks"], &(&1 == true))
+    |> maybe_merge(:archives, frame["archives"], &(&1 == true))
+    |> maybe_merge(:cpu_guarantees, frame["cpu_guarantees"], &(&1 == true))
+    |> maybe_merge(:cache_grants, frame["cache_grants"], &(&1 == true))
+    |> maybe_merge(:cache_drive_in_template, frame["cache_drive_in_template"], &(&1 == true))
     |> maybe_merge(:direct_exec_endpoint, frame["direct_exec_endpoint"], &direct_exec_endpoint/1)
   end
 
   defp direct_exec_endpoint("http://" <> _ = endpoint), do: endpoint
   defp direct_exec_endpoint(_endpoint), do: nil
+
+  defp string(value) when is_binary(value), do: value
+  defp string(_value), do: nil
 
   defp maybe_merge(info, _key, nil, _normalize), do: info
   defp maybe_merge(info, key, value, normalize), do: Map.put(info, key, normalize.(value))
@@ -239,7 +268,9 @@ defmodule TuistWeb.SandboxNodeWebSock do
     %{
       pod_name: elastic["pod_name"],
       memory_floor_bytes: elastic["memory_floor_bytes"],
-      memory_ceiling_bytes: elastic["memory_ceiling_bytes"]
+      memory_ceiling_bytes: elastic["memory_ceiling_bytes"],
+      cpu_floor_milli: elastic["cpu_floor_milli"],
+      cpu_ceiling_milli: elastic["cpu_ceiling_milli"]
     }
   end
 
@@ -285,7 +316,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
         vcpus: sandbox["vcpus"],
         memory_mb: sandbox["memory_mb"],
         workspace_gb: sandbox["workspace_gb"],
-        worker_running: sandbox["worker_running"] == true
+        worker_running: sandbox["worker_running"] == true,
+        disk_bytes: sandbox["disk_bytes"]
       }
     end
   end

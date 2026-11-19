@@ -20,8 +20,8 @@ if findmnt --mountpoint "$root" >/dev/null; then
 fi
 if [[ -f "$image" ]]; then
   # A new size reaches only images created after it: an existing one keeps its
-  # size and contents. Rebuilding a host's image is the operator procedure in
-  # cache-volumes.md ("Changing the cache size").
+  # size and contents. Growing it online (or rebuilding it to shrink) is the
+  # operator procedure in cache-volumes.md ("Changing the cache size").
   existing=$(stat -c %s "$image")
   [[ "$existing" == "$((size_gb * 1000000000))" ]] ||
     echo "Keeping the existing ${existing}-byte backing file; ${size_gb} GB applies to new images only." >&2

@@ -26,12 +26,15 @@ defmodule TuistWeb.UserSecuritySettingsLive do
      |> assign(:head_title, "#{title} · Tuist")
      |> assign(:fresh_session?, UserMFA.fresh_session?(socket.assigns.current_user_session, user))
      |> assign(:passkeys, UserPasskey.list(user))
-     |> assign(:enabled, UserMFA.enabled?(user))
-     |> assign(:recovery_code_count, UserMFA.recovery_code_count(user)), layout: false}
+     |> assign(:enabled, UserMFA.enabled?(user)), layout: false}
   end
 
   @impl true
   def handle_event("close-security-modal", %{"id" => id}, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: id})}
+  end
+
+  def handle_event("open-security-modal", %{"id" => id}, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: id})}
   end
 end

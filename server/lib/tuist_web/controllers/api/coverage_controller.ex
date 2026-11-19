@@ -3,14 +3,17 @@ defmodule TuistWeb.API.CoverageController do
   Code coverage over the API: what a client needs to send a run's coverage
   when it processed the bundle itself (the inline threshold and a signed
   upload URL), the signal that a commit's coverage pipeline finished, and
-  the reads of a branch's, a commit's and a file's coverage
-  (`Tuist.Tests.Coverage.Query`).
+  the reads of a branch's, a commit's and a file's coverage, a commit's
+  targets, and the history behind them: the branches, a branch's commits and
+  the runs behind a commit or branch (`Tuist.Tests.Coverage.Query`).
   """
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.Snapshots
   alias Tuist.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -39,7 +42,7 @@ defmodule TuistWeb.API.CoverageController do
   operation(:settings,
     summary: "Get the code coverage upload settings for a project.",
     description:
-      "The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.",
+      "The size, in bytes of the uncompressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run. The run's request body is held to its limit after it is inflated, so the comparison uses the uncompressed size even when the client compresses the request.",
     operation_id: "getCoverageSettings",
     parameters: @path_parameters,
     responses: %{
@@ -51,7 +54,7 @@ defmodule TuistWeb.API.CoverageController do
            properties: %{
              inline_threshold_bytes: %Schema{
                type: :integer,
-               description: "Compressed coverage larger than this goes through an upload."
+               description: "Coverage whose uncompressed size is larger than this goes through an upload."
              }
            },
            required: [:inline_threshold_bytes]
@@ -274,10 +277,207 @@ defmodule TuistWeb.API.CoverageController do
     project |> Query.file(sha, path, include_lines: params.include_lines) |> render_read(conn)
   end
 
-  operation(:complete_commit,
-    summary: "Signal that a commit's coverage pipeline finished.",
+  @cursor_parameters [
+    after: [
+      in: :query,
+      type: :string,
+      description: "Read the page older than this cursor: a previous page's `end_cursor`."
+    ],
+    before: [
+      in: :query,
+      type: :string,
+      description: "Read the page newer than this cursor: a previous page's `start_cursor`."
+    ],
+    page_size: [
+      in: :query,
+      type: %Schema{
+        title: "CoverageHistoryPageSize",
+        description: "The maximum number of rows to return in a single page.",
+        type: :integer,
+        default: 20,
+        minimum: 1,
+        maximum: 100
+      }
+    ]
+  ]
+
+  operation(:list_branches,
+    summary: "List the branches with code coverage.",
     description:
-      "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).",
+      "The branches whose runs never named a pull request and that have a measured commit, the most recently measured first, at most 100. The project's default branch leads, whether or not it has coverage.",
+    operation_id: "listCoverageBranches",
+    parameters: @path_parameters,
+    responses:
+      Map.merge(@access_responses, %{
+        ok: {"The branches", "application/json", Schemas.branches()},
+        not_found: {"The project was not found", "application/json", Error}
+      })
+  )
+
+  def list_branches(%{assigns: %{selected_project: project}} = conn, _params) do
+    project |> Query.branches() |> render_read(conn)
+  end
+
+  operation(:list_commits,
+    summary: "List a branch's commits with their code coverage.",
+    description:
+      "One page of the branch's commits, newest first, each with its status, its figure and the change from the complete commit before it. A branch the commit graph holds lists its unmeasured commits too (`not_measured`); otherwise its commits are the measured ones its runs were labelled with, by when they ran.",
+    operation_id: "listCoverageCommits",
+    parameters:
+      @path_parameters ++
+        [
+          branch: [
+            in: :query,
+            type: :string,
+            description: "The branch to read. The project's default branch when omitted."
+          ],
+          status: [
+            in: :query,
+            type: %Schema{
+              title: "CoverageCommitsStatus",
+              type: :string,
+              enum: ["measured", "any", "complete", "incomplete", "in_progress", "not_measured"],
+              default: "measured"
+            },
+            description: "Which commits to list: `measured` (every status but `not_measured`), `any`, or one status."
+          ],
+          search: [in: :query, type: :string, description: "Keeps the commits whose SHA starts with it."]
+        ] ++ @cursor_parameters,
+    responses:
+      Map.merge(@access_responses, %{
+        ok: {"A page of the branch's commits", "application/json", Schemas.commits()},
+        not_found: {"The project was not found", "application/json", Error}
+      })
+  )
+
+  def list_commits(%{assigns: %{selected_project: project}} = conn, params) do
+    project
+    |> Query.commits(Map.get(params, :branch),
+      status: params.status,
+      search: Map.get(params, :search),
+      after: Map.get(params, :after),
+      before: Map.get(params, :before),
+      page_size: params.page_size
+    )
+    |> render_read(conn)
+  end
+
+  operation(:list_runs,
+    summary: "List the test runs with code coverage behind a commit or a branch.",
+    description:
+      "One page of the runs with coverage of a commit (`git_commit_sha`) or, otherwise, of those that named a branch, newest first. Runs from a dirty checkout are listed as `discarded`: their coverage doesn't join the commit's.",
+    operation_id: "listCoverageRuns",
+    parameters:
+      @path_parameters ++
+        [
+          git_commit_sha: [
+            in: :query,
+            type: :string,
+            description: "The commit whose runs to list. Takes precedence over branch."
+          ],
+          branch: [
+            in: :query,
+            type: :string,
+            description: "The branch whose runs to list. The project's default branch when neither is given."
+          ],
+          scheme: [in: :query, type: :string, description: "Keeps one scheme's runs."]
+        ] ++ @cursor_parameters,
+    responses:
+      Map.merge(@access_responses, %{
+        ok: {"A page of the runs", "application/json", Schemas.runs()},
+        not_found: {"The project was not found", "application/json", Error}
+      })
+  )
+
+  def list_runs(%{assigns: %{selected_project: project}} = conn, params) do
+    project
+    |> Query.runs(
+      git_commit_sha: Map.get(params, :git_commit_sha),
+      branch: Map.get(params, :branch),
+      scheme: Map.get(params, :scheme),
+      after: Map.get(params, :after),
+      before: Map.get(params, :before),
+      page_size: params.page_size
+    )
+    |> render_read(conn)
+  end
+
+  operation(:list_targets,
+    summary: "List the targets of a commit's code coverage.",
+    description:
+      "One page of the targets the commit's runs measured, least covered first by default, followed by those its runs took from the binary cache without coverage counters (`measured: false`), which have no figure.",
+    operation_id: "listCommitCoverageTargets",
+    parameters:
+      @path_parameters ++
+        @sha_parameter ++
+        [
+          page: [
+            in: :query,
+            type: %Schema{
+              title: "CommitCoverageTargetsPage",
+              description: "The page number to return.",
+              type: :integer,
+              default: 1,
+              minimum: 1
+            }
+          ],
+          page_size: [
+            in: :query,
+            type: %Schema{
+              title: "CommitCoverageTargetsPageSize",
+              description: "The maximum number of targets to return in a single page.",
+              type: :integer,
+              default: 20,
+              minimum: 1,
+              maximum: 100
+            }
+          ],
+          search: [in: :query, type: :string, description: "Keeps the targets whose name contains it, ignoring case."],
+          sort_by: [
+            in: :query,
+            type: %Schema{
+              title: "CommitCoverageTargetsSortBy",
+              type: :string,
+              enum: ["coverage", "name", "files"],
+              default: "coverage"
+            },
+            description: "What to sort the measured targets by."
+          ],
+          sort_order: [
+            in: :query,
+            type: %Schema{
+              title: "CommitCoverageTargetsSortOrder",
+              type: :string,
+              enum: ["asc", "desc"],
+              default: "asc"
+            },
+            description: "The order to sort the measured targets in."
+          ]
+        ],
+    responses:
+      Map.put(
+        @not_found_responses,
+        :ok,
+        {"A page of the commit's targets", "application/json", Schemas.targets(PaginationMetadata)}
+      )
+  )
+
+  def list_targets(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha} = params) do
+    project
+    |> Query.targets(sha,
+      page: params.page,
+      page_size: params.page_size,
+      search: Map.get(params, :search),
+      sort_by: params.sort_by,
+      sort_order: params.sort_order
+    )
+    |> render_read(conn)
+  end
+
+  operation(:complete_commit,
+    summary: "Signal that a commit's CI pipeline finished.",
+    description:
+      "Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).",
     operation_id: "completeCommitCoverage",
     parameters: @path_parameters ++ @sha_parameter,
     responses:
@@ -290,6 +490,9 @@ defmodule TuistWeb.API.CoverageController do
   )
 
   def complete_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
+    # One signal completes the commit for every feature that pools its runs.
+    if FeatureFlags.snapshots_enabled?(project.account), do: Snapshots.signal_complete(project, sha)
+
     case Commits.signal_complete(project, sha) do
       nil ->
         conn

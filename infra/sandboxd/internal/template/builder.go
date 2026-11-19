@@ -50,6 +50,10 @@ type Builder struct {
 	Events             func(protocol.Event)
 	// Observe receives the duration and outcome of every build.
 	Observe func(shape Shape, elapsed time.Duration, err error)
+	// CacheDrive puts an empty placeholder cache drive into every shape
+	// snapshot, so a create from it can swap a cache image in after restore
+	// instead of cold booting.
+	CacheDrive bool
 
 	mu     sync.Mutex
 	builds map[string]*build
@@ -185,6 +189,15 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	if err := vm.Chown(workspace, uid, uid); err != nil {
 		return err
 	}
+	if b.CacheDrive {
+		cache := filepath.Join(root, firecracker.CachePath)
+		if err := vm.Sparse(cache, CachePlaceholderBytes); err != nil {
+			return err
+		}
+		if err := vm.Chown(cache, uid, uid); err != nil {
+			return err
+		}
+	}
 
 	if err := b.Network.Setup(ctx, ns, slot); err != nil {
 		return fmt.Errorf("network setup: %w", err)
@@ -226,6 +239,12 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		}},
 		{"workspace drive", func() error {
 			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
+		}},
+		{"cache drive", func() error {
+			if !b.CacheDrive {
+				return nil
+			}
+			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.CacheDriveID, PathOnHost: inst.GuestPath(firecracker.CachePath)})
 		}},
 		{"network-interface", func() error {
 			return api.PutNetworkInterface(ctx, firecracker.NetworkInterface{IfaceID: firecracker.IfaceID, GuestMAC: firecracker.GuestMAC, HostDevName: firecracker.TapName})
@@ -324,7 +343,7 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	meta := Metadata{
 		Name: t.Name, Tag: t.Tag, Kernel: t.seedKernel(), VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
 		WorkspaceGB: workspaceGB, FirecrackerVersion: b.FirecrackerVersion, BuiltAt: time.Now().UTC(),
-		WorkspacePrepared: preparedWorkspace,
+		WorkspacePrepared: preparedWorkspace, CacheDrive: b.CacheDrive,
 	}
 	if err := writeJSON(filepath.Join(staging, MetadataFile), meta); err != nil {
 		return err

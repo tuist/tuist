@@ -24,6 +24,11 @@ func (r *KuraInstanceReconciler) lvmHandoverReady(ctx context.Context, instance 
 		}
 		return false, err
 	}
+	// A pod the scheduler never placed never ran: it holds no writes to hand
+	// over and no connections to retire, and has no address to ask about them.
+	if pod.Spec.NodeName == "" {
+		return true, nil
+	}
 	prepared, err := r.lvmWritesPrepared(ctx, instance, pod)
 	if err != nil || !prepared {
 		return false, err

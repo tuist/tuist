@@ -62,6 +62,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistRunCommand",
     "TuistRunnerCommand",
     "TuistSandboxCommand",
+    "TuistSnapshotsCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
@@ -90,6 +91,7 @@ var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistEnvironment",
     "TuistServer",
     "TuistCI",
+    "TuistGit",
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     processDependency,
@@ -121,7 +123,6 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),
     "TuistServer",
-    "TuistOIDC",
     "TuistEnvKey",
     "TuistCAS",
     "TuistEncodable",
@@ -152,11 +153,14 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistEnvironment",
     "TuistLogging",
     "TuistHTTP",
+    "TuistOIDC",
     "TuistThreadSafe",
     "TuistOpener",
     "TuistUniqueIDGenerator",
     "TuistSupport",
     "TuistSimulator",
+    "TuistGit",
+    "TuistAlert",
     fileSystemDependency,
     mockableDependency,
     pathDependency,
@@ -434,12 +438,29 @@ var tuistRunnerCommandDependencies: [Target.Dependency] = [
 ]
 var tuistSandboxCommandDependencies: [Target.Dependency] = [
     argumentParserDependency,
+    pathDependency,
+    "TuistProcess",
     "TuistServer",
     "TuistEnvironment",
     "TuistConfigLoader",
     "TuistHTTP",
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistSnapshotsCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    mockableDependency,
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistGit",
+    "TuistAlert",
 ]
 var tuistInspectCommandDependencies: [Target.Dependency] = [
     pathDependency,
@@ -494,7 +515,7 @@ tuistGenerateCommandDependencies.append(contentsOf: [
     "TuistExtension", "TuistServer", "TuistSupport",
 ])
 tuistTestCommandDependencies.append(contentsOf: [
-    "TuistKit", "TuistBuildCommand", "TuistCore",
+    "TuistKit", "TuistBuildCommand", "TuistCore", "TuistSnapshotsCommand",
     "TuistExtension", "TuistServer", "TuistSupport",
 ])
 tuistInitCommandDependencies.append(contentsOf: [
@@ -1036,6 +1057,15 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistSnapshotsCommand",
+        dependencies: tuistSnapshotsCommandDependencies,
+        path: "cli/Sources/TuistSnapshotsCommand",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -1335,6 +1365,22 @@ var targets: [Target] = [
         path: "cli/Tests/TuistSandboxCommandTests"
     ),
     .testTarget(
+        name: "TuistSnapshotsCommandTests",
+        dependencies: [
+            "TuistSnapshotsCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistGit",
+            "TuistNooraTesting",
+            "TuistServer",
+            pathDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistSnapshotsCommandTests"
+    ),
+    .testTarget(
         name: "TuistInitCommandTests",
         dependencies: [
             "TuistInitCommand",
@@ -1553,6 +1599,7 @@ targets.append(contentsOf: [
             "TuistCacheCommand",
             "TuistAuthCommand",
             "TuistVersionCommand",
+            "TuistSnapshotsCommand",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistCAS",
@@ -1973,7 +2020,10 @@ targets.append(
             "TestCoverageAttribution": .framework,
             "TestCoverageAttributionObserver": .framework,
         ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"]),
+        // Imports XCTest. Drop this once the pinned Tuist CLI lists TuistSnapshotsTesting in
+        // PackageInfoMapper's forceEnabledTestingSearchPath.
+        targetSettings: ["TuistSnapshotsTesting": .settings(base: ["ENABLE_TESTING_SEARCH_PATHS": "YES"])]
     )
 #endif
 
@@ -2148,8 +2198,8 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
-        // Per-test coverage evidence for the unit test targets (Module.swift).
-        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.3.1")),
+        // Per-test coverage evidence for the unit and acceptance test targets (Module.swift).
+        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.5.3")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),
@@ -2159,6 +2209,8 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
+        // Renders the app's SwiftUI previews as snapshots (app/Tests/TuistAppSnapshotTests).
+        .package(url: "https://github.com/tuist/snapshots", .upToNextMinor(from: "0.1.0")),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

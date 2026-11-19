@@ -41,7 +41,9 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakinessEvidence
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
+  alias Tuist.Tests.LegacySuiteIdentity
   alias Tuist.Tests.QuarantinedTestCase
+  alias Tuist.Tests.RunSelections
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -393,7 +395,17 @@ defmodule Tuist.Tests do
   end
 
   def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test)
+    # The `selective_testing` filter reads only the project's selection rows.
+    project_id =
+      attrs
+      |> Map.get(:filters, [])
+      |> Enum.find_value(fn
+        %{field: :project_id, op: :==, value: value} -> value
+        _filter -> nil
+      end)
+
+    {results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(Test.query(), attrs, for: Test, extra_opts: [project_id: project_id])
 
     results = Repo.preload(results, [:ran_by_account, :actor_account])
 
@@ -529,11 +541,21 @@ defmodule Tuist.Tests do
 
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
-    if is_nil(shard_plan_id) do
-      create_new_test(attrs)
-    else
-      create_or_update_sharded_test(attrs)
+    result =
+      if is_nil(shard_plan_id) do
+        create_new_test(attrs)
+      else
+        create_or_update_sharded_test(attrs)
+      end
+
+    # A run that coverage-based test selection decided counts the tests it
+    # avoided from its impact run; a run hashing alone selected is recorded
+    # when its command event arrives.
+    with {:ok, %Test{test_impact_run_id: impact_run_id} = test} when not is_nil(impact_run_id) <- result do
+      RunSelections.enqueue(test.project_id, test.id)
     end
+
+    result
   end
 
   defp normalize_string_keys(%_{} = struct), do: struct
@@ -636,8 +658,9 @@ defmodule Tuist.Tests do
   # The repository the run's remote names, in the project's account, or 0 when
   # the run reported no remote: a commit is only related to others through
   # the repository's graph.
-  # A run only joins a repository, and only records the files it changed, while
-  # coverage is on for its project: both exist for coverage and test selection.
+  # A run only joins a repository, and only records the files it changed, when
+  # its project has coverage (`Coverage.supported?/1`): both exist for coverage
+  # and test selection.
   # The xcresult processor carries the id the run resolved when it was reported.
   defp repository_id(%{submission_auth: "network_trusted"}), do: 0
 
@@ -645,9 +668,8 @@ defmodule Tuist.Tests do
 
   defp repository_id(attrs) do
     with url when is_binary(url) and url != "" <- Map.get(attrs, :git_remote_url_origin),
-         %Project{account_id: account_id, account: account} = project <-
-           Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
-         true <- Tuist.FeatureFlags.coverage_enabled?(account, project),
+         %Project{account_id: account_id} = project <- Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
+         true <- Coverage.supported?(project),
          id when is_integer(id) <- GitHistory.repository_id(account_id, url) do
       id
     else
@@ -1256,6 +1278,7 @@ defmodule Tuist.Tests do
     test_run_id = Keyword.get(opts, :test_run_id)
     is_ci = Keyword.get(opts, :is_ci, false)
     record_durations = Keyword.get(opts, :record_durations, true)
+    build_system = Keyword.get(opts, :build_system, "xcode")
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -1331,6 +1354,17 @@ defmodule Tuist.Tests do
       |> MapSet.new()
 
     Batch.insert_all(TestCase, test_cases)
+
+    # A test case that inherits its legacy ID's ledger already has a history, so it
+    # gets no `first_run` event or `test_case.created` webhook of its own.
+    carried_over =
+      LegacySuiteIdentity.carry_over(
+        project_id,
+        build_system,
+        Enum.filter(test_cases, &MapSet.member?(new_test_case_ids, &1.id))
+      )
+
+    new_test_case_ids = MapSet.difference(new_test_case_ids, carried_over)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -2047,6 +2081,9 @@ defmodule Tuist.Tests do
   # `Tuist.ClickHouse.ArrayInParams`), which must stay below ClickHouse's
   # `http_max_field_value_size` (128 KiB). `query_fun` receives each chunk.
   @uuid_lookup_batch_size 2_000
+  # Commit SHAs bound as one `Array(String)` parameter, kept under ClickHouse's
+  # 128 KiB per-parameter cap even for SHA-256 object names.
+  @landed_sha_batch_size 1_000
 
   defp all_by_uuid_chunks(ids, query_fun) do
     ids
@@ -2426,7 +2463,7 @@ defmodule Tuist.Tests do
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
-    test_case_data = check_new_test_cases(test_case_data, project)
+    test_case_data = check_new_test_cases(test_case_data, project, test.build_system)
 
     Map.new(test_case_data, fn data ->
       {data.identity_key,
@@ -2580,26 +2617,36 @@ defmodule Tuist.Tests do
 
   # A test case is new until it has run in CI on the default branch, or on a
   # commit the default branch has since reached (a merge queue's, typically).
-  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project)
+  # A test case in a nested suite is also known under the ID it had before
+  # nested suites were recorded whole (`LegacySuiteIdentity`).
+  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project, build_system)
        when is_binary(default_branch) and default_branch != "" do
     existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(project.id, default_branch)
 
+    test_case_data =
+      Enum.map(test_case_data, fn %{identity_key: {name, module_name, suite_name}} = data ->
+        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, build_system, name, module_name, suite_name)
+        Map.put(data, :known_ids, Enum.reject([data.test_case_id, legacy_id], &is_nil/1))
+      end)
+
     landed =
       test_case_data
-      |> Enum.map(& &1.test_case_id)
+      |> Enum.flat_map(& &1.known_ids)
       |> Enum.reject(&MapSet.member?(existing_on_default_branch, &1))
       |> then(&test_case_ids_landed_on_default_branch(project, default_branch, &1))
 
     Enum.map(test_case_data, fn data ->
+      {known_ids, data} = Map.pop!(data, :known_ids)
+
       is_new =
-        not MapSet.member?(existing_on_default_branch, data.test_case_id) and
-          not MapSet.member?(landed, data.test_case_id)
+        not Enum.any?(known_ids, &(MapSet.member?(existing_on_default_branch, &1) or MapSet.member?(landed, &1)))
 
       Map.put(data, :is_new, is_new)
     end)
   end
 
-  defp check_new_test_cases(test_case_data, _project), do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
+  defp check_new_test_cases(test_case_data, _project, _build_system),
+    do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
 
   defp project_default_branch(project_id) do
     project = Tuist.Projects.get_project_by_id(project_id)
@@ -2656,6 +2703,12 @@ defmodule Tuist.Tests do
     end
   end
 
+  # Two narrow reads instead of every `(test case, commit)` pair: a large suite
+  # that CI runs on many pull-request commits has tens of millions of pairs in
+  # the window (37k test cases × ~2,000 commits), and loading them into the
+  # BEAM made xcresult ingestion take 10–30 minutes. The commits the test cases
+  # ran on are few, and the ones the default branch reached fewer still (often
+  # none), so the second read is skipped or bounded by them.
   defp landed_test_case_ids(project, default_branch, test_case_ids) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
@@ -2667,27 +2720,33 @@ defmodule Tuist.Tests do
         select: t.id
       )
 
-    runs =
-      all_by_uuid_chunks(test_case_ids, fn ids ->
-        from(r in TestCaseRun,
-          where: r.project_id == ^project.id,
-          where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
-          where: r.is_ci == true,
-          where: r.ran_at >= ^ninety_days_ago,
-          where: r.git_commit_sha != "",
-          where: r.submission_auth != "network_trusted",
-          where: r.test_run_id not in subquery(network_test_run_ids),
-          distinct: true,
-          select: {r.test_case_id, r.git_commit_sha}
-        )
-      end)
+    runs = fn ids ->
+      from(r in TestCaseRun,
+        where: r.project_id == ^project.id,
+        where: fragment("? IN (?)", r.test_case_id, type(^ids, {:array, Ecto.UUID})),
+        where: r.is_ci == true,
+        where: r.ran_at >= ^ninety_days_ago,
+        where: r.git_commit_sha != "",
+        where: r.submission_auth != "network_trusted",
+        where: r.test_run_id not in subquery(network_test_run_ids)
+      )
+    end
 
-    landed =
-      project.account_id
-      |> GitHistory.default_branch_shas(default_branch, runs |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
-      |> MapSet.new()
+    shas =
+      test_case_ids
+      |> all_by_uuid_chunks(&from(r in runs.(&1), distinct: true, select: r.git_commit_sha))
+      |> Enum.uniq()
 
-    for {test_case_id, sha} <- runs, MapSet.member?(landed, sha), into: MapSet.new(), do: test_case_id
+    project.account_id
+    |> GitHistory.default_branch_shas(default_branch, shas)
+    |> Enum.chunk_every(@landed_sha_batch_size)
+    |> Enum.flat_map(fn landed ->
+      all_by_uuid_chunks(
+        test_case_ids,
+        &from(r in runs.(&1), where: r.git_commit_sha in ^landed, distinct: true, select: r.test_case_id)
+      )
+    end)
+    |> MapSet.new()
   end
 
   @doc """
@@ -2814,6 +2873,7 @@ defmodule Tuist.Tests do
         create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
           test_run_id: test.id,
           is_ci: test.is_ci,
+          build_system: test.build_system,
           record_durations: not (test.scheme == "cargo test" or String.starts_with?(test.scheme || "", "cargo test · "))
         )
       end
@@ -4403,8 +4463,8 @@ defmodule Tuist.Tests do
       corrections
       |> Enum.group_by(&{&1.project_id, &1.git_commit_sha})
       |> Enum.flat_map(fn {{project_id, git_commit_sha}, grouped_corrections} ->
-        latest_flaky_states =
-          latest_test_case_run_flaky_states(
+        latest_states =
+          latest_test_case_run_states(
             project_id,
             git_commit_sha,
             grouped_corrections
@@ -4412,12 +4472,12 @@ defmodule Tuist.Tests do
 
         {already_applied, corrections_to_insert} =
           Enum.split_with(grouped_corrections, fn correction ->
-            Map.get(latest_flaky_states, correction.test_case_run_id) == true
+            match?({true, _test_run_id}, Map.get(latest_states, correction.test_case_run_id))
           end)
 
         corrections_to_insert =
           Enum.filter(corrections_to_insert, fn correction ->
-            Map.get(latest_flaky_states, correction.test_case_run_id) == false
+            match?({false, _test_run_id}, Map.get(latest_states, correction.test_case_run_id))
           end)
 
         insert_test_case_run_flaky_corrections(
@@ -4425,6 +4485,13 @@ defmodule Tuist.Tests do
           git_commit_sha,
           corrections_to_insert
         )
+
+        (already_applied ++ corrections_to_insert)
+        |> Enum.map(fn correction ->
+          {_is_flaky, test_run_id} = Map.fetch!(latest_states, correction.test_case_run_id)
+          test_run_id
+        end)
+        |> mark_legacy_test_runs_as_flaky()
 
         if corrections_to_insert != [] do
           report_test_case_run_multiplicity(project_id, git_commit_sha, corrections_to_insert)
@@ -4444,6 +4511,31 @@ defmodule Tuist.Tests do
     end
 
     :ok
+  end
+
+  # Version-0 runs derive their flaky flag from child test-case rows. A later
+  # successful retry can correct a previously persisted failed child, so amend
+  # the original authenticated parent through its buffer too. Reusing its exact
+  # timestamp preserves the parent metadata and keeps the correction ordered
+  # after a buffered create with the same version.
+  defp mark_legacy_test_runs_as_flaky([]), do: :ok
+
+  defp mark_legacy_test_runs_as_flaky(test_run_ids) do
+    test_run_ids = Enum.uniq(test_run_ids)
+
+    parents =
+      ClickHouseRepo.all(
+        from(test in Test.query(),
+          where: test.id in ^test_run_ids,
+          where: test.reporting_version == 0,
+          where: test.submission_auth != "network_trusted",
+          where: test.is_flaky == false
+        )
+      )
+
+    Enum.each(parents, fn parent ->
+      insert_test_run(%{parent | is_flaky: true}, nil)
+    end)
   end
 
   @doc false
@@ -4495,7 +4587,10 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp latest_test_case_run_flaky_states(project_id, git_commit_sha, corrections) do
+  # Returns `%{test_case_run_id => {is_flaky, test_run_id}}`. The parent ID is
+  # read here, inside the `(project_id, test_case_id)` sort-key range, because
+  # looking case runs up by `id` alone scans the whole table.
+  defp latest_test_case_run_states(project_id, git_commit_sha, corrections) do
     test_case_ids = corrections |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     test_case_run_ids = Enum.map(corrections, & &1.test_case_run_id)
 
@@ -4504,14 +4599,15 @@ defmodule Tuist.Tests do
       where: tcr.test_case_id in ^test_case_ids,
       where: tcr.git_commit_sha == ^git_commit_sha,
       where: tcr.id in ^test_case_run_ids,
-      group_by: tcr.id,
+      group_by: [tcr.id, tcr.test_run_id],
       select: {
         tcr.id,
-        fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at)
+        fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at),
+        tcr.test_run_id
       }
     )
     |> ClickHouseRepo.all(settings: @flaky_correction_lookup_settings)
-    |> Map.new()
+    |> Map.new(fn {id, is_flaky, test_run_id} -> {id, {is_flaky, test_run_id}} end)
   end
 
   defp insert_test_case_run_flaky_corrections(_project_id, _git_commit_sha, []), do: :ok

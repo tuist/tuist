@@ -7,9 +7,9 @@
 ---
 # Xcode code coverage {#xcode-code-coverage}
 
-<!-- @snippet: ./_xcode-early-access -->
-
 Code coverage tells you which lines of your code your tests executed. Tuist uploads the line coverage of every test run and folds the runs of a commit into one figure, for the project, each target and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
+
+<!-- @snippet: ./_xcode-requirements -->
 
 > [!TIP]
 > If you generate your project with Tuist, follow the <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">generated project guide</.localized_link> instead: it measures the code that comes from the binary cache and carries forward the coverage of the test targets selective testing skips.
@@ -50,7 +50,7 @@ A commit's coverage often comes from several jobs: one per scheme, per shard, or
 tuist coverage complete
 ```
 
-Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend. The <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#commit-status">generated project guide</.localized_link> describes each status.
+The command reads the commit from the checkout's `HEAD`, the commit your tests ran on; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend. The <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#commit-status">generated project guide</.localized_link> describes each status.
 
 ## Skipped tests {#skipped-tests}
 
@@ -70,6 +70,12 @@ The `tuist coverage` commands read what the dashboard shows. Without `--commit`,
 tuist coverage show                          # the project's coverage and its targets
 tuist coverage files --commit <sha>          # files, least covered first
 tuist coverage file Sources/Cart.swift --lines  # a file's functions, with per-line counts
+tuist coverage targets                       # targets, least covered first, then those taken from the binary cache without coverage
+tuist coverage commits --branch main         # a branch's commits with their status and change, newest first
+tuist coverage runs --commit <sha>           # the test runs behind a commit, marked full, partial or discarded
+tuist coverage branches                      # the branches with coverage
 ```
+
+A test run's own coverage shows in `tuist test show <test-run-id>`.
 
 All of them accept `--json` for scripting.

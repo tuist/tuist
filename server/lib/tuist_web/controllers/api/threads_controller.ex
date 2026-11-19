@@ -12,8 +12,14 @@ defmodule TuistWeb.API.ThreadsController do
 
   def index(conn, params) do
     case Threads.list(conn.assigns.app_user, conn.assigns.thread_account, params["cursor"]) do
-      {:ok, page} -> json(conn, %{threads: Enum.map(page.threads, &Threads.serialize/1), next_cursor: page.next_cursor})
-      {:error, reason} -> error(conn, reason)
+      {:ok, page} ->
+        json(conn, %{
+          conn.assigns.threads_collection => Enum.map(page.threads, &Threads.serialize/1),
+          :next_cursor => page.next_cursor
+        })
+
+      {:error, reason} ->
+        error(conn, reason)
     end
   end
 
@@ -31,6 +37,14 @@ defmodule TuistWeb.API.ThreadsController do
     thread_response(
       conn,
       Threads.message(conn.assigns.app_user, conn.assigns.thread_account, conn.path_params["id"], conn.body_params)
+    )
+  end
+
+  # `snooze` snoozes or wakes the thread (`Tuist.Threads.snooze/4`); otherwise `status` archives or restores it.
+  def update(%{body_params: %{"snooze" => snooze}} = conn, _params) do
+    thread_response(
+      conn,
+      Threads.snooze(conn.assigns.app_user, conn.assigns.thread_account, conn.path_params["id"], snooze)
     )
   end
 
@@ -62,7 +76,7 @@ defmodule TuistWeb.API.ThreadsController do
 
   def ship_preview(conn, _params) do
     case Threads.ship_preview(conn.assigns.app_user, conn.assigns.thread_account, conn.path_params["id"]) do
-      {:ok, preview} -> json(conn, preview)
+      {:ok, preview} -> json(conn, Map.put(preview, :jam_id, preview.thread_id))
       {:error, reason} -> error(conn, reason)
     end
   end
@@ -84,7 +98,9 @@ defmodule TuistWeb.API.ThreadsController do
   defp load_scope(conn, _opts) do
     with %User{} = user <- Authentication.app_user(conn) || {:error, :app_required},
          %Account{} = account <- Accounts.get_account_by_handle(conn.path_params["account_handle"]),
-         :ok <- Threads.authorize(user, account) do
+         # Participants reach a thread someone looped them into; each operation
+         # checks what they may do in it.
+         :ok <- Threads.authorize_reader(user, account) do
       conn |> assign(:app_user, user) |> assign(:thread_account, account)
     else
       nil -> conn |> error(:not_found) |> halt()
@@ -118,10 +134,37 @@ defmodule TuistWeb.API.ThreadsController do
 
   defp error(conn, %Ecto.Changeset{}), do: error(conn, :invalid)
 
+  defp error(conn, reason) when reason in [:repository_access_denied, :github_identity_missing] do
+    message =
+      if reason == :github_identity_missing,
+        do: "Link your GitHub account to use repositories in threads.",
+        else: "Your GitHub account does not have access to this repository."
+
+    conn |> put_status(:forbidden) |> json(%{code: reason, message: message})
+  end
+
+  defp error(conn, :runner_offline) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{
+      reason: "runner_offline",
+      message: "The runner is offline. Start a thread on it once it is connected."
+    })
+  end
+
+  @bad_request_reasons [
+    :invalid,
+    :invalid_arguments,
+    :invalid_cursor,
+    :invalid_status,
+    :invalid_request,
+    :runner_not_found
+  ]
+
   defp error(conn, reason) do
     # Never render upstream errors or changeset values, which may contain prompts or credentials.
     status =
-      if reason in [:invalid, :invalid_arguments, :invalid_cursor, :invalid_status, :invalid_request],
+      if reason in @bad_request_reasons,
         do: :bad_request,
         else: :conflict
 

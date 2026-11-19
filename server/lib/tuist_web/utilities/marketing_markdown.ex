@@ -24,7 +24,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
     Path.join(@guide_directory, "[a-z]*.md"),
     Path.join(@guide_directory, "solutions/[a-z]*.md"),
     Path.join(@guide_directory, "compare/[a-z]*.md"),
-    Path.join(@guide_directory, "build-systems/[a-z]*.md")
+    Path.join(@guide_directory, "build-systems/[a-z]*.md"),
+    Path.join(@guide_directory, "runners/[a-z]*.md")
   ]
   @policy_pattern Path.expand("../../../priv/marketing/pages/*.md", __DIR__)
   @patterns [@policy_pattern | @guide_patterns]
@@ -65,7 +66,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   @decision_guides @guides
                    |> Enum.filter(fn {path, _markdown} ->
                      path in ["/compare", "/build-systems"] or
-                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/"])
+                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/", "/runners/"])
                    end)
                    |> Map.new(fn {path, markdown} ->
                      [heading, description | _rest] = String.split(markdown, "\n\n")
@@ -96,12 +97,41 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
                    |> Regex.replace(guide.description, "\\1")
                    |> String.replace(["**", "`"], "")
 
+                 # FAQPage structured data comes from the rendered FAQ section,
+                 # so it always matches what readers see: each `###` question
+                 # under `## Frequently asked questions` and the blocks up to
+                 # the next question.
+                 faqs =
+                   html
+                   |> Floki.parse_fragment!()
+                   |> Enum.filter(&is_tuple/1)
+                   |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
+                   |> Enum.drop(1)
+                   |> Enum.take_while(&(elem(&1, 0) != "h2"))
+                   |> Enum.drop_while(&(elem(&1, 0) != "h3"))
+                   |> Enum.chunk_while(
+                     [],
+                     fn
+                       {"h3", _, _} = question, [] -> {:cont, [question]}
+                       {"h3", _, _} = question, chunk -> {:cont, Enum.reverse(chunk), [question]}
+                       node, chunk -> {:cont, [node | chunk]}
+                     end,
+                     fn
+                       [] -> {:cont, []}
+                       chunk -> {:cont, Enum.reverse(chunk), []}
+                     end
+                   )
+                   |> Enum.map(fn [question | answer] ->
+                     {Floki.text(question), Enum.map_join(answer, " ", &Floki.raw_html/1)}
+                   end)
+
                  {path,
                   Map.merge(guide, %{
                     slug: path,
                     body: html,
                     head_description: head_description,
                     last_updated: last_updated,
+                    faqs: faqs,
                     logo: nil
                   })}
                end)
@@ -125,6 +155,17 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   def guide_page_paths, do: @guide_pages |> Map.keys() |> Enum.sort()
 
   def guide_page(path), do: Map.get(@guide_pages, path)
+
+  # The short name of any authored guide, for breadcrumbs: its heading up to
+  # the first colon ("Tuist Runners" for "# Tuist Runners: managed …").
+  # Covers landing pages such as `/runners` that parent decision guides
+  # without being one themselves.
+  def short_title(path) do
+    case Map.fetch(@guides, path) do
+      {:ok, "# " <> markdown} -> markdown |> String.split("\n", parts: 2) |> hd() |> String.split(": ") |> hd()
+      _ -> nil
+    end
+  end
 
   def get(path) do
     case Map.fetch(@pages, path) do

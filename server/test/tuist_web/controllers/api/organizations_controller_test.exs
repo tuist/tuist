@@ -19,6 +19,106 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   end
 
   describe "GET /api/organizations" do
+    test "discovers current memberships with a native OAuth PKCE grant", %{conn: conn, user: user} do
+      client_id = Ecto.UUID.generate()
+      stub(Environment, :oauth_client_id, fn -> client_id end)
+      verifier = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+      organization = AccountsFixtures.organization_fixture()
+      other_organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :viewer)
+      Accounts.add_user_to_organization(user, other_organization, role: :admin)
+      AccountsFixtures.organization_fixture()
+
+      authorization =
+        conn
+        |> log_in_user(user)
+        |> get(~p"/oauth2/authorize", %{
+          "response_type" => "code",
+          "client_id" => client_id,
+          "redirect_uri" => "tuist://oauth-callback",
+          "state" => "organization-discovery",
+          "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
+          "code_challenge_method" => "S256"
+        })
+
+      %{"code" => code, "state" => "organization-discovery"} =
+        authorization |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+      %{"access_token" => token} =
+        build_conn()
+        |> post(~p"/oauth2/token", %{
+          "grant_type" => "authorization_code",
+          "client_id" => client_id,
+          "redirect_uri" => "tuist://oauth-callback",
+          "code" => code,
+          "code_verifier" => verifier
+        })
+        |> json_response(200)
+
+      response =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/organizations")
+        |> json_response(200)
+
+      assert Enum.sort(Enum.map(response["organizations"], & &1["name"])) ==
+               Enum.sort([organization.account.name, other_organization.account.name])
+
+      {:ok, restricted_token, _} =
+        Tuist.Guardian.encode_and_sign(
+          user.account,
+          %{"type" => "account", "user_id" => user.id, "all_projects" => false, "scopes" => ["project:previews:read"]},
+          token_type: "access_token"
+        )
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer #{restricted_token}")
+             |> get(~p"/api/organizations")
+             |> json_response(200) == %{"organizations" => []}
+
+      Accounts.remove_user_from_organization(user, organization)
+      Accounts.remove_user_from_organization(user, other_organization)
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer #{token}")
+             |> get(~p"/api/organizations")
+             |> json_response(200) == %{"organizations" => []}
+
+      Accounts.add_user_to_organization(user, organization, role: :viewer)
+      grant = Boruta.AccessTokensAdapter.get_by(value: token)
+      {:ok, _} = Boruta.AccessTokensAdapter.revoke(grant)
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer #{token}")
+             |> get(~p"/api/organizations")
+             |> json_response(200) == %{"organizations" => []}
+    end
+
+    test "account tokens do not discover their creator's other organizations", %{user: user} do
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      AccountsFixtures.organization_fixture(creator: user)
+
+      for account <- [user.account, organization.account], all_projects <- [false, true] do
+        {:ok, {_, token}} =
+          Accounts.create_account_token(%{
+            account: account,
+            created_by_account: user.account,
+            scopes: ["project:previews:read"],
+            all_projects: all_projects,
+            name: "organization-discovery-#{all_projects}"
+          })
+
+        response =
+          build_conn()
+          |> put_req_header("authorization", "Bearer #{token}")
+          |> get(~p"/api/organizations")
+          |> json_response(200)
+
+        assert Enum.map(response["organizations"], & &1["name"]) ==
+                 if(account.id == user.account.id, do: [], else: [organization.account.name])
+      end
+    end
+
     test "returns organizations", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
@@ -98,6 +198,83 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                  "invitations" => []
                }
              ] == response["organizations"]
+    end
+
+    test "returns empty list when authenticated with a project token of a personal account", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture(account: user.account, preload: [:account])
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn = get(conn, ~p"/api/organizations")
+
+      # Then
+      assert %{"organizations" => []} == json_response(conn, :ok)
+    end
+  end
+
+  describe "GET /api/organizations with bearer credentials" do
+    @describetag :organization_credentials
+
+    for owner <- [:personal, :organization], credential <- [:account_token, :account_jwt] do
+      @owner owner
+      @credential credential
+
+      test "returns only the owning organization for #{@owner} #{@credential}", %{conn: conn, user: user} do
+        organization = AccountsFixtures.organization_fixture()
+        Accounts.add_user_to_organization(user, organization)
+        other_organization = AccountsFixtures.organization_fixture()
+        Accounts.add_user_to_organization(user, other_organization)
+
+        account = if @owner == :personal, do: user.account, else: organization.account
+
+        token =
+          case @credential do
+            :account_token ->
+              {:ok, {_, token}} =
+                Accounts.create_account_token(%{
+                  account: account,
+                  name: "organizations",
+                  scopes: ["project:cache:read"],
+                  all_projects: true
+                })
+
+              token
+
+            :account_jwt ->
+              {:ok, token, _} =
+                Tuist.Authentication.encode_and_sign(account, %{
+                  "type" => "account",
+                  "scopes" => ["project:cache:read"],
+                  "all_projects" => true,
+                  "user_id" => user.id
+                })
+
+              token
+          end
+
+        conn = conn |> put_req_header("authorization", "Bearer #{token}") |> get(~p"/api/organizations")
+
+        expected =
+          if @owner == :personal do
+            []
+          else
+            [
+              %{
+                "id" => organization.id,
+                "name" => account.name,
+                "plan" => "air",
+                "members" => [],
+                "invitations" => []
+              }
+            ]
+          end
+
+        assert json_response(conn, :ok) == %{"organizations" => expected}
+      end
     end
   end
 
@@ -571,7 +748,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: "example.com"
+        sso_organization_id: "apiorgs-example.com"
       )
 
       stub(Environment, :sso_require_login_domain_verification?, fn -> false end)

@@ -6,6 +6,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Workers.DispatchWorker
+  alias Tuist.Runners.Workers.RecordWorkflowRunWorker
+  alias Tuist.Runners.WorkflowRuns
+  alias Tuist.Snapshots
   alias Tuist.VCS
 
   require Logger
@@ -204,6 +207,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "workflow_job" ->
         handle_workflow_job(conn, params)
 
+      "workflow_run" ->
+        handle_workflow_run(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
@@ -316,6 +322,36 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
+  # GitHub sends `requested` when it creates a run attempt, before the run's
+  # jobs are queued. The run's cache scope inputs are stored so the jobs' Actions
+  # cache and cache volumes need not ask GitHub's API (`Tuist.Runners.WorkflowRuns`).
+  defp handle_workflow_run(conn, params) do
+    with %{"action" => "requested", "installation" => %{"id" => installation_id}} when is_integer(installation_id) <-
+           params,
+         %{} = run <- WorkflowRuns.from_webhook(params) do
+      args =
+        Map.merge(
+          %{
+            "run" => run,
+            "installation_id" => installation_id,
+            "delivery_guid" => conn |> get_req_header("x-github-delivery") |> List.first()
+          },
+          bound_account_args(conn)
+        )
+
+      case args |> RecordWorkflowRunWorker.new() |> Oban.insert() do
+        {:ok, _job} ->
+          conn |> put_status(:ok) |> json(%{status: "ok"})
+
+        {:error, reason} ->
+          Logger.warning("runners: failed to enqueue workflow run; returning 503", reason: inspect(reason))
+          conn |> put_status(:service_unavailable) |> json(%{status: "error", reason: "transient"})
+      end
+    else
+      _ -> conn |> put_status(:ok) |> json(%{status: "ok"})
+    end
+  end
+
   # A delivery signed with an installation row's own secret (GitHub
   # Enterprise Server) comes from a server its customer runs, so every body
   # field, the installation id and repository owner included, is the
@@ -391,6 +427,37 @@ defmodule TuistWeb.Webhooks.GitHubController do
       }
 
       resolve_bundle_size_approval(check_run, check_run_params, sender, repository_full_name)
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  # The Approve and Reject buttons of a snapshot build's `tuist/snapshots` check run
+  # (`Tuist.Snapshots.Workers.CheckRunWorker`). GitHub shows requested
+  # actions only to people with write access to the repository, and the
+  # build must belong to a project connected to the repository the event
+  # comes from, so a check run on one repository can't approve another
+  # project's build.
+  defp handle_check_run(
+         conn,
+         %{
+           "action" => "requested_action",
+           "check_run" => %{"name" => "tuist/snapshots" <> _, "external_id" => build_id},
+           "requested_action" => %{"identifier" => action},
+           "repository" => %{"full_name" => repository_full_name}
+         } = params
+       )
+       when action in ["approve_snapshots", "reject_snapshots"] do
+    with {:ok, build} <- Snapshots.get_build_by_id(build_id),
+         %{repository_full_handle: handle} <- build.project.vcs_connection,
+         true <- String.downcase(handle) == String.downcase(repository_full_name) do
+      reviewer = [github_handle: sender_from_params(params).handle]
+
+      if action == "approve_snapshots",
+        do: Snapshots.approve_build(build, reviewer),
+        else: Snapshots.reject_build(build, reviewer)
     end
 
     conn

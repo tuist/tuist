@@ -5,6 +5,7 @@ defmodule Tuist.Slack.ReportsTest do
   alias Tuist.Cache.Analytics
   alias Tuist.Slack.Reports
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -16,6 +17,73 @@ defmodule Tuist.Slack.ReportsTest do
   end
 
   describe "report/1" do
+    test "filters bundles and their baseline by tag and app identity without falling back", %{project: project} do
+      now = ~U[2025-01-15 10:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      project = Tuist.Repo.preload(%{project | report_bundle_tag: "production"}, :account)
+
+      previous =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          custom_tags: ["production"],
+          install_size: 48_000_000,
+          inserted_at: DateTime.add(now, -3, :day)
+        )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        custom_tags: ["production"],
+        app_bundle_id: "other.app",
+        install_size: 200_000_000,
+        inserted_at: DateTime.add(now, -2, :day)
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        custom_tags: ["production"],
+        type: :ipa,
+        install_size: 300_000_000,
+        inserted_at: DateTime.add(now, -25, :hour)
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        custom_tags: ["production-candidate"],
+        install_size: 800_000_000,
+        inserted_at: DateTime.add(now, -26, :hour)
+      )
+
+      current =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          custom_tags: ["nightly", "production"],
+          install_size: 50_000_000,
+          inserted_at: DateTime.add(now, -2, :hour)
+        )
+
+      debug =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          custom_tags: ["debug"],
+          install_size: 950_000_000,
+          inserted_at: DateTime.add(now, -1, :hour)
+        )
+
+      report = project |> Reports.report() |> JSON.encode!()
+      assert report =~ "50.0 MB"
+      assert report =~ "+2.0 MB"
+      assert report =~ current.id
+      assert report =~ previous.id
+      refute report =~ debug.id
+
+      report = %{project | report_bundle_tag: "missing"} |> Reports.report() |> JSON.encode!()
+      refute report =~ "Bundle Size"
+
+      report = project |> Reports.report(last_report_at: DateTime.add(now, -4, :day)) |> JSON.encode!()
+      assert report =~ "50.0 MB"
+      refute report =~ "previous period>"
+    end
+
     test "returns report with all metric blocks", %{project: project, account: account} do
       now = ~U[2025-01-15 10:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)

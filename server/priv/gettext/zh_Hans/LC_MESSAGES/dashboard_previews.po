@@ -145,12 +145,12 @@ msgstr "扫描二维码"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "在 iOS 设备上扫描此二维码以安装此版本的 App"
+msgstr "在 iOS 设备上扫描此二维码以安装此版本的应用"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "一键分享 App 预览版"
+msgstr "一键分享应用预览"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -160,17 +160,17 @@ msgstr "支持的平台"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "此预览版仅支持模拟器，无法安装在真机上"
+msgstr "此预览仅支持模拟器，无法安装到物理设备"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "此预览版不支持设备安装"
+msgstr "此预览不支持设备安装"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "要从浏览器直接运行预览版，请下载并安装 Tuist macOS App"
+msgstr "要在浏览器中直接运行预览，请下载并安装 Tuist macOS 应用"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -197,7 +197,7 @@ msgstr "跟踪"
 #: lib/tuist_web/live/preview_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Package name"
-msgstr "包名"
+msgstr "包名称"
 
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format

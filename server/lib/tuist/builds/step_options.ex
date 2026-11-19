@@ -12,7 +12,8 @@ defmodule Tuist.Builds.StepOptions do
     status: :string,
     start_ms: :float,
     end_ms: :float,
-    sort_by: :string
+    sort_by: :string,
+    sort_order: :string
   }
 
   def options(params, statuses) do
@@ -30,6 +31,7 @@ defmodule Tuist.Builds.StepOptions do
       |> Changeset.validate_length(:category, max: 128)
       |> Changeset.validate_inclusion(:status, statuses)
       |> Changeset.validate_inclusion(:sort_by, ["duration_ms", "start_ms"])
+      |> Changeset.validate_inclusion(:sort_order, ["asc", "desc"])
 
     case Changeset.apply_action(changeset, :validate) do
       {:ok, opts} ->

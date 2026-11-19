@@ -89,7 +89,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--noora-spacing-5);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-6);
@@ -305,7 +305,7 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--noora-spacing-5);
-    box-shadow: var(--noora-border-light-error);
+    box-shadow: var(--noora-border-small-error);
   }
 
   & [data-part="revoke-token-card-section"] > [data-part="header"] {

@@ -5,6 +5,7 @@ defmodule Atlas.UsersTest do
   alias Atlas.Authorization.UserRole
   alias Atlas.Users
   alias Atlas.Users.User
+  alias Ueberauth.Auth.Extra
   alias Ueberauth.Auth.Info
 
   test "self description is bounded, independent of identity, and private background only" do
@@ -50,10 +51,36 @@ defmodule Atlas.UsersTest do
     end
 
     test "rejects users from other domains" do
-      auth = build_auth(email: "intruder@example.com", name: "Intruder")
+      auth = build_auth(email: "intruder@example.com", name: "Intruder", hd: "example.com")
 
       assert {:error, :unauthorized_domain} = Users.find_or_create_user_from_auth(auth)
       assert Users.get_user_by_email("intruder@example.com") == nil
+    end
+
+    test "rejects a work address without the Workspace's verified hosted-domain claim" do
+      # A personal Google account registered with a work address has no `hd`
+      # claim; it must not sign in as, or take over, the Workspace user.
+      existing =
+        %User{}
+        |> User.changeset(%{email: "dana@tuist.dev", name: "Dana"})
+        |> Repo.insert!()
+
+      for overrides <- [
+            [hd: nil],
+            [hd: "gmail.com"],
+            [hd: "evil-tuist.dev"],
+            [email_verified: false],
+            [email_verified: "true"],
+            [raw_info: false],
+            [google_email: "other@tuist.dev"]
+          ] do
+        auth = build_auth([email: "dana@tuist.dev", name: "Mallory"] ++ overrides)
+
+        assert {:error, :unauthorized_domain} = Users.find_or_create_user_from_auth(auth),
+               "accepted #{inspect(overrides)}"
+      end
+
+      assert Repo.get!(User, existing.id).name == "Dana"
     end
 
     test "updates the name on subsequent sign-ins" do
@@ -88,11 +115,17 @@ defmodule Atlas.UsersTest do
   end
 
   defp build_auth(opts) do
+    email = Keyword.fetch!(opts, :email)
+
+    google_user = %{
+      "email" => Keyword.get(opts, :google_email, email),
+      "email_verified" => Keyword.get(opts, :email_verified, true),
+      "hd" => Keyword.get(opts, :hd, "tuist.dev")
+    }
+
     %Ueberauth.Auth{
-      info: %Info{
-        email: Keyword.fetch!(opts, :email),
-        name: Keyword.fetch!(opts, :name)
-      }
+      info: %Info{email: email, name: Keyword.fetch!(opts, :name)},
+      extra: if(Keyword.get(opts, :raw_info, true), do: %Extra{raw_info: %{user: google_user}}, else: %Extra{})
     }
   end
 end

@@ -1,19 +1,19 @@
 ---
 {
   "title": "시작하기",
-  "titleTemplate": ":title · 시작하기 · 가이드 · Tuist",
+  "titleTemplate": ":title · 가이드 · Tuist",
   "description": "현재 앱이 구축된 방식에 맞는 Tuist 경로를 선택하세요: Xcode, 생성된 Xcode 프로젝트, Gradle, Elixir, Rust, Bazel 또는 Once."
 }
 ---
 # 시작하기 {#get-started}
 
-현재 앱이 빌드되는 방식에 맞는 경로를 선택하세요. 각 경로에서는 설치해야 할 항목, 캐싱과 인사이트, 테스팅 기능을 활성화하는 방법, 그리고 전체 설정을 검증하는 방법을 안내합니다. 이를 개별적으로 도입하거나, 여러 플랫폼에서 배포하는 경우 조합하여 사용할 수 있습니다.
+현재 앱이 빌드되는 방식에 맞는 경로를 선택하세요. 각 경로는 설치 항목, 캐싱·인사이트·테스팅 기능 활성화 방법, 그리고 종단 간 설정 검증 방법을 안내합니다. 기능을 개별적으로 도입하거나, 여러 플랫폼으로 배포하는 경우 조합하여 사용할 수 있습니다.
 
-대부분의 경로는 <.localized_link href="/guides/install-tuist">Tuist 명령줄 인터페이스</.localized_link>를 사용합니다. Elixir는 Hex 패키지를 사용하며, Once는 네이티브 Tuist 프로바이더를 통해 연결됩니다. 둘 다 통합을 위해 Tuist CLI가 필요하지 않습니다.
+대부분의 경로는 <.localized_link href="/guides/install-tuist">Tuist 명령줄 인터페이스</.localized_link>를 사용합니다. Elixir는 Hex 패키지를 사용하며, Once는 네이티브 Tuist 제공자를 통해 연결됩니다. 둘 다 통합을 위해 Tuist CLI가 필요하지 않습니다.
 
 ## Xcode 프로젝트 {#existing-xcode-project}
 
-기존 Xcode 프로젝트나 워크스페이스를 유지하면서 Tuist 기능을 하나씩 추가하세요. 프로젝트 생성이 필요하지 않습니다.
+기존 Xcode 프로젝트나 워크스페이스를 유지한 채 Tuist 기능을 하나씩 추가하세요. 프로젝트 생성이 필요하지 않습니다.
 
 <.localized_link href="/guides/get-started/existing-xcode-project">Start with an Xcode project →</.localized_link>
 
@@ -49,6 +49,6 @@ Bazel 워크스페이스를 Tuist의 Remote Execution API 캐시 및 Build Event
 
 ## Once 프로젝트 {#once-project}
 
-Once의 캐시 가능 스크립트와 빌드 그래프를 Tuist에 연결하여 공유 캐싱, 실시간 빌드 및 테스트 인사이트, 호스팅된 테스트 샤딩 및 애플리케이션 미리보기를 활용하세요.
+Once의 캐시 가능 스크립트와 빌드 그래프를 Tuist에 연결하여 공유 캐싱, 실시간 빌드 및 테스트 인사이트, 호스팅된 테스트 샤딩, 애플리케이션 미리보기를 활용하세요.
 
 <.localized_link href="/guides/get-started/once-project">Start with a Once project →</.localized_link>

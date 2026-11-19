@@ -88,7 +88,7 @@ test('unrelated server, template and daemon documentation changes reuse the publ
   const dir = repository(t);
   const sha = commit(dir, 'infra/sandboxd/cmd/sandboxd/main.go', 'package main');
   for (const path of ['server/app.ex', 'infra/sandbox-image/Dockerfile', '.github/workflows/sandbox-image.yml',
-    'infra/sandboxd/AGENTS.md', 'infra/sandboxd/validation/README.md']) {
+    'infra/runner-cache/archive.go', 'infra/sandboxd/AGENTS.md', 'infra/sandboxd/validation/README.md']) {
     commit(dir, path, path);
   }
   assert.equal(version(dir, daemonVersionScript), `sha-${sha.slice(0, 12)}`);
@@ -97,7 +97,8 @@ test('unrelated server, template and daemon documentation changes reuse the publ
 test('daemon source, image and publisher changes each select a new daemon', (t) => {
   const dir = repository(t);
   for (const path of ['infra/sandboxd/cmd/sandboxd/main.go', 'infra/sandboxd/internal/vm/vm.go', 'infra/sandboxd/Dockerfile',
-    'infra/sandboxd/go.sum', 'infra/sandboxd/validation/validate-job.sh', '.github/workflows/sandboxd-image.yml',
+    'infra/sandboxd/go.sum', 'infra/sandboxd/validation/validate-job.sh', 'infra/runner-cache/sparse/sparse.go',
+    'infra/runner-cache/go.mod', '.github/workflows/sandboxd-image.yml',
     '.github/scripts/sandboxd-image-version.sh']) {
     const sha = commit(dir, path, path);
     assert.equal(version(dir, daemonVersionScript), `sha-${sha.slice(0, 12)}`);
@@ -279,15 +280,23 @@ function assertPublisher(name) {
   assert.equal(publisher.jobs.test.permissions, undefined);
   assert.equal(publisher.jobs.build.if, "github.event_name != 'pull_request'");
   assert.equal(publisher.jobs.build.permissions.packages, 'write');
-  assert.equal(publisher.jobs.build.needs, 'test');
+  assert.equal(publisher.jobs.build.needs, undefined, name);
   assert.equal(publisher.on.workflow_call.outputs.image_tag.value, '${{ jobs.build.outputs.image_tag }}');
-  const build = publisher.jobs.build.steps.find((s) => s.uses === 'docker/build-push-action@v6');
+  const build = publisher.jobs.build.steps.find((s) => s.uses?.startsWith('docker/build-push-action@') && s.with.push === true);
   assert.equal(build.if, "steps.existing.outputs.exists != 'true'");
   assert.equal(build.with.tags, '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}');
   for (const step of publisher.jobs.test.steps) {
     assert.notEqual(step.with?.push, true, `${name} test job must not publish`);
   }
 }
+
+test('the template publisher exercises a new guest before pushing it', () => {
+  const steps = workflow('sandbox-image.yml').jobs.build.steps;
+  const check = steps.findIndex((s) => s.run?.includes('sandbox-image-check-guest.sh'));
+  const push = steps.findIndex((s) => s.with?.push === true);
+  assert.ok(check >= 0 && check < push);
+  assert.equal(steps[check].if, "steps.existing.outputs.exists != 'true'");
+});
 
 test('the daemon publisher tags what its version script names', () => {
   const steps = workflow('sandboxd-image.yml').jobs.build.steps;

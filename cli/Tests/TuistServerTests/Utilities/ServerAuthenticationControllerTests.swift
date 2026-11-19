@@ -265,31 +265,47 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func expired_account_token_returns_expired() async throws {
-        let date = Date()
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies(),
+        arguments: [false, true]
+    ) func expired_account_token_renews_only_with_a_workload_identity(hasWorkloadIdentity: Bool) async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.variables = [
-            "CI": "1",
-        ]
+        mockEnvironment.variables = hasWorkloadIdentity ? ["TUIST_OIDC_TOKEN": "workload-identity-token"] : ["CI": "1"]
+        let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
             let serverURL: URL = .test()
             let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            let expiredToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            let renewedToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+            let stored = TestStore(ServerCredentials.test(accessToken: expiredToken.token, refreshToken: nil))
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in stored.value }
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willProduce { credentials, _ in
+                stored.value = credentials
+            }
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .any, serverURL: .any)
+                .willReturn(renewedToken.token)
 
-            let storeCredentials: ServerCredentials = .test(
-                accessToken: accessToken.token,
-                refreshToken: ""
-            )
-
-            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
-            given(cachedValueStore).getValue(key: .any, computeIfNeeded: .any).willReturn(nil as AuthenticationToken?)
-
-            // When
-            let got = try await subject.authenticationToken(serverURL: .test())
-
-            // Then
-            #expect(got == nil)
+            // When / Then
+            if hasWorkloadIdentity {
+                let got = try await subject.authenticationToken(serverURL: serverURL)
+                #expect(got == .account(try JWT.parse(renewedToken.token)))
+            } else {
+                // Nothing can renew it, so the lookup fails at once rather than retrying under the refresh lock.
+                await #expect(throws: ServerAuthenticationControllerError.workloadSessionExpired(serverURL: serverURL)) {
+                    try await subject.authenticationToken(serverURL: serverURL)
+                }
+                verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(0)
+            }
         }
     }
 
@@ -942,6 +958,128 @@ struct ServerAuthenticationControllerTests {
             verify(refreshOAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
             verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
         }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_renews_an_expiring_workload_identity_session() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "workload-identity-token"]
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let expiringToken = try JWT.make(expiryDate: date.addingTimeInterval(+10), typ: "access", type: "account")
+            let validToken = try JWT.make(expiryDate: date.addingTimeInterval(+600), typ: "access", type: "account")
+            let renewedToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("workload-identity-token"), serverURL: .value(serverURL))
+                .willReturn(renewedToken.token)
+
+            // When
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: validToken.token, refreshToken: nil)
+            )
+            let validResult = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: expiringToken.token, refreshToken: nil)
+            )
+            let expiringResult = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+
+            // Then
+            #expect(validResult?.value == .account(try JWT.parse(validToken.token)))
+            #expect(expiringResult?.value == .account(try JWT.parse(renewedToken.token)))
+            verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
+            verify(serverCredentialsStore)
+                .store(credentials: .value(ServerCredentials(accessToken: renewedToken.token)), serverURL: .value(serverURL))
+                .called(1)
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func authenticationToken_signs_in_with_the_workload_identity_when_signed_out() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "workload-identity-token"]
+        let date = Date()
+        let serverURL: URL = .test()
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+        let credentialsBox = TestStore<ServerCredentials?>(nil)
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in credentialsBox.value }
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
+            credentialsBox.value = credentials
+        }
+        given(exchangeOIDCTokenService)
+            .exchangeOIDCToken(oidcToken: .value("workload-identity-token"), serverURL: .value(serverURL))
+            .willReturn(accessToken.token)
+
+        // When
+        let tokens = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                [
+                    try await subject.authenticationToken(serverURL: serverURL, refreshIfNeeded: false),
+                    try await subject.authenticationToken(serverURL: serverURL),
+                ]
+            }
+        }
+
+        // Then
+        let expected: AuthenticationToken = .account(try JWT.parse(accessToken.token))
+        #expect(tokens == [expected, expected])
+        #expect(credentialsBox.value == ServerCredentials(accessToken: accessToken.token))
+        verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func authenticationToken_stays_signed_out_when_the_workload_identity_is_refused() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "workload-identity-token"]
+        let serverURL: URL = .test()
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(nil)
+        given(exchangeOIDCTokenService)
+            .exchangeOIDCToken(oidcToken: .any, serverURL: .any)
+            .willThrow(TestError())
+
+        // When
+        let tokens = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            [
+                try await subject.authenticationToken(serverURL: serverURL),
+                try await subject.authenticationToken(serverURL: serverURL),
+            ]
+        }
+
+        // Then
+        #expect(tokens == [nil, nil])
+        verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
     }
 
     @Test(

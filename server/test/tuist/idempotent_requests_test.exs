@@ -92,26 +92,23 @@ defmodule Tuist.IdempotentRequestsTest do
 
   test "waits for a claim being processed and replays its result" do
     request_id = UUIDv7.generate()
-    test_pid = self()
+    insert_claim(%{project_id: 1, request_id: request_id})
 
-    first =
-      Task.async(fn ->
-        IdempotentRequests.run("test_run", 1, request_id, fn ->
-          send(test_pid, {:claimed, self()})
+    # The duplicate reads the claim after its own insert conflicts. The claim's
+    # holder completes it right after that read, so the duplicate has seen it in
+    # progress and must wait to replay the result.
+    stub(Repo, :one, fn query ->
+      claim = call_original(Repo, :one, [query])
 
-          receive do
-            :finish -> {:ok, :first}
-          end
-        end)
-      end)
+      Repo.update_all(
+        from(claim in Claim, where: claim.request_id == ^request_id),
+        set: [completed_at: DateTime.utc_now(:second), result: :erlang.term_to_binary(:first)]
+      )
 
-    assert_receive {:claimed, creator}
-    duplicate = counting_create({:ok, :second})
-    second = Task.async(fn -> IdempotentRequests.run("test_run", 1, request_id, duplicate) end)
-    send(creator, :finish)
+      claim
+    end)
 
-    assert Task.await(first) == {:ok, :first}
-    assert Task.await(second) == {:replayed, :first}
+    assert IdempotentRequests.run("test_run", 1, request_id, counting_create({:ok, :second})) == {:replayed, :first}
     refute_received :created
   end
 

@@ -2,12 +2,18 @@ package macosandbox
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -21,7 +27,7 @@ func warmHarness(t *testing.T) (*Service, *Manager, *fakeRuntime, *KubeCapacity)
 	t.Helper()
 	k, node, _ := capacityFixture()
 	runtime := &fakeRuntime{states: map[string]string{}, memory: map[string]string{}}
-	m := &Manager{Root: t.TempDir(), NodeUID: string(node.UID), TemplateTag: warmTestImage, RuntimePath: "/runtime/pinned", ToolsPath: "/tools/pinned", Runtime: runtime, Capacity: k}
+	m := &Manager{Root: t.TempDir(), NodeUID: string(node.UID), Templates: NewTemplates(map[string]string{"macos": warmTestImage}), RuntimePath: "/runtime/pinned", ToolsPath: "/tools/pinned", Runtime: runtime, Capacity: k}
 	if err := m.Load(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +68,7 @@ func waitWarmPhase(t *testing.T, s *Service, pod *corev1.Pod, phase corev1.PodPh
 }
 
 func warmArgs(memoryMB int) protocol.CreateArgs {
-	return protocol.CreateArgs{SandboxID: uuid.NewString(), VCPUs: 8, MemoryMB: memoryMB, WorkspaceGB: 10, TemplateTag: warmTestImage}
+	return protocol.CreateArgs{SandboxID: uuid.NewString(), VCPUs: 8, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB, Template: "macos", TemplateTag: warmTestImage}
 }
 
 func TestWarmPodBootsAsWarmCapacityAndCreateClaimsIt(t *testing.T) {
@@ -83,6 +89,9 @@ func TestWarmPodBootsAsWarmCapacityAndCreateClaimsIt(t *testing.T) {
 	}
 	if runtime.creates != 0 {
 		t.Fatal("a matching warm VM was available but the sandbox cold-booted")
+	}
+	if runtime.claimedVolumeGB != warmWorkspaceGB {
+		t.Fatalf("the claim did not receive the warm VM's workspace volume: %d", runtime.claimedVolumeGB)
 	}
 	if got := m.records[a.SandboxID].VM; got != warmVMPrefix+string(pod.UID) {
 		t.Fatalf("claimed record runs on %q", got)
@@ -140,9 +149,10 @@ func TestDeletedWarmPodDeletesItsVM(t *testing.T) {
 	if err := s.warmTick(ctx, ctx); err != nil {
 		t.Fatal(err)
 	}
-	current, _ := s.Kube.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
-	if len(current.Finalizers) != 0 {
-		t.Fatal("the warm finalizer outlived its VM")
+	// No kubelet confirms a warm Pod's termination: the host completes the
+	// deletion, or the Pod keeps its slot until the controller reaps it.
+	if _, err := s.Kube.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("the retired warm Pod still holds its host: %v", err)
 	}
 	runtime.mu.Lock()
 	_, left := runtime.states[warmVMPrefix+string(pod.UID)]
@@ -157,5 +167,161 @@ func TestWarmPodForAnotherImageFailsInsteadOfBooting(t *testing.T) {
 	pod := waitWarmPhase(t, s, warmPod(t, s, "ghcr.io/tuist/tuist-runner@sha256:other", "8Gi"), corev1.PodFailed)
 	if pod.Status.Reason != "WarmVMUnsupported" || runtime.warms != 0 {
 		t.Fatalf("reason=%q warms=%d", pod.Status.Reason, runtime.warms)
+	}
+}
+
+// A claim at the warmed size runs no guest command. Any other size replaces
+// the volume, because APFS cannot change a quota.
+func TestClaimReusesTheWorkspaceVolumeOnlyAtItsSize(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		volume, claim int
+		replace       bool
+	}{
+		{"warmed size", 10, 10, false},
+		{"other size", 10, 30, true},
+		{"no volume yet", 0, 30, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			binary := filepath.Join(dir, "tart")
+			if err := os.WriteFile(binary, []byte("#!/bin/sh\n[ \"$1\" = exec ] && printf '%s\\n---\\n' \"$5\" >> \"$TART_HOME/exec.log\"\nexit 0\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			runtime := &TartRuntime{Client: &tart.Client{Binary: binary, HomeDir: dir}}
+			r := &Record{VM: "sbw-claim", WorkspaceVolumeGB: tc.volume}
+			r.SandboxID, r.WorkspaceGB = uuid.NewString(), tc.claim
+			vm := runtime.directory(r)
+			if err := os.MkdirAll(vm, 0700); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			go func() { // The runtime answers its status call.
+				for ctx.Err() == nil {
+					var request struct{ ID string }
+					if data, err := os.ReadFile(filepath.Join(vm, "sandbox-request.json")); err == nil && json.Unmarshal(data, &request) == nil {
+						reply, _ := json.Marshal(map[string]any{"id": request.ID, "action": "status", "instance": uuid.NewString(), "pid": 1, "state": "running"})
+						_ = os.WriteFile(filepath.Join(vm, "sandbox-reply.json"), reply, 0600)
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
+			if err := runtime.Claim(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+			log, _ := os.ReadFile(filepath.Join(dir, "exec.log"))
+			commands := string(log)
+			if tc.volume == tc.claim {
+				if commands != "" {
+					t.Fatalf("a claim at the warmed size ran a guest command:\n%s", commands)
+				}
+				return
+			}
+			if strings.Count(commands, "---") != 1 || !strings.Contains(commands, fmt.Sprintf("-quota %dg -mountpoint /Users/runner/work", tc.claim)) {
+				t.Fatalf("the claim did not add one %d GB workspace volume:\n%s", tc.claim, commands)
+			}
+			if strings.Contains(commands, "deleteVolume") != tc.replace {
+				t.Fatalf("replace the existing volume = %v, script:\n%s", tc.replace, commands)
+			}
+			if r.WorkspaceVolumeGB != tc.claim {
+				t.Fatalf("the record still lists a %d GB volume", r.WorkspaceVolumeGB)
+			}
+		})
+	}
+}
+
+// A host stops advertising itself for warm Pods while its sandbox service is
+// not ready or its disk has no room for another VM, so the scheduler places
+// them elsewhere instead of on a host that refuses each one.
+func TestWarmHostLabelFollowsReadinessAndDiskRoom(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tart")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\n[ \"$1\" = list ] && echo '[]'\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &TartRuntime{Client: &tart.Client{Binary: binary, HomeDir: dir}}
+	s := &Service{manager: &Manager{Runtime: runtime}}
+	labels, err := s.WarmHostLabels(t.Context())
+	if err != nil || len(labels) != 0 {
+		t.Fatalf("a host whose sandbox service is not ready advertised warm Pods: %v %v", labels, err)
+	}
+	s.ready = true
+	// A template root disk larger than the filesystem never fits.
+	runtime.rootfs.Store(1 << 62)
+	labels, err = s.WarmHostLabels(t.Context())
+	if err != nil || len(labels) != 0 {
+		t.Fatalf("a host without disk room advertised warm Pods: %v %v", labels, err)
+	}
+}
+
+func TestSessionHostLabelFollowsSessionsThatResumeOnlyHere(t *testing.T) {
+	s := &Service{}
+	if labels, err := s.SessionHostLabels(t.Context()); err != nil || len(labels) != 0 {
+		t.Fatalf("a host without a sandbox store advertised sessions: %v %v", labels, err)
+	}
+	m := &Manager{records: map[string]*Record{}}
+	s.manager = m
+	for _, state := range []string{"", "error", "paused", "running"} {
+		m.records = map[string]*Record{}
+		if state != "" {
+			m.records["a"] = &Record{CreateArgs: protocol.CreateArgs{SandboxID: "a"}, State: state}
+		}
+		m.publish()
+		labels, err := s.SessionHostLabels(t.Context())
+		want := state == "paused" || state == "running"
+		if err != nil || (labels[SessionHostLabel] == "true") != want {
+			t.Fatalf("state %q: labels %v %v, want advertised %v", state, labels, err, want)
+		}
+	}
+}
+
+// Each Xcode is its own template. A warm VM boots the template whose image
+// its Pod names, and only a create for that template claims it.
+func TestWarmVMServesOnlyItsOwnTemplate(t *testing.T) {
+	s, m, runtime, _ := warmHarness(t)
+	const xcode27 = "ghcr.io/tuist/tuist-runner@sha256:xcode27"
+	m.Templates.set("macos-xcode-27-0", xcode27)
+	waitWarmPhase(t, s, warmPod(t, s, xcode27, "8Gi"), corev1.PodRunning)
+	if shapes := m.warmShapes("macos"); len(shapes) != 0 {
+		t.Fatalf("the default template reports another template's warm VM: %v", shapes)
+	}
+	if shapes := m.warmShapes("macos-xcode-27-0"); len(shapes) != 1 || shapes[0] != "8x8192" {
+		t.Fatalf("warm shapes for macos-xcode-27-0: %v", shapes)
+	}
+
+	if err := m.Create(context.Background(), warmArgs(8192)); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.creates != 1 || len(m.warm) != 1 {
+		t.Fatalf("a default create claimed the Xcode 27.0 warm VM: creates=%d warm=%d", runtime.creates, len(m.warm))
+	}
+
+	a := warmArgs(8192)
+	a.Template, a.TemplateTag = "macos-xcode-27-0", ""
+	if err := m.Create(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.creates != 1 || len(m.warm) != 0 || m.records[a.SandboxID].TemplateTag != xcode27 {
+		t.Fatalf("an Xcode 27.0 create did not claim its warm VM: creates=%d warm=%d tag=%q", runtime.creates, len(m.warm), m.records[a.SandboxID].TemplateTag)
+	}
+}
+
+// `macos` and the default Xcode's own name boot the same image, so a create
+// that pins the default by version claims the default's warm VM.
+func TestWarmVMServesEveryNameOfItsImage(t *testing.T) {
+	s, m, runtime, _ := warmHarness(t)
+	m.Templates.set("macos-xcode-26-6", warmTestImage)
+	waitWarmPhase(t, s, warmPod(t, s, warmTestImage, "8Gi"), corev1.PodRunning)
+	if shapes := m.warmShapes("macos-xcode-26-6"); len(shapes) != 1 {
+		t.Fatalf("the pinned default does not report the default's warm VM: %v", shapes)
+	}
+	a := warmArgs(8192)
+	a.Template, a.TemplateTag = "macos-xcode-26-6", ""
+	if err := m.Create(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.creates != 0 || len(m.warm) != 0 || m.records[a.SandboxID].Template != "macos-xcode-26-6" {
+		t.Fatalf("a pinned default create did not claim the warm VM: creates=%d warm=%d template=%q", runtime.creates, len(m.warm), m.records[a.SandboxID].Template)
 	}
 }

@@ -22,6 +22,9 @@ import (
 // Scoped strictly to volumes pinned to THIS node's hostname, so a network volume
 // that could legitimately reattach elsewhere is never touched. The runner-cache
 // data these back is a regenerable cache, so dropping it is safe.
+//
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;delete
 func deleteNodeLocalPVCs(ctx context.Context, c client.Client, nodeName string) error {
 	var pvs corev1.PersistentVolumeList
 	if err := c.List(ctx, &pvs); err != nil {

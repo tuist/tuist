@@ -30,6 +30,22 @@ defmodule Condukt.Compactor.ToolResultPruneTest do
     assert c_result.content == big
   end
 
+  test "after a context-length rejection, elides oversized recent tool results too" do
+    big = String.duplicate("x", 5_000)
+
+    messages = [
+      Message.user("u"),
+      tool_call_msg("a"),
+      Message.tool_result("a", big),
+      tool_call_msg("b"),
+      Message.tool_result("b", "tiny")
+    ]
+
+    {:ok, pruned} = ToolResultPrune.compact(messages, keep_recent: 5, max_size: 1_000, context_overflow: true)
+
+    assert [_, _, %{content: "<elided: 5000 bytes>"}, _, %{content: "tiny"}] = pruned
+  end
+
   test "leaves small tool results alone even when out of the recent window" do
     messages = [
       tool_call_msg("a"),

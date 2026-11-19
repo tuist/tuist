@@ -5,11 +5,15 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   import Ecto.Query
 
   alias Tuist.GitHistory
+  alias Tuist.IngestRepo
+  alias Tuist.TestImpactAnalysis.Snapshot
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
+  alias Tuist.Tests.CoverageRunFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -99,33 +103,10 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert {[%{path: "Sources/B.swift"}], 1} = Commits.list_files(project.id, "abc123", 1, 10, search: "b.SWIFT")
     assert {[], 0} = Commits.list_files(project.id, "abc123", 1, 10, search: "missing")
 
-    assert Commits.line_counts(project.id, "abc123", ["Sources/A.swift"]) == %{
-             "Sources/A.swift" => [{1, 1}, {2, 1}, {3, 0}]
-           }
-
     assert %{lines: [{1, 1}, {2, 1}, {3, 0}]} =
              Commits.file_detail(project.id, "abc123", "Sources/A.swift")
 
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
-  end
-
-  test "reads the line counts of more paths than one query binds", %{project: project, account: account} do
-    # More paths than one chunk of hashes, and past the 128 KiB a single list
-    # of the paths themselves would take. Non-ASCII and quoted paths check
-    # that the server hashes them as ClickHouse does.
-    paths =
-      ["Sources/Café/Ünïcödé.swift", "Sources/It's/Quoted.swift"] ++
-        for index <- 1..5_100, do: "Sources/Feature#{div(index, 40)}/Implementation/File#{index}.swift"
-
-    CoverageFixtures.run_with_coverage(project, account, Enum.map(paths, &file(&1, [1, 0])))
-    CoverageFixtures.run_with_coverage(project, account, [file(List.last(paths), [2, 3])], %{scheme: "Other"})
-
-    counts = Commits.line_counts(project.id, "abc123", ["Sources/Missing.swift" | paths] ++ [hd(paths)])
-
-    assert map_size(counts) == length(paths)
-    assert counts[hd(paths)] == [{1, 1}, {2, 0}]
-    assert counts["Sources/It's/Quoted.swift"] == [{1, 1}, {2, 0}]
-    assert counts[List.last(paths)] == [{1, 3}, {2, 3}]
   end
 
   test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
@@ -522,6 +503,12 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     # measured, the generated file is excluded, the test file was measured,
     # and the manifests are source no product compiles.
     assert Commits.summary(project.id, "abc123").unmeasured_files_count == 1
+
+    # The same from the commit's file changes, once they are written.
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("abc123", [], 0)], branch_heads: [{"main", "abc123"}])
+    Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+    assert GitHistory.FileChanges.current(repository, "abc123")
+    assert %{unmeasured_files_count: 1} = Commits.recompute(project, "abc123")
   end
 
   test "a run schedules its commit's fold whether its checkout was dirty or not, and one without a commit none", %{
@@ -668,6 +655,100 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     end
   end
 
+  describe "folding a commit whose evidence may have expired" do
+    # A full run of AppTests at `sha`: testAdd() with evidence over A.swift.
+    defp evidenced_run(project, account, sha, attrs \\ %{}) do
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/A.swift", [1, 0])],
+        Map.merge(
+          %{
+            git_commit_sha: sha,
+            test_modules: [
+              %{
+                name: "AppTests",
+                status: "success",
+                duration: 1,
+                test_cases: [%{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 10}]
+              }
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/A.swift"],
+              scopes: [
+                %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 1]]}
+              ]
+            }
+          },
+          attrs
+        )
+      )
+    end
+
+    # A report of the run three days old: its evidence is past the two days
+    # `coverage_files` keeps it, so merges may have deleted any of it.
+    defp report_days_ago(run, days) do
+      inserted_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
+
+      IngestRepo.insert_all(CoverageRunFile, [
+        %{
+          test_run_id: run.id,
+          project_id: run.project_id,
+          build_system: "xcode",
+          path: "Sources/Old.swift",
+          layout_id: 1,
+          git_commit_sha: run.git_commit_sha,
+          targets: ["App"],
+          covered_lines: 0,
+          executable_lines: 1,
+          execution_counts: [],
+          function_execution_counts: [],
+          function_covered_lines: [],
+          inserted_at: inserted_at
+        }
+      ])
+    end
+
+    defp snapshots(project), do: Repo.all(from(s in Snapshot, where: s.project_id == ^project.id, order_by: s.id))
+
+    test "writes no test map from a run whose evidence may be gone", %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      run = evidenced_run(project, account, "old", %{recompute: false})
+      report_days_ago(run, 3)
+
+      Commits.recompute(project, "old")
+
+      assert snapshots(project) == []
+    end
+
+    test "keeps the commit's checkpoint when a run arrives beside one whose evidence may be gone",
+         %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      first = evidenced_run(project, account, "old")
+      assert [%Snapshot{kind: :checkpoint} = checkpoint] = snapshots(project)
+
+      # Days later the first run's evidence is expiring and another full run
+      # of the scope reports at the commit: a checkpoint over both would
+      # read whatever is left of the first run's evidence.
+      report_days_ago(first, 3)
+      evidenced_run(project, account, "old")
+
+      assert snapshots(project) == [checkpoint]
+      assert %{checkpoint: ^checkpoint} = Snapshots.at(project.id, "old", "App", "")
+    end
+
+    test "writes the checkpoint of a scope that has none from its runs whose evidence is whole",
+         %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("old", [], 0)])
+      first = evidenced_run(project, account, "old", %{recompute: false})
+      report_days_ago(first, 3)
+      second = evidenced_run(project, account, "old")
+
+      assert [%Snapshot{kind: :checkpoint, test_run_ids: [run_id], tests_count: 1}] = snapshots(project)
+      assert run_id == second.id
+    end
+  end
+
   describe "folding a commit" do
     test "moves its branch only on runs newer than what last moved it, so a refold never moves it back", %{
       account: account,
@@ -704,6 +785,26 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       # x1's own run, older than y1's.
       Commits.recompute(project, "x1")
       assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
+    end
+
+    test "publishes no place for a commit only a detached ref holds", %{account: account, project: project} do
+      repository_id =
+        CoverageFixtures.seed_history(
+          account,
+          [CoverageFixtures.commit("d", [], 0), CoverageFixtures.commit("x", ["d"], 1)],
+          branch_heads: [{"main", "d"}]
+        )
+
+      assert GitHistory.with_refs_lock(repository_id, fn -> GitHistory.detach(repository_id, "x") end)
+
+      # A run that reports no branch advances no ref.
+      CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", [1, 0])], %{
+        git_commit_sha: "x",
+        git_branch: nil
+      })
+
+      assert %{detached: true, head_sha: "x"} = GitHistory.ref(repository_id, "detached:x")
+      assert %{ref_id: nil, position: nil} = Commits.summary(project.id, "x")
     end
 
     # n1's own advance moves nothing either way: observed before n2's run

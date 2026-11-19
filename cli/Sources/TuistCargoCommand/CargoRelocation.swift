@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Takes the checkout's machine-specific roots out of cache keys and stored text, as Bazel's `rules_rust` and blaze do,
 /// so another checkout path or machine finds the same entries. Compiled outputs are made path-free separately, by
@@ -11,7 +12,9 @@ struct CargoRelocation: Equatable {
         let remapped: String
     }
 
-    /// Most specific first, so a target directory inside the workspace is matched before the workspace.
+    /// A root whose path contains another's comes first, so a target directory inside the workspace, or a `/private`
+    /// spelling, is matched before the path inside it. Not by length: the order of `remapArguments` is part of keys,
+    /// and a target directory shorter than the sysroot in one checkout can be longer in another.
     let roots: [Root]
 
     init(environment: [String: String], sysroot: URL) {
@@ -33,14 +36,22 @@ struct CargoRelocation: Equatable {
         }
         if let workspace = environment["TUIST_CARGO_WORKSPACE_ROOT"] {
             roots.append(Root(
-                path: URL(fileURLWithPath: workspace).standardizedFileURL.path, placeholder: "@@TUIST_WORKSPACE@@", remapped: ""
+                path: URL(fileURLWithPath: workspace).standardizedFileURL.path, placeholder: "@@TUIST_WORKSPACE@@", remapped: "."
             ))
         }
         roots = roots.filter { $0.path.count > 1 && $0.path.hasPrefix("/") }
         // macOS's `/var`, `/tmp` and `/etc` are links into `/private`; tools name a checkout under `$TMPDIR` either way.
-        roots += roots.filter { Self.canonical("/private" + $0.path) == $0.path }
-            .map { Root(path: "/private" + $0.path, placeholder: $0.placeholder, remapped: $0.remapped) }
-        self.roots = roots.sorted { $0.path.count > $1.path.count }
+        // Linux has no `/private`: placeholders would give back paths that do not exist, which read as absent inputs.
+        #if os(macOS)
+            roots += roots.filter { Self.canonical("/private" + $0.path) == $0.path }
+                .map { Root(path: "/private" + $0.path, placeholder: $0.placeholder, remapped: $0.remapped) }
+        #endif
+        let contained = roots.map { root in roots.filter { $0.path != root.path && root.path.contains($0.path) }.count }
+        self.roots = zip(roots, contained).sorted { first, second in
+            if first.1 != second.1 { return first.1 > second.1 }
+            if first.0.placeholder != second.0.placeholder { return first.0.placeholder < second.0.placeholder }
+            return first.0.path.hasPrefix("/private/") && !second.0.path.hasPrefix("/private/")
+        }.map(\.0)
     }
 
     /// A lexically standardized path that spells macOS's `/private` links like `standardizedFileURL` does for
@@ -56,16 +67,16 @@ struct CargoRelocation: Equatable {
         return standardized
     }
 
-    /// rustc applies the last matching mapping, so the broadest root comes first. The workspace maps to relative
-    /// paths, matching what Cargo already passes for its members.
+    /// rustc applies the last matching mapping, so the broadest root comes first. The workspace maps to `.`, as
+    /// Bazel's `-fdebug-prefix-map=$PWD=.` does, not to an empty path: rustc then omits the compilation directory, and
+    /// ld64 leaves compile units without one out of a binary's debug map, so lldb found no workspace crate in it.
     var remapArguments: [String] {
-        roots.reversed().map { "--remap-path-prefix=\($0.path)\($0.remapped.isEmpty ? "/" : "")=\($0.remapped)" }
+        roots.reversed().map { "--remap-path-prefix=\($0.path)=\($0.remapped)" }
     }
 
-    /// The same mappings for clang's debug information, which also applies the last matching one. Its compilation
-    /// directory carries no trailing slash, so the workspace maps to `.`, as Bazel's `-fdebug-prefix-map=$PWD=.` does.
+    /// The same mappings for clang's debug information, which also applies the last matching one.
     var debugPrefixMapArguments: [String] {
-        roots.reversed().map { "-fdebug-prefix-map=\($0.path)=\($0.remapped.isEmpty ? "." : $0.remapped)" }
+        roots.reversed().map { "-fdebug-prefix-map=\($0.path)=\($0.remapped)" }
     }
 
     /// Replaces each root that appears as a whole path prefix: `/a/proj` matches `/a/proj` and `/a/proj/x`, never
@@ -102,11 +113,32 @@ struct CargoRelocation: Equatable {
 
     /// Roots whose absolute paths an output names in what it does, such as a string from `env!("CARGO_MANIFEST_DIR")`:
     /// such an output only behaves the same at that path. A Mach-O image's link-edit segment is skipped, since its
-    /// debug map names object files by absolute path without affecting behavior.
+    /// debug map names object files by absolute path without affecting behavior; a linked binary is stored with the
+    /// `.dSYM` debuggers read instead, which `CargoRecordedInvocation.unkeyedRoots` leaves unscanned.
     func boundRoots(in data: Data) -> [Root] {
         let scanned = Self.behavioralBytes(data)
         return roots.filter { scanned.range(of: Data($0.path.utf8)) != nil }
     }
+
+    /// `boundRoots(in:)` of a file, remembered under the file's identity: a compilation's publication scans its outputs
+    /// and unit collection scans the same files again after Cargo exits, gigabytes of rlibs that changed in between only
+    /// when their identity did.
+    func boundRoots(of file: URL) throws -> [Root] {
+        let identity = try CargoInputHasher.identity(file)
+        let paths = roots.map(\.path)
+        if identity.precise, let bound = Self.scanned.withLock({ $0[file.path] }), bound.identity == identity,
+           bound.roots == paths
+        {
+            return roots.filter { bound.found.contains($0.path) }
+        }
+        let found = boundRoots(in: try Data(contentsOf: file))
+        if identity.precise, (try? CargoInputHasher.identity(file)) == identity {
+            Self.scanned.withLock { $0[file.path] = (identity, paths, Set(found.map(\.path))) }
+        }
+        return found
+    }
+
+    private static let scanned = Mutex<[String: (identity: CargoInputHasher.Identity, roots: [String], found: Set<String>)]>([:])
 
     static func behavioralBytes(_ data: Data) -> Data {
         guard data.count > 32, data.prefix(4) == Data([0xCF, 0xFA, 0xED, 0xFE]) else { return data }

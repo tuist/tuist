@@ -1,6 +1,6 @@
 # Tuist with Gradle
 
-Tuist brings Gradle-native depth to one productivity platform for organizations with diverse build systems. Its settings plugin connects Gradle task-output reuse and build/test evidence to the same platform serving supported Bazel, Xcode, Mix, and canary Once workflows. Keep Gradle, the Android Gradle Plugin where applicable, and your existing build commands.
+Tuist brings Gradle-native depth to one productivity platform for organizations with diverse build systems. Its settings plugin connects Gradle task-output reuse and build/test evidence to the same platform serving supported Bazel, Xcode, Mix, and canary Struo workflows. Keep Gradle, the Android Gradle Plugin where applicable, and your existing build commands.
 
 ## One productivity platform, native depth
 
@@ -45,4 +45,4 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 Written by Tuist. Sources reviewed on **2026-10-09**: [Gradle build-cache documentation](https://docs.gradle.org/current/userguide/build_cache.html), [configuration-cache documentation](https://docs.gradle.org/current/userguide/configuration_cache.html), and the linked Tuist integration references.
 
-[All build systems](/marketing-markdown/build-systems) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)
+[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Develocity alternative](/marketing-markdown/compare/develocity) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)

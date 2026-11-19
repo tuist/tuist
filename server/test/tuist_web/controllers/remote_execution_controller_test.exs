@@ -16,6 +16,8 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     stub(Capacity, :execution_image_tag, fn -> "sha-" <> String.duplicate("a", 40) end)
     stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
+    stub(Kura, :managed_cache_endpoint_urls, fn _account -> ["https://client-cache.example"] end)
+    stub(Kura, :public_cache_endpoint_url, fn _account, "https://cache.example" -> "https://same-cache.example" end)
 
     %{
       conn: put_req_header(conn, "authorization", "Bearer test-token"),
@@ -34,7 +36,12 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     {:ok, token, _claims} = Cache.issue_cache_token(project, scope: "#{project.account.name}/#{project.name}")
     conn = put_req_header(conn, "authorization", "Bearer " <> token)
 
-    assert %{"cas_endpoint" => "grpcs://cache.example:443", "max_concurrency" => 8} =
+    assert %{
+             "cas_endpoint" => "grpcs://cache.example:443",
+             "client_cas_endpoint" => "grpcs://same-cache.example:443",
+             "max_concurrency" => 8,
+             "execution_root" => "/workspace/action"
+           } =
              conn
              |> get("/api/remote-execution/#{project.account.name}/#{project.name}/capabilities")
              |> json_response(:ok)
@@ -70,6 +77,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     for {error, status} <- [
           invalid_request: :bad_request,
+          allowance_exhausted: :payment_required,
           queue_full: :too_many_requests,
           unavailable: :service_unavailable
         ] do
@@ -96,6 +104,9 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
     expect(RemoteExecution, :lease, fn _ -> {:ok, nil} end)
     assert conn |> post(prefix <> "/leases") |> response(:no_content)
+
+    expect(RemoteExecution, :lease, fn _ -> {:error, :allowance_exhausted} end)
+    assert conn |> post(prefix <> "/leases") |> json_response(:payment_required)
 
     expect(RemoteExecution, :lease, fn _ -> {:error, :unsupported} end)
     assert conn |> post(prefix <> "/leases") |> json_response(:not_found)

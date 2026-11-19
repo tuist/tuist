@@ -37,7 +37,15 @@ open class TokenProvider(
         if (!envToken.isNullOrBlank()) return envToken
 
         return try {
-            val token = tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+            // Only a refresh takes the cross-process lock. Its flock goes through JNA, which runs
+            // `ldconfig -p` the first time it loads on Linux, and Gradle refuses to store the
+            // configuration cache after a process starts while it configures, as build cache
+            // lookups for compiled build scripts do.
+            val token = tokenCache.getValue(
+                forceRefresh,
+                deadlineNanos,
+                current = { if (forceRefresh) null else validStoredToken() }
+            ) { resolveToken(deadlineNanos) }
             if (token.isBlank()) throw NotAuthenticatedException(serverURL)
             token
         } catch (e: TimeoutException) {
@@ -48,6 +56,13 @@ open class TokenProvider(
     open fun getOptionalToken(forceRefresh: Boolean = false): String? {
         if (envProvider("TUIST_TOKEN") == null && credentialStore.readValidated(serverURL) == null) return null
         return getToken(forceRefresh)
+    }
+
+    /** The stored access token while it has not expired, or `null` when it needs a refresh. */
+    private fun validStoredToken(): Pair<String, Long?>? {
+        val accessToken = (credentialStore.readValidated(serverURL) ?: throw NotAuthenticatedException(serverURL)).accessToken
+        if (JwtParser.isExpired(accessToken)) return null
+        return Pair(accessToken, JwtParser.getExpirationMs(accessToken))
     }
 
     private fun resolveToken(deadlineNanos: Long?): Pair<String, Long?> {

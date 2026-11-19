@@ -14,6 +14,7 @@ defmodule Tuist.VCS do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Cargo
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
@@ -35,6 +36,7 @@ defmodule Tuist.VCS do
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
+  @tuist_run_report_footer "\n<sub>Reported by [Tuist](https://tuist.dev), faster builds and reliable tests for Xcode, Gradle, Bazel, and more.</sub>\n"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
   @test_body_build_systems [
@@ -633,7 +635,7 @@ defmodule Tuist.VCS do
              installation: installation
            }) do
       vcs_comment_body =
-        get_run_report(%{
+        %{
           git_ref: git_ref,
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
@@ -642,7 +644,9 @@ defmodule Tuist.VCS do
           build_url: build_url,
           bundle_url: bundle_url,
           project: project
-        })
+        }
+        |> get_run_report()
+        |> with_run_report_footer()
 
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
@@ -662,6 +666,14 @@ defmodule Tuist.VCS do
       _ ->
         :ok
     end
+  end
+
+  # Reviewers who have never heard of Tuist read these comments, so hosted
+  # comments say what Tuist is. Self-hosted instances keep the report alone.
+  defp with_run_report_footer(nil), do: nil
+
+  defp with_run_report_footer(body) do
+    if Environment.tuist_hosted?(), do: body <> @tuist_run_report_footer, else: body
   end
 
   defp get_existing_vcs_comment_id(%{
@@ -738,7 +750,15 @@ defmodule Tuist.VCS do
   of their Git ref. Otherwise, results match `:git_ref`, including both head and
   merge refs for a pull request. Returns nil when no results are available.
   """
-  def get_run_report(
+  def get_run_report(params) do
+    case get_run_report_sections(params) do
+      nil -> nil
+      report -> report.summary
+    end
+  end
+
+  @doc "Returns the report and its actionable test sections from the same insight snapshot."
+  def get_run_report_sections(
         %{
           git_remote_url_origin: git_remote_url_origin,
           preview_url: preview_url,
@@ -806,9 +826,14 @@ defmodule Tuist.VCS do
     if Enum.all?(bodies, &is_nil/1) do
       nil
     else
-      """
-      #{@tuist_run_report_prefix}
-      """ <> Enum.map_join(bodies, "", &(&1 || ""))
+      %{
+        summary:
+          """
+          #{@tuist_run_report_prefix}
+          """ <> Enum.map_join(bodies, "", &(&1 || "")),
+        failed_tests: failed_tests_body,
+        flaky_tests: flaky_tests_body
+      }
     end
   end
 
@@ -1386,12 +1411,21 @@ defmodule Tuist.VCS do
     |> Enum.uniq_by(fn build -> {build.root_project_name, Enum.sort(build.requested_tasks)} end)
   end
 
+  # The view reads `test_runs` with `FINAL`, under which ClickHouse uses skip
+  # indexes only when `use_skip_indexes_if_final` is on; it's off at the
+  # 24.12 compatibility level the server's profile pins, so it's set here.
+  # Its exact mode expands the granules the ref and commit SHA indexes select
+  # back to whole key ranges, reading the project's whole run history. Exact
+  # mode only matters when a run's newest version could stop matching while
+  # an older one still does; a run's ref and SHA are only ever filled in,
+  # never changed (a shard's report fills a placeholder's blanks), so the
+  # version the filter finds is the newest.
   defp get_latest_test_runs(params) do
     from(t in Tests.Test.query())
     |> filter_run_report_query(params)
     |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
-    |> ClickHouseRepo.all()
+    |> ClickHouseRepo.all(settings: ClickHouseCapabilities.skip_indexes_if_final_settings(ClickHouseRepo))
     |> Enum.group_by(& &1.build_system)
     |> Enum.flat_map(fn
       {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)

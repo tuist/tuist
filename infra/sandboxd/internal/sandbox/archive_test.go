@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,9 +16,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
+	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
+	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 
 // objectStore stands in for presigned multipart uploads and downloads.
@@ -26,6 +32,8 @@ type objectStore struct {
 	parts map[int][]byte
 	// gate, when set, holds every part upload until it is closed.
 	gate chan struct{}
+	// gets records each download's Range header.
+	gets []string
 }
 
 func newObjectStore(t *testing.T) (*objectStore, *httptest.Server) {
@@ -47,7 +55,10 @@ func newObjectStore(t *testing.T) (*objectStore, *httptest.Server) {
 			store.mu.Unlock()
 			w.Header().Set("ETag", fmt.Sprintf(`"etag-%d"`, number))
 		case http.MethodGet:
-			w.Write(store.object())
+			store.mu.Lock()
+			store.gets = append(store.gets, r.Header.Get("Range"))
+			store.mu.Unlock()
+			http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(store.object()))
 		}
 	}))
 	t.Cleanup(server.Close)
@@ -204,5 +215,518 @@ func TestResumeInterruptsAnArchive(t *testing.T) {
 	}
 	if err := <-done; !errors.Is(err, ErrArchiveInterrupted) {
 		t.Fatalf("the archive must report the interruption, got %v", err)
+	}
+}
+
+func TestArchiveDisksRestoresOnAnotherNode(t *testing.T) {
+	h := newHarness(t)
+	// fakevm.CopyFile reads whole files into memory; a 1 GiB workspace
+	// needs a copy that keeps holes, as a reflink does.
+	h.m.cloneFile = sparseCopy
+	ctx := context.Background()
+	store, server := newObjectStore(t)
+	if err := os.MkdirAll(h.m.cfg.SnapshotDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.create(t, "source", 1)
+	workspacePath := filepath.Join(vm.RootDir(h.jailBase, "source"), "workspace.ext4")
+	writeAt := func(text string) {
+		t.Helper()
+		workspace, err := os.OpenFile(workspacePath, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer workspace.Close()
+		if _, err := workspace.WriteAt([]byte(text), 300<<20); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeAt("project set up")
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "source", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.SaveDisks(ctx, protocol.SaveDisksArgs{SandboxID: "source", SnapshotID: "snap1"}); err != nil {
+		t.Fatal(err)
+	}
+	// The source keeps working after the save; the snapshot must not follow it.
+	writeAt("later changes!")
+
+	args := archiveArgs(server, "")
+	missing := protocol.ArchiveDisksArgs{SnapshotID: "absent", PartSize: args.PartSize, PartURLs: args.PartURLs}
+	if _, err := h.m.ArchiveDisks(ctx, missing); !errors.Is(err, ErrDiskSnapshotNotFound) {
+		t.Fatalf("archiving an unknown disk snapshot must fail with not found, got %v", err)
+	}
+	res, err := h.m.ArchiveDisks(ctx, protocol.ArchiveDisksArgs{SnapshotID: "snap1", PartSize: args.PartSize, PartURLs: args.PartURLs})
+	if err != nil {
+		t.Fatalf("archive disks: %v", err)
+	}
+	object := store.object()
+	sum := sha256.Sum256(object)
+	if res.Bytes != int64(len(object)) || res.SHA256 != hex.EncodeToString(sum[:]) || !res.DisksSynced || len(res.Parts) == 0 {
+		t.Fatalf("archive result %+v does not describe the object", res)
+	}
+	if infos := h.m.DiskSnapshots(); len(infos) != 1 || infos[0].ID != "snap1" {
+		t.Fatalf("archiving must keep the disk snapshot on the node, got %+v", infos)
+	}
+
+	other := newHarness(t)
+	if err := os.RemoveAll(other.tmplDir); err != nil {
+		t.Fatal(err)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256}
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "fresh", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromArchive: source}); err != nil {
+		t.Fatalf("create from the disk snapshot archive: %v", err)
+	}
+	restored := filepath.Join(vm.RootDir(other.jailBase, "fresh"), "workspace.ext4")
+	got := make([]byte, 14)
+	file, err := os.Open(restored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if _, err := file.ReadAt(got, 300<<20); err != nil {
+		t.Fatal(err)
+	}
+	if vm.FileSize(restored) != 1<<30 || string(got) != "project set up" {
+		t.Fatalf("a sandbox created from the archive must hold the snapshot's disks, not the source's later writes; got %q", got)
+	}
+
+	// A copy on the other node: an archive of another workspace size is
+	// refused and leaves nothing behind, a matching one becomes a disk
+	// snapshot the node clones like one it saved itself.
+	other.m.cloneFile = sparseCopy
+	mismatch := protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 2, FromArchive: source}
+	if _, err := other.m.CopyDisks(ctx, mismatch); !errors.Is(err, ErrArchiveMismatch) {
+		t.Fatalf("copying an archive of another workspace size must fail with a mismatch, got %v", err)
+	}
+	if infos := other.m.DiskSnapshots(); len(infos) != 0 {
+		t.Fatalf("a refused copy must leave no disk snapshot, got %+v", infos)
+	}
+	copyArgs := protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 1, FromArchive: source}
+	if _, err := other.m.CopyDisks(ctx, copyArgs); err != nil {
+		t.Fatalf("copy disks: %v", err)
+	}
+	if infos := other.m.DiskSnapshots(); len(infos) != 1 || infos[0].ID != "snap1" || infos[0].WorkspaceGB != 1 {
+		t.Fatalf("the copy must be listed as the disk snapshot, got %+v", infos)
+	}
+	// A repeated copy keeps the one already there without downloading.
+	if _, err := other.m.CopyDisks(ctx, protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 1, FromArchive: &protocol.ArchiveSource{URL: server.URL + "/gone", Bytes: 1, SHA256: "00"}}); err != nil {
+		t.Fatalf("copying a snapshot the node holds must succeed, got %v", err)
+	}
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "cloned", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromDiskSnapshot: "snap1"}); err != nil {
+		t.Fatalf("create from the copied disk snapshot: %v", err)
+	}
+	cloned, err := os.Open(filepath.Join(vm.RootDir(other.jailBase, "cloned"), "workspace.ext4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cloned.Close()
+	if _, err := cloned.ReadAt(got, 300<<20); err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "project set up" {
+		t.Fatalf("a sandbox cloned from the copy must hold the snapshot's disks, got %q", got)
+	}
+}
+
+// sparseCopy copies src to dst, leaving zero blocks as holes.
+func sparseCopy(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	block := make([]byte, 1<<20)
+	zero := make([]byte, len(block))
+	for offset := int64(0); offset < info.Size(); offset += int64(len(block)) {
+		n, err := in.ReadAt(block, offset)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if n > 0 && string(block[:n]) != string(zero[:n]) {
+			if _, err := out.WriteAt(block[:n], offset); err != nil {
+				return err
+			}
+		}
+	}
+	return out.Truncate(info.Size())
+}
+
+func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "src", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	// What the guest had in memory, which the restore must hand back.
+	memPath := filepath.Join(vm.RootDir(h.jailBase, "src"), "mem")
+	mem, err := os.OpenFile(memPath, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []int64{5 << 20, 33<<20 + 123, 128<<20 - 8192} {
+		if _, err := mem.WriteAt(bytes.Repeat([]byte(fmt.Sprintf("page@%d ", at)), 300), at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mem.Close()
+	want, _ := os.ReadFile(memPath)
+
+	archiveArgs := archiveArgs(server, "src")
+	if res, err := h.m.Archive(ctx, archiveArgs); err != nil || res.TailOffset != 0 {
+		t.Fatalf("an archive the server did not ask memory of answered %+v, %v", res, err)
+	}
+	store.mu.Lock()
+	store.parts = map[int][]byte{}
+	store.mu.Unlock()
+	archiveArgs.Memory = true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TailOffset <= 0 || res.TailOffset >= res.Bytes || res.Compat != "zen5" || res.MemoryBytes != 4*archive.MemoryChunkSize {
+		t.Fatalf("archive result %+v does not describe its memory", res)
+	}
+	if err := h.m.Delete(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+
+	other := node("zen5")
+	restore := args
+	restore.SandboxID, restore.FromArchive = "dst", source
+	created, err := other.m.Create(ctx, restore)
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if !created.MemoryPending {
+		t.Fatal("a warm restore must report its memory as pending")
+	}
+	store.mu.Lock()
+	firstGet := store.gets[0]
+	store.mu.Unlock()
+	if firstGet != fmt.Sprintf("bytes=%d-%d", res.TailOffset, res.Bytes-1) {
+		t.Fatalf("the restore read %q first, not the disk stream", firstGet)
+	}
+	inst := other.launcher.Last()
+	var backend any
+	for _, call := range inst.Calls() {
+		if call.Path == "/actions" {
+			t.Fatal("a warm restore must not boot the kernel")
+		}
+		if call.Path == "/snapshot/load" {
+			backend = call.Body["mem_backend"].(map[string]any)["backend_type"]
+		}
+	}
+	if backend != "Uffd" {
+		t.Fatalf("snapshot loaded with %v memory", backend)
+	}
+	if loaded := other.events.wait(t, protocol.EventMemoryLoaded, 10*time.Second); loaded.SandboxID != "dst" {
+		t.Fatalf("memory_loaded for %q", loaded.SandboxID)
+	}
+	if !bytes.Equal(inst.Memory(), want) {
+		t.Fatal("the restored guest memory differs from the archived image")
+	}
+	if _, err := other.m.Pause(ctx, "dst"); err != nil {
+		t.Fatalf("pause after a warm restore: %v", err)
+	}
+
+	// A node that cannot load the VM state cold boots the disks.
+	third := node("zen4")
+	restore.SandboxID = "cold"
+	created, err = third.m.Create(ctx, restore)
+	if err != nil {
+		t.Fatalf("cold restore: %v", err)
+	}
+	if created.MemoryPending {
+		t.Fatal("a cold restore has no memory pending")
+	}
+	for _, call := range third.launcher.Last().Calls() {
+		if call.Path == "/snapshot/load" {
+			t.Fatal("an incompatible node must not load the VM state")
+		}
+	}
+}
+
+func TestUnsyncedPauseArchivesOnlyWithItsMemory(t *testing.T) {
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Pause(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	archiveArgs := archiveArgs(server, "src")
+	if _, err := h.m.Archive(ctx, archiveArgs); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("an unsynced pause archived without its memory: %v", err)
+	}
+	archiveArgs.Memory = true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatalf("an unsynced pause must archive with its memory: %v", err)
+	}
+	if res.DisksSynced || res.TailOffset <= 0 || res.Compat != "zen5" {
+		t.Fatalf("archive result %+v must carry the memory and say the disks are unsynced", res)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+
+	// A node that cannot load the memory must not cold boot the disks.
+	other := node("zen4")
+	restore := args
+	restore.SandboxID, restore.FromArchive = "cold", source
+	if _, err := other.m.Create(ctx, restore); !errors.Is(err, ErrArchiveNeedsWarmRestore) {
+		t.Fatalf("an unsynced archive cold booted on an incompatible node: %v", err)
+	}
+	if vm.Exists(vm.JailDir(other.jailBase, "cold")) {
+		t.Fatal("a refused restore must remove its jail")
+	}
+	if len(store.object()) == 0 {
+		t.Fatal("a refused restore must leave the archive")
+	}
+}
+
+func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	root := vm.RootDir(h.jailBase, "src")
+	// Writes in three chunks of the sparse workspace, one straddling two.
+	workspace, err := os.OpenFile(filepath.Join(root, "workspace.ext4"), os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []int64{0, 300<<20 + 7, 4<<20 - 3} {
+		if _, err := workspace.WriteAt(bytes.Repeat([]byte(fmt.Sprintf("disk@%d ", at)), 100), at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace.Close()
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "src", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	wantWorkspace, _ := os.ReadFile(filepath.Join(root, "workspace.ext4"))
+	wantRootfs, _ := os.ReadFile(filepath.Join(root, "rootfs.ext4"))
+
+	archiveArgs := archiveArgs(server, "src")
+	archiveArgs.Memory, archiveArgs.LazyDisks = true, true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.LazyDisks || res.TailOffset <= 0 {
+		t.Fatalf("archive result %+v does not describe lazy disks", res)
+	}
+	// The disk stream holds the kernel, the VM state and the indexes, not
+	// the disks.
+	if tail := res.Bytes - res.TailOffset; tail > 64<<10 {
+		t.Fatalf("the disk stream is %d bytes; it must not hold the disks", tail)
+	}
+	if err := h.m.Delete(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256, LazyDisks: true}
+
+	// "stuck" is a guest that never answers once its memory loaded: its
+	// synced disks cold boot instead.
+	for _, tc := range []struct{ id, compat string }{{"warm", "zen5"}, {"cold", "zen4"}, {"stuck", "zen5"}} {
+		other := node(tc.compat)
+		if tc.id == "stuck" {
+			other.m.cfg.BootTimeout = 300 * time.Millisecond
+			agent, calls := other.m.agent, 0
+			other.m.agent = func(path string) vsock.Agent {
+				if calls++; calls == 1 {
+					return silentAgent{}
+				}
+				return agent(path)
+			}
+		}
+		restore := args
+		restore.SandboxID, restore.FromArchive = tc.id, source
+		created, err := other.m.Create(ctx, restore)
+		if err != nil {
+			t.Fatalf("%s restore: %v", tc.id, err)
+		}
+		if tc.id == "warm" {
+			if !created.MemoryPending {
+				t.Fatal("a warm restore must report its memory as pending")
+			}
+			other.events.wait(t, protocol.EventMemoryLoaded, 10*time.Second)
+		}
+		if tc.id == "stuck" {
+			booted := false
+			for _, call := range other.launcher.Last().Calls() {
+				booted = booted || call.Path == "/actions"
+			}
+			if !booted {
+				t.Fatal("a guest that never answered must cold boot its disks")
+			}
+		}
+		restored := vm.RootDir(other.jailBase, tc.id)
+		gotWorkspace, _ := os.ReadFile(filepath.Join(restored, "workspace.ext4"))
+		gotRootfs, _ := os.ReadFile(filepath.Join(restored, "rootfs.ext4"))
+		if !bytes.Equal(gotWorkspace, wantWorkspace) || !bytes.Equal(gotRootfs, wantRootfs) {
+			t.Fatalf("%s: the restored disks differ from the archived ones", tc.id)
+		}
+		for _, name := range []string{"workspace.ext4.fill", "rootfs.ext4.fill", "workspace.ext4.index", "rootfs.ext4.index"} {
+			if vm.Exists(filepath.Join(restored, name)) {
+				t.Fatalf("%s: %s left in the jail", tc.id, name)
+			}
+		}
+		if _, err := other.m.Pause(ctx, tc.id); err != nil {
+			t.Fatalf("%s: pause after the restore: %v", tc.id, err)
+		}
+	}
+
+	// A daemon that does not know the archive has lazy disks finds no disks
+	// in its stream and refuses it.
+	old := node("zen5")
+	stale := *source
+	stale.LazyDisks = false
+	restore := args
+	restore.SandboxID, restore.FromArchive = "stale", &stale
+	if _, err := old.m.Create(ctx, restore); err == nil {
+		t.Fatal("an archive with lazy disks must not restore as one without")
+	}
+	_ = store
+}
+
+// silentAgent is a guest agent that never answers.
+type silentAgent struct{ vsock.Agent }
+
+func (silentAgent) Ping(context.Context) (vsock.Pong, error) {
+	return vsock.Pong{}, errors.New("no answer")
+}
+
+// A cache clone never travels in an archive. The template's empty
+// placeholder is recreated by a warm restore; a sandbox with a real cache
+// mounted archives without its memory and cold boots elsewhere.
+func TestArchiveOfTemplateCacheDrives(t *testing.T) {
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	ctx := context.Background()
+	node := func() *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = "zen5"
+		h.launcher.SizedMemory = true
+		h.m.builder.CacheDrive = true
+		h.m.cfg.CacheImageDir = filepath.Join(h.dataDir, "cache-images")
+		if err := os.MkdirAll(h.m.cfg.CacheImageDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(h.m.cfg.CacheImageDir, "go-cache"), []byte("warm cache"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	h := node()
+	_, server := newObjectStore(t)
+	plain := protocol.CreateArgs{SandboxID: "plain", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	cached := plain
+	cached.SandboxID, cached.CacheImage = "cached", "go-cache"
+	for _, args := range []protocol.CreateArgs{plain, cached} {
+		if _, err := h.m.Create(ctx, args); err != nil {
+			t.Fatalf("create %s: %v", args.SandboxID, err)
+		}
+	}
+	if size := vm.FileSize(filepath.Join(vm.RootDir(h.jailBase, "plain"), "cache.ext4")); size != template.CachePlaceholderBytes {
+		t.Fatalf("a template create must provide the snapshot's placeholder, got %d bytes", size)
+	}
+	if data, _ := os.ReadFile(filepath.Join(vm.RootDir(h.jailBase, "cached"), "cache.ext4")); string(data) != "warm cache" {
+		t.Fatalf("the cache image must replace the placeholder, got %q", data)
+	}
+	var patched bool
+	for _, call := range h.launcher.Last().Calls() {
+		patched = patched || (call.Method == http.MethodPatch && call.Path == "/drives/cache")
+	}
+	if !patched {
+		t.Fatal("the restore must patch the cache drive so the guest sees the image's size")
+	}
+
+	if _, err := h.m.Pause(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+	withMemory := archiveArgs(server, "cached")
+	withMemory.Memory = true
+	if _, err := h.m.Archive(ctx, withMemory); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("an unsynced sandbox with a cache mounted has nothing it can archive, got %v", err)
+	}
+	if _, err := h.m.Resume(ctx, "cached"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "cached", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := h.m.Archive(ctx, withMemory); err != nil || res.TailOffset != 0 {
+		t.Fatalf("a sandbox with a cache mounted must archive without its memory: %+v, %v", res, err)
+	}
+
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "plain", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	withMemory.SandboxID = "plain"
+	res, err := h.m.Archive(ctx, withMemory)
+	if err != nil || res.TailOffset <= 0 {
+		t.Fatalf("the placeholder must not keep the memory home: %+v, %v", res, err)
+	}
+	// The restoring node runs without the flag: the archive alone says the
+	// VM state needs a placeholder.
+	other := newHarness(t)
+	other.m.cfg.SnapshotCompat = "zen5"
+	other.launcher.SizedMemory = true
+	restore := plain
+	restore.SandboxID = "dst"
+	restore.FromArchive = &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+	created, err := other.m.Create(ctx, restore)
+	if err != nil || !created.MemoryPending {
+		t.Fatalf("warm restore: %+v, %v", created, err)
+	}
+	if size := vm.FileSize(filepath.Join(vm.RootDir(other.jailBase, "dst"), "cache.ext4")); size != template.CachePlaceholderBytes {
+		t.Fatalf("a warm restore must recreate the placeholder, got %d bytes", size)
 	}
 }

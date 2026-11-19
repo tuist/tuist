@@ -9,7 +9,7 @@
 
 Tuist provides support for the Xcode compilation cache, which allows teams to share compilation artifacts by leveraging the build system's caching capabilities.
 
-The Xcode cache was introduced in Xcode 26. You might also see it referred to as the Xcode build cache; it reuses compilation artifacts keyed by their inputs, and Tuist's remote cache makes those artifacts shareable across machines.
+The Xcode cache was introduced in Xcode 26. You might also see it referred to as the Xcode build cache; it reuses compilation artifacts keyed by their inputs, and Tuist's remote cache makes those artifacts shareable across machines. For how it relates to DerivedData and the Clang module cache, see <.localized_link href="/references/concepts/build-cache#xcode">What are Xcode caches?</.localized_link>. To find out which part of a slow build the cache removes, and what to fix in the project first, see [Slow builds](https://tuist.dev/solutions/slow-builds).
 
 > [!TIP]
 > **Combine with the module cache**
@@ -86,6 +86,8 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `C
 > **One socket for every project**
 >
 > `tuist setup cache` installs a single cache proxy per machine, so every project uses the same `COMPILATION_CACHE_REMOTE_SERVICE_PATH`. The `tuist-instance` plugin option is what identifies the project.
+>
+> Xcode passes `OTHER_SWIFT_FLAGS` only to the Swift compiler, not to the cache lookups its build system makes itself. Those lookups learn the project from the Swift compiler's options in the same build. `tuist build`, `tuist test` and `tuist xcodebuild` also pass the project to them directly. A project with no Swift code that is built another way, such as plain `xcodebuild` or the Xcode app, can add the project after the socket path: `COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock?tuist-instance=your-org/your-project`. Otherwise, the first build on a machine whose cache proxy hasn't seen the project yet, such as a CI machine reset between jobs, can recompile some files that are already cached.
 
 > [!IMPORTANT]
 > **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what shares C and Objective-C**
@@ -172,7 +174,7 @@ The coverage-prefix settings participate in binary-cache and selective-testing h
 
 Restored native modules need linked debug information as well as access to the compilation cache. Tuist warms Debug and Release modules with dSYMs and per-slice source-identity metadata, then verifies the metadata against the consumer's declared sources before replacing a target. Missing or incompatible metadata keeps that target's sources. Script-generated `.generated(...)` sources have declaration fingerprints rather than verifiable content checksums, so those targets stay source-built and are not published to the native module cache. Generated resource accessors with actual content checksums remain eligible. Unsupported debug information skips publication of the affected target without blocking unrelated products; source mutation and cancellation still fail the warm. The cache format changes, so artifacts warmed by older versions need rewarming.
 
-For verified replacements, Tuist prepares source relocations in consumer-owned dSYM UUID plists and links debug-only companions for static cached code. It does not rewrite cached binaries or install producer-source paths in LLDB's persistent global source map. Explicit debugger initializers and module-loader settings remain authoritative. Debug symbols and source relocation do not repair source-relative runtime file access or native Xcode coverage reports; coverage variant selection and LLVM export remain separate features.
+For verified replacements, Tuist prepares source relocations in consumer-owned dSYM UUID plists and links debug-only companions for static cached code. It does not rewrite cached binaries or install producer-source paths in LLDB's persistent global source map. Explicit debugger initializers and module-loader settings remain authoritative. On CI (when `CI` or `JENKINS_URL` is set), the scheme pre-action that does this exits without changes, because no debugger attaches to tests there. Debug symbols and source relocation do not repair source-relative runtime file access or native Xcode coverage reports; coverage variant selection and LLVM export remain separate features.
 
 With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
 
@@ -253,7 +255,7 @@ let tuist = Tuist(
 )
 ```
 
-While no build is running, Tuist checks each of the project's stores every 10 minutes. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit.
+Tuist checks each of the project's stores when its cache proxy starts, before any build uses them, and every 10 minutes while no build is running. `tuist setup cache` starts the proxy when it isn't running, so a CI job that runs `tuist setup cache` before its builds and `tuist teardown cache` after them bounds a long-lived runner's stores at the start of every job. It deletes a store's oldest cached outputs once newer builds have written about half the limit, so the store settles at about the limit. A store can be larger than the limit while builds are running, and a store that was already larger when you set the limit shrinks once new builds have written that much. When several projects use the same store, as they do with its default location, the smallest of their limits applies. The limit applies on every machine where you run `tuist setup cache`, so run it again after changing the limit. A cache proxy that is already running keeps running and applies the new limit at its next check.
 
 ### Module cache hashes {#module-cache-hashes}
 
@@ -352,3 +354,7 @@ If you are not using the Xcode cache, remove the `COMPILATION_CACHE_*` build set
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
 When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so Tuist still receives them, but it does not publish anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+
+## Related {#related}
+
+Explore [Tuist's shared cache](https://tuist.dev/cache) to see how engineering teams and coding agents reuse build artifacts.

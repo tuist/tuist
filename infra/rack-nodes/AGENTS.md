@@ -1,6 +1,6 @@
 # Rack nodes
 
-How the BER1 rack's x86 Linux machines (the MS-01s: the two edges and the
+How the alder rack's x86 Linux machines (the MS-01s: the two edges and the
 storage pair) become cluster nodes. A host boots its installer, installs
 Ubuntu, joins the tailnet on first boot, and the cluster's operator joins it as
 a node and keeps it converged. The installer is the install stick every host
@@ -10,6 +10,11 @@ Secure Boot on. Either way it installs what the edges' boot server publishes for
 a box with an empty disk boots it on its own, and a running one is reinstalled
 by raising its `reinstallGeneration`. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
+
+Racks are named after trees, never after a city, campus or provider: `alder`
+(rack 1, at NTT Berlin 2) and `larch` (rack 2, at NTT Berlin 1). Write alder
+in prose. Alder's site ID, host names and objects still say `ber1` until
+they are renamed, so use `ber1` only where it is the identifier.
 
 Bringing up a whole new site, from boxes to taking jobs, follows
 [`site-bring-up.md`](site-bring-up.md).
@@ -639,7 +644,7 @@ account's other regions. Every Cilium node tunnels to every other at its
 InternalIP (VXLAN on 8472/udp), probes their health on 4240/tcp, and the API
 server reaches its kubelet on 10250/tcp. So:
 
-- **Its InternalIP is the site's WAN address**, 149.6.170.31 at BER1, which
+- **Its InternalIP is the site's WAN address**, 149.6.170.31 at alder, which
   the operator publishes as the node's address. There is no kubelet proxy and no
   ExternalIP. The host holds the address on a dummy interface (`tuist-cluster`)
   so the kubelet takes it as `--node-ip` and Cilium can bind its health
@@ -1224,7 +1229,7 @@ concurrency limit at the shape its profile names, and one that spills over to
 the rented fleet runs at that shape.
 
 The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
-its guest slots through the runners-controller's fleet allocator. When one of
+its guest slots through the runners-controller's compute allocator. When one of
 them has queued jobs whose Pods the scheduler refuses for lack of resources,
 the others give up idle warm runners straight away instead of after their
 scale-down cooldown (`infra/runners-controller/AGENTS.md`, "Cross-pool

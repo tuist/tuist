@@ -18,6 +18,7 @@ use tokio::{
 use tower::ServiceExt;
 use tracing::{Instrument, info, warn};
 
+use crate::reapi::SnapshotCacheExt;
 use crate::{
     accelerated_file_serving,
     analytics::Analytics,
@@ -127,6 +128,7 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
+    use crate::serving_authority::AuthorityStart as _;
     let inherited = crate::serving_authority::AuthorityConfig::validate_volume(
         &config.data_dir,
         config.serving_authority.as_ref(),
@@ -229,9 +231,6 @@ async fn initialize_and_serve(
         config.memory_hard_limit_bytes,
         anon_admission_budget_bytes,
     );
-    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
-        config.snapshot_cache_max_bytes,
-    ));
     bootstrap.recovery.check_running()?;
     bootstrap.recovery.set_phase(Phase::OpeningStore);
     // Keep the writer lock with the blocking operation even if its waiter
@@ -318,7 +317,7 @@ async fn initialize_and_serve(
         store,
         io,
         memory,
-        snapshot_cache,
+        snapshot_cache: Default::default(),
         metrics,
         runtime,
         auth,
@@ -376,7 +375,7 @@ async fn initialize_and_serve(
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
-    spawn_tmp_dir_metrics_task(state.clone());
+    spawn_disk_usage_metrics_task(state.clone());
     spawn_segment_promotion_task(state.clone());
     spawn_supervised("segment_reclamation", state.clone(), |state| async move {
         state.store.run_segment_reclamation_worker().await;
@@ -994,10 +993,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                 let snapshot_target = state
                     .memory
                     .snapshot_cache_target_bytes(state.config.snapshot_cache_max_bytes);
-                state
-                    .snapshot_cache
-                    .trim_to(snapshot_target, pressure.as_str(), &state.metrics);
-                state.snapshot_cache.update_metrics(&state.metrics);
+                let snapshot_cache = state.snapshot_cache();
+                snapshot_cache.trim_to(snapshot_target, pressure.as_str(), &state.metrics);
+                snapshot_cache.update_metrics(&state.metrics);
                 let target_bytes = state
                     .memory
                     .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
@@ -1337,7 +1335,7 @@ fn spawn_multipart_janitor_task(state: Arc<AppState>) {
     );
 }
 
-fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
+fn spawn_disk_usage_metrics_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
             loop {
@@ -1347,6 +1345,14 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
                     .await
                     .unwrap_or(0);
                 state.metrics.update_tmp_dir_bytes(bytes);
+                let store = state.store.clone();
+                if let Ok(usage) =
+                    tokio::task::spawn_blocking(move || store.data_dir_usage_bytes()).await
+                {
+                    for (component, bytes) in usage {
+                        state.metrics.update_data_dir_bytes(component, bytes);
+                    }
+                }
             }
         }
         .in_current_span(),

@@ -21,8 +21,11 @@ set -uo pipefail
 umask 077
 request=$(mktemp)
 trap 'rm -f "$request"' EXIT
+# The session's primary repository lets Tuist start the runner from the
+# repository's cached checkout.
 jq -n --rawfile work_order "$CLAUDE_RUNNER_WORK_ORDER_FILE" \
-  '{order_id: env.CLAUDE_RUNNER_ORDER_ID, session_id: env.CLAUDE_RUNNER_SESSION_ID, work_order: ($work_order | rtrimstr("\n"))}' \
+  '{order_id: env.CLAUDE_RUNNER_ORDER_ID, session_id: env.CLAUDE_RUNNER_SESSION_ID, work_order: ($work_order | rtrimstr("\n"))}
+   + (if (env.CLAUDE_RUNNER_PRIMARY_REPO_URL // "") != "" then {repository_url: env.CLAUDE_RUNNER_PRIMARY_REPO_URL} else {} end)' \
   > "$request" || { echo 'Could not read the work order.' >&2; exit 1; }
 token=$(cat "$TUIST_WORKLOAD_TOKEN_FILE") && [[ -n "$token" ]] || { echo 'Provider identity is unavailable.' >&2; exit 1; }
 

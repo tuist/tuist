@@ -2,55 +2,55 @@
 {
   "title": "Entire",
   "titleTemplate": ":title | Git forges | Integrations | Guides | Tuist",
-  "description": "喺 Entire Trails 發布 Tuist 構建、測試、捆綁同預覽洞察。"
+  "description": "將 Tuist 嘅構建、測試、捆綁同預覽數據發佈到 Entire Trails。"
 }
 ---
 # Entire 整合 {#entire}
 
-Tuist 會為每個已連接儲存庫的開放或草稿 [Trail](https://docs.entire.com/guides/trails/overview) 維護一個摘要討論。摘要包括可用的構建結果、測試失敗和不穩定測試、套件大小，以及應用程式預覽，並附有指向 Tuist 上完整報告的連結。
+Tuist 可以將建置、測試、預覽和套件分析結果發布到 [Entire](https://entire.com) 儲存庫中開啟或草稿狀態的 [Trails](https://docs.entire.com/guides/trails/overview)。每個 Trail 都會獲得一個 Tuist 閘道，包含執行報告、針對失敗和不穩定測試的整次變更發現項目，以及一份摘要評論；Tuist 會在新分析結果到達時更新該評論，而非每次上傳都張貼新評論。
 
-> [!IMPORTANT]
-> **早期存取**
->
-> Entire 外掛程式需要合作夥伴註冊，其 Trail 討論和 webhook 合約均屬實驗性質。你的 Tuist 管理員可以為所有帳戶或選定帳戶啟用此整合。你的 Entire 專案也必須獲准安裝已註冊的外掛程式。
+安裝外掛程式不會執行建置或測試。你現有的工作流程會繼續將結果上傳至 Tuist，而此整合會將這些結果帶入你的 Trails。
 
 ## 設定 {#setup}
 
-安裝流程與 GitHub 整合相同：先為你的帳戶安裝外掛程式，然後將儲存庫連接到 Tuist 專案。在託管式 Tuist 上，你的管理員會處理外掛程式註冊和伺服器設定；你只需執行以下步驟。
+Tuist 帳戶的管理員會先安裝外掛程式，然後將儲存庫連接至 Tuist 專案，做法與 <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link> 和 <.localized_link href="/guides/integrations/gitforge/origin">Origin</.localized_link> 整合相同。
 
-1. 開啟你帳戶的 **設定 → 整合**。
-2. 在 **Entire** 中，選擇 **安裝 Entire 外掛程式**。選擇你想與 Tuist 共享的 Entire 專案和儲存庫。
+1. 開啟你帳戶的 **Settings → Integrations**。
+2. 在 Entire 卡片中，選擇 **Install Entire plugin**。選取你想要與 Tuist 共享的 Entire 專案和儲存庫。
 
    ![從帳戶整合安裝 Entire 外掛程式](/images/guides/integrations/gitforge/entire/integrations.png)
 
-3. 返回 Tuist，選擇 **新增專案連線**。在 **選擇要連接的儲存庫** 中，選擇你的 Tuist 專案和 Entire 儲存庫，然後選擇 **建立連線**。如果只有一個 Tuist 專案可用，它會被自動選取。
+3. 回到 Tuist，選擇 **Add new project connection**。在 **Choose repository to connect to** 中，選取你的 Tuist 專案和 Entire 儲存庫，然後選擇 **Create Connection**。如果只有一個可用的 Tuist 專案，系統會自動選取。
 
-   ![將 Tuist 專案連接到 Entire 儲存庫](/images/guides/integrations/gitforge/entire/add-project-connection.png)
+   ![將 Tuist 專案連接至 Entire 儲存庫](/images/guides/integrations/gitforge/entire/add-project-connection.png)
 
-4. 繼續使用你現有的已驗證 Tuist 命令從 CI 上傳洞察數據。Tuist 會將它們與每個 Trail 的當前 commit SHA 匹配；不需要任何 Entire 專屬的 CLI 標誌。
+4. 继续使用你現有且已通過驗證的 Tuist 命令從 CI 上傳結果，例如使用 <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>。Tuist 會將結果對應到每個 Trail 的當前 head commit，因此不需要任何 Entire 專屬的旗標。
 
-Tuist 專案可以保留其 GitHub 連線，同時將摘要發布到 Entire。這對於 GitHub 鏡像很有用。Trail 摘要不需要 Tuist 的 CI 執行器，也不會改變你現有的 CI 供應商。
+Tuist 專案可以保留其 GitHub 連接，同時也將結果發布到 Entire；當 Entire 儲存庫鏡像 GitHub 儲存庫時，這很有用。此整合不需要使用 Tuist 的 CI 執行器，也不會改變你的 CI 供應商。
 
-隨著洞察數據到達，Tuist 會更新同一個討論。開啟或重新開啟 Trail 也會獲取其頭部 commit 之前上傳的洞察數據。已關閉和已合併的 Trail 不會更新。來自較舊 commit 的結果絕不會作為當前頭部的結果呈現。如果當前 commit 沒有洞察數據，Tuist 會保持任何現有摘要不變；每個結果都包含其 commit 哈希值。
+## 報告與權限 {#reports-and-permissions}
 
-要移除專案連線，請開啟其 **管理** 選單並選擇 **移除連線**，就像對 GitHub 所做的一樣。這會停止未來的更新並刪除 Tuist 的本地討論指標。已發布的評論仍保留在 Entire 上。重新連線會在摘要仍可訪問時恢復現有摘要。要更改外掛程式的儲存庫訪問權限或卸載它，請使用 Entire 中專案的 **外掛程式** 設定。
+安裝外掛程式時，你會授予它尋找 Trails 和發布報告所需的權限：
 
-## 伺服器設定 {#server-configuration}
-
-本節適用於 Tuist 伺服器營運者。使用 [外掛程式註冊指南](https://docs.entire.com/guides/api/plugins/register) 向 Entire 註冊外掛程式。請求 `contents:read` 和 `discussions:write`。讀取權限是 Trail 事件和討論發現所必需的；不需要儲存庫寫入訪問權限。
-
-設定這些伺服器環境變數：
-
-| 變數 | 用途 |
+| 權限 | 用途 |
 | --- | --- |
-| `TUIST_ENTIRE_PLUGIN_SLUG` | 由 Entire 確認的 Slug |
-| `TUIST_ENTIRE_PLUGIN_PRIVATE_KEY` | PEM 格式的 Ed25519 私鑰，透過你的秘密儲存庫提供 |
-| `TUIST_ENTIRE_PLUGIN_KEY_ID` | 使用基於 JWKS 的金鑰註冊時的 Key ID；否則為可選 |
-| `TUIST_ENTIRE_CORE_URL` | 用於安裝請求的 Entire Core；預設為 `https://eu.auth.entire.io` |
-| `TUIST_ENTIRE_DELIVERY_JWKS_URL` | 由 Entire 在註冊時提供的 Webhook 簽名金鑰 URL |
+| Repository contents: read | 接收 Trail 事件，並找出帶有 head commits 的開啟和草稿 Trails。 |
+| Checks: write | 在 Trail 的 head commit 上發布 Tuist 閘道。 |
+| Findings: write | 將失敗和不穩定測試作為發現項目發布，並解決被較新報告取代的發現項目。 |
+| Discussions: write | 張貼並更新摘要評論。即使沒有此權限，Tuist 仍會發布閘道和發現項目。 |
 
-對於受管理的 Helm 部署，將私有 PEM 儲存在環境的 1Password 保險庫中作為 `ENTIRE_PLUGIN/private_key`，然後與 `server.config.managedSecrets` 一起啟用 `server.config.entirePluginKey.enabled`。External Secrets 透過現有的 server-config Secret 提供 `TUIST_ENTIRE_PLUGIN_PRIVATE_KEY`，而不裁剪多行 PEM。項目和欄位名稱可透過 `server.config.entirePluginKey.item` 和 `.field` 進行配置。此映射預設為關閉，且不配置 slug 或 webhook 簽名金鑰 URL；請在註冊後單獨提供這些內容。每個環境應使用其自己的簽名金鑰。僅與 Entire 共享公開 PEM，切勿共享私鑰。
+Tuist 不需要對你的原始碼具有寫入權限，也不需要合併 Trails 的權限。
 
-註冊 `https://<your-tuist-host>/integrations/entire/callback` 作為安裝後 URL，並註冊 `https://<your-tuist-host>/webhooks/entire` 作為 webhook URL。應用伺服器遷移後，全局啟用 `entire_trails` 功能標誌以向所有帳戶提供整合，或為選定帳戶啟用它。對於公開推出，請聯絡你的 Entire 聯繫人以允許在外掛程式擁有專案之外進行安裝；啟用 Tuist 功能標誌不會改變 Entire 的安裝策略。Entire Trail 摘要獨立於 Tuist 的 CI 執行配置和功能標誌。
+Tuist 會在每個 Trail 上發布三項內容：
 
-Tuist 會驗證安裝收據和 webhook 簽名，鑄造短生命週期的儲存庫範圍令牌，並在發布前發現每個儲存庫的當前處理區域。令牌絕不會嵌入報告連結中。
+- **閘道：** Tuist 檢查會出現在 **Gates** 下方，包含執行報告和指向 Tuist 上專案的連結。它列在 Tuist 外掛程式之下，與 GitHub 鏡像的 **Checks** 閘道分開。它以 `neutral` 結論完成，Entire 會將其顯示為通過，因為上傳的結果不會告訴 Tuist 所有預期的 CI 工作是否已完成。即使存在發現項目，它也不會阻擋合併，因此請保留你 CI 供應商的必要檢查以執行通過/失敗強制規則。
+- **發現項目：** 失敗測試和不穩定測試會顯示為整次變更發現項目，並連結到 Tuist 上的測試案例。發現項目不會計入 Entire 的 Agent 審查閘道。
+- **摘要評論：** 如同 GitHub 和 Origin 上的拉取請求評論，每個專案會在每個 Trail 保留一則 Tuist Run Report 評論。如果你刪除它，下一份報告會再次張貼。
+
+當新結果到達時，Tuist 會為 Trail 的當前 head commit 發布更新的報告，並解決被取代的發現項目。重試不會建立重複的審查、發現項目或評論，包括當 Entire 對發布的回應遺失時。開啟或重新開啟 Trail 會擷取已為其 head commit 上傳的結果。如果當前 head commit 沒有結果，Tuist 不會發布任何新內容，因此較舊 commit 的閘道無法滿足新 head 的要求。已關閉和已合併的 Trails 不會更新。
+
+Entire 卡片列出專案到儲存庫的連接。在專案連接上選擇 **Manage → Remove connection** 以停止其報告，而無需解除安裝外掛程式。已發布的報告會保留在 Entire 上，重新連接則會開始新的報告。若要變更外掛程式的儲存庫存取權或解除安裝，請使用 Entire 中專案的 **Plugins** 設定。
+
+## 自託管伺服器 {#server-configuration}
+
+如果你自行託管 Tuist 伺服器，請先為你的部署註冊並設定 Entire 外掛程式。遵循 <.localized_link href="/guides/server/self-host/server#platform-entire">Entire 自託管說明</.localized_link>，然後返回上述設定步驟以連接帳戶和專案。

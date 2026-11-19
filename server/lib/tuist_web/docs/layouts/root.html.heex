@@ -165,46 +165,51 @@
         </.inline_dropdown>
 
         <div data-part="socials">
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             size="large"
             href="https://github.com/tuist/tuist"
             target="_blank"
             aria-label={dgettext("docs", "GitHub")}
           >
             <.brand_github />
-          </.neutral_button>
-          <.neutral_button
+          </.ghost_button>
+          <.ghost_button
+            variant="secondary"
             size="large"
             href="https://fosstodon.org/@tuist"
             target="_blank"
             aria-label={dgettext("docs", "Mastodon")}
           >
             <.brand_mastodon />
-          </.neutral_button>
-          <.neutral_button
+          </.ghost_button>
+          <.ghost_button
+            variant="secondary"
             size="large"
             href="https://slack.tuist.dev"
             target="_blank"
             aria-label={dgettext("docs", "Slack")}
           >
             <.brand_slack />
-          </.neutral_button>
-          <.neutral_button
+          </.ghost_button>
+          <.ghost_button
+            variant="secondary"
             size="large"
             href="https://bsky.app/profile/tuist.dev"
             target="_blank"
             aria-label={dgettext("docs", "Bluesky")}
           >
             <.brand_bluesky />
-          </.neutral_button>
-          <.neutral_button
+          </.ghost_button>
+          <.ghost_button
+            variant="secondary"
             size="large"
             href="https://x.com/tuistdev"
             target="_blank"
             aria-label="X"
           >
             <.brand_x />
-          </.neutral_button>
+          </.ghost_button>
         </div>
         <.theme_toggle id="docs-theme-toggle" label={dgettext("docs", "Toggle theme")} />
         <.button
@@ -245,14 +250,16 @@
           primary_action="dashboard"
           show_theme_switcher={false}
         />
-        <.neutral_button
+        <.ghost_button
+          variant="secondary"
           id="docs-nav-mobile-search"
           size="large"
           aria-label={dgettext("docs", "Search")}
         >
           <.icon name="search" />
-        </.neutral_button>
-        <.neutral_button
+        </.ghost_button>
+        <.ghost_button
+          variant="secondary"
           id="docs-nav-mobile-menu"
           size="large"
           aria-label={dgettext("docs", "Open menu")}
@@ -261,7 +268,7 @@
           phx-click={open_mobile_nav()}
         >
           <.icon name="menu" />
-        </.neutral_button>
+        </.ghost_button>
       </div>
     </nav>
     <div
@@ -297,13 +304,14 @@
             primary_action="dashboard"
             show_theme_switcher={false}
           />
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             size="large"
             aria-label={dgettext("docs", "Close menu")}
             phx-click={close_mobile_nav()}
           >
             <.icon name="close" />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
       <nav data-part="items" aria-label={dgettext("docs", "Documentation sections")}>

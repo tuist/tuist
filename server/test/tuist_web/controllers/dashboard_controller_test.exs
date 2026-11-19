@@ -65,7 +65,7 @@ defmodule TuistWeb.DashboardControllerTest do
       conn = get(conn, ~p"/dashboard")
 
       # Then
-      assert redirected_to(conn) == ~p"/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/dashboard"}}"
     end
   end
 end

@@ -49,19 +49,15 @@ machine kinds:
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
   with tart-cri/tart-kubelet.
 - `RackAppleSiliconMachine`: Mac minis **we own**, in a rack we
-  operate (the BER1 colo programme). Same host bootstrap and drift
+  operate (the alder colo programme). Same host bootstrap and drift
   loop as the Scaleway kind; each `RackHost` in the cluster's own
   inventory keeps one, rather than a vendor API supplying hosts, and
   its reboot is a PDU outlet. See "Rack-owned hosts" below.
 - `RackLinuxMachine`: x86 Linux machines **we own** in the same rack (the
-  BER1 edge, services and storage nodes), one per `RackLinuxHost`, which the
+  alder edge, services and storage nodes), one per `RackLinuxHost`, which the
   operator creates with its CAPI Machine, joined over their own tailnet address with a kubeadm
   `system:node` identity and kept converged. See "Rack-owned Linux hosts"
   below.
-- `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
-  `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
-  has no user-data channel); adopts a pre-ordered box and
-  **reinstalls it (wipe) on release**.
 - `OVHDedicatedMachine` — OVHcloud bare metal (including eu-west, us-east, us-west,
   and ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
   pre-prepped box and reinstalls it (wipe) back to the pool on release.
@@ -69,9 +65,16 @@ machine kinds:
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
 then wait for `Node.Ready`. The Linux kinds share the
 `controllers/linux` package and bind that identity to `system:node`;
-Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
-designed in `docs/scaleway-elastic-metal-support.md`; the sections below
-detail the Apple Silicon kind.
+Apple Silicon uses the `tart-kubelet` role. The sections below detail the
+Apple Silicon kind.
+
+Scaleway Elastic Metal support (`ScalewayElasticMetalMachine`, its template
+and the `kura-scw-fr-par` runner-cache pool) was removed in November 2026;
+Scaleway remains only for Apple Silicon. Helm does not delete installed CRDs,
+so once a provider without that controller is deployed to an environment,
+delete them there by hand (cluster-admin, as in "Renaming a machine kind"
+below, including the CAPI core restart):
+`kubectl delete crd scalewayelasticmetalmachines.infrastructure.cluster.x-k8s.io scalewayelasticmetalmachinetemplates.infrastructure.cluster.x-k8s.io`.
 
 `VultrMachine` manages the Chicago and Santiago bare-metal cache fleets. It
 adopts preordered hosts and performs the disk conversion the provider installer
@@ -94,7 +97,6 @@ private-network guide above.
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
-| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
@@ -235,8 +237,10 @@ They travel in opposite directions, and the asymmetry is not a preference:
   DaemonSet-shaped collector sees a guest filesystem, not the host's. It tails
   `/var/log/tart-kubelet.log` — the launchd sink for everything the reconciler,
   node agent and volume manager log — and POSTs to the in-cluster Alloy
-  receiver's `loki.source.api` over the tailnet, so no Grafana Cloud credential
-  is distributed to the fleet. Query `{job="tuist-macos-tart-kubelet"}`.
+  receiver's `loki.source.api` over the tailnet, so no Pulse ingest credential
+  is distributed to the fleet. Its lines land in Pulse's `opentelemetry_logs`
+  with `job=tuist-macos-tart-kubelet` in `resource_attributes`; see
+  [`infra/macos-log-shipper/AGENTS.md`](../macos-log-shipper/AGENTS.md#querying).
 
 Both are gated on Tailscale being wired, for mirrored reasons: without a
 tailnet, the pull agent would have to listen somewhere public, and the push
@@ -302,13 +306,13 @@ own source address. Notes:
   belongs in the configured list.
 - A rack host's list is the fleet's plus its RackHost `spec.sshIngressAllowCIDRs`:
   the address each subnet router in front of it forwards from on the host's
-  side, which for BER1 is each edge's own address on the machines segment. A
+  side, which for alder is each edge's own address on the machines segment. A
   router forwards with SNAT (the default on Linux, the only mode on macOS), so
   the host sees the router, not the operator. A rented mini that drops off the
   tailnet can still be dialled on its public address because the operator's
   egress is in the fleet list; a rack mini has no public address, so without
   the router in its list it is reachable only from its console. That is what
-  stranded the BER1 prototype on 2026-09-18 (see "Rack-owned hosts").
+  stranded the alder prototype on 2026-09-18 (see "Rack-owned hosts").
 - Put the operator's SSH egress in `--ssh-ingress-allow-cidrs` to keep the
   public path usable, since a tailnet-transported roll can't update Tailscale
   itself (`SkipTailscaleInstall`, above).
@@ -430,7 +434,7 @@ parking or retiring the host.
 
 ### A host lent to another env
 
-A rack belongs to one env's operator: production's for BER1. Staging and
+A rack belongs to one env's operator: production's for alder. Staging and
 canary run jobs on rack hardware by borrowing hosts, and a lent host is split
 in two (runbook: "Lending a host to another env" in
 [infra/rack-nodes/AGENTS.md](../rack-nodes/AGENTS.md)):
@@ -642,7 +646,7 @@ mode behind it:
   over its public address. A rack mini joins as a standard device
   (`TailscalePersistentDevice`, set by `rackFleetConfig`) and its SSH ingress
   guard admits its subnet routers (see "SSH ingress guard"), so a box that sat
-  powered off comes back reachable both ways. On 2026-09-18 the BER1 prototype
+  powered off comes back reachable both ways. On 2026-09-18 the alder prototype
   had neither: after a few days unpowered with no Machine, it
   came back answering LAN ping, its device deleted from the tailnet, and `:22`
   silently dropped for the router, leaving the console as the only way in. A
@@ -709,7 +713,7 @@ returning no fingerprint, so the wrong box's key is not pinned
 failed attempt, and the recovery power-cycle after three of them reboots this
 host's own outlet, which is what makes the right box ask for its address
 again. A RackHost without a serial is not checked. On 2026-10-05 a recreated
-Machine bootstrapped the wrong mini of the first BER1 tray this way, under the
+Machine bootstrapped the wrong mini of the first alder tray this way, under the
 other's serial, before this check existed.
 
 **Advertise a /32 per host, not the rack's prefix**, for as long as the
@@ -1185,7 +1189,7 @@ and `Ready` stand without it. The output gauges exist only for a measure the
 card reported. The input's `current` is read from the same `measures` object
 as its voltage.
 
-What the BER1 switches' Network-M3 cards (firmware 2.1.2) serve, read on
+What the alder switches' Network-M3 cards (firmware 2.1.2) serve, read on
 2026-10-16: one output, with its measures embedded, as `current`, `voltage`,
 `frequency` and `percentLoad` (current as a share of the 16 A rating). There's no
 active or apparent power, which matches the EATS16N manual's front-panel
@@ -1304,7 +1308,7 @@ whole site, is over budget starts no new runner VM. Running jobs finish, so
 the cost is some queueing at the margin.
 
 - **`chainAmps`** is the output current at which a chain stops taking work:
-  13 A at BER1, under its 16 A breaker, with room for the dual-PSU gear a feed
+  13 A at alder, under its 16 A breaker, with room for the dual-PSU gear a feed
   loss moves onto the same circuit. A chain is a transfer switch with the PDUs
   whose `spec.chain` names it, or a PDU that hangs off none. Its minis are the
   RackHosts whose `spec.power.pdu` is one of those PDUs.
@@ -1312,7 +1316,7 @@ the cost is some queueing at the margin.
   nothing meters, such as dual-PSU gear on the colocation's own strips. The
   switches together may draw the contracted step in effect less it:
   `status.powerBudgetWatts`. It is derived rather than stated per step, so a
-  contract change is one edit to `contracted_power`. BER1's is 0, because
+  contract change is one edit to `contracted_power`. Alder's is 0, because
   everything there hangs off a switch, including the critical gear on
   `ber1-ats-1`. A site whose dual-PSU gear sits on the colocation's strips sets
   that gear's peak draw here.
@@ -1517,7 +1521,7 @@ router was in its allow list, or whose router changed address, answers LAN ping
 and times out on `:22` from the router. If it is still on the tailnet, the drift
 loop's tailnet fallback delivers the new list on its own. If it is not, only
 its console can (Screen Sharing over the LAN only helps if it was enabled on
-the box; on the BER1 prototype it was not). Add the router to the anchor file
+the box; on the alder prototype it was not). Add the router to the anchor file
 the re-arm LaunchDaemon reloads every minute:
 
 ```bash
@@ -1581,7 +1585,7 @@ fault, and no fleet changes across the restart.
 
 ## Rack-owned Linux hosts
 
-`RackLinuxMachine` joins x86 Linux machines we own (the BER1 MS-01s) and keeps
+`RackLinuxMachine` joins x86 Linux machines we own (the alder MS-01s) and keeps
 them converged. Its inventory is `RackLinuxHost`, rendered from
 `rackLinuxFleet.hosts` and named after each machine's SMBIOS UUID; the name the
 host runs under is `spec.hostname`. How a box is installed is in
@@ -2315,7 +2319,7 @@ Tart is part of the runner runtime, so a lent rack host runs the borrowing
 env's Tart: its `macosFleet.tart.version`, or a `tuist.dev/tart-version`
 annotation on the `RackHostLease` in the borrowing cluster (see "A host lent to
 another env"). An annotation on the lender's RackAppleSiliconMachine has no
-effect on a lent host, so BER1 runs one Tart only when staging, canary and
+effect on a lent host, so alder runs one Tart only when staging, canary and
 production all select it.
 
 ## Module layout
@@ -2325,7 +2329,6 @@ infra/cluster-api-provider-tuist/
 ├── api/v1alpha1/
 │   ├── groupversion_info.go
 │   ├── scalewayapplesiliconmachine_types.go (+ …template)
-│   ├── scalewayelasticmetalmachine_types.go (+ …template)
 │   ├── ovhdedicatedmachine_types.go (+ …template)
 │   ├── racklinuxhost_types.go / racklinuxmachine_types.go / racklinuxcandidate_types.go
 │   ├── tuistcluster_types.go
@@ -2358,9 +2361,8 @@ infra/cluster-api-provider-tuist/
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
 │   ├── orphan_reclaimer.go
-│   └── linux/      # the Linux fleet kinds (OVH / Elastic Metal / Vultr / rack)
+│   └── linux/      # the Linux fleet kinds (OVH / Vultr / rack)
 │       ├── ovhdedicatedmachine_controller.go
-│       ├── scalewayelasticmetalmachine_controller.go
 │       ├── racklinuxhost_*.go       # rack hosts: install, Machine, AMT, power, retirement
 │       ├── racklinuxmachine_controller.go / rack_linux_converge.go  # rack join + converge
 │       ├── racklinux_candidates.go  # tidies what the rack boot servers list
@@ -2488,8 +2490,8 @@ all three of these, or it inherits the trap:
    turns "no Pod ever schedules" into "every Pod wedged in ContainerCreating",
    which is harder to diagnose and burns the job instead of queueing it.
 
-Note the trap is not OVH-specific. `ScalewayElasticMetalMachine`
-shares this renderer and the same once-at-bootstrap property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
+Note the trap is not OVH-specific. `VultrMachine` shares this renderer and
+the same once-at-bootstrap property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 
 A repair that cannot complete must stay loud rather than retry quietly. The
 `KataRuntimeReady` condition is marked False the moment the gap is observed,
@@ -2527,6 +2529,16 @@ arguments when a Pod starts, so new Pods pick it up without restarting
 containerd; running Pods keep the old budget until they are replaced. Every
 cached inode also pins host kernel memory outside the Pod's cgroup, which is
 why the budget is four times the default rather than unbounded.
+
+The same sysctl file pins the kernel default dirty ratios
+(`vm.dirty_ratio = 20`, `vm.dirty_background_ratio = 10`). A 256 MiB host-wide
+`vm.dirty_bytes` cap (2026-11-18) kept virtiofsd's dirty page cache inside an
+exclusive-CPU Pod's headroom, but it throttled every host writer: the runner
+cache-volume agent's snapshot compression went from about 4 s to 95 s and
+checkout publication timed out, which failed canary acceptance. Do not reintroduce a
+host-wide byte cap; writing a ratio zeroes it, so the repair's `sysctl -p` lifts
+it on running hosts. With the defaults, exclusive-CPU Pods are again exposed to
+that QEMU OOM.
 
 The alternatives were rejected. A pod-template `ulimit` changes nothing, since
 the guest process limit is already high. `--inode-file-handles` would avoid the
@@ -2585,16 +2597,6 @@ see the quantity in question:
   machine's `EgressBudgetMbps` (see below); Vultr takes the spec value directly.
   The helper treats zero as "withdraw the capacity", so both kinds can retire
   a budget.
-
-  Elastic Metal has no `EgressBudgetMbps` and is deliberately outside this path.
-  It backs only the private runner-cache pool, whose tenants reach it over the
-  Scaleway Private Network (10 Gbit/s on the B-series, 25 Gbit/s on the I-series)
-  rather than over the 1 Gbit/s public bandwidth every offer includes. That
-  public figure is the one the other kinds advertise, and on this pool it
-  describes no path in use: it is the mirror of the vRack over-commit the OVH
-  fleet values warn about. Arbitration on the private path is the per-tenant
-  Cilium ceiling instead, so the pool also stays out of
-  `egressTreeAgent.nodePools`.
 - `tuist.dev/memory-ceiling-mib` — a bounded multiple
   (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
   Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings
@@ -2733,7 +2735,7 @@ with `systemctl reset-failed ssh.service ssh.socket && systemctl start ssh.socke
 ## Node memory governance
 
 `kubeletMemoryGovernanceBlock` in `controllers/linux/linux_cloudinit.go` carries
-three settings that only make sense together. Read that constant's comment for
+three settings that only make sense together. Read that function's comment for
 the per-setting reasoning; what matters here is the ordering between them and
 how they reach a running node.
 
@@ -2762,22 +2764,21 @@ than reclaims once the protected total approaches capacity. The
 `sum(requests) <= allocatable` invariant with allocatable properly reserved is
 what keeps the protected total clear of the box.
 
-**Upgrading to v1.36+ silently disables it.** v1.36 splits protection out into a
-new `memoryReservationPolicy` field defaulting to `None`, and retiers it so
-`TieredReservation` gives Guaranteed pods `memory.min` and Burstable pods the
-softer `memory.low`. With this config unchanged on v1.36 the result is no
-protection at all and no throttling either (the factor is pinned to 1.0) — a
-silent no-op, not a visible failure. Set `memoryReservationPolicy:
-TieredReservation` as part of the version bump, never before it: an unknown
-field fails KubeletConfiguration's strict decode and the kubelet will not start.
-The same warning sits on `linuxCloudInitOptions.K8sMinor`, which is what an
-upgrade actually edits.
+**v1.36 moves the protection behind `memoryReservationPolicy`**, which defaults
+to `None`, and retiers it so `TieredReservation` gives Guaranteed pods
+`memory.min` and Burstable pods the softer `memory.low`. Without it MemoryQoS
+is a silent no-op there. The config is rendered for the kubelet's minor
+(`kubeletConfigContent`'s `k8sMinor`): from v1.36 it carries
+`TieredReservation`, and below it renders byte for byte as before.
 
 **Propagation.** `desiredKubeletConfigHash` fingerprints the rendered config, so
 any change here re-pushes through `kubelet_config_drift.go` to every already-Ready
 node and restarts its kubelet — no machine roll, and running pods survive (the
 re-push never touches containerd, apt, or the `/data` mounts), but it lands on
-all three Linux fleets at once. Prefer a low-traffic window.
+all three Linux fleets at once. Prefer a low-traffic window. A node running
+exclusive-CPU Pods is the exception: the restart would leak their cores, so the
+re-push waits there until the node is cordoned and empty (see "Exclusive CPUs
+on Kata runner hosts").
 
 **Rollback is not symmetric.** Turning `MemoryQoS` back off does not reliably
 clear the `memory.min` / `memory.low` values already written to existing cgroups
@@ -2793,8 +2794,26 @@ renders and hashes exactly as before. A kubelet does not start when its
 checkpoint names another policy, so the re-push keeps a node whose
 `cpu_manager_state` predates the static policy on its old shared-CPU config.
 Moving it over is a drained, human, one-box-at-a-time step. Keep that guard
-whenever the CPU manager config changes. Rollout, validation, and why runner
-Pods are not Guaranteed yet:
+whenever the CPU manager config changes.
+
+Never restart the kubelet on a host running exclusive-CPU Pods, idle or not: a
+v1.36 kubelet re-admits them onto new cores, never frees the old ones, and
+fails its next start (kubernetes/kubernetes#140989). Cordon the host and wait
+until its runner Pods are gone before a manual restart, a reboot, or anything
+that restarts the kubelet. The drift loop enforces this for re-pushes
+(`exclusiveCPURunnerPods`): it holds a node's re-push while any runner Pod with
+a Pod-level CPU budget is on it, so a kubelet config change reaches those hosts
+only as each is cordoned and empties. Keep that hold in any new path that
+restarts the kubelet.
+
+From kubelet v1.36 Kata hosts also run the pod-level resource managers
+(`podLevelResourceManagers`): the `PodLevelResourceManagers` gate, the
+Topology Manager in pod scope, Kata's static sandbox sizing and the
+`tuist.dev/pod-level-resource-managers` node label. A kubelet that does not know
+the gate panics, so the config is always rendered for the kubelet a node runs:
+the drift loop reads the Node's kubelet version, and a fresh OVH join installs
+the minor of its CAPI Machine's `spec.version`. Rollout, validation, and runner
+Pods' Pod-level budget:
 [`docs/exclusive-runner-cpus.md`](docs/exclusive-runner-cpus.md).
 
 ## Operator UX: one Secret in 1Password
@@ -2828,15 +2847,8 @@ Day-1 operator runbook:
 
    - `AppleSiliconFullAccess` — order/release Mac minis, list server
      types and OS images (the Apple Silicon fleets).
-   - `ElasticMetalFullAccess` — list/order/release Elastic Metal
-     servers (the kura runner-cache fleet). Elastic Metal is a
-     **separate Scaleway product** from Apple Silicon; without this
-     set the EM reconciler 403s on its first `list elastic metal
-     servers` call and never orders a node, so the cache stays down
-     and a deploy waiting on the fleet hangs.
    - `PrivateNetworksFullAccess` — attach servers to the runner-cache
      Private Network (find-or-created by name).
-   - `IPAMReadOnly` — read the PN-assigned address the self-join uses.
    - `SSHKeysFullAccess` — register the per-fleet Ed25519 public key
      the operator generates on first reconcile. **Do not use
      `IAMManager`** despite the name suggesting it covers SSH keys;
@@ -2937,7 +2949,22 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    ```
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-ovh` (also used to re-name a box).
-   Agents prep through the Atlas MCP instead (infra/AGENTS.md, "From an Amp orb"), never with this task, which reads the `OVH_API` token.
+
+   Or let the operator prep it (`controllers/linux/ovh_pool_prep.go`): rename
+   the box `prep-<adoptDisplayNamePrefix>` and nothing else. Every five minutes
+   (`--ovh-pool-prep-interval`) the leader finds such boxes for every
+   `OVHDedicatedMachineTemplate`, checks the box is in the fleet's datacenter
+   and offer and that no Machine holds it, and waits out any pending OVH task.
+   It then renames the box `prepping-<id>-<prefix>`, where `<id>` is the newest
+   install task the box already had, and installs it with the fleet's key and
+   the `/data` plan. Once the first install after `<id>` is done and nothing is
+   pending, it renames the box `<prefix>`, which the fleet adopts. A failed
+   install leaves it `prep-failed-<prefix>`; renaming it `prep-<prefix>` again
+   retries. The state is the displayName alone, so a restart resumes from
+   OVH, and none of the markers starts with a prefix, so no fleet adopts a box
+   mid-prep. Its events are on the fleet's template. This is how agents prep:
+   one approved rename through Atlas (infra/AGENTS.md, "From an Amp orb"),
+   never this task, which reads the `OVH_API` token.
 
    **Vultr is a conversion, not an install.** Its API exposes no partitioning
    control and its installer offers only RAID 1 across both disks (one
@@ -2992,7 +3019,7 @@ node-local volume is lost and the host key rotates, so the next claim re-TOFUs i
 these clusters. The `Cluster` has no control plane Machines, so Machine deletion
 skips the drain, and with it every `MachineDrainRule`, and goes straight to the
 infrastructure Machine (the CAPI controller logs `Skipping deletion of Kubernetes
-Node ... cause="no control plane members"`). The OVH, Vultr and Elastic Metal
+Node ... cause="no control plane members"`). The OVH and Vultr
 releases therefore start by cordoning the box's Node and requeue every 30s, with
 a `WaitingForRunnerJobs` event, while any `tuist.dev/runner=true` Pod in
 `tuist-runners` on it has not finished (`holdReleaseForRunnerJobs` in
@@ -3002,7 +3029,7 @@ terminating Pod on an unreachable Node does not. No other Pod is waited on. See
 "Replacing a runner box without killing CI jobs" in
 [runners-controller](../runners-controller/AGENTS.md).
 
-**A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
+**A failing step waits out its requeue.** The OVH and Vultr
 machine kinds ignore their own status writes (`ignoreOwnStatusWrites`), since
 every pass patches status (a bootstrap attempt counted, a phase set) and that
 patch would otherwise trigger the next pass at once, skipping the
@@ -3010,18 +3037,17 @@ patch would otherwise trigger the next pass at once, skipping the
 started deletion still wake them. Before it, the staging GRA box that refused
 the fleet key took 30,043 SSH logins in about 11 hours (2026-10-05).
 
-**A reinstall already in flight is a completed release, not a failure.** OVH and Elastic Metal
-reach the provider before dropping the finalizer, so a controller restart
+**A reinstall already in flight is a completed release, not a failure.** OVH
+reaches the provider before dropping the finalizer, so a controller restart
 between a successful install call and the finalizer patch — or two Machines on one
 box — has the release ask for a second wipe of a box already being wiped. Every
 provider rejects that for the whole ~30 minute install, and retrying on it holds
 the Machine in `Deleting`: the MachineDeployment stays a replica above spec and a
 `helm upgrade --atomic` rollback waiting on that count runs out its step ceiling
-(2026-09-03, 13 minutes on `ns3048220`). Each kind therefore reads the box's own
-install state and releases when a wipe is already running — OVH gates on
+(2026-09-03, 13 minutes on `ns3048220`). It therefore reads the box's own
+install state and releases when a wipe is already running, gating on
 `Client::BadRequest::TaskAlreadyExists` plus an install-function task in the task
-list, Elastic Metal on the install status the API reports, since its API
-does not name the collision. A failure that is not that retries on a bounded
+list. A failure that is not that retries on a bounded
 interval rather than controller-runtime's default backoff, which doubles to a
 1000s cap and idles the Machine long after the provider frees the box.
 
@@ -3106,16 +3132,6 @@ lost by leaving it idle, since the cache lives on the larger group either way.
 `StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
 than falling back to the provider's default single-root install.
 
-Elastic Metal goes through Scaleway's partitioning schema (`internal/scaleway/partitioning.go`),
-which exposes the offer layout directly: `GetDefaultPartitioningSchema`
-returns the offer's own layout to transform, so the planner never guesses the
-disk count, device naming, or whether the OS is mirrored, and
-`ValidatePartitioningSchema` checks the result against the real offer WITHOUT
-touching a server. `PartitioningSchemaFor` runs both before either install path
-posts, so a schema the provider would reject stops the install rather than
-wiping a box to discover it. `PlanSchema` takes /data out of root's partition
-and mirrors it exactly as the default mirrors root.
-
 
 **Already-adopted boxes need a reinstall.** Partitioning cannot change in place,
 so a box installed before this has either no separate `/data` or an ext4 one, and
@@ -3160,7 +3176,7 @@ nothing user-visible happening:
    to the same PV. Once both are gone the StatefulSet recreates them and
    `WaitForFirstConsumer` binds the new claim on the second box.
 4. Wait for the moved replica to catch up from its peer before handing it
-   traffic. Kura backfills a fresh replica from the peer it joins (`kura/src/backfill/`),
+   traffic. Kura backfills a fresh replica from the peer it joins (`kura/crates/kura-node/src/backfill/`),
    so the cache content follows even though the volume does not; gate on that
    pod's backfill metrics rather than a timer.
 5. Let the primary role hand over, then repeat 3-4 for the ex-primary.
@@ -3273,7 +3289,7 @@ A pool host scheduled for deletion is still adoptable until it goes, so
 schedule it only once nothing in that env needs a spare.
 
 Staging and canary rent no runner hosts (`runnersFleet.hostCount: 0`;
-their macOS jobs run on lent BER1 rack hosts, see `infra/rack-nodes/AGENTS.md`),
+their macOS jobs run on lent alder rack hosts, see `infra/rack-nodes/AGENTS.md`),
 and keep one `macosFleet` mini each for the xcresult processor. Their
 pools hold no spare, so replacing that mini means ordering a
 `tuist-pool-` host first.
@@ -3362,7 +3378,7 @@ local state. Fix what the condition names and let the repair land.
 ### Make `kubectl logs`/`exec` work on a fleet node
 
 The apiserver dials the kubelet at the node's InternalIP:10250. When
-`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (Elastic Metal / OVH / Vultr), the error says which piece is off:
+`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (OVH / Vultr), the error says which piece is off:
 
 | `kubectl logs <fleet-pod>` error | Fix |
 |---|---|
@@ -3377,16 +3393,7 @@ check the node picked it up (the stamped hash appears once the re-push ran):
 kubectl get node <fleet-node> -o jsonpath='{.metadata.annotations.tuist\.dev/kubelet-config-hash}'
 ```
 
-`kubectl delete machine <name>` re-provisions to force it. On **Elastic Metal**,
-two things bite:
-
-- The re-push SSHes in with the fleet key, so the box must be authorized with it.
-  `ssh: unable to authenticate … [none publickey]` means it isn't, and the box is
-  re-keyed only at reinstall with the key of `machine.Spec.FleetName`. An empty
-  `fleetName` uses a per-machine key that mismatches, so make sure it's set.
-- A reinstalled box can fail apt (`exited with status 100`) when PN DHCP writes
-  `/etc/resolv.conf` with only `nameserver 169.254.169.254`, which the box
-  firewalls off. SSH in as `ubuntu` and swap it for `nameserver 1.1.1.1`.
+`kubectl delete machine <name>` re-provisions to force it.
 
 Emergency bypass for a wedged CP: add `InternalIP` to
 `--kubelet-preferred-address-types` in
@@ -3519,14 +3526,17 @@ landing capacity; no managed pool opts in by
 default. Cache taints alone retain the full shared-XFS data disk. Annotating a
 joined host does not convert it.
 
-Explicitly enrolled rented Linux cache hosts (both `tuist.dev/kura-cache` and
-`tuist.dev/runner-cache` taints) convert their installer's empty XFS `/data` md
+Explicitly enrolled rented Linux cache hosts (the `tuist.dev/kura-cache`
+taint) convert their installer's empty XFS `/data` md
 filesystem to the `kura-volumes` VG before quota setup and kubelet binds.
 When the installer omits the data mount/fstab entry, bootstrap accepts exactly
 one unmounted XFS md filesystem and inspects it read-only; ambiguous devices,
 populated filesystems and a populated unmounted `/data` directory are refused.
-`controllers/linux/kura_lvm_setup.sh` creates a 128 GiB XFS `data` LV with
-`prjquota`; the remaining extents back CSI volumes. It journals the source
+`controllers/linux/kura_lvm_setup.sh` creates an 80 GiB XFS `data` LV with
+`prjquota` (128 GiB on hosts converted before 2026-11-09); the remaining
+extents back CSI volumes. `/data` then holds only containerd's store, capped by
+its 64 GiB project quota below the kubelet's 85% image GC and eviction line,
+and the kubelet root. It journals the source
 before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
 filesystem or an already-joined legacy host. Existing nodes require a reinstall.
 Before any destructive step it also installs `thin-provisioning-tools` (LVM
@@ -3538,7 +3548,7 @@ do not run this script.
 The Vultr conversion uses the same function for its detached non-ESP RAID leg;
 the root still loses its mirror, and conversion gates require the VG. Existing
 successful Vultr conversion records are not invalidated by this change.
-Explicitly enrolled rack storage installs create the same VG and 128 GiB data LV directly through
+Explicitly enrolled rack storage installs create the same VG with a 128 GiB data LV directly through
 curtin in `internal/rackinstall/seed.go`, for both USB and resident-installer
 layouts. Existing rack disks are never converted by bootstrap or drift. Machine deletion also reaps claims pinned
 by `topology.kura-volumes.tuist.dev/node`. Evacuate workloads and retained claims

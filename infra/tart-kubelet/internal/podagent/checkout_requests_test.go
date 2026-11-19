@@ -332,3 +332,39 @@ func TestCheckoutSpareRoomNeverEvictsAMaster(t *testing.T) {
 		t.Fatal("a restore a job asked for no longer evicts an idle master")
 	}
 }
+
+// A lineage whose first master this host refused gets no checkout for a while,
+// so its jobs stop exporting what would be refused again.
+func TestCheckoutHostDeniesALineageItRefusedToStart(t *testing.T) {
+	root := t.TempDir()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+	share := checkoutRequest(t, root, pod)
+	checkouts := preparedCheckouts(t, filepath.Join(root, "checkouts"))
+	c, _, reports := checkoutAgent(t, root, checkoutGrantJSON(0), checkouts)
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(share, "checkout.request.response")); !strings.Contains(string(data), `"cold"`) {
+		t.Fatalf("a lineage no host refused was not granted: %s", data)
+	}
+
+	refused := exportFrom(t, checkouts, "branch", checkoutTestCommit, nil)
+	refused.Commit, refused.DefaultBranchJob, refused.MayStartMaster = strings.Repeat("6", 40), false, true
+	checkouts.Process(context.Background(), refused)
+	if checkouts.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("the refused export started a master")
+	}
+
+	// The pod's next job asks again; a request with a response is not answered twice.
+	_ = os.Remove(filepath.Join(share, "checkout.request.response"))
+	checkoutRequest(t, root, pod)
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(share, "checkout.request.response")); !strings.Contains(string(data), `"denied"`) {
+		t.Fatalf("a lineage this host just refused was granted: %s", data)
+	}
+	if len(*reports) != 2 || (*reports)[1]["state"] != "deleted" || (*reports)[1]["id"] != checkoutTestUse {
+		t.Fatalf("the denied use was not ended: %v", *reports)
+	}
+}

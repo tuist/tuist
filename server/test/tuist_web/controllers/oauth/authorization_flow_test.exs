@@ -21,6 +21,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   alias Boruta.Ecto.Token
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
+  alias Tuist.OAuth.Clients
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -91,16 +92,20 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
 
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "oauthflow-example.com")
     |> Repo.update!()
 
     password_conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
 
-    assert redirected_to(password_conn) == "/users/auth/google"
+    query = URI.encode_query(authorize_params(client_id))
+    assert redirected_to(password_conn) == ~p"/users/auth/google?#{%{return_to: "/oauth2/authorize?#{query}"}}"
     assert "/oauth2/authorize?" <> _ = get_session(password_conn, :user_return_to)
 
     google_token =
-      Tuist.Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      Tuist.Accounts.generate_user_session_token(user, %{
+        auth_method: :google,
+        provider_organization_id: "oauthflow-example.com"
+      })
 
     assert build_conn() |> init_test_session(%{}) |> put_session(:user_token, google_token) |> authorize(client_id)
   end
@@ -186,14 +191,14 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       %{"access_token" => access_token, "refresh_token" => refresh_token} =
         exchange_code(client_id, authorize(sso_conn, client_id))
 
-      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "oauthflow-example.com"}}} =
                Tuist.Guardian.decode_and_verify(access_token)
 
       assert %{"access_token" => refreshed_access_token, "refresh_token" => refreshed_refresh_token} =
                client_id |> refresh_conn(refresh_token) |> json_response(200)
 
       # The proof carries over to the rotated pair, so later refreshes pass too.
-      assert {:ok, %{"sso" => %{"provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "oauthflow-example.com"}}} =
                Tuist.Guardian.decode_and_verify(refreshed_access_token)
 
       assert %{"access_token" => _} = client_id |> refresh_conn(refreshed_refresh_token) |> json_response(200)
@@ -223,7 +228,12 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       # tokens carried SSO proof was.
       %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
       organization = sso_member_of(user)
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "oauthflow-example.com"
+      )
 
       assert %{"access_token" => access_token, "refresh_token" => refreshed_refresh_token} =
                client_id |> refresh_conn(refresh_token) |> json_response(200)
@@ -267,7 +277,12 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
 
       # The refused token is not spent: signing in through the provider
       # links the identity that lets it refresh again.
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "oauthflow-example.com"
+      )
+
       assert %{"access_token" => _} = client_id |> refresh_conn(second_refresh_token) |> json_response(200)
     end
 
@@ -299,7 +314,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       %{"refresh_token" => refresh_token} =
         exchange_code(client_id, authorize(sso_session_conn(user, organization), client_id))
 
-      organization |> Ecto.Changeset.change(sso_organization_id: "other.example.com") |> Repo.update!()
+      organization |> Ecto.Changeset.change(sso_organization_id: "other.oauthflow-example.com") |> Repo.update!()
 
       assert %{"access_token" => access_token} = client_id |> refresh_conn(refresh_token) |> json_response(200)
       assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
@@ -561,7 +576,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     # Enabling enforcement through `Accounts` also requires a verified login
     # email domain, which is not what these tests are about.
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "oauthflow-example.com")
     |> Repo.update!()
   end
 
@@ -618,6 +633,139 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       :gen_tcp.send(client, "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
       :gen_tcp.close(client)
       serve_loopback_fixture(socket, test_pid)
+    end
+  end
+
+  test "Luft signs in as a first-party app without a secret and keeps its access through refresh", %{
+    conn: conn,
+    user: user
+  } do
+    client_id = Clients.luft_client_id()
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+    query = fn redirect_uri ->
+      URI.encode_query(%{
+        "response_type" => "code",
+        "client_id" => client_id,
+        "redirect_uri" => redirect_uri,
+        "state" => "luft-state",
+        "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
+        "code_challenge_method" => "S256"
+      })
+    end
+
+    # The request alone never issues a code: anyone can use Luft's public client ID.
+    consent = get(conn, "/oauth2/authorize?" <> query.("luft://oauth-callback"))
+    assert html_response(consent, 200) =~ "Sign in to Luft?"
+    assert get_resp_header(consent, "cache-control") == ["no-store"]
+
+    approve = fn redirect_uri, consent ->
+      post(conn, "/oauth2/authorize?" <> query.(redirect_uri), %{"consent" => consent})
+    end
+
+    redirect_query = fn conn -> conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() end
+
+    # Cancelling returns to the app without a code.
+    denied = "luft://oauth-callback" |> approve.("deny") |> redirect_query.()
+    assert %{"error" => "access_denied", "state" => "luft-state"} = denied
+    refute Map.has_key?(denied, "code")
+
+    # Boruta reads the query, so a client ID in the body can't route around consent.
+    for body <- [%{"client_id" => "other"}, %{"client_id" => "other", "consent" => "deny"}] do
+      bypass = post(conn, "/oauth2/authorize?" <> query.("luft://oauth-callback"), body)
+      refute Map.has_key?(redirect_query.(bypass), "code")
+    end
+
+    # The consent form is the only way to approve, so it must keep its CSRF protection.
+    assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
+      conn
+      |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+      |> post("/oauth2/authorize?" <> query.("luft://oauth-callback"), %{"consent" => "allow"})
+    end
+
+    # The desktop app's loopback callback may use any port; other redirects are refused.
+    assert html_response(get(conn, "/oauth2/authorize?" <> query.("http://127.0.0.1:49152/callback")), 200)
+
+    assert "http://127.0.0.1:49152/callback?" <> _ =
+             "http://127.0.0.1:49152/callback" |> approve.("allow") |> redirected_to()
+
+    refute get(conn, "/oauth2/authorize?" <> query.("https://example.com/callback")).status in [200, 302]
+    refute approve.("https://example.com/callback", "allow").status == 302
+
+    code_for = fn ->
+      "luft://oauth-callback"
+      |> approve.("allow")
+      |> redirected_to()
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
+      |> Map.fetch!("code")
+    end
+
+    # Without a secret, the PKCE verifier is what proves the caller started the sign-in.
+    assert build_conn()
+           |> post(~p"/oauth2/token", %{
+             "grant_type" => "authorization_code",
+             "client_id" => client_id,
+             "redirect_uri" => "luft://oauth-callback",
+             "code" => code_for.()
+           })
+           |> json_response(400)
+
+    code = code_for.()
+
+    %{"refresh_token" => refresh_token} =
+      build_conn()
+      |> post(~p"/oauth2/token", %{
+        "grant_type" => "authorization_code",
+        "client_id" => client_id,
+        "redirect_uri" => "luft://oauth-callback",
+        "code" => code,
+        "code_verifier" => verifier
+      })
+      |> json_response(200)
+
+    %{"access_token" => access_token} =
+      build_conn()
+      |> post(~p"/oauth2/token", %{
+        "grant_type" => "refresh_token",
+        "client_id" => client_id,
+        "refresh_token" => refresh_token
+      })
+      |> json_response(200)
+
+    assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
+    assert "project:previews:read" in claims["scopes"]
+
+    for path <- ["/api/accounts/#{user.account.name}/threads", "/api/me/feature-flags"] do
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer #{access_token}")
+             |> get(path)
+             |> json_response(200)
+    end
+  end
+
+  test "Luft can't request scopes, so openid fails cleanly instead of at the token endpoint", %{conn: conn} do
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+    for scope <- ["openid", "mcp", "openid mcp"] do
+      path =
+        "/oauth2/authorize?" <>
+          URI.encode_query(%{
+            "response_type" => "code",
+            "client_id" => Clients.luft_client_id(),
+            "redirect_uri" => "luft://oauth-callback",
+            "scope" => scope,
+            "state" => "luft-state",
+            "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
+            "code_challenge_method" => "S256"
+          })
+
+      for response <- [get(conn, path), post(conn, path, %{"consent" => "allow"})] do
+        query = response |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+        assert %{"error" => "invalid_scope", "state" => "luft-state"} = query
+        refute Map.has_key?(query, "code")
+      end
     end
   end
 

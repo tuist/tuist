@@ -7,7 +7,6 @@ defmodule TuistWeb.AppLayoutComponents do
 
   import TuistWeb.AccountDropdown
 
-  alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.MCP.WebMCP
@@ -26,6 +25,7 @@ defmodule TuistWeb.AppLayoutComponents do
   def project_sidebar(assigns) do
     ~H"""
     <.sidebar>
+      <TuistWeb.Components.DashboardSearch.trigger :if={@current_user} />
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>
       <% entity_resources = BuildEntityResources.for_project(@selected_project) %>
       <.sidebar_item
@@ -135,10 +135,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={
-            (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
-              Tuist.FeatureFlags.coverage_enabled?(@selected_account, @selected_project)
-          }
+          :if={Tuist.Tests.Coverage.supported?(@selected_project)}
           label={dgettext("dashboard", "Code Coverage")}
           icon="umbrella"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
@@ -213,7 +210,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Project.once_project?(@selected_project)}
-        label={dgettext("dashboard", "Once Cache")}
+        label={dgettext("dashboard", "Struo Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"}
         selected={
@@ -221,6 +218,15 @@ defmodule TuistWeb.AppLayoutComponents do
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
+        }
+      />
+      <.sidebar_item
+        :if={Project.bazel_project?(@selected_project) or once?}
+        label={dgettext("dashboard", "Remote execution")}
+        icon="cloud_computing"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/remote-execution"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/remote-execution"
         }
       />
       <.sidebar_item
@@ -393,6 +399,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={Tuist.Tests.Coverage.supported?(@selected_project)}
+          label={dgettext("dashboard", "Code Coverage")}
+          icon="umbrella"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -433,6 +451,18 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
           @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
+        }
+      />
+      <.sidebar_item
+        :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+        label={dgettext("dashboard", "Snapshots")}
+        icon="photo"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"
+          )
         }
       />
       <.sidebar_item
@@ -480,158 +510,59 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:current_user, :map, required: true)
 
   def account_sidebar(assigns) do
+    assigns =
+      assign(assigns, :items, TuistWeb.DashboardNavigation.account(assigns.current_user, assigns.selected_account))
+
     ~H"""
     <.sidebar>
-      <% projects_path = ~p"/#{@selected_account.name}/projects" %>
-      <% runners_path = ~p"/#{@selected_account.name}/runners" %>
-      <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
-      <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
-      <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
-      <% sandboxes_path = ~p"/#{@selected_account.name}/sandboxes" %>
-      <% sandbox_instances_path = ~p"/#{@selected_account.name}/sandboxes/instances" %>
-      <.sidebar_item
-        label={dgettext("dashboard", "Projects")}
-        icon="folders"
-        navigate={projects_path}
-        selected={
-          @current_path == ~p"/#{@selected_account.name}" or
-            String.starts_with?(@current_path, projects_path)
-        }
-      />
-      <.sidebar_group
-        :if={FeatureFlags.runners_enabled?(@selected_account)}
-        id="sidebar-runners"
-        label={dgettext("dashboard", "Runners")}
-        icon="server"
-        navigate={runners_path}
-        selected={@current_path == runners_path}
-        default_open={String.starts_with?(@current_path, runners_path)}
-        phx-update="ignore"
-      >
-        <.sidebar_item
-          label={dgettext("dashboard", "Workflows")}
-          icon="versions"
-          navigate={runner_workflows_path}
-          selected={String.starts_with?(@current_path, runner_workflows_path)}
-        />
-        <.sidebar_item
-          label={dgettext("dashboard", "Jobs")}
-          icon="stack_2"
-          navigate={runner_jobs_path}
-          selected={String.starts_with?(@current_path, runner_jobs_path)}
-        />
-        <.sidebar_item
-          label={dgettext("dashboard_runners", "Volumes")}
-          icon="database"
-          navigate={~p"/#{@selected_account.name}/runners/volumes"}
-          selected={
-            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners/volumes")
-          }
-        />
-        <.sidebar_item
-          :if={Authorization.authorize(:runners_update, @current_user, @selected_account) == :ok}
-          label={dgettext("dashboard", "Profiles")}
-          icon="category"
-          navigate={runner_profiles_path}
-          selected={String.starts_with?(@current_path, runner_profiles_path)}
-        />
-      </.sidebar_group>
-      <.sidebar_group
-        :if={
-          FeatureFlags.sandboxes_enabled?(@selected_account) and
-            Authorization.authorize(:sandboxes_read, @current_user, @selected_account) == :ok
-        }
-        id="sidebar-sandboxes"
-        label={dgettext("dashboard_sandboxes", "Sandboxes")}
-        icon="box_model_2"
-        navigate={sandboxes_path}
-        selected={@current_path == sandboxes_path}
-        default_open={String.starts_with?(@current_path, sandboxes_path)}
-        phx-update="ignore"
-      >
-        <.sidebar_item
-          label={dgettext("dashboard_sandboxes", "Instances")}
-          icon="stack_2"
-          navigate={sandbox_instances_path}
-          selected={String.starts_with?(@current_path, sandboxes_path <> "/")}
-        />
-      </.sidebar_group>
-      <.sidebar_item
-        :if={
-          Accounts.organization?(@selected_account) and
-            Authorization.authorize(:organization_read, @current_user, @selected_account) == :ok
-        }
-        label={dgettext("dashboard", "Members")}
-        icon="users"
-        navigate={~p"/#{@selected_account.name}/members"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/members")}
-      />
-      <.sidebar_group
-        :if={Tuist.Pulse.authorized?(@current_user, @selected_account)}
-        id="sidebar-pulse"
-        label="Pulse"
-        icon="chart_arcs"
-        default_open={String.starts_with?(@current_path, "/#{@selected_account.name}/~/pulse/")}
-      >
-        <.sidebar_item
-          label={dgettext("dashboard", "Metrics")}
-          icon="chart_arcs"
-          navigate={~p"/#{@selected_account.name}/~/pulse/metrics"}
-          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/metrics"}
-        />
-        <.sidebar_item
-          label={dgettext("dashboard", "Logs")}
-          icon="file_text"
-          navigate={~p"/#{@selected_account.name}/~/pulse/logs"}
-          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/logs"}
-        />
-        <.sidebar_item
-          label={dgettext("dashboard", "Traces")}
-          icon="list_tree"
-          navigate={~p"/#{@selected_account.name}/~/pulse/traces"}
-          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/traces"}
-        />
-        <.sidebar_item
-          label={dgettext("dashboard", "Errors")}
-          icon="alert_circle"
-          navigate={~p"/#{@selected_account.name}/~/pulse/errors"}
-          selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/~/pulse/errors")}
-        />
-      </.sidebar_group>
-      <.sidebar_item
-        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
-        label={dgettext("dashboard", "Webhooks")}
-        icon="webhook"
-        navigate={~p"/#{@selected_account.name}/webhooks"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
-      />
-      <.sidebar_item
-        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
-        label={dgettext("dashboard", "Cache")}
-        icon="database"
-        navigate={~p"/#{@selected_account.name}/cache"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/cache")}
-      />
-      <.sidebar_item
-        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
-        label={dgettext("dashboard", "Billing")}
-        icon="credit_card"
-        navigate={~p"/#{@selected_account.name}/billing"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
-      />
-      <.sidebar_item
-        label={dgettext("dashboard", "Usage")}
-        icon="chart_column"
-        navigate={~p"/#{@selected_account.name}/usage"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/usage")}
-      />
-      <.sidebar_item
-        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
-        label={dgettext("dashboard", "Settings")}
-        icon="settings"
-        navigate={~p"/#{@selected_account.name}/settings"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/settings")}
-      />
+      <TuistWeb.Components.DashboardSearch.trigger :if={@current_user} />
+      <%= for item <- @items do %>
+        <%= if item.id do %>
+          <.sidebar_group
+            id={item.id}
+            label={item.title}
+            icon={item.icon}
+            navigate={item.path}
+            selected={item.path == @current_path}
+            default_open={
+              Enum.any?(item.children, &String.starts_with?(@current_path, &1.path)) or
+                (not is_nil(item.path) and String.starts_with?(@current_path, item.path))
+            }
+            phx-update={if item.id != "sidebar-pulse", do: "ignore"}
+          >
+            <.sidebar_item
+              :for={child <- item.children}
+              label={child.title}
+              icon={child.icon}
+              navigate={child.path}
+              selected={
+                cond do
+                  item.id == "sidebar-sandboxes" ->
+                    String.starts_with?(@current_path, item.path <> "/")
+
+                  item.id == "sidebar-pulse" ->
+                    @current_path == child.path or
+                      String.starts_with?(@current_path, child.path <> "/")
+
+                  true ->
+                    String.starts_with?(@current_path, child.path)
+                end
+              }
+            />
+          </.sidebar_group>
+        <% else %>
+          <.sidebar_item
+            label={item.title}
+            icon={item.icon}
+            navigate={item.path}
+            selected={
+              String.starts_with?(@current_path, item.path) or
+                (item.path == "/#{@selected_account.name}/projects" and
+                   @current_path == "/#{@selected_account.name}")
+            }
+          />
+        <% end %>
+      <% end %>
     </.sidebar>
     """
   end
@@ -648,6 +579,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
       <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
+      <% organization_ai? = not is_nil(@selected_account.organization_id) %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -673,12 +605,19 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.tab_menu_horizontal_item
         :if={
-          @selected_account.user_id == @current_user.id and
-            FeatureFlags.ai_enabled?(@current_user)
+          if organization_ai?,
+            do:
+              Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
+                FeatureFlags.organization_luft_enabled?(@selected_account),
+            else:
+              @selected_account.user_id == @current_user.id and
+                FeatureFlags.luft_enabled?(@current_user)
         }
         label={dgettext("dashboard", "AI")}
         selected={String.starts_with?(@current_path, ai_path)}
-        navigate={ai_path}
+        navigate={
+          if organization_ai?, do: ~p"/#{@selected_account.name}/settings/ai/routing", else: ai_path
+        }
       />
     </.tab_menu_horizontal>
     """
@@ -757,7 +696,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={dgettext("dashboard", "Errors")}
         icon="alert_triangle"
-        href="https://hive.tuist.dev/errors"
+        href="https://atlas.tuist.dev/engineering/errors"
         target="_blank"
         rel="noopener noreferrer"
         external
@@ -813,7 +752,7 @@ defmodule TuistWeb.AppLayoutComponents do
           label={Tuist.Environment.server_version_identifier()}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         >
           <:icon><.git_branch /></:icon>
         </.badge>
@@ -845,6 +784,17 @@ defmodule TuistWeb.AppLayoutComponents do
           <span :if={@title} data-part="title">{@title}</span>
         </div>
         <div data-part="right-section">
+          <button
+            :if={@webmcp && @current_user}
+            type="button"
+            class="dashboard-search-trigger"
+            phx-click={Phoenix.LiveView.JS.dispatch("dashboard-search:open")}
+            aria-label={dgettext("dashboard", "Search Tuist")}
+            aria-haspopup="dialog"
+            aria-controls="dashboard-search-dialog"
+          >
+            <.search />
+          </button>
           <%= if not is_nil(@current_user) do %>
             <.account_dropdown
               id="mobile-account-dropdown"
@@ -860,6 +810,12 @@ defmodule TuistWeb.AppLayoutComponents do
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="mobile-headerbar-breadcrumbs" />
       </div>
     </header>
+    <TuistWeb.Components.DashboardSearch.palette
+      :if={@webmcp && @current_user}
+      account={@selected_account}
+      project={@selected_project}
+      user={@current_user}
+    />
     """
   end
 
@@ -890,13 +846,12 @@ defmodule TuistWeb.AppLayoutComponents do
           }
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
-          badge_label={breadcrumb[:badge] && breadcrumb.badge.label}
-          badge_color={breadcrumb[:badge] && breadcrumb.badge.color}
+          image={Map.get(breadcrumb, :image)}
         >
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
             :for={breadcrumb_item <- breadcrumb.items}
-            id={"#{@id}-#{breadcrumb_item.value}"}
+            id={"#{@id}-#{index}-item-#{breadcrumb_item.value}"}
             value={breadcrumb_item.value}
             label={breadcrumb_item.label}
             selected={breadcrumb_item.selected}
@@ -904,13 +859,12 @@ defmodule TuistWeb.AppLayoutComponents do
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             icon={Map.get(breadcrumb_item, :icon)}
-            badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
-            badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
+            image={Map.get(breadcrumb_item, :image)}
           />
           <:footer :if={Map.get(breadcrumb, :footer_items)}>
             <.breadcrumb_item
               :for={breadcrumb_item <- breadcrumb.footer_items}
-              id={"#{@id}-#{breadcrumb_item.value}"}
+              id={"#{@id}-#{index}-footer-#{breadcrumb_item.value}"}
               value={breadcrumb_item.value}
               label={breadcrumb_item.label}
               selected={breadcrumb_item.selected}
@@ -918,8 +872,7 @@ defmodule TuistWeb.AppLayoutComponents do
               show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
               avatar_color={Map.get(breadcrumb_item, :avatar_color)}
               icon={Map.get(breadcrumb_item, :icon)}
-              badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
-              badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
+              image={Map.get(breadcrumb_item, :image)}
             />
           </:footer>
         </.breadcrumb>

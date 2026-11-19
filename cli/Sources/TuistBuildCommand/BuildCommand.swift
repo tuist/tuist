@@ -24,6 +24,7 @@ public struct BuildCommand: AsyncParsableCommand {
                 BuildCargoCommand.self,
                 BuildMixCommand.self,
                 BuildOnceCommand.self,
+                BuildBazelCommand.self,
             ]
         #else
             [
@@ -34,6 +35,7 @@ public struct BuildCommand: AsyncParsableCommand {
                 BuildCargoCommand.self,
                 BuildMixCommand.self,
                 BuildOnceCommand.self,
+                BuildBazelCommand.self,
             ]
         #endif
     }

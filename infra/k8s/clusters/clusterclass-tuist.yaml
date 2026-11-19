@@ -468,6 +468,20 @@ spec:
         openAPIV3Schema:
           type: boolean
           default: false
+    # Opt-in API server audit log: Metadata-level events (who, verb, object
+    # name, response code; never the object body) for Secrets and
+    # ServiceAccount token requests, written to
+    # /var/log/kubernetes/audit/audit.log on each control-plane node and
+    # shipped by k8s-monitoring's alloy-control-plane once that chart's
+    # global.apiServerAuditLogs is set for the cluster. Setting it rolls the
+    # control plane, so enable it one cluster at a time (staging first). See
+    # infra/credential-rotation.md, "API server audit log".
+    - name: apiServerAuditLog
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
+          default: false
     # Rollout switch for a kubeadm control-plane join failure observed with
     # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
     # each environment can validate the compatibility fallback separately.
@@ -725,9 +739,12 @@ spec:
             - op: replace
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
               valueFrom:
-                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }{{ if .aggregateApiServerMetrics }}, {"name": "allow-metric-labels-manifest", "value": "/etc/kubernetes/metric-labels.yaml"}{{ end }}]'
-    - name: ApiServerMetricLabelAggregation
-      enabledIf: "{{ if .aggregateApiServerMetrics }}true{{end}}"
+                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }{{ if .aggregateApiServerMetrics }}, {"name": "allow-metric-labels-manifest", "value": "/etc/kubernetes/metric-labels.yaml"}{{ end }}{{ if .apiServerAuditLog }}, {"name": "audit-policy-file", "value": "/etc/kubernetes/audit-policy.yaml"}, {"name": "audit-log-path", "value": "/var/log/kubernetes/audit/audit.log"}, {"name": "audit-log-format", "value": "json"}, {"name": "audit-log-maxage", "value": "30"}, {"name": "audit-log-maxbackup", "value": "10"}, {"name": "audit-log-maxsize", "value": "100"}{{ end }}]'
+    # Builds the apiserver extraVolumes array for every opt-in feature that
+    # needs one. A single patch, because each feature adding the whole array
+    # at the same path would replace the other's.
+    - name: ApiServerExtraVolumes
+      enabledIf: "{{ if or .aggregateApiServerMetrics .apiServerAuditLog }}true{{end}}"
       definitions:
         - selector:
             apiVersion: controlplane.cluster.x-k8s.io/v1beta2
@@ -737,12 +754,36 @@ spec:
           jsonPatches:
             - op: add
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraVolumes"
-              value:
-                - name: metric-labels
-                  hostPath: /etc/kubernetes/metric-labels.yaml
-                  mountPath: /etc/kubernetes/metric-labels.yaml
-                  readOnly: true
-                  pathType: File
+              valueFrom:
+                template: |
+                  {{- if .aggregateApiServerMetrics }}
+                  - name: metric-labels
+                    hostPath: /etc/kubernetes/metric-labels.yaml
+                    mountPath: /etc/kubernetes/metric-labels.yaml
+                    readOnly: true
+                    pathType: File
+                  {{- end }}
+                  {{- if .apiServerAuditLog }}
+                  - name: audit-policy
+                    hostPath: /etc/kubernetes/audit-policy.yaml
+                    mountPath: /etc/kubernetes/audit-policy.yaml
+                    readOnly: true
+                    pathType: File
+                  - name: audit-log
+                    hostPath: /var/log/kubernetes/audit
+                    mountPath: /var/log/kubernetes/audit
+                    readOnly: false
+                    pathType: DirectoryOrCreate
+                  {{- end }}
+    - name: ApiServerMetricLabelAggregation
+      enabledIf: "{{ if .aggregateApiServerMetrics }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
             - op: add
               path: "/spec/template/spec/kubeadmConfigSpec/files/-"
               value:
@@ -773,6 +814,40 @@ spec:
                   "apiserver_request_terminations_total,scope": "__none__"
                   "apiserver_request_terminations_total,subresource": "__none__"
                   "apiserver_request_terminations_total,version": "__none__"
+    # The audit policy behind the apiServerAuditLog variable. Metadata level
+    # records the user, groups, source IP, verb, object name and response
+    # code without request or response bodies, so the log never holds a
+    # secret value or a minted token. Everything else is not logged: the
+    # point is to answer "who read this Secret / minted a token for this
+    # ServiceAccount" after a compromise, at a volume Loki can carry.
+    - name: ApiServerAuditPolicy
+      enabledIf: "{{ if .apiServerAuditLog }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/files/-"
+              value:
+                owner: root:root
+                path: /etc/kubernetes/audit-policy.yaml
+                permissions: "0600"
+                content: |
+                  apiVersion: audit.k8s.io/v1
+                  kind: Policy
+                  omitStages:
+                    - RequestReceived
+                  rules:
+                    - level: Metadata
+                      resources:
+                        - group: ""
+                          resources:
+                            - secrets
+                            - serviceaccounts/token
+                    - level: None
     # kubeadm's local-mode join points the bootstrap kubelet at the new node's
     # control-plane endpoint before that endpoint exists. On the affected
     # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so

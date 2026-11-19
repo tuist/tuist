@@ -400,24 +400,33 @@ func TestCleanPartialBuilds(t *testing.T) {
 	// Built by an older Firecracker, whose snapshot format the current one
 	// cannot load.
 	stale := tmpl.ShapeDir(Shape{VCPUs: 8, MemoryMB: 16384})
-	for _, d := range []string{ready, partial, staging, stale} {
+	// Built with a workspace of another size than creates now ask for.
+	resized := tmpl.ShapeDir(Shape{VCPUs: 2, MemoryMB: 8192})
+	// Built without the cache placeholder the daemon now puts in snapshots.
+	uncached := tmpl.ShapeDir(Shape{VCPUs: 4, MemoryMB: 4096})
+	for _, d := range []string{ready, partial, staging, stale, resized, uncached} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for dir, version := range map[string]string{ready: "v1.16.2", stale: "v1.16.1"} {
+	for dir, meta := range map[string]string{
+		ready:    `{"firecracker_version":"v1.16.2","workspace_gb":30,"cache_drive":true}`,
+		stale:    `{"firecracker_version":"v1.16.1","workspace_gb":30,"cache_drive":true}`,
+		resized:  `{"firecracker_version":"v1.16.2","workspace_gb":10,"cache_drive":true}`,
+		uncached: `{"firecracker_version":"v1.16.2","workspace_gb":30}`,
+	} {
 		if err := os.WriteFile(filepath.Join(dir, ReadyFile), nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, MetadataFile), []byte(`{"firecracker_version":"`+version+`"}`), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, MetadataFile), []byte(meta), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	store := &Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds("v1.16.2"); err != nil {
+	if err := store.CleanPartialBuilds("v1.16.2", 30, true); err != nil {
 		t.Fatal(err)
 	}
-	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) {
+	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) || vm.Exists(stale) || vm.Exists(resized) || vm.Exists(uncached) {
 		t.Fatal("clean removed the wrong directories")
 	}
 }
@@ -441,5 +450,33 @@ func TestBazelTemplatePreparesAndUnmountsPristineWorkspace(t *testing.T) {
 	execs := launcher.Last().Agent.RequestsOf("exec")
 	if len(execs) != 1 || execs[0]["cwd"] != "/" || !strings.Contains(fmt.Sprint(execs[0]["cmd"]), "exec /bin/umount /workspace") {
 		t.Fatalf("template must unmount before snapshot: %v", execs)
+	}
+}
+
+func TestPreviousTagIsTheOtherTagTheNodeRanLast(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	if tag, err := store.PreviousTag("bazel", "current"); err != nil || tag != "" {
+		t.Fatalf("no template: %q %v", tag, err)
+	}
+	// Installed oldest first, but "rolled-back" ran again after "previous",
+	// and the init container rewrote its metadata then.
+	base := time.Now().Add(-time.Hour)
+	for i, tag := range []string{"rolled-back", "previous", "oldest", "current"} {
+		seedTemplate(t, dir, "bazel", tag)
+		at := base.Add(time.Duration([]int{3, 2, 1, 4}[i]) * time.Minute)
+		if err := os.Chtimes(filepath.Join(dir, "bazel", tag, MetadataFile), at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An interrupted seed has no metadata and never counts.
+	if err := os.MkdirAll(filepath.Join(dir, "bazel", "partial"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if tag, err := store.PreviousTag("bazel", "current"); err != nil || tag != "rolled-back" {
+		t.Fatalf("previous tag %q %v, want rolled-back", tag, err)
+	}
+	if tag, err := store.PreviousTag("bazel", "rolled-back"); err != nil || tag != "current" {
+		t.Fatalf("previous tag of rolled-back %q %v, want current", tag, err)
 	}
 }

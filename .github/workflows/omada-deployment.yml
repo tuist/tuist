@@ -100,7 +100,7 @@ jobs:
       edge_sites: ${{ steps.site.outputs.edge_sites }}
       rack: ${{ steps.site.outputs.rack }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
@@ -177,7 +177,7 @@ jobs:
       ENVIRONMENT: ${{ needs.resolve.outputs.environment }}
       SITE: ${{ needs.resolve.outputs.site }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
@@ -189,7 +189,7 @@ jobs:
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -238,7 +238,7 @@ jobs:
           }
           resolve controller infra/rack-switch-controller .github/workflows/rack-switch-controller-image.yml
           resolve edge infra/rack-switch-fleet/edge .github/workflows/rack-edge-image.yml
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         if: needs.resolve.outputs.rack == 'true'
         with:
           registry: ghcr.io
@@ -287,7 +287,7 @@ jobs:
       # one at a time when they are up, each held 90 s after its static pod
       # applied the new configuration; `kubectl -n omada rollout status
       # ds/rack-edge-<site>` follows it.
-      # One release per site with edges. BER1's is `rack-edge`, named before
+      # One release per site with edges. Alder's is `rack-edge`, named before
       # there was a second site: a new name would be a second release taking
       # over its DaemonSet.
       - name: helm upgrade --install the rack edges

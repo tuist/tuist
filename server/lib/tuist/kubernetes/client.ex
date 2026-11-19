@@ -494,6 +494,102 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  Resizes the CPU request of a sandbox daemon Pod's `sandboxd` container in
+  place, leaving its memory and its absent CPU limit alone. `target` gets the
+  CPU the kubelet has allocated the container in millicores (its request
+  while nothing is pending) and returns the request to ask for; nothing is
+  written when the Pod already asks for it. Fenced like
+  `resize_sandbox_daemon_memory/4`: the PATCH carries the resourceVersion
+  and UID the current request was read at. Returns
+  `{:ok, millicores, applied?}`: the request the Pod asks for afterwards and
+  whether the kubelet has already allocated it.
+  """
+  def resize_sandbox_daemon_cpu(namespace, name, target, opts \\ [])
+      when is_binary(namespace) and is_binary(name) and is_function(target, 1) do
+    path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
+
+    with {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}} = pod}
+         when is_binary(version) and is_binary(uid) <- request(:get, path, opts: opts, timeout: 5_000),
+         {:ok, requested} <- sandboxd_cpu_request(pod) do
+      allocated = sandboxd_cpu_allocated(pod, requested)
+
+      case target.(allocated) do
+        ^requested ->
+          {:ok, requested, requested == allocated}
+
+        milli when is_integer(milli) and milli > 0 ->
+          resources = %{requests: %{cpu: "#{milli}m"}}
+
+          with {:ok, _pod} <-
+                 request(:patch, path <> "/resize",
+                   opts: opts,
+                   timeout: 5_000,
+                   body:
+                     JSON.encode!(%{
+                       metadata: %{resourceVersion: version, uid: uid},
+                       spec: %{containers: [%{name: "sandboxd", resources: resources}]}
+                     }),
+                   headers: [{"content-type", "application/strategic-merge-patch+json"}]
+                 ) do
+            {:ok, milli, false}
+          end
+      end
+    else
+      {:error, reason} -> {:error, reason}
+      {:ok, _invalid_pod} -> {:error, :invalid_pod}
+    end
+  end
+
+  # What the kubelet admitted, which a deferred growth has not reached yet.
+  defp sandboxd_cpu_allocated(pod, requested) do
+    pod
+    |> get_in(["status", "containerStatuses"])
+    |> List.wrap()
+    |> Enum.find(&(&1["name"] == "sandboxd"))
+    |> case do
+      %{"allocatedResources" => %{"cpu" => quantity}} -> quantity
+      %{"resources" => %{"requests" => %{"cpu" => quantity}}} -> quantity
+      _unreported -> nil
+    end
+    |> case do
+      nil ->
+        requested
+
+      quantity ->
+        case cpu_milli(quantity) do
+          {:ok, milli} -> milli
+          {:error, _invalid} -> requested
+        end
+    end
+  end
+
+  defp sandboxd_cpu_request(pod) do
+    pod
+    |> get_in(["spec", "containers"])
+    |> List.wrap()
+    |> Enum.find(&(&1["name"] == "sandboxd"))
+    |> case do
+      %{"resources" => %{"requests" => %{"cpu" => quantity}}} -> cpu_milli(quantity)
+      _no_request -> {:error, :invalid_pod}
+    end
+  end
+
+  defp cpu_milli(quantity) when is_binary(quantity) do
+    case Regex.run(~r/^(\d+)m$/, quantity) do
+      [_all, milli] ->
+        {:ok, String.to_integer(milli)}
+
+      nil ->
+        case Float.parse(quantity) do
+          {cores, ""} -> {:ok, round(cores * 1000)}
+          _other -> {:error, :invalid_pod}
+        end
+    end
+  end
+
+  defp cpu_milli(cores) when is_number(cores), do: {:ok, round(cores * 1000)}
+
+  @doc """
   Deletes a runner Pod and its same-named per-Pod ServiceAccount.
   The runner-pool reconciler creates the two as RunnerPool siblings
   sharing one name (not parent/child), so deleting the Pod alone

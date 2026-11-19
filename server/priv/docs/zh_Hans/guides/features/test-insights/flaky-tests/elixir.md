@@ -22,9 +22,9 @@ Tuist 通过两种方式检测不稳定测试：
 
 ### 测试重试 {#test-retries}
 
-ExUnit 每次只运行一次测试，因此间歇性失败的测试与损坏的测试看起来一样。启用重试后，Hex 包会重新运行失败的测试，最多达到你设置的次数。如果在重试中通过，该测试会被标记为不稳定；如果所有失败的测试最终都通过，则运行成功。
+ExUnit 每个测试只运行一次，因此间歇性失败的测试与损坏的测试看起来一样。启用重试后，Hex 包会再次运行失败的测试，最多达到你设置的次数。在重试中通过的测试会被标记为不稳定，如果所有失败的测试最终都通过，则运行成功。
 
-默认情况下重试处于关闭状态。在 `mix.exs` 中将 `test_retries` 添加到现有的 Tuist 选项以启用它们：
+默认情况下重试是关闭的。将 `test_retries` 添加到 `mix.exs` 中现有的 Tuist 选项以启用它们：
 
 ```elixir
 tuist: [project: "account/project", cache: true, test_retries: 2]
@@ -39,7 +39,7 @@ TUIST_TEST_RETRIES=2 mix test
 
 标志优先于环境变量，环境变量优先于 `mix.exs`。
 
-只有失败的测试会再次运行，方式与 `mix test --failed` 运行它们相同，仪表板会显示每次测试尝试及其耗时。由于 `--max-failures` 而提前停止的 ExUnit 运行不会重试。如果失败测试全部超时，也不会重试，因为每次重试都会再次等待每个超时。使用 `--warnings-as-errors` 时也会跳过重试，`mix test` 将不再强制执行，并且从 umbrella 项目的根目录运行时也会跳过；在其某个应用内部运行测试以进行重试。
+只有失败的测试会再次运行，就像 `mix test --failed` 运行它们的方式一样，并且仪表板会显示每次测试尝试及其耗时。由于 `--max-failures` 而提前停止的运行不会重试。如果失败的测试全部超时，也不会重试，因为每次重试都会再次等待所有超时。使用 `--warnings-as-errors` 时也会跳过重试，`mix test` 将不再强制执行，并且在 umbrella 项目的根目录下；在其某个应用程序内部运行测试以进行重试。
 
 ![不稳定的 ExUnit 测试及其历史记录](/images/guides/features/elixir/flaky-test-case.png)
 
@@ -47,16 +47,16 @@ TUIST_TEST_RETRIES=2 mix test
 
 即使没有测试重试，Tuist 也可以通过比较同一提交的不同 CI 运行的结果来检测不稳定测试。如果测试在一次 CI 运行中通过，但在同一提交和方案标签（`--scheme`）的另一次运行中失败，则失败的执行会被标记为不稳定。
 
-这对于捕获那些失败不够一致、无法通过重试捕获但仍会导致间歇性 CI 失败的不稳定测试特别有用。
+这对于捕获那些失败频率不足以被重试捕获，但仍会导致间歇性 CI 失败的不稳定测试特别有用。
 
 <!-- @snippet: ./_managing -->
 
 ## 隔离不稳定测试 {#quarantining}
 
-隔离可以防止不稳定测试在你修复时阻塞 CI。在仪表板的测试页面上，将其状态更改为**静音**或**跳过**，或在**设置 → 自动化**下配置自动化，当测试变得不稳定时将其静音或跳过，并在恢复后再次启用。在运行测试之前，`mix test` 会读取项目中的每个隔离测试并应用它们：
+隔离可以防止不稳定测试在你修复它时阻塞 CI。在仪表板的测试页面上，将其状态更改为 **静音** 或 **跳过**，或在 **设置 → 自动化** 下配置自动化，当测试变得不稳定时将其静音或跳过，并在其恢复后再次启用。在运行测试之前，`mix test` 会读取项目中的每个隔离测试并应用它们：
 
-- **静音**：测试运行且其失败仍会被报告，但如果运行中唯一的失败是静音测试，则运行通过。重试仍会重新运行失败的静音测试，因此不稳定的测试可以通过并被报告为不稳定。
-- **跳过**：测试不运行。`mix test` 在运行开始前列出跳过的测试。
+- **静音**：测试会运行，其失败仍会被报告，但如果运行中唯一的失败是静音测试，则运行通过。重试仍会重新运行失败的静音测试，因此不稳定的测试可以通过并被报告为不稳定。
+- **跳过**：测试不会运行。`mix test` 会在运行开始前列出跳过的测试。
 
 ```text
 Tuist: skipping 1 quarantined test:
@@ -64,27 +64,27 @@ Tuist: skipping 1 quarantined test:
 Tuist: 1 muted test run, and their failures do not fail the run.
 ```
 
-当任何非静音测试失败，或 ExUnit 因 `--max-failures` 而提前停止时，运行会像往常一样失败。
+当任何非静音测试失败，或由于 `--max-failures` 导致 ExUnit 提前停止时，运行会像往常一样失败。
 
 > [!WARNING]
 > **限制**
 >
-> - 只有最新版本的 Hex 包应用隔离。早期版本像其他测试一样运行静音和跳过的测试，因此静音测试的失败仍会导致运行失败。在依赖它之前更新 `tuist_ex`。
-> - 使用 `--warnings-as-errors` 或从 umbrella 项目的根目录运行时，不应用静音测试。它们的失败会导致运行失败。改为在 umbrella 的每个应用内部运行测试。
+> - 只有最新版本的 Hex 包才应用隔离。早期版本像其他测试一样运行静音和跳过的测试，因此静音测试的失败仍会导致运行失败。在依赖它之前更新 `tuist_ex`。
+> - 使用 `--warnings-as-errors` 或从 umbrella 项目的根目录运行时，不会应用静音测试。它们的失败会导致运行失败。改为在 umbrella 的每个应用程序内部运行测试。
 > - 跳过通过 describe 块和名称匹配测试，而不是模块。另一个模块中具有相同 describe 块和名称的测试也会被跳过。请参阅[跳过如何选择测试](#how-skipping-selects-tests)。
-> - 当你使用 `--only`、`--include` 或 `path:line` 选择跳过的测试，或者当它不是用 `test` 声明时（例如 StreamData `property`），它仍然会运行。
+> - 当你使用 `--only`、`--include` 或 `path:line` 选择跳过的测试时，或者当它不是用 `test` 声明时（例如 StreamData `property`），它仍然会运行。
 > - 如果 `mix test` 无法读取隔离的测试，它会运行每个测试并计算每次失败。
-> - 读取隔离的测试需要凭据，即使是公共项目也是如此。没有 `TUIST_TOKEN`、`mix tuist.login` 会话或持续集成身份令牌的应用不会应用隔离。这包括来自 fork 的拉取请求，它们通常在没有秘密的情况下运行。
-> - 使用 `--cover` 时，跳过的测试计为已移除：仅由其覆盖的行被报告为未覆盖。
+> - 读取隔离的测试需要凭据，即使是公共项目也是如此。没有 `TUIST_TOKEN`、`mix tuist.login` 会话或持续集成身份令牌运行不会应用隔离。这包括来自 fork 的拉取请求，它们通常在没有密钥的情况下运行。
+> - 使用 `--cover` 时，跳过的测试计为已移除：仅由其覆盖的行会被报告为未覆盖。
 >
-> `mix test` 在其摘要之后命名被错误遗漏的跳过测试以及无论如何都运行的跳过测试。
+> `mix test` 会在摘要之后命名因跳过而错误遗漏的测试，以及无论如何都运行的跳过测试。
 
 ### 跳过如何选择测试 {#how-skipping-selects-tests}
 
-跳过的测试通过其全名的 ExUnit 过滤器被排除，例如 `--exclude "test:test create_order/2 times out"`。ExUnit 过滤器不能同时匹配模块，因此：
+跳过的测试会通过其全名的 ExUnit 过滤器排除，例如 `--exclude "test:test create_order/2 times out"`。ExUnit 过滤器无法同时匹配模块，因此：
 
-- 另一个模块中具有相同 describe 块和名称的测试也被排除。`mix test` 在运行后命名这些测试。
-- 你使用 `--only`、`--include` 或 `path:line` 选择的测试即使被跳过也会运行，因为 ExUnit 在排除过滤器之后应用包含过滤器。不是用 `test` 声明的测试也是如此，例如 StreamData `property`。`mix test` 在运行后命名这些测试。
+- 另一个模块中具有相同 describe 块和名称的测试也会被排除。`mix test` 会在运行后命名这些测试。
+- 你使用 `--only`、`--include` 或 `path:line` 选择的测试即使在跳过时也会运行，因为 ExUnit 在排除过滤器之后应用包含过滤器。不是用 `test` 声明的测试也是如此，例如 StreamData `property`。`mix test` 会在运行后命名这些测试。
 
 ### 再次运行隔离的测试 {#running-quarantined-tests-again}
 
@@ -94,9 +94,9 @@ Tuist: 1 muted test run, and their failures do not fail the run.
 mix test --no-quarantine
 ```
 
-在其页面上将测试返回到**启用**状态，以便在后续运行中包含它。跳过的测试在再次运行之前不会产生新结果。
+在其页面上将测试返回到 **启用** 状态，以将其包含在后续运行中。跳过的测试在再次运行之前不会产生新结果。
 
-如果 `mix test` 无法读取隔离的测试，它会打印警告并运行每个测试而不包括它们。如果没有凭据或配置的项目，它会运行每个测试而不发出警告。
+如果 `mix test` 无法读取隔离的测试，它会打印警告并运行每个测试而不应用隔离。如果没有凭据或配置的项目，它会运行每个测试而不发出警告。
 
 Hex 包尚未对新测试进行压力测试。
 
@@ -104,4 +104,4 @@ Hex 包尚未对新测试进行压力测试。
 
 ## 查询不稳定状态 {#querying}
 
-数据可通过 HTTP 获取。有关路由、过滤器和响应字段的完整列表，请参阅 API 参考中的[测试用例端点](https://tuist.dev/api/docs#tag/test-cases)。要将测试用例标记为不稳定或取消标记，请发送带有 `is_flaky` 的 `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`，或使用 `update_test_case` Model Context Protocol 工具。
+数据可通过 HTTP 获取。请参阅 API 参考中的[测试用例端点](https://tuist.dev/api/docs#tag/test-cases)，了解完整的路由、过滤器和响应字段列表。要将测试用例标记或取消标记为不稳定，请发送带有 `is_flaky` 的 `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`，或使用 `update_test_case` Model Context Protocol 工具。

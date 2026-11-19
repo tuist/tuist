@@ -84,6 +84,20 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     }
 }
 
+/// The platforms on which a package target links SwiftPM's prebuilt libraries instead of their source products.
+enum PrebuiltPlatforms: Sendable {
+    case all
+    case macOS
+}
+
+/// How a package target links SwiftPM's prebuilt libraries (swift-syntax's `MacroSupport`) instead of their source products.
+public struct PrebuiltTarget: Sendable {
+    /// The platforms on which the target links the prebuilts of its swift-syntax products instead of those products.
+    let platforms: PrebuiltPlatforms
+    /// The prebuilts that the targets and products the target depends on link, whose modules it imports.
+    let dependencyPrebuilts: [SwiftPackageManagerPrebuilt]
+}
+
 public enum PackageType {
     public enum ExternalOrigin {
         case local
@@ -95,29 +109,60 @@ public enum PackageType {
         origin: ExternalOrigin = .remote,
         artifactPaths: [String: AbsolutePath],
         packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] = [:],
-        derivedXCFrameworksPath: AbsolutePath? = nil
+        derivedXCFrameworksPath: AbsolutePath? = nil,
+        // The targets that link the prebuilts, from `PackageInfoMapper.prebuiltTargets`, which accounts for the products
+        // of other packages. When `nil`, the mapper only looks at the package itself.
+        prebuiltTargets: [String: PrebuiltTarget]? = nil
     )
+
+    func withPrebuiltTargets(_ prebuiltTargets: [String: PrebuiltTarget]) -> PackageType {
+        guard case let .external(origin, artifactPaths, packagePrebuilts, derivedXCFrameworksPath, _) = self else { return self }
+        return .external(
+            origin: origin,
+            artifactPaths: artifactPaths,
+            packagePrebuilts: packagePrebuilts,
+            derivedXCFrameworksPath: derivedXCFrameworksPath,
+            prebuiltTargets: prebuiltTargets
+        )
+    }
+
+    fileprivate var prebuiltTargets: [String: PrebuiltTarget]? {
+        guard case let .external(_, _, _, _, prebuiltTargets) = self else { return nil }
+        return prebuiltTargets
+    }
 
     fileprivate func includesTestTargets(includeLocalPackageTestTargets: Bool) -> Bool {
         switch self {
         case .local:
             return true
-        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _, prebuiltTargets: _):
             return includeLocalPackageTestTargets
-        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _, prebuiltTargets: _):
             return false
         }
     }
 
     fileprivate var isLocalExternal: Bool {
-        if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = self {
+        if case .external(
+            origin: .local,
+            artifactPaths: _,
+            packagePrebuilts: _,
+            derivedXCFrameworksPath: _,
+            prebuiltTargets: _
+        ) = self {
             return true
         }
         return false
     }
 
     fileprivate var isRemoteExternal: Bool {
-        if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = self {
+        if case .external(
+            origin: .remote,
+            artifactPaths: _,
+            packagePrebuilts: _,
+            derivedXCFrameworksPath: _,
+            prebuiltTargets: _
+        ) = self {
             return true
         }
         return false
@@ -127,7 +172,13 @@ public enum PackageType {
         switch self {
         case .local:
             return [:]
-        case let .external(origin: _, artifactPaths: _, packagePrebuilts: packagePrebuilts, derivedXCFrameworksPath: _):
+        case let .external(
+            origin: _,
+            artifactPaths: _,
+            packagePrebuilts: packagePrebuilts,
+            derivedXCFrameworksPath: _,
+            prebuiltTargets: _
+        ):
             return packagePrebuilts
         }
     }
@@ -151,12 +202,19 @@ public struct ResolvedExternalDependencies: Equatable, Sendable {
     /// by its manifest name and the name part of its registry identity.
     public let packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
 
+    /// Sanitized names of the frameworks and modules that the packages' targets emit: the aliased names of their non-test
+    /// targets and the names of the xcframeworks their binary targets ship. Hoisting a product name onto a target that
+    /// differs from it must not reuse one of them.
+    public let graphTargetNames: Set<String>
+
     public init(
         products: [String: [ProjectDescription.TargetDependency]],
-        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+        packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String> = []
     ) {
         self.products = products
         self.packageProducts = packageProducts
+        self.graphTargetNames = graphTargetNames
     }
 }
 
@@ -184,6 +242,7 @@ public protocol PackageInfoMapping {
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String>,
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project?
 }
@@ -343,7 +402,28 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 .map(ProjectDescription.XCFrameworkSignature.from)
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
         }
-        return ResolvedExternalDependencies(products: externalDependencies, packageProducts: packageProducts)
+        let graphTargetNames = packageInfos.values.reduce(into: Set<String>()) { names, packageInfo in
+            let moduleAliases = packageModuleAliases[packageInfo.name]
+            for target in packageInfo.targets {
+                switch target.type {
+                case .regular, .system, .macro:
+                    names.insert(Self.sanitize(targetName: moduleAliases?[target.name] ?? target.name))
+                case .binary:
+                    if let framework = targetDependencyToFramework[target.name] {
+                        let basename = URL(fileURLWithPath: framework.pathString).deletingPathExtension().lastPathComponent
+                        names.insert(Self.sanitize(targetName: basename))
+                    }
+                case .executable, .test, .plugin:
+                    continue
+                }
+            }
+        }
+
+        return ResolvedExternalDependencies(
+            products: externalDependencies,
+            packageProducts: packageProducts,
+            graphTargetNames: graphTargetNames
+        )
     }
 
     /// Returns the products of the package a product dependency names. A registry package overridden by a local package is
@@ -429,6 +509,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String>,
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
@@ -470,11 +551,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
         let targetToProducts = mutableTargetToProducts
-        let prebuiltEligibleTargets = prebuiltEligibleTargets(
+        let prebuiltTargets = try packageType.prebuiltTargets ?? Self.packagePrebuiltsPlan(
             packageInfo: packageInfo,
             packageType: packageType,
-            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
-        )
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets,
+            enabledTraits: enabledTraits
+        ).targets
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
@@ -494,9 +576,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageProducts: packageProducts,
+                    graphTargetNames: graphTargetNames,
                     packageTraits: packageInfo.traits ?? [],
                     enabledTraits: enabledTraits,
-                    prebuiltEligibleTargets: prebuiltEligibleTargets
+                    prebuilts: prebuiltTargets[target.name]
                 )
             }
 
@@ -562,7 +645,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func effectiveProductName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        targetsByName: [String: PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target],
+        graphTargetNames: Set<String>
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -584,16 +668,20 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
         // name has the product as a prefix (e.g. `FirebaseCrashlyticsTarget` becomes `FirebaseCrashlytics`). Skip
-        // the hoist when the rename would collide with a sibling target or the framework a wrapped binary already
-        // emits.
+        // the hoist when the rename would collide with a sibling target, the framework a wrapped binary already emits,
+        // or a target or binary framework of any package in the graph (e.g. swift-distributed-tracing 1.7.0's
+        // `ServiceContextModule` target and swift-service-context 1.4.0+'s `ServiceContextModuleCompatibility`, which
+        // vends a `ServiceContextModule` product).
         guard targetName.hasPrefix(productName) else { return targetName }
-        return wrapsProductFramework ? targetName : productName
+        return wrapsProductFramework || graphTargetNames.contains(sanitize(targetName: productName))
+            ? targetName : productName
     }
 
     private static func effectiveModuleName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        targetsByName: [String: PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target],
+        graphTargetNames: Set<String>
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -614,10 +702,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
         // name has the product as a prefix (e.g. `FirebaseCrashlyticsTarget` becomes `FirebaseCrashlytics`). Skip
-        // the hoist when the rename would collide with a sibling target or the framework a wrapped binary already
-        // emits.
+        // the hoist when the rename would collide with a sibling target, the framework a wrapped binary already emits,
+        // or a target or binary framework of any package in the graph (e.g. swift-distributed-tracing 1.7.0's
+        // `ServiceContextModule` target and swift-service-context 1.4.0+'s `ServiceContextModuleCompatibility`, which
+        // vends a `ServiceContextModule` product).
         guard targetName.hasPrefix(productName) else { return targetName }
-        return wrapsProductFramework ? targetName : productName
+        return wrapsProductFramework || graphTargetNames.contains(sanitize(targetName: productName))
+            ? targetName : productName
     }
 
     private static func wrapsProductNamedFramework(
@@ -645,8 +736,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     isSamePackageDependency = false
                 }
 
-                // A same-package target already uses the product name, so renaming would collide.
-                // Skip .product deps since those reference external packages and won't collide.
+                // A same-package target already uses the product name, so renaming would collide. Targets of other
+                // packages are checked against `graphTargetNames` instead.
                 if isSamePackageDependency, dependencyName == productName {
                     return true
                 }
@@ -687,65 +778,234 @@ public struct PackageInfoMapper: PackageInfoMapping {
             || strippedName.hasPrefix(productName)
     }
 
-    private func prebuiltEligibleTargets(
+    /// Returns, for each package, the targets that link SwiftPM's prebuilt libraries (swift-syntax's `MacroSupport`)
+    /// instead of their source products.
+    ///
+    /// Products can vend targets that link the prebuilt on macOS, such as swift-case-paths' `CasePathsMacrosSupport`.
+    /// Macros and the targets only macros reach in other packages import and link those targets, so they take their
+    /// prebuilts too. Targets that apps build can't, nor can the targets of the workspace's projects, which depend on the
+    /// products named in `externalDependencyNames`, so the package that vends the product keeps its source products.
+    /// Conversely, a package whose macros or targets only macros reach consume a product built against source
+    /// swift-syntax keeps its source products, since its targets can't link both.
+    static func prebuiltTargets(
+        packageInfos: [String: PackageInfo],
+        packageTypes: [String: PackageType],
+        enabledTraits: [String: Set<String>],
+        includeLocalPackageTestTargets: Bool,
+        externalDependencyNames: Set<String>
+    ) throws -> [String: [String: PrebuiltTarget]] {
+        let keysByIdentity = Dictionary(packageInfos.keys.map { ($0.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        let keysByReference = keysByIdentity.merging(
+            packageReferenceAliases(packageInfos: packageInfos.map { (key: $0.key, value: $0.value) })
+                .compactMapValues { keysByIdentity[$0] },
+            uniquingKeysWith: { identityKey, _ in identityKey }
+        )
+        func packageKey(_ reference: String) -> String? {
+            let reference = reference.lowercased()
+            if let key = keysByReference[reference] { return key }
+            guard let scopeSeparator = reference.firstIndex(of: ".") else { return nil }
+            return keysByReference[String(reference[reference.index(after: scopeSeparator)...])]
+        }
+
+        // The products that other packages' targets consume. Like swift-build, which links the prebuilt into every macOS
+        // module that uses swift-syntax, the targets of a product that only macros and the targets they reach consume, such
+        // as a library of swift-syntax helpers, are macro-reached targets of their package. Package graphs are acyclic,
+        // so starting from every consumed product and dropping those that a target outside the prebuilt targets, or a
+        // project, consumes settles on the products only those targets consume.
+        let consumedProducts = packageInfos.reduce(into: [String: Set<String>]()) { consumedProducts, package in
+            guard let packageType = packageTypes[package.key] else { return }
+            let includesTestTargets = packageType.includesTestTargets(
+                includeLocalPackageTestTargets: includeLocalPackageTestTargets
+            )
+            for target in package.value.targets where includesTestTargets || target.type != .test {
+                for (name, reference) in productDependencies(
+                    of: target,
+                    in: package.value,
+                    enabledTraits: enabledTraits[package.key] ?? []
+                ) {
+                    guard let key = packageKey(reference), key != package.key else { continue }
+                    consumedProducts[key, default: []].insert(name)
+                }
+            }
+        }
+        var appConsumedProducts: [String: Set<String>] = [:]
+        while true {
+            let plans = try packagePrebuiltsPlans(
+                packageInfos: packageInfos,
+                packageTypes: packageTypes,
+                enabledTraits: enabledTraits,
+                includeLocalPackageTestTargets: includeLocalPackageTestTargets,
+                externalDependencyNames: externalDependencyNames,
+                hostConsumedProducts: Dictionary(uniqueKeysWithValues: consumedProducts.map { key, products in
+                    (key, products.subtracting(externalDependencyNames).subtracting(appConsumedProducts[key] ?? []))
+                }),
+                packageKey: packageKey
+            )
+            let updatedAppConsumedProducts = plans.values.flatMap(\.appConsumedProducts)
+                .reduce(into: appConsumedProducts) { appConsumedProducts, dependency in
+                    guard let key = packageKey(dependency.package) else { return }
+                    appConsumedProducts[key, default: []].insert(dependency.product)
+                }
+            if updatedAppConsumedProducts == appConsumedProducts {
+                return plans.mapValues(\.targets)
+            }
+            appConsumedProducts = updatedAppConsumedProducts
+        }
+    }
+
+    /// Plans every package's prebuilt targets, given the products whose targets only prebuilt targets of other packages
+    /// consume.
+    private static func packagePrebuiltsPlans(
+        packageInfos: [String: PackageInfo],
+        packageTypes: [String: PackageType],
+        enabledTraits: [String: Set<String>],
+        includeLocalPackageTestTargets: Bool,
+        externalDependencyNames: Set<String>,
+        hostConsumedProducts: [String: Set<String>],
+        packageKey: (String) -> String?
+    ) throws -> [String: PackagePrebuiltsPlan] {
+        // Packages that apps or projects consume a product of that links the prebuilt keep their source products, and so do
+        // the packages whose prebuilt targets consume products built against source swift-syntax. Both only grow, and each
+        // change to them changes the prebuilts that products vend, so those are computed again from none after it.
+        // Products only vend more prebuilts as the ones they consume grow, so this settles.
+        var sourcePackages = Set<String>()
+        var sourceSwiftSyntaxProducts: [String: Set<String>] = [:]
+        var productPrebuilts: [String: [String: Set<SwiftPackageManagerPrebuilt>]] = [:]
+        while true {
+            let plans = try packageInfos.reduce(into: [String: PackagePrebuiltsPlan]()) { plans, package in
+                guard let packageType = packageTypes[package.key] else { return }
+                plans[package.key] = try packagePrebuiltsPlan(
+                    packageInfo: package.value,
+                    packageType: packageType,
+                    includeLocalPackageTestTargets: includeLocalPackageTestTargets,
+                    enabledTraits: enabledTraits[package.key] ?? [],
+                    keepsSourceProducts: sourcePackages.contains(package.key),
+                    hostConsumedProducts: hostConsumedProducts[package.key] ?? [],
+                    productPrebuilts: { reference, product in packageKey(reference).flatMap { productPrebuilts[$0]?[product] } },
+                    sourceSwiftSyntaxProduct: { reference, product in
+                        packageKey(reference).flatMap { sourceSwiftSyntaxProducts[$0]?.contains(product) } ?? false
+                    }
+                )
+            }
+            let projectConsumedPackages = plans.filter { _, plan in
+                plan.productPrebuilts.keys.contains(where: externalDependencyNames.contains)
+            }.keys
+            let updatedSourcePackages = sourcePackages
+                .union(plans.values.flatMap(\.appConsumedPackages).compactMap(packageKey))
+                .union(projectConsumedPackages)
+            let updatedSourceSwiftSyntaxProducts = plans.mapValues(\.sourceSwiftSyntaxProducts).filter { !$0.value.isEmpty }
+            if updatedSourcePackages != sourcePackages || updatedSourceSwiftSyntaxProducts != sourceSwiftSyntaxProducts {
+                sourcePackages = updatedSourcePackages
+                sourceSwiftSyntaxProducts = updatedSourceSwiftSyntaxProducts
+                productPrebuilts = [:]
+                continue
+            }
+            let updatedProductPrebuilts = plans.mapValues(\.productPrebuilts).filter { !$0.value.isEmpty }
+            if updatedProductPrebuilts == productPrebuilts {
+                return plans
+            }
+            productPrebuilts = updatedProductPrebuilts
+        }
+    }
+
+    /// The product dependencies of a target that the build uses, skipping those whose traits are disabled or whose platforms
+    /// Tuist doesn't support. Like SwiftPM, which requires a by-name dependency on another package's product to name both
+    /// the product and its package, a by-name dependency that names no target of the package names the package too.
+    private static func productDependencies(
+        of target: PackageInfo.Target,
+        in packageInfo: PackageInfo,
+        enabledTraits: Set<String>
+    ) -> [(name: String, package: String)] {
+        target.dependencies.compactMap { dependency in
+            switch dependency {
+            case let .product(name, package, _, condition) where isUsed(condition, enabledTraits: enabledTraits):
+                (name, package)
+            case let .byName(name, condition) where !packageInfo.targets.contains(where: { $0.name == name })
+                && isUsed(condition, enabledTraits: enabledTraits):
+                (name, name)
+            case .product, .byName, .target:
+                nil
+            }
+        }
+    }
+
+    /// How a package's targets link SwiftPM's prebuilt libraries.
+    private struct PackagePrebuiltsPlan {
+        /// The targets that link the prebuilts.
+        var targets: [String: PrebuiltTarget] = [:]
+        /// The prebuilts that consumers of each product need on macOS, where the product's targets link them.
+        var productPrebuilts: [String: Set<SwiftPackageManagerPrebuilt>] = [:]
+        /// The products whose targets link swift-syntax built from source on macOS.
+        var sourceSwiftSyntaxProducts: Set<String> = []
+        /// The packages that targets apps build consume a product of that links the prebuilts.
+        var appConsumedPackages: [String] = []
+        /// The products of other packages that targets outside `targets` consume.
+        var appConsumedProducts: [(package: String, product: String)] = []
+    }
+
+    // swiftlint:disable function_body_length
+
+    /// Returns the targets of a package that link SwiftPM's prebuilt libraries (swift-syntax's `MacroSupport`) instead of
+    /// their source products, with the platforms they link them on and the prebuilts their dependencies link.
+    ///
+    /// Macros and their tests only build for the host, so they always link the prebuilt. Other targets that only macros
+    /// reach, such as swift-case-paths' `CasePathsMacrosSupport`, can still be built for app platforms through their library
+    /// products, so, like swift-build, they link the prebuilt on macOS and keep the source products elsewhere.
+    ///
+    /// A target that a target outside the macros' closure also depends on, or that a macro test links outside that closure,
+    /// is built into apps on every platform, macOS included. Tuist doesn't pass the prebuilt's module search paths and
+    /// library on to that target's consumers, and a macro or macro test can't link it alongside the prebuilt, so when such a
+    /// target uses swift-syntax, the package keeps its source products, as it did before prebuilts were supported.
+    private static func packagePrebuiltsPlan(
         packageInfo: PackageInfo,
         packageType: PackageType,
-        includeLocalPackageTestTargets: Bool
-    ) -> Set<String> {
-        guard !packageType.packagePrebuilts.isEmpty else { return [] }
+        includeLocalPackageTestTargets: Bool,
+        enabledTraits: Set<String>,
+        keepsSourceProducts: Bool = false,
+        hostConsumedProducts: Set<String> = [],
+        productPrebuilts: (_ package: String, _ product: String) -> Set<SwiftPackageManagerPrebuilt>? = { _, _ in nil },
+        sourceSwiftSyntaxProduct: (_ package: String, _ product: String) -> Bool = { _, _ in false }
+    ) throws -> PackagePrebuiltsPlan {
+        guard !packageType.packagePrebuilts.isEmpty else { return PackagePrebuiltsPlan() }
 
         let includesTestTargets = packageType.includesTestTargets(
             includeLocalPackageTestTargets: includeLocalPackageTestTargets
         )
         let mappedTargets = packageInfo.targets.filter { includesTestTargets || $0.type != .test }
         let targetsByName = Dictionary(uniqueKeysWithValues: mappedTargets.map { ($0.name, $0) })
-        let allTargetNames = Set(targetsByName.keys)
 
-        func isHostOnlyTarget(_ targetName: String) -> Bool {
-            switch targetsByName[targetName]?.type {
-            case .macro:
-                return true
-            default:
-                return false
-            }
+        func isMacro(_ targetName: String) -> Bool {
+            targetsByName[targetName]?.type == .macro
         }
 
-        func localDependencies(of target: PackageInfo.Target, includeHostOnlyTargets: Bool) -> [String] {
-            target.dependencies.compactMap { dependency in
-                let dependencyName: String
+        // The package targets that `targetName` depends on. With `linkedOnly`, only those it links: targets that use a
+        // macro run it as a compiler plugin, and only macros and tests link the macros they depend on.
+        func dependencies(of targetName: String, linkedOnly: Bool = true) -> [String] {
+            let linksMacros = !linkedOnly || isMacro(targetName) || targetsByName[targetName]?.type == .test
+            return targetsByName[targetName]?.dependencies.compactMap { dependency in
                 switch dependency {
-                case let .target(name, _):
-                    dependencyName = name
-                case let .byName(name, _) where allTargetNames.contains(name):
-                    dependencyName = name
-                case .byName, .product:
-                    return nil
+                case let .target(name, _), let .byName(name, _):
+                    targetsByName[name] == nil || (!linksMacros && isMacro(name)) ? nil : name
+                case .product:
+                    nil
                 }
-
-                guard allTargetNames.contains(dependencyName) else { return nil }
-                guard includeHostOnlyTargets || !isHostOnlyTarget(dependencyName) else { return nil }
-                return dependencyName
-            }
+            } ?? []
         }
 
-        func dependencyClosure(from roots: Set<String>, includeHostOnlyTargets: Bool) -> Set<String> {
+        func dependencyClosure(from roots: some Sequence<String>, linkedOnly: Bool = true) -> Set<String> {
             var visited = Set<String>()
             var queue = Array(roots)
-
             while let targetName = queue.popLast() {
-                guard visited.insert(targetName).inserted,
-                      let target = targetsByName[targetName]
-                else { continue }
-
-                queue.append(
-                    contentsOf: localDependencies(
-                        of: target,
-                        includeHostOnlyTargets: includeHostOnlyTargets
-                    )
-                )
+                guard visited.insert(targetName).inserted else { continue }
+                queue.append(contentsOf: dependencies(of: targetName, linkedOnly: linkedOnly))
             }
-
             return visited
+        }
+
+        func productDependencies(of targetName: String) -> [(name: String, package: String)] {
+            targetsByName[targetName].map {
+                Self.productDependencies(of: $0, in: packageInfo, enabledTraits: enabledTraits)
+            } ?? []
         }
 
         func dependsOnPrebuiltProduct(_ targetName: String) -> Bool {
@@ -755,38 +1015,123 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } ?? false
         }
 
-        let macroTargets = Set(mappedTargets.compactMap { target in
-            switch target.type {
-            case .macro:
-                target.name
-            default:
-                nil
-            }
-        })
-
-        let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
-        let macroTestTargets = Set<String>(mappedTargets.compactMap { target in
-            guard target.type == .test else { return nil }
-            return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
-                .isDisjoint(with: macroClosure) ? nil : target.name
-        })
-
-        let hostRoots = macroTargets.union(macroTestTargets)
-        let hostReachableTargets = dependencyClosure(from: hostRoots, includeHostOnlyTargets: true)
-        let nonHostReachableTargets = dependencyClosure(
-            from: allTargetNames.subtracting(hostRoots),
-            includeHostOnlyTargets: false
-        )
-
-        // Targets reached from both sides are built for non-host platforms too, so they can only stay on
-        // source dependencies. That conflicts with the prebuilt only when they depend on a prebuilt product.
-        let sharedTargets = hostReachableTargets.intersection(nonHostReachableTargets)
-        guard !sharedTargets.contains(where: dependsOnPrebuiltProduct) else {
-            return []
+        // The prebuilts of a target's swift-syntax products, which replace them.
+        func swiftSyntaxPrebuilts(of targetName: String) -> [SwiftPackageManagerPrebuilt] {
+            productDependencies(of: targetName).compactMap { packageType.prebuilt(targetPackage: $0.package, product: $0.name) }
         }
 
-        return hostReachableTargets.subtracting(sharedTargets)
+        // The prebuilts that the products of other packages that a target consumes link on macOS.
+        func consumedProductPrebuilts(of targetName: String) -> [SwiftPackageManagerPrebuilt] {
+            productDependencies(of: targetName).flatMap { dependency in
+                (productPrebuilts(dependency.package, dependency.name) ?? []).sorted { $0.path.pathString < $1.path.pathString }
+            }
+        }
+
+        func appConsumedProducts(excluding prebuiltTargets: Set<String>) -> [(package: String, product: String)] {
+            targetsByName.keys.filter { !prebuiltTargets.contains($0) }.flatMap { targetName in
+                productDependencies(of: targetName).map { (package: $0.package, product: $0.name) }
+            }
+        }
+
+        func appConsumedPackages(excluding prebuiltTargets: Set<String>) -> [String] {
+            targetsByName.keys.filter { !prebuiltTargets.contains($0) }.flatMap { targetName in
+                productDependencies(of: targetName).filter { productPrebuilts($0.package, $0.name) != nil }.map(\.package)
+            }
+        }
+
+        func consumesSourceSwiftSyntaxProduct(_ targetName: String) -> Bool {
+            productDependencies(of: targetName).contains { sourceSwiftSyntaxProduct($0.package, $0.name) }
+        }
+
+        // The products whose targets link swift-syntax built from source on macOS, directly or through the products of
+        // other packages.
+        func sourceSwiftSyntaxProducts(excluding prebuiltTargets: Set<String>) -> Set<String> {
+            Set(packageInfo.products.filter { product in
+                dependencyClosure(from: product.targets).contains { targetName in
+                    !prebuiltTargets.contains(targetName)
+                        && (!swiftSyntaxPrebuilts(of: targetName).isEmpty || consumesSourceSwiftSyntaxProduct(targetName))
+                }
+            }.map(\.name))
+        }
+
+        let macroTargets = Set(mappedTargets.filter { $0.type == .macro }.map(\.name))
+        let macroClosure = dependencyClosure(from: macroTargets)
+        // Tests that link a macro, as in SwiftPM, or only targets that macros reach, are host-only. Other tests, such as one
+        // that links a target only macros reach next to a library apps build, build for the apps' platforms.
+        let macroTestTargets = Set(mappedTargets.filter { target in
+            guard target.type == .test else { return false }
+            let linkedTargets = dependencies(of: target.name)
+            return linkedTargets.contains(where: isMacro)
+                || (!linkedTargets.isEmpty && macroClosure.isSuperset(of: linkedTargets))
+        }.map(\.name))
+        let hostOnlyTargets = macroTargets.union(macroTestTargets)
+        // The targets of the products that only other packages' macros, macro tests, and targets those reach consume, which
+        // macros reach too.
+        let hostConsumedTargets = packageInfo.products.filter { hostConsumedProducts.contains($0.name) }
+            .flatMap(\.targets).filter { targetsByName[$0] != nil }
+        let macroReachedTargets = dependencyClosure(from: macroTargets.union(hostConsumedTargets))
+
+        // Targets outside the macros' closure, such as the libraries that use the macros and the libraries that macro tests
+        // test, build into apps on every platform, macOS included, with source products. Macros and macro tests that link
+        // one of them that uses swift-syntax can't also link the prebuilt.
+        let appTargets = dependencyClosure(
+            from: targetsByName.keys.filter { !hostOnlyTargets.contains($0) && !macroReachedTargets.contains($0) }
+        )
+        let hostOnlyClosure = dependencyClosure(from: hostOnlyTargets.union(hostConsumedTargets))
+        let sharedTargets = hostOnlyClosure.intersection(appTargets)
+        let prebuiltTargetNames = hostOnlyTargets.union(macroReachedTargets.subtracting(appTargets))
+        // Macros and macro tests link the prebuilt and every target they reach, including those shared with apps, so
+        // none of those can link another package's product built against source swift-syntax.
+        guard !keepsSourceProducts,
+              !sharedTargets.contains(where: dependsOnPrebuiltProduct),
+              !hostOnlyClosure.contains(where: consumesSourceSwiftSyntaxProduct)
+        else {
+            // A package that keeps its source products, for example because a product it consumes does, may link the
+            // prebuilt once other packages settle, so only the products that targets outside the would-be prebuilt targets
+            // consume stop counting as consumed by prebuilt targets alone. Its consumers of products that link the prebuilt
+            // keep those products' packages on source products meanwhile.
+            return PackagePrebuiltsPlan(
+                sourceSwiftSyntaxProducts: sourceSwiftSyntaxProducts(excluding: []),
+                appConsumedPackages: appConsumedPackages(excluding: []),
+                appConsumedProducts: appConsumedProducts(excluding: prebuiltTargetNames)
+            )
+        }
+
+        // Targets import the modules of the targets they depend on, which import swift-syntax, and macros and macro tests
+        // link those targets statically, so they need the prebuilts those targets link too.
+        let targets = Dictionary(uniqueKeysWithValues: prebuiltTargetNames.map { targetName in
+            let dependencyPrebuilts = consumedProductPrebuilts(of: targetName) + dependencyClosure(
+                from: dependencies(of: targetName)
+            ).sorted().flatMap { swiftSyntaxPrebuilts(of: $0) + consumedProductPrebuilts(of: $0) }
+            return (
+                targetName,
+                PrebuiltTarget(
+                    platforms: hostOnlyTargets.contains(targetName) ? .all : .macOS,
+                    dependencyPrebuilts: dependencyPrebuilts
+                )
+            )
+        })
+
+        // Consumers of a product import its targets' modules, and link them, so they need the prebuilts the targets link.
+        let productPrebuilts = packageInfo.products
+            .reduce(into: [String: Set<SwiftPackageManagerPrebuilt>]()) { result, product in
+                let prebuilts = Set(product.targets.flatMap { targetName -> [SwiftPackageManagerPrebuilt] in
+                    guard let target = targets[targetName], target.platforms == .macOS else { return [] }
+                    return swiftSyntaxPrebuilts(of: targetName) + target.dependencyPrebuilts
+                })
+                if !prebuilts.isEmpty { result[product.name] = prebuilts }
+            }
+
+        return PackagePrebuiltsPlan(
+            targets: targets,
+            productPrebuilts: productPrebuilts,
+            sourceSwiftSyntaxProducts: sourceSwiftSyntaxProducts(excluding: prebuiltTargetNames),
+            appConsumedPackages: appConsumedPackages(excluding: prebuiltTargetNames),
+            appConsumedProducts: appConsumedProducts(excluding: prebuiltTargetNames)
+        )
     }
+
+    // swiftlint:enable function_body_length
 
     // swiftlint:disable:next function_body_length
     private func map(
@@ -805,9 +1150,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageProducts: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames: Set<String>,
         packageTraits: [PackageTrait],
         enabledTraits: Set<String>,
-        prebuiltEligibleTargets: Set<String>
+        prebuilts: PrebuiltTarget?
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -833,7 +1179,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if target.type == .test,
-           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           case .external(
+               origin: .local,
+               artifactPaths: _,
+               packagePrebuilts: _,
+               derivedXCFrameworksPath: _,
+               prebuiltTargets: _
+           ) = packageType,
            let executableName = target.dependencies.compactMap({ dependency -> String? in
                switch dependency {
                case let .target(name, _), let .byName(name, _):
@@ -887,7 +1239,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular, .test:
             let resolvedModuleName = PackageInfoMapper.effectiveModuleName(
-                targetName: target.name, products: products, targetsByName: targetsByName
+                targetName: target.name, products: products, targetsByName: targetsByName, graphTargetNames: graphTargetNames
             )
             moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
@@ -895,12 +1247,21 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } else {
                 nil
             }
-            moduleMap = try await moduleMapGenerator.generate(
+            let generatedModuleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: resolvedModuleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
+            // Below tools version 6.5, SwiftPM ignores a pure Swift target's public headers directory,
+            // including a module map there for other build systems (ReactiveCocoa's names its Objective-C target's headers).
+            if generatedModuleMap != .none,
+               try await isSwiftOnlyModule(target: target, targetPath: targetPath, toolsVersion: packageInfo.toolsVersion)
+            {
+                moduleMap = ModuleMap.none
+            } else {
+                moduleMap = generatedModuleMap
+            }
         default:
             moduleMapModuleName = nil
             moduleMap = nil
@@ -968,7 +1329,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         var dependencies: [ProjectDescription.TargetDependency] = []
-        var targetPrebuilts: [SwiftPackageManagerPrebuilt] = []
+        let prebuiltPlatforms = prebuilts?.platforms
+        var targetPrebuilts = prebuilts?.dependencyPrebuilts ?? []
 
         // Module aliases of used dependencies.
         // These need to be mapped in `OTHER_SWIFT_FLAGS` using the `-module-alias` build flag.
@@ -1015,7 +1377,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             for dependency in targetDependencies {
                 switch dependency {
                 case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
-                    if prebuiltEligibleTargets.contains(target.name),
+                    var sourceCondition = condition
+                    if let prebuiltPlatforms,
                        let prebuilt = try prebuiltDependency(
                            name: name,
                            targetPackage: package,
@@ -1024,8 +1387,24 @@ public struct PackageInfoMapper: PackageInfoMapping {
                            enabledTraits: enabledTraits
                        )
                     {
-                        targetPrebuilts.append(prebuilt)
-                        continue
+                        switch prebuiltPlatforms {
+                        case .all:
+                            targetPrebuilts.append(prebuilt)
+                            continue
+                        case .macOS:
+                            let platformNames = condition.map(\.platformNames).flatMap { $0.isEmpty ? nil : $0 }
+                                ?? ["ios", "maccatalyst", "macos", "tvos", "watchos", "visionos"]
+                            if platformNames.contains("macos") {
+                                targetPrebuilts.append(prebuilt)
+                                let sourcePlatformNames = platformNames.filter { $0 != "macos" }
+                                guard !sourcePlatformNames.isEmpty else { continue }
+                                sourceCondition = .init(
+                                    platformNames: sourcePlatformNames,
+                                    config: condition?.config,
+                                    traits: condition?.traits
+                                )
+                            }
+                        }
                     }
                     dependencies.append(contentsOf: try await mapDependency(
                         name: name,
@@ -1035,7 +1414,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         packageType: packageType,
                         packageSettings: packageSettings,
                         packageProducts: packageProducts,
-                        condition: condition,
+                        condition: sourceCondition,
                         moduleAliases: moduleAliases,
                         dependencyModuleAliases: &dependencyModuleAliases,
                         enabledTraits: enabledTraits
@@ -1067,13 +1446,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
         let effectiveModuleName = PackageInfoMapper.effectiveModuleName(
-            targetName: target.name, products: products, targetsByName: targetsByName
+            targetName: target.name, products: products, targetsByName: targetsByName, graphTargetNames: graphTargetNames
         )
         let aliasedEffectiveModuleName = packageModuleAliases[packageInfo.name]?[effectiveModuleName] ?? effectiveModuleName
         let moduleName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveModuleName)
             .replacingOccurrences(of: "-", with: "_")
         let effectiveProductName = PackageInfoMapper.effectiveProductName(
-            targetName: target.name, products: products, targetsByName: targetsByName
+            targetName: target.name, products: products, targetsByName: targetsByName, graphTargetNames: graphTargetNames
         )
         let aliasedEffectiveProductName = packageModuleAliases[packageInfo.name]?[effectiveProductName] ?? effectiveProductName
         let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveProductName)
@@ -1093,7 +1472,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             dependencyModuleAliases: dependencyModuleAliases,
             packageTraits: packageTraits,
             enabledTraits: enabledTraits,
-            prebuilts: targetPrebuilts
+            prebuilts: targetPrebuilts,
+            prebuiltPlatforms: prebuiltPlatforms
         )
 
         var metadataTags = [TargetTags.swiftPackage]
@@ -1139,7 +1519,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
         case .custom, .header: usesDirectoryModuleMap = false
         }
 
-        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        // SwiftPM's header extensions, plus files headers include textually, such as aws-c-common's
+        // `<aws/common/error.inl>`. SwiftPM reaches those through the include directory; cached artifacts
+        // only carry the headers listed here.
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def,inl,inc,tcc,tpp}"
         let excluding: [ProjectDescription.Path] = try await target.exclude.concurrentMap {
             let path = targetPath.appending(try RelativePath(validating: $0))
             let isDirectory = try await fileSystem.exists(path, isDirectory: true)
@@ -1161,26 +1544,54 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// Whether the target compiles C++ or Objective-C++ sources. SwiftPM links the C++ standard library into every client of
     /// such a module, which a client that only compiles Swift, C, or Objective-C would otherwise not link.
     private func hasCxxSources(target: PackageInfo.Target, targetPath: AbsolutePath) async throws -> Bool {
-        guard target.type.supportsSources else { return false }
-        let cxxExtensions = "{cpp,cc,cxx,mm}"
+        let cxxExtensions: Set<String> = ["cpp", "cc", "cxx", "mm"]
+        return try await !sourceExtensions(target: target, targetPath: targetPath) {
+            !$0.isDisjoint(with: cxxExtensions)
+        }.isDisjoint(with: cxxExtensions)
+    }
+
+    /// Whether SwiftPM builds the target as a Swift module without an underlying Clang module. Like
+    /// `PackageBuilder`, a Swift target only gets one from its public headers directory when it also
+    /// compiles C-family sources or, from tools version 6.5, when that directory exists.
+    private func isSwiftOnlyModule(
+        target: PackageInfo.Target, targetPath: AbsolutePath, toolsVersion: XcodeGraph.Version
+    ) async throws -> Bool {
+        guard toolsVersion < XcodeGraph.Version(6, 5, 0) else { return false }
+        let clangExtensions: Set<String> = ["c", "m", "mm", "cc", "cpp", "cxx", "s", "S"]
+        let extensions = try await sourceExtensions(target: target, targetPath: targetPath) {
+            $0.contains("swift") && !$0.isDisjoint(with: clangExtensions)
+        }
+        return extensions.contains("swift") && extensions.isDisjoint(with: clangExtensions)
+    }
+
+    /// Extensions of the target's non-excluded source files, read in a single traversal of each source
+    /// path that stops as soon as `isComplete` holds for the extensions found so far.
+    private func sourceExtensions(
+        target: PackageInfo.Target, targetPath: AbsolutePath, until isComplete: (Set<String>) -> Bool
+    ) async throws -> Set<String> {
+        guard target.type.supportsSources else { return [] }
         let excludedPaths = try target.exclude.map { targetPath.appending(try RelativePath(validating: $0)) }
         let sourcePaths = try target.sources?.map { targetPath.appending(try RelativePath(validating: $0)) } ?? [targetPath]
+        var extensions: Set<String> = []
+        func record(_ path: AbsolutePath) -> Bool {
+            guard let fileExtension = path.extension,
+                  !excludedPaths.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+            else { return false }
+            extensions.insert(fileExtension)
+            return isComplete(extensions)
+        }
         for sourcePath in sourcePaths {
-            let candidates: [AbsolutePath] = if try await fileSystem.exists(sourcePath, isDirectory: true) {
-                try await fileSystem.glob(directory: sourcePath, include: ["*.\(cxxExtensions)", "**/*.\(cxxExtensions)"])
-                    .collect()
-            } else if let fileExtension = sourcePath.extension, ["cpp", "cc", "cxx", "mm"].contains(fileExtension) {
-                [sourcePath]
-            } else {
-                []
-            }
-            if candidates.contains(where: { candidate in
-                !excludedPaths.contains(where: { candidate.isDescendantOfOrEqual(to: $0) })
-            }) {
-                return true
+            if try await fileSystem.exists(sourcePath, isDirectory: true) {
+                for try await candidate in try fileSystem.glob(directory: sourcePath, include: ["*", "**/*"])
+                    where record(candidate)
+                {
+                    return extensions
+                }
+            } else if record(sourcePath) {
+                return extensions
             }
         }
-        return false
+        return extensions
     }
 
     private func prebuiltDependency(
@@ -1190,20 +1601,21 @@ public struct PackageInfoMapper: PackageInfoMapping {
         condition: PackageInfo.PackageConditionDescription?,
         enabledTraits: Set<String>
     ) throws -> SwiftPackageManagerPrebuilt? {
-        if let traits = condition?.traits,
-           !traits.isEmpty,
-           !traits.contains(where: { enabledTraits.contains($0) })
-        {
-            return nil
-        }
+        guard Self.isUsed(condition, enabledTraits: enabledTraits) else { return nil }
+        return packageType.prebuilt(targetPackage: targetPackage, product: name)
+    }
 
+    /// Whether the build uses a dependency with the given condition: its traits are enabled and Tuist supports its platforms.
+    private static func isUsed(_ condition: PackageInfo.PackageConditionDescription?, enabledTraits: Set<String>) -> Bool {
+        if let traits = condition?.traits, !traits.isEmpty, !traits.contains(where: { enabledTraits.contains($0) }) {
+            return false
+        }
         do {
             _ = try ProjectDescription.PlatformCondition.from(condition)
+            return true
         } catch {
-            return nil
+            return false
         }
-
-        return packageType.prebuilt(targetPackage: targetPackage, product: name)
     }
 
     private func samePackageTargetDependenciesImportedByPublicHeaders(
@@ -1371,7 +1783,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                    origin: _,
                    artifactPaths: artifactPaths,
                    packagePrebuilts: _,
-                   derivedXCFrameworksPath: derivedXCFrameworksPath
+                   derivedXCFrameworksPath: derivedXCFrameworksPath,
+                   prebuiltTargets: _
                ) = packageType,
                let artifactPath = artifactPaths[target.name]
             {
@@ -2166,6 +2579,8 @@ extension ProjectDescription.TargetDependency {
             return .xcframework(path: path, expectedSignature: expectedSignature, status: status, condition: condition)
         case let .external(name, _):
             return .external(name: name, condition: condition)
+        case let .externalWithStatus(name, status, _):
+            return .externalWithStatus(name: name, status: status, condition: condition)
         }
     }
 
@@ -2247,7 +2662,8 @@ extension ProjectDescription.Settings {
         dependencyModuleAliases: [String: String],
         packageTraits: [PackageTrait],
         enabledTraits: Set<String>,
-        prebuilts: [SwiftPackageManagerPrebuilt]
+        prebuilts: [SwiftPackageManagerPrebuilt],
+        prebuiltPlatforms: PrebuiltPlatforms?
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -2312,6 +2728,7 @@ extension ProjectDescription.Settings {
             "Testing", // https://github.com/apple/swift-testing
             "Cuckoo", // https://github.com/Brightify/Cuckoo
             "SnapshottingTests", // https://github.com/EmergeTools/SnapshotPreviews
+            "TuistSnapshotsTesting", // https://github.com/tuist/snapshots
             "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
             "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
         ]
@@ -2365,6 +2782,7 @@ extension ProjectDescription.Settings {
         let uniquePrebuilts = Dictionary(grouping: prebuilts, by: \.libraryName)
             .compactMap(\.value.first)
             .sorted { $0.libraryName < $1.libraryName }
+        var prebuiltSettings: XcodeGraph.SettingsDictionary = [:]
         for prebuilt in uniquePrebuilts {
             // SwiftPM extracts prebuilts into the scratch directory and records absolute paths. Referencing them
             // through `$(SRCROOT)` keeps the settings, and therefore the binary-cache hashes, independent of where
@@ -2375,28 +2793,45 @@ extension ProjectDescription.Settings {
             // library (`libMacroSupport.a`), so dyld never resolves anything through it. Revisit this if
             // MacroSupport becomes dynamic.
             let librarySearchPath = sourceRootRelativePath(prebuilt.librarySearchPath, packageFolder: packageFolder)
-            settingsDictionary.appendArraySetting(
+            prebuiltSettings.appendArraySetting(
                 key: "OTHER_SWIFT_FLAGS",
                 values: prebuilt.includeSearchPaths.flatMap {
                     ["-I", sourceRootRelativePath($0, packageFolder: packageFolder).quotedIfContainsSpaces]
                 },
-                includeInherited: true
+                includeInherited: false
             )
-            settingsDictionary.appendArraySetting(
+            prebuiltSettings.appendArraySetting(
                 key: "LIBRARY_SEARCH_PATHS",
                 values: [librarySearchPath.quotedIfContainsSpaces],
-                includeInherited: true
+                includeInherited: false
             )
-            settingsDictionary.appendArraySetting(
+            prebuiltSettings.appendArraySetting(
                 key: "LD_RUNPATH_SEARCH_PATHS",
                 values: [librarySearchPath.quotedIfContainsSpaces],
-                includeInherited: true
+                includeInherited: false
             )
-            settingsDictionary.appendArraySetting(
+            prebuiltSettings.appendArraySetting(
                 key: "OTHER_LDFLAGS",
                 values: ["-l\(prebuilt.libraryName)"],
-                includeInherited: true
+                includeInherited: false
             )
+        }
+        for (key, value) in prebuiltSettings.sorted(by: { $0.key < $1.key }) {
+            guard case let .array(values) = value else { continue }
+            switch prebuiltPlatforms {
+            case .all, nil:
+                settingsDictionary.appendArraySetting(key: key, values: values, includeInherited: true)
+            case .macOS:
+                // Mac Catalyst also builds with the macOS SDK, so `[sdk=macosx*]` would link the macOS prebuilt into
+                // Catalyst builds. Selecting the values through `PLATFORM_NAME` and `IS_MACCATALYST` scopes them to macOS.
+                let macOSKey = "TUIST_SWIFTPM_PREBUILTS_\(key)"
+                settingsDictionary["\(macOSKey)_macosx_NO"] = .array(values)
+                settingsDictionary.appendArraySetting(
+                    key: key,
+                    values: ["$(\(macOSKey)_$(PLATFORM_NAME)_$(IS_MACCATALYST:default=NO))"],
+                    includeInherited: true
+                )
+            }
         }
 
         var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)

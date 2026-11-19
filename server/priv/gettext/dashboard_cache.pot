@@ -1347,17 +1347,17 @@ msgstr ""
 msgid "Unavailable"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:340
+#: lib/tuist_web/live/mix_build_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Local hit"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:341
+#: lib/tuist_web/live/mix_build_live.ex:342
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:339
+#: lib/tuist_web/live/mix_build_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
 msgstr ""

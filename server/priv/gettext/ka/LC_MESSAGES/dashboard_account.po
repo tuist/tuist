@@ -11,8 +11,8 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist/billing.ex:72
-#: lib/tuist_web/live/billing_live.ex:424
+#: lib/tuist/billing.ex:75
+#: lib/tuist_web/live/billing_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "$0"
 msgstr "$0"
@@ -22,18 +22,18 @@ msgstr "$0"
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr "%{inviter}-მ მოგიწვიათ %{organization} ორგანიზაციაში გასაწევრიანებლად"
 
-#: lib/tuist_web/live/billing_live.html.heex:388
+#: lib/tuist_web/live/billing_live.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "%{month}/%{year}"
 msgstr "%{month}/%{year}"
 
-#: lib/tuist/accounts/user_notifier.ex:443
+#: lib/tuist/accounts/user_notifier.ex:444
 #: lib/tuist_web/live/accept_invitation_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr "მიიღეთ მიწვევა"
 
-#: lib/tuist_web/live/billing_live.html.heex:373
+#: lib/tuist_web/live/billing_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Add payment method"
 msgstr "დაამატეთ გადახდის მეთოდი"
@@ -44,15 +44,15 @@ msgstr "დაამატეთ გადახდის მეთოდი"
 msgid "Admin"
 msgstr "ადმინისტრატორი"
 
-#: lib/tuist/billing.ex:50
-#: lib/tuist_web/live/billing_live.ex:394
-#: lib/tuist_web/live/billing_live.html.heex:157
+#: lib/tuist/billing.ex:53
+#: lib/tuist_web/live/billing_live.ex:425
+#: lib/tuist_web/live/billing_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
-#: lib/tuist/billing.ex:59
-#: lib/tuist_web/live/billing_live.ex:399
+#: lib/tuist/billing.ex:62
+#: lib/tuist_web/live/billing_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr "ყველა ფუნქცია, საკრედიტო ბარათის გარეშე"
@@ -76,18 +76,18 @@ msgstr "დარწმუნებული ხართ, რომ გსუ�
 #: lib/tuist_web/live/members_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr "დარწმუნებული ხართ, რომ გსურთ %{name} მოაცილოთ ამ ორგანიზაციას?"
+msgstr "დარწმუნებული ხართ, რომ გსურთ %{name}-ის მოცილება ამ ორგანიზაციიდან?"
 
-#: lib/tuist_web/live/billing_live.ex:79
+#: lib/tuist_web/live/billing_live.ex:83
 #: lib/tuist_web/live/billing_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Billing"
-msgstr "გადახდები"
+msgstr "ბილინგი"
 
-#: lib/tuist_web/live/billing_live.html.heex:431
+#: lib/tuist_web/live/billing_live.html.heex:443
 #, elixir-autogen, elixir-format
 msgid "Billing email"
-msgstr "გადახდების ელფოსტა"
+msgstr "ბილინგის ელფოსტა"
 
 #: lib/tuist_web/live/account_settings_live.ex:378
 #: lib/tuist_web/live/account_settings_live.ex:465
@@ -102,13 +102,18 @@ msgstr "გადახდების ელფოსტა"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:347
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:404
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:441
-#: lib/tuist_web/live/authentication_settings_live.html.heex:927
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1057
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
-#: lib/tuist_web/live/create_organization_live.ex:79
+#: lib/tuist_web/live/create_organization_live.ex:84
+#: lib/tuist_web/live/create_organization_live.ex:90
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:447
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:545
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:659
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:764
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -116,98 +121,99 @@ msgstr "გადახდების ელფოსტა"
 msgid "Cancel"
 msgstr "გაუქმება"
 
-#: lib/tuist_web/live/billing_live.html.heex:255
+#: lib/tuist_web/live/billing_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Change subscription plan"
 msgstr "გამოწერის გეგმის შეცვლა"
 
-#: lib/tuist_web/live/billing_live.html.heex:253
+#: lib/tuist_web/live/billing_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Change your subscription to fit your needs."
-msgstr "შეცვალეთ თქვენი გამოწერა თქვენს საჭიროებებზე მორგების მიზნით."
+msgstr "შეცვალეთ თქვენი გამოწერა თქვენს საჭიროებებზე მორგებით."
 
 #: lib/tuist_web/live/account_settings_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
-msgstr "აირჩიეთ, სად ინახება თქვენი არტეფაქტები, მაგალითად, მოდულის ქეშის ბინარული ფაილები, იურიდიულ შესაბამისობასთან თავსებადობისთვის."
+msgstr "აირჩიეთ, სად ინახება თქვენი არტეფაქტები (მაგალითად, მოდულის ქეშის ბინარული ფაილები) იურიდიულ შესაბამისობაში."
 
-#: lib/tuist/billing.ex:60
+#: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format
 msgid "Community support"
-msgstr "საზოგადოების მხარდაჭერა"
+msgstr "მხარდაჭერა საზოგადოებისგან"
 
-#: lib/tuist_web/live/billing_live.ex:400
+#: lib/tuist_web/live/billing_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
-msgstr "საზოგადოების მხარდაჭერა ფორუმის მეშვეობით"
+msgstr "მხარდაჭერა საზოგადოებისგან ფორუმის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:210
+#: lib/tuist_web/live/billing_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Community support: Support via community forum"
-msgstr "საზოგადოების მხარდაჭერა: მხარდაჭერა საზოგადოების ფორუმის მეშვეობით"
+msgstr "მხარდაჭერა საზოგადოებისგან: დახმარება საზოგადოების ფორუმის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:246
+#: lib/tuist_web/live/billing_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Completely free for open source projects"
 msgstr "სრულიად უფასო ღია კოდის პროექტებისთვის"
 
-#: lib/tuist/accounts/user_notifier.ex:281
+#: lib/tuist/accounts/user_notifier.ex:282
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr "დაადასტურეთ თქვენი ელფოსტა"
+msgstr "დაადასტურეთ თქვენი ელ. ფოსტა"
 
-#: lib/tuist/accounts/user_notifier.ex:277
+#: lib/tuist/accounts/user_notifier.ex:278
 #, elixir-autogen, elixir-format
 msgid "Confirmation instructions"
 msgstr "დადასტურების ინსტრუქციები"
 
-#: lib/tuist/billing.ex:92
-#: lib/tuist_web/live/billing_live.ex:461
+#: lib/tuist/billing.ex:95
+#: lib/tuist_web/live/billing_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
-msgstr "საწყისი გუნდის დაკავშირება"
+msgstr "გაყიდვების გუნდთან დაკავშირება"
 
-#: lib/tuist_web/live/create_organization_live.ex:43
+#: lib/tuist_web/live/create_organization_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr "ორგანიზაციის შექმნა"
 
-#: lib/tuist_web/live/billing_live.ex:451
+#: lib/tuist_web/live/billing_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
-msgstr "შექმენით თქვენი გეგმა ან განათავსეთ საკუთარი ინსტანცია"
+msgstr "შექმენით თქვენი გეგმა ან განათავსეთ ინსტანცია საკუთარ სერვერზე"
 
-#: lib/tuist/billing.ex:90
-#: lib/tuist_web/live/billing_live.html.heex:187
+#: lib/tuist/billing.ex:93
+#: lib/tuist_web/live/billing_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr "შექმენით თქვენი გეგმა ან განათავსეთ საკუთარი ინსტანცია."
+msgstr "შექმენით თქვენი გეგმა ან განათავსეთ ინსტანცია საკუთარ სერვერზე."
 
-#: lib/tuist_web/live/billing_live.ex:406
-#: lib/tuist_web/live/billing_live.ex:435
+#: lib/tuist_web/live/billing_live.ex:437
+#: lib/tuist_web/live/billing_live.ex:466
 #: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr "მიმდინარე გეგმა"
 
-#: lib/tuist/billing.ex:91
-#: lib/tuist_web/live/billing_live.ex:452
-#: lib/tuist_web/live/billing_live.html.heex:169
+#: lib/tuist/billing.ex:94
+#: lib/tuist_web/live/billing_live.ex:483
+#: lib/tuist_web/live/billing_live.html.heex:181
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:391
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "მორგებული"
 
-#: lib/tuist/billing.ex:94
-#: lib/tuist_web/live/billing_live.ex:454
+#: lib/tuist/billing.ex:97
+#: lib/tuist_web/live/billing_live.ex:485
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr "მორგებული პირობები"
 
-#: lib/tuist_web/live/billing_live.html.heex:232
+#: lib/tuist_web/live/billing_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Custom terms: Tailored agreements to meet your specific needs"
-msgstr "მორგებული პირობები: მორგებული შეთანხმებები თქვენი კონკრეტული საჭიროებების შესაბამისად"
+msgstr "მორგებული პირობები: თქვენს სპეციფიკურ მოთხოვნებზე მორგებული შეთანხმებები"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:190
 #, elixir-autogen, elixir-format
@@ -229,72 +235,72 @@ msgstr "წაშლა"
 msgid "Delete account"
 msgstr "ანგარიშის წაშლა"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:633
+#: lib/tuist_web/live/authentication_settings_live.html.heex:763
 #, elixir-autogen, elixir-format
 msgid "OAuth2 application client ID"
 msgstr "OAuth2 აპლიკაციის კლიენტის ID"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:292
+#: lib/tuist_web/live/authentication_settings_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
-msgstr "დააკონფიგურეთ თქვენი OAuth2 პროვაიდერი ისე, რომ ავტორიზაციის შემდეგ მომხმარებლები დაბრუნდნენ Tuist-ზე."
+msgstr "დააკონფიგურეთ თქვენი OAuth2 პროვაიდერი ისე, რომ ავტორიზაციის შემდეგ მომხმარებლები Tuist-ზე დაბრუნდნენ."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:302
+#: lib/tuist_web/live/authentication_settings_live.html.heex:432
 #, elixir-autogen, elixir-format
 msgid "Create an OAuth2 application in your identity provider."
 msgstr "შექმენით OAuth2 აპლიკაცია თქვენს იდენტობის პროვაიდერში."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:316
+#: lib/tuist_web/live/authentication_settings_live.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Copy the provider URL, authorize URL, token URL, user info URL, client ID, and client secret into the fields below."
 msgstr "დააკოპირეთ პროვაიდერის URL, ავტორიზაციის URL, ტოკენის URL, მომხმარებლის ინფორმაციის URL, კლიენტის ID და კლიენტის საიდუმლო ქვემოთ მოცემულ ველებში."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:535
+#: lib/tuist_web/live/authentication_settings_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Provider URL"
 msgstr "პროვაიდერის URL"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:538
+#: lib/tuist_web/live/authentication_settings_live.html.heex:668
 #, elixir-autogen, elixir-format
 msgid "The base URL of your identity provider, for example https://auth.example.com."
 msgstr "თქვენი იდენტობის პროვაიდერის საბაზო URL, მაგალითად https://auth.example.com."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:557
+#: lib/tuist_web/live/authentication_settings_live.html.heex:687
 #, elixir-autogen, elixir-format
 msgid "Authorize URL"
 msgstr "ავტორიზაციის URL"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:560
+#: lib/tuist_web/live/authentication_settings_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "The full authorization endpoint URL used to start the OAuth2 flow."
-msgstr "სრული ავტორიზაციის ბოლო წერტილის URL, რომელიც გამოიყენება OAuth2 ნაკადის დასაწყებად."
+msgstr "სრული ავტორიზაციის endpoint-ის URL, რომელიც გამოიყენება OAuth2 ნაკადის დასაწყებად."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:579
+#: lib/tuist_web/live/authentication_settings_live.html.heex:709
 #, elixir-autogen, elixir-format
 msgid "Token URL"
-msgstr "ტოკენის URL"
+msgstr "Token-ის URL"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:582
+#: lib/tuist_web/live/authentication_settings_live.html.heex:712
 #, elixir-autogen, elixir-format
 msgid "The full token endpoint URL used to exchange the authorization code."
-msgstr "სრული ტოკენის ბოლო წერტილის URL, რომელიც გამოიყენება ავტორიზაციის კოდის გაცვლისთვის."
+msgstr "სრული token-ის endpoint-ის URL, რომელიც გამოიყენება ავტორიზაციის კოდის გაცვლისთვის."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:601
+#: lib/tuist_web/live/authentication_settings_live.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "User info URL"
 msgstr "მომხმარებლის ინფორმაციის URL"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:604
+#: lib/tuist_web/live/authentication_settings_live.html.heex:734
 #, elixir-autogen, elixir-format
 msgid "The full user info endpoint URL that returns the authenticated user profile."
-msgstr "სრული მომხმარებლის ინფორმაციის ბოლო წერტილის URL, რომელიც აბრუნებს ავთენტიფიცირებული მომხმარებლის პროფილს."
+msgstr "სრული მომხმარებლის ინფორმაციის endpoint-ის URL, რომელიც აბრუნებს ავთენტიკირებული მომხმარებლის პროფილს."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:626
+#: lib/tuist_web/live/authentication_settings_live.html.heex:756
 #, elixir-autogen, elixir-format
 msgid "The client ID from your OAuth2 application."
-msgstr "თქვენი OAuth2 აპლიკაციის კლიენტის ID."
+msgstr "თქვენი OAuth2 აპლიკაციის Client ID."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:645
+#: lib/tuist_web/live/authentication_settings_live.html.heex:775
 #, elixir-autogen, elixir-format
 msgid "The client secret from your OAuth2 application."
 msgstr "თქვენი OAuth2 აპლიკაციის კლიენტის საიდუმლო."
@@ -308,19 +314,19 @@ msgstr "ორგანიზაციის წაშლა"
 #: lib/tuist_web/live/account_settings_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Deleting the organization will delete all of its projects"
-msgstr "ორგანიზაციის წაშლა წაშლის მასში არსებულ ყველა პროექტს"
+msgstr "ორგანიზაციის წაშლისას წაიშლება მისი ყველა პროექტი"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Deleting your account will also delete all the projects that belong to it"
-msgstr "თქვენი ანგარიშის წაშლა ასევე წაშლის მასთან დაკავშირებულ ყველა პროექტს"
+msgstr "თქვენი ანგარიშის წაშლისას ასევე წაიშლება მასთან დაკავშირებული ყველა პროექტი"
 
-#: lib/tuist/accounts/user_notifier.ex:299
+#: lib/tuist/accounts/user_notifier.ex:300
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr "მოითხოვეთ პაროლის აღდგენა?"
 
-#: lib/tuist_web/live/billing_live.ex:412
+#: lib/tuist_web/live/billing_live.ex:443
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr "დაწევა"
@@ -350,9 +356,9 @@ msgstr "შეიყვანეთ ამ ორგანიზაციის 
 msgid "Enter your username to confirm"
 msgstr "შეიყვანეთ თქვენი მომხმარებლის სახელი დასადასტურებლად"
 
-#: lib/tuist/billing.ex:88
-#: lib/tuist_web/live/billing_live.ex:450
-#: lib/tuist_web/live/billing_live.html.heex:160
+#: lib/tuist/billing.ex:91
+#: lib/tuist_web/live/billing_live.ex:481
+#: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
 msgstr "Enterprise"
@@ -362,10 +368,10 @@ msgstr "Enterprise"
 msgid "Europe"
 msgstr "ევროპა"
 
-#: lib/tuist/billing.ex:53
-#: lib/tuist_web/live/billing_live.ex:396
-#: lib/tuist_web/live/billing_live.html.heex:166
-#: lib/tuist_web/live/billing_live.html.heex:167
+#: lib/tuist/billing.ex:56
+#: lib/tuist_web/live/billing_live.ex:427
+#: lib/tuist_web/live/billing_live.html.heex:178
+#: lib/tuist_web/live/billing_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "უფასო"
@@ -373,72 +379,72 @@ msgstr "უფასო"
 #: lib/tuist_web/live/billing_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Free tier exceeded"
-msgstr "უფასო პაკეტის ლიმიტი გადაჭარბებულია"
+msgstr "უფასო ტარიფის ლიმიტი გადაჭარბებულია"
 
-#: lib/tuist_web/live/billing_live.ex:398
+#: lib/tuist_web/live/billing_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr "უფასო, პაკეტის ლიმიტებში"
+msgstr "უფასო, ტარიფის ლიმიტების ფარგლებში"
 
-#: lib/tuist/billing.ex:76
+#: lib/tuist/billing.ex:79
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
-msgstr "ხელმისაწვდომი საბაზო ფასი"
+msgstr "მისაღები საბაზისო ფასი"
 
-#: lib/tuist_web/live/billing_live.html.heex:215
+#: lib/tuist_web/live/billing_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Generous base price: Pay nothing if below free tier limits"
-msgstr "ხელმისაწვდომი საბაზო ფასი: არ გადაიხადოთ არაფერი, თუ უფასო პაკეტის ლიმიტებს არ აღემატებით"
+msgstr "მისაღები საბაზისო ფასი: არ გადაიხადოთ არაფერი, თუ უფასო პაკეტის ლიმიტებში რჩებით"
 
-#: lib/tuist/billing.ex:56
+#: lib/tuist/billing.ex:59
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
-msgstr "ხელმისაწვდომი უფასო ყოველთვიური პაკეტი"
+msgstr "მისაღები უფასო ყოველთვიური პაკეტი"
 
-#: lib/tuist_web/live/billing_live.html.heex:198
+#: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
-msgstr "ხელმისაწვდომი უფასო ყოველთვიური პაკეტი: გამოყენება შეზღუდულია უფასო პაკეტის ლიმიტებით"
+msgstr "მისაღები უფასო ყოველთვიური პაკეტი: მოხმარება შეზღუდულია უფასო პაკეტის ლიმიტებით"
 
-#: lib/tuist/billing.ex:54
-#: lib/tuist/billing.ex:74
+#: lib/tuist/billing.ex:57
+#: lib/tuist/billing.ex:77
 #, elixir-autogen, elixir-format
 msgid "Get started"
-msgstr "დაიწყეთ"
+msgstr "დაწყება"
 
-#: lib/tuist_web/live/billing_live.ex:395
+#: lib/tuist_web/live/billing_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr "დაიწყეთ საკრედიტო ბარათის გარეშე"
 
-#: lib/tuist/billing.ex:52
-#: lib/tuist_web/live/billing_live.html.heex:178
+#: lib/tuist/billing.ex:55
+#: lib/tuist_web/live/billing_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
 msgstr "დაიწყეთ საკრედიტო ბარათის გარეშე — სცადეთ ვალდებულებების გარეშე."
 
-#: lib/tuist/accounts/user_notifier.ex:437
+#: lib/tuist/accounts/user_notifier.ex:438
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
-msgstr "გამარჯობა %{invitee_email}, შეგიძლიათ შემოუერთდეთ ორგანიზაციას ქვემოთ მოცემულ ღილაკზე დაჭერით:"
+msgstr "გამარჯობა %{invitee_email}, ორგანიზაციას შეგიძლიათ შეუერთდეთ ქვემოთ მოცემულ ღილაკზე დაჭერით."
 
-#: lib/tuist/accounts/user_notifier.ex:301
+#: lib/tuist/accounts/user_notifier.ex:302
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
-msgstr "გამარჯობა %{name}, პაროლის აღდგენა შეგიძლიათ ქვემოთ მოცემულ ღილაკზე დაწკაპუნებით:"
+msgstr "გამარჯობა %{name}, შეგიძლიათ დააბრუნოთ პაროლი ქვემოთ მოცემულ ღილაკზე დაწკაპუნებით:"
 
-#: lib/tuist/accounts/user_notifier.ex:284
-#: lib/tuist/accounts/user_notifier.ex:311
+#: lib/tuist/accounts/user_notifier.ex:285
+#: lib/tuist/accounts/user_notifier.ex:312
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr "თუ ეს მოთხოვნა თქვენ არ გაგიგზავნიათ, უბრალოდ დატოვეთ ეს წერილი ყურადღების მიღმა."
+msgstr "თუ ეს მოთხოვნა თქვენ არ გაუგზავნიათ, უბრალოდ დატოვეთ ეს წერილი უყურადღებოდ."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:228
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr "მიწვევა ვერ მოიძებნა"
 
-#: lib/tuist/accounts/user_notifier.ex:427
+#: lib/tuist/accounts/user_notifier.ex:428
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr "მიწვევა ორგანიზაციაში %{organization_name}"
@@ -451,27 +457,27 @@ msgstr "მიწვევები"
 #: lib/tuist_web/live/members_live.ex:426
 #, elixir-autogen, elixir-format
 msgid "Invite member"
-msgstr "მონაწილის მიწვევა"
+msgstr "მომხმარებლის მიწვევა"
 
 #: lib/tuist_web/live/members_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "Invite members"
-msgstr "მონაწილეების მიწვევა"
+msgstr "მომხმარებლების მიწვევა"
 
 #: lib/tuist_web/live/members_live.ex:389
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
-msgstr "მიიწვიეთ მონაწილეები თქვენს ორგანიზაციაში"
+msgstr "მიიწვიეთ წევრები თქვენს ორგანიზაციაში"
 
-#: lib/tuist/billing.ex:58
+#: lib/tuist/billing.ex:61
 #, elixir-autogen, elixir-format
 msgid "Like, totally free"
 msgstr "სრულიად უფასო"
 
-#: lib/tuist_web/live/billing_live.html.heex:204
+#: lib/tuist_web/live/billing_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Like, totally free: All features, no credit card required"
-msgstr "სრულიად უფასო: ყველა ფუნქცია, საკრედიტო ბარათის გარეშე"
+msgstr "სრულიად უფასო: ყველა ფუნქცია, საკრედიტო ბარათი არ არის საჭირო"
 
 #: lib/tuist_web/live/members_live.ex:138
 #: lib/tuist_web/live/members_live.ex:282
@@ -490,26 +496,30 @@ msgstr "წევრი"
 msgid "Members"
 msgstr "წევრები"
 
-#: lib/tuist_web/live/billing_live.ex:356
+#: lib/tuist_web/live/billing_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr "ყველაზე პოპულარული"
 
-#: lib/tuist_web/components/workload_identities.html.heex:74
+#: lib/tuist_web/components/workload_identities.html.heex:66
 #: lib/tuist_web/live/account_token_live.html.heex:74
 #: lib/tuist_web/live/account_tokens_live.html.heex:277
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:240
-#: lib/tuist_web/live/authentication_settings_live.html.heex:947
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1077
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
-#: lib/tuist_web/live/create_organization_live.ex:61
+#: lib/tuist_web/live/create_organization_live.ex:66
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:54
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:407
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:500
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "სახელი"
 
-#: lib/tuist/billing.ex:64
+#: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "No credit card required"
 msgstr "საკრედიტო ბარათი არ არის საჭირო"
@@ -517,25 +527,25 @@ msgstr "საკრედიტო ბარათი არ არის ს�
 #: lib/tuist_web/live/members_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
-msgstr "მოწვევები არ შექმნილა"
+msgstr "მიწვევები არ შექმნილა"
 
 #: lib/tuist_web/live/members_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "No members found"
 msgstr "წევრები ვერ მოიძებნა"
 
-#: lib/tuist/billing.ex:96
-#: lib/tuist_web/live/billing_live.ex:455
+#: lib/tuist/billing.ex:99
+#: lib/tuist_web/live/billing_live.ex:486
 #, elixir-autogen, elixir-format
 msgid "On-premise"
-msgstr "ლოკალური განლაგება"
+msgstr "ლოკალური განთავსება"
 
-#: lib/tuist_web/live/billing_live.html.heex:238
+#: lib/tuist_web/live/billing_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr "ლოკალური განლაგება: Tuist-ის საკუთარი ეგზემპლარის დამოუკიდებელი ჰოსტინგი"
+msgstr "ლოკალური განთავსება: Tuist-ის საკუთარი ინსტანციის დამოუკიდებლად განთავსება"
 
-#: lib/tuist_web/live/billing_live.html.heex:158
+#: lib/tuist_web/live/billing_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Open source"
 msgstr "ღია კოდი"
@@ -546,66 +556,66 @@ msgstr "ღია კოდი"
 msgid "Organization name"
 msgstr "ორგანიზაციის სახელი"
 
-#: lib/tuist/accounts/user.ex:129
+#: lib/tuist/accounts/user.ex:141
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr "პაროლები არ ემთხვევა"
 
-#: lib/tuist/billing.ex:77
-#: lib/tuist_web/live/billing_live.ex:427
+#: lib/tuist/billing.ex:80
+#: lib/tuist_web/live/billing_live.ex:458
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr "გადახდა არ მოგიწევთ, თუ უფასო პაკეტის ლიმიტებს არ გადააჭარბეთ"
+msgstr "არ გადაიხდით თანხას, თუ უფასო პაკეტის ლიმიტებს არ გადააჭარბეთ"
 
-#: lib/tuist/billing.ex:79
-#: lib/tuist_web/live/billing_live.ex:428
+#: lib/tuist/billing.ex:82
+#: lib/tuist_web/live/billing_live.ex:459
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr "გადაიხადეთ მხოლოდ გამოყენებული ფუნქციებისთვის"
 
-#: lib/tuist_web/live/billing_live.html.heex:337
+#: lib/tuist_web/live/billing_live.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Payment method"
 msgstr "გადახდის მეთოდი"
 
-#: lib/tuist_web/live/billing_live.html.heex:340
+#: lib/tuist_web/live/billing_live.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Payments for your subscription are made using the default card."
-msgstr "თქვენი გამოწერის გადახდები ხორციელდება ნაგულისხმევი ბარათით."
+msgstr "გამოწერის საფასურის გადახდა ხდება ნაგულისხმები ბარათით."
 
 #: lib/tuist_web/live/members_live.ex:827
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr "მოლოდინში"
 
-#: lib/tuist_web/live/billing_live.html.heex:325
+#: lib/tuist_web/live/billing_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Price"
 msgstr "ფასი"
 
-#: lib/tuist_web/live/billing_live.html.heex:271
+#: lib/tuist_web/live/billing_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Pricing details"
 msgstr "ფასების დეტალები"
 
-#: lib/tuist/billing.ex:98
+#: lib/tuist/billing.ex:101
 #, elixir-autogen, elixir-format
 msgid "Priority support"
 msgstr "პრიორიტეტული მხარდაჭერა"
 
-#: lib/tuist_web/live/billing_live.ex:456
+#: lib/tuist_web/live/billing_live.ex:487
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
-msgstr "პრიორიტეტული მხარდაჭერა საერთო Slack-ის არხის მეშვეობით"
+msgstr "პრიორიტეტული მხარდაჭერა Slack-ის საერთო არხის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:241
+#: lib/tuist_web/live/billing_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Priority support: Via shared Slack channel"
 msgstr "პრიორიტეტული მხარდაჭერა: საერთო Slack-ის არხის მეშვეობით"
 
-#: lib/tuist/billing.ex:69
-#: lib/tuist_web/live/billing_live.ex:422
-#: lib/tuist_web/live/billing_live.html.heex:159
+#: lib/tuist/billing.ex:72
+#: lib/tuist_web/live/billing_live.ex:453
+#: lib/tuist_web/live/billing_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Pro"
 msgstr "Pro"
@@ -619,6 +629,8 @@ msgstr "რეგიონი"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:695
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "წაშლა"
@@ -627,7 +639,7 @@ msgstr "წაშლა"
 #: lib/tuist_web/live/members_live.ex:292
 #, elixir-autogen, elixir-format
 msgid "Remove member"
-msgstr "მონაწილის წაშლა"
+msgstr "მომხმარებლის წაშლა"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:83
 #: lib/tuist_web/live/account_settings_live.html.heex:239
@@ -644,35 +656,35 @@ msgstr "ორგანიზაციის გადარქმევა"
 #: lib/tuist_web/live/account_settings_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Rename your organization?"
-msgstr "გსურთ ორგანიზაციის გადარქმევა?"
+msgstr "გინდათ ორგანიზაციის სახელის შეცვლა?"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:61
 #: lib/tuist_web/live/account_settings_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr "გადარქმევამ შეიძლება მოულოდნელი შედეგები გამოიწვიოს"
+msgstr "გადარქმევას შეიძლება მოჰყვეს არაპროგნოზირებადი შედეგები"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Renaming your organization can have unintended side effects."
-msgstr "ორგანიზაციის სახელის გადარქმევამ შეიძლება დაუსაბუთებელი გვერდითი ეფექტები გამოიწვიოს."
+msgstr "ორგანიზაციის გადარქმევამ შეიძლება გამოიწვიოს არასასურველი გვერდითი ეფექტები."
 
-#: lib/tuist/accounts/user_notifier.ex:297
+#: lib/tuist/accounts/user_notifier.ex:298
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr "პაროლის აღდგენის ინსტრუქცია"
 
-#: lib/tuist/accounts/user_notifier.ex:305
+#: lib/tuist/accounts/user_notifier.ex:306
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
-msgstr "პაროლის განახლება"
+msgstr "აღადგინეთ პაროლი"
 
 #: lib/tuist_web/live/members_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
-msgstr "მოწვევის გაუქმება"
+msgstr "მოხსენით მიწვევა"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:736
+#: lib/tuist_web/live/authentication_settings_live.html.heex:866
 #: lib/tuist_web/live/members_live.ex:132
 #: lib/tuist_web/live/members_live.ex:156
 #: lib/tuist_web/live/members_live.ex:331
@@ -682,6 +694,10 @@ msgid "Role"
 msgstr "როლი"
 
 #: lib/tuist_web/live/members_live.ex:212
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:234
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:458
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:556
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:670
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "შენახვა"
@@ -689,17 +705,17 @@ msgstr "შენახვა"
 #: lib/tuist_web/live/members_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Search members..."
-msgstr "წევრების ძიება..."
+msgstr "წევრების ძებნა..."
 
 #: lib/tuist_web/live/account_settings_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "Select region"
 msgstr "რეგიონის არჩევა"
 
-#: lib/tuist/billing.ex:97
+#: lib/tuist/billing.ex:100
 #, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
-msgstr "Tuist-ის თქვენი ინსტანციის საკუთარ სერვერზე განთავსება"
+msgstr "Tuist-ის თქვენი ეგზემპლარის საკუთარ სერვერზე განთავსება"
 
 #: lib/tuist_web/live/account_settings_live.ex:43
 #: lib/tuist_web/live/account_settings_live.html.heex:3
@@ -707,25 +723,25 @@ msgstr "Tuist-ის თქვენი ინსტანციის საკ
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:3
 #: lib/tuist_web/live/authentication_settings_live.html.heex:3
 #: lib/tuist_web/live/integrations_live.html.heex:2
-#: lib/tuist_web/live/user_security_settings_live.html.heex:288
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "პარამეტრები"
 
-#: lib/tuist/billing.ex:80
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Standard support"
 msgstr "სტანდარტული მხარდაჭერა"
 
-#: lib/tuist_web/live/billing_live.ex:429
+#: lib/tuist_web/live/billing_live.ex:460
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
-msgstr "სტანდარტული მხარდაჭერა Slack-ისა და ელფოსტის საშუალებით"
+msgstr "სტანდარტული მხარდაჭერა Slack-ისა და ელფოსტის მეშვეობით"
 
-#: lib/tuist_web/live/billing_live.html.heex:227
+#: lib/tuist_web/live/billing_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Standard support: Via Slack and email"
-msgstr "სტანდარტული მხარდაჭერა: Slack-ისა და ელფოსტის საშუალებით"
+msgstr "სტანდარტული მხარდაჭერა: Slack-ისა და ელფოსტის მეშვეობით"
 
 #: lib/tuist_web/live/cache_live.ex:495
 #: lib/tuist_web/live/members_live.ex:334
@@ -739,14 +755,14 @@ msgstr "სტატუსი"
 #: lib/tuist_web/live/account_settings_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Storage region"
-msgstr "საცავის რეგიონი"
+msgstr "მონაცემთა შენახვის რეგიონი"
 
-#: lib/tuist/billing.ex:61
+#: lib/tuist/billing.ex:64
 #, elixir-autogen, elixir-format
 msgid "Support via community forum"
 msgstr "მხარდაჭერა საზოგადოების ფორუმის მეშვეობით"
 
-#: lib/tuist/billing.ex:95
+#: lib/tuist/billing.ex:98
 #, elixir-autogen, elixir-format
 msgid "Tailored agreements to meet your specific needs"
 msgstr "ინდივიდუალური შეთანხმებები თქვენი სპეციფიკური საჭიროებების დასაკმაყოფილებლად"
@@ -757,17 +773,17 @@ msgstr "ინდივიდუალური შეთანხმებე�
 msgid "This action cannot be undone."
 msgstr "ამ ქმედების გაუქმება შეუძლებელია."
 
-#: lib/tuist/accounts/user_notifier.ex:280
+#: lib/tuist/accounts/user_notifier.ex:281
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr "Tuist-ის გამოყენების დასაწყებად, დაადასტურეთ თქვენი ელფოსტა და მზად ხართ:"
+msgstr "Tuist-ის გამოსაყენებლად, დაადასტურეთ ელ.ფოსტა და მზად ხართ:"
 
-#: lib/tuist_web/live/billing_live.html.heex:328
+#: lib/tuist_web/live/billing_live.html.heex:340
 #: lib/tuist_web/live/webhook_live.html.heex:138
 #: lib/tuist_web/live/webhook_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Total"
-msgstr "ჯამი"
+msgstr "ჯამური"
 
 #: lib/tuist_web/live/members_live.ex:309
 #: lib/tuist_web/live/members_live.ex:378
@@ -776,7 +792,7 @@ msgid "Try changing your search term"
 msgstr "ცადეთ საძიებო სიტყვის შეცვლა"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:111
-#: lib/tuist_web/live/create_organization_live.ex:37
+#: lib/tuist_web/live/create_organization_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr "Tuist-ის ლოგო"
@@ -786,21 +802,21 @@ msgstr "Tuist-ის ლოგო"
 msgid "United States"
 msgstr "აშშ"
 
-#: lib/tuist/vcs.ex:883
+#: lib/tuist/vcs.ex:908
 #: lib/tuist_web/live/account_token_helpers.ex:96
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "უცნობი"
 
-#: lib/tuist/billing.ex:83
+#: lib/tuist/billing.ex:86
 #, elixir-autogen, elixir-format
 msgid "Unlimited projects"
-msgstr "პროექტების შეზღუდული რაოდენობა"
+msgstr "პროექტების შეზღუდვები არ არის"
 
-#: lib/tuist_web/live/billing_live.html.heex:351
+#: lib/tuist_web/live/billing_live.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Update payment method"
-msgstr "განახლების გადახდის მეთოდი"
+msgstr "გადახდის მეთოდის განახლება"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:183
 #: lib/tuist_web/live/account_settings_live.html.heex:207
@@ -816,66 +832,66 @@ msgstr "გსურთ მომხმარებლის სახელი�
 #: lib/tuist_web/live/account_settings_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Updating your username can have unintended consequences."
-msgstr "მომხმარებლის სახელის განახლებამ შეიძლება გამოიწვიოს დაუგეგმავი შედეგები."
+msgstr "მომხმარებლის სახელის განახლებამ შეიძლება გამოიწვიოს გაუთვალისწინებელი შედეგები."
 
-#: lib/tuist_web/live/billing_live.ex:441
+#: lib/tuist_web/live/billing_live.ex:472
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr "განახლება"
 
-#: lib/tuist_web/live/billing_live.html.heex:261
+#: lib/tuist_web/live/billing_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Upgrade plan"
-msgstr "პაკეტის განახლება"
+msgstr "გეგმის განახლება"
 
-#: lib/tuist_web/live/billing_live.html.heex:305
-#: lib/tuist_web/live/billing_live.html.heex:315
+#: lib/tuist_web/live/billing_live.html.heex:317
+#: lib/tuist_web/live/billing_live.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "გამოყენება"
 
-#: lib/tuist/billing.ex:57
+#: lib/tuist/billing.ex:60
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
-msgstr "გამოყენება შემოიფარგლება უფასო პაკეტის ლიმიტებით"
+msgstr "გამოყენება შეზღუდულია უფასო პაკეტის ლიმიტებით"
 
 #: lib/tuist_web/live/billing_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Usage details"
 msgstr "გამოყენების დეტალები"
 
-#: lib/tuist_web/live/billing_live.html.heex:168
+#: lib/tuist_web/live/billing_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Usage-based"
 msgstr "გამოყენებაზე დაფუძნებული"
 
-#: lib/tuist/billing.ex:78
+#: lib/tuist/billing.ex:81
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing"
-msgstr "გამოყენებაზე დაფუძნებული ფასები"
+msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა"
 
-#: lib/tuist_web/live/billing_live.ex:423
+#: lib/tuist_web/live/billing_live.ex:454
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
-msgstr "გამოყენებაზე დაფუძნებული ფასები უფასო პაკეტის ამოწურვის შემდეგ"
+msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა უფასო პაკეტის შემდეგ"
 
-#: lib/tuist/billing.ex:71
-#: lib/tuist_web/live/billing_live.html.heex:184
+#: lib/tuist/billing.ex:74
+#: lib/tuist_web/live/billing_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
-msgstr "გამოყენებაზე დაფუძნებული ფასები უფასო პაკეტის ამოწურვის შემდეგ."
+msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა უფასო პაკეტის შემდეგ."
 
-#: lib/tuist_web/live/billing_live.html.heex:221
+#: lib/tuist_web/live/billing_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing: Pay only for what you use per feature"
-msgstr "გამოყენებაზე დაფუძნებული ფასები: გადაიხადეთ მხოლოდ იმისთვის, რასაც თითოეული ფუნქციისთვის იყენებთ"
+msgstr "გამოყენებაზე დაფუძნებული ფასწარმოქმნა: გადაიხადეთ მხოლოდ იმისთვის, რასაც იყენებთ თითოეული ფუნქციისთვის"
 
-#: lib/tuist_web/live/billing_live.html.heex:190
+#: lib/tuist_web/live/billing_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Use all Tuist features as long as you stay open source."
-msgstr "გამოიყენეთ Tuist-ის ყველა ფუნქცია, სანამ ღია კოდს შეინარჩუნებთ."
+msgstr "გამოიყენეთ Tuist-ის ყველა ფუნქცია, სანამ თქვენი პროექტი ღია კოდის რჩება."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:739
+#: lib/tuist_web/live/authentication_settings_live.html.heex:869
 #: lib/tuist_web/live/members_live.ex:163
 #: lib/tuist_web/live/members_live.ex:833
 #, elixir-autogen, elixir-format
@@ -888,23 +904,23 @@ msgstr "მომხმარებელი"
 msgid "Username"
 msgstr "მომხმარებლის სახელი"
 
-#: lib/tuist/billing.ex:80
+#: lib/tuist/billing.ex:83
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
 msgstr "Slack-ისა და ელფოსტის მეშვეობით"
 
-#: lib/tuist/billing.ex:98
+#: lib/tuist/billing.ex:101
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
-msgstr "გაზიარებული Slack-არხის მეშვეობით"
+msgstr "გაზიარებული Slack-ის არხის მეშვეობით"
 
-#: lib/tuist_web/components/workload_identities.ex:289
+#: lib/tuist_web/components/workload_identities.ex:290
 #: lib/tuist_web/live/account_settings_live.ex:19
 #: lib/tuist_web/live/account_token_live.ex:19
 #: lib/tuist_web/live/account_tokens_live.ex:27
-#: lib/tuist_web/live/authentication_settings_live.ex:50
-#: lib/tuist_web/live/authentication_settings_live.ex:99
-#: lib/tuist_web/live/billing_live.ex:19
+#: lib/tuist_web/live/authentication_settings_live.ex:51
+#: lib/tuist_web/live/authentication_settings_live.ex:100
+#: lib/tuist_web/live/billing_live.ex:20
 #: lib/tuist_web/live/cache_live.ex:19
 #: lib/tuist_web/live/members_live.ex:19
 #: lib/tuist_web/live/webhook_event_live.ex:22
@@ -912,55 +928,55 @@ msgstr "გაზიარებული Slack-არხის მეშვე�
 #: lib/tuist_web/live/webhooks_live.ex:16
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "არ გაქვთ ამ მოქმედების შესრულების უფლება."
+msgstr "თქვენ არ გაქვთ ამ მოქმედების შესრულების უფლება."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:169
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
-msgstr "მოწვეული ხართ"
+msgstr "თქვენ მიიწვიეს"
 
-#: lib/tuist/accounts/user_notifier.ex:283
+#: lib/tuist/accounts/user_notifier.ex:284
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
-msgstr "მიიღეთ ეს ელფოსტა, რადგან ბოლო დროს Tuist-ის ანგარიში გააკეთეთ."
+msgstr "მიიღეთ ეს ელფოსტა, რადგან ბოლო დროს დარეგისტრირდით Tuist ანგარიშზე."
 
-#: lib/tuist/accounts/user_notifier.ex:307
+#: lib/tuist/accounts/user_notifier.ex:308
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr "ეს ელფოსტა მიიღეთ, რადგან მოითხოვეთ პაროლის აღდგენა თქვენი Tuist ანგარიშისთვის."
 
-#: lib/tuist/accounts/user_notifier.ex:430
+#: lib/tuist/accounts/user_notifier.ex:431
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
-msgstr "%{inviter_email}-მა მოგიწვიათ %{organization_name} Tuist ორგანიზაციაში."
+msgstr "%{inviter_email}-მა გიწვიეთ %{organization_name} Tuist ორგანიზაციაში"
 
-#: lib/tuist/accounts/user_notifier.ex:279
+#: lib/tuist/accounts/user_notifier.ex:280
 #, elixir-autogen, elixir-format
 msgid "You're Almost Set!"
 msgstr "თითქმის მზად ხართ!"
 
-#: lib/tuist_web/live/billing_live.html.heex:309
+#: lib/tuist_web/live/billing_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr "გადააჭარბეთ უფასო პაკეტის ლიმიტს და დამატებითი გამოყენებისთვის გადაიხდით საფასურს."
+msgstr "გადააჭარბეთ უფასო პაკეტის კვოტას და დამატებითი გამოყენებისთვის ჩაგერიცხებათ გადასახადი."
 
-#: lib/tuist/billing.ex:73
-#: lib/tuist_web/live/billing_live.ex:425
+#: lib/tuist/billing.ex:76
+#: lib/tuist_web/live/billing_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr "და მეტი"
 
-#: lib/tuist_web/live/billing_live.ex:209
+#: lib/tuist_web/live/billing_live.ex:240
 #, elixir-autogen, elixir-format
 msgid "charged /per month"
 msgstr "იხდება /თვეში"
 
-#: lib/tuist_web/live/billing_live.ex:204
+#: lib/tuist_web/live/billing_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "charged on %{next_charge_date}"
-msgstr "იხდება %{next_charge_date}-ს"
+msgstr "ჩაირიცხება %{next_charge_date}-ს"
 
-#: lib/tuist_web/live/billing_live.html.heex:395
+#: lib/tuist_web/live/billing_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
@@ -973,7 +989,7 @@ msgstr "დამატება"
 #: lib/tuist_web/live/account_settings_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "Add cache endpoint"
-msgstr "ქეშის ბოლოწერტილის დამატება"
+msgstr "კეშის ბოლოწერტილის დამატება"
 
 #: lib/tuist_web/live/account_settings_live.ex:355
 #: lib/tuist_web/live/webhooks_live.html.heex:35
@@ -997,170 +1013,175 @@ msgstr "URL"
 #: lib/tuist_web/live/account_settings_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "Delete last cache endpoint?"
-msgstr "გსურთ ბოლო ქეშის ბოლოწერტილის წაშლა?"
+msgstr "წაიშალოს ბოლო კეშის ბოლოწერტილი?"
 
 #: lib/tuist_web/live/account_settings_live.ex:452
 #, elixir-autogen, elixir-format
 msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
-msgstr "ბოლო მორგებული ქეშის ბოლოწერტილის წაშლა თქვენს ორგანიზაციას Tuist-ზე განთავსებულ ქეშირებაზე დააბრუნებს. ეს გავლენას მოახდენს თქვენი ორგანიზაციის ყველა ბილდზე."
+msgstr "ბოლო მორგებული კეშის ბოლოწერტილის წაშლა თქვენს ორგანიზაციას დაუბრუნებს Tuist-ზე განთავსებულ კეშირებას. ეს გავლენას მოახდენს თქვენი ორგანიზაციის ყველა ბილდზე."
 
 #: lib/tuist_web/live/account_settings_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Cache endpoints"
-msgstr "ქეშის ბოლოწერტილები"
+msgstr "კეშის ბოლოწერტილები"
 
 #: lib/tuist_web/live/account_settings_live.ex:334
 #, elixir-autogen, elixir-format
 msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
-msgstr "მოირგეთ მორგებული კეშის ბოლოწერტილები საკუთარ სერვერზე განთავსებული კეშის კონფიგურაციებისთვის. ჩართვისას Tuist წაიკითხავს და ჩაწერს ამ ბოლოწერტილებში Tuist-ის მიერ მოწოდებული ნაგულისხმები კეშის ნაცვლად."
+msgstr "მოაწყეთ მორგებული კეშის წერტილები საკუთარ სერვერზე განთავსებული კეშის კონფიგურაციებისთვის. ჩართვისას Tuist წაიკითხავს და ჩაწერს ამ წერტილებში Tuist-ის მიერ ნაგულისხმევად მოწოდებული კეშის ნაცვლად."
 
 #: lib/tuist_web/live/account_settings_live.ex:402
 #, elixir-autogen, elixir-format
 msgid "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
-msgstr "მორგებული კეშის ბოლოწერტილები გამორთულია. Tuist გამოიყენებს Tuist-ის მიერ მოწოდებულ ნაგულისხმევ კეშს."
+msgstr "მორგებული კეშის წერტილები გამორთულია. Tuist გამოიყენებს Tuist-ის მიერ ნაგულისხმევად მოწოდებულ კეშს."
 
 #: lib/tuist_web/live/account_settings_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
-msgstr "მორგებული კეშის ბოლოწერტილები არ არის კონფიგურირებული. Tuist გამოიყენებს Tuist-ის მიერ მოწოდებულ ნაგულისხმევ კეშს, სანამ ბოლოწერტილები არ დაემატება."
+msgstr "მორგებული კეშის წერტილები არ არის კონფიგურირებული. Tuist გამოიყენებს Tuist-ის მიერ ნაგულისხმევად მოწოდებულ კეშს, სანამ წერტილები არ დაემატება."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:623
+#: lib/tuist_web/live/authentication_settings_live.html.heex:753
 #: lib/tuist_web/live/cache_live.ex:308
 #: lib/tuist_web/live/cache_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "Client ID"
 msgstr "კლიენტის ID"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:642
+#: lib/tuist_web/live/authentication_settings_live.html.heex:772
 #: lib/tuist_web/live/cache_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Client secret"
 msgstr "კლიენტის საიდუმლო"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:195
+#: lib/tuist_web/live/authentication_settings_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Copy the Client ID and Client Secret from the application settings"
 msgstr "დააკოპირეთ კლიენტის ID და კლიენტის საიდუმლო აპლიკაციის პარამეტრებიდან"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:175
+#: lib/tuist_web/live/authentication_settings_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Go to Applications > Applications > Create App Integration"
 msgstr "გადადით Applications > Applications > Create App Integration"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:144
+#: lib/tuist_web/live/authentication_settings_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Google Workspace domain"
 msgstr "Google Workspace დომენი"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:489
+#: lib/tuist_web/live/authentication_settings_live.html.heex:619
 #, elixir-autogen, elixir-format
 msgid "Okta domain"
 msgstr "Okta-ის დომენი"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:130
+#: lib/tuist_web/live/authentication_settings_live.html.heex:260
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:143
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:376
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:382
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:506
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "პროვაიდერი"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:181
+#: lib/tuist_web/live/authentication_settings_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
 msgstr "აირჩიეთ \"OIDC - OpenID Connect\" და \"Web Application\""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:87
+#: lib/tuist_web/live/authentication_settings_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Single Sign-On"
-msgstr "ერთჯერადი შესვლა (SSO)"
+msgstr "ერთიანი შესვლა (SSO)"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:637
+#: lib/tuist_web/live/authentication_settings_live.ex:667
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
-msgstr "თქვენ უნდა იყოთ ავტორიზებული Google-ით ამ დომენთან დაკავშირებული ელფოსტით. ჯერ შედით Google-ით."
+msgstr "თქვენ უნდა იყოთ ავტორიზებული Google-ით, ამ დომენთან დაკავშირებული ელფოსტით. ჯერ შედით Google-ით."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:165
+#: lib/tuist_web/live/authentication_settings_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
-msgstr "ქვემოთ მოცემული ველების კონფიგურაციამდე, Okta-ს ადმინისტრატორის პანელში შექმენით OIDC Web Application."
+msgstr "ველების კონფიგურაციამდე, Okta-ს ადმინისტრატორის პანელში შექმენით OIDC Web Application."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:117
+#: lib/tuist_web/live/authentication_settings_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "SSO provider"
 msgstr "SSO პროვაიდერი"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:789
+#: lib/tuist_web/live/authentication_settings_live.html.heex:919
 #: lib/tuist_web/live/webhook_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr "ცვლილებების შენახვა"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:162
-#: lib/tuist_web/live/authentication_settings_live.html.heex:221
-#: lib/tuist_web/live/authentication_settings_live.html.heex:289
+#: lib/tuist_web/live/authentication_settings_live.html.heex:292
+#: lib/tuist_web/live/authentication_settings_live.html.heex:351
+#: lib/tuist_web/live/authentication_settings_live.html.heex:419
 #, elixir-autogen, elixir-format
 msgid "Setup instructions"
-msgstr "მორგების ინსტრუქცია"
+msgstr "დაყენების ინსტრუქცია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:147
+#: lib/tuist_web/live/authentication_settings_live.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Users signing in with a Google account from this domain will be automatically added to this organization."
-msgstr "ამ დომენიდან Google ანგარიშით შესული მომხმარებლები ავტომატურად დაემატებიან ამ ორგანიზაციას."
+msgstr "ამ დომენიდან Google ანგარიშით შემოსული მომხმარებლები ავტომატურად დაემატებიან ამ ორგანიზაციას."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:492
+#: lib/tuist_web/live/authentication_settings_live.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr "თქვენი Okta ორგანიზაციის URL, https:// პრეფიქსის გარეშე."
+msgstr "თქვენი Okta ორგანიზაციის URL https:// პრეფიქსის გარეშე."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:105
+#: lib/tuist_web/live/authentication_settings_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Enable Single Sign-On"
-msgstr "ერთჯერადი შესვლის (SSO) ჩართვა"
+msgstr "ერთიანი შესვლის (SSO) ჩართვა"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:108
+#: lib/tuist_web/live/authentication_settings_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Enable and configure SSO for your organization."
 msgstr "ჩართეთ და დააკონფიგურიროთ SSO თქვენი ორგანიზაციისთვის."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:201
-#: lib/tuist_web/live/authentication_settings_live.html.heex:322
+#: lib/tuist_web/live/authentication_settings_live.html.heex:331
+#: lib/tuist_web/live/authentication_settings_live.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "Set the initiate login URI to:"
-msgstr "დააყენეთ საწყისი შესვლის URI:"
+msgstr "ინიციალიზაციის შესვლის URI უნდა იყოს:"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:187
-#: lib/tuist_web/live/authentication_settings_live.html.heex:308
+#: lib/tuist_web/live/authentication_settings_live.html.heex:317
+#: lib/tuist_web/live/authentication_settings_live.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "Set the sign-in redirect URI to:"
-msgstr "დააყენეთ შესვლის გადამისამართების URI:"
+msgstr "შესვლის გადამისამართების URI უნდა იყოს:"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:765
+#: lib/tuist_web/live/authentication_settings_live.html.heex:895
 #, elixir-autogen, elixir-format
 msgid "Enforce SSO"
 msgstr "SSO-ის იძულებითი გამოყენება"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:776
+#: lib/tuist_web/live/authentication_settings_live.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
-msgstr "ჩართვის შემთხვევაში, ორგანიზაციის წევრები ვეღარ შეძლებენ ელფოსტითა და პაროლით შესვლას. მათ SSO-ს გამოყენება მოუწევთ."
+msgstr "ჩართვისას, ორგანიზაციის წევრებს არ შეეძლებათ შესვლა ელფოსტითა და პაროლით. მათ უნდა გამოიყენონ SSO."
 
-#: lib/tuist_web/live/authentication_settings_live.ex:618
+#: lib/tuist_web/live/authentication_settings_live.ex:648
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
-msgstr "SSO-ს გადამოწმებამდე აუცილებელია SSO პროვაიდერით ავტორიზაცია. ჯერ შედით თქვენი SSO პროვაიდერით."
+msgstr "SSO-ის იძულებამდე უნდა გაიაროთ ავთენტიკაცია SSO პროვაიდერთან. ჯერ შედით თქვენი SSO პროვაიდერის მეშვეობით."
 
-#: lib/tuist_web/live/create_organization_live.ex:73
+#: lib/tuist_web/live/create_organization_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "გაგრძელება"
 
-#: lib/tuist_web/live/create_organization_live.ex:45
+#: lib/tuist_web/live/create_organization_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
 msgstr "გააგრძელეთ ორგანიზაციის შექმნით. ორგანიზაციები საშუალებას გაძლევთ დააჯგუფოთ დაკავშირებული პროექტები"
 
-#: lib/tuist_web/live/create_organization_live.ex:63
+#: lib/tuist_web/live/create_organization_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
-msgstr "რა არის თქვენი კომპანიის ან გუნდის სახელი? ამის შეცვლა მოგვიანებით პარამეტრებში შეგიძლიათ"
+msgstr "რა არის თქვენი კომპანიის ან გუნდის სახელი? ამის შეცვლა მოგვიანებით შეგიძლიათ პარამეტრებში"
 
 #: lib/tuist_web/live/account_settings_live.ex:242
 #, elixir-autogen, elixir-format
@@ -1170,12 +1191,12 @@ msgstr "ბრაუზერის ნაგულისხმევი"
 #: lib/tuist_web/live/account_settings_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Choose your preferred dashboard language."
-msgstr "აირჩიეთ სასურველი ენა დაფისთვის."
+msgstr "აირჩიეთ სასურველი ენა დაშბორდისთვის."
 
 #: lib/tuist_web/live/account_settings_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Dashboard language"
-msgstr "დაფის ენა"
+msgstr "დაშბორდის ენა"
 
 #: lib/tuist_web/live/account_settings_live.ex:257
 #: lib/tuist_web/live/account_settings_live.ex:262
@@ -1183,7 +1204,7 @@ msgstr "დაფის ენა"
 msgid "Language"
 msgstr "ენა"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:136
+#: lib/tuist_web/live/authentication_settings_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "OAuth2"
 msgstr "OAuth2"
@@ -1191,53 +1212,53 @@ msgstr "OAuth2"
 #: lib/tuist_web/live/accept_invitation_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "This invitation is addressed to %{email}. Log out and sign in with that account to accept it."
-msgstr "ეს მოწვევა გაგზავნილია %{email}-ზე. მის მისაღებად გამოდით სისტემიდან და შედით ამ ანგარიშით."
+msgstr "ეს მოწვევა გაგზავნილია %{email}-ზე. მისი მიღებისთვის გამოდით სისტემიდან და შედით ამ ანგარიშით."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
-msgstr "მოწვევა, რომლის მიღებაც ცდილობთ, ვერ მოიძებნა. გთხოვთ, მომწვევს სთხოვოთ ახალი მოწვევის გაგზავნა."
+msgstr "მოწვევა, რომლის მიღებასაც ცდილობთ, ვერ მოიძებნა. გთხოვთ, მომწვევს სთხოვოთ ახალი მოწვევის გაგზავნა."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Wrong account"
 msgstr "არასწორი ანგარიში"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:90
+#: lib/tuist_web/live/authentication_settings_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Allow members to sign in to Tuist through your identity provider."
-msgstr "მიეცით წევრებს Tuist-ში შესვლის საშუალება თქვენი იდენტობის პროვაიდერის მეშვეობით."
+msgstr "მიეცით წევრებს Tuist-ში შესვლის უფლება თქვენი იდენტობის პროვაიდერის მეშვეობით."
 
-#: lib/tuist_web/live/authentication_settings_live.ex:44
-#: lib/tuist_web/live/authentication_settings_live.ex:74
+#: lib/tuist_web/live/authentication_settings_live.ex:45
+#: lib/tuist_web/live/authentication_settings_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "ავტორიზაცია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:817
+#: lib/tuist_web/live/authentication_settings_live.html.heex:947
 #, elixir-autogen, elixir-format
 msgid "SCIM endpoint URL"
-msgstr "SCIM ბოლო წერტილის URL"
+msgstr "SCIM ბოლოწერტილის URL"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:867
+#: lib/tuist_web/live/authentication_settings_live.html.heex:997
 #: lib/tuist_web/live/webhook_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Copy it now — it will not be shown again after you close this dialog."
 msgstr "დააკოპირეთ ახლა — დიალოგის დახურვის შემდეგ ის აღარ გამოჩნდება."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:79
-#: lib/tuist_web/live/authentication_settings_live.html.heex:883
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1013
 #, elixir-autogen, elixir-format
 msgid "Copy token"
 msgstr "ტოკენის კოპირება"
 
 #: lib/tuist_web/live/account_token_live.html.heex:92
 #: lib/tuist_web/live/account_tokens_live.html.heex:286
-#: lib/tuist_web/live/authentication_settings_live.html.heex:950
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1080
 #: lib/tuist_web/live/webhook_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Created"
-msgstr "შექმნილია"
+msgstr "შეიქმნა"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:256
 #, elixir-autogen, elixir-format
@@ -1245,34 +1266,34 @@ msgid "Dashboard"
 msgstr "დაფა"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:244
-#: lib/tuist_web/live/authentication_settings_live.html.heex:921
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1051
 #: lib/tuist_web/live/cache_live.ex:368
 #: lib/tuist_web/live/members_live.ex:504
 #: lib/tuist_web/live/webhook_live.html.heex:404
 #: lib/tuist_web/live/webhooks_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Done"
-msgstr "დასრულებულია"
+msgstr "მზადაა"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:255
-#: lib/tuist_web/live/authentication_settings_live.html.heex:932
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1062
 #: lib/tuist_web/live/cache_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "Generate"
 msgstr "გენერაცია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:844
+#: lib/tuist_web/live/authentication_settings_live.html.heex:974
 #, elixir-autogen, elixir-format
 msgid "Generate SCIM token"
 msgstr "SCIM ტოკენის გენერაცია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:986
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1116
 #, elixir-autogen, elixir-format
 msgid "Generate one above to start provisioning from your IdP."
-msgstr "ზემოთ მოცემულის გენერირებით შეგიძლიათ დაიწყოთ პროვიზინინგი თქვენი IdP-დან."
+msgstr "გააგენერირეთ ზემოთ მოცემული, რათა დაიწყოთ პროვიზინგი თქვენი IdP-დან."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:47
-#: lib/tuist_web/live/authentication_settings_live.html.heex:850
+#: lib/tuist_web/live/authentication_settings_live.html.heex:980
 #, elixir-autogen, elixir-format
 msgid "Generate token"
 msgstr "ტოკენის გენერირება"
@@ -1280,118 +1301,118 @@ msgstr "ტოკენის გენერირება"
 #: lib/tuist_web/live/accept_invitation_live.ex:120
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
-msgstr "მიწვევა მიღებულია!"
+msgstr "მოწვევა მიღებულია!"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Invitation rejected"
-msgstr "მიწვევა უარყოფილია"
+msgstr "მოწვევა უარყოფილია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:835
+#: lib/tuist_web/live/authentication_settings_live.html.heex:965
 #, elixir-autogen, elixir-format
 msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
 msgstr "თითოეული IdP-სთვის გასცეთ ერთი bearer ტოკენი. გააუქმეთ ტოკენი, თუ ის გაჟონა ან აღარ არის საჭირო."
 
 #: lib/tuist_web/live/account_token_live.html.heex:88
 #: lib/tuist_web/live/account_tokens_live.html.heex:283
-#: lib/tuist_web/live/authentication_settings_live.html.heex:953
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1083
 #, elixir-autogen, elixir-format
 msgid "Last used"
-msgstr "ბოლო გამოყენება"
+msgstr "ბოლოს გამოყენებული"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:807
+#: lib/tuist_web/live/authentication_settings_live.html.heex:937
 #, elixir-autogen, elixir-format
 msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
 msgstr "მიეცით თქვენს IdP-ს (Okta, Azure AD/Entra, JumpCloud და ა.შ.) შესაძლებლობა, ქვემოთ მოცემულ SCIM ბოლოწერტილის URL-ზე bearer ტოკენის გამოყენებით შექმნას მომხმარებლები ამ ორგანიზაციაში."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:901
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1031
 #, elixir-autogen, elixir-format
 msgid "Name this token so you can identify it later (for example: \"Okta\")."
-msgstr "დაარქვით სახელი ამ ტოკენს, რათა მოგვიანებით ამოიცნოთ იგი (მაგალითად: \"Okta\")."
+msgstr "დაარქვით ამ ტოკენს სახელი, რათა მოგვიანებით ამოიცნოთ (მაგალითად: „Okta“)."
 
 #: lib/tuist_web/live/account_token_helpers.ex:84
 #: lib/tuist_web/live/account_token_helpers.ex:88
-#: lib/tuist_web/live/authentication_settings_live.html.heex:957
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1087
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "არასდროს"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:984
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1114
 #, elixir-autogen, elixir-format
 msgid "No SCIM tokens yet"
 msgstr "SCIM ტოკენები ჯერ არ არის"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:971
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1101
 #, elixir-autogen, elixir-format
 msgid "Revoke this token? This action cannot be undone."
-msgstr "გაუქმდეს ეს ტოკენი? ამ მოქმედების გაუქმება შეუძლებელია."
+msgstr "გაუქმდეს ეს ტოკენი? ამ ქმედების გაუქმება შეუძლებელია."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:804
+#: lib/tuist_web/live/authentication_settings_live.html.heex:934
 #, elixir-autogen, elixir-format
 msgid "SCIM provisioning"
 msgstr "SCIM პროვიზინგი"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:60
-#: lib/tuist_web/live/authentication_settings_live.html.heex:864
+#: lib/tuist_web/live/authentication_settings_live.html.heex:994
 #, elixir-autogen, elixir-format
 msgid "Token created"
 msgstr "ტოკენი შეიქმნა"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:95
-#: lib/tuist_web/live/authentication_settings_live.html.heex:899
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1029
 #, elixir-autogen, elixir-format
 msgid "Token name"
 msgstr "ტოკენის სახელი"
 
 #: lib/tuist_web/live/account_tokens_live.ex:156
-#: lib/tuist_web/live/authentication_settings_live.ex:368
+#: lib/tuist_web/live/authentication_settings_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "Token name is required."
 msgstr "ტოკენის სახელი სავალდებულოა."
 
-#: lib/tuist_web/live/authentication_settings_live.ex:417
+#: lib/tuist_web/live/authentication_settings_live.ex:447
 #, elixir-autogen, elixir-format
 msgid "Token not found."
 msgstr "ტოკენი ვერ მოიძებნა."
 
 #: lib/tuist_web/live/account_token_live.ex:33
 #: lib/tuist_web/live/account_tokens_live.ex:47
-#: lib/tuist_web/live/authentication_settings_live.html.heex:832
+#: lib/tuist_web/live/authentication_settings_live.html.heex:962
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "ტოკენები"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:948
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1078
 #, elixir-autogen, elixir-format
 msgid "Unnamed"
-msgstr "დაუსახელებელი"
+msgstr "უსახელო"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
-msgstr "ახლა თქვენ %{organization} ორგანიზაციის წევრი ხართ"
+msgstr "ახლა თქვენ ხართ %{organization} ორგანიზაციის წევრი"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "You have accepted the invite to join the organization"
-msgstr "თქვენ მიიღეთ ორგანიზაციაში გაწევრიანების მოწვევა"
+msgstr "თქვენ მიიღეთ მოწვევა ორგანიზაციაში გასაწევრიანებლად"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
-msgstr "თქვენ უარყავით ორგანიზაციაში გაწევრიანების მოწვევა"
+msgstr "თქვენ უარყავით მოწვევა ორგანიზაციაში გასაწევრიანებლად"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "You won’t be able to access this organization unless invited again."
-msgstr "ამ ორგანიზაციას ვერ მიუწვდებით, სანამ ხელახლა არ მიგიწვევენ."
+msgstr "ამ ორგანიზაციას ვერ მიუწვდებით, თუკი ხელახლა არ მიგიწვევენ."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:906
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1036
 #, elixir-autogen, elixir-format
 msgid "e.g. Okta"
-msgstr "მაგ., Okta"
+msgstr "მაგ. Okta"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:969
+#: lib/tuist_web/live/authentication_settings_live.html.heex:1099
 #, elixir-autogen, elixir-format
 msgid "Revoke token"
 msgstr "ტოკენის გაუქმება"
@@ -1413,7 +1434,7 @@ msgstr[0] "%{count} მოვლენა"
 #: lib/tuist_web/live/webhooks_live.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Add one to start receiving events."
-msgstr "დაამატეთ ერთი, რომ დაიწყოთ მოვლენების მიღება."
+msgstr "დაამატეთ ერთი, რათა დაიწყოთ მოვლენების მიღება."
 
 #: lib/tuist_web/live/webhook_live.html.heex:125
 #, elixir-autogen, elixir-format
@@ -1424,7 +1445,7 @@ msgstr "გამოყენება"
 #: lib/tuist_web/live/webhook_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Attempt"
-msgstr "ცდა"
+msgstr "მცდელობა"
 
 #: lib/tuist_web/live/webhook_event_live.html.heex:108
 #: lib/tuist_web/live/webhook_event_live.html.heex:144
@@ -1435,12 +1456,12 @@ msgstr "სხეული"
 #: lib/tuist_web/live/webhooks_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Configure HTTPS endpoints that receive events from projects in this account."
-msgstr "დააკონფიგურირეთ HTTPS ბოლო წერტილები, რომლებიც იღებენ მოვლენებს ამ ანგარიშის პროექტებიდან."
+msgstr "კონფიგურაცია HTTPS ბოლოწერტილებისა, რომლებიც იღებენ მოვლენებს ამ ანგარიშის პროექტებიდან."
 
 #: lib/tuist_web/live/webhooks_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Copy it now — it will not be shown again after you close this dialog. Use it to verify the Tuist-Signature header on incoming webhooks."
-msgstr "დააკოპირეთ ახლა — დიალოგის დახურვის შემდეგ ის აღარ გამოჩნდება. გამოიყენეთ ის შემომავალ ვებჰუკებში Tuist-Signature ჰედერის დასადასტურებლად."
+msgstr "დააკოპირეთ ახლა — დიალოგის დახურვის შემდეგ ის აღარ გამოჩნდება. გამოიყენეთ ის Tuist-Signature ჰედერის ვერიფიკაციისთვის შემომავალ ვებჰუკებში."
 
 #: lib/tuist_web/live/webhook_live.html.heex:391
 #: lib/tuist_web/live/webhooks_live.html.heex:70
@@ -1463,7 +1484,7 @@ msgstr "ბოლო წერტილის წაშლა"
 #: lib/tuist_web/live/webhooks_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Delete this endpoint? It will stop receiving events."
-msgstr "წაიშალოს ეს ბოლო წერტილი? ის აღარ მიიღებს მოვლენებს."
+msgstr "წავშალოთ ეს ბოლო წერტილი? ის აღარ მიიღებს მოვლენებს."
 
 #: lib/tuist_web/live/webhook_live.ex:232
 #: lib/tuist_web/live/webhook_live.ex:269
@@ -1526,7 +1547,7 @@ msgstr "ფილტრი"
 #: lib/tuist_web/live/webhook_endpoint_form.ex:77
 #, elixir-autogen, elixir-format
 msgid "HTTPS only. Tuist will POST signed JSON envelopes here."
-msgstr "მხოლოდ HTTPS. Tuist აქ გაგზავნის ხელმოწერილ JSON კონვერტებს POST მეთოდით."
+msgstr "მხოლოდ HTTPS. Tuist აქ გამოაგზავნის ხელმოწერილ JSON კონვერტებს POST მეთოდით."
 
 #: lib/tuist_web/live/webhook_event_live.html.heex:99
 #: lib/tuist_web/live/webhook_event_live.html.heex:135
@@ -1557,27 +1578,27 @@ msgstr "ბოლო 7 დღე"
 #: lib/tuist_web/live/webhooks_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Listening to"
-msgstr "მოსმენა"
+msgstr "მონიტორინგი"
 
 #: lib/tuist_web/live/webhook_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "No deliveries yet"
-msgstr "ჯერ არ ყოფილა მიწოდებები"
+msgstr "მიწოდებები ჯერ არ არის"
 
 #: lib/tuist_web/live/webhooks_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "No webhook endpoints yet"
-msgstr "ჯერ არ არის ვებჰუკის ენდპოინტები"
+msgstr "ვებჰუკის ენდპოინტები ჯერ არ არის"
 
 #: lib/tuist_web/live/webhook_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Once a matching event fires, attempts will show up here."
-msgstr "როგორც კი შესაბამისი მოვლენა გააქტიურდება, მცდელობები აქ გამოჩნდება."
+msgstr "შესაბამისი მოვლენის გააქტიურების შემდეგ, მცდელობები აქ გამოჩნდება."
 
 #: lib/tuist_web/live/webhook_endpoint_form.ex:87
 #, elixir-autogen, elixir-format
 msgid "Only the selected events trigger a delivery to this endpoint."
-msgstr "ამ ბოლო წერტილზე მიწოდებას იწვევს მხოლოდ შერჩეული მოვლენები."
+msgstr "მხოლოდ შერჩეული მოვლენები იწვევენ მიწოდებას ამ ბოლო წერტილში."
 
 #: lib/tuist_web/live/webhook_event_live.html.heex:82
 #, elixir-autogen, elixir-format
@@ -1598,23 +1619,23 @@ msgstr "პასუხის კოდი"
 #: lib/tuist_web/live/webhooks_live.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Rotate secret"
-msgstr "საკრეტის როტაცია"
+msgstr "საიდუმლოს როტაცია"
 
 #: lib/tuist_web/live/webhook_live.html.heex:33
 #: lib/tuist_web/live/webhooks_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
-msgstr "როტაცია ცვლის ხელმოწერის საკრეტს. არსებული მომხმარებლები ვერიფიკაციას ვერ გაივლიან განახლებამდე."
+msgstr "როტაცია ცვლის ხელმოწერის საიდუმლოს. არსებული მომხმარებლები ვერიფიკაციას ვერ გაივლიან განახლებამდე."
 
 #: lib/tuist_web/live/webhook_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Search by event ID..."
-msgstr "ძებნა მოვლენის ID-ით..."
+msgstr "ძიება მოვლენის ID-ით..."
 
 #: lib/tuist_web/live/webhook_endpoint_form.ex:108
 #, elixir-autogen, elixir-format
 msgid "Select all %{group} events"
-msgstr "ყველა %{group} მოვლენის არჩევა"
+msgstr "აირჩიეთ ყველა %{group} მოვლენა"
 
 #: lib/tuist_web/live/webhook_live.html.heex:83
 #: lib/tuist_web/live/webhook_live.html.heex:329
@@ -1638,12 +1659,12 @@ msgstr "გაგზავნის დრო"
 #: lib/tuist_web/live/webhooks_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Signing secret"
-msgstr "ხელმოწერის საიდუმლო გასაღები"
+msgstr "ხელმოწერის საიდუმლო"
 
 #: lib/tuist_web/live/webhook_live.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Signing secret rotated"
-msgstr "ხელმოწერის საიდუმლო გასაღები განახლებულია"
+msgstr "ხელმოწერის საიდუმლო განახლებულია"
 
 #: lib/tuist_web/live/account_token_live.html.heex:69
 #: lib/tuist_web/live/webhook_event_live.html.heex:22
@@ -1655,12 +1676,12 @@ msgstr "შეჯამება"
 #: lib/tuist_web/live/webhook_event_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "The request didn't reach the destination."
-msgstr "მოთხოვნა დანიშნულების ადგილამდე ვერ მივიდა."
+msgstr "მოთხოვნა დანიშნულების ადგილამდე არ მივიდა."
 
 #: lib/tuist_web/live/webhooks_live.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Tuist will POST signed JSON envelopes to each enabled endpoint. The signing secret is shown once when an endpoint is created or rotated."
-msgstr "Tuist თითოეულ ჩართულ endpoint-ზე გააგზავნის ხელმოწერილ JSON კონვერტებს POST მოთხოვნით. ხელმოწერის საიდუმლო (signing secret) ნაჩვენებია ერთხელ endpoint-ის შექმნის ან როტაციის დროს."
+msgstr "Tuist გაგზავნის ხელმოწერილ JSON კონვერტებს თითოეულ ჩართულ ბოლო წერტილში. ხელმოწერის საიდუმლო ერთხელ ჩანს, როდესაც ბოლო წერტილი იქმნება ან ბრუნდება."
 
 #: lib/tuist_web/live/webhook_event_live.ex:39
 #, elixir-autogen, elixir-format
@@ -1670,12 +1691,12 @@ msgstr "Webhook-ის მიწოდების მცდელობა ვ�
 #: lib/tuist_web/live/webhooks_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Webhook endpoint"
-msgstr "Webhook endpoint"
+msgstr "Webhook-ის ბოლო წერტილი"
 
 #: lib/tuist_web/live/webhook_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Webhook endpoint not found."
-msgstr "Webhook endpoint ვერ მოიძებნა."
+msgstr "Webhook-ის ბოლო წერტილი ვერ მოიძებნა."
 
 #: lib/tuist_web/live/webhook_endpoint_form.ex:67
 #, elixir-autogen, elixir-format
@@ -1707,30 +1728,30 @@ msgstr "სხეულის კოპირება"
 msgid "Copy payload"
 msgstr "პეილოადის კოპირება"
 
-#: lib/tuist/accounts/user_notifier.ex:473
+#: lib/tuist/accounts/user_notifier.ex:474
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
-msgstr "გამარჯობა, %{user_email}, თქვენი ანგარიში %{organization_name} ორგანიზაციაში დაემატა თქვენი იდენტიფიკაციის პროვაიდერის ავტომატური მომხმარებლის მიწოდების (SCIM) მეშვეობით."
+msgstr "გამარჯობა, %{user_email}, თქვენი ანგარიში დაემატა %{organization_name}-ში თქვენი იდენტობის პროვაიდერის ავტომატური მომხმარებლის მიწოდების (SCIM) მეშვეობით."
 
-#: lib/tuist/accounts/user_notifier.ex:488
+#: lib/tuist/accounts/user_notifier.ex:489
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
-msgstr "თუ ეს მოულოდნელია, დაუკავშირდით თქვენი იდენტიფიკაციის პროვაიდერის ადმინისტრატორს (გუნდი, რომელიც მართავს თქვენს ერთჯერად შესვლას), რათა გააუქმოთ ეს მიწოდება. Tuist-ის ორგანიზაციის ადმინისტრატორს ასევე შეუძლია წაგიშალოთ %{organization_name}-დან."
+msgstr "თუ ეს მოულოდნელია, დაუკავშირდით თქვენი იდენტობის პროვაიდერის ადმინისტრატორს (გუნდი, რომელიც მართავს თქვენს ერთიანი შესვლის სისტემას), რათა წაშალოს ეს მიწოდება. Tuist-ის ორგანიზაციის ადმინისტრატორს ასევე შეუძლია წაგიშალოთ %{organization_name}-დან."
 
-#: lib/tuist/accounts/user_notifier.ex:479
+#: lib/tuist/accounts/user_notifier.ex:480
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
-msgstr "თუ ამას ელოდით, არანაირი ქმედება არ არის საჭირო. ორგანიზაციის გასახსნელად გადადით აქ:"
+msgstr "თუ ამას ელოდით, არანაირი ქმედება არ არის საჭირო. ორგანიზაციის გახსნა შეგიძლიათ აქ:"
 
-#: lib/tuist/accounts/user_notifier.ex:485
+#: lib/tuist/accounts/user_notifier.ex:486
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr "%{organization_name}-ის გახსნა"
 
-#: lib/tuist/accounts/user_notifier.ex:465
+#: lib/tuist/accounts/user_notifier.ex:466
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
-msgstr "თქვენ დაემატეთ %{organization_name} Tuist ორგანიზაციას"
+msgstr "თქვენ დაემატეთ Tuist-ის %{organization_name} ორგანიზაციაში"
 
 #: lib/tuist_web/live/members_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1787,7 +1808,7 @@ msgstr "მონაცემების გენერირება"
 #: lib/tuist_web/live/cache_live.ex:466
 #, elixir-autogen, elixir-format
 msgid "Generate one to authorize your self-hosted nodes."
-msgstr "შეადგინეთ ერთი თქვენი თვითმასპინძელი კვანძების ავტორიზაციისთვის."
+msgstr "გენერირება თვითმასპინძელი კვანძების ავტორიზაციისთვის."
 
 #: lib/tuist_web/live/members_live.ex:439
 #, elixir-autogen, elixir-format
@@ -1802,12 +1823,12 @@ msgstr "მოწვევა"
 #: lib/tuist_web/live/cache_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "Last heartbeat"
-msgstr "ბოლო პულსაცია"
+msgstr "ბოლო სიგნალი"
 
 #: lib/tuist_web/live/cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Manage where build artifacts are cached for this account."
-msgstr "მართეთ, სად ინახება ამ ანგარიშის ბილდის არტეფაქტები."
+msgstr "ამ ანგარიშზე ბილდის არტიფაქტების ქეშირების მართვა."
 
 #: lib/tuist_web/live/cache_live.ex:464
 #, elixir-autogen, elixir-format
@@ -1827,7 +1848,7 @@ msgstr "კვანძი"
 #: lib/tuist_web/live/cache_live.ex:275
 #, elixir-autogen, elixir-format
 msgid "Node credential"
-msgstr "კვანძის სერთიფიკატი"
+msgstr "კვანძის მონაცემები"
 
 #: lib/tuist_web/live/cache_live.ex:522
 #, elixir-autogen, elixir-format
@@ -1837,12 +1858,12 @@ msgstr "მზად არ არის"
 #: lib/tuist_web/live/cache_live.ex:355
 #, elixir-autogen, elixir-format
 msgid "Production mesh"
-msgstr "პროდუქციის ქსელი"
+msgstr "საპროდუქციო ქსელი"
 
 #: lib/tuist_web/live/cache_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Ready"
-msgstr "მზად"
+msgstr "მზადაა"
 
 #: lib/tuist_web/live/cache_live.ex:476
 #, elixir-autogen, elixir-format
@@ -1859,18 +1880,18 @@ msgstr "გაუქმება"
 #: lib/tuist_web/live/cache_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "Revoke %{name}? Self-hosted nodes using it will stop authenticating."
-msgstr "გაუქმდეს %{name}? მასზე დამოკიდებული თვით-ჰოსტინგული კვანძები შეწყვეტენ ავთენტიკაციას."
+msgstr "გაუქმდეს %{name}? მისი გამოყენებისას თვითმასპინძელ კვანძებზე ავტორიზაცია შეწყდება."
 
 #: lib/tuist_web/live/cache_live.ex:409
 #: lib/tuist_web/live/cache_live.ex:420
 #, elixir-autogen, elixir-format
 msgid "Revoke credential"
-msgstr "სერთიფიკატის გაუქმება"
+msgstr "მონაცემების გაუქმება"
 
 #: lib/tuist_web/live/cache_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Run your own cache nodes. Generate a credential they authenticate with, and they register themselves so the CLI can reach them directly."
-msgstr "გაუშვით საკუთარი ქეშ-კვანძები. შექმენით სერთიფიკატი, რომლითაც ისინი ახდენენ ავტორიზაციას და რეგისტრირდებიან, რათა CLI-ს შეეძლოს მათთან პირდაპირი კავშირი."
+msgstr "გაუშვით თქვენი საკუთარი ქეშირების კვანძები. შექმენით სერთიფიკატი, რომლითაც ისინი ახდენენ ავტორიზაციას და დარეგისტრირდებიან, რათა CLI-მა შეძლოს მათთან პირდაპირი წვდომა."
 
 #: lib/tuist_web/live/cache_live.ex:401
 #, elixir-autogen, elixir-format
@@ -1880,27 +1901,27 @@ msgstr "საიდუმლო"
 #: lib/tuist_web/live/cache_live.ex:509
 #, elixir-autogen, elixir-format
 msgid "Self-hosted nodes appear here once they start sending registration heartbeats."
-msgstr "საკუთარ სერვერზე განთავსებული კვანძები აქ გამოჩნდება მას შემდეგ, რაც დაიწყებენ რეგისტრაციის „გულისცემის“ სიგნალების გაგზავნას."
+msgstr "თავად განთავსებული კვანძები აქ გამოჩნდება მხოლოდ მაშინ, როცა დაიწყებენ რეგისტრაციის „გულისცემის“ სიგნალების გაგზავნას."
 
 #: lib/tuist_web/live/cache_live.ex:478
 #, elixir-autogen, elixir-format
 msgid "Self-hosted nodes reporting in via registration heartbeats. The CLI routes cache traffic to each node's endpoint, and a node drops off this list when it stops heartbeating."
-msgstr "საკუთარ სერვერზე განთავსებული კვანძები, რომლებიც იგზავნიან რეგისტრაციის „გულისცემის“ სიგნალებს. CLI ქეშ-ტრაფიკს თითოეული კვანძის ბოლოწერტილზე მიმართავს, ხოლო კვანძი ამ სიიდან ქრება, როცა წყვეტს „გულისცემის“ სიგნალების გაგზავნას."
+msgstr "თავად განთავსებული კვანძები, რომლებიც იგზავნიან რეგისტრაციის „გულისცემის“ სიგნალებს. CLI ქეშირების ტრაფიკს მიმართავს თითოეული კვანძის ბოლოწერტილზე, ხოლო კვანძი ჩამოშორდება ამ სიას, როცა შეწყვეტს „გულისცემის“ სიგნალების გაგზავნას."
 
 #: lib/tuist_web/live/members_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Share this link with %{email} so they can join. You'll also find it in the invitations list."
-msgstr "გაუზიარეთ ეს ბმული %{email}-ს, რათა შემოუერთდეს. ასევე იპოვით მას მოწვევების სიაში."
+msgstr "გაუზიარეთ ეს ბმული %{email}-ს, რათა შემოუერთდეს. ასევე შეგიძლიათ იპოვოთ ის მიწვევების სიაში."
 
 #: lib/tuist_web/live/cache_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Tenant-scoped credentials your nodes present to Tuist. A credential only authorizes this account's traffic."
-msgstr "მომხმარებლისთვის განკუთვნილი სერთიფიკატები, რომლებსაც თქვენი კვანძები Tuist-ს წარუდგენენ. სერთიფიკატი ავტორიზაციას მხოლოდ ამ ანგარიშის ტრაფიკისთვის ანიჭებს."
+msgstr "მომხმარებლისთვის შეზღუდული სერთიფიკატები, რომლებსაც თქვენი კვანძები წარუდგენენ Tuist-ს. სერთიფიკატი ავტორიზაციას ანიჭებს მხოლოდ ამ ანგარიშის ტრაფიკს."
 
 #: lib/tuist_web/live/members_live.ex:443
 #, elixir-autogen, elixir-format
 msgid "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list."
-msgstr "მოწვევა ელფოსტით გავაგზავნეთ %{email}-ზე. ასევე შეგიძლიათ ბმული პირდაპირ გაუზიაროთ. ის მოწვევების სიაში დარჩება."
+msgstr "მიწვევა ელფოსტით გავუგზავნეთ %{email}-ს. ასევე შეგიძლიათ ბმული პირდაპირ გაუზიაროთ. ის დარჩება მიწვევების სიაში."
 
 #: lib/tuist_web/live/members_live.ex:825
 #, elixir-autogen, elixir-format
@@ -1910,17 +1931,17 @@ msgstr "ვადამოწურული"
 #: lib/tuist_web/live/accept_invitation_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Invitation expired"
-msgstr "მოწვევა ვადაგასულია"
+msgstr "მიწვევა ვადაგასულია"
 
 #: lib/tuist_web/live/members_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Resend invitation"
-msgstr "მოწვევის ხელახლა გაგზავნა"
+msgstr "მიწვევის ხელახლა გაგზავნა"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "This invitation has expired. Please ask the inviter to resend it."
-msgstr "ეს მოწვევა ვადაგასულია. გთხოვთ, სთხოვოთ მომწვევს მისი ხელახლა გაგზავნა."
+msgstr "ეს მიწვევა ვადაგასულია. სთხოვეთ მომწვევს, ხელახლა გამოგიგზავნოთ."
 
 #: lib/tuist_web/live/cache_live.ex:217
 #, elixir-autogen, elixir-format
@@ -1940,7 +1961,7 @@ msgstr "წევრებს შეუძლიათ ჩამოტვირ�
 #: lib/tuist_web/live/cache_live.ex:195
 #, elixir-autogen, elixir-format
 msgid "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
-msgstr "წევრებს, რომლებიც იყენებენ შესვლის სესიებს, CI OIDC ტოკენებს და ანგარიშის ტოკენებს ქეშში ჩაწერის უფლებებით, შეუძლიათ ატვირთვა."
+msgstr "წევრები, რომლებიც იყენებენ შესვლის სესიებს, CI OIDC ტოკენებს და ანგარიშის ტოკენებს ქეშში ჩაწერის უფლებებით, შეუძლიათ ატვირთვა."
 
 #: lib/tuist_web/live/account_tokens_live.ex:140
 #, elixir-autogen, elixir-format
@@ -1956,7 +1977,7 @@ msgstr "ანგარიშის ტოკენები"
 #: lib/tuist_web/live/account_tokens_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Choose the scopes, optional expiration, and optional project restrictions for this token."
-msgstr "აირჩიეთ სკოპები, ვადის გასვლის პარამეტრი (არასავალდებულო) და პროექტის შეზღუდვები (არასავალდებულო) ამ ტოკენისთვის."
+msgstr "აირჩიეთ სკოპები, ვადის გასვლის ოპციონალური პარამეტრი და პროექტის შეზღუდვები ამ ტოკენისთვის."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:63
 #, elixir-autogen, elixir-format
@@ -1971,7 +1992,7 @@ msgstr "ვადის გასვლა"
 #: lib/tuist_web/live/account_tokens_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Expiration must use a duration like 30d, 6m, or 1y."
-msgstr "ვადის გასვლის მნიშვნელობა უნდა იყოს ხანგრძლივობის ფორმატში, მაგალითად: 30d, 6m ან 1y."
+msgstr "ვადის გასვლა უნდა მიუთითებდეს ხანგრძლივობას, მაგალითად: 30d, 6m ან 1y."
 
 #: lib/tuist_web/live/account_token_live.html.heex:82
 #, elixir-autogen, elixir-format
@@ -1986,47 +2007,47 @@ msgstr "ანგარიშის ტოკენის გენერაც�
 #: lib/tuist_web/live/account_tokens_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Generate one above to authenticate CI, automation, or integrations without using a user session."
-msgstr "გააგენერირეთ ზემოთ მოცემული ტოკენი CI-ს, ავტომატიზაციის ან ინტეგრაციების ავთენტიკაციისთვის მომხმარებლის სესიის გამოყენების გარეშე."
+msgstr "გენერირეთ ზემოთ მოცემული ტოკენი CI-ს, ავტომატიზაციის ან ინტეგრაციების ავთენტიფიკაციისთვის მომხმარებლის სესიის გამოყენების გარეშე."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "No account tokens yet"
-msgstr "ჯერ არ არის ანგარიშის ტოკენები"
+msgstr "ანგარიშის ტოკენები ჯერ არ არსებობს"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Optional. Use 30d, 6m, or 1y. Leave empty for a token that never expires."
-msgstr "არაა სავალდებულო. გამოიყენეთ 30d, 6m ან 1y. დატოვეთ ცარიელი, თუ გსურთ ტოკენი, რომელსაც ვადა არ ამოეწურება."
+msgstr "არასავალდებულო. გამოიყენეთ 30d, 6m ან 1y. დატოვეთ ცარიელი, თუ გინდათ ტოკენი, რომელიც არასდროს იწურება."
 
 #: lib/tuist_web/live/account_token_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Revoke %{name}? This action cannot be undone."
-msgstr "გაუქმდეს %{name}? ეს ქმედება შეუქცევადია."
+msgstr "გააუქმო %{name}? ეს მოქმედება შეუქცევადია."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Scopes"
-msgstr "სფეროები"
+msgstr "წვდომები"
 
 #: lib/tuist_web/live/account_tokens_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Select at least one scope."
-msgstr "აირჩიეთ მინიმუმ ერთი სფერო."
+msgstr "აირჩიეთ მინიმუმ ერთი წვდომა."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
-msgstr "აირჩიეთ ერთი ან რამდენიმე სფერო. წინასწარ განსაზღვრული ნაკრები ტოკენის გამოყენებისას იშლება რამდენიმე დეტალურ უფლებად."
+msgstr "აირჩიეთ ერთი ან რამდენიმე წვდომა. შაბლონები გაფართოვდება რამდენიმე დეტალურ ნებართვად ტოკენის გამოყენებისას."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Use a stable name so you can revoke or rotate this token later."
-msgstr "გამოიყენეთ სტაბილური სახელი, რათა მოგვიანებით შეძლოთ ამ ტოკენის გაუქმება ან როტაცია."
+msgstr "გამოიყენეთ სტაბილური სახელი, რომ მოგვიანებით შეძლოთ ამ ტოკენის გაუქმება ან განახლება."
 
 #: lib/tuist_web/live/account_tokens_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to create account tokens."
-msgstr "არ გაქვთ ანგარიშის ტოკენების შექმნის უფლება."
+msgstr "არ გაქვთ უფლება შექმნათ ანგარიშის ტოკენები."
 
 #: lib/tuist_web/live/account_token_live.ex:56
 #, elixir-autogen, elixir-format
@@ -2041,32 +2062,32 @@ msgstr "ანგარიში"
 #: lib/tuist_web/live/account_token_helpers.ex:137
 #, elixir-autogen, elixir-format
 msgid "Admin read"
-msgstr "ადმინისტრატორი (მხოლოდ კითხვა)"
+msgstr "ადმინისტრატორული კითხვა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:138
 #, elixir-autogen, elixir-format
 msgid "Admin write"
-msgstr "ადმინისტრატორი (ჩაწერა)"
+msgstr "ადმინისტრატორული ჩაწერა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:139
 #, elixir-autogen, elixir-format
 msgid "Builds read"
-msgstr "ბილდები (მხოლოდ კითხვა)"
+msgstr "ბილდების კითხვა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:140
 #, elixir-autogen, elixir-format
 msgid "Builds write"
-msgstr "ბილდები (ჩაწერა)"
+msgstr "ბილდების ჩაწერა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:141
 #, elixir-autogen, elixir-format
 msgid "Bundles read"
-msgstr "ბანდლები (მხოლოდ კითხვა)"
+msgstr "ბანდლების კითხვა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:142
 #, elixir-autogen, elixir-format
 msgid "Bundles write"
-msgstr "ბანდლები (ჩაწერა)"
+msgstr "ბანდლების ჩაწერა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:114
 #, elixir-autogen, elixir-format
@@ -2081,57 +2102,57 @@ msgstr "კეშის წაკითხვა"
 #: lib/tuist_web/live/account_token_helpers.ex:144
 #, elixir-autogen, elixir-format
 msgid "Cache write"
-msgstr "კეშის ჩაწერა"
+msgstr "კეშში ჩაწერა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:116
 #, elixir-autogen, elixir-format
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
-msgstr "კეშის ჩაწერები, პრივიუები, ბანდლები, ტესტები, ბილდები და გაშვებები CI ჯობებისთვის."
+msgstr "კეშში ჩაწერები, პრივიუები, ბანდლები, ტესტები, ბილდები და გაშვებები CI დავალებებისთვის."
 
-#: lib/tuist_web/live/account_token_helpers.ex:212
+#: lib/tuist_web/live/account_token_helpers.ex:222
 #, elixir-autogen, elixir-format
 msgid "Create and manage previews."
 msgstr "პრივიუების შექმნა და მართვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:244
+#: lib/tuist_web/live/account_token_helpers.ex:254
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
 msgstr "გაშვებების შექმნა და მართვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:172
+#: lib/tuist_web/live/account_token_helpers.ex:174
 #, elixir-autogen, elixir-format
 msgid "Manage organization members and invitations."
 msgstr "ორგანიზაციის წევრებისა და მოწვევების მართვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:196
+#: lib/tuist_web/live/account_token_helpers.ex:206
 #, elixir-autogen, elixir-format
 msgid "Manage project administration data."
-msgstr "პროექტის ადმინისტრაციული მონაცემების მართვა."
+msgstr "პროექტის ადმინისტრირების მონაცემების მართვა."
 
 #: lib/tuist_web/live/account_token_helpers.ex:145
 #, elixir-autogen, elixir-format
 msgid "Members read"
-msgstr "წევრები კითხვა"
+msgstr "წევრები კითხულობენ"
 
 #: lib/tuist_web/live/account_token_helpers.ex:146
 #, elixir-autogen, elixir-format
 msgid "Members write"
-msgstr "წევრები ჩაწერა"
+msgstr "წევრები წერენ"
 
 #: lib/tuist_web/live/account_token_helpers.ex:17
 #, elixir-autogen, elixir-format
 msgid "Presets"
-msgstr "შაბლონები"
-
-#: lib/tuist_web/live/account_token_helpers.ex:147
-#, elixir-autogen, elixir-format
-msgid "Previews read"
-msgstr "პრივიუები კითხვა"
+msgstr "პრესეტები"
 
 #: lib/tuist_web/live/account_token_helpers.ex:148
 #, elixir-autogen, elixir-format
+msgid "Previews read"
+msgstr "პრივიუების კითხვა"
+
+#: lib/tuist_web/live/account_token_helpers.ex:149
+#, elixir-autogen, elixir-format
 msgid "Previews write"
-msgstr "პრივიუები ჩაწერა"
+msgstr "პრივიუების ჩაწერა"
 
 #: lib/tuist_web/live/account_token_helpers.ex:30
 #: lib/tuist_web/live/account_token_live.html.heex:157
@@ -2139,120 +2160,120 @@ msgstr "პრივიუები ჩაწერა"
 msgid "Project"
 msgstr "პროექტი"
 
-#: lib/tuist_web/live/account_token_helpers.ex:180
+#: lib/tuist_web/live/account_token_helpers.ex:186
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
 msgstr "პაკეტების გამოქვეყნება ანგარიშის რეესტრში."
 
-#: lib/tuist_web/live/account_token_helpers.ex:160
+#: lib/tuist_web/live/account_token_helpers.ex:162
 #, elixir-autogen, elixir-format
 msgid "Read account-level cache entries."
-msgstr "ანგარიშის დონის ქეშის ელემენტების წაკითხვა."
+msgstr "ანგარიშის დონის ქეშის ჩანაწერების კითხვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:164
+#: lib/tuist_web/live/account_token_helpers.ex:166
 #, elixir-autogen, elixir-format
 msgid "Read and write account-level cache entries."
-msgstr "ანგარიშის დონის ქეშის ჩანაწერების წაკითხვა და ჩაწერა."
+msgstr "ანიკითხეთ და ჩაწერეთ ანგარიშის დონის ქეშის ელემენტები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:204
+#: lib/tuist_web/live/account_token_helpers.ex:214
 #, elixir-autogen, elixir-format
 msgid "Read and write project cache entries."
-msgstr "პროექტის ქეშის ჩანაწერების წაკითხვა და ჩაწერა."
+msgstr "ანიკითხეთ და ჩაწერეთ პროექტის ქეშის ელემენტები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:232
+#: lib/tuist_web/live/account_token_helpers.ex:242
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
-msgstr "ბილდის ანალიტიკის წაკითხვა."
+msgstr "ანიკითხეთ ბილდის ანალიტიკა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:216
+#: lib/tuist_web/live/account_token_helpers.ex:226
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
-msgstr "ბანდლის ანალიტიკის წაკითხვა."
+msgstr "ანიკითხეთ ბანდლის ანალიტიკა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:168
+#: lib/tuist_web/live/account_token_helpers.ex:170
 #, elixir-autogen, elixir-format
 msgid "Read organization members and invitations."
-msgstr "ორგანიზაციის წევრებისა და მიწვევების წაკითხვა."
+msgstr "ანიკითხეთ ორგანიზაციის წევრები და მოწვევები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:176
+#: lib/tuist_web/live/account_token_helpers.ex:182
 #, elixir-autogen, elixir-format
 msgid "Read packages from the account registry."
-msgstr "ანგარიშის რეესტრიდან პაკეტების წაკითხვა."
+msgstr "ანიკითხეთ პაკეტები ანგარიშის რეესტრიდან."
 
-#: lib/tuist_web/live/account_token_helpers.ex:208
+#: lib/tuist_web/live/account_token_helpers.ex:218
 #, elixir-autogen, elixir-format
 msgid "Read previews."
-msgstr "პრივიუების წაკითხვა."
+msgstr "ანიკითხეთ პრივიუები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:192
+#: lib/tuist_web/live/account_token_helpers.ex:202
 #, elixir-autogen, elixir-format
 msgid "Read project administration data."
-msgstr "პროექტის ადმინისტრირების მონაცემების წაკითხვა."
+msgstr "ანიკითხეთ პროექტის ადმინისტრირების მონაცემები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:200
+#: lib/tuist_web/live/account_token_helpers.ex:210
 #, elixir-autogen, elixir-format
 msgid "Read project cache entries."
-msgstr "წაიკითხე პროექტის ქეშის ჩანაწერები."
+msgstr "პროექტის ქეშის ჩანაწერების წაკითხვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:240
+#: lib/tuist_web/live/account_token_helpers.ex:250
 #, elixir-autogen, elixir-format
 msgid "Read runs."
-msgstr "წაიკითხე გაშვებები."
+msgstr "გაშვებების წაკითხვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:224
+#: lib/tuist_web/live/account_token_helpers.ex:234
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
-msgstr "წაიკითხე ტესტების ანალიტიკა."
+msgstr "ტესტების ანალიტიკის წაკითხვა."
 
-#: lib/tuist_web/live/account_token_helpers.ex:149
+#: lib/tuist_web/live/account_token_helpers.ex:150
 #, elixir-autogen, elixir-format
 msgid "Registry read"
 msgstr "რეესტრის წაკითხვა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:150
+#: lib/tuist_web/live/account_token_helpers.ex:151
 #, elixir-autogen, elixir-format
 msgid "Registry write"
 msgstr "რეესტრის ჩაწერა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:151
+#: lib/tuist_web/live/account_token_helpers.ex:152
 #, elixir-autogen, elixir-format
 msgid "Runs read"
 msgstr "გაშვებების წაკითხვა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:152
+#: lib/tuist_web/live/account_token_helpers.ex:153
 #, elixir-autogen, elixir-format
 msgid "Runs write"
 msgstr "გაშვებების ჩაწერა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:155
+#: lib/tuist_web/live/account_token_helpers.ex:157
 #, elixir-autogen, elixir-format
 msgid "Tests read"
 msgstr "ტესტების წაკითხვა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:156
+#: lib/tuist_web/live/account_token_helpers.ex:158
 #, elixir-autogen, elixir-format
 msgid "Tests write"
 msgstr "ტესტების ჩაწერა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:236
+#: lib/tuist_web/live/account_token_helpers.ex:246
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
-msgstr "ატვირთეთ და მართეთ ბილდის მონაცემები."
+msgstr "აიტვირთეთ და მართეთ ბილდის მონაცემები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:220
+#: lib/tuist_web/live/account_token_helpers.ex:230
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
-msgstr "ატვირთეთ და მართეთ ბანდლის მონაცემები."
+msgstr "აიტვირთეთ და მართეთ ბანდლის მონაცემები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:228
+#: lib/tuist_web/live/account_token_helpers.ex:238
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
-msgstr "ატვირთეთ და მართეთ ტესტების მონაცემები."
+msgstr "აიტვირთეთ და მართეთ ტესტების მონაცემები."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Create scoped tokens for CI, automation, and more."
-msgstr "შექმენით შეზღუდული წვდომის ტოკენები CI-სთვის, ავტომატიზაციისთვის და სხვა."
+msgstr "შექმენით შეზღუდული წვდომის ტოკენები CI-სთვის, ავტომატიზაციისთვის და სხვა მიზნებისთვის."
 
 #: lib/tuist_web/live/account_token_live.html.heex:78
 #: lib/tuist_web/live/account_tokens_live.html.heex:280
@@ -2268,13 +2289,13 @@ msgstr "ანგარიშის ტოკენი"
 #: lib/tuist_web/live/account_token_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Permissions"
-msgstr "ნებართვები"
+msgstr "წვდომები"
 
 #: lib/tuist_web/live/account_token_live.html.heex:132
 #: lib/tuist_web/live/account_tokens_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Project access"
-msgstr "პროექტზე წვდომა"
+msgstr "პროექტის წვდომა"
 
 #: lib/tuist_web/live/account_token_live.html.heex:146
 #, elixir-autogen, elixir-format
@@ -2319,7 +2340,7 @@ msgstr "ნებართვა"
 #: lib/tuist_web/live/account_token_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Scope"
-msgstr "მოქმედების სფერო"
+msgstr "სკოუპი"
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:160
 #, elixir-autogen, elixir-format
@@ -2334,7 +2355,7 @@ msgstr "აირჩიეთ მინიმუმ ერთი პროექ
 #: lib/tuist_web/live/account_tokens_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Select the projects this token can access. Keep all selected to include every project in this account."
-msgstr "აირჩიეთ პროექტები, რომლებზეც ამ ტოკენს ექნება წვდომა. დატოვეთ ყველა მონიშნული, რათა მოიცვას ამ ანგარიშის ყველა პროექტი."
+msgstr "აირჩიეთ პროექტები, რომელთა წვდომაც ამ ტოკენს ექნება. დატოვეთ ყველა მონიშნული, რათა მოიცვას ამ ანგარიშის ყველა პროექტი."
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:128
 #, elixir-autogen, elixir-format
@@ -2344,102 +2365,102 @@ msgstr "ამ ანგარიშს ჯერ არ აქვს პრო�
 #: lib/tuist_web/live/account_tokens_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Select all account scopes"
-msgstr "ანგარიშის ყველა მოქმედების სფეროს არჩევა"
+msgstr "ყველა ანგარიშის სკოუპის არჩევა"
 
 #: lib/tuist_web/live/account_tokens_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Select all project scopes"
-msgstr "პროექტის ყველა მოქმედების სფეროს არჩევა"
+msgstr "ყველა პროექტის სკოუპის არჩევა"
 
 #: lib/tuist_web/live/account_token_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Revoke account token?"
 msgstr "გაუქმდეს ანგარიშის ტოკენი?"
 
-#: lib/tuist_web/live/billing_live.html.heex:408
+#: lib/tuist_web/live/billing_live.html.heex:420
 #, elixir-autogen, elixir-format
 msgid "Billing details"
 msgstr "გადახდის დეტალები"
 
-#: lib/tuist_web/live/billing_live.html.heex:422
+#: lib/tuist_web/live/billing_live.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Update billing details"
-msgstr "განაახლეთ გადახდის დეტალები"
+msgstr "გადახდის დეტალების განახლება"
 
-#: lib/tuist_web/live/billing_live.html.heex:411
+#: lib/tuist_web/live/billing_live.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Update the company name, billing address, tax number, and email shown on your invoices."
-msgstr "განაახლეთ კომპანიის სახელი, ბილინგის მისამართი, საგადასახადო ნომერი და ელფოსტა, რომლებიც ჩანს თქვენს ინვოისებზე."
+msgstr "განაახლეთ კომპანიის სახელი, გადახდის მისამართი, საგადასახადო ნომერი და ელფოსტა, რომლებიც ჩანს თქვენს ინვოისებზე."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:684
+#: lib/tuist_web/live/authentication_settings_live.html.heex:814
 #, elixir-autogen, elixir-format
 msgid "Automatic enrollment"
 msgstr "ავტომატური რეგისტრაცია"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:334
+#: lib/tuist_web/live/authentication_settings_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Configure and save a login domain first."
 msgstr "ჯერ დააკონფიგურირეთ და შეინახეთ შესვლის დომენი."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:346
+#: lib/tuist_web/live/authentication_settings_live.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Login email domain"
-msgstr "შესვლის ელფოსტის დომენი"
+msgstr "ელფოსტის დომენი შესასვლელად"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:369
+#: lib/tuist_web/live/authentication_settings_live.html.heex:499
 #, elixir-autogen, elixir-format
 msgid "Pending verification"
-msgstr "მოლოდინშია ვერიფიკაცია"
+msgstr "ვერიფიკაციის მოლოდინში"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:449
+#: lib/tuist_web/live/authentication_settings_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Record name"
 msgstr "ჩანაწერის სახელი"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:459
+#: lib/tuist_web/live/authentication_settings_live.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "Record value"
 msgstr "ჩანაწერის მნიშვნელობა"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:351
+#: lib/tuist_web/live/authentication_settings_live.ex:381
 #, elixir-autogen, elixir-format
 msgid "Save the login domain before verifying it."
-msgstr "შეინახეთ შესვლის დომენი მის ვერიფიცირებამდე."
+msgstr "შეინახეთ შესვლის დომენი მის ვერიფიკაციამდე."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:120
+#: lib/tuist_web/live/authentication_settings_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Select the identity provider that authenticates your organization members."
-msgstr "აირჩიეთ იდენტობის პროვაიდერი, რომელიც აუთენტიფიცირებს თქვენი ორგანიზაციის წევრებს."
+msgstr "აირჩიეთ იდენტობის პროვაიდერი, რომელიც ახდენს თქვენი ორგანიზაციის წევრების ავთენტიკაციას."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:365
+#: lib/tuist_web/live/authentication_settings_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Verified"
-msgstr "დავერიფიცირებულია"
+msgstr "ვერიფიცირებულია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:406
+#: lib/tuist_web/live/authentication_settings_live.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Verify domain"
-msgstr "დომენის ვერიფიცირება"
+msgstr "დომენის ვერიფიკაცია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:699
+#: lib/tuist_web/live/authentication_settings_live.html.heex:829
 #, elixir-autogen, elixir-format
 msgid "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
-msgstr "როდესაც ჩართულია, მომხმარებლებს დავერიფიცირებული ელ. ფოსტის დომენით შეუძლიათ ამ ორგანიზაციაში ავტომატურად გაწევრიანება. სხვა მომხმარებლებს სჭირდებათ მიწვევა."
+msgstr "როდესაც ჩართულია, მომხმარებლები ვერიფიცირებული ელფოსტის დომენიდან შეუძლიათ ამ ორგანიზაციას ავტომატურად შეუერთდნენ. სხვა მომხმარებლებს სჭირდებათ მიწვევა."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:689
+#: lib/tuist_web/live/authentication_settings_live.html.heex:819
 #, elixir-autogen, elixir-format
 msgid "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
-msgstr "როდესაც ჩართულია, მომხმარებლებს, რომელთა Google Workspace-ის დომენი ემთხვევა, შეუძლიათ ამ ორგანიზაციაში ავტომატურად გაწევრიანება. სხვა მომხმარებლებს სჭირდებათ მიწვევა."
+msgstr "როდესაც ჩართულია, მომხმარებლები, რომელთა Google Workspace-ის დომენი ემთხვევა, შეუძლიათ ამ ორგანიზაციას ავტომატურად შეუერთდნენ. სხვა მომხმარებლებს სჭირდებათ მიწვევა."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:771
+#: lib/tuist_web/live/authentication_settings_live.html.heex:901
 #, elixir-autogen, elixir-format
 msgid "Verify a login email domain before enforcing single sign-on for this provider."
-msgstr "შეამოწმეთ შესვლის ელფოსტის დომენი, სანამ ამ პროვაიდერისთვის ერთჯერად შესვლას (SSO) გაააქტიურებთ."
+msgstr "შეამოწმეთ შესვლის ელფოსტის დომენი, სანამ ამ პროვაიდერისთვის ერთჯერად შესვლას (SSO) ჩართავთ."
 
 #: lib/tuist_web/live/cache_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Learn how to authenticate CI"
-msgstr "შეიტყვეთ, როგორ მოხდეს CI-ის ავტორიზაცია"
+msgstr "გაიგეთ, როგორ მოახდინოთ CI-ის აუთენტიკაცია"
 
 #: lib/tuist_web/live/cache_live.ex:192
 #, elixir-autogen, elixir-format
@@ -2449,694 +2470,692 @@ msgstr "წევრები, CI და ანგარიშის ტოკ�
 #: lib/tuist_web/live/cache_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Enter a name to identify this credential."
-msgstr "შეიყვანეთ სახელი ამ კრედენციალის იდენტიფიცირებისთვის."
+msgstr "შეიყვანეთ სახელი, რათა იდენტიფიცირება გაუკეთოთ ამ კრედენციალს."
 
 #: lib/tuist_web/live/cache_live.ex:154
 #: lib/tuist_web/live/cache_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Upload access"
-msgstr "ატვირთვის წვდომა"
+msgstr "ჩატვირთვის წვდომა"
 
 #: lib/tuist_web/live/cache_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Self-hosted servers"
-msgstr "საკუთარ სერვერზე განთავსებული სერვერები"
+msgstr "თვითდაჰოსტული სერვერები"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:251
+#: lib/tuist_web/live/authentication_settings_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Copy the Directory (tenant) ID and Application (client) ID from the application overview"
-msgstr "დააკოპირეთ დირექტორიის (არენდატორის) ID და აპლიკაციის (კლიენტის) ID აპლიკაციის მიმოხილვიდან"
+msgstr "დააკოპირეთ დირექტორიის (არენდატორის) ID და აპლიკაციის (კლიენტის) ID აპლიკაციის მიმოხილვის გვერდიდან"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:257
+#: lib/tuist_web/live/authentication_settings_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Create a client secret under Certificates & secrets and copy its value"
-msgstr "შექმენით კლიენტის საიდუმლო სერტიფიკატებისა და საიდუმლოებების ქვეშ და დააკოპირეთ მისი მნიშვნელობა"
+msgstr "შექმენით კლიენტის საიდუმლო „Certificates & secrets“-ში და დააკოპირეთ მისი მნიშვნელობა"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:512
+#: lib/tuist_web/live/authentication_settings_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Directory (tenant) ID"
 msgstr "დირექტორიის (არენდატორის) ID"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:234
+#: lib/tuist_web/live/authentication_settings_live.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Go to Identity > Applications > App registrations > New registration"
-msgstr "გადადით Identity > Applications > App registrations > New registration"
+msgstr "გადადით: იდენტობა > აპლიკაციები > აპლიკაციის რეგისტრაციები > ახალი რეგისტრაცია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:224
+#: lib/tuist_web/live/authentication_settings_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Register an application in your Microsoft Entra admin center before configuring the fields below."
-msgstr "ველების კონფიგურაციამდე დაარეგისტრირეთ აპლიკაცია Microsoft Entra admin center-ში."
+msgstr "ქვემოთ მოცემული ველების კონფიგურაციამდე დაარეგისტრირეთ აპლიკაცია Microsoft Entra-ს ადმინისტრატორულ ცენტრში."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:240
+#: lib/tuist_web/live/authentication_settings_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Select the \"Web\" platform and set the redirect URI to:"
-msgstr "აირჩიეთ \"Web\" პლატფორმა და დააყენეთ გადამისამართების URI:"
+msgstr "აირჩიეთ „Web“ პლატფორმა და დააყენეთ გადამისამართების URI:"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:269
+#: lib/tuist_web/live/authentication_settings_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Set the home page URL to:"
-msgstr "მთავარი გვერდის URL დააყენეთ:"
+msgstr "დააყენეთ მთავარი გვერდის URL:"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:515
+#: lib/tuist_web/live/authentication_settings_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "The directory (tenant) ID of your Entra application. Tuist derives the authorize, token, and user info endpoints from it."
-msgstr "თქვენი Entra აპლიკაციის დირექტორიის (არენდატორის) ID. Tuist მისგან გამოიყვანს authorize, token და user info ბოლოწერტილებს."
+msgstr "თქვენი Entra აპლიკაციის დირექტორიის (არენდატორის) ID. Tuist მასზე დაყრდნობით განსაზღვრავს ავტორიზაციის, ტოკენისა და მომხმარებლის ინფორმაციის ბოლოწერტილებს."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:263
+#: lib/tuist_web/live/authentication_settings_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Under API permissions, grant the delegated openid, profile, and email permissions"
-msgstr "API permissions-ში მიანიჭეთ დელეგირებული openid, profile და email ნებართვები"
+msgstr "API-ის ნებართვებში მიანიჭეთ დელეგირებული openid, profile და email ნებართვები"
 
-#: lib/tuist_web/live/billing_live.ex:292
+#: lib/tuist_web/live/billing_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] "%{count} წუთი"
 
-#: lib/tuist_web/live/billing_live.ex:288
+#: lib/tuist_web/live/billing_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "%{count} second"
 msgid_plural "%{count} seconds"
 msgstr[0] "%{count} წამი"
 
-#: lib/tuist_web/live/billing_live.ex:322
+#: lib/tuist_web/live/billing_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "free during your trial"
 msgstr "უფასო საცდელი პერიოდის განმავლობაში"
 
-#: lib/tuist_web/live/billing_live.ex:324
+#: lib/tuist_web/live/billing_live.ex:355
 #, elixir-autogen, elixir-format
 msgid "no paid plan to bill against"
-msgstr "გადასახდელი გეგმა არ არის"
+msgstr "გადამხდელ გეგმაზე არ ხართ გადასული"
 
-#: lib/tuist_web/live/billing_live.ex:326
+#: lib/tuist_web/live/billing_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "on your next invoice"
-msgstr "შემდეგ ინვოისზე"
+msgstr "შემდეგ ინვოისში"
 
-#: lib/tuist_web/live/billing_live.html.heex:119
+#: lib/tuist_web/live/billing_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Runner minutes:"
 msgstr "რანერის წუთები:"
 
-#: lib/tuist_web/live/billing_live.html.heex:125
-#: lib/tuist_web/live/billing_live.html.heex:142
+#: lib/tuist_web/live/billing_live.html.heex:137
+#: lib/tuist_web/live/billing_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "See the breakdown"
-msgstr "ნახეთ დეტალურად"
+msgstr "ნახეთ დეტალური ანგარიში"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:740
+#: lib/tuist_web/live/authentication_settings_live.html.heex:870
 #: lib/tuist_web/live/members_live.ex:187
 #: lib/tuist_web/live/members_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Viewer"
 msgstr "მნახველი"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:722
+#: lib/tuist_web/live/authentication_settings_live.html.heex:852
 #, elixir-autogen, elixir-format
 msgid "Role for enrolled members"
-msgstr "როლი რეგისტრირებული წევრებისთვის"
+msgstr "როლი ავტომატურად დარეგისტრირებული წევრებისთვის"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:725
+#: lib/tuist_web/live/authentication_settings_live.html.heex:855
 #, elixir-autogen, elixir-format
 msgid "The role members get when they join through automatic enrollment."
-msgstr "როლი, რომელიც ენიჭებათ წევრებს ავტომატური რეგისტრაციის გზით შემოერთებისას."
+msgstr "როლი, რომელსაც იღებენ წევრები ავტომატური რეგისტრაციის საშუალებით შემოერთებისას."
 
-#: lib/tuist/accounts/user_notifier.ex:557
+#: lib/tuist/accounts/user_notifier.ex:605
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
-msgstr "Pro შეიცავს იგივე უფასო ლიმიტს, ხოლო მის გადაჭარბების შემთხვევაში მოქმედებს გამოყენებაზე დაფუძნებული ფასები."
+msgstr "Pro გეგმა მოიცავს იგივე უფასო ლიმიტს, ხოლო მის გადაჭარბების შემთხვევაში მოქმედებს გამოყენებაზე დაფუძნებული ფასწარმოქმნა."
 
-#: lib/tuist/accounts/user_notifier.ex:745
+#: lib/tuist/accounts/user_notifier.ex:854
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
-msgstr "ამ ანგარიშისთვის დისტანციური ქეშის წვდომა შეჩერებულია. განაგრძეთ ქეშის გამოყენება Pro-ზე გადასვლით ან დაელოდეთ უფასო ლიმიტის განახლებას."
+msgstr "ამ ანგარიშისთვის დისტანციური ქეშის წვდომა შეჩერებულია. განაახლეთ Pro-მდე ქეშის გამოსაყენებლად ან დაელოდეთ უფასო ლიმიტის განახლებას."
 
-#: lib/tuist/accounts/user_notifier.ex:554
+#: lib/tuist/accounts/user_notifier.ex:602
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
-msgstr "გადახედეთ გამოყენებას და გააუმჯობესეთ პაკეტი"
+msgstr "გადახედეთ გამოყენებას და განაახლეთ გეგმა"
 
-#: lib/tuist/accounts/user_notifier.ex:754
+#: lib/tuist/accounts/user_notifier.ex:863
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
-msgstr "უახლოვდებით Air ლიმიტს"
+msgstr "უახლოვდებით Air გეგმის ლიმიტს"
 
-#: lib/tuist/accounts/user_notifier.ex:755
+#: lib/tuist/accounts/user_notifier.ex:864
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
-msgstr "უახლოვდებით თვიურ უფასო ლიმიტს. ლიმიტის მიღწევამდე გადადით Pro-ზე, რათა დისტანციური ქეშის წვდომა შეუფერხებლად გაგრძელდეს."
+msgstr "უახლოვდებით თქვენს ყოველთვიურ უფასო ლიმიტს. განაახლეთ Pro-მდე ლიმიტის მიღწევამდე, რათა დისტანციური ქეშის წვდომა უწყვეტი იყოს."
 
-#: lib/tuist/accounts/user_notifier.ex:560
-#: lib/tuist/accounts/user_notifier.ex:647
-#: lib/tuist/accounts/user_notifier.ex:685
+#: lib/tuist/accounts/user_notifier.ex:608
+#: lib/tuist/accounts/user_notifier.ex:715
+#: lib/tuist/accounts/user_notifier.ex:756
+#: lib/tuist/accounts/user_notifier.ex:794
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
-msgstr "ეს ელფოსტა მიიღეთ, რადგან ამ Tuist ანგარიშს ადმინისტრირებთ."
+msgstr "ეს ელფოსტა მიიღეთ, რადგან ამ Tuist ანგარიშის ადმინისტრატორი ხართ."
 
-#: lib/tuist/accounts/user_notifier.ex:744
+#: lib/tuist/accounts/user_notifier.ex:853
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr "მიღწეული გაქვთ Air ლიმიტი"
 
-#: lib/tuist/accounts/user_notifier.ex:547
+#: lib/tuist/accounts/user_notifier.ex:595
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
-msgstr "თქვენი უფასო კვოტა განახლდება %{date}-ს (UTC)."
+msgstr "თქვენი უფასო კვოტა განახლდება %{date} (UTC)."
 
-#: lib/tuist/accounts/user_notifier.ex:725
+#: lib/tuist/accounts/user_notifier.ex:834
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
-msgstr "ამ ანგარიშისთვის ახალი runner-ების სამუშაოები შეჩერებულია. განაახლეთ Pro-ზე, რომ გაგრძელდეს სამუშაოების შესრულება, ან დაელოდეთ უფასო runner-ების კვოტის განახლებას."
+msgstr "ამ ანგარიშზე ახალი runner-ების სამუშაოები შეჩერებულია. განაახლეთ Pro-მდე სამუშაოების შესრულების გასაგრძელებლად, ან დაელოდეთ უფასო runner-ების კვოტის განახლებას."
 
-#: lib/tuist/accounts/user_notifier.ex:724
+#: lib/tuist/accounts/user_notifier.ex:833
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr "მიღწეული გაქვთ Air runner-ების ლიმიტი"
 
-#: lib/tuist/accounts/user_notifier.ex:735
+#: lib/tuist/accounts/user_notifier.ex:844
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
-msgstr "აახლოვდებით თქვენს ყოველთვიურ უფასო runner-ების კვოტას. ლიმიტის მიღწევამდე განაახლეთ Pro-ზე, რომ გაგრძელდეს runner-ების გამოყენება."
+msgstr "უახლოვდებით თვიურ უფასო runner-ების კვოტას. ლიმიტის მიღწევამდე განაახლეთ Pro-მდე runner-ების გამოყენების გასაგრძელებლად."
 
-#: lib/tuist/accounts/user_notifier.ex:734
+#: lib/tuist/accounts/user_notifier.ex:843
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
-msgstr "აახლოვდებით Air runner-ების ლიმიტს"
+msgstr "უახლოვდებით Air runner-ების ლიმიტს"
 
-#: lib/tuist/accounts/user_notifier.ex:530
+#: lib/tuist/accounts/user_notifier.ex:578
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
-msgstr "%{account_name}-მა მიაღწია Air ლიმიტის %{percentage}%-ს"
+msgstr "%{account_name}-მა მიაღწია Air ლიმიტის %{percentage}%"
 
-#: lib/tuist/accounts/user_notifier.ex:525
+#: lib/tuist/accounts/user_notifier.ex:573
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
-msgstr "%{account_name}-მა მიაღწია Air-რანერების ლიმიტის %{percentage}%-ს"
+msgstr "%{account_name}-მა მიაღწია Air რანერების ლიმიტის %{percentage}%-ს"
 
-#: lib/tuist/accounts/user_notifier.ex:231
+#: lib/tuist/accounts/user_notifier.ex:232
 #, elixir-autogen, elixir-format
 msgid "All rights reserved."
 msgstr "ყველა უფლება დაცულია."
 
-#: lib/tuist/accounts/user_notifier.ex:772
+#: lib/tuist/accounts/user_notifier.ex:881
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
-msgstr "გამარჯობა, %{email}, ქვემოთ მოცემულ ღილაკზე დაჭერით შეგიძლიათ შეცვალოთ თქვენი ელფოსტა"
+msgstr "მოგესალმებით, %{email}, ქვემოთ მოცემულ ღილაკზე დაჭერით შეგიძლიათ შეცვალოთ თქვენი ელ. ფოსტა"
 
-#: lib/tuist/accounts/user_notifier.ex:777
+#: lib/tuist/accounts/user_notifier.ex:886
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
-msgstr "თუ ეს ცვლილება არ მოითხოვეთ, გთხოვთ, უგულებელყოთ ეს წერილი."
-
-#: lib/tuist/accounts/user_notifier.ex:228
-#, elixir-autogen, elixir-format
-msgid "This email was sent by Tuist. By using our services, you agree to our"
-msgstr "ეს წერილი გაგზავნა Tuist-მა. ჩვენი სერვისების გამოყენებით, თქვენ ეთანხმებით ჩვენს"
-
-#: lib/tuist/accounts/user_notifier.ex:768
-#, elixir-autogen, elixir-format
-msgid "Update email instructions"
-msgstr "ელფოსტის განახლების ინსტრუქციები"
-
-#: lib/tuist/accounts/user_notifier.ex:770
-#: lib/tuist/accounts/user_notifier.ex:776
-#, elixir-autogen, elixir-format
-msgid "Update your email"
-msgstr "განაახლეთ თქვენი ელფოსტა"
+msgstr "თუ ამ ცვლილებას არ ითხოვდით, გთხოვთ, დააიგნოროთ ეს წერილი."
 
 #: lib/tuist/accounts/user_notifier.ex:229
+#, elixir-autogen, elixir-format
+msgid "This email was sent by Tuist. By using our services, you agree to our"
+msgstr "ეს წერილი გამოგზავნა Tuist-მა. ჩვენი სერვისების გამოყენებით, თვენ ეთანხმებით ჩვენს"
+
+#: lib/tuist/accounts/user_notifier.ex:877
+#, elixir-autogen, elixir-format
+msgid "Update email instructions"
+msgstr "ელ. ფოსტის განახლების ინსტრუქცია"
+
+#: lib/tuist/accounts/user_notifier.ex:879
+#: lib/tuist/accounts/user_notifier.ex:885
+#, elixir-autogen, elixir-format
+msgid "Update your email"
+msgstr "განაახლეთ თქვენი ელ. ფოსტა"
+
+#: lib/tuist/accounts/user_notifier.ex:230
 #, elixir-autogen, elixir-format
 msgid "terms of service"
 msgstr "მომსახურების პირობებს"
 
-#: lib/tuist_web/live/billing_live.html.heex:319
+#: lib/tuist_web/live/billing_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "%{quantity} above free tier"
-msgstr "%{quantity} მეტია უფასო ლიმიტზე"
+msgstr "%{quantity} ზემოთ უფასო პაკეტზე"
 
-#: lib/tuist_web/live/billing_live.ex:186
+#: lib/tuist_web/live/billing_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Cache requests"
-msgstr "კეშის მოთხოვნები"
+msgstr "ქეშის მოთხოვნები"
 
 #: lib/tuist_web/live/billing_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Cache requests:"
-msgstr "კეშის მოთხოვნები:"
+msgstr "ქეშის მოთხოვნები:"
 
-#: lib/tuist_web/live/billing_live.ex:193
+#: lib/tuist_web/live/billing_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
-msgstr "წარმატებული ტესტები"
+msgstr "წარმატებული ტესტების შემთხვევები"
 
 #: lib/tuist_web/live/billing_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Passing test cases:"
-msgstr "წარმატებული ტესტები:"
+msgstr "წარმატებული ტესტების შემთხვევები:"
 
-#: lib/tuist_web/live/billing_live.ex:179
+#: lib/tuist_web/live/billing_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Cache egress"
-msgstr "კეშიდან გადმოწერილი მონაცემები"
+msgstr "ქეშიდან გადმოწერილი მონაცემები"
 
 #: lib/tuist_web/live/billing_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache egress:"
-msgstr "კეშიდან გადმოწერილი მონაცემები:"
+msgstr "ქეშიდან გადმოწერილი მონაცემები:"
 
-#: lib/tuist_web/live/billing_live.html.heex:148
+#: lib/tuist_web/live/billing_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "of your usage"
-msgstr "თქვენი გამოყენების"
+msgstr "თქვენი გამოყენებიდან"
 
-#: lib/tuist/accounts/user_notifier.ex:708
+#: lib/tuist/accounts/user_notifier.ex:817
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
-msgstr "გამოყენებულია კეშის %{usage} მოთხოვნა %{limit}-დან"
+msgstr "კეშის მოთხოვნები: %{usage} / %{limit}"
 
-#: lib/tuist/accounts/user_notifier.ex:701
+#: lib/tuist/accounts/user_notifier.ex:810
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
-msgstr "გამოყენებულია კეშიდან გადმოწერილი მონაცემების %{usage} %{limit}-დან"
+msgstr "კეშიდან გადმოწერილი მონაცემები: %{usage} / %{limit}"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:709
+#: lib/tuist_web/live/authentication_settings_live.html.heex:839
 #, elixir-autogen, elixir-format
 msgid "Add and verify a login email domain before enabling automatic enrollment. Until then, the provider cannot create accounts, and members link their existing account after logging in. Existing linked users can continue signing in."
-msgstr "ავტომატური რეგისტრაციის ჩართვამდე დაამატეთ და დაადასტურეთ შესვლის ელფოსტის დომენი. სანამ ეს არ გაკეთდება, პროვაიდერი ვერ შექმნის ანგარიშებს, ხოლო წევრები თავიანთ არსებულ ანგარიშს აკავშირებენ შესვლის შემდეგ. უკვე დაკავშირებულ მომხმარებლებს შეუძლიათ განაგრძონ შესვლა."
+msgstr "ავტომატური რეგისტრაციის ჩართვამდე დაამატეთ და დაადასტურეთ შესვლის ელფოსტის დომენი. სანამ ეს არ მოხდება, პროვაიდერი ვერ შექმნის ანგარიშებს, ხოლო წევრები შესვლის შემდეგ მიუერთებენ თავიანთ არსებულ ანგარიშს. უკვე მიბმული მომხმარებლები კვლავ შეძლებენ შესვლას."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:704
+#: lib/tuist_web/live/authentication_settings_live.html.heex:834
 #, elixir-autogen, elixir-format
 msgid "Automatic enrollment is paused until the login email domain is verified. Existing linked users can continue signing in."
-msgstr "ავტომატური რეგისტრაცია შეჩერებულია, სანამ შესვლის ელფოსტის დომენი არ დადასტურდება. უკვე დაკავშირებულ მომხმარებლებს შეუძლიათ განაგრძონ შესვლა."
+msgstr "ავტომატური რეგისტრაცია შეჩერებულია, სანამ შესვლის ელფოსტის დომენი არ დადასტურდება. უკვე მიბმული მომხმარებლები კვლავ შეძლებენ შესვლას."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:824
+#: lib/tuist_web/live/authentication_settings_live.html.heex:954
 #, elixir-autogen, elixir-format
 msgid "Copy SCIM endpoint URL"
 msgstr "SCIM ბოლოწერტილის URL-ის კოპირება"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:277
+#: lib/tuist_web/live/authentication_settings_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Copy home page URL"
 msgstr "მთავარი გვერდის URL-ის კოპირება"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:209
-#: lib/tuist_web/live/authentication_settings_live.html.heex:330
+#: lib/tuist_web/live/authentication_settings_live.html.heex:339
+#: lib/tuist_web/live/authentication_settings_live.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Copy initiate login URI"
 msgstr "შესვლის ინიცირების URI-ის კოპირება"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:454
+#: lib/tuist_web/live/authentication_settings_live.html.heex:584
 #, elixir-autogen, elixir-format
 msgid "Copy record name"
 msgstr "ჩანაწერის სახელის კოპირება"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:464
+#: lib/tuist_web/live/authentication_settings_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Copy record value"
 msgstr "ჩაწერის მნიშვნელობის კოპირება"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:191
-#: lib/tuist_web/live/authentication_settings_live.html.heex:247
-#: lib/tuist_web/live/authentication_settings_live.html.heex:312
+#: lib/tuist_web/live/authentication_settings_live.html.heex:321
+#: lib/tuist_web/live/authentication_settings_live.html.heex:377
+#: lib/tuist_web/live/authentication_settings_live.html.heex:442
 #, elixir-autogen, elixir-format
 msgid "Copy redirect URI"
 msgstr "გადამისამართების URI-ის კოპირება"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:322
+#: lib/tuist_web/live/authentication_settings_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "No TXT record with the verification value was found at %{record_name}. DNS changes can take a while to propagate, so try again in a few minutes."
-msgstr "%{record_name}-ზე ვერიფიკაციის მნიშვნელობის მქონე TXT ჩაწერა ვერ მოიძებნა. DNS-ის ცვლილებებს გავრცელებას დრო სჭირდება, ამიტომ რამდენიმე წუთში სცადეთ ხელახლა."
+msgstr "ვერიფიკაციის მნიშვნელობის შემცველი TXT ჩანაწერი %{record_name}-ზე ვერ მოიძებნა. DNS ცვლილებებს გავრცელებას დრო სჭირდება, ამიტომ რამდენიმე წუთში სცადეთ ხელახლა."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:441
+#: lib/tuist_web/live/authentication_settings_live.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "Record type"
-msgstr "ჩაწერის ტიპი"
+msgstr "ჩანაწერის ტიპი"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:922
+#: lib/tuist_web/live/authentication_settings_live.ex:952
 #, elixir-autogen, elixir-format
 msgid "Add the TXT record below at your DNS provider, then click Verify domain."
-msgstr "დაამატეთ ქვემოთ მოცემული TXT ჩაწერა თქვენს DNS პროვაიდერთან და შემდეგ დააჭირეთ „დომენის ვერიფიკაცია“."
+msgstr "დაამატეთ ქვემოთ მოცემული TXT ჩანაწერი თქვენს DNS პროვაიდერთან და შემდეგ დააჭირეთ „დომენის ვერიფიკაცია“."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:356
+#: lib/tuist_web/live/authentication_settings_live.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} day"
 msgid_plural "Expires in %{count} days"
 msgstr[0] "იწურება %{count} დღეში"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:381
+#: lib/tuist_web/live/authentication_settings_live.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Once verified, used to find your provider and to decide which email addresses to trust."
 msgstr "ვერიფიკაციის შემდეგ გამოიყენება თქვენი პროვაიდერის საპოვნელად და იმის გადასაწყვეტად, რომელი ელფოსტის მისამართები იქნება სანდო."
 
-#: lib/tuist_web/live/authentication_settings_live.ex:916
+#: lib/tuist_web/live/authentication_settings_live.ex:946
 #, elixir-autogen, elixir-format
 msgid "The TXT record below no longer resolves. Publish it again at your DNS provider, then click Verify domain."
-msgstr "ქვემოთ მოცემული TXT ჩანაწერი აღარ ამოიცნობა. გამოაქვეყნეთ ის ხელახლა თქვენს DNS პროვაიდერთან და შემდეგ დააჭირეთ „დომენის ვერიფიკაცია“."
+msgstr "ქვემოთ მოცემული TXT ჩანაწერი აღარ ამოიცნობა. გამოაქვეყნეთ ის ხელახლა თქვენს DNS პროვაიდერთან და შემდეგ დააჭირეთ „დომენის დადასტურება“."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:376
+#: lib/tuist_web/live/authentication_settings_live.html.heex:506
 #, elixir-autogen, elixir-format
 msgid "Used to find your provider and to decide which email addresses to trust."
-msgstr "გამოიყენება თქვენი პროვაიდერის პოვნისა და სანდო ელფოსტის მისამართების განსასაზღვრად."
+msgstr "გამოიყენება თქვენი პროვაიდერის საპოვნელად და იმის გადასაწყვეტად, რომელი ელფოსტის მისამართებია სანდო."
 
 #: lib/tuist_web/plugs/api/authorization/billing_plug.ex:128
 #, elixir-autogen, elixir-format
 msgid "A payment for the subscription of the account '%{account}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice at %{url} to restore access."
-msgstr "ანგარიშის „%{account}“ გამოწერის გადახდა ვერ მოხერხდა, ამიტომ ანგარიში შეზღუდულია „Tuist Air“ გეგმის უფასო დონით, რომლის ლიმიტიც ამოიწურა. გადახდის მეთოდის განახლება და ღია ინვოისის გადახდა %{url}-ზე აღადგენს წვდომას."
+msgstr "გადახდა ანგარიშის „%{account}“ გამოწერისთვის ვერ განხორციელდა, ამიტომ ანგარიში შეზღუდულია „Tuist Air“ გეგმის უფასო დონემდე, რომლის ლიმიტიც ამოიწურა. გადახდის მეთოდის განახლება და ღია ინვოისის გადახდა %{url}-ზე აღადგენს წვდომას."
 
 #: lib/tuist_web/live/billing_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "A payment for your subscription failed"
-msgstr "თქვენი გამოწერის გადახდა ვერ მოხერხდა"
+msgstr "გადახდა თქვენი გამოწერისთვის ვერ განხორციელდა"
 
-#: lib/tuist/accounts/user_notifier.ex:646
-#: lib/tuist/accounts/user_notifier.ex:684
+#: lib/tuist/accounts/user_notifier.ex:755
+#: lib/tuist/accounts/user_notifier.ex:793
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
-msgstr "ღია ინვოისის გადახდა"
+msgstr "გადაიხადეთ ღია ინვოისი"
 
 #: lib/tuist_web/live/billing_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Your plan is limited to the free tier of the Air plan until the open invoice is paid."
-msgstr "თქვენი გეგმა შეზღუდულია Air გეგმის უფასო დონით, სანამ ღია ინვოისი არ გადაიხდება."
+msgstr "თქვენი გეგმა შეზღუდულია Air გეგმის უფასო დონემდე, სანამ ღია ინვოისი არ გადაიხდება."
 
 #: lib/tuist_web/live/billing_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
-msgstr "თქვენი გეგმა აქტიური რჩება, სანამ გადახდის ცდა მეორდება. გადაიხადეთ ღია ინვოისი ან განაახლეთ გადახდის მეთოდი, რათა შეინარჩუნოთ აქტიურობა."
+msgstr "თქვენი გეგმა აქტიური რჩება, სანამ გადახდას თავიდან ცდილობენ. გადაიხადეთ ღია ინვოისი ან განაახლეთ გადახდის მეთოდი, რომ შეინარჩუნოთ აქტივობა."
 
-#: lib/tuist/accounts/user_notifier.ex:627
+#: lib/tuist/accounts/user_notifier.ex:736
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
-msgstr "%{account_name}-ის Tuist გამოწერის გადახდა ვერ მოხერხდა"
+msgstr "გადახდა Tuist-ის გამოწერისთვის %{account_name}-ზე ვერ განხორციელდა"
 
-#: lib/tuist/accounts/user_notifier.ex:644
+#: lib/tuist/accounts/user_notifier.ex:753
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr "გადაიხადეთ ღია ინვოისი ან განაახლეთ გადახდის მეთოდი, რათა შეინარჩუნოთ თქვენი გეგმა:"
 
-#: lib/tuist/accounts/user_notifier.ex:634
+#: lib/tuist/accounts/user_notifier.ex:743
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
-msgstr "ვერ მოვახერხეთ %{account_name}-ის გამოწერისთვის ბარათზე არსებული გადახდის მეთოდით ჩამოჭრა. გადახდა ავტომატურად მეორდება."
+msgstr "ვერ შევძელით %{account_name}-ის გამოწერისთვის ჩვენთან არსებული გადახდის მეთოდით გადახდის ჩატარება. გადახდა ავტომატურად მეორდება."
 
-#: lib/tuist/accounts/user_notifier.ex:632
+#: lib/tuist/accounts/user_notifier.ex:741
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
-msgstr "თქვენი გამოწერის გადახდა ვერ განხორციელდა"
+msgstr "თქვენი გამოწერის გადახდა ვერ მოხერხდა"
 
-#: lib/tuist/accounts/user_notifier.ex:639
+#: lib/tuist/accounts/user_notifier.ex:748
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
-msgstr "გადახდის ხელახალი ცდების პერიოდში თქვენი გეგმა აქტიური რჩება. თუ ცდების დასრულების შემდეგაც ვერ განხორციელდა, %{account_name} შეიზღუდება Air გეგმის უფასო დონემდე, სანამ ინვოისი არ გადაიხდება."
+msgstr "გადახდის ხელახალი ცდების დროს თქვენი გეგმა აქტიური რჩება. თუ ცდების დასრულების შემდეგაც ვერ მოხერხდა გადახდა, %{account_name} იქნება შეზღუდული Air გეგმის უფასო ტირამდე, სანამ ინვოისი არ გადაიხდება."
 
-#: lib/tuist/accounts/user_notifier.ex:666
+#: lib/tuist/accounts/user_notifier.ex:775
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
-msgstr "%{account_name} გადავიდა Air გეგმაზე, რადგან გამოწერის გადახდა ვერ განხორციელდა"
+msgstr "%{account_name} გადავიდა Air გეგმაზე, რადგან გამოწერის გადახდა ვერ მოხერხდა"
 
-#: lib/tuist/accounts/user_notifier.ex:678
+#: lib/tuist/accounts/user_notifier.ex:787
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr "ღია ინვოისის გადახდა აღადგენს თქვენს გეგმას. ასევე შეგიძლიათ გადახდამდე განაახლოთ გადახდის მეთოდი:"
 
-#: lib/tuist/accounts/user_notifier.ex:673
+#: lib/tuist/accounts/user_notifier.ex:782
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
-msgstr "ვერ მოვახერხეთ %{account_name}-ის გამოწერისთვის გადახდის მიღება და ხელახალი ცდები ამოიწურა. %{account_name} ახლა შეზღუდულია Air გეგმის უფასო დონემდე."
+msgstr "ვერ შევძელით %{account_name}-ის გამოწერის გადახდის ჩატარება და ხელახალი ცდები ამოიწურა. %{account_name} ახლა შეზღუდულია Air გეგმის უფასო ტირამდე."
 
-#: lib/tuist/accounts/user_notifier.ex:671
+#: lib/tuist/accounts/user_notifier.ex:780
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr "თქვენი ანგარიში გადავიდა Air გეგმაზე"
 
-#: lib/tuist_web/live/account_token_helpers.ex:188
+#: lib/tuist_web/live/account_token_helpers.ex:194
 #, elixir-autogen, elixir-format
 msgid "Manage runner profiles and clear runner volumes."
-msgstr "მართეთ რანერის პროფილები და გაასუფთავეთ რანერის ტომები."
+msgstr "მართეთ რანერების პროფილები და გაასუფთავეთ მათი ტომები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:184
+#: lib/tuist_web/live/account_token_helpers.ex:190
 #, elixir-autogen, elixir-format
 msgid "Read runner jobs, workflows, profiles, and volumes."
-msgstr "წაიკითხეთ რანერის დავალებები, სამუშაო ნაკადები, პროფილები და ტომები."
+msgstr "წაიკითხეთ რანერების სამუშაოები, სამუშაო ნაკადები, პროფილები და ტომები."
 
-#: lib/tuist_web/live/account_token_helpers.ex:153
+#: lib/tuist_web/live/account_token_helpers.ex:154
 #, elixir-autogen, elixir-format
 msgid "Runners read"
 msgstr "რანერების წაკითხვა"
 
-#: lib/tuist_web/live/account_token_helpers.ex:154
+#: lib/tuist_web/live/account_token_helpers.ex:155
 #, elixir-autogen, elixir-format
 msgid "Runners write"
 msgstr "რანერების ჩაწერა"
 
-#: lib/tuist_web/components/workload_identities.ex:138
+#: lib/tuist_web/components/workload_identities.ex:139
 #, elixir-autogen, elixir-format
 msgid "A JSON object with 1 to 10 claims. Values must be strings, integers, or booleans and match exactly."
-msgstr "JSON ობიექტი 1-დან 10-მდე პრეტენზიით. მნიშვნელობები უნდა იყოს სტრიქონები, მთელი რიცხვები ან ბულეანი და ზუსტად ემთხვეოდეს."
+msgstr "JSON ობიექტი 1-დან 10-მდე პრეტენზიით. მნიშვნელობები უნდა იყოს სტრიქონები, მთელი რიცხვები ან ბულიანი და ზუსტად ემთხვეოდეს."
 
-#: lib/tuist_web/components/workload_identities.html.heex:149
+#: lib/tuist_web/components/workload_identities.html.heex:26
+#: lib/tuist_web/components/workload_identities.html.heex:33
+#: lib/tuist_web/components/workload_identities.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Add trust policy"
 msgstr "დამატება ნდობის პოლიტიკა"
 
-#: lib/tuist_web/components/workload_identities.html.heex:143
+#: lib/tuist_web/components/workload_identities.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Advanced configuration"
 msgstr "გაფართოებული კონფიგურაცია"
 
-#: lib/tuist_web/components/workload_identities.html.heex:103
+#: lib/tuist_web/components/workload_identities.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Application ID"
 msgstr "აპლიკაციის ID"
 
-#: lib/tuist_web/components/workload_identities.html.heex:114
-#: lib/tuist_web/components/workload_identities.html.heex:190
+#: lib/tuist_web/components/workload_identities.html.heex:106
+#: lib/tuist_web/components/workload_identities.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Audience"
 msgstr "აუდიტორია"
 
-#: lib/tuist_web/components/workload_identities.ex:133
-#: lib/tuist_web/components/workload_identities.html.heex:194
+#: lib/tuist_web/components/workload_identities.ex:134
+#: lib/tuist_web/components/workload_identities.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Claims"
-msgstr "მოთხოვნები"
+msgstr "მოთხოვნები (Claims)"
 
-#: lib/tuist_web/components/workload_identities.ex:155
+#: lib/tuist_web/components/workload_identities.ex:156
 #, elixir-autogen, elixir-format
 msgid "Claims must be a JSON object."
 msgstr "მოთხოვნები უნდა იყოს JSON ობიექტი."
 
-#: lib/tuist_web/components/workload_identities.ex:163
+#: lib/tuist_web/components/workload_identities.ex:164
 #, elixir-autogen, elixir-format
 msgid "Claims must be valid JSON of at most 8 KiB."
-msgstr "მოთხოვნები უნდა იყოს ვალიდური JSON, არაუმეტეს 8 კიბ-ის ზომის."
+msgstr "მოთხოვნები უნდა იყოს ვალიდური JSON, არაუმეტეს 8 KiB-ის ზომის."
 
-#: lib/tuist_web/components/workload_identities.ex:158
+#: lib/tuist_web/components/workload_identities.ex:159
 #, elixir-autogen, elixir-format
 msgid "Claims must be valid JSON."
 msgstr "მოთხოვნები უნდა იყოს ვალიდური JSON."
 
-#: lib/tuist_web/components/workload_identities.html.heex:69
+#: lib/tuist_web/components/workload_identities.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Custom provider"
 msgstr "მორგებული პროვაიდერი"
 
-#: lib/tuist_web/components/workload_identities.ex:68
+#: lib/tuist_web/components/workload_identities.ex:69
 #, elixir-autogen, elixir-format
 msgid "Enter a valid Fly.io organization slug and numeric organization and application IDs."
-msgstr "შეიყვანეთ სწორი Fly.io ორგანიზაციის slug და რიცხვითი ორგანიზაციისა და აპლიკაციის ID-ები."
+msgstr "შეიყვანეთ Fly.io-ს ორგანიზაციის სლუგი და ორგანიზაციისა და აპლიკაციის რიცხვითი ID-ები."
 
-#: lib/tuist_web/components/workload_identities.ex:118
-#: lib/tuist_web/components/workload_identities.html.heex:182
+#: lib/tuist_web/components/workload_identities.ex:119
+#: lib/tuist_web/components/workload_identities.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Issuer URL"
 msgstr "გამომცემლის URL"
 
-#: lib/tuist_web/components/workload_identities.ex:125
-#: lib/tuist_web/components/workload_identities.html.heex:186
+#: lib/tuist_web/components/workload_identities.ex:126
+#: lib/tuist_web/components/workload_identities.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "JWKS URL"
 msgstr "JWKS URL"
 
-#: lib/tuist_web/components/workload_identities.html.heex:93
+#: lib/tuist_web/components/workload_identities.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Organization ID"
 msgstr "ორგანიზაციის ID"
 
-#: lib/tuist_web/components/workload_identities.html.heex:83
+#: lib/tuist_web/components/workload_identities.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
 msgstr "ორგანიზაციის სლაგი"
 
-#: lib/tuist_web/components/workload_identities.html.heex:78
+#: lib/tuist_web/components/workload_identities.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Production service"
-msgstr "პროდუქციის სერვისი"
+msgstr "პროდაქშენ სერვისი"
 
-#: lib/tuist_web/components/workload_identities.html.heex:61
-#: lib/tuist_web/components/workload_identities.html.heex:65
+#: lib/tuist_web/components/workload_identities.html.heex:53
+#: lib/tuist_web/components/workload_identities.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Template"
 msgstr "შაბლონი"
 
-#: lib/tuist_web/components/workload_identities.ex:92
+#: lib/tuist_web/components/workload_identities.ex:93
 #, elixir-autogen, elixir-format
 msgid "The trust policy could not be added."
 msgstr "ნდობის პოლიტიკის დამატება ვერ მოხერხდა."
 
-#: lib/tuist_web/components/workload_identities.ex:62
+#: lib/tuist_web/components/workload_identities.ex:63
 #, elixir-autogen, elixir-format
 msgid "Trust policy added."
 msgstr "ნდობის პოლიტიკა დაემატა."
 
-#: lib/tuist_web/components/workload_identities.ex:107
+#: lib/tuist_web/components/workload_identities.ex:108
 #, elixir-autogen, elixir-format
 msgid "Trust policy not found."
 msgstr "ნდობის პოლიტიკა ვერ მოიძებნა."
 
-#: lib/tuist_web/components/workload_identities.ex:104
+#: lib/tuist_web/components/workload_identities.ex:105
 #, elixir-autogen, elixir-format
 msgid "Trust policy removed."
 msgstr "ნდობის პოლიტიკა წაიშალა."
 
-#: lib/tuist_web/components/workload_identities.html.heex:26
+#: lib/tuist_web/components/workload_identities.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Workload identities"
-msgstr "სამუშაო პროცესების იდენტიფიკატორები"
+msgstr "სამუშაო პროცესების იდენტობები"
 
-#: lib/tuist_web/components/workload_identities.html.heex:127
+#: lib/tuist_web/components/workload_identities.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Your manual changes override this template. Review the advanced configuration."
-msgstr "თქვენი ხელით შეტანილი ცვლილებები ანაცვლებს ამ შაბლონს. გადახედეთ გაფართოებულ კონფიგურაციას."
+msgstr "თქვენი ხელით შესრულებული ცვლილებები ანაცვლებენ ამ შაბლონს. გადახედეთ გაფართოებულ კონფიგურაციას."
 
-#: lib/tuist_web/components/workload_identities.html.heex:23
-#, elixir-autogen, elixir-format
-msgid "Show configuration"
-msgstr "კონფიგურაციის ჩვენება"
-
-#: lib/tuist_web/components/workload_identities.html.heex:200
+#: lib/tuist_web/components/workload_identities.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Access: all current and future projects in this account."
-msgstr "წვდომა: ამ ანგარიშში არსებული ყველა მიმდინარე და მომავალი პროექტი."
+msgstr "წვდომა: ყველა მიმდინარე და მომავალი პროექტი ამ ანგარიშში."
 
-#: lib/tuist_web/components/workload_identities.html.heex:30
+#: lib/tuist_web/components/workload_identities.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Allow trusted workloads to access all current and future projects in this account without long-lived tokens."
-msgstr "მიეცით ნდობით აღჭურვილ სამუშაო პროცესებს ამ ანგარიშში არსებულ ყველა მიმდინარე და მომავალ პროექტზე წვდომა ხანგრძლივი ვადის მქონე ტოკენების გარეშე."
+msgstr "მიეცით ნდობით აღჭურვილ სამუშაო პროცესებს წვდომა ამ ანგარიშის ყველა მიმდინარე და მომავალ პროექტზე გრძელვადიანი ტოკენების გარეშე."
 
-#: lib/tuist_web/components/workload_identities.html.heex:175
+#: lib/tuist_web/components/workload_identities.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}"
 msgstr "%{name}-ის წაშლა"
 
-#: lib/tuist_web/components/workload_identities.html.heex:40
+#: lib/tuist_web/components/workload_identities.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Set up workload authentication"
-msgstr "სამუშაო პროცესების ავტორიზაციის მორგება"
+msgstr "სამუშაო პროცესის ავტორიზაციის მორგება"
 
-#: lib/tuist_web/components/workload_identities.html.heex:206
+#: lib/tuist_web/components/workload_identities.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr "შეიქმნა %{time}"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:478
+#: lib/tuist_web/live/authentication_settings_live.html.heex:608
 #, elixir-autogen, elixir-format
 msgid "Another organization uses this login domain. Email lookup prefers a DNS-verified organization; otherwise, use your organization's SSO sign-in link."
 msgstr "ეს შესვლის დომენი სხვა ორგანიზაციას ეკუთვნის. ელფოსტის ძებნა უპირატესობას ანიჭებს DNS-ით დადასტურებულ ორგანიზაციას; წინააღმდეგ შემთხვევაში, გამოიყენეთ თქვენი ორგანიზაციის SSO შესვლის ბმული."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:352
+#: lib/tuist_web/live/authentication_settings_live.html.heex:482
 #, elixir-autogen, elixir-format
 msgid "Trusted by instance configuration"
-msgstr "დოვერილია ინსტანციის კონფიგურაციით"
+msgstr "ნდობა ინსტანციის კონფიგურაციით"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:694
+#: lib/tuist_web/live/authentication_settings_live.html.heex:824
 #, elixir-autogen, elixir-format
 msgid "When enabled, users from the login email domain trusted by this instance can join this organization automatically. Other users need an invitation."
-msgstr "ჩართვისას, ამ ინსტანციის მიერ ნდობით აღჭურვილი შესვლის ელფოსტის დომენის მომხმარებლებს შეუძლიათ ამ ორგანიზაციაში ავტომატურად გაწევრიანება. სხვა მომხმარებლებს საჭიროა მიწვევა."
+msgstr "როცა ჩართულია, მომხმარებლები, რომელთა შესვლის ელფოსტის დომენიც ამ ინსტანციისთვის ნდობით სარგებლობს, შეუძლიათ ამ ორგანიზაციას ავტომატურად შეუერთდნენ. სხვა მომხმარებლებს სჭირდებათ მიწვევა."
 
 #: lib/tuist_web/live/billing_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Keep Pro"
-msgstr "Pro-ს შენარჩუნება"
+msgstr "შეინარჩუნეთ Pro"
 
 #: lib/tuist_web/live/billing_live.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "You keep Pro until then, and the usage until then is billed as usual."
-msgstr "Pro გექნებათ იმ დრომდე და გამოყენება ჩვეულებრივად დაგიბეგრდებათ."
+msgstr "Pro-ს იყენებთ ამ დრომდე და ხმარება ჩვეულებრივად გადაიხდება."
 
 #: lib/tuist_web/live/billing_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Your plan switches to Air on %{date}"
-msgstr "თქვენი გეგმა გადადის Air-ზე %{date}-დან"
+msgstr "თქვენი გეგმა %{date}-დან Air-ზე გადადის"
 
-#: lib/tuist/accounts/user_notifier.ex:332
-#: lib/tuist/accounts/user_notifier.ex:354
-#: lib/tuist/accounts/user_notifier.ex:388
+#: lib/tuist/accounts/user_notifier.ex:333
+#: lib/tuist/accounts/user_notifier.ex:355
+#: lib/tuist/accounts/user_notifier.ex:389
 #, elixir-autogen, elixir-format
 msgid "If you did not make this change, contact Tuist support immediately and secure your account."
-msgstr "თუ ეს ცვლილება თქვენ არ გააკეთეთ, დაუყოვნებლივ დაუკავშირდით Tuist-ის მხარდაჭერას და დაიცავით თქვენი ანგარიში."
+msgstr "თუ ეს ცვლილება თქვენ არ გაგიკეთებიათ, დაუყოვნებლივ დაუკავშირდით Tuist-ის მხარდაჭერას და დაიცავით თქვენი ანგარიში."
 
-#: lib/tuist/accounts/user_notifier.ex:331
+#: lib/tuist/accounts/user_notifier.ex:332
 #, elixir-autogen, elixir-format
 msgid "The two-factor authentication settings for your Tuist account were changed."
-msgstr "შეიცვალა თქვენი Tuist ანგარიშის ორეტაპიანი ავთენტიფიკაციის პარამეტრები."
+msgstr "თქვენი Tuist ანგარიშის ორეტაპიანი ავთენტიფიკაციის პარამეტრები შეიცვალა."
+
+#: lib/tuist/accounts/user_notifier.ex:326
+#, elixir-autogen, elixir-format
+msgid "Two-factor authentication disabled"
+msgstr "ორეტაპიანი აუთენტიფიკაცია გათიშულია"
 
 #: lib/tuist/accounts/user_notifier.ex:325
 #, elixir-autogen, elixir-format
-msgid "Two-factor authentication disabled"
-msgstr "ორეტაპიანი ავთენტიფიკაცია გათიშულია"
-
-#: lib/tuist/accounts/user_notifier.ex:324
-#, elixir-autogen, elixir-format
 msgid "Two-factor authentication enabled"
-msgstr "ორეტაპიანი ავთენტიფიკაცია ჩართულია"
-
-#: lib/tuist/accounts/user_notifier.ex:346
-#, elixir-autogen, elixir-format
-msgid "Passkey added"
-msgstr "Passkey დამატებულია"
+msgstr "ორეტაპიანი აუთენტიფიკაცია ჩართულია"
 
 #: lib/tuist/accounts/user_notifier.ex:347
 #, elixir-autogen, elixir-format
-msgid "Passkey removed"
-msgstr "Passkey წაშლილია"
+msgid "Passkey added"
+msgstr "Passkey დაემატა"
 
-#: lib/tuist/accounts/user_notifier.ex:353
+#: lib/tuist/accounts/user_notifier.ex:348
+#, elixir-autogen, elixir-format
+msgid "Passkey removed"
+msgstr "Passkey წაიშალა"
+
+#: lib/tuist/accounts/user_notifier.ex:354
 #, elixir-autogen, elixir-format
 msgid "The passkeys that can sign in to your Tuist account were changed."
-msgstr "შეიცვალა passkey-ები, რომლებითაც შესაძლებელია თქვენს Tuist ანგარიშზე შესვლა."
+msgstr "თქვენი Tuist-ის ანგარიშში შესასვლელად გამოყენებული Passkeys შეიცვალა."
 
-#: lib/tuist/accounts/user_notifier.ex:692
+#: lib/tuist/accounts/user_notifier.ex:801
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
-msgstr "გამოყენებულია %{usage} უფასო გამშვების წუთიდან %{limit}-მდე, დათვლილი macOS წუთებში (%{linux} Linux წუთი ითვლება როგორც %{limit})"
+msgstr "%{usage} %{limit}-დან უფასო გამშვების წუთის გამოყენებული, macOS-ის წუთებად დათვლილი (%{linux} Linux-ის წუთი ითვლება როგორც %{limit})"
 
-#: lib/tuist_web/live/billing_live.ex:301
+#: lib/tuist_web/live/billing_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "of your free minutes, counted in macOS minutes (%{linux} Linux minutes count as %{macos})"
-msgstr "თქვენი უფასო წუთებიდან, დათვლილი macOS წუთებში (%{linux} Linux წუთი ითვლება როგორც %{macos})"
+msgstr "თქვენი უფასო წუთებიდან, macOS-ის წუთებად დათვლილი (%{linux} Linux-ის წუთი ითვლება როგორც %{macos})"
 
-#: lib/tuist_web/live/billing_live.ex:310
+#: lib/tuist_web/live/billing_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "of your usage (%{free} free macOS minutes plus %{prepaid} prepaid)"
-msgstr "გამოყენებიდან (%{free} უფასო macOS წუთი და %{prepaid} წინასწარ გადახდილი)"
+msgstr "თქვენი გამოყენებიდან (%{free} უფასო macOS-ის წუთი პლიუს %{prepaid} წინასწარ გადახდილი)"
 
-#: lib/tuist_web/live/billing_live.ex:317
+#: lib/tuist_web/live/billing_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "within your %{macos} free macOS and %{linux} free Linux minutes"
-msgstr "%{macos} უფასო macOS და %{linux} უფასო Linux წუთის ფარგლებში"
+msgstr "%{macos} უფასო macOS-ისა და %{linux} უფასო Linux-ის წუთების ფარგლებში"
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Claude token"
-msgstr "Claude-ის ტოკენი"
+msgstr "Claude ტოკენი"
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Could not save your Claude token. Please try again."
-msgstr "ვერ შევინახეთ თქვენი Claude-ის ტოკენი. გთხოვთ, სცადოთ ხელახლა."
+msgstr "Claude-ის ტოკენის შენახვა ვერ მოხერხდა. გთხოვთ, სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:52
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:97
@@ -3149,14 +3168,15 @@ msgstr "გათიშვა"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:82
 #, elixir-autogen, elixir-format
 msgid "Paste the token printed by claude setup-token."
-msgstr "ჩააკოპირეთ ტოკენი, რომელიც გამოჩნდება claude setup-token-ის გაშვებისას."
+msgstr "ჩასვით ტოკენი, რომელიც claude setup-token-მა გამოიტანა."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "The ChatGPT sign-in did not complete. Please try again."
-msgstr "ChatGPT-ში შესვლა ვერ დასრულდა. გთხოვთ, სცადოთ ხელახლა."
+msgstr "ChatGPT-ზე შესვლა ვერ დასრულდა. გთხოვთ, სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:24
+#: lib/tuist_web/live/organization_ai_settings_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "გვერდი, რომელსაც ეძებთ, არ არსებობს ან გადატანილია."
@@ -3167,7 +3187,7 @@ msgstr "გვერდი, რომელსაც ეძებთ, არ ა
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Connect"
-msgstr "დაკავშირება"
+msgstr "მიერთება"
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:364
 #, elixir-autogen, elixir-format
@@ -3182,12 +3202,12 @@ msgstr "Claude-ის დაკავშირება"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Connected. Threads run on your ChatGPT subscription. Updated %{date}."
-msgstr "დაკავშირებულია. ნაკადები მუშაობს თქვენს ChatGPT გამოწერაზე. განახლდა %{date}."
+msgstr "დაკავშირებულია. ნაკადები მუშაობენ თქვენს ChatGPT-ის გამოწერაზე. განახლებულია %{date}."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Connected. Threads run on your Claude subscription. Updated %{date}."
-msgstr "დაკავშირებულია. ნაკადები მუშაობს თქვენს Claude გამოწერაზე. განახლდა %{date}."
+msgstr "დაკავშირებულია. ნაკადები მუშაობენ თქვენს Claude-ის გამოწერაზე. განახლებულია %{date}."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:391
 #, elixir-autogen, elixir-format
@@ -3207,12 +3227,12 @@ msgstr "ChatGPT-ის გახსნა"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Open ChatGPT and sign in with the account that has your subscription."
-msgstr "გახსენით ChatGPT და შედით იმ ანგარიშით, რომელზეც გაქვთ თქვენი გამოწერა."
+msgstr "გახსენით ChatGPT და შედით იმ ანგარიშით, რომელსაც აქვს თქვენი გამოწერა."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Paste the token it prints below."
-msgstr "ჩასვით ქვემოთ ბეჭედზე ამობეჭდილი ტოკენი."
+msgstr "ჩააკოპირეთ ქვემოთ გამოტანილი ტოკენი."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:381
 #, elixir-autogen, elixir-format
@@ -3222,17 +3242,17 @@ msgstr "OpenAI-დან შესვლის კოდის მოთხო�
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
-msgstr "ინახება დაშიფრული და აღარ გამოჩნდება."
+msgstr "ინახება დაშიფრული და აღარასდროს ჩანდება."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "This page updates once you approve. The code expires in 15 minutes; only enter it if you started this sign-in."
-msgstr "ეს გვერდი განახლდება მას შემდეგ, რაც დაადასტურებთ. კოდი მოქმედებს 15 წუთის განმავლობაში; შეიყვანეთ ის მხოლოდ მაშინ, თუ თქვენ დაიწყეთ ეს შესვლა."
+msgstr "ეს გვერდი განახლდება მას შემდეგ, რაც დაადასტურებთ. კოდი მოქმედებს 15 წუთის განმავლობაში; შეიყვანეთ ის მხოლოდ იმ შემთხვევაში, თუ თქვენ დაიწყეთ ეს შესვლა."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Tuist deletes the credentials it stored for this subscription. To revoke the access itself, do so in your Claude or OpenAI account."
-msgstr "Tuist შლის ამ გამოწერისთვის შენახულ სერთიფიკატებს. თავად წვდომის გაუქმებისთვის, გააკეთეთ ეს თქვენს Claude-ის ან OpenAI-ის ანგარიშში."
+msgstr "Tuist შლის ამ გამოწერისთვის შენახულ სერთიფიკატებს. თავად წვდომის გაუქმებისთვის, გააკეთეთ ეს თქვენს Claude ან OpenAI ანგარიშში."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:70
 #, elixir-autogen, elixir-format
@@ -3247,14 +3267,9 @@ msgstr "გამოიყენეთ თქვენი Claude Pro ან Max 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Could not start the ChatGPT sign-in. Please try again in a few minutes."
-msgstr "ChatGPT-ში შესვლის დაწყება ვერ მოხერხდა. გთხოვთ, რამდენიმე წუთში სცადოთ ხელახლა."
+msgstr "ChatGPT-ში შესვლის დაწყება ვერ მოხერხდა. გთხოვთ, სცადოთ ხელახლა რამდენიმე წუთში."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:69
-#, elixir-autogen, elixir-format
-msgid "Manage two-factor authentication"
-msgstr "ორფაქტორიანი ავთენტიკაციის მართვა"
-
-#: lib/tuist_web/live/authentication_settings_live.html.heex:55
+#: lib/tuist_web/live/authentication_settings_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication"
 msgstr "ორფაქტორიანი ავთენტიკაცია"
@@ -3287,12 +3302,12 @@ msgstr "სერვერის დამატება"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Connect MCP servers so AI features can use their tools on your behalf. Tuist manages the sessions for you, so your connections are portable."
-msgstr "შეაერთეთ MCP სერვერები, რათა AI ფუნქციებმა შეძლონ მათი ინსტრუმენტების გამოყენება თქვენ სახელით. Tuist მართავს სესიებს თქვენთვის, რაც თქვენს კავშირებს პორტაბელურს ხდის."
+msgstr "დააკავშირეთ MCP სერვერები, რათა AI ფუნქციებმა მათი ინსტრუმენტები თქვენს სახელით გამოიყენონ. Tuist თვითონ მართავს სესიებს, ამიტომ თქვენი კავშირები პორტაბელურია."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Connect your Claude or ChatGPT subscription so AI features run inference on your subscription's tokens."
-msgstr "შეაერთეთ თქვენი Claude ან ChatGPT გამოწერა, რათა AI ფუნქციებმა ინფერენცია თქვენი გამოწერის ტოკენებზე განახორციელონ."
+msgstr "დააკავშირეთ თქვენი Claude-ის ან ChatGPT-ის გამოწერა, რათა AI ფუნქციებმა ინფერენცია თქვენი გამოწერის ტოკენებზე ჩაატარონ."
 
 #: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:20
 #, elixir-autogen, elixir-format
@@ -3307,7 +3322,7 @@ msgstr "დაკავშირებულია. განახლდა %{d
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Could not sign in to this server. Check that the URL is right and that the server supports MCP OAuth sign-in with dynamic client registration."
-msgstr "ამ სერვერზე შესვლა ვერ მოხერხდა. შეამოწმეთ, რომ URL სწორია და სერვერი მხარს უჭერს MCP OAuth-ით შესვლას დინამიური კლიენტის რეგისტრაციით."
+msgstr "ამ სერვერზე შესვლა ვერ მოხერხდა. შეამოწმეთ, რომ URL სწორია და სერვერი მხარს უჭერს MCP OAuth-ით ავტორიზაციას დინამიური კლიენტის რეგისტრაციით."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:242
 #, elixir-autogen, elixir-format
@@ -3317,7 +3332,7 @@ msgstr "ნაგულისხმევად იყენებს სერ�
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:312
 #, elixir-autogen, elixir-format
 msgid "Enter the server's HTTPS endpoint, for example https://example.com/mcp."
-msgstr "შეიყვანეთ სერვერის HTTPS ბოლო წერტილი, მაგალითად https://example.com/mcp."
+msgstr "შეიყვანეთ სერვერის HTTPS ბოლოწერტილი, მაგალითად https://example.com/mcp."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:109
 #, elixir-autogen, elixir-format
@@ -3327,7 +3342,7 @@ msgstr "MCP სერვერები"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "Names can be up to 64 characters long."
-msgstr "სახელები შეიძლება იყოს მაქსიმუმ 64 სიმბოლოს სიგრძის."
+msgstr "სახელის სიგრძე შეიძლება იყოს 64 სიმბოლომდე."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:144
 #, elixir-autogen, elixir-format
@@ -3337,12 +3352,12 @@ msgstr "MCP სერვერები ჯერ არ არის."
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Not connected."
-msgstr "არ არის დაკავშირებული."
+msgstr "მიუერთებელია."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Reconnect"
-msgstr "ხელახლა დაკავშირება"
+msgstr "ხელახლა მიერთება"
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:265
 #, elixir-autogen, elixir-format
@@ -3367,77 +3382,499 @@ msgstr "MCP სერვერზე შესვლა გაუქმდა."
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:318
 #, elixir-autogen, elixir-format
 msgid "Too many sign-in attempts. Please try again in a few minutes."
-msgstr "შესვლის მცდელობები ძალიან ბევრია. გთხოვთ, რამდენიმე წუთში სცადოთ ხელახლა."
+msgstr "შესვლის მცდელობების რაოდენობა ზედმეტია. გთხოვთ, რამდენიმე წუთში სცადოთ ხელახლა."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Tuist deletes the server and the session it stored for it. To revoke the access itself, do so on the server."
-msgstr "Tuist შლის სერვერს და მისთვის შენახულ სესიას. თავად წვდომის გაუქმებისთვის ეს სერვერზე უნდა გააკეთოთ."
+msgstr "Tuist შლის სერვერს და მასთან დაკავშირებულ სესიას. წვდომის გაუქმებისთვის ეს უნდა გააკეთოთ თავად სერვერზე."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Tuist signs in to the server with OAuth. You approve access on the server's sign-in page and come back here."
-msgstr "Tuist სერვერზე OAuth-ით შედის. თქვენ ამტკიცებთ წვდომას სერვერის შესვლის გვერდზე და ბრუნდებით აქ."
+msgstr "Tuist OAuth-ით შედის სერვერზე. დაადასტურეთ წვდომა სერვერის შესვლის გვერდზე და დაბრუნდით აქ."
 
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "You can add up to 25 MCP servers. Remove one to add another."
-msgstr "შეგიძლიათ დაამატოთ მაქსიმუმ 25 MCP სერვერი. ახლის დამატებამდე ერთი წაშალეთ."
+msgstr "შეგიძლიათ დაამატოთ მაქსიმუმ 25 MCP სერვერი. ახლის დამატებამდე წაშალეთ ერთ-ერთი არსებული."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:33
-#, elixir-autogen, elixir-format
-msgid "%{count} passkey added"
-msgid_plural "%{count} passkeys added"
-msgstr[0] "%{count} passkey დაემატა"
-
-#: lib/tuist/accounts/user_notifier.ex:370
+#: lib/tuist/accounts/user_notifier.ex:371
 #, elixir-autogen, elixir-format
 msgid "A recovery code was used to access or change security settings on your Tuist account."
-msgstr "თქვენს Tuist ანგარიშზე უსაფრთხოების პარამეტრების მისაღებად ან შესაცვლელად გამოყენებული იქნა აღდგენის კოდი."
+msgstr "აღდგენის კოდი გამოყენებულ იქნა თქვენი Tuist ანგარიშის უსაფრთხოების პარამეტრებზე წვდომის ან მათი შეცვლისთვის."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:56
+#: lib/tuist_web/live/authentication_settings_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Add an authenticator code to your password or SSO sign-in. Keep recovery codes as a backup."
-msgstr "პაროლთან ან SSO-სთან ერთად გამოიყენეთ ავთენტიფიკატორის კოდი. სათადარიგოდ შეინახეთ აღდგენის კოდები."
+msgstr "პაროლით ან SSO-ით შესვლისას დაამატეთ აუთენტიფიკატორის კოდი. აღდგენის კოდები შეინახეთ სათადარიგოდ."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:61
-#: lib/tuist_web/live/user_security_settings_live.html.heex:140
+#: lib/tuist_web/live/user_security_settings_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr "ჩართულია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:45
-#, elixir-autogen, elixir-format
-msgid "Manage passkeys"
-msgstr "გასაღებების მართვა"
-
-#: lib/tuist/accounts/user_notifier.ex:377
+#: lib/tuist/accounts/user_notifier.ex:378
 #, elixir-autogen, elixir-format
 msgid "New recovery codes were created for your Tuist account. All previous codes are now invalid."
-msgstr "შექმნილია Tuist ანგარიშის ახალი აღდგენის კოდები. ყველა წინა კოდი ახლა არასწორია."
+msgstr "თქვენი Tuist ანგარიშისთვის შეიქმნა ახალი აღდგენის კოდები. ყველა წინა კოდი ბათილდება."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:62
-#: lib/tuist_web/live/user_security_settings_live.html.heex:141
+#: lib/tuist_web/live/user_security_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Not enabled"
 msgstr "არ არის ჩართული"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:28
+#: lib/tuist_web/live/authentication_settings_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Passkeys"
-msgstr "გასაღებები"
+msgstr "Passkeys"
 
-#: lib/tuist/accounts/user_notifier.ex:369
+#: lib/tuist/accounts/user_notifier.ex:370
 #, elixir-autogen, elixir-format
 msgid "Recovery code used"
 msgstr "აღდგენის კოდი გამოყენებულია"
 
-#: lib/tuist/accounts/user_notifier.ex:376
+#: lib/tuist/accounts/user_notifier.ex:377
 #, elixir-autogen, elixir-format
 msgid "Recovery codes regenerated"
-msgstr "აღდგენის კოდები განახლებულია"
+msgstr "აღდგენის კოდები ხელახლა შექმნილია"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:29
+#: lib/tuist_web/live/authentication_settings_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Sign in without a password using a passkey saved in your password manager or on a security key."
-msgstr "შედი პაროლის გარეშე, პაროლების მენეჯერში ან უსაფრთხოების გასაღებზე შენახული გასაღებით."
+msgstr "შედით პაროლის გარეშე, passkey-ის გამოყენებით, რომელიც შენახულია თქვენს პაროლების მენეჯერში ან უსაფრთხოების გასაღებზე."
+
+#: lib/tuist_web/live/billing_live.ex:226
+#, elixir-autogen, elixir-format
+msgid "Cache volume storage"
+msgstr "ქეშის ტომის საცავი"
+
+#: lib/tuist_web/live/billing_live.html.heex:122
+#, elixir-autogen, elixir-format
+msgid "Cache volume storage:"
+msgstr "ქეშის ტომის საცავი:"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:57
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:416
+#, elixir-autogen, elixir-format
+msgid "API base URL"
+msgstr "API-ის ბაზური URL"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:431
+#, elixir-autogen, elixir-format
+msgid "API key"
+msgstr "API-ის გასაღები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Add a model to make it available to organization workflows."
+msgstr "დაამატეთ მოდელი, რათა ის ორგანიზაციის სამუშაო ნაკადებში იყოს ხელმისაწვდომი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Add a provider before adding a model."
+msgstr "მოდელის დამატებამდე დაამატეთ პროვაიდერი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Add a provider to get started."
+msgstr "დასაწყებად დაამატეთ პროვაიდერი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:128
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:555
+#, elixir-autogen, elixir-format
+msgid "Add model"
+msgstr "მოდელის დამატება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:27
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:457
+#, elixir-autogen, elixir-format
+msgid "Add provider"
+msgstr "პროვაიდერის დამატება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Add the models your organization can use, then choose a default model below."
+msgstr "დაამატეთ მოდელები, რომლებიც თქვენს ორგანიზაციას შეუძლია გამოიყენოს, შემდეგ კი ქვემოთ აირჩიეთ ნაგულისხმევი მოდელი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:71
+#, elixir-autogen, elixir-format
+msgid "Check the provider details and enter a valid API key. Changing the provider or API base URL requires entering the key again."
+msgstr "შეამოწმეთ პროვაიდერის დეტალები და შეიყვანეთ მოქმედი API გასაღები. პროვაიდერის ან API საბაზისო URL-ის შეცვლა გასაღების ხელახლა შეყვანას მოითხოვს."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:515
+#, elixir-autogen, elixir-format
+msgid "Choose a provider"
+msgstr "აირჩიეთ პროვაიდერი"
+
+#: lib/tuist_web/live/account_token_helpers.ex:198
+#, elixir-autogen, elixir-format
+msgid "Create sandboxes and run commands in them."
+msgstr "შექმენით სენდბოქსები და მათში ბრძანებები გაუშვით."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:198
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Default model"
+msgstr "ნაგულისხმები მოდელი"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:155
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "Edit model"
+msgstr "მოდელის რედაქტირება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:351
+#, elixir-autogen, elixir-format
+msgid "Edit provider"
+msgstr "პროვაიდერის რედაქტირება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:98
+#, elixir-autogen, elixir-format
+msgid "Enter a name and model ID, and select a provider. The model ID must be unique for the provider."
+msgstr "შეიყვანეთ სახელი და მოდელის ID, აირჩიეთ პროვაიდერი. მოდელის ID უნდა იყოს უნიკალური ამ პროვაიდერისთვის."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:215
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:282
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:634
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:641
+#, elixir-autogen, elixir-format
+msgid "Model"
+msgstr "მოდელი"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:146
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:527
+#, elixir-autogen, elixir-format
+msgid "Model ID"
+msgstr "მოდელის ID"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Models"
+msgstr "მოდელები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "No default model"
+msgstr "არ არის მითითებული ნაგულისხმები მოდელი"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "No models yet"
+msgstr "ჯერ არ არის მოდელები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "No providers yet"
+msgstr "ჯერ არ არის პროვაიდერები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Providers"
+msgstr "პროვაიდერები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:418
+#, elixir-autogen, elixir-format
+msgid "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
+msgstr "OpenAI-თან თავსებადი API-ის საჯარო HTTPS ბოლოწერტილი. ჩართეთ ნებისმიერი /v1 პრეფიქსი; მოთხოვნები ავტომატურად ამატებენ /chat/completions."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:692
+#, elixir-autogen, elixir-format
+msgid "Remove %{name}?"
+msgstr "წაშლა %{name}?"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "Remove model"
+msgstr "მოდელის წაშლა"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Remove provider"
+msgstr "პროვაიდერის წაშლა"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
+#, elixir-autogen, elixir-format
+msgid "Requests already sent may finish."
+msgstr "უკვე გაგზავნილმა მოთხოვნებმა შეიძლება დაასრულონ შესრულება."
+
+#: lib/tuist_web/live/account_token_helpers.ex:156
+#, elixir-autogen, elixir-format
+msgid "Sandboxes write"
+msgstr "სენდბოქსები წერენ"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:433
+#, elixir-autogen, elixir-format
+msgid "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
+msgstr "შენახულია დაშიფრული. დატოვეთ ცარიელი მიმდინარე გასაღების შესანარჩუნებლად, თუ არ ცვლით პროვაიდერს ან API-ის საბაზისო URL-ს. ცვლილებები მოქმედებს ამ პროვაიდერის ყველა მოდელზე."
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:156
+#, elixir-autogen, elixir-format
+msgid "That model is no longer available. Choose another model."
+msgstr "ეს მოდელი აღარ არის ხელმისაწვდომი. აირჩიეთ სხვა მოდელი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:529
+#, elixir-autogen, elixir-format
+msgid "The model ID from your provider, including any account or model prefix."
+msgstr "თქვენი პროვაიდერისგან მიღებული მოდელის ID, ნებისმიერი ანგარიშის ან მოდელის პრეფიქსის ჩათვლით."
+
+#: lib/tuist/accounts/user_notifier.ex:506
+#, elixir-autogen, elixir-format
+msgid "%{account_name}: prepaid runner credits %{threshold}% consumed"
+msgstr "%{account_name}: წინასწარ გადახდილი რანერის კრედიტები %{threshold}% გამოყენებულია"
+
+#: lib/tuist/accounts/user_notifier.ex:540
+#, elixir-autogen, elixir-format
+msgid "%{usage} of %{budget} in runner credits consumed."
+msgstr "გამოყენებულია %{usage} %{budget}-დან რანერის კრედიტებში."
+
+#: lib/tuist/accounts/user_notifier.ex:518
+#, elixir-autogen, elixir-format
+msgid "You have consumed 80% of your prepaid runner credits. Jobs will continue at the standard on-demand rates after the credits are exhausted."
+msgstr "თქვენ გამოიყენეთ თქვენი წინასწარ გადახდილი რანერის კრედიტების 80%. კრედიტების ამოწურვის შემდეგ სამუშაოები გაგრძელდება სტანდარტული on-demand ტარიფებით."
+
+#: lib/tuist/accounts/user_notifier.ex:513
+#, elixir-autogen, elixir-format
+msgid "Your prepaid runner credits are exhausted. Further billable runner usage continues at the standard on-demand rates; jobs are not blocked."
+msgstr "თქვენი წინასწარ გადახდილი რანერის კრედიტები ამოიწურა. შემდგომი გადასახდელი რანერის გამოყენება გრძელდება სტანდარტული on-demand ტარიფებით; სამუშაოები არ იბლოკება."
+
+#: lib/tuist/accounts/user_notifier.ex:691
+#, elixir-autogen, elixir-format
+msgid "As a precaution after a security incident, we recommend rotating the credentials of %{account_name}: revoke its account and project tokens and create new ones."
+msgstr "უსაფრთხოების ინციდენტის შემდეგ, პრევენციის მიზნით, გირჩევთ შეცვალოთ %{account_name}-ის სერთიფიკატები: გააუქმეთ მისი ანგარიშისა და პროექტის ტოკენები და შექმენით ახლები."
+
+#: lib/tuist/accounts/user_notifier.ex:683
+#, elixir-autogen, elixir-format
+msgid "As a precaution after a security incident, we revoked the credentials of %{account_name}: browser sessions, CLI sign-ins, account tokens, project tokens and legacy tokens. Members need to sign in again."
+msgstr "უსაფრთხოების ინციდენტის შემდეგ, პრევენციის მიზნით, გავუქმეთ %{account_name}-ის სერთიფიკატები: ბრაუზერის სესიები, CLI-ში შესვლები, ანგარიშის ტოკენები, პროექტის ტოკენები და ძველი ტოკენები. წევრებს ხელახლა შესვლა მოუწევთ."
+
+#: lib/tuist/accounts/user_notifier.ex:701
+#, elixir-autogen, elixir-format
+msgid "Create new tokens and update them wherever they are used, such as the TUIST_TOKEN variable of your CI. Where your CI supports it, use OpenID Connect instead, which needs no stored token."
+msgstr "შექმენით ახალი ტოკენები და განაახლეთ ისინი ყველგან, სადაც გამოიყენება, მაგალითად, თქვენი CI-ის TUIST_TOKEN ცვლადში. თუ თქვენი CI მხარს უჭერს, გამოიყენეთ OpenID Connect, რომელიც არ საჭიროებს შენახულ ტოკენს."
+
+#: lib/tuist/accounts/user_notifier.ex:714
+#, elixir-autogen, elixir-format
+msgid "Manage tokens"
+msgstr "ტოკენების მართვა"
+
+#: lib/tuist/accounts/user_notifier.ex:707
+#, elixir-autogen, elixir-format
+msgid "Read more about the incident: %{url}"
+msgstr "შეიტყვეთ მეტი ინციდენტის შესახებ: %{url}"
+
+#: lib/tuist/accounts/user_notifier.ex:690
+#, elixir-autogen, elixir-format
+msgid "Rotate the Tuist credentials of %{account_name}"
+msgstr "შეცვალეთ %{account_name}-ის Tuist სერთიფიკატები"
+
+#: lib/tuist/accounts/user_notifier.ex:680
+#, elixir-autogen, elixir-format
+msgid "We revoked the Tuist credentials of %{account_name}"
+msgstr "გავუქმეთ %{account_name}-ის Tuist სერთიფიკატები"
+
+#: lib/tuist_web/live/account_token_helpers.ex:147
+#, elixir-autogen, elixir-format
+msgid "Pulse write"
+msgstr "Pulse write"
+
+#: lib/tuist_web/live/account_token_helpers.ex:178
+#, elixir-autogen, elixir-format
+msgid "Send errors to the account's Pulse with a Sentry SDK."
+msgstr "შეცდომების გაგზავნა ანგარიშის Pulse-ში Sentry SDK-ს საშუალებით."
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:253
+#, elixir-autogen, elixir-format
+msgid "Claude couldn't unlink your organization right now. Try again later."
+msgstr "Claude-მა ვერ მოახერხა თქვენი ორგანიზაციის განკავშირება ამჟამად. სცადეთ მოგვიანებით."
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:36
+#, elixir-autogen, elixir-format
+msgid "Claude is unavailable right now. Try linking again later."
+msgstr "Claude ამჟამად მიუწვდომელია. სცადეთ ხელახლა დაკავშირება მოგვიანებით."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Connect AI providers using your organization's API keys, or link your Claude organization so Anthropic bills it directly. Each provider can be used by multiple models."
+msgstr "დააკავშირეთ AI პროვაიდერები თქვენი ორგანიზაციის API გასაღებების გამოყენებით, ან დააკავშირეთ თქვენი Claude ორგანიზაცია, რათა Anthropic-მა პირდაპირ გადაიხადოს ის. თითოეული პროვაიდერის გამოყენება შესაძლებელია მრავალი მოდელისთვის."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Link Claude organization"
+msgstr "Claude ორგანიზაციის დაკავშირება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Linked Claude organization"
+msgstr "დაკავშირებული Claude ორგანიზაცია"
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:61
+#, elixir-autogen, elixir-format
+msgid "Linked your Claude organization."
+msgstr "თქვენი Claude ორგანიზაცია დაკავშირებულია."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Manage spend limit"
+msgstr "ხარჯვის ლიმიტის მართვა"
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:97
+#, elixir-autogen, elixir-format
+msgid "That Claude organization is already linked to another Tuist organization. Unlink it there first."
+msgstr "ეს Claude ორგანიზაცია უკვე დაკავშირებულია სხვა Tuist ორგანიზაციასთან. ჯერ იქ გაუქმეთ კავშირი."
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:112
+#, elixir-autogen, elixir-format
+msgid "The Claude linking request is invalid or has expired."
+msgstr "Claude-ის დაკავშირების მოთხოვნა არასწორია ან ვადა ამოეწურა."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:775
+#, elixir-autogen, elixir-format
+msgid "Unlink"
+msgstr "კავშირის გაუქმება"
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:85
+#, elixir-autogen, elixir-format
+msgid "You no longer have permission to link a Claude organization."
+msgstr "თქვენ აღარ გაქვთ Claude ორგანიზაციის დაკავშირების ნებართვა."
+
+#: lib/tuist_web/controllers/claude_linked_billing_controller.ex:104
+#, elixir-autogen, elixir-format
+msgid "Your Claude organization wasn't linked. Linking needs an Admin or Billing role in a Claude organization that pays Anthropic directly."
+msgstr "თქვენი Claude ორგანიზაცია არ იყო დაკავშირებული. დაკავშირებისთვის საჭიროა Admin ან Billing როლი ისეთ Claude ორგანიზაციაში, რომელიც პირდაპირ უხდის Anthropic-ს."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:684
+#, elixir-autogen, elixir-format
+msgid "Unlink your Claude organization?"
+msgstr "გაუქმდეს თქვენი Claude ორგანიზაციის კავშირი?"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:321
+#, elixir-autogen, elixir-format
+msgid "Add a model before adding a route."
+msgstr "მარშრუტის დამატებამდე დაამატეთ მოდელი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:251
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:669
+#, elixir-autogen, elixir-format
+msgid "Add route"
+msgstr "მარშრუტის დამატება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#, elixir-autogen, elixir-format
+msgid "Anthropic stops billing your Claude organization for Tuist, and models using it are removed, along with their task routes. If one is the default, tasks without a route stop sending requests until you select another."
+msgstr "Anthropic შეწყვეტს თქვენი Claude-ის ორგანიზაციის დაბეგრვას Tuist-ისთვის, მოდელები მისი გამოყენებით წაიშლება მათი ამოცანების მარშრუტებთან ერთად. თუ რომელიმე მათგანი ნაგულისხმევია, ამოცანები მარშრუტის გარეშე შეწყვეტენ მოთხოვნების გაგზავნას, სანამ სხვას არ აირჩევთ."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:276
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:604
+#, elixir-autogen, elixir-format
+msgid "Category"
+msgstr "კატეგორია"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:643
+#, elixir-autogen, elixir-format
+msgid "Choose a model"
+msgstr "აირჩიეთ მოდელი"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
+#, elixir-autogen, elixir-format
+msgid "Choose a task"
+msgstr "აირჩიეთ ამოცანა"
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "Choose a task and a model. Each task can have only one route."
+msgstr "აირჩიეთ ამოცანა და მოდელი. თითოეულ ამოცანას შეიძლება ჰქონდეს მხოლოდ ერთი მარშრუტი."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Choose the model for organization AI tasks without a task route. Without a default, only routed tasks send requests. Personal AI subscriptions are not affected."
+msgstr "აირჩიეთ მოდელი ორგანიზაციის AI-ამოცანებისთვის, რომლებსაც არ აქვთ ამოცანის მარშრუტი. ნაგულისხმევის გარეშე მოთხოვნებს გააგზავნიან მხოლოდ მარშრუტიზებული ამოცანები. პირადი AI-გამოწერები არ იმოქმედებს."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:577
+#, elixir-autogen, elixir-format
+msgid "Edit route"
+msgstr "მარშრუტის რედაქტირება"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:330
+#, elixir-autogen, elixir-format
+msgid "Every task uses the default model."
+msgstr "ყოველი ამოცანა იყენებს ნაგულისხმევ მოდელს."
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:391
+#, elixir-autogen, elixir-format
+msgid "Group related observations"
+msgstr "დააჯგუფეთ დაკავშირებული შენიშვნები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.ex:392
+#, elixir-autogen, elixir-format
+msgid "Name and explain symptoms"
+msgstr "მიანიჭეთ სახელი და აუხსენით სიმპტომები"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "No default model is selected, so tasks without a route don't send requests."
+msgstr "ნაგულისხმევი მოდელი არ არის შერჩეული, ამიტომ მარშრუტის გარეშე დარჩენილი ამოცანები მოთხოვნებს არ აგზავნიან."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:734
+#, elixir-autogen, elixir-format
+msgid "No default model is selected, so this task stops sending requests until you add a route or select a default."
+msgstr "ნაგულისხმევი მოდელი არ არის შერჩეული, ამიტომ ეს ამოცანა მოთხოვნების გაგზავნას წყვეტს, სანამ მარშრუტს დაამატებთ ან ნაგულისხმევს არ აირჩევთ."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:317
+#, elixir-autogen, elixir-format
+msgid "No task routes yet"
+msgstr "ამოცანის მარშრუტები ჯერ არ არის"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:304
+#, elixir-autogen, elixir-format
+msgid "Remove route"
+msgstr "მარშრუტის წაშლა"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:687
+#, elixir-autogen, elixir-format
+msgid "Remove the route for %{name}?"
+msgstr "წაიშალოს %{name}-ის მარშრუტი?"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
+#, elixir-autogen, elixir-format
+msgid "Send a specific task to a different model. Tasks without a route use the default model."
+msgstr "კონკრეტული ამოცანის სხვა მოდელზე გადაგზავნა. მარშრუტის გარეშე დარჩენილი ამოცანები იყენებენ ნაგულისხმევ მოდელს."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:279
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:615
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:622
+#, elixir-autogen, elixir-format
+msgid "Task"
+msgstr "ამოცანა"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Task routing"
+msgstr "ამოცანის მარშრუტიზაცია"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:740
+#, elixir-autogen, elixir-format
+msgid "This task uses the default model instead."
+msgstr "ეს ამოცანა იყენებს ნაგულისხმევ მოდელს."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
+#, elixir-autogen, elixir-format
+msgid "Add a route or select a default model to send requests."
+msgstr "დაამატეთ მარშრუტი ან აირჩიეთ ნაგულისხმევი მოდელი მოთხოვნების გასაგზავნად."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:728
+#, elixir-autogen, elixir-format
+msgid "This deletes the stored key, all models using this provider and their task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one. Revoke the key at the provider to revoke access there."
+msgstr "ეს შლის შენახულ გასაღებს, ამ პროვაიდერის ყველა მოდელს და მათ ამოცანის მარშრუტებს. ეს ამოცანები გადადიან ნაგულისხმევ მოდელზე, ხოლო თუ ნაგულისხმევი მოდელი აღარ არსებობს, ისინი და სხვა ამოცანები მარშრუტის გარეშე წყვეტენ მოთხოვნების გაგზავნას, სანამ არ აირჩევთ ერთ-ერთს. გააუქმეთ გასაღები პროვაიდერზე, რათა გააუქმოთ წვდომა იქ."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:746
+#, elixir-autogen, elixir-format
+msgid "This removes the configured model, not its provider, and its task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one."
+msgstr "ეს აშორებს კონფიგურირებულ მოდელს, მაგრამ არა მის პროვაიდერს და ამოცანის მარშრუტებს. ეს ამოცანები გადადიან ნაგულისხმევ მოდელზე, ხოლო თუ ნაგულისხმევი მოდელი აღარ არსებობს, ისინი და სხვა ამოცანები მარშრუტის გარეშე წყვეტენ მოთხოვნების გაგზავნას, სანამ არ აირჩევთ ერთ-ერთს."

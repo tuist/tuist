@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	lro "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -37,8 +38,11 @@ type Gateway struct {
 	URL    string
 	Client *http.Client
 	// Dial opens action-cache connections; tests replace it.
-	Dial  func(endpoint string) (*grpc.ClientConn, error)
-	slots chan struct{}
+	Dial func(endpoint string) (*grpc.ClientConn, error)
+	// ActionReadBudget is how long Execute keeps trying to read an action
+	// for its VM size; tests shorten it.
+	ActionReadBudget time.Duration
+	slots            chan struct{}
 
 	publications chan struct{}
 	pending      sync.WaitGroup
@@ -72,7 +76,7 @@ func New(serverURL string) *Gateway {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = maxStreams
 	registry := prometheus.NewRegistry()
-	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
+	return &Gateway{Registry: registry, metrics: newMetrics(registry), URL: strings.TrimRight(serverURL, "/"), Client: &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Dial: worker.Dial, ActionReadBudget: 2 * time.Minute, slots: make(chan struct{}, maxStreams), publications: make(chan struct{}, 256), conns: map[string]*grpc.ClientConn{}, endpoints: map[string]endpoint{}, noTree: map[string]bool{}, Direct: &http.Client{Transport: transport.Clone()}, projects: map[string]*projectLeases{}, authorizations: map[[32]byte]time.Time{}}
 }
 func (g *Gateway) Register(s *grpc.Server) {
 	re.RegisterExecutionServer(s, g)
@@ -95,15 +99,40 @@ func scope(ctx context.Context, instance string) (string, string, error) {
 	return accounts[0], auth[0], nil
 }
 
+// requestMetadata returns the invocation, mnemonic and target Bazel names an
+// action by, which the control plane shows while the action is queued or
+// running. They are descriptive only: absent, malformed or oversized values
+// are left out, never a reason to refuse the action.
+func requestMetadata(ctx context.Context) map[string]string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	values := md.Get("build.bazel.remote.execution.v2.requestmetadata-bin")
+	var m re.RequestMetadata
+	if len(values) != 1 || proto.Unmarshal([]byte(values[0]), &m) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range map[string]string{"invocation_id": m.ToolInvocationId, "mnemonic": m.ActionMnemonic, "target": m.TargetId} {
+		if value != "" && len(value) <= maxMetadataBytes && utf8.ValidString(value) {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+const maxMetadataBytes = 1024
+
 type operation struct {
-	QueuedAtUnixUS int64  `json:"queued_at_unix_us"`
-	ID             string `json:"id"`
-	State          string `json:"state"`
-	Response       string `json:"response"`
-	Code           int32  `json:"code"`
-	Message        string `json:"message"`
-	Image          string `json:"image"`
-	Done           bool   `json:"done"`
+	QueuedAtUnixUS int64 `json:"queued_at_unix_us"`
+	// What the control plane waited on while the action was queued, in ms by
+	// cause. Diagnostics only: logged on the action phases line.
+	QueueWaitsMS map[string]int64 `json:"queue_waits_ms"`
+	ID           string           `json:"id"`
+	State        string           `json:"state"`
+	Response     string           `json:"response"`
+	Code         int32            `json:"code"`
+	Message      string           `json:"message"`
+	Image        string           `json:"image"`
+	Done         bool             `json:"done"`
 	// Set on successful results that the action cache should store.
 	Cacheable   bool   `json:"cacheable"`
 	ActionHash  string `json:"action_hash"`
@@ -208,15 +237,31 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	if r.ExecutionPolicy.GetPriority() != 0 || r.ResultsCachePolicy.GetPriority() != 0 {
 		return status.Error(codes.InvalidArgument, "execution priorities are not supported")
 	}
-	inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
-	if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
-		path = "lease"
-		code, err = g.stream(s, account, r.InstanceName, auth, op, true)
+	if err = g.learnEndpoint(s.Context(), account, r.InstanceName, auth); err != nil {
 		return err
+	}
+	inputs, action := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
+	memory, err := g.memory(s.Context(), account, r.InstanceName, auth, r.ActionDigest, action)
+	if err != nil {
+		return err
+	}
+	// Leases hold VMs of the default size.
+	if memory == worker.DefaultMemoryGB {
+		if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
+			path = "lease"
+			code, err = g.stream(s, account, r.InstanceName, auth, op, true)
+			return err
+		}
 	}
 	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
 	if inputs != "" {
 		body["inputs"] = inputs
+	}
+	if memory != worker.DefaultMemoryGB {
+		body["memory_gb"] = memory
+	}
+	for key, value := range requestMetadata(s.Context()) {
+		body[key] = value
 	}
 	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, body)
 	if err != nil {
@@ -301,7 +346,7 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 					}
 				}
 				if observe && !response.CachedResult && response.Result != nil {
-					g.metrics.observePhases(response.Result.ExecutionMetadata)
+					g.metrics.observePhases(response.Result.ExecutionMetadata, op.QueueWaitsMS)
 				}
 				// Diagnostics only: neither the client nor the action cache keeps them.
 				stripCASReads(response.GetResult().GetExecutionMetadata())

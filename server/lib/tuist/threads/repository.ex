@@ -1,11 +1,14 @@
 defmodule Tuist.Threads.Repository do
   @moduledoc "Fresh, account-scoped GitHub repository authorization for Threads."
 
+  alias Tuist.Accounts
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
   alias Tuist.Threads.Review
   alias Tuist.Threads.Workspace
   alias Tuist.VCS
+
+  @permissions %{read: ["admin", "write", "read"], write: ["admin", "write"]}
 
   @protection_query """
   query($owner: String!, $name: String!) {
@@ -35,13 +38,54 @@ defmodule Tuist.Threads.Repository do
          {:ok, repositories} <- list(account),
          repository when not is_nil(repository) <-
            Enum.find(repositories, &(String.downcase(&1.full_name) == String.downcase(name))) do
-      {:ok, %{name: repository.full_name, default_branch: repository.default_branch}}
+      {:ok, %{name: repository.full_name, default_branch: repository.default_branch, size: Map.get(repository, :size)}}
     else
       _ -> {:error, :repository_not_authorized}
     end
   end
 
   def authorize(_, _), do: {:error, :repository_not_authorized}
+
+  @doc """
+  `authorize/2`, and the thread owner `user`'s own GitHub access to the
+  repository: `:read` to check it out, `:write` to ship to it. The
+  installation's token acts for the whole account, so the owner's
+  permission is what keeps a member from reaching repositories they cannot
+  see on GitHub. A user with no linked GitHub identity fails closed.
+  """
+  def authorize(account, user, name, level \\ :read) do
+    with {:ok, repository} <- authorize(account, name),
+         {:ok, installation} <- installation(account),
+         {:ok, permission} <- permission(installation, user, repository.name) do
+      if permission in @permissions[level],
+        do: {:ok, repository},
+        else: {:error, :repository_access_denied}
+    end
+  end
+
+  defp permission(installation, user, repository) do
+    case Accounts.find_oauth2_identity(%{user: user, provider: :github}) do
+      %{id_in_provider: github_id} when is_binary(github_id) ->
+        with {:ok, %{username: login}} when is_binary(login) <-
+               Client.get_user_by_id(%{id: github_id, installation: installation}),
+             {:ok, permission} <-
+               Client.get_repository_permission(%{
+                 repository_full_handle: repository,
+                 username: login,
+                 installation: installation
+               }) do
+          {:ok, permission}
+        else
+          {:error, :not_found} -> {:ok, "none"}
+          # `get_user_by_id/1` reports a deleted GitHub user as a 404 message.
+          {:error, "Unexpected status code: 404" <> _} -> {:ok, "none"}
+          _ -> {:error, :repository_access_unavailable}
+        end
+
+      _ ->
+        {:error, :github_identity_missing}
+    end
+  end
 
   # Tokens never enter a remote URL, local git config, a tool result or a log.
   def environment(account, repository, :read) do
@@ -69,6 +113,23 @@ defmodule Tuist.Threads.Repository do
   end
 
   def environment(_, _, _), do: {:error, :write_credentials_server_only}
+
+  @doc """
+  The commit `branch` of the authorized `repository` points at, read from
+  GitHub by the server. A checkout's base comes from here, never from refs
+  the guest holds.
+  """
+  def branch_head(account, repository, branch) do
+    with {:ok, authorized} <- authorize(account, repository),
+         {:ok, installation} <- installation(account),
+         [_owner, name] <- String.split(authorized.name, "/"),
+         {:ok, %{token: token}} <- App.create_scoped_installation_token(installation, [name], %{"contents" => "read"}),
+         {:ok, sha} when is_binary(sha) <- remote_head(%{repository: authorized.name, target_branch: branch}, token) do
+      {:ok, sha}
+    else
+      _ -> {:error, :repository_unavailable}
+    end
+  end
 
   def review(account, snapshot, objects) do
     with {:ok, repository} <- authorize(account, snapshot.repository),

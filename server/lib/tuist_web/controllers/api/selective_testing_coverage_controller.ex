@@ -50,7 +50,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   operation(:baseline,
     summary: "Resolve the baseline for coverage-based test selection.",
     description:
-      "Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.",
+      "Returns the nearest ancestor of the checked-out commit with a full run of the scheme on the same platform in the last 31 days, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.",
     operation_id: "resolveTestImpactBaseline",
     parameters: @path_parameters,
     request_body:

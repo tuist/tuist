@@ -313,7 +313,9 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_ENCRYPTION` | Key for AES-GCM encryption of sensitive data. Values longer than 32 bytes are cut to their first 32 bytes; prefer `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | Comma-separated `id:base64` encryption keys, each 32 bytes (`openssl rand -base64 32`). The first encrypts new data; the others and `TUIST_SECRET_KEY_ENCRYPTION` (id `V1`) still decrypt existing data. Move existing data to the current key with `bin/tuist eval 'Tuist.Release.reencrypt_vault("<id>")'` | No | | `k2:3q2+7w...` |
+| `TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY` | Id of the key that encrypts new data, when it should not be the first of `TUIST_SECRET_KEY_ENCRYPTION_KEYS` | No | | `V1` |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_NAME` | The slug of your GitHub app, taken from `https://github.com/apps/<slug>`. Required to install the app. See <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
@@ -595,7 +597,7 @@ Grant the **Members: read-only** organization permission as well. During github.
 
 Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
 
-Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization; installs started in Tuist retain their organization.
+Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization. Installations on a GitHub organization always show this choice; installs started in Tuist retain their organization.
 
 ##### Configuring the server {#platform-github-configuring-the-server}
 
@@ -619,7 +621,7 @@ Once the server restarts, organization admins install the App and connect reposi
 
 ##### OIDC authentication depends on this {#platform-github-oidc}
 
-<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows run `tuist auth login` without a token.
+<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows authenticate with OIDC.
 
 Your Tuist server also needs outbound access to your CI provider's OIDC issuer to fetch its signing keys:
 
@@ -687,6 +689,65 @@ Once the server restarts, an administrator opens **Settings → Integrations**, 
 
 Follow the <.localized_link href="/guides/integrations/gitforge/origin">Origin integration guide</.localized_link> for project connections and result-upload requirements. Installing the app does not start build or test workflows; those workflows continue reporting results to your Tuist server.
 
+#### Entire {#platform-entire}
+
+A self-hosted Tuist server needs its own Entire plugin, configured with your deployment's URLs and signing key. Entire plugins require partner registration, so contact Entire before you start. Register a separate plugin, or at least a separate signing key, for each Tuist environment so that installations and credentials stay independent.
+
+##### Registering the plugin {#platform-entire-registering-the-plugin}
+
+1. Generate an Ed25519 signing key pair using OpenSSL with Ed25519 support:
+
+   ```sh
+   umask 077
+   openssl genpkey -algorithm ED25519 -out entire-plugin-private.pem
+   openssl pkey -in entire-plugin-private.pem -pubout -out entire-plugin-public.pem
+   ```
+
+2. Register the plugin following Entire's [plugin registration guide](https://docs.entire.com/guides/api/plugins/register). Share the contents of `entire-plugin-public.pem`, or a JWKS URL that publishes it, as the plugin's signing key. Keep `entire-plugin-private.pem` secret; you will provide it to the Tuist server, not to Entire.
+3. Configure the following URLs, replacing `YOUR_APP_URL` with your Tuist deployment's HTTPS base URL:
+
+   | Setting | Value |
+   | --- | --- |
+   | Post-install URL | `YOUR_APP_URL/integrations/entire/callback` |
+   | Webhook URL | `YOUR_APP_URL/webhooks/entire` |
+
+4. Note the plugin slug Entire confirms and the webhook signing-key URL it supplies.
+
+Request the following permissions:
+
+| Permission | Used for |
+| --- | --- |
+| `contents:read` | Receive Trail events and find open and draft Trails with their head commits. |
+| `checks:write` | Publish the Tuist gate. |
+| `findings:write` | Publish and resolve failed and flaky test findings. |
+| `discussions:write` | Post and update the summary comment. Installations that have not granted it still receive the gate and findings. |
+
+Repository write access is not required. If you add permissions to an existing registration, ask Entire to update it and confirm that installations grant the new permissions. See Entire's [Checks](https://docs.entire.com/guides/api/plugins/report-checks), [Findings](https://docs.entire.com/guides/api/plugins/trail-findings), and [Trail comments](https://docs.entire.com/guides/api/plugins/trail-comments.md) contracts.
+
+##### Configuring the server {#platform-entire-configuring-the-server}
+
+Set the following environment variables, then restart the server:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_ENTIRE_PLUGIN_SLUG` | The plugin slug confirmed by Entire. | Yes | | `tuist` |
+| `TUIST_ENTIRE_PLUGIN_PRIVATE_KEY` | The complete contents of `entire-plugin-private.pem`, including the `BEGIN PRIVATE KEY` and `END PRIVATE KEY` lines and all line breaks. | Yes | | `-----BEGIN PRIVATE KEY-----...` |
+| `TUIST_ENTIRE_DELIVERY_JWKS_URL` | The webhook signing-key URL supplied by Entire at registration. | Yes | | |
+| `TUIST_ENTIRE_PLUGIN_KEY_ID` | The key ID, when you registered the signing key through a JWKS. | No | | |
+| `TUIST_ENTIRE_CORE_URL` | The Entire Core URL used for installation requests. | No | `https://eu.auth.entire.io` | |
+
+Store the private key in your deployment's secret manager and preserve its multiline PEM format. Never commit the key to source control or expose it in logs. With the Tuist Helm chart, you can instead store the PEM in your 1Password vault as `ENTIRE_PLUGIN/private_key` and enable `server.config.entirePluginKey.enabled` alongside `server.config.managedSecrets`; the item and field names are configurable through `server.config.entirePluginKey.item` and `.field`. This mapping does not set the slug or the webhook signing-key URL.
+
+Your Tuist server needs outbound HTTPS access to Entire Core and to the regional Entire API hosts that serve your repositories, all under `entire.io` or `entire.com`. Tuist verifies installation receipts and webhook signatures, mints short-lived repository-scoped tokens, and never embeds tokens in report links.
+
+##### Enabling the integration {#platform-entire-enabling-the-integration}
+
+Apply the server migrations before rolling out the application, then enable the `entire_trails` feature flag globally to offer the integration to all accounts, or for selected accounts. Enabling the flag does not change who can install the plugin in Entire; to offer it outside the plugin's owning Entire project, ask your Entire contact to allow that. The integration is independent of Tuist's CI execution configuration.
+
+If you roll back the application, keep the `entire_trail_reports` table so that a later upgrade can recover publications that were in progress.
+
+Administrators then install the plugin and connect repositories to projects following the <.localized_link href="/guides/integrations/gitforge/entire">Entire integration guide</.localized_link>. Installing the plugin does not start build or test workflows; those workflows continue reporting results to your Tuist server.
+
 ## Testing Locally {#testing-locally}
 
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
@@ -708,12 +769,12 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 
 1. Download the configuration files:
    ```bash
-   curl -O https://docs.tuist.io/server/self-host/docker-compose.yml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-config.xml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-log-level.xml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-log-ttl.xml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-keeper-config.xml
-   curl -O https://docs.tuist.io/server/self-host/.env.example
+   curl -O https://tuist.dev/server/self-host/docker-compose.yml
+   curl -O https://tuist.dev/server/self-host/clickhouse-config.xml
+   curl -O https://tuist.dev/server/self-host/clickhouse-log-level.xml
+   curl -O https://tuist.dev/server/self-host/clickhouse-log-ttl.xml
+   curl -O https://tuist.dev/server/self-host/clickhouse-keeper-config.xml
+   curl -O https://tuist.dev/server/self-host/.env.example
    ```
 
 2. Configure environment variables:

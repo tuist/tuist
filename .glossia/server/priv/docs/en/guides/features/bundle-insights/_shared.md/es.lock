@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "9454483a033833bbadda7128cd6131f54bea9242a73178158754fe3c77052cd0",
+  "hash": "2845383bf362c5afa5816f3b02d17bbc5c888ef399f26f423c05209316aff26e",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "e73c1beba59eaa924236ce5bedf6f2a1a8fe36862373c494829d0f359d9dc1a0"
                 },
                 "## Pull/merge request comments {#pullmerge-request-comments}": {
-                  "content_hash": "1c99ba14f5569a7b6a138160ca9f44292ef76b6bdb52adb362d9b25c0b42a6e4"
+                  "content_hash": "f6a046518fdcac10c59dda364c2032c04ed413ad0b0ff937fc17d5aa37795866"
                 },
                 "## Size thresholds {#size-thresholds}": {
                   "content_hash": "8d66eac03a05e0ab8838e41771495a5752615c22178a43486b9f2237f369e3ca"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "058c1a0478552afdacf74eb7fa8307fb59d4a67b7aca55587fc2f17fdd1c7c5d",
+          "hash": "f62e6745a99eb958269ca62a4dc3e9116f27eafea34a4c2c50dc25b1f6867fef",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
           "metadata": {
-            "content_hash": "4f1841d713647db8a55ec2b444cda008865a39397e0996f4ef28e63474768f23"
+            "content_hash": "bb70a00876b3f9ee81ce0ab06943d633ede1dd36d2c83a39c71b3e88a9a5e7c3"
           }
         },
         {
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,7 +119,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -148,11 +148,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -238,21 +238,21 @@
             }
           ],
           "details": {},
-          "hash": "3740ee859172b23b3742e70e055a2edc6bc7a7ea07dcb9bbb04853c4e3955f45",
+          "hash": "684ba544fc4e00551f34f6ae50582bdf75359aba6b24ab2b9021ff2561daf294",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "9454483a033833bbadda7128cd6131f54bea9242a73178158754fe3c77052cd0",
+      "hash": "2845383bf362c5afa5816f3b02d17bbc5c888ef399f26f423c05209316aff26e",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a804edb3f1c1fae3a913b189263dbc5bddb8ddf40693bad31a53fea83e45d913",
+  "output_hash": "a600868fdf579ebf612fd99c433fe490e6b76a0bc5f0cacdfbe98462d8769967",
   "output_path": "server/priv/docs/es/guides/features/bundle-insights/_shared.md",
   "protection_state": "recorded",
   "provider": "",
@@ -273,8 +273,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
+  "source_commit_sha": "75faa70c0c7fcd506f3afa58e5882f2fd424afa3",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
-  "translated_at": "2026-11-06T16:44:01.943453Z",
-  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
+  "translated_at": "2026-11-18T21:52:28.551242Z",
+  "translation_session_id": "01a1f0a3-3436-7d6f-a743-8efef43bf3c4"
 }

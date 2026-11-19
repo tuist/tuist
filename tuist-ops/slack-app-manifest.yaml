@@ -29,7 +29,7 @@ features:
     - command: /elevate
       url: https://ops.tuist.dev/webhooks/slack/slash
       description: Request just-in-time elevation for a cluster
-      usage_hint: <env> [--thread <T-…>] [duration] <intent>
+      usage_hint: <env> [duration] <intent>
       should_escape: false
     - command: /elevate-github
       url: https://ops.tuist.dev/webhooks/slack/slash

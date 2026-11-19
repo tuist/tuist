@@ -1,3 +1,17 @@
+/* Temporary: the values of Noora's former `--noora-border-light-focus`, which the
+   selected widget used before the design-system redesign replaced it with the
+   darker `--noora-border-small-focus`. */
+:root {
+  --tuist-widget-shadow-selected: 0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08), 0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
+
+  &[data-theme="dark"] {
+    --tuist-widget-shadow-selected: 0px 1px 1px 0px oklch(16.2% 0 0 / 0.2), 0px 0px 0px 1px oklch(54.9% 0 0 / 0.3),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3), 0px 0px 0px 3px oklch(54.9% 0 0 / 0.4);
+  }
+}
+
 .tuist-widget-link {
   cursor: pointer;
   text-decoration: unset;
@@ -7,7 +21,7 @@
   }
 
   &[data-selected] .tuist-widget {
-    box-shadow: var(--noora-border-light-focus);
+    box-shadow: var(--tuist-widget-shadow-selected);
   }
 }
 

@@ -26,11 +26,12 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Кэш Elixir" },
-      "entire": { "text": "Весь проект" },
+      "entire": { "text": "Полностью" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Образы" },
       "implicit-dependencies": { "text": "Неявные зависимости" },
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
@@ -48,10 +49,10 @@
       "run-previews": { "text": "Запуск превью" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
-      "rust-project": { "text": "Проект на Rust" },
+      "rust-project": { "text": "Проект Rust" },
       "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
-      "server-api": { "text": "Server API" },
+      "server-api": { "text": "API сервера" },
       "single-sign-on": { "text": "Единый вход (SSO)" },
       "supported-types": { "text": "Поддерживаемые типы" },
       "webhooks": { "text": "Вебхуки" },
@@ -66,7 +67,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist добавить поддержку новых языков или улучшить рекомендации по локализации для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить рекомендации по локализации для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -77,8 +78,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Искать в документации",
-        "button-aria-label": "Искать в документации"
+        "button-text": "Поиск в документации",
+        "button-aria-label": "Поиск в документации"
       },
       "modal": {
         "search-box": {
@@ -108,7 +109,7 @@
         "no-results-screen": {
           "no-results-text": "Релевантные результаты не найдены",
           "suggested-query-text": "Попробуйте другой запрос",
-          "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
+          "report-missing-results-text": "Считаете, что этот запрос должен давать результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
       }
@@ -125,7 +126,7 @@
       "text": "Сервер"
     },
     "tutorials": {
-      "text": "Обучение"
+      "text": "Туториалы"
     },
     "resources": {
       "text": "Ресурсы",
@@ -177,6 +178,17 @@
         },
         "examples": {
           "text": "Примеры"
+        },
+        "concepts": {
+          "text": "Концепции",
+          "items": {
+            "flaky-test": {
+              "text": "Нестабильные тесты"
+            },
+            "build-cache": {
+              "text": "Кэш сборок"
+            }
+          }
         },
         "libraries": {
           "text": "Библиотеки"
@@ -267,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное размещение",
+          "text": "Локальное развертывание",
           "items": {
             "install": {
               "text": "Установка"
@@ -282,14 +294,11 @@
         },
         "status": {
           "text": "Статус"
-        },
-        "metrics-dashboard": {
-          "text": "Панель метрик"
         }
       }
     },
     "tutorials": {
-      "text": "Обучение",
+      "text": "Туториалы",
       "items": {
         "xcode": {
           "text": "Xcode",
@@ -573,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git-хостинги",
+              "text": "Git-форжи",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -595,7 +604,7 @@
               "text": "Сеть"
             },
             "self-hosting": {
-              "text": "Самостоятельное размещение",
+              "text": "Самостоятельный хостинг",
               "items": {
                 "server": {
                   "text": "Сервер"

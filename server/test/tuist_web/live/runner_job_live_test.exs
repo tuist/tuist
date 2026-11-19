@@ -1934,6 +1934,63 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "runner-job-metrics-cpu"
   end
 
+  test "reports a job whose runner ran out of memory and names what it stopped", %{conn: conn, account: account} do
+    victim = %{
+      oom_victim_process: "java",
+      oom_victim_memory_bytes: 27_917_287_424,
+      oom_victim_container: "gradle-build",
+      oom_victim_image: "gradle:8-jdk21"
+    }
+
+    for {workflow_job_id, samples} <- [
+          {31_830, [%{oom_kill_count: 0}, Map.put(victim, :oom_kill_count, 2)]},
+          {31_831, [%{oom_kill_count: 0}, %{oom_kill_count: 0}]}
+        ] do
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "tuist/tuist",
+          workflow_run_id: workflow_job_id * 10,
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "Test",
+          head_branch: "main",
+          head_sha: "abc"
+        })
+
+      :ok =
+        JobMetrics.record(
+          workflow_job_id,
+          account.id,
+          samples
+          |> Enum.with_index()
+          |> Enum.map(fn {sample, index} ->
+            Map.merge(sample, %{
+              timestamp: 1_750_000_000.0 + index * 15,
+              memory_used_bytes: 33_000_000_000,
+              memory_total_bytes: 34_000_000_000
+            })
+          end)
+        )
+    end
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318300/jobs/31830")
+    assert has_element?(lv, "#runner-job-out-of-memory-alert")
+    assert html =~ "Ran out of memory"
+    assert html =~ "the system stopped 2 processes to free it"
+    assert html =~ "The last one was java, which was using 27.9 GB, in the container gradle-build (gradle:8-jdk21)."
+    assert html =~ "org.gradle.jvmargs"
+    # The memory chart marks the sample that reported the kills.
+    assert html =~ "Out of memory"
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/318310/jobs/31831")
+    refute has_element?(lv, "#runner-job-out-of-memory-alert")
+  end
+
   test "shows the metrics empty state when a job has no samples", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{

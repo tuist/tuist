@@ -3,109 +3,103 @@ defmodule Tuist.Pulse.Schemas do
 
   alias OpenApiSpex.Schema
 
-  def inputs(action) do
-    fields = Map.merge(%{account_handle: string()}, options(action))
-
+  def inputs(:error_issue) do
     fields =
-      if action in [:query, :analytics],
-        do: Map.put(fields, :signal, %Schema{type: :string, enum: ~w(metrics logs traces errors)}),
-        else: fields
+      Map.merge(options(:error_issue), %{
+        account_handle: string(),
+        fingerprint: %Schema{
+          type: :string,
+          pattern: "^[0-9a-f]{64}$",
+          description: "The issue's fingerprint from an errors row, which Atlas computes identically."
+        }
+      })
 
-    fields = if action in [:issue, :event], do: Map.put(fields, :issue_id, string()), else: fields
-    fields = if action == :event, do: Map.put(fields, :event_id, string()), else: fields
-
-    required =
-      [:account_handle] ++
-        case action do
-          action when action in [:query, :analytics] -> [:signal]
-          :issue -> [:issue_id]
-          :event -> [:issue_id, :event_id]
-        end
-
-    %{object("Pulse#{action}Input", fields) | required: required}
+    %{object("PulseErrorIssueInput", fields) | required: [:account_handle, :fingerprint, :service]}
   end
+
+  def inputs(action) do
+    fields =
+      action
+      |> options()
+      |> Map.merge(%{account_handle: string(), signal: %Schema{type: :string, enum: ~w(metrics logs traces errors)}})
+
+    %{object("Pulse#{action}Input", fields) | required: [:account_handle, :signal]}
+  end
+
+  @path ~w(account_handle signal fingerprint)a
 
   def parameters(action) do
     input = inputs(action)
 
     for name <- input.required ++ Enum.sort(Map.keys(input.properties) -- input.required) do
       schema = Map.fetch!(input.properties, name)
-      path? = name in input.required
-      {name, [in: if(path?, do: :path, else: :query), type: schema, required: path?]}
+      path? = name in @path
+      {name, [in: if(path?, do: :path, else: :query), type: schema, required: name in input.required]}
     end
   end
 
   def options(:analytics), do: %{range: range()}
 
-  def options(action) do
-    fields = %{
+  def options(:error_issue) do
+    %{
+      service: %Schema{type: :string, description: "The issue's service from an errors row."},
+      range: range(),
+      end_at: %Schema{type: :string, description: "ISO8601 window end, such as an errors response's meta.end_at."},
+      page: %Schema{type: :integer, minimum: 1, maximum: 2_147_483_647, default: 1, description: "Events page."},
+      page_size: %Schema{type: :integer, minimum: 1, maximum: 100, default: 20}
+    }
+  end
+
+  def options(:query) do
+    %{
       range: range(),
       end_at: %Schema{
         type: :string,
         description: "ISO8601 pinned window end from the previous response's meta.end_at."
       },
       service: string(),
-      project: string(),
-      environment: string(),
-      release: string(),
       service_op: operator(),
-      project_op: operator(),
+      page: %Schema{type: :integer, minimum: 1, maximum: 2_147_483_647, default: 1},
+      page_size: %Schema{type: :integer, minimum: 1, maximum: 100, default: 20},
+      query: %Schema{
+        type: :string,
+        maxLength: 4096,
+        description:
+          "PromQL expression for metrics; literal, case-insensitive log body, span name or error issue title text for logs, traces and errors (* selects all)."
+      },
+      search: string(),
+      level: string(),
+      level_op: operator(),
+      environment: %{string() | description: "Errors only: an event environment, such as production."},
       environment_op: operator(),
-      release_op: operator()
+      sort_by: %Schema{
+        type: :string,
+        enum:
+          ~w(name value timestamp service level message trace_id duration_ms last_seen first_seen events accounts title),
+        description:
+          "Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen/first_seen/events/accounts/title/service/level."
+      },
+      sort_order: %Schema{type: :string, enum: ~w(asc desc)}
     }
-
-    fields =
-      if action == :event,
-        do: fields,
-        else:
-          Map.merge(fields, %{
-            page: %Schema{type: :integer, minimum: 1, maximum: 2_147_483_647, default: 1},
-            page_size: %Schema{type: :integer, minimum: 1, maximum: 100, default: 20}
-          })
-
-    if action == :query do
-      Map.merge(fields, %{
-        query: %Schema{
-          type: :string,
-          maxLength: 4096,
-          description: "Native PromQL, LogQL or TraceQL expression; literal title search for grouped errors."
-        },
-        search: string(),
-        level: string(),
-        level_op: operator(),
-        sort_by: %Schema{
-          type: :string,
-          enum:
-            ~w(name value timestamp service level message trace_id duration_ms last_seen_ns first_seen_ns count title project issue_id),
-          description:
-            "Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen_ns/first_seen_ns/count/title/service/project/issue_id."
-        },
-        sort_order: %Schema{type: :string, enum: ~w(asc desc)}
-      })
-    else
-      fields
-    end
   end
 
   def response(:query),
     do: object("PulseQuery", %{rows: array(row()), series: array(series()), warnings: warnings(), meta: meta()})
 
-  def response(:issue),
-    do:
-      object("PulseErrorIssueDetail", %{
-        issue: issue(),
-        latest_event: event(),
-        occurrence_series: %{
-          occurrence_series()
-          | description:
-              "60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end."
-        },
-        events: array(event()),
-        meta: meta(),
-        warnings: warnings()
-      })
-
-  def response(:event), do: object("PulseErrorEventDetail", %{event: event(), warnings: warnings()})
+  def response(:error_issue) do
+    object("PulseErrorIssue", %{
+      issue: row(),
+      occurrence_series: points(),
+      latest_event: %Schema{
+        type: :object,
+        description:
+          "The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message)."
+      },
+      events: array(event()),
+      meta: meta(),
+      warnings: warnings()
+    })
+  end
 
   def response(:analytics) do
     object("PulseAnalytics", %{
@@ -123,112 +117,39 @@ defmodule Tuist.Pulse.Schemas do
     })
   end
 
-  def issue do
-    schema =
-      object("PulseErrorIssue", %{
-        issue_id: string(),
-        project: string(),
-        service: string(),
-        title: string(),
-        level: string(true),
-        platform: string(true),
-        culprit: culprit(),
-        occurrence_series: occurrence_series(),
-        count: %Schema{
-          type: :integer,
-          description: "Occurrence count in the complete filtered selected period, not lifetime or page count."
-        },
-        first_seen_ns: %Schema{type: :integer},
-        last_seen_ns: %Schema{type: :integer},
-        latest_event_id: string()
-      })
-
-    %{schema | required: schema.required -- [:level, :platform, :culprit, :occurrence_series]}
-  end
-
-  def event do
-    # Only projected event properties belong here, never raw Sentry payloads.
-    frame =
-      object("PulseErrorFrame", %{
-        filename: string(true),
-        module: string(true),
-        function: string(true),
-        lineno: %Schema{type: :integer, nullable: true},
-        in_app: %Schema{type: :boolean}
-      })
-
-    exception = object("PulseErrorException", %{type: string(true), value: string(true), frames: array(frame)})
-
-    %{
-      object("PulseErrorEvent", %{
-        event_id: string(),
-        issue_id: string(),
-        timestamp_ns: string(),
-        timestamp: string(),
-        project: string(),
-        service: string(),
-        environment: string(true),
-        release: string(true),
-        title: string(),
-        level: string(true),
-        platform: string(true),
-        culprit: culprit(),
-        tags: metadata(),
-        contexts: metadata(),
-        extra: metadata(),
-        modules: metadata(),
-        trace_id: string(true),
-        span_id: string(true),
-        exceptions: array(exception),
-        exception: %{exception | required: []}
-      })
-      | required: []
-    }
-  end
-
-  defp culprit do
-    %{
-      string(true)
-      | description:
-          "Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent."
-    }
-  end
-
-  defp occurrence_series do
-    %Schema{
-      type: :array,
-      minItems: 60,
-      maxItems: 60,
-      items: %Schema{type: :array, minItems: 2, maxItems: 2, items: %Schema{type: :integer, minimum: 0}},
-      description:
-        "60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event."
-    }
-  end
-
-  defp metadata do
-    %Schema{
-      type: :object,
-      additionalProperties: %Schema{},
-      description:
-        "Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers."
-    }
-  end
-
   defp row do
-    fields =
-      Map.merge(issue().properties, %{
-        name: string(true),
-        value: %Schema{anyOf: [%Schema{type: :number}, string(), %Schema{type: :string, nullable: true}]},
-        labels: %Schema{type: :object, additionalProperties: string()},
-        timestamp: string(),
-        service: string(true),
-        level: string(),
-        message: string(),
-        trace_id: string(),
-        duration_ms: %Schema{type: :number, nullable: true}
-      })
+    fields = %{
+      name: string(true),
+      value: %Schema{anyOf: [%Schema{type: :number}, string(), %Schema{type: :string, nullable: true}]},
+      labels: %Schema{type: :object, additionalProperties: string()},
+      timestamp: string(),
+      service: string(true),
+      level: string(),
+      message: string(),
+      trace_id: string(),
+      duration_ms: %Schema{type: :number, nullable: true},
+      fingerprint: string(),
+      title: string(true),
+      culprit: string(true),
+      platform: string(true),
+      environment: string(true),
+      environments: %Schema{type: :integer, description: "Errors: distinct environments in the window."},
+      events: %Schema{type: :integer},
+      accounts: %Schema{type: :integer, description: "Distinct impacted account handles."},
+      first_seen: string(),
+      last_seen: string(),
+      latest_event_id: string(true),
+      occurrence_series: %{points() | description: "Errors: 60 equal occurrence buckets over the window."}
+    }
 
     %{object("PulseRow", fields) | required: []}
+  end
+
+  defp event do
+    fields =
+      Map.new(~w(event_id title level environment release server_name trace_id account_handle)a, &{&1, string(true)})
+
+    object("PulseErrorEvent", Map.put(fields, :timestamp, string()))
   end
 
   defp series do
@@ -295,9 +216,12 @@ defmodule Tuist.Pulse.Schemas do
         _ -> json
       end
 
-    Enum.reduce([:enum, :minimum, :maximum, :maxLength, :minItems, :maxItems, :description, :default], json, fn key,
-                                                                                                                acc ->
-      if is_nil(Map.get(schema, key)), do: acc, else: Map.put(acc, to_string(key), Map.get(schema, key))
-    end)
+    Enum.reduce(
+      [:enum, :pattern, :minimum, :maximum, :maxLength, :minItems, :maxItems, :description, :default],
+      json,
+      fn key, acc ->
+        if is_nil(Map.get(schema, key)), do: acc, else: Map.put(acc, to_string(key), Map.get(schema, key))
+      end
+    )
   end
 end

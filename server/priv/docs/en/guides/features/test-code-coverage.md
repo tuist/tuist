@@ -25,4 +25,14 @@ Code coverage tells you which lines of your code your tests executed. Tuist uplo
     details="Upload the line coverage of Elixir projects tested with mix test --cover."
     link="/guides/features/test-code-coverage/elixir"
 />
+  <.home_card
+    title="Rust"
+    details="Upload the line coverage of Rust projects tested with cargo test."
+    link="/guides/features/test-code-coverage/rust"
+/>
+  <.home_card
+    title="Gradle"
+    details="Upload the code coverage of Gradle projects, with which files each test executed."
+    link="/guides/features/test-code-coverage/gradle"
+/>
 </.home_cards>

@@ -180,6 +180,27 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
     assert build_conn() |> authorized(bearer) |> get("/api/me/push-devices") |> json_response(200)
   end
 
+  test "Luft registers and lists only its own devices", %{conn: conn, user: user, bearer: app_bearer} do
+    luft_bearer = sign_in(user, %{id: Clients.luft_client_id()})
+    app_id = Ecto.UUID.generate()
+    luft_id = Ecto.UUID.generate()
+
+    assert build_conn() |> authorized(app_bearer) |> put("/api/me/push-devices/#{app_id}", device()) |> json_response(200)
+
+    mac = %{device() | platform: "macos"}
+    conn = conn |> authorized(luft_bearer) |> put("/api/me/push-devices/#{luft_id}", mac)
+    assert %{"registration_id" => registration_id} = json_response(conn, 200)
+    assert [%{id: ^registration_id, app: "luft"}] = Push.live_installations(user.id, "luft")
+
+    for {bearer, id} <- [{app_bearer, app_id}, {luft_bearer, luft_id}] do
+      assert %{"devices" => [%{"installation_id" => ^id}]} =
+               build_conn() |> authorized(bearer) |> get("/api/me/push-devices") |> json_response(200)
+    end
+
+    # Notification rules are the Tuist app's.
+    assert build_conn() |> authorized(luft_bearer) |> get("/api/me/notification-rules") |> json_response(403)
+  end
+
   test "rejects credentials that are not a Tuist app sign-in", %{user: user} do
     {:ok, {_, account_token}} =
       Accounts.create_account_token(%{

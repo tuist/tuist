@@ -27,6 +27,8 @@ defmodule Tuist.VCSTest do
     {"Authorization", "token github_token"}
   ]
 
+  @run_report_footer "\n<sub>Reported by [Tuist](https://tuist.dev), faster builds and reliable tests for Xcode, Gradle, Bazel, and more.</sub>\n"
+
   setup do
     stub(GitHub.App, :get_installation_token, fn _installation_id, _opts ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
@@ -646,7 +648,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -739,7 +741,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -820,7 +822,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -887,7 +889,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -949,7 +951,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1515,7 +1517,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1580,7 +1582,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1700,7 +1702,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1853,7 +1855,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1927,7 +1929,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2185,7 +2187,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2250,7 +2252,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2384,7 +2386,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn opts ->
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2450,7 +2452,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2512,7 +2514,54 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "omits the Tuist footer on self-hosted instances" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1000,
+        download_size: nil,
+        git_ref: @git_ref,
+        git_commit_sha: @git_commit_sha,
+        inserted_at: ~U[2024-01-01 04:00:00Z]
+      )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~ "#### Bundles 🧰"
+        refute opts[:json].body =~ "Reported by [Tuist]"
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2686,7 +2735,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -2796,7 +2845,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -3056,7 +3105,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -3309,7 +3358,7 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-        assert opts[:json] == %{body: expected_body}
+        assert opts[:json] == %{body: expected_body <> @run_report_footer}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)

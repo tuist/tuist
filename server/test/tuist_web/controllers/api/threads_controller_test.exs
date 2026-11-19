@@ -31,20 +31,98 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
-  test "accepts native OAuth but not an unrelated OAuth client's grant", %{user: user, path: path} do
+  test "attachment-only requests round-trip through authenticated no-store history", %{token: token, path: path} do
+    stub(Provider, :validate_model, fn _, "chatgpt", "selected-model" -> :ok end)
+    file = %{"name" => "notes.txt", "mime_type" => "text/plain", "data_base64" => Base.encode64("private file")}
+    attrs = %{request_id: Ecto.UUID.generate(), provider: "chatgpt", model: "selected-model", attachments: [file]}
+
+    conn = build_conn() |> put_req_header("authorization", "Bearer #{token}") |> post(path, attrs)
+    assert %{"id" => id, "messages" => [%{"content" => "", "attachments" => [^file]}]} = json_response(conn, 200)
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+    fetched = request(token, path <> "/" <> id)
+    assert %{"messages" => [%{"attachments" => [^file]}]} = json_response(fetched, 200)
+    assert get_resp_header(fetched, "cache-control") == ["no-store"]
+    assert (path <> "/" <> id) |> then(&get(build_conn(), &1)) |> json_response(401)
+  end
+
+  test "legacy clients can list, read and archive the same private thread", %{user: user, token: token, path: path} do
+    thread =
+      Repo.insert!(%Thread{
+        account_id: user.account.id,
+        owner_id: user.id,
+        request_id: Ecto.UUID.generate(),
+        request_hash: :crypto.hash(:sha256, "compatibility"),
+        title: "Private work",
+        goal: "Private goal",
+        provider: "chatgpt",
+        model: "selected-model"
+      })
+
+    legacy = String.replace(path, "/threads", "/jams")
+    conn = request(token, legacy)
+    assert %{"jams" => [%{"id" => id}], "next_cursor" => nil} = json_response(conn, 200)
+    assert id == thread.id
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+    assert %{"id" => ^id, "title" => "Private work"} = token |> request(legacy <> "/#{id}") |> json_response(200)
+
+    archived =
+      build_conn()
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> patch(legacy <> "/#{id}", %{status: "archived"})
+
+    assert %{"archive_status" => "archived"} = json_response(archived, 200)
+    assert %{"archive_status" => "archived"} = token |> request(path <> "/#{id}") |> json_response(200)
+    assert legacy |> then(&get(build_conn(), &1)) |> json_response(401)
+  end
+
+  test "ship previews preserve the legacy identifier without changing the approval", %{
+    user: user,
+    token: token,
+    path: path
+  } do
+    id = Ecto.UUID.generate()
+    preview = %{thread_id: id, request_id: Ecto.UUID.generate(), head_sha: "reviewed-head", diff: "private diff"}
+
+    expect(Tuist.Threads, :ship_preview, 2, fn actor, account, ^id ->
+      assert actor.id == user.id
+      assert account.id == user.account.id
+      {:ok, preview}
+    end)
+
+    for base <- [path, String.replace(path, "/threads", "/jams")] do
+      response =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post(base <> "/#{id}/ship-preview", %{})
+
+      assert json_response(response, 200) == preview |> Map.put(:jam_id, id) |> JSON.encode!() |> JSON.decode!()
+    end
+  end
+
+  test "accepts the first-party apps' grants but no other OAuth client's, until revoked", %{
+    user: user,
+    path: path
+  } do
     client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> client_id end)
+    {:ok, other} = Clients.create_client(%{redirect_uris: ["luft://oauth-callback"], name: "Luft"})
     native = oauth_token(user, Clients.public!())
-    {:ok, other_client} = Clients.create_client(%{redirect_uris: ["https://example.com/callback"], name: "other"})
-    other = oauth_token(user, other_client)
+    luft = oauth_token(user, Clients.get_client(Clients.luft_client_id()))
+    impostor = oauth_token(user, other, "threads")
+
     assert native |> request(path) |> json_response(200)
-    assert other |> request(path) |> json_response(403)
+    assert luft |> request(path) |> json_response(200)
+    assert impostor |> request(path) |> json_response(403)
+
+    Repo.update_all(Token, set: [revoked_at: DateTime.utc_now()])
+    assert luft |> request(path) |> json_response(403)
   end
 
   test "other administrators cannot read a conversation or its inbox entry", %{user: user, token: token} do
     organization = AccountsFixtures.organization_fixture(creator: user)
     other = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(other, organization, role: :admin)
+    stub(FeatureFlags, :organization_luft_enabled?, fn _ -> true end)
 
     thread =
       Repo.insert!(%Thread{
@@ -58,9 +136,11 @@ defmodule TuistWeb.API.ThreadsControllerTest do
         goal: "Private"
       })
 
-    path = "/api/accounts/#{organization.account.name}/threads"
-    assert token |> request(path) |> json_response(200) == %{"threads" => [], "next_cursor" => nil}
-    assert token |> request(path <> "/#{thread.id}") |> json_response(404)
+    for collection <- ["threads", "jams"] do
+      path = "/api/accounts/#{organization.account.name}/#{collection}"
+      assert token |> request(path) |> json_response(200) == %{collection => [], "next_cursor" => nil}
+      assert token |> request(path <> "/#{thread.id}") |> json_response(404)
+    end
   end
 
   test "does not reveal another account", %{token: token} do
@@ -81,11 +161,12 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     assert token |> request(path <> "/not-a-uuid") |> json_response(404)
   end
 
-  test "a disabled AI flag hides the entire API", %{token: token, path: path} do
-    stub(FeatureFlags, :ai_enabled?, fn _user -> false end)
+  test "a disabled luft flag hides the entire API", %{token: token, path: path} do
+    stub(FeatureFlags, :luft_enabled?, fn _user -> false end)
     id = Ecto.UUID.generate()
 
-    for {method, suffix} <- [
+    for collection <- ["threads", "jams"],
+        {method, suffix} <- [
           {:get, ""},
           {:post, ""},
           {:get, "/repositories"},
@@ -100,7 +181,7 @@ defmodule TuistWeb.API.ThreadsControllerTest do
       conn =
         build_conn()
         |> put_req_header("authorization", "Bearer #{token}")
-        |> dispatch(@endpoint, method, path <> suffix, %{})
+        |> dispatch(@endpoint, method, String.replace(path, "/threads", "/#{collection}") <> suffix, %{})
 
       assert json_response(conn, 404) == %{"message" => "Not found."}
       assert get_resp_header(conn, "cache-control") == ["no-store"]
@@ -138,8 +219,8 @@ defmodule TuistWeb.API.ThreadsControllerTest do
 
   defp request(token, path), do: build_conn() |> put_req_header("authorization", "Bearer #{token}") |> get(path)
 
-  defp oauth_token(user, client) do
-    token = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
+  defp oauth_token(user, client, scope \\ "") do
+    token = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id, scope: scope})
 
     Repo.insert!(%Token{
       type: "access_token",
@@ -147,7 +228,7 @@ defmodule TuistWeb.API.ThreadsControllerTest do
       refresh_token: Ecto.UUID.generate(),
       client_id: client.id,
       sub: to_string(user.id),
-      scope: ""
+      scope: scope
     })
 
     token

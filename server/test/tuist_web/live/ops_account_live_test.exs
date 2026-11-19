@@ -86,14 +86,13 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     lv
     |> form("#sandbox-concurrency-form", %{
-      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24", "sandbox_disk_gb_limit" => "120"}
+      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24"}
     })
     |> render_submit()
 
     account = Repo.reload!(user.account)
     assert account.sandbox_vcpus_limit == 8
     assert account.sandbox_memory_gb_limit == 24
-    assert account.sandbox_disk_gb_limit == 120
     assert Concurrency.limits_for(account, :linux) == ci_limits
 
     html =
@@ -195,7 +194,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     })
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-    assert html =~ "8Gi"
+    assert html =~ "6Gi"
 
     :ok = Tuist.Kura.PlacerClaims.put(user.account, "24Gi")
 
@@ -1088,6 +1087,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
       # warning that they might not; Tuist.BillingTest covers the
       # proration parameter that makes that true.
       assert render(lv) =~ "Minutes it ran during the trial stay free"
+      # An Air account falls back to the free-tier caps, so the button asks first.
+      assert has_element?(lv, "button[data-confirm*='no paid plan']", "Cancel runner trial")
 
       lv |> element("button", "Cancel runner trial") |> render_click()
 
@@ -1095,6 +1096,16 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, account} = Accounts.get_account_by_id(user.account.id)
       refute Trials.on_trial?(account)
+    end
+
+    test "cancels a paid account's trial without the Air warning", %{conn: conn, user: user} do
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+      {:ok, _account} = Trials.start(user.account)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "button", "Cancel runner trial")
+      refute has_element?(lv, "button[data-confirm]", "Cancel runner trial")
     end
 
     test "reconciles the subscription's runner items when the trial changes", %{conn: conn, user: user} do

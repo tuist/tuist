@@ -107,12 +107,21 @@ defmodule Tuist.Artifacts.Package do
   end
 
   def read_json(project, key, descriptor) do
+    with {:ok, bytes} <- read(project, key, descriptor) do
+      case JSON.decode(bytes) do
+        {:ok, value} -> {:ok, value}
+        _ -> {:error, :invalid_content}
+      end
+    end
+  end
+
+  def read(project, key, descriptor) do
     if descriptor?(descriptor) and descriptor["size_bytes"] <= @max_metadata_bytes do
       object_key = storage_key(project, key, descriptor["digest"])
 
       with {:ok, size} <- object_size(project, key, descriptor),
            true <- size == descriptor["size_bytes"] do
-        read_verified_json(project, object_key, descriptor)
+        read_verified(project, object_key, descriptor)
       else
         {:error, :storage_unavailable} = error -> error
         _ -> {:error, :invalid_or_missing_content}
@@ -130,7 +139,7 @@ defmodule Tuist.Artifacts.Package do
     end
   end
 
-  defp read_verified_json(project, object_key, descriptor) do
+  defp read_verified(project, object_key, descriptor) do
     bytes =
       object_key
       |> Storage.stream_object(project.account)
@@ -141,9 +150,8 @@ defmodule Tuist.Artifacts.Package do
       end)
 
     with true <- is_binary(bytes) and byte_size(bytes) == descriptor["size_bytes"],
-         true <- digest(bytes) == descriptor["digest"],
-         {:ok, value} <- JSON.decode(bytes) do
-      {:ok, value}
+         true <- digest(bytes) == descriptor["digest"] do
+      {:ok, bytes}
     else
       _ -> {:error, :invalid_content}
     end

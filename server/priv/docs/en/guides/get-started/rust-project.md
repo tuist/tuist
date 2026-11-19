@@ -25,12 +25,15 @@ Tuist works with your existing Cargo project. You don't need to add a Rust depen
 
 ## Connect the project
 
-Install the <.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> and Rust. Create a project in the dashboard with **Cargo (Rust)** as its build system. Add a `tuist.toml` at your repository root:
+Install the <.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> and Rust. Create a project in the dashboard with **Cargo (Rust)** as its build system. Then add the project to the workspace's root `Cargo.toml`:
 
 ```toml
+[workspace.metadata.tuist]
 project = "account/project"
 # url = "https://your-tuist-server.example.com"
 ```
+
+Cargo ignores `metadata` tables, so this doesn't change how your project builds. For a single crate without a `[workspace]` table, use `[package.metadata.tuist]` instead. The table accepts the same settings as a `tuist.toml` file, which you can use instead, for example when the repository has projects for other build systems too. When both exist, `tuist.toml` takes precedence.
 
 Log in with `tuist auth login`, then run your usual Cargo commands through Tuist. In CI, authenticate with your CI provider's OIDC identity or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>. You can also set `TUIST_PROJECT` instead of adding a configuration file, and `TUIST_URL` if you use a self-hosted server.
 
@@ -84,3 +87,7 @@ tuist cargo test --doc
 ```
 
 Read more in <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link> and <.localized_link href="/guides/features/test-insights/flaky-tests/rust">Rust Flaky Tests</.localized_link>.
+
+## Trademarks {#trademarks}
+
+Rust and Cargo are trademarks of the Rust Foundation. Tuist isn't affiliated with or endorsed by the Rust Project or the Rust Foundation. The Rust logo in these guides is © the Rust Foundation, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and shown in a single color that follows the page theme.

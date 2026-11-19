@@ -10,7 +10,7 @@ defmodule TuistWeb.PulseErrorLive do
   alias Tuist.Pulse
   alias TuistWeb.PulseLive
 
-  @params ~w(range end_at page page_size project environment release service)
+  @params ~w(range end_at page page_size service)
 
   def mount(_params, _session, socket) do
     authorize!(socket)
@@ -19,7 +19,7 @@ defmodule TuistWeb.PulseErrorLive do
 
   def handle_params(params, _uri, socket) do
     authorize!(socket)
-    issue_id = params["issue_id"]
+    fingerprint = params["fingerprint"]
     event_id = params["event_id"]
 
     inputs =
@@ -30,14 +30,14 @@ defmodule TuistWeb.PulseErrorLive do
 
     user = socket.assigns.current_user
     account = socket.assigns.selected_account
-    load_key = {issue_id, event_id, inputs}
+    load_key = {fingerprint, event_id, inputs}
     reload? = socket.assigns[:load_key] != load_key || socket.assigns.detail.failed
 
     socket =
       socket
       |> assign(:params, inputs)
       |> assign(:tab, if(params["tab"] == "occurrences", do: "occurrences", else: "overview"))
-      |> assign(:issue_id, issue_id)
+      |> assign(:fingerprint, fingerprint)
       |> assign(:event_id, event_id)
       |> assign(:head_title, "#{dgettext("dashboard_pulse", "Error details")} · #{account.name} · Tuist")
 
@@ -51,8 +51,8 @@ defmodule TuistWeb.PulseErrorLive do
           fn ->
             result =
               if event_id,
-                do: Pulse.error_event(user, account, issue_id, event_id, Map.drop(inputs, ~w(page page_size))),
-                else: Pulse.error_issue(user, account, issue_id, inputs)
+                do: Pulse.error_event(user, account, fingerprint, event_id, Map.drop(inputs, ~w(page page_size))),
+                else: Pulse.error_issue(user, account, fingerprint, inputs)
 
             case result do
               {:ok, data} -> {:ok, %{detail: data}}
@@ -107,14 +107,10 @@ defmodule TuistWeb.PulseErrorLive do
           </.card>
         <% @event_id -> %>
           <% event = @detail.result.event %>
-          <.detail_header record={event} />
+          <.detail_header record={Map.merge(@detail.result.event, %{"service" => @params["service"]})} />
           <.card title={dgettext("dashboard_pulse", "Event details")} icon="alert_circle">
             <.card_section>
               <dl data-part="metadata-grid">
-                <.detail_field
-                  label={dgettext("dashboard_pulse", "Project")}
-                  value={event["project"]}
-                />
                 <.detail_field
                   label={dgettext("dashboard_pulse", "Time (UTC)")}
                   value={PulseLive.timestamp_label(event["timestamp"])}
@@ -132,14 +128,14 @@ defmodule TuistWeb.PulseErrorLive do
                   value={event["event_id"]}
                 />
                 <.detail_field
-                  :if={event["trace_id"]}
+                  :if={event["trace_id"] not in [nil, ""]}
                   label={dgettext("dashboard_pulse", "Trace ID")}
                   value={event["trace_id"]}
                 />
                 <.detail_field
-                  :if={event["span_id"]}
+                  :if={span_id(event)}
                   label={dgettext("dashboard_pulse", "Span ID")}
-                  value={event["span_id"]}
+                  value={span_id(event)}
                 />
               </dl>
             </.card_section>
@@ -188,7 +184,7 @@ defmodule TuistWeb.PulseErrorLive do
                 </div>
                 <.detail_field
                   label={dgettext("dashboard_pulse", "Events in this period")}
-                  value={format_number(issue["count"], fractional_digits: 0)}
+                  value={format_number(issue["events"], fractional_digits: 0)}
                 />
                 <div>
                   <dt>{dgettext("dashboard_pulse", "Platform")}</dt>
@@ -199,13 +195,13 @@ defmodule TuistWeb.PulseErrorLive do
                 </div>
                 <.detail_field
                   label={dgettext("dashboard_pulse", "First seen in this period")}
-                  value={PulseLive.timestamp_relative(issue["first_seen_ns"])}
-                  title={PulseLive.timestamp_label(issue["first_seen_ns"]) <> " UTC"}
+                  value={PulseLive.timestamp_relative(issue["first_seen"])}
+                  title={PulseLive.timestamp_label(issue["first_seen"]) <> " UTC"}
                 />
                 <.detail_field
                   label={dgettext("dashboard_pulse", "Last seen")}
-                  value={PulseLive.timestamp_relative(issue["last_seen_ns"])}
-                  title={PulseLive.timestamp_label(issue["last_seen_ns"]) <> " UTC"}
+                  value={PulseLive.timestamp_relative(issue["last_seen"])}
+                  title={PulseLive.timestamp_label(issue["last_seen"]) <> " UTC"}
                 />
               </dl>
             </.card_section>
@@ -330,21 +326,14 @@ defmodule TuistWeb.PulseErrorLive do
             label={@record["service"]}
             color="primary"
             style="light-fill"
-            size="large"
-          />
-          <.badge
-            :if={@record["project"]}
-            label={@record["project"]}
-            color="neutral"
-            style="light-fill"
-            size="large"
+            size="medium"
           />
           <.badge
             :if={@record["level"]}
             label={@record["level"]}
             color={PulseLive.error_level_color(@record["level"])}
             style="light-fill"
-            size="large"
+            size="medium"
           />
         </div>
       </div>
@@ -359,7 +348,15 @@ defmodule TuistWeb.PulseErrorLive do
     assigns = assign(assigns, :exceptions, exceptions(assigns.event))
 
     ~H"""
-    <.card id="pulse-stacktrace" title={dgettext("dashboard_pulse", "Stack trace")} icon="list_tree">
+    <.card
+      id="pulse-stacktrace"
+      title={
+        if @exceptions == [] && @event["message"] not in [nil, ""],
+          do: dgettext("dashboard_pulse", "Message"),
+          else: dgettext("dashboard_pulse", "Stack trace")
+      }
+      icon="list_tree"
+    >
       <:actions :if={@navigate}>
         <.button
           variant="secondary"
@@ -372,68 +369,78 @@ defmodule TuistWeb.PulseErrorLive do
         <dl :if={@navigate} data-part="metadata-grid">
           <.detail_field
             label={dgettext("dashboard_pulse", "Latest event")}
-            value={PulseLive.timestamp_label(@event["timestamp"])}
+            value={PulseLive.timestamp_relative(@event["timestamp"])}
+            title={PulseLive.timestamp_label(@event["timestamp"]) <> " UTC"}
           />
-          <div :if={@event["environment"]}>
+          <div :if={@event["environment"] not in [nil, ""]}>
             <dt>{dgettext("dashboard_pulse", "Environment")}</dt>
             <dd><.badge label={@event["environment"]} style="light-fill" /></dd>
           </div>
-          <div :if={@event["release"]}>
+          <div :if={@event["release"] not in [nil, ""]}>
             <dt>{dgettext("dashboard_pulse", "Release")}</dt>
             <dd><.badge label={@event["release"]} style="light-fill" /></dd>
           </div>
         </dl>
+        <pre :if={@exceptions == [] && @event["message"] not in [nil, ""]} data-part="message-body">{@event["message"]}</pre>
+        <p :if={@exceptions == [] && @event["message"] not in [nil, ""]} data-part="message-note">
+          {dgettext("dashboard_pulse", "This event recorded a message, not an exception.")}
+        </p>
         <.table_empty_state
-          :if={@exceptions == []}
+          :if={@exceptions == [] && @event["message"] in [nil, ""]}
           title={dgettext("dashboard_pulse", "No exception recorded")}
         />
         <section :for={{exception, index} <- Enum.with_index(@exceptions)} data-part="exception">
-          <div data-part="exception-heading">
-            <h3>{exception["type"] || dgettext("dashboard_pulse", "Exception")}</h3>
-            <p :if={exception["value"]}>{exception["value"]}</p>
+          <div data-part="exception-metadata">
+            <span data-part="meta-label">{dgettext("dashboard_pulse", "Exception")}</span>
+            <span data-part="meta-value">{exception["type"] || "—"}</span>
           </div>
+          <pre :if={exception["value"]} data-part="message-body">{exception["value"]}</pre>
           <.table_empty_state
             :if={(exception["frames"] || []) == []}
             title={dgettext("dashboard_pulse", "No stack frames recorded")}
           />
-          <.table
+          <div
             :if={(exception["frames"] || []) != []}
             id={"pulse-stack-frames-#{index}"}
-            rows={Enum.with_index(Enum.reverse(exception["frames"] || []))}
-            row_key={fn {_, frame_index} -> "pulse-frame-#{index}-#{frame_index}" end}
+            data-part="stack-frames"
           >
-            <:col :let={{frame, _}} label={dgettext("dashboard_pulse", "Function")}>
-              <div data-part="stack-frame" data-in-app={to_string(frame["in_app"] == true)}>
-                <code><span :if={frame["module"]}>{frame["module"]}.</span>{frame["function"] || "—"}</code>
+            <div
+              :for={frame <- Enum.reverse(exception["frames"] || [])}
+              data-part="stack-frame"
+              data-in-app={to_string(frame["in_app"] == true)}
+              title={
+                if frame["in_app"] == true,
+                  do: dgettext("dashboard_pulse", "In app"),
+                  else: dgettext("dashboard_pulse", "External")
+              }
+            >
+              <span data-part="frame-function">{frame_function(frame)}</span>
+              <span data-part="frame-location">{frame_location(frame)}</span>
+              <div :if={frame["context_line"] not in [nil, ""]} data-part="frame-context">
+                <span data-part="line-number">{frame["lineno"]}</span>
+                <pre>{frame["context_line"]}</pre>
               </div>
-            </:col>
-            <:col :let={{frame, _}} label={dgettext("dashboard_pulse", "File")}>
-              <.text_cell label={frame_location(frame)} data-column="frame-location" />
-            </:col>
-            <:col :let={{frame, _}} label={dgettext("dashboard_pulse", "Origin")}>
-              <div data-part="cell">
-                <.badge
-                  label={
-                    if frame["in_app"] == true,
-                      do: dgettext("dashboard_pulse", "In app"),
-                      else: dgettext("dashboard_pulse", "External")
-                  }
-                  color={if frame["in_app"] == true, do: "primary", else: "neutral"}
-                  style="light-fill"
-                  size="small"
-                />
-              </div>
-            </:col>
-          </.table>
+            </div>
+          </div>
         </section>
       </.card_section>
     </.card>
     """
   end
 
-  defp exceptions(%{"exceptions" => [_ | _] = exceptions}), do: Enum.reverse(exceptions)
-  defp exceptions(%{"exception" => exception}) when map_size(exception) > 0, do: [exception]
+  # Sentry lists chained exceptions oldest first; the raised one leads.
+  defp exceptions(%{"exception" => [_ | _] = exceptions}), do: Enum.reverse(exceptions)
   defp exceptions(_event), do: []
+
+  # Elixir, Erlang and Rust SDKs already qualify the function; others, such as
+  # Python, report it relative to its module.
+  defp frame_function(%{"module" => module, "function" => function})
+       when is_binary(module) and module != "" and is_binary(function) do
+    short = String.replace_prefix(module, "Elixir.", "")
+    if String.contains?(function, short) or String.contains?(function, "::"), do: function, else: "#{short}.#{function}"
+  end
+
+  defp frame_function(frame), do: if(frame["function"] in [nil, ""], do: "—", else: frame["function"])
 
   defp frame_location(%{"filename" => filename, "lineno" => line}) when is_binary(filename) and is_integer(line),
     do: "#{filename}:#{line}"
@@ -461,22 +468,78 @@ defmodule TuistWeb.PulseErrorLive do
       </.card_section>
     </.card>
     <.card
-      :if={metadata_pairs(@event["contexts"]) != []}
+      :if={metadata_pairs(contexts(@event["contexts"])) != []}
       id="pulse-event-contexts"
       title={dgettext("dashboard_pulse", "Contexts")}
       icon="stack_2"
     >
       <.card_section>
-        <section
-          :for={{name, context} <- metadata_pairs(@event["contexts"])}
-          data-part="context-group"
-        >
-          <h3 data-part="context-heading">{name}</h3>
-          <dl data-part="metadata-grid" data-layout="event-data">
-            <.metadata_field :for={{key, value} <- metadata_pairs(context)} label={key} value={value} />
-            <.metadata_field :if={!is_map(context)} label={name} value={context} />
-          </dl>
-        </section>
+        <div data-part="contexts-grid">
+          <section
+            :for={{name, context} <- metadata_pairs(contexts(@event["contexts"]))}
+            data-part="context-group"
+          >
+            <div data-part="context-header">
+              <span data-part="context-icon"><.icon name={context_icon(name)} /></span>
+              <h3 data-part="context-heading">
+                {context_name(name)}
+              </h3>
+            </div>
+            <dl data-part="metadata-grid" data-layout="event-data">
+              <.metadata_field
+                :for={{key, value} <- metadata_pairs(context)}
+                label={key}
+                value={value}
+              />
+              <.metadata_field :if={!is_map(context)} label={name} value={context} />
+            </dl>
+          </section>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      :if={
+        is_map(@event["request"]) &&
+          Enum.any?(~w(method url), &(@event["request"][&1] not in [nil, ""]))
+      }
+      id="pulse-event-request"
+      title={dgettext("dashboard_pulse", "Request")}
+      icon="server"
+    >
+      <.card_section>
+        <div data-part="request-line">
+          <.badge
+            :if={@event["request"]["method"] not in [nil, ""]}
+            label={@event["request"]["method"]}
+            color="primary"
+            style="light-fill"
+          />
+          <code>{@event["request"]["url"]}</code>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      :if={is_list(@event["breadcrumbs"]) && @event["breadcrumbs"] != []}
+      id="pulse-event-breadcrumbs"
+      title={dgettext("dashboard_pulse", "Breadcrumbs")}
+      icon="list_tree"
+    >
+      <.card_section>
+        <ol data-part="timeline">
+          <li :for={crumb <- @event["breadcrumbs"]} data-part="timeline-item">
+            <span data-part="timeline-icon"><.icon name="history" /></span>
+            <div data-part="timeline-content">
+              <.badge
+                label={crumb["category"] || crumb["type"] || "log"}
+                color={PulseLive.error_level_color(crumb["level"])}
+                style="light-fill"
+                size="small"
+              />
+              <p :if={crumb["message"]}>{crumb["message"]}</p>
+            </div>
+            <span data-part="timeline-time">{breadcrumb_time(crumb["timestamp"])}</span>
+          </li>
+        </ol>
       </.card_section>
     </.card>
     <.card
@@ -496,24 +559,22 @@ defmodule TuistWeb.PulseErrorLive do
       </.card_section>
     </.card>
     <.card
-      :if={metadata_pairs(@event["modules"]) != []}
-      id="pulse-event-modules"
-      title={dgettext("dashboard_pulse", "Modules")}
-      icon="package"
+      :if={@event["sdk"] not in [nil, "", "/"]}
+      id="pulse-event-sdk"
+      title={dgettext("dashboard_pulse", "SDK")}
+      icon="devices_code"
     >
       <.card_section>
-        <.table
-          id="pulse-modules-table"
-          rows={metadata_pairs(@event["modules"])}
-          row_key={fn {name, _} -> "pulse-module-" <> Base.url_encode64(name, padding: false) end}
-        >
-          <:col :let={{name, _}} label={dgettext("dashboard_pulse", "Module")}>
-            <.text_cell label={name} />
-          </:col>
-          <:col :let={{_, version}} label={dgettext("dashboard_pulse", "Version")}>
-            <.text_cell label={metadata_value(version)} />
-          </:col>
-        </.table>
+        <dl data-part="metadata-grid">
+          <.detail_field
+            label={dgettext("dashboard_pulse", "Name")}
+            value={@event["sdk"] |> String.split("/", parts: 2) |> List.first()}
+          />
+          <.detail_field
+            label={dgettext("dashboard_pulse", "Version")}
+            value={@event["sdk"] |> String.split("/", parts: 2) |> Enum.at(1)}
+          />
+        </dl>
       </.card_section>
     </.card>
     """
@@ -534,6 +595,47 @@ defmodule TuistWeb.PulseErrorLive do
     </div>
     """
   end
+
+  defp contexts(contexts) when is_map(contexts) do
+    Enum.reduce(contexts, %{}, fn {key, value}, groups ->
+      case String.split(key, ".", parts: 2) do
+        [name, field] ->
+          Map.update(groups, name, %{field => value}, &if(is_map(&1), do: Map.put(&1, field, value), else: &1))
+
+        [name] ->
+          Map.put_new(groups, name, value)
+      end
+    end)
+  end
+
+  defp contexts(_contexts), do: %{}
+
+  defp context_name(name) do
+    name
+    |> String.replace("_", " ")
+    |> String.split()
+    |> Enum.map_join(" ", fn word ->
+      if word in ~w(os sdk gpu cpu url http api ssl tls ip id), do: String.upcase(word), else: String.capitalize(word)
+    end)
+  end
+
+  defp context_icon("runtime"), do: "devices_code"
+  defp context_icon("os"), do: "device_desktop"
+  defp context_icon("trace"), do: "list_tree"
+  defp context_icon("device"), do: "device_mobile"
+  defp context_icon(_name), do: "stack_2"
+
+  defp breadcrumb_time(time) when is_number(time) do
+    case DateTime.from_unix(trunc(time * 1_000_000), :microsecond) do
+      {:ok, datetime} -> Calendar.strftime(datetime, "%H:%M:%S UTC")
+      _ -> "—"
+    end
+  end
+
+  defp breadcrumb_time(time) when is_binary(time), do: time
+  defp breadcrumb_time(_time), do: "—"
+
+  defp span_id(event), do: if(is_map(event["contexts"]), do: event["contexts"]["trace.span_id"])
 
   defp metadata_pairs(value) when is_map(value), do: Enum.sort(value)
   defp metadata_pairs(_), do: []
@@ -565,17 +667,17 @@ defmodule TuistWeb.PulseErrorLive do
   end
 
   defp back_path(%{event_id: nil} = assigns),
-    do: ~p"/#{assigns.selected_account.name}/~/pulse/errors?#{Map.take(assigns.params, ~w(range end_at))}"
+    do: ~p"/#{assigns.selected_account.name}/pulse/errors?#{Map.take(assigns.params, ~w(range end_at))}"
 
   defp back_path(assigns), do: tab_path(assigns, "occurrences")
 
   defp tab_path(assigns, tab),
     do:
-      ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{assigns.issue_id}?#{Map.put(assigns.params, "tab", tab)}"
+      ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{assigns.fingerprint}?#{Map.put(assigns.params, "tab", tab)}"
 
   defp event_path(assigns, event),
     do:
-      ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{assigns.issue_id}/events/#{event["event_id"]}?#{Map.drop(assigns.params, ~w(page page_size))}"
+      ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{assigns.fingerprint}/events/#{event["event_id"]}?#{Map.drop(assigns.params, ~w(page page_size))}"
 
   defp page_path(assigns, direction) do
     params =
@@ -583,7 +685,7 @@ defmodule TuistWeb.PulseErrorLive do
       |> Map.put("page", max(1, assigns.detail.result.meta["page"] + direction))
       |> Map.put("tab", "occurrences")
 
-    ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{assigns.issue_id}?#{params}"
+    ~p"/#{assigns.selected_account.name}/pulse/errors/issues/#{assigns.fingerprint}?#{params}"
   end
 
   defp detail_error({:error, :not_found}),

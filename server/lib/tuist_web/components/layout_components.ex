@@ -49,7 +49,7 @@ defmodule TuistWeb.LayoutComponents do
   defp default_description do
     dgettext(
       "dashboard",
-      "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+      "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Struo support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
     )
   end
 
@@ -70,7 +70,10 @@ defmodule TuistWeb.LayoutComponents do
 
   def head_canonical_link(assigns) do
     ~H"""
-    <link rel="canonical" href={SEO.canonical_url(assigns[:current_path])} />
+    <link
+      rel="canonical"
+      href={SEO.canonical_url(assigns[:head_canonical_path] || assigns[:current_path])}
+    />
     """
   end
 
@@ -80,7 +83,10 @@ defmodule TuistWeb.LayoutComponents do
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
-    <meta property="og:url" content={SEO.canonical_url(assigns[:current_path])} />
+    <meta
+      property="og:url"
+      content={SEO.canonical_url(assigns[:head_canonical_path] || assigns[:current_path])}
+    />
     <meta property="og:type" content={assigns[:head_og_type] || "website"} />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
     <meta property="og:description" content={description(assigns)} />

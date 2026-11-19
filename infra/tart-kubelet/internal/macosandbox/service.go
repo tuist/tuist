@@ -31,9 +31,23 @@ const (
 )
 
 type Config struct {
-	URL      string `json:"url"`
+	URL string `json:"url"`
+	// Image and Template are the default template, which a kubelet without
+	// Templates serves alone.
 	Image    string `json:"image"`
 	Template string `json:"template"`
+	// Templates lists every template the host serves, the default first:
+	// `macos-xcode-<version>` for each Xcode, plus Template naming the
+	// default Xcode's Image. Empty serves only Image as Template.
+	Templates []TemplateConfig `json:"templates,omitempty"`
+}
+
+// templates lists the configured templates, the default first.
+func (c Config) templates() []TemplateConfig {
+	if len(c.Templates) > 0 {
+		return c.Templates
+	}
+	return []TemplateConfig{{Template: c.Template, Image: c.Image}}
 }
 
 // Service runs on the host, not in a guest. The control Pod provides a
@@ -41,11 +55,16 @@ type Config struct {
 type Service struct {
 	Kube              kubernetes.Interface
 	Node, Root, Tools string
-	mu                sync.Mutex
-	manager           *Manager
-	capacity          *KubeCapacity
-	ready             bool
-	err               error
+	// CIStore is the TART_HOME of the kubelet's CI VMs, whose cached template
+	// image preparation clones instead of pulling it again.
+	CIStore string
+	// Checkouts is the runner cache's checkout masters, nil without it.
+	Checkouts Checkouts
+	mu        sync.Mutex
+	manager   *Manager
+	capacity  *KubeCapacity
+	ready     bool
+	err       error
 }
 
 func (s *Service) NeedLeaderElection() bool { return false }
@@ -254,12 +273,8 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = json.Unmarshal(configData, &cfg); err != nil {
 			return err
 		}
-		parsed, err := url.Parse(cfg.URL)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return errors.New("sandbox server requires HTTPS")
-		}
-		if cfg.Template == "" || (!strings.Contains(cfg.Image, "@sha256:") && (!strings.Contains(cfg.Image, ":") || strings.HasSuffix(cfg.Image, ":latest"))) {
-			return errors.New("sandbox requires a named template and versioned image")
+		if err = validateConfig(cfg); err != nil {
+			return err
 		}
 		if err = atomicFile(filepath.Join(s.Root, "config.json"), configData); err != nil {
 			return err
@@ -273,7 +288,8 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			if err != nil {
 				return err
 			}
-			go keepAmpCLI(context.WithoutCancel(ctx), s.Tools)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "amp", provisionAmpCLI)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "claude-code", provisionClaudeCode)
 		}
 		for _, name := range []string{"sbx-macos", "sbx-worker"} {
 			info, err := os.Stat(filepath.Join(s.Tools, name))
@@ -296,7 +312,9 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			controlID = string(control.UID)
 		}
 		cap := &KubeCapacity{Kube: s.Kube, Node: s.Node, NodeUID: string(node.UID), Namespace: Namespace, ControlUID: controlID}
-		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), TemplateTag: cfg.Image, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Runtime: &TartRuntime{Client: c, Image: cfg.Image, Template: cfg.Template, Tools: s.Tools}}
+		// No template is prepared until a control Pod's preparation below.
+		templates := NewTemplates(nil)
+		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), Templates: templates, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Templates: templates, Tools: s.Tools, CIStore: s.CIStore, Checkouts: s.Checkouts}}
 		if err = m.Load(ctx); err != nil {
 			return err
 		}
@@ -320,6 +338,11 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 				if err = m.Runtime.Delete(ctx, &Record{VM: vm.Name}); err != nil {
 					return err
 				}
+			}
+		}
+		if tartRuntime, ok := m.Runtime.(*TartRuntime); ok {
+			if err = tartRuntime.clearSnapshotStaging(); err != nil {
+				return err
 			}
 		}
 		// Recreate reservations from durable local ownership before admitting CI,
@@ -354,9 +377,16 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = validateConfig(cfg); err != nil {
 			return err
 		}
-		if runtime, ok := m.Runtime.(*TartRuntime); ok {
+		// The default template is prepared before the host connects, so a
+		// connected host always places the default. The others are prepared
+		// after it connects (prepareTemplates) and reported as not ready
+		// until then, so one template whose image cannot be had yet never
+		// keeps the host from serving the rest.
+		configured := cfg.templates()
+		tartRuntime, _ := m.Runtime.(*TartRuntime)
+		if tartRuntime != nil {
 			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, runtime.Client, cfg.Image)
+				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, configured[0].Image)
 			}); err != nil {
 				return err
 			}
@@ -365,33 +395,73 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			return err
 		}
 		m.Gate.Lock()
-		m.TemplateTag = cfg.Image
 		s.capacity.ControlUID = string(control.UID)
-		if runtime, ok := m.Runtime.(*TartRuntime); ok {
-			runtime.Image = cfg.Image
-			runtime.Template = cfg.Template
+		// Every name of the default image is ready with it; a runtime
+		// without a store has nothing to prepare.
+		prepared := map[string]string{}
+		var pending []TemplateConfig
+		for _, t := range configured {
+			if tartRuntime == nil || t.Image == configured[0].Image {
+				prepared[t.Template] = t.Image
+			} else {
+				pending = append(pending, t)
+			}
 		}
+		m.Templates.replace(prepared)
 		m.Gate.Unlock()
+		// After the default is prepared: the cached image's size is looked up
+		// by name. Until a size is known the server reserves no root disk
+		// here, and checkDisk learns it on the next create, resume or save.
+		if tartRuntime != nil {
+			if err = tartRuntime.learnRootDisk(parent); err != nil {
+				slog.Warn("macOS sandbox root disk size unknown", "image", configured[0].Image, "error", err)
+			}
+		}
+		// A runtime without a store reports no disk budget, which the server does not budget.
+		disk := func(snapshots []protocol.DiskSnapshotInfo) protocol.DiskReport {
+			if tartRuntime == nil {
+				return protocol.DiskReport{}
+			}
+			report := diskReport(tartRuntime.Client.HomeDir)
+			report.SnapshotsBytes = snapshotBytes(snapshots)
+			return report
+		}
+		rootfs := func() int64 {
+			if tartRuntime == nil {
+				return 0
+			}
+			return tartRuntime.rootfs.Load()
+		}
 		clientCtx, stop := context.WithCancel(parent)
 		*cancel = stop
 		*controlUID = string(control.UID)
 		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
 		templates := func() []protocol.TemplateInfo {
-			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, Warm: m.warmShapes()}}
+			infos := make([]protocol.TemplateInfo, 0, len(configured))
+			for _, t := range configured {
+				image, ok := m.Templates.Image(t.Template)
+				infos = append(infos, protocol.TemplateInfo{Name: t.Template, Tag: t.Image, Ready: ok && image == t.Image, RootfsBytes: rootfs(), Warm: m.warmShapes(t.Template)})
+			}
+			return infos
 		}
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Templates: templates(), Sandboxes: m.Snapshot()}
+				snapshots := m.DiskSnapshots()
+				return protocol.Hello{Platform: "darwin", Archives: true, Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(snapshots), Templates: templates(), Sandboxes: m.Snapshot(), DiskSnapshots: snapshots}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Sandboxes: m.Snapshot(), Templates: templates()}
+				snapshots := m.DiskSnapshots()
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(snapshots), Sandboxes: m.Snapshot(), Templates: templates(), DiskSnapshots: snapshots}
 			},
 			Handler: m.Dispatch})
 		m.Gate.Lock()
 		m.Emit = client.Emit
 		m.Gate.Unlock()
 		go client.Run(clientCtx)
+		if len(pending) > 0 {
+			go s.prepareTemplates(clientCtx, control, tartRuntime, m.Templates, pending)
+		}
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -429,9 +499,18 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 	return s.repairReservations(ctx, m)
 }
 
+// markRunning also restores Ready: the node lifecycle controller marks every
+// Pod on a node NotReady when its lease lapses and leaves the phase Running.
 func (s *Service) markRunning(ctx context.Context, pod *corev1.Pod) error {
-	if pod.Status.Phase == corev1.PodRunning || !pod.DeletionTimestamp.IsZero() {
+	if !pod.DeletionTimestamp.IsZero() {
 		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning {
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				return nil
+			}
+		}
 	}
 	copy := pod.DeepCopy()
 	copy.Status.Phase = corev1.PodRunning
@@ -490,12 +569,18 @@ func (s *Service) LaunchGuard(ctx context.Context, _ string) (func(), error) {
 func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(protocol.Stream)) protocol.Result {
 	var args struct {
 		protocol.CreateArgs
-		Env       map[string]string `json:"env"`
-		Cmd       []string          `json:"cmd"`
-		Cwd       string            `json:"cwd"`
-		TimeoutMs int64             `json:"timeout_ms"`
-		NodeUID   string            `json:"node_uid"`
-		WorkID    string            `json:"work_id"`
+		Env        map[string]string       `json:"env"`
+		Cmd        []string                `json:"cmd"`
+		Cwd        string                  `json:"cwd"`
+		TimeoutMs  int64                   `json:"timeout_ms"`
+		NodeUID    string                  `json:"node_uid"`
+		WorkID     string                  `json:"work_id"`
+		HoldMs     int64                   `json:"hold_ms"`
+		Checkout   *protocol.CheckoutGrant `json:"checkout"`
+		SnapshotID string                  `json:"snapshot_id"`
+		PartSize   int64                   `json:"part_size"`
+		PartURLs   []string                `json:"part_urls"`
+		Bytes      int64                   `json:"bytes"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -503,7 +588,11 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 	if args.NodeUID != m.NodeUID {
 		return protocol.ErrorResult(cmd.ID, errors.New("sandbox owner generation changed"))
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	timeout := 2 * time.Minute
+	if cmd.Op == protocol.OpArchive || cmd.Op == protocol.OpArchiveDisks || cmd.Op == protocol.OpCopyDisks || (cmd.Op == protocol.OpCreate && args.FromArchive != nil) {
+		timeout = archiveTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	started := time.Now()
 	var err error
@@ -522,19 +611,39 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data = protocol.ResumeResult{RestoreMs: time.Since(started).Milliseconds()}
 	case protocol.OpPause:
 		err = m.Pause(ctx, args.SandboxID)
-		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds()}
+		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds(), "disks_synced": m.disksSynced(args.SandboxID)}
+	case protocol.OpSaveDisks:
+		var snapshot protocol.DiskSnapshotInfo
+		snapshot, err = m.SaveDisks(ctx, args.SandboxID, args.SnapshotID)
+		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
+	case protocol.OpDeleteDisks:
+		err = m.DeleteDisks(ctx, args.SnapshotID)
+	case protocol.OpArchiveDisks:
+		var res protocol.ArchiveResult
+		res, err = m.ArchiveDisks(ctx, protocol.ArchiveDisksArgs{SnapshotID: args.SnapshotID, PartSize: args.PartSize, PartURLs: args.PartURLs})
+		res.DurationMs = time.Since(started).Milliseconds()
+		data = res
+	case protocol.OpCopyDisks:
+		var snapshot protocol.DiskSnapshotInfo
+		snapshot, err = m.CopyDisks(ctx, protocol.CopyDisksArgs{SnapshotID: args.SnapshotID, Template: args.Template, WorkspaceGB: args.WorkspaceGB, FromArchive: args.FromArchive, TemplateTag: args.TemplateTag, Bytes: args.Bytes})
+		data = protocol.SaveDisksResult{DurationMs: time.Since(started).Milliseconds(), Bytes: snapshot.Bytes}
 	case protocol.OpDelete:
 		err = m.Delete(ctx, args.SandboxID)
+	case protocol.OpArchive:
+		var a protocol.ArchiveArgs
+		if err = json.Unmarshal(cmd.Args, &a); err == nil {
+			data, err = m.Archive(ctx, a)
+		}
 	case protocol.OpExec:
 		data, err = m.Exec(ctx, protocol.ExecArgs{SandboxID: args.SandboxID, Cmd: args.Cmd, Env: args.Env, Cwd: args.Cwd, TimeoutMs: args.TimeoutMs}, out)
 	case protocol.OpStartWorker:
 		var status WorkerStatus
-		status, err = m.Worker(ctx, args.SandboxID, "start", args.Env)
+		status, err = m.StartWorker(ctx, args.SandboxID, args.Env, args.Checkout)
 		data = protocol.StartWorkerResult{ExecID: status.ID}
 	case protocol.OpStopWorker:
 		_, err = m.Worker(ctx, args.SandboxID, "stop", nil)
 	case protocol.OpHoldResidency:
-		err = m.Hold(ctx, args.SandboxID, args.WorkID)
+		err = m.Hold(ctx, args.SandboxID, args.WorkID, time.Duration(args.HoldMs)*time.Millisecond)
 	case protocol.OpReleaseResidency:
 		err = m.Release(args.SandboxID, args.WorkID)
 	case protocol.OpStatus:
@@ -574,8 +683,16 @@ func validateConfig(cfg Config) error {
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return errors.New("sandbox server requires HTTPS")
 	}
-	if cfg.Template == "" || (!strings.Contains(cfg.Image, "@sha256:") && (!strings.Contains(cfg.Image, ":") || strings.HasSuffix(cfg.Image, ":latest"))) {
-		return errors.New("sandbox requires a named template and versioned image")
+	seen := map[string]bool{}
+	for _, t := range cfg.templates() {
+		if t.Template == "" || seen[t.Template] || (!strings.Contains(t.Image, "@sha256:") && (!strings.Contains(t.Image, ":") || strings.HasSuffix(t.Image, ":latest"))) {
+			return errors.New("sandbox requires uniquely named templates and versioned images")
+		}
+		seen[t.Template] = true
+	}
+	// A kubelet that only reads Image and Template serves the default.
+	if len(cfg.Templates) > 0 && (cfg.Templates[0].Template != cfg.Template || cfg.Templates[0].Image != cfg.Image) {
+		return errors.New("the first sandbox template must be the default image and template")
 	}
 	return nil
 }

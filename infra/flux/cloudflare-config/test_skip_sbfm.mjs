@@ -114,10 +114,12 @@ test('sockets, authentication, operator and scanner paths remain protected', () 
     '/auth/callback', '/ops/og-gallery', '/.git/config', '/wp-admin/install.php', '/tuist/tuist%2Fbuilds'], (p, m) => exempt(apiRule, p, m), false);
 });
 
-test('native threads socket handshake alone is exempt', () => {
-  assert.equal(exempt(apiRule, '/threads/socket/websocket'), true);
-  checkPaths(['/threads/socket/websocket'], (p, m) => exempt(apiRule, p, m), false, ['HEAD', ...writes]);
-  checkPaths(['/threads/socket/longpoll', '/threads/socket/websocket/', '/threads/socket/websocket/extra', '/threads/socket/private'], (p, m) => exempt(apiRule, p, m), false);
+test('native jams and legacy threads socket handshakes alone are exempt', () => {
+  for (const collection of ['jams', 'threads']) {
+    assert.equal(exempt(apiRule, `/${collection}/socket/websocket`), true);
+    checkPaths([`/${collection}/socket/websocket`], (p, m) => exempt(apiRule, p, m), false, ['HEAD', ...writes]);
+    checkPaths([`/${collection}/socket/longpoll`, `/${collection}/socket/websocket/`, `/${collection}/socket/websocket/extra`, `/${collection}/socket/private`], (p, m) => exempt(apiRule, p, m), false);
+  }
 });
 
 test('non-read methods remain protected', () => {
@@ -132,6 +134,16 @@ test('existing machine paths remain exempt', () => {
     assert.equal(exempt(apiRule, path, method), true, `${method} ${path}`);
   }
   assert.equal(exempt(apiRule, '/search', 'POST', 'search.tuist.dev'), true);
+});
+
+test('federation issuer discovery and keys are readable by Anthropic', () => {
+  checkPaths(['/oidc/accounts/3/.well-known/openid-configuration', '/oidc/accounts/3/jwks.json'],
+    (p, m) => exempt(apiRule, p, m), true, methods);
+  checkPaths(['/oidc/accounts/3/jwks.json'], (p, m) => exempt(apiRule, p, m), false, writes);
+  checkPaths(['/oidc/claude-linked-billing/.well-known/openid-configuration', '/oidc/claude-linked-billing/jwks.json'],
+    (p, m) => exempt(apiRule, p, m), true, methods);
+  checkPaths(['/oidc/claude-linked-billing/jwks.json'], (p, m) => exempt(apiRule, p, m), false, writes);
+  checkPaths(['/oidc/other/jwks.json'], (p, m) => exempt(apiRule, p, m), false, methods);
 });
 
 test('marketing route shapes across locales and guide roots', () => {

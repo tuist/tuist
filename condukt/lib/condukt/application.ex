@@ -3,6 +3,9 @@ defmodule Condukt.Application do
 
   use Application
 
+  alias Condukt.Sandbox.Local
+  alias Condukt.Tools.BackgroundSubagent
+
   # The control channel for a `:decide` network policy is a per-session
   # `...K8s.ControlBridge` started as a `:transient` child of this
   # DynamicSupervisor (the standard "dynamic children under the app
@@ -17,7 +20,14 @@ defmodule Condukt.Application do
   @impl true
   def start(_type, _args) do
     children =
-      [Condukt.SessionStore.Memory.Table] ++
+      [
+        Condukt.SessionStore.Memory.Table,
+        {Registry, keys: :unique, name: BackgroundSubagent.registry()},
+        # Processes that outlive the tool call that started them: the local
+        # sandbox's commands, by id, and the watchers that follow them.
+        {Registry, keys: :unique, name: Local.registry()},
+        {Task.Supervisor, name: Condukt.TaskSupervisor}
+      ] ++
         Condukt.Sessions.child_specs() ++
         [
           {DynamicSupervisor,

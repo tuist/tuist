@@ -127,11 +127,42 @@ struct Cache: Sendable {
             .appendingPathComponent("\(Hashing.stable(location)).json")
     }
 
-    func lock(namespace: String, key: String) async throws -> PathLock {
-        try await PathLock.acquire(
-            at: root.appendingPathComponent("locks").appendingPathComponent(namespace)
-                .appendingPathComponent("\(Hashing.stable(key)).lock")
-        )
+    /// Publishers take the lock exclusively. A restore that links an existing entry takes it
+    /// shared, so `CachePruner` cannot evict the entry between the check and the link.
+    func lock(namespace: String, key: String, shared: Bool = false) async throws -> PathLock {
+        try await PathLock.acquire(at: lockPath(namespace: namespace, key: key), shared: shared)
+    }
+
+    static func lockPath(root: URL, namespace: String, key: String) -> URL {
+        root.appendingPathComponent("locks").appendingPathComponent(namespace)
+            .appendingPathComponent("\(Hashing.stable(key)).lock")
+    }
+
+    private func lockPath(namespace: String, key: String) -> URL {
+        Cache.lockPath(root: root, namespace: namespace, key: key)
+    }
+
+    /// Runs `body` on `entry` under a shared lock when `isUsable` accepts it, after recording
+    /// the use, and returns nil otherwise. Callers fall back to their exclusive publish path.
+    func withEntryInUse<T>(
+        namespace: String,
+        _ entry: URL,
+        isUsable: () async throws -> Bool,
+        body: () async throws -> T
+    ) async throws -> T? {
+        let lock = try await lock(namespace: namespace, key: entry.path, shared: true)
+        defer { withExtendedLifetime(lock) {} }
+        guard try await isUsable() else { return nil }
+        await Cache.markUsed(entry)
+        return try await body()
+    }
+
+    /// Records that an entry was used, as its modification time. Entries are immutable and
+    /// keyed by content, so the time is not part of any cache identity; `CachePruner` reads it
+    /// as the entry's last use. Symlinks into the cache do not update access times.
+    static func markUsed(_ entry: URL) async {
+        guard let path = try? entry.absolutePath else { return }
+        try? await fileSystem.setFileTimes(of: path, lastAccessDate: nil, lastModificationDate: Date())
     }
 
     func hasCachedSources() async throws -> Bool {

@@ -12,13 +12,16 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.GoogleOneTap
   alias TuistWeb.LiveHooks.PublicPageChallenge
+  alias TuistWeb.Marketing.Layouts
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Noora.NooraLive
   alias TuistWeb.Plugs.AtlasRateLimitPlug
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.MCPRateLimitPlug
+  alias TuistWeb.Plugs.OAuthReturnToPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -204,6 +207,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    plug OAuthReturnToPlug
     plug Ueberauth
   end
 
@@ -220,6 +224,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    plug OAuthReturnToPlug
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug
@@ -231,6 +236,25 @@ defmodule TuistWeb.Router do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
+  end
+
+  # The Noora documentation is English-only, so unlike the marketing pages it
+  # neither redirects to a localized route nor stores a locale preference.
+  pipeline :browser_noora do
+    plug :put_request_kind, "marketing"
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug :assign_current_path
+    plug :content_security_policy
+    plug :google_one_tap_content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   # The newsletter signup form submits with `Accept: application/json`.
@@ -245,7 +269,7 @@ defmodule TuistWeb.Router do
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
+    plug :put_root_layout, html: {Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
@@ -328,6 +352,7 @@ defmodule TuistWeb.Router do
   pipeline :mcp do
     plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, :load_agent_identity
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
@@ -384,6 +409,12 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  # Sentry SDKs send the DSN key, an account token, in X-Sentry-Auth instead of
+  # an Authorization header. Runs before :authenticated_api.
+  pipeline :sentry_auth do
+    plug TuistWeb.SentryAuthPlug
+  end
+
   pipeline :threads_no_store do
     plug :put_threads_no_store
   end
@@ -438,6 +469,10 @@ defmodule TuistWeb.Router do
 
     get "/llms.txt", LlmsTxtController, :show, metadata: @marketing_route_metadata
     get "/llms-full.txt", LlmsTxtController, :full, metadata: @docs_route_metadata
+
+    # Context7 only accepts its ownership file under the crawled base URL, so it
+    # lives here instead of /.well-known. Declared before the docs LiveView catch-all.
+    get "/en/docs/context7.json", WellKnownController, :context7_ownership, metadata: %{robots_txt: false}
   end
 
   scope "/", TuistWeb do
@@ -447,6 +482,17 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
+
+  scope "/" do
+    pipe_through [:marketing_markdown]
+
+    redirect("/marketing-markdown/compute", "/marketing-markdown/runners", :permanent, preserve_query_string: true)
+    redirect("/build-systems/once", "/build-systems/struo", :permanent, preserve_query_string: true)
+
+    redirect("/marketing-markdown/build-systems/once", "/marketing-markdown/build-systems/struo", :permanent,
+      preserve_query_string: true
+    )
+  end
 
   scope "/", TuistWeb do
     pipe_through [:marketing_markdown]
@@ -465,6 +511,39 @@ defmodule TuistWeb.Router do
     # The flaky-tests and test-insights pages folded into the tests page.
     redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
     redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
+
+    # The compute page became the runners page, named for what people search.
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      prefix = Localization.locale_path_prefix(locale)
+
+      redirect(Path.join(prefix, "/compute"), Path.join(prefix, "/runners"), :permanent, preserve_query_string: true)
+    end
+
+    # Keep the raw query; Redirect's preserve_query_string re-encodes decoded params.
+    match(:*, "/es/build-insights", LegacyRedirectsPlug, to: "/es/docs/guides/features/build-insights")
+    match(:*, "/ko/flaky-tests", LegacyRedirectsPlug, to: "/ko/tests")
+    match(:*, "/zh_Hant/selective-testing", LegacyRedirectsPlug, to: "/zh_Hant/docs/guides/features/selective-testing")
+
+    match(:*, "/blog/2025/11/27/teaching-ai-to-r", LegacyRedirectsPlug,
+      to: "/blog/2025/11/27/teaching-ai-to-read-xcode-builds"
+    )
+
+    # Portuguese is retired; only map audited pages with verified English sources.
+    for {old_path, new_path} <- [
+          {"guides/features/projects/dependencies", "guides/features/projects/dependencies"},
+          {"guides/features/projects/synthesized-files", "guides/features/projects/synthesized-files"},
+          {"guides/develop/projects/adoption/migrate/swift-package",
+           "guides/features/projects/adoption/migrate/swift-package"}
+        ] do
+      match(:*, "/pt/docs/#{old_path}", LegacyRedirectsPlug, to: "/en/docs/#{new_path}")
+    end
+
+    match(
+      :*,
+      "/ar/docs/references/examples/generated_app_with_build_rules",
+      LegacyRedirectsPlug,
+      to: "/en/docs/references/examples/generated-projects/generated_app_with_build_rules"
+    )
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
@@ -492,6 +571,22 @@ defmodule TuistWeb.Router do
     # Build traces for agents. The token is the authorization: the MCP server
     # signs it for one build after authorizing the caller.
     get "/build-traces/:token", BuildController, :signed_trace, metadata: %{robots_txt: false}
+  end
+
+  scope "/" do
+    pipe_through [:open_api, :browser_noora]
+
+    # The status badge moved into the badge page.
+    redirect("/noora/status-badge", "/noora/badge", :permanent)
+    # The inline and button dropdowns moved into the dropdown page.
+    redirect("/noora/inline-dropdown", "/noora/dropdown", :permanent)
+    redirect("/noora/button-dropdown", "/noora/dropdown", :permanent)
+    redirect("/noora/neutral-button", "/noora/button", :permanent)
+
+    live_session :noora do
+      live "/noora", NooraLive, metadata: %{type: :marketing, robots_txt: false}
+      live "/noora/:page", NooraLive, metadata: %{type: :marketing, robots_txt: false}
+    end
   end
 
   scope "/" do
@@ -559,9 +654,9 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
-      get Path.join(locale_path_prefix, "/compute"),
+      get Path.join(locale_path_prefix, "/runners"),
           MarketingController,
-          :compute,
+          :runners,
           metadata: @marketing_route_metadata,
           private: private
 
@@ -746,7 +841,9 @@ defmodule TuistWeb.Router do
     delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
-    # The query carries the authorization code and state; keep them out of request logs.
+    get "/claude/start", ClaudeLinkedBillingController, :start
+    # The queries carry authorization codes and state; keep them out of request logs.
+    get "/claude/callback", ClaudeLinkedBillingController, :callback, log: false
     get "/mcp/callback", MCPServerOAuthController, :callback, log: false
   end
 
@@ -774,10 +871,29 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/struo", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/tuist.json", WellKnownController, :tuist_discovery, metadata: %{robots_txt: false}
+    get "/openid-configuration", Oauth.OpenidController, :openid_configuration, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
+  end
+
+  scope "/oidc/accounts/:account_id", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/.well-known/openid-configuration", OIDCIssuerController, :openid_configuration, metadata: %{robots_txt: false}
+
+    get "/jwks.json", OIDCIssuerController, :jwks, metadata: %{robots_txt: false}
+  end
+
+  scope "/oidc/claude-linked-billing", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/.well-known/openid-configuration", OIDCIssuerController, :claude_linked_billing_openid_configuration,
+      metadata: %{robots_txt: false}
+
+    get "/jwks.json", OIDCIssuerController, :claude_linked_billing_jwks, metadata: %{robots_txt: false}
   end
 
   scope "/.well-known", TuistWeb do
@@ -802,6 +918,13 @@ defmodule TuistWeb.Router do
     pipe_through [:webmcp]
 
     post "/accounts/:account_handle", WebMCPController, :account
+  end
+
+  scope "/api/dashboard-search", TuistWeb do
+    # The same browser-session, CSRF, SSO and requester limits as WebMCP reads.
+    pipe_through [:webmcp]
+
+    post "/:account_handle", DashboardSearchController, :search
   end
 
   scope "/scim/v2", TuistWeb.SCIM do
@@ -839,20 +962,62 @@ defmodule TuistWeb.Router do
     get "/cache/endpoint", CacheController, :endpoint
   end
 
-  scope "/api/accounts/:account_handle/threads", TuistWeb.API do
+  for collection <- [:threads, :jams] do
+    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{threads_collection: collection} do
+      pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
+
+      # Phoenix's dispatch logs include request params, including private prompts.
+      get "/", ThreadsController, :index, log: false
+      post "/", ThreadsController, :create, log: false
+      get "/repositories", ThreadsController, :repositories, log: false
+      get "/models", ThreadsController, :models, log: false
+      get "/:id", ThreadsController, :show, log: false
+      post "/:id/messages", ThreadsController, :message, log: false
+      patch "/:id", ThreadsController, :update, log: false
+      post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
+      post "/:id/ship", ThreadsController, :ship, log: false
+      post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
+    end
+  end
+
+  scope "/api/accounts/:account_handle/halls", TuistWeb.API do
     pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
 
-    # Phoenix's dispatch logs include request params, including private prompts.
-    get "/", ThreadsController, :index, log: false
-    post "/", ThreadsController, :create, log: false
-    get "/repositories", ThreadsController, :repositories, log: false
-    get "/models", ThreadsController, :models, log: false
-    get "/:id", ThreadsController, :show, log: false
-    post "/:id/messages", ThreadsController, :message, log: false
-    patch "/:id", ThreadsController, :update, log: false
-    post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
-    post "/:id/ship", ThreadsController, :ship, log: false
-    post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
+    # Phoenix's dispatch logs include request params, including private messages.
+    get "/", HallsController, :index, log: false
+    post "/", HallsController, :create, log: false
+    get "/people", HallsController, :people, log: false
+    post "/directs", HallsController, :direct, log: false
+    get "/:id", HallsController, :show, log: false
+    post "/:id/messages", HallsController, :message, log: false
+    post "/:id/read", HallsController, :read, log: false
+    post "/:id/members", HallsController, :invite, log: false
+  end
+
+  # A person's runners, which Luft registers for threads to run on.
+  scope "/api/me/thread-runners", TuistWeb.API do
+    pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
+
+    get "/", ThreadRunnersController, :index
+    post "/", ThreadRunnersController, :create, log: false
+    delete "/:id", ThreadRunnersController, :delete
+  end
+
+  # The runner daemon, with its own secret rather than a person's session.
+  # Bodies hold files and command output, so params are never logged.
+  scope "/api/thread-runner", TuistWeb.API do
+    pipe_through [:threads_no_store, :non_authenticated_api, :on_premise_api]
+
+    post "/poll", ThreadRunnerConnectionController, :poll, log: false
+    post "/requests/:id/response", ThreadRunnerConnectionController, :respond, log: false
+  end
+
+  # Sentry's envelope endpoint, which SDKs derive from a DSN ending in
+  # /pulse/sentry/:service/:project_id.
+  scope "/api/accounts/:account_handle/pulse/sentry", TuistWeb.API do
+    pipe_through [:open_api, :sentry_auth, :authenticated_api, :on_premise_api]
+
+    post "/:service/api/:project_id/envelope", PulseSentryController, :envelope
   end
 
   scope path: "/api",
@@ -865,8 +1030,7 @@ defmodule TuistWeb.Router do
       delete "/", AccountController, :delete_account
 
       scope "/pulse" do
-        get "/errors/issues/:issue_id/events/:event_id", PulseController, :event
-        get "/errors/issues/:issue_id", PulseController, :issue
+        get "/errors/issues/:fingerprint", PulseController, :error_issue
         get "/:signal/analytics", PulseController, :analytics
         get "/:signal", PulseController, :query
       end
@@ -899,6 +1063,21 @@ defmodule TuistWeb.Router do
         delete "/volumes/:volume_id", RunnerVolumesController, :delete
         post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
+      end
+
+      # Provider bodies hold API keys, so their params are never logged.
+      scope "/ai" do
+        get "/", OrganizationAIController, :show
+        post "/providers", OrganizationAIController, :create_provider, log: false
+        patch "/providers/:id", OrganizationAIController, :update_provider, log: false
+        delete "/providers/:id", OrganizationAIController, :delete_provider
+        post "/models", OrganizationAIController, :create_model
+        patch "/models/:id", OrganizationAIController, :update_model
+        delete "/models/:id", OrganizationAIController, :delete_model
+        put "/default-model", OrganizationAIController, :set_default_model
+        post "/task-routes", OrganizationAIController, :create_task_route
+        patch "/task-routes/:id", OrganizationAIController, :update_task_route
+        delete "/task-routes/:id", OrganizationAIController, :delete_task_route
       end
 
       scope "/webhooks" do
@@ -936,6 +1115,7 @@ defmodule TuistWeb.Router do
         get "/:sandbox_id/commands/:command_id/logs", SandboxesController, :stream_command_logs
         post "/:sandbox_id/commands/:command_id/stdin", SandboxesController, :write_command_stdin
         post "/:sandbox_id/commands/:command_id/cancel", SandboxesController, :cancel_command
+        post "/:sandbox_id/uploads", SandboxesController, :create_upload
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
         post "/:sandbox_id/archive", SandboxesController, :archive
@@ -975,6 +1155,14 @@ defmodule TuistWeb.Router do
           get "/:bundle_id/artifacts", BundleArtifactsController, :show
           get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
+        end
+
+        get "/snapshots/baseline", SnapshotsController, :baseline
+
+        scope "/snapshots/builds" do
+          post "/", SnapshotsController, :create
+          get "/:build_id", SnapshotsController, :show
+          post "/:build_id/complete", SnapshotsController, :complete
         end
 
         scope "/runs" do
@@ -1026,7 +1214,11 @@ defmodule TuistWeb.Router do
           scope "/coverage" do
             get "/", CoverageController, :show
             get "/settings", CoverageController, :settings
+            get "/branches", CoverageController, :list_branches
+            get "/commits", CoverageController, :list_commits
+            get "/runs", CoverageController, :list_runs
             get "/commits/:git_commit_sha", CoverageController, :show_commit
+            get "/commits/:git_commit_sha/targets", CoverageController, :list_targets
             get "/commits/:git_commit_sha/files", CoverageController, :list_files
             get "/commits/:git_commit_sha/file", CoverageController, :show_file
             post "/uploads", CoverageController, :create_upload
@@ -1041,6 +1233,8 @@ defmodule TuistWeb.Router do
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
+          get "/:test_run_id/selective-testing/tests", SelectiveTestingController, :tests
+          get "/:test_run_id/selective-testing/changed-files", SelectiveTestingController, :changed_files
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/stress-new-tests/plan", StressNewTestsController, :plan
@@ -1156,6 +1350,11 @@ defmodule TuistWeb.Router do
           get "/actions/:action_id/executions", OnceActionsController, :history
         end
 
+        scope "/remote-execution" do
+          get "/activity", RemoteExecutionInsightsController, :activity
+          get "/usage", RemoteExecutionInsightsController, :usage
+        end
+
         scope "/bazel" do
           get "/actions", BazelActionsController, :index
           get "/actions/:action_id", BazelActionsController, :show
@@ -1243,6 +1442,14 @@ defmodule TuistWeb.Router do
     put "/me/push-devices/:installation_id", PushDevicesController, :update
     delete "/me/push-devices/:installation_id", PushDevicesController, :delete
     delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
+    put "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :update
+    delete "/me/thread-live-activities/:id", ThreadLiveActivitiesController, :delete
+    put "/me/thread-live-activity-starter", ThreadLiveActivitiesController, :update_starter
+    delete "/me/thread-live-activity-starter", ThreadLiveActivitiesController, :delete_starter
+    # OTLP/HTTP's signal paths under an exporter's endpoint, and the envelope
+    # path Sentry SDKs derive from the DSN `<server>/api/telemetry/1`.
+    post "/telemetry/v1/:signal", TelemetryController, :otlp
+    post "/telemetry/api/:project_id/envelope", TelemetryController, :errors
     get "/me/notification-events", NotificationRulesController, :events
 
     get "/me/notification-events/:event/projects/:account_handle/:project_handle/condition-options",
@@ -1319,6 +1526,11 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
+    post "/runners/cache-volumes/actions-cache/lookup", RunnerCacheVolumesController, :actions_cache_lookup
+    post "/runners/cache-volumes/actions-cache/enabled", RunnerCacheVolumesController, :actions_cache_enabled
+    post "/runners/cache-volumes/actions-cache/reserve", RunnerCacheVolumesController, :actions_cache_reserve
+    post "/runners/cache-volumes/actions-cache/upload", RunnerCacheVolumesController, :actions_cache_upload
+    post "/runners/cache-volumes/actions-cache/commit", RunnerCacheVolumesController, :actions_cache_commit
     get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
@@ -1356,6 +1568,25 @@ defmodule TuistWeb.Router do
     get "/atlas/flags/:name", AtlasFeatureFlagsController, :show
     put "/atlas/flags/:name", AtlasFeatureFlagsController, :update
 
+    get "/atlas/accounts/lookup", AtlasAccountsController, :lookup
+
+    get "/atlas/accounts/:account_id/runner-concurrency-limits",
+        AtlasAccountsController,
+        :runner_concurrency_limits
+
+    put "/atlas/accounts/:account_id/runner-concurrency-limits",
+        AtlasAccountsController,
+        :update_runner_concurrency_limits
+
+    get "/atlas/accounts/:account_id/plan", AtlasAccountsController, :plan
+    put "/atlas/accounts/:account_id/plan", AtlasAccountsController, :update_plan
+
+    get "/atlas/accounts/:account_id/runner-billing", AtlasAccountsController, :runner_billing
+    put "/atlas/accounts/:account_id/runner-billing", AtlasAccountsController, :activate_runner_prepaid_pool
+    put "/atlas/accounts/:account_id/runner-trial", AtlasAccountsController, :update_runner_trial
+
+    get "/atlas/kura/rollout", AtlasKuraRolloutsController, :show
+
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
@@ -1382,6 +1613,8 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
+    # Consent for Luft (see `TuistWeb.Oauth.AuthorizeController`).
+    post "/authorize", AuthorizeController, :authorize
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -1399,6 +1632,9 @@ defmodule TuistWeb.Router do
     post "/token", TokenController, :token
     post "/revoke", TokenController, :revoke
     post "/register", RegistrationController, :register
+    get "/jwks", OpenidController, :jwks
+    get "/userinfo", OpenidController, :userinfo
+    post "/userinfo", OpenidController, :userinfo
   end
 
   scope "/oauth/callback", TuistWeb.Oauth do
@@ -1801,12 +2037,12 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
-      live "/~/pulse/errors/issues/:issue_id/events/:event_id", PulseErrorLive, :event
-      live "/~/pulse/errors/issues/:issue_id", PulseErrorLive, :issue
-      live "/~/pulse/metrics", PulseLive, :metrics
-      live "/~/pulse/logs", PulseLive, :logs
-      live "/~/pulse/traces", PulseLive, :traces
-      live "/~/pulse/errors", PulseLive, :errors
+      live "/pulse/metrics", PulseLive, :metrics
+      live "/pulse/logs", PulseLive, :logs
+      live "/pulse/traces", PulseLive, :traces
+      live "/pulse/errors", PulseLive, :errors
+      live "/pulse/errors/issues/:fingerprint", PulseErrorLive
+      live "/pulse/errors/issues/:fingerprint/events/:event_id", PulseErrorLive
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
@@ -1828,6 +2064,7 @@ defmodule TuistWeb.Router do
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
       live "/settings/ai", AISubscriptionsSettingsLive
+      live "/settings/ai/routing", OrganizationAISettingsLive
     end
   end
 
@@ -1860,7 +2097,9 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs", TestRunsLive, metadata: @public_project_route_metadata
       live "/tests/coverage", CoverageLive
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
+      live "/tests/coverage/commits", CoverageCommitsLive
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
+      live "/tests/coverage/pulls/:number", CoverageDetailLive, :pull_request
       live "/tests/coverage/files/*path", CoverageFileLive, :show
       live "/tests/test-selection", TestSelectionsLive
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
@@ -1870,6 +2109,12 @@ defmodule TuistWeb.Router do
       live "/tests/flaky-tests", FlakyTestsLive, metadata: @public_project_route_metadata
       live "/tests/quarantined-tests", QuarantinedTestsLive, metadata: @public_project_route_metadata
       live "/tests/shards", ShardsLive, metadata: @public_project_route_metadata
+      live "/snapshots", SnapshotsLive
+      live "/snapshots/commits/:git_commit_sha", SnapshotCommitLive
+      live "/snapshots/images/:set_name/*name", SnapshotHistoryLive
+      live "/snapshots/:build_id", SnapshotBuildLive
+
+      get "/snapshots/:build_id/images/:image_id/:variant", SnapshotImagesController, :show
       live "/module-cache", ModuleCacheLive, metadata: @public_project_route_metadata
       live "/module-cache/cache-runs", CacheRunsLive, metadata: @public_project_route_metadata
       live "/module-cache/generate-runs", GenerateRunsLive, metadata: @public_project_route_metadata
@@ -1882,6 +2127,7 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks, metadata: @public_project_route_metadata
       live "/builds/tasks/:name", GradleTasksLive, :task, metadata: @public_project_route_metadata
       live "/bazel-cache", BazelCacheLive, metadata: @public_project_route_metadata
+      live "/remote-execution", RemoteExecutionLive, metadata: @public_project_route_metadata
       get "/once", RedirectPlug, to: "/once/builds"
       get "/once/runs", RedirectPlug, to: "/once/build-runs"
       live "/once/runs/:once_run_id", OnceRunLive, :overview, metadata: @public_project_route_metadata

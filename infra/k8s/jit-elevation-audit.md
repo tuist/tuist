@@ -4,7 +4,7 @@ How to reconstruct, after the fact, what happened during a JIT elevation. Three 
 
 After the Pomerium pivot, `tuist-ops` (mgmt cluster) owns the bot's tables and serves the Pomerium impersonation policy endpoint; the tailnet ACL is no longer mutated at runtime, so the historical "Tailscale ACL audit log" trail no longer applies.
 
-**Staging is not part of this runbook.** Its `tuist-staging-write` group is standing access for every engineering identity, so a staging mutation has no elevation row, no Slack card and no TTL to reconstruct — only the Pomerium access log (trail 3), which still carries the email, verb and path of every request. Elevations exist for canary and production only.
+**Staging is not part of this runbook.** Its `tuist-staging-write` group is standing access for every engineering identity, so a staging mutation has no elevation row, no Slack card and no TTL to reconstruct — only the Pomerium access log (trail 3), which still carries the email, verb and path of every request. Staging's Pulse has no SQL source, though, so that log currently has no read path (see trail 3). Elevations exist for canary and production only.
 
 ## What you need to know upfront
 
@@ -54,20 +54,29 @@ WHERE e.id = $ELEVATION_ID;
 
 ## Trail 3: Pomerium access log (per-call kubectl audit)
 
-This is the per-action trail. Pomerium emits one structured log line per kubectl HTTP call it proxies, including the authenticated user's email, the verb + resource the call targeted, and the response code from the apiserver. Shipped to Grafana Cloud Loki via k8s-monitoring.
+This is the per-action trail. Pomerium emits one structured JSON line per kubectl HTTP call it authorizes (`authorize check`), with the authenticated user's `email`, the `method` and `path` of the call, the API `host`, and whether it was allowed (`allow`). k8s-monitoring ships it to the cluster's Pulse, where it is a row of `opentelemetry_logs`: the Loki labels are in the `resource_attributes` JSON and the line is in `body`.
 
-```logql
-{cluster=~"tuist-k8s-production|tuist-k8s-canary|tuist-k8s-staging",
- app_kubernetes_io_name="pomerium"}
-  | json
-  | user_email = "marek@tuist.dev"
-  | timestamp >= "<elevation expires_at - ttl_seconds>"
-  | timestamp <= "<elevation expires_at>"
+Read it from Grafana through the **Tuist Pulse SQL** data source (`pulse-sql`): open Explore, switch the query to Code and the format to Table. Only production's Pulse serves SQL, so this covers production elevations only. **Canary elevations currently have no per-call trail:** canary's (and staging's) Pomerium lines are stored in that cluster's Pulse, which has no SQL source and serves no Loki query API, so trails 1 and 2 are all a canary elevation has until one is added. Replace `<email>` with `requester_email` and `<start>` / `<end>` with the elevation window as UTC timestamps (`expires_at` minus `ttl_seconds`, then `expires_at`):
+
+```sql
+SELECT timestamp,
+  json_get_string(parse_json(body), 'email') AS email,
+  json_get_string(parse_json(body), 'method') AS method,
+  json_get_string(parse_json(body), 'path') AS path,
+  json_get_bool(parse_json(body), 'allow') AS allow
+FROM opentelemetry_logs
+WHERE timestamp >= '<start>' AND timestamp < '<end>'
+  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'
+  AND json_get_string(resource_attributes, 'namespace') = 'pomerium'
+  AND body LIKE '%authorize check%'
+  AND body LIKE '%"host":"kube-prod.tuist.dev"%'
+  AND json_get_string(parse_json(body), 'email') = '<email>'
+ORDER BY timestamp
 ```
 
-Tighten with `method`, `path`, or `response_status` to find the specific calls a forensics request is about (e.g. `method="DELETE"` to list everything the user destroyed during the window).
+This follows the privileged-access query in [`infra/log-review.md`](../log-review.md), which explains the `host` filter. Tighten it to the calls a forensics request is about, for example `AND regexp_like(body, '"method":"DELETE"')` to list everything the user destroyed during the window, or `AND NOT regexp_like(body, '"path":"[^"]*selfsubject')` to drop `kubectl auth whoami` and `kubectl auth can-i`. A denied call (`allow` false) is an attempt the policy blocked, which is worth reading rather than filtering out.
 
-If apiserver audit logging is enabled (see the follow-up in the PR description), join on the apiserver's per-resource audit events for full request/response bodies. Pomerium's log gives you "what URL and what response code"; apiserver audit gives you "what the request body looked like."
+Where the API server audit log is enabled ([credential-rotation.md → API server audit log](../credential-rotation.md#api-server-audit-log)), it records Secret reads and ServiceAccount token requests at Metadata level, including those made by ServiceAccounts and nodes that never pass Pomerium. It records no request or response bodies, and nothing for other resources.
 
 ## What stopped being a trail
 

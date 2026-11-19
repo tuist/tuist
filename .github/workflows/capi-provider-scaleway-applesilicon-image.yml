@@ -119,7 +119,7 @@ jobs:
 
   test-macos-sandbox-guest:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -265,4 +265,8 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=capi-scaleway-applesilicon
-          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
+          # A failed cache export must not fail the image build. On
+          # 2026-11-16 one layer's export failed three
+          # attempts in a row with "failed to reserve cache: cache entry
+          # already exists".
+          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon,ignore-error=true

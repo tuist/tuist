@@ -1,5 +1,10 @@
 defmodule Tuist.Threads.Thread do
-  @moduledoc "An owner-private conversation with an optional repository workspace."
+  @moduledoc """
+  A conversation its owner runs on their own subscription, private to them
+  and to the people they, or other participants, loop in by mentioning them. Its runs work in the thread's sandbox; a
+  repository is checked out there once the owner names one or the agent
+  asks for one the owner can read (`Tuist.Threads.request_repository/2`).
+  """
   use Ecto.Schema
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -17,14 +22,21 @@ defmodule Tuist.Threads.Thread do
     field :branch, :string
     field :base_sha, :string
     field :sandbox_id, :binary_id
+    field :runner_id, :binary_id
     field :workspace_ready, :boolean, default: false
+    field :workspace_ready_id, :string, virtual: true
     field :ship_mode, Ecto.Enum, values: [:direct, :branch], default: :branch
     field :status, Ecto.Enum, values: [:active, :archived], default: :active
+    # See `Tuist.Threads.snooze/4`.
+    field :snoozed_until, :utc_datetime
+    field :snoozed_until_needed, :boolean, default: false
     field :agent_status, :string, default: "queued"
     field :revision, :integer, default: 0
     field :messages, {:array, :map}, virtual: true, default: []
     field :has_more, :boolean, virtual: true, default: false
     field :next_before, :integer, virtual: true
+    field :participant_ids, {:array, :integer}, virtual: true, default: []
+    field :people, :map, virtual: true, default: %{}
     timestamps(type: :utc_datetime)
   end
 end

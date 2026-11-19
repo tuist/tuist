@@ -26,9 +26,18 @@ defmodule Tuist.Sandboxes.Schemas do
         resident: %Schema{type: :boolean, description: "Whether a macOS sandbox retains its process and capacity."},
         template: %Schema{type: :string},
         template_tag: %Schema{type: :string, nullable: true},
-        vcpus: %Schema{type: :integer},
+        vcpus: %Schema{
+          type: :integer,
+          description:
+            "The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU."
+        },
         memory_mb: %Schema{type: :integer},
         workspace_gb: %Schema{type: :integer},
+        guaranteed_vcpus: %Schema{
+          type: :number,
+          description:
+            "The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one."
+        },
         node_name: %Schema{type: :string, nullable: true},
         hostname: %Schema{type: :string, nullable: true},
         agent_environment_id: %Schema{type: :integer, nullable: true},
@@ -55,16 +64,40 @@ defmodule Tuist.Sandboxes.Schemas do
   @doc "The shape a sandbox or agent environment is created with; every field is optional."
   def shape do
     %{
-      platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
+      platform: %Schema{
+        type: :string,
+        enum: ["linux", "darwin"],
+        description: "Omitted: `darwin` when `xcode_version` is set, otherwise `linux`."
+      },
       template: %Schema{type: :string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", description: "Sandbox template name."},
+      xcode_version: %Schema{
+        type: :string,
+        nullable: true,
+        description:
+          "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+      },
       vcpus: %Schema{
         type: :integer,
         enum: [2, 4, 8],
-        description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
+        description:
+          "With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576."
       },
       memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
       workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
     }
+  end
+
+  @doc "What a sandbox is created with: its shape and, on Linux, the CPU it is guaranteed."
+  def create do
+    choices = Enum.map(Sandbox.guaranteed_cpu_choices(), &Sandbox.vcpus/1)
+
+    Map.put(shape(), :guaranteed_vcpus, %Schema{
+      type: :number,
+      minimum: List.first(choices),
+      maximum: List.last(choices),
+      description:
+        "Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: #{Enum.join(choices, ", ")}. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life."
+    })
   end
 
   def pagination do
@@ -82,7 +115,7 @@ defmodule Tuist.Sandboxes.Schemas do
   def response(:delete), do: object("SandboxDeleted", %{id: %Schema{type: :string, format: "uuid"}, deleted: boolean()})
 
   def response(:analytics) do
-    resources = fn title -> object(title, %{vcpus: integer(), memory_gb: number(), disk_gb: number()}) end
+    resources = fn title -> object(title, %{vcpus: integer(), memory_gb: number()}) end
 
     object("SandboxAnalytics", %{
       period: object("SandboxAnalyticsPeriod", %{start: timestamp(), end: timestamp()}),
@@ -92,7 +125,13 @@ defmodule Tuist.Sandboxes.Schemas do
       },
       vcpu_hours: %Schema{
         type: :number,
-        description: "vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs."
+        description:
+          "vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour."
+      },
+      memory_gib_hours: %Schema{
+        type: :number,
+        description:
+          "GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs."
       },
       created:
         object("SandboxAnalyticsCount", %{
@@ -106,14 +145,14 @@ defmodule Tuist.Sandboxes.Schemas do
       concurrency:
         object("SandboxAnalyticsConcurrency", %{
           limits: resources.("SandboxResourceLimits"),
+          # Guaranteed vCPUs, which the limit counts, rounded up.
           in_use: resources.("SandboxResourcesInUse"),
           points:
             array(
               object("SandboxAnalyticsConcurrencyPoint", %{
                 at: timestamp(),
                 vcpus: integer(),
-                memory_gb: number(),
-                disk_gb: number()
+                memory_gb: number()
               })
             )
         })
@@ -145,7 +184,12 @@ defmodule Tuist.Sandboxes.Schemas do
           %{start: timestamp(), end: timestamp()}
 
         :create ->
-          shape()
+          Map.put(create(), :repository, %Schema{
+            type: :string,
+            pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$",
+            description:
+              "macOS only: the github.com repository (`owner/name`) the sandbox is for, connected to one of the account's projects. When a Linux Claude Code environment of the account has a macOS setup script, the sandbox boots from that repository's snapshot for its Xcode, with the default branch cloned to `$HOME/work/<name>`, the script run and the project built there, so the first `tuist sandbox sync` sends only what changed. Without a snapshot it boots bare and one is built for the next sandbox."
+          })
 
         _ ->
           %{sandbox_id: %Schema{type: :string, format: "uuid"}}

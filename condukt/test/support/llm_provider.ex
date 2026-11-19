@@ -1,5 +1,11 @@
 defmodule Condukt.Test.LLMProvider do
   @moduledoc false
+  # Scripted ReqLLM provider. `model/2` registers the responses a model id
+  # gives, in order. A plain response answers `ReqLLM.generate_text/3`; a
+  # `stream_response/2` entry answers `ReqLLM.stream_text/3` through ReqLLM's
+  # real streaming path: Finch reads server-sent events from a local HTTP
+  # server (`start_event_server/0`), and the provider's default decoder turns
+  # them into chunks.
 
   use ReqLLM.Provider,
     id: :condukt_test,
@@ -40,10 +46,78 @@ defmodule Condukt.Test.LLMProvider do
     {:error, RuntimeError.exception("unexpected test provider operation: #{inspect(operation)}")}
   end
 
+  # Streams only when the next scripted response is a stream, so a test that
+  # scripts plain responses still sees streaming fail as it always has.
   @impl true
   def attach_stream(model, context, opts, _finch_name) do
     send(owner(model.id), {__MODULE__, :stream_request, model.id, context, opts})
-    {:error, RuntimeError.exception("test provider does not stream")}
+
+    case take_stream(model.id) do
+      {:ok, events} ->
+        token = Integer.to_string(System.unique_integer([:positive]))
+        Agent.update(@store, &Map.put(&1, {:events, token}, events))
+        url = "http://127.0.0.1:#{:persistent_term.get(__MODULE__.EventServer)}/#{token}"
+        {:ok, Finch.build(:post, url, [{"content-type", "application/json"}], "{}")}
+
+      :error ->
+        {:error, RuntimeError.exception("test provider has no scripted stream")}
+    end
+  end
+
+  @doc """
+  A scripted streamed response, sent as OpenAI chat-completion events.
+
+  Parts are `{:text, chunk}`, `{:tool_call, id, name, args}`, and `:hold`,
+  which stops sending without ending the response, as a provider would while
+  the process consuming it dies. A response without `:hold` ends with
+  `finish_reason`, which defaults to `:tool_calls` when it has tool calls.
+  """
+  def stream_response(parts, finish_reason \\ nil) do
+    tool_calls? = Enum.any?(parts, &match?({:tool_call, _, _, _}, &1))
+    finish_reason = finish_reason || if(tool_calls?, do: :tool_calls, else: :stop)
+
+    events =
+      parts
+      |> Enum.with_index()
+      |> Enum.map(fn
+        {:hold, _index} -> :hold
+        {{:text, chunk}, _index} -> delta(%{"content" => chunk})
+        {{:tool_call, id, name, args}, index} -> delta(%{"tool_calls" => [tool_call_delta(index, id, name, args)]})
+      end)
+
+    finish = %{"choices" => [%{"index" => 0, "delta" => %{}, "finish_reason" => to_string(finish_reason)}]}
+    {:stream, events ++ [finish, "[DONE]"]}
+  end
+
+  defp delta(delta), do: %{"choices" => [%{"index" => 0, "delta" => delta}]}
+
+  defp tool_call_delta(index, id, name, args) do
+    %{
+      "index" => index,
+      "id" => id,
+      "type" => "function",
+      "function" => %{"name" => name, "arguments" => JSON.encode!(args)}
+    }
+  end
+
+  @doc "Starts the local server streamed responses are read from. Called once, from the test helper."
+  def start_event_server do
+    start()
+    {:ok, server} = Bandit.start_link(plug: __MODULE__.EventServer, ip: :loopback, port: 0, startup_log: false)
+    {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
+    :persistent_term.put(__MODULE__.EventServer, port)
+  end
+
+  @doc false
+  def take_events(token), do: Agent.get_and_update(@store, &Map.pop(&1, {:events, token}, []))
+
+  defp take_stream(model_id) do
+    Agent.get_and_update(@store, fn scripts ->
+      case Map.fetch(scripts, model_id) do
+        {:ok, {owner, [{:stream, events} | rest]}} -> {{:ok, events}, Map.put(scripts, model_id, {owner, rest})}
+        _ -> {:error, scripts}
+      end
+    end)
   end
 
   def model(responses, opts \\ []) do
@@ -127,6 +201,48 @@ defmodule Condukt.Test.LLMProvider do
         {:ok, {owner, _responses}} -> owner
         :error -> caller
       end
+    end)
+  end
+end
+
+defmodule Condukt.Test.LLMProvider.EventServer do
+  @moduledoc false
+  # Serves the events `Condukt.Test.LLMProvider.attach_stream/4` stored under
+  # the request path, as server-sent events.
+
+  @behaviour Plug
+
+  import Plug.Conn
+
+  alias Condukt.Test.LLMProvider
+
+  @hold_timeout 10_000
+
+  @impl true
+  def init(opts), do: opts
+
+  @impl true
+  def call(%Plug.Conn{path_info: [token]} = conn, _opts) do
+    conn =
+      conn
+      |> put_resp_header("content-type", "text/event-stream")
+      |> send_chunked(200)
+
+    Enum.reduce_while(LLMProvider.take_events(token), conn, fn
+      # Leaves the response open, then gives up on a reader that never comes back.
+      :hold, conn ->
+        receive do
+        after
+          @hold_timeout -> {:halt, conn}
+        end
+
+      event, conn ->
+        data = if is_binary(event), do: event, else: JSON.encode!(event)
+
+        case chunk(conn, "data: " <> data <> "\n\n") do
+          {:ok, conn} -> {:cont, conn}
+          {:error, _reason} -> {:halt, conn}
+        end
     end)
   end
 end

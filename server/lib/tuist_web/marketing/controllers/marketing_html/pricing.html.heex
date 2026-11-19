@@ -1,4 +1,5 @@
-<% signed_in? = not is_nil(TuistWeb.Authentication.current_user(assigns))
+<% current_user = TuistWeb.Authentication.current_user(assigns)
+signed_in? = not is_nil(current_user)
 
 plans = [
   %{
@@ -32,7 +33,12 @@ plans = [
         do: dgettext("marketing", "Upgrade now"),
         else: dgettext("marketing", "Upgrade on the go")
       ),
-    cta_href: ~p"/users/register",
+    # Registration redirects a signed-in user to their last project, not to where they can upgrade.
+    cta_href:
+      if(signed_in?,
+        do: TuistWeb.Authentication.signed_in_billing_path(current_user),
+        else: ~p"/users/register"
+      ),
     cta_variant: "primary",
     popular: true,
     traits: [
@@ -127,7 +133,7 @@ metered = [
         "Managed macOS and Linux runners next to your cache, billed per minute of job time."
       ),
     hint: nil,
-    link: %{label: dgettext("marketing", "See every machine and rate"), href: "#runners"},
+    link: %{label: dgettext("marketing", "See every machine and rate"), href: "#compute"},
     values: [
       dgettext("marketing", "100 macOS minutes"),
       %{
@@ -140,6 +146,21 @@ metered = [
             linux: "$0.001"
           )
       },
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Remote execution"),
+    description:
+      dgettext(
+        "marketing",
+        "Run individual build and test actions in isolated Linux microVMs at the same rates as Linux runners."
+      ),
+    hint: nil,
+    link: %{label: dgettext("marketing", "See shared compute rates"), href: "#compute"},
+    values: [
+      dgettext("marketing", "Linux compute rates"),
+      dgettext("marketing", "Linux compute rates"),
       dgettext("marketing", "Custom")
     ]
   },
@@ -330,7 +351,7 @@ runner_terms = [
     description:
       dgettext(
         "marketing",
-        "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
+        "Included for runners on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
       )
   },
   %{
@@ -397,7 +418,7 @@ runner_terms = [
             </div>
             <ul data-part="traits">
               <li :for={trait <- plan.traits} data-part="trait">
-                <.system_check />
+                <.check />
                 <span>{trait}</span>
               </li>
             </ul>
@@ -526,9 +547,9 @@ runner_terms = [
                   >
                     <%= cond do %>
                       <% value == :available -> %>
-                        <.system_check />
+                        <.check />
                       <% value == :unavailable -> %>
-                        <.math_x />
+                        <.close />
                       <% is_map(value) and Map.has_key?(value, :price) -> %>
                         <div data-part="value">{value.price}</div>
                         <div data-part="description">{value.description}</div>
@@ -565,16 +586,16 @@ runner_terms = [
         </div>
       </div>
 
-      <div data-part="runners" id="runners">
+      <div data-part="runners" id="compute">
         <div data-part="text">
-          <span data-part="eyebrow">{dgettext("marketing", "Compute")}</span>
-          <h2 data-part="title" id="pricing-runners-title">
-            {dgettext("marketing", "Tuist Runners")}
+          <span data-part="eyebrow">{dgettext("marketing", "Infrastructure")}</span>
+          <h2 data-part="title" id="pricing-compute-title">
+            {dgettext("marketing", "Compute")}
           </h2>
           <p data-part="description">
             {dgettext(
               "marketing",
-              "Run macOS and Linux CI jobs next to your cache, on any plan. You pay per minute of job time with no rounding up to whole minutes, and machine boot and cleanup are on us."
+              "Run CI jobs and remote actions next to your cache. Linux runners and remote execution share the same per-minute rates for equivalent CPU and memory. macOS rates apply to runners only."
             )}
           </p>
         </div>
@@ -630,7 +651,7 @@ runner_terms = [
         # split around it; a translation that drops %{price} keeps its text
         # and gets the figure after it instead of crashing the page.
         {hourly_before, hourly_after} =
-          case dgettext("marketing", "≈ %{price} per hour of job time", price: "\0")
+          case dgettext("marketing", "≈ %{price} per hour of compute time", price: "\0")
                |> String.split("\0", parts: 2) do
             [prefix, suffix] -> {prefix, suffix}
             [whole] -> {whole <> " ", ""}
@@ -719,6 +740,11 @@ runner_terms = [
             </div>
             <div data-part="machine">
               <p data-part="spec">
+                {if card.platform.id == "linux",
+                  do: dgettext("marketing", "Runners and remote execution"),
+                  else: dgettext("marketing", "Runners only")}
+              </p>
+              <p data-part="spec">
                 {card.platform.description} ·
                 <span data-machine-out="spec">{card.selected.spec}</span>
               </p>
@@ -742,7 +768,7 @@ runner_terms = [
         listed here for screen readers, crawlers, and the Markdown
         conversion (the agent guides link here rather than quote rates). --%>
         <div class="sr-only">
-          <h3>{dgettext("marketing", "All Tuist Runners machines and rates")}</h3>
+          <h3>{dgettext("marketing", "All compute machines and rates")}</h3>
           <div :for={platform <- runner_platforms}>
             <h4>{platform.name} ({platform.description})</h4>
             <ul>
@@ -760,7 +786,7 @@ runner_terms = [
           <p data-part="access-text">
             {dgettext(
               "marketing",
-              "Tuist Runners are invite-only while we scale capacity. Tell us about your workloads and we'll get you set up, including yearly and volume pricing."
+              "Tell us about your workloads and we'll help you get set up. Yearly and volume pricing is available for runners."
             )}
           </p>
           <.button
@@ -769,7 +795,7 @@ runner_terms = [
             rel="noopener noreferrer"
             variant="secondary"
             size="large"
-            label={dgettext("marketing", "Request access")}
+            label={dgettext("marketing", "Contact us")}
           />
         </div>
       </div>
@@ -787,7 +813,7 @@ runner_terms = [
               <span data-part="label">{question}</span>
               <span
                 data-part="chevron"
-                class="noora-neutral-button"
+                class="noora-ghost-button"
                 data-size="medium"
                 data-icon-only
                 aria-hidden="true"

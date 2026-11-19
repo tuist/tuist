@@ -2,17 +2,17 @@
 {
   "title": "Cobertura de código en Xcode",
   "titleTemplate": ":title · Cobertura de código · Funcionalidades · Guías · Tuist",
-  "description": "Sube la cobertura de código de proyectos de Xcode a Tuist y consúltala por archivo y por commit."
+  "description": "Sube la cobertura de código de proyectos de Xcode a Tuist y hazle seguimiento por archivo y por commit."
 }
 ---
-# Cobertura de código en Xcode {#xcode-code-coverage}
+# Cobertura de código de Xcode {#xcode-code-coverage}
 
-<!-- @snippet: ./_xcode-early-access -->
+La cobertura de código te indica qué líneas de tu código han ejecutado tus tests. Tuist sube la cobertura por línea de cada ejecución de tests y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada target y cada archivo. La página **Cobertura de código** del dashboard la muestra por commit y como tendencia para cada rama.
 
-La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist sube la cobertura por línea de cada ejecución de tests y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada target y cada archivo. La página **Cobertura de código** del panel la muestra por commit y como tendencia para cada rama.
+<!-- @snippet: ./_xcode-requirements -->
 
 > [!TIP]
-> Si generas tu proyecto con Tuist, sigue la <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">guía de proyectos generados</.localized_link>: mide el código que proviene de la caché binaria y mantiene la cobertura de los targets de test que los tests selectivos omiten.
+> Si generas tu proyecto con Tuist, sigue la <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">guía de proyectos generados</.localized_link> en su lugar: mide el código que proviene de la caché binaria y arrastra la cobertura de los targets de test que los tests selectivos omiten.
 
 ## Configuración {#setup}
 
@@ -32,7 +32,7 @@ let tuist = Tuist(
 
 La variable de entorno `TUIST_COVERAGE_UPLOAD` (`1` o `0`) tiene prioridad sobre la opción, por ejemplo para desactivar la subida en trabajos que ejecutan pull requests desde forks.
 
-Luego activa **Cobertura de código** en la acción de test de tu esquema (**Editar esquema › Test › Opciones**), o pasa `-enableCodeCoverage YES` a la ejecución, y ejecuta tus tests mediante `tuist xcodebuild test`:
+Luego activa **Cobertura de código** en la acción de test de tu esquema (**Edit Scheme › Test › Options**), o pasa `-enableCodeCoverage YES` a la ejecución, y ejecuta tus tests mediante `tuist xcodebuild test`:
 
 ```sh
 tuist xcodebuild test \
@@ -40,7 +40,7 @@ tuist xcodebuild test \
   -enableCodeCoverage YES
 ```
 
-Tuist sube la cobertura recopilada por la ejecución junto con sus resultados de test.
+Tuist sube la cobertura que recopiló la ejecución junto con sus resultados de tests.
 
 ### Completar cada commit en CI {#complete-each-commit}
 
@@ -64,12 +64,18 @@ Recopilar cobertura añade sobrecarga, principalmente después de que finalicen 
 
 ## Consultar cobertura {#querying}
 
-Los comandos `tuist coverage` leen lo que muestra el panel. Sin `--commit`, leen el último commit completo de `--branch`, o de tu rama predeterminada:
+Los comandos `tuist coverage` leen lo que muestra el dashboard. Sin `--commit`, leen el último commit completo de `--branch`, o de tu rama predeterminada:
 
 ```sh
 tuist coverage show                          # the project's coverage and its targets
 tuist coverage files --commit <sha>          # files, least covered first
 tuist coverage file Sources/Cart.swift --lines  # a file's functions, with per-line counts
+tuist coverage targets                       # targets, least covered first, then those taken from the binary cache without coverage
+tuist coverage commits --branch main         # a branch's commits with their status and change, newest first
+tuist coverage runs --commit <sha>           # the test runs behind a commit, marked full, partial or discarded
+tuist coverage branches                      # the branches with coverage
 ```
+
+La cobertura propia de una ejecución de tests se muestra en `tuist test show <test-run-id>`.
 
 Todos aceptan `--json` para scripting.

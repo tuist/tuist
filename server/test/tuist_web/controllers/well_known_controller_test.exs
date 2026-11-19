@@ -4,6 +4,7 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   alias Tuist.Environment
   alias Tuist.MCP.Server
+  alias Tuist.OAuth.Clients
   alias TuistWeb.AgentSkillsDiscovery
 
   setup do
@@ -29,7 +30,8 @@ defmodule TuistWeb.WellKnownControllerTest do
 
         assert json_response(response, 200) == %{
                  "network_trusted_report_publishing" => reporting,
-                 "network_trusted_cache_access" => cache
+                 "network_trusted_cache_access" => cache,
+                 "luft_oauth_client_id" => Clients.luft_client_id()
                }
 
         assert get_resp_header(response, "cache-control") == ["no-store"]
@@ -252,6 +254,22 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/struo" do
+    test "advertises the same event service as legacy Once discovery", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://ingest-eu.tuist.dev, grpcs://ingest-us.tuist.dev"
+        name -> System.get_env(name)
+      end)
+
+      expected = %{"events" => ["grpcs://ingest-eu.tuist.dev", "grpcs://ingest-us.tuist.dev"]}
+
+      for path <- ["/.well-known/struo", "/.well-known/once"] do
+        response = conn |> put_req_header("accept", "application/json") |> get(path)
+        assert json_response(response, 200) == expected
+      end
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")
@@ -267,7 +285,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
-      assert response["serverInfo"]["version"] == "1.52.1"
+      assert response["serverInfo"]["version"] == "1.77.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
@@ -288,6 +306,27 @@ defmodule TuistWeb.WellKnownControllerTest do
       refute response["instructions"] =~ "agent_auth.skill"
       assert response["tools"] == ["dynamic"]
       assert response["prompts"] == ["dynamic"]
+    end
+  end
+
+  describe "GET /en/docs/context7.json" do
+    test "serves the Context7 ownership file instead of a docs page on Tuist-hosted deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+
+      conn = get(conn, "/en/docs/context7.json")
+
+      assert json_response(conn, 200) == %{
+               "url" => "https://context7.com/websites/tuist_dev_en",
+               "public_key" => "pk_j1C6JsIPmcYwdZliFNUp7"
+             }
+    end
+
+    test "returns not found for on-premise deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> false end)
+
+      conn = get(conn, "/en/docs/context7.json")
+
+      assert response(conn, 404) == ""
     end
   end
 

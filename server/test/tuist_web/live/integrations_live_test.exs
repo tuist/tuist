@@ -62,6 +62,46 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "Connect any of your GitHub repositories to a project"
   end
 
+  describe "Amp workspaces" do
+    test "connects a workspace by its ID and disconnects it", %{conn: conn, account: account} do
+      workspace_id = "8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      component = with_target(lv, "#amp-workspaces")
+
+      assert render_submit(component, "connect", %{"workspace_id" => "my-workspace"}) =~ "Enter the workspace ID"
+      assert Tuist.Accounts.list_amp_workspace_connections(account) == []
+
+      render_submit(component, "connect", %{"workspace_id" => " #{workspace_id} "})
+
+      assert [%{workspace_id: ^workspace_id} = connection] = Tuist.Accounts.list_amp_workspace_connections(account)
+      assert has_element?(lv, "#amp-workspace-#{connection.id}", workspace_id)
+      assert has_element?(lv, "#amp-workspace-#{connection.id}", "All projects")
+
+      assert render_submit(component, "connect", %{"workspace_id" => workspace_id}) =~
+               "This Amp workspace is already connected."
+
+      assert render_submit(component, "connect", %{
+               "workspace_id" => "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11",
+               "project_id" => "x"
+             }) =~
+               "Enter the project ID as a UUID"
+
+      project_id = "1e345004-78e8-4e1d-bb72-27bb1a22d450"
+
+      render_submit(component, "connect", %{
+        "workspace_id" => "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11",
+        "project_id" => project_id
+      })
+
+      assert render(lv) =~ "Project #{project_id}"
+
+      lv |> element("#amp-workspace-#{connection.id} button", "Disconnect") |> render_click()
+
+      assert [%{project_id: ^project_id}] = Tuist.Accounts.list_amp_workspace_connections(account)
+      refute has_element?(lv, "#amp-workspace-#{connection.id}")
+    end
+  end
+
   describe "Origin visibility" do
     test "hides unconfigured Origin in development", %{
       conn: conn,

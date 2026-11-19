@@ -7,17 +7,17 @@
 ---
 # Bazel 프로젝트 마이그레이션 {#migrate-a-bazel-project}
 
-[Bazel](https://bazel.build)은 Google이 2015년에 오픈소스로 공개한 빌드 시스템입니다. 모든 규모의 소프트웨어를 빠르고 안정적으로 빌드하고 테스트할 수 있는 강력한 도구입니다. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae), [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)와 같은 대규모 조직에서 사용하고 있지만, 도입과 유지 관리를 위해서는 초기 투자(예: 기술 학습)와 지속적인 투자(예: Xcode 업데이트 대응)가 필요합니다. 이를 횡단 관심사로 다루는 일부 조직에는 적합하지만, 제품 개발에 집중하려는 다른 조직에는 최선의 선택이 아닐 수 있습니다. 예를 들어, iOS 플랫폼 팀이 Bazel을 도입했으나 주도했던 엔지니어들이 회사를 떠나면서 결국 포기해야 했던 사례를 본 적이 있습니다. 또한 Apple이 Xcode와 빌드 시스템 간의 강한 결합을 고수하는 점도 시간이 지남에 따라 Bazel 프로젝트를 유지하기 어렵게 만드는 요인 중 하나입니다.
+[Bazel](https://bazel.build)은 Google이 2015년에 오픈소스로 공개한 빌드 시스템입니다. 모든 규모의 소프트웨어를 빠르고 안정적으로 빌드하고 테스트할 수 있는 강력한 도구입니다. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae), [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)와 같은 대규모 조직에서 사용하고 있지만, 도입과 유지 관리를 위해서는 초기 투자(예: 기술 학습)와 지속적인 투자(예: Xcode 업데이트 대응)가 필요합니다. 이를 횡단 관심사로 다루는 일부 조직에는 적합하지만, 제품 개발에 집중하려는 다른 조직에는 최선의 선택이 아닐 수 있습니다. 예를 들어, iOS 플랫폼 팀이 Bazel을 도입했지만 주도하던 엔지니어들이 회사를 떠나면서 결국 포기해야 했던 사례를 본 적이 있습니다. 또한 Apple이 Xcode와 빌드 시스템 간의 강한 결합을 고수하는 점도 시간이 지남에 따라 Bazel 프로젝트를 유지하기 어렵게 만드는 요인 중 하나입니다.
 
 > [!TIP]
-> **Tuist의 독보적인 강점은 세련됨에 있습니다**
+> **Tuist의 독보적인 강점은 세련된 접근 방식에 있습니다**
 >
-> Tuist는 Xcode와 Xcode 프로젝트와 대립하지 않고 수용합니다. 동일한 개념(예: 타겟, 스킴, 빌드 설정), 친숙한 언어(즉, Swift), 그리고 단순하고 즐거운 경험을 제공하여 프로젝트 유지 관리와 확장을 iOS 플랫폼 팀뿐만 아니라 모두의 역할로 만듭니다.
+> Tuist는 Xcode 및 Xcode 프로젝트와 대립하지 않고 이를 수용합니다. 동일한 개념(예: 타겟, 스킴, 빌드 설정), 친숙한 언어(즉, Swift), 그리고 단순하고 즐거운 경험을 제공하여 프로젝트 유지 관리와 확장을 iOS 플랫폼 팀뿐만 아니라 모든 구성원의 업무로 만듭니다.
 
 
 ## 규칙 {#rules}
 
-Bazel은 소프트웨어를 빌드하고 테스트하는 방법을 정의하기 위해 규칙을 사용합니다. 이 규칙은 Python과 유사한 언어인 [Starlark](https://github.com/bazelbuild/starlark)로 작성됩니다. Tuist는 구성 언어로 Swift를 사용하여 개발자가 Xcode의 자동 완성, 타입 검사 및 검증 기능을 편리하게 활용할 수 있도록 합니다. 예를 들어, 다음 규칙은 Bazel에서 Swift 라이브러리를 빌드하는 방법을 설명합니다.
+Bazel은 규칙을 사용하여 소프트웨어를 빌드하고 테스트하는 방법을 정의합니다. 이러한 규칙은 Python과 유사한 언어인 [Starlark](https://github.com/bazelbuild/starlark)로 작성됩니다. Tuist는 설정 언어로 Swift를 사용하여 개발자가 Xcode의 자동 완성, 타입 검사 및 검증 기능을 편리하게 활용할 수 있도록 합니다. 예를 들어, 다음 규칙은 Bazel에서 Swift 라이브러리를 빌드하는 방법을 설명합니다.
 
 ::: code-group
 ```txt [BUILD (Bazel)]
@@ -90,4 +90,4 @@ tuist generate # Generate an Xcode project
 
 ## 프로젝트 생성 {#project-generation}
 
-커뮤니티는 Bazel로 선언된 프로젝트로부터 Xcode 프로젝트를 생성하기 위한 [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj) 규칙 세트를 제공합니다. Bazel에서는 `BUILD` 파일에 일부 구성을 추가해야 하지만, Tuist는 전혀 구성이 필요하지 않습니다. 프로젝트 루트 디렉토리에서 `tuist generate`를 실행하면 Tuist가 Xcode 프로젝트를 생성해 줍니다.
+커뮤니티에서는 Bazel로 선언된 프로젝트로부터 Xcode 프로젝트를 생성하기 위해 [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)라는 규칙 세트를 제공합니다. Bazel에서는 `BUILD` 파일에 일부 구성을 추가해야 하지만, Tuist는 별도의 구성이 전혀 필요하지 않습니다. 프로젝트 루트 디렉터리에서 `tuist generate`를 실행하면 Tuist가 Xcode 프로젝트를 생성해 줍니다.

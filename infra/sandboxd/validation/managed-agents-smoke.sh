@@ -13,7 +13,8 @@
 # model; the prompts are deliberately tiny), AGENT_ID (reuse an agent),
 # BUDGET_CENTS (hard session spend cap, default 50), PAUSE_WAIT seconds
 # between turns (default 90, longer than the worker's max idle plus the
-# server's pause grace so the second turn hits a resume).
+# server's pause grace so the second turn hits a resume), TUIST_PLATFORM
+# (linux or macos: overrides the environment's platform for this session).
 set -euo pipefail
 
 : "${ANTHROPIC_API_KEY:?}"
@@ -73,7 +74,7 @@ if [ -z "${AGENT_ID:-}" ]; then
 fi
 echo "agent: $AGENT_ID"
 
-SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" --arg b "$BUDGET_CENTS" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", budget:{type:"limit", max_list_cost:{amount:$b, currency:"USD"}}, initial_events:[{type:"user.message", content:[{type:"text", text:"bash: hostname; uname -s; pwd; date -u | tee t"}]}]}')" | jq -r .id)
+SID=$(req POST /v1/sessions "$(jq -n --arg a "$AGENT_ID" --arg e "$ENVIRONMENT_ID" --arg b "$BUDGET_CENTS" --arg p "${TUIST_PLATFORM:-}" '{agent:$a, environment_id:$e, title:"tuist sandbox smoke", metadata:(if $p == "" then {} else {tuist_platform:$p} end), budget:{type:"limit", max_list_cost:{amount:$b, currency:"USD"}}, initial_events:[{type:"user.message", content:[{type:"text", text:"bash: hostname; uname -s; pwd; date -u | tee t"}]}]}')" | jq -r .id)
 echo "session: $SID"
 
 echo "== turn 1"; wait_turn "$SID" 1; print_turn "$SID" 0

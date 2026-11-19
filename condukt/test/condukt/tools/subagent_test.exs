@@ -1,10 +1,13 @@
 defmodule Condukt.Tools.SubagentTest do
   use ExUnit.Case, async: true
 
+  alias Condukt.Session.View
   alias Condukt.Test.LLMProvider
   alias Condukt.Tool
+  alias Condukt.Tools.BackgroundSubagent
   alias Condukt.Tools.Subagent
   alias ReqLLM.Message
+  alias ReqLLM.StreamChunk
   alias ReqLLM.ToolCall
 
   defmodule ParentAgent do
@@ -23,6 +26,58 @@ defmodule Condukt.Tools.SubagentTest do
 
     @impl true
     def init(_opts), do: {:stop, :boom}
+  end
+
+  # Sessions started under a supervisor do not inherit `$callers`, so each one
+  # allows the test's ReqLLM stub itself.
+  defmodule StreamAgent do
+    use Condukt
+
+    @impl true
+    def init(opts) do
+      if test_pid = opts[:test_pid], do: Mimic.allow(ReqLLM, test_pid, self())
+      {:ok, opts}
+    end
+  end
+
+  defmodule EchoRuntime do
+    def run(_prompt, _context, _opts), do: {:ok, "echo"}
+  end
+
+  defmodule ChildNotifier do
+    @behaviour Condukt.Notifier
+
+    @impl true
+    def publish(_session_id, event, opts) do
+      send(Keyword.fetch!(opts, :test_pid), {:child_notified, event})
+      :ok
+    end
+  end
+
+  defmodule RecordingNotifier do
+    @behaviour Condukt.Notifier
+
+    @impl true
+    def publish(_session_id, event, opts) do
+      send(Keyword.fetch!(opts, :test_pid), {:notified, event})
+      :ok
+    end
+  end
+
+  test "a call runs with read-only calls only when its role cannot change what later calls observe" do
+    opts = [
+      subagents: [
+        reader: {ChildAgent, tools: [Condukt.Tools.Read, Condukt.Tools.Grep]},
+        editor: {ChildAgent, tools: [Condukt.Tools.Read, Condukt.Tools.Write]},
+        shared: {ChildAgent, tools: [Condukt.Tools.Bash], sandbox: %Condukt.Sandbox{module: Condukt.Sandbox.Local}},
+        isolated: {ChildAgent, tools: [Condukt.Tools.Bash], sandbox: {Condukt.Sandbox.Local, cwd: "."}}
+      ]
+    ]
+
+    assert Subagent.read_only_call?(opts, %{"role" => "reader"})
+    refute Subagent.read_only_call?(opts, %{"role" => "editor"})
+    refute Subagent.read_only_call?(opts, %{"role" => "shared"})
+    assert Subagent.read_only_call?(opts, %{"role" => "isolated"})
   end
 
   test "builds a role enum from registered subagents" do
@@ -342,6 +397,60 @@ defmodule Condukt.Tools.SubagentTest do
     GenServer.stop(parent)
   end
 
+  # A child session belongs to the subagent call that started it, below the
+  # parent's turn worker, so a worker that crashes takes it down too.
+  test "stops the child session when the parent turn's worker exits" do
+    test_pid = self()
+    empty = %{type: "object", properties: %{}}
+
+    block =
+      Condukt.tool(
+        name: "block",
+        description: "blocks",
+        parameters: empty,
+        call: fn _args, context ->
+          send(test_pid, {:child_tool_running, self(), context.agent})
+          receive do: (:never -> {:ok, "unreachable"})
+        end
+      )
+
+    delegate = ToolCall.new("parent_call_1", "subagent", JSON.encode!(%{"role" => "researcher", "task" => "go"}))
+
+    {parent_model, _} =
+      LLMProvider.model([
+        LLMProvider.response(
+          %Message{role: :assistant, content: [], tool_calls: [delegate]},
+          :tool_calls
+        )
+      ])
+
+    child_call = ToolCall.new("child_call_1", "block", "{}")
+
+    {child_model, _} =
+      LLMProvider.model([
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [child_call]}, :tool_calls)
+      ])
+
+    {:ok, parent} =
+      Condukt.Session.start(ParentAgent,
+        model: parent_model,
+        subagents: [researcher: {ChildAgent, model: child_model, tools: [block], load_project_instructions: false}],
+        load_project_instructions: false
+      )
+
+    caller = Task.async(fn -> Condukt.run(parent, "delegate") end)
+    assert_receive {:child_tool_running, child_tool, child}, 5_000
+    child_ref = Process.monitor(child)
+    tool_ref = Process.monitor(child_tool)
+
+    Process.exit(:sys.get_state(parent).turn.worker, :boom)
+
+    assert {:error, {:turn_crashed, _reason}} = Task.await(caller)
+    assert_receive {:DOWN, ^child_ref, :process, ^child, _reason}, 1_000
+    assert_receive {:DOWN, ^tool_ref, :process, ^child_tool, _reason}, 1_000
+    GenServer.stop(parent)
+  end
+
   test "subagent telemetry carries parent and child session ids" do
     handler_id = "subagent-session-ids-#{inspect(make_ref())}"
     test_pid = self()
@@ -518,6 +627,487 @@ defmodule Condukt.Tools.SubagentTest do
 
     assert_receive {:DOWN, ^supervisor_ref, :process, ^supervisor, _reason}
     assert_receive {:DOWN, ^child_ref, :process, ^child, _reason}
+  end
+
+  test "aborting the parent turn aborts a running foreground child" do
+    test_pid = self()
+    tool_call = ToolCall.new("call_1", "subagent", JSON.encode!(%{"role" => "researcher", "task" => "write notes"}))
+
+    {parent_model, parent_model_id} =
+      LLMProvider.model([
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [tool_call]}, :tool_calls),
+        LLMProvider.text_response("must not run")
+      ])
+
+    {child_model, _child_model_id} =
+      LLMProvider.model([
+        fn ->
+          send(test_pid, {:child_inference, self()})
+          receive do: (:continue -> LLMProvider.text_response("late notes"))
+        end
+      ])
+
+    {:ok, parent} =
+      ParentAgent.start_link(
+        model: parent_model,
+        subagents: [researcher: {ChildAgent, model: child_model, load_project_instructions: false}],
+        load_project_instructions: false
+      )
+
+    task = Task.async(fn -> Condukt.run(parent, "delegate") end)
+    assert_receive {:child_inference, inference}, 1_000
+
+    # The child's turn runs under the child session, which runs under the
+    # supervisor the call started: [child turns, child, call's supervisor | _].
+    {:dictionary, dictionary} = Process.info(inference, :dictionary)
+    [_child_turns, child, call_supervisor | _] = Keyword.fetch!(dictionary, :"$ancestors")
+    assert %Condukt.Session{} = :sys.get_state(child)
+    refs = Map.new([inference, child, call_supervisor], &{&1, Process.monitor(&1)})
+    worker_ref = Process.monitor(:sys.get_state(parent).turn.worker)
+
+    assert :ok = Condukt.abort(parent)
+    assert Task.await(task) == {:error, :aborted}
+    # The child's inference is still blocked, so only the abort can end it.
+    for {pid, ref} <- refs, do: assert_receive({:DOWN, ^ref, :process, ^pid, :shutdown}, 1_000)
+    assert_receive {:DOWN, ^worker_ref, :process, _worker, :shutdown}, 1_000
+    assert_received {LLMProvider, :request, ^parent_model_id, _context, _opts}
+    refute_receive {LLMProvider, :request, ^parent_model_id, _context, _opts}, 20
+
+    GenServer.stop(parent)
+  end
+
+  test "streams a foreground child's events into the parent stream, tagged with the call" do
+    {parent_model, parent_model_id} = LLMProvider.model([])
+    {child_model, child_model_id} = LLMProvider.model([])
+
+    stub_streams(%{
+      parent_model_id => [
+        stream_response(
+          [
+            StreamChunk.tool_call("subagent", %{"role" => "researcher", "task" => "write notes"}, %{
+              id: "call_1",
+              index: 0
+            })
+          ],
+          :tool_calls
+        ),
+        stream_response([StreamChunk.text("parent done")])
+      ],
+      child_model_id => [stream_response([StreamChunk.text("field "), StreamChunk.text("notes")])]
+    })
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        model: parent_model,
+        test_pid: self(),
+        notifier: {RecordingNotifier, test_pid: self()},
+        subagents: [researcher: {StreamAgent, model: child_model, test_pid: self(), load_project_instructions: false}],
+        load_project_instructions: false
+      )
+
+    events = Condukt.stream(parent, "delegate") |> Enum.to_list()
+
+    child_events = for {:subagent, "call_1", event} <- events, do: event
+    assert [:agent_start | _] = child_events
+    assert {:text, "field "} in child_events
+    assert {:text, "notes"} in child_events
+    assert List.last(child_events) == :done
+
+    index = fn event -> Enum.find_index(events, &(&1 == event)) end
+
+    assert index.({:tool_call, "subagent", "call_1", %{"role" => "researcher", "task" => "write notes"}}) <
+             index.({:subagent, "call_1", :agent_start})
+
+    assert index.({:subagent, "call_1", :done}) < index.({:tool_result, "call_1", "field notes"})
+    # The view process publishes to the notifier apart from the stream. It
+    # answers `view/1` after everything the session sent it before, so once
+    # that returns the forwarded event has reached the notifier.
+    _view = Condukt.view(parent)
+    assert_received {:notified, {:subagent, "call_1", {:text, "notes"}}}
+
+    assert :sys.get_state(parent).subagent_supervisor |> DynamicSupervisor.which_children() == []
+
+    GenServer.stop(parent)
+  end
+
+  test "a background sub-agent outlives the parent turn and reports its answer as a follow-up" do
+    test_pid = self()
+    spawn_call = ToolCall.new("call_1", "background_subagent", spawn_args("read the book"))
+    wait_call = ToolCall.new("call_2", "background_subagent", JSON.encode!(%{"action" => "wait", "name" => "reader"}))
+
+    {parent_model, parent_model_id} =
+      LLMProvider.model([
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [spawn_call]}, :tool_calls),
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [wait_call]}, :tool_calls),
+        LLMProvider.text_response("must not run")
+      ])
+
+    {child_model, child_model_id} = LLMProvider.model([])
+
+    stub_streams(%{
+      parent_model_id => [stream_response([StreamChunk.text("noted")])],
+      child_model_id => [stream_response(blocking_chunks(test_pid, :reading, "a whale"))]
+    })
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        model: parent_model,
+        test_pid: test_pid,
+        notifier: {RecordingNotifier, test_pid: test_pid},
+        subagents: [reader: background_role(child_model, notifier: {ChildNotifier, test_pid: test_pid})],
+        load_project_instructions: false
+      )
+
+    task = Task.async(fn -> Condukt.run(parent, "start a reader") end)
+    assert_receive {:child_inference, :reading, inference}, 1_000
+    on_exit(fn -> send(inference, :continue) end)
+    # The `wait` call is waiting.
+    {BackgroundSubagent, tool_opts} = Enum.find(:sys.get_state(parent).tools, &match?({BackgroundSubagent, _}, &1))
+    eventually(fn -> :sys.get_state(tool_opts[:manager]).children["reader"].waiters != %{} end)
+
+    assert :ok = Condukt.abort(parent)
+    assert Task.await(task) == {:error, :aborted}
+
+    child = background_child(parent)
+    assert :sys.get_state(child).turn.streaming
+    # Recorded as the parent's child, by the parent's session id.
+    assert Condukt.Sessions.children(Condukt.Session.id(parent)) == [{Condukt.Session.id(child), child}]
+
+    send(inference, :continue)
+
+    history =
+      await_history(parent, fn history ->
+        Enum.map(history, &{&1.role, Condukt.Message.text(&1)}) ==
+          [{:user, "[subagent reader answered] a whale"}, {:assistant, "noted"}]
+      end)
+
+    assert length(history) == 2
+    assert_received {:notified, {:subagent, "call_1", {:text, "a whale"}}}
+    # The notifier the role configured still sees the child's own events.
+    assert_received {:child_notified, {:text, "a whale"}}
+
+    GenServer.stop(parent)
+  end
+
+  test "background sub-agents can be listed, stopped, messaged, and waited for" do
+    test_pid = self()
+    {child_model, child_model_id} = LLMProvider.model([])
+
+    stub_streams(%{
+      child_model_id => [
+        stream_response(blocking_chunks(test_pid, :chapters, "Chapter 1")),
+        stream_response(blocking_chunks(test_pid, :whale, "Moby Dick"))
+      ]
+    })
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        test_pid: test_pid,
+        notifier: {RecordingNotifier, test_pid: test_pid},
+        subagents: [reader: background_role(child_model)],
+        load_project_instructions: false
+      )
+
+    state = :sys.get_state(parent)
+    refute Enum.any?(state.tools, &match?({Subagent, _opts}, &1))
+    {BackgroundSubagent, tool_opts} = tool = Enum.find(state.tools, &match?({BackgroundSubagent, _opts}, &1))
+    context = %{agent: parent, sandbox: state.sandbox, cwd: state.cwd, tool_call_id: "call_1"}
+    call = fn args -> Tool.execute(tool, args, context) end
+
+    assert {:ok, %{name: "reader", status: "working"}} = call.(JSON.decode!(spawn_args("summarize every chapter")))
+    assert {:error, "reader already exists; use send"} = call.(JSON.decode!(spawn_args("again")))
+
+    # Host code reaches the child by parent and name, like any session.
+    reader = BackgroundSubagent.whereis(parent, "reader")
+    assert reader == background_child(parent)
+    assert {:ok, [%{session_id: session_id}]} = call.(%{"action" => "list"})
+    assert Condukt.Session.id(reader) == session_id
+    assert BackgroundSubagent.whereis(parent, "writer") == nil
+    assert_receive {:child_inference, :chapters, chapters}, 1_000
+    on_exit(fn -> Process.exit(chapters, :kill) end)
+
+    assert {:ok, [%{name: "reader", role: :reader, status: "working"}]} = call.(%{"action" => "list"})
+    assert {:ok, _view} = call.(%{"action" => "stop", "name" => "reader"})
+    assert {:ok, [%{status: "idle"}]} = call.(%{"action" => "list"})
+
+    assert {:ok, %{status: "working"}} =
+             call.(%{"action" => "send", "name" => "reader", "message" => "What is the whale called?"})
+
+    assert_receive {:child_inference, :whale, whale}, 1_000
+    waiter = Task.async(fn -> call.(%{"action" => "wait", "name" => "reader"}) end)
+    eventually(fn -> :sys.get_state(tool_opts[:manager]).children["reader"].waiters != %{} end)
+    send(whale, :continue)
+
+    assert {:ok, %{status: "idle", answer: "Moby Dick"}} = Task.await(waiter)
+    assert {:ok, %{status: "idle", answer: "Moby Dick"}} = call.(%{"action" => "wait", "name" => "reader"})
+    assert {:error, "no background sub-agent named writer"} = call.(%{"action" => "stop", "name" => "writer"})
+
+    # The answer went to the caller that waited, so the parent gets no report.
+    refute_receive {:notified, :agent_start}, 50
+    assert Condukt.history(parent) == []
+
+    GenServer.stop(parent)
+  end
+
+  # A viewer of the parent sees each background sub-agent by name, its status,
+  # and what its turn did, from changes that fold into the parent's own view.
+  test "the parent's view shows background sub-agents and their turns" do
+    test_pid = self()
+    {parent_model, parent_model_id} = LLMProvider.model([])
+    {child_model, child_model_id} = LLMProvider.model([])
+
+    stub_streams(%{
+      parent_model_id => [stream_response([StreamChunk.text("noted")])],
+      child_model_id => [
+        stream_response(blocking_chunks(test_pid, :chapters, "Chapter 1")),
+        stream_response([StreamChunk.text("Chapter 2")])
+      ]
+    })
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        model: parent_model,
+        test_pid: test_pid,
+        subagents: [reader: background_role(child_model)],
+        load_project_instructions: false
+      )
+
+    watched = Condukt.watch(parent)
+    assert watched.background == %{}
+
+    state = :sys.get_state(parent)
+    tool = Enum.find(state.tools, &match?({BackgroundSubagent, _opts}, &1))
+    context = %{agent: parent, sandbox: state.sandbox, cwd: state.cwd, tool_call_id: "call_1"}
+    call = fn args -> Tool.execute(tool, args, context) end
+
+    assert {:ok, %{status: "working"}} = call.(JSON.decode!(spawn_args("summarize every chapter")))
+    assert_receive {:child_inference, :chapters, chapters}, 1_000
+
+    assert %{"reader" => %{role: :reader, call_id: "call_1", status: :working, session_id: session_id}} =
+             Condukt.view(parent).background
+
+    assert is_binary(session_id)
+
+    # The wait claims the answer, so no report starts a parent turn.
+    waiter = Task.async(fn -> call.(%{"action" => "wait", "name" => "reader"}) end)
+    send(chapters, :continue)
+    assert {:ok, %{answer: "Chapter 1"}} = Task.await(waiter)
+
+    eventually(fn -> Condukt.view(parent).background["reader"].status == :idle end)
+
+    assert [%{type: :user, message: %{content: "summarize every chapter"}}, %{type: :assistant, text: "Chapter 1"}] =
+             Condukt.view(parent).background["reader"].run.items
+
+    # A later turn replaces the run, starting from the message it was sent.
+    assert {:ok, _view} = call.(%{"action" => "send", "name" => "reader", "message" => "And chapter 2?"})
+    assert {:ok, %{answer: "Chapter 2"}} = call.(%{"action" => "wait", "name" => "reader"})
+    eventually(fn -> Condukt.view(parent).background["reader"].status == :idle end)
+    final = Condukt.view(parent)
+
+    assert [%{type: :user, message: %{content: "And chapter 2?"}}, %{type: :assistant, text: "Chapter 2"}] =
+             final.background["reader"].run.items
+
+    folded =
+      Enum.reduce((watched.seq + 1)..final.seq//1, watched, fn seq, view ->
+        assert_receive {:condukt_change, _id, epoch, ^seq, change}
+        {:ok, view} = View.advance(view, epoch, seq, change)
+        view
+      end)
+
+    assert folded == final
+
+    child = background_child(parent)
+    monitor = Process.monitor(child)
+    Process.exit(child, :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^child, :killed}
+    eventually(fn -> Condukt.view(parent).background == %{} end)
+
+    # The crash is reported to the parent, which answers it in a turn of its own.
+    await_history(parent, &match?([_report, %{role: :assistant}], &1))
+
+    GenServer.stop(parent)
+  end
+
+  test "an answer a wait claims is not also reported to the parent" do
+    test_pid = self()
+    spawn_call = ToolCall.new("call_1", "background_subagent", spawn_args("read the book"))
+    wait_call = ToolCall.new("call_2", "background_subagent", JSON.encode!(%{"action" => "wait", "name" => "reader"}))
+
+    {parent_model, _parent_model_id} =
+      LLMProvider.model([
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [spawn_call]}, :tool_calls),
+        fn ->
+          send(test_pid, {:parent_inference, self()})
+
+          receive do: (:continue ->
+                         LLMProvider.response(
+                           %Message{role: :assistant, content: [], tool_calls: [wait_call]},
+                           :tool_calls
+                         ))
+        end,
+        LLMProvider.text_response("final")
+      ])
+
+    {child_model, child_model_id} = LLMProvider.model([])
+    stub_streams(%{child_model_id => [stream_response([StreamChunk.text("a whale")])]})
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        model: parent_model,
+        test_pid: test_pid,
+        notifier: {RecordingNotifier, test_pid: test_pid},
+        subagents: [reader: background_role(child_model)],
+        load_project_instructions: false
+      )
+
+    task = Task.async(fn -> Condukt.run(parent, "start a reader") end)
+    assert_receive {:parent_inference, inference}, 1_000
+    # The child answers before the parent asks to wait, so its report is queued.
+    assert_receive {:notified, {:subagent, "call_1", :done}}, 1_000
+    eventually(fn -> :sys.get_state(parent).turn.reports != [] end)
+    send(inference, :continue)
+
+    assert Task.await(task) == {:ok, "final"}
+
+    assert Enum.any?(Condukt.history(parent), fn
+             %Condukt.Message{role: :tool_result, content: %{answer: "a whale"}} -> true
+             _message -> false
+           end)
+
+    state = :sys.get_state(parent)
+    assert state.turn.reports == []
+    refute state.turn.streaming
+    refute Enum.any?(Condukt.history(parent), &(&1.role == :user and &1.content =~ "[subagent"))
+
+    GenServer.stop(parent)
+  end
+
+  test "a report queued during a parent turn survives aborting that turn" do
+    test_pid = self()
+    spawn_call = ToolCall.new("call_1", "background_subagent", spawn_args("read the book"))
+
+    {parent_model, parent_model_id} =
+      LLMProvider.model([
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [spawn_call]}, :tool_calls),
+        fn ->
+          send(test_pid, {:parent_inference, self()})
+          receive do: (:continue -> LLMProvider.text_response("must not land"))
+        end
+      ])
+
+    {child_model, child_model_id} = LLMProvider.model([])
+
+    stub_streams(%{
+      parent_model_id => [stream_response([StreamChunk.text("noted")])],
+      child_model_id => [stream_response([StreamChunk.text("a whale")])]
+    })
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        model: parent_model,
+        test_pid: test_pid,
+        notifier: {RecordingNotifier, test_pid: test_pid},
+        subagents: [reader: background_role(child_model)],
+        load_project_instructions: false
+      )
+
+    task = Task.async(fn -> Condukt.run(parent, "start a reader") end)
+    assert_receive {:parent_inference, inference}, 1_000
+    on_exit(fn -> Process.exit(inference, :kill) end)
+    eventually(fn -> :sys.get_state(parent).turn.reports != [] end)
+
+    assert :ok = Condukt.abort(parent)
+    assert Task.await(task) == {:error, :aborted}
+
+    await_history(parent, fn history ->
+      Enum.map(history, &{&1.role, Condukt.Message.text(&1)}) ==
+        [{:user, "[subagent reader answered] a whale"}, {:assistant, "noted"}]
+    end)
+
+    GenServer.stop(parent)
+  end
+
+  test "spawning a background role that cannot take queued input fails instead of hanging" do
+    {:ok, parent} =
+      StreamAgent.start_link(
+        subagents: [
+          reader: {StreamAgent, runtime: EchoRuntime, background: true, load_project_instructions: false}
+        ],
+        load_project_instructions: false
+      )
+
+    state = :sys.get_state(parent)
+    tool = Enum.find(state.tools, &match?({BackgroundSubagent, _opts}, &1))
+    context = %{agent: parent, sandbox: state.sandbox, cwd: state.cwd, tool_call_id: "call_1"}
+
+    assert {:error, {:background_subagent_requires_native_runtime, StreamAgent}} =
+             Tool.execute(tool, JSON.decode!(spawn_args("read")), context)
+
+    assert {:ok, []} = Tool.execute(tool, %{"action" => "list"}, context)
+    # Only the manager is left under the supervisor.
+    assert [_manager] = DynamicSupervisor.which_children(state.subagent_supervisor)
+
+    GenServer.stop(parent)
+  end
+
+  defp spawn_args(message) do
+    JSON.encode!(%{"action" => "spawn", "name" => "reader", "role" => "reader", "message" => message})
+  end
+
+  defp background_role(model, opts \\ []) do
+    {StreamAgent, [model: model, test_pid: self(), background: true, load_project_instructions: false] ++ opts}
+  end
+
+  defp background_child(parent) do
+    parent
+    |> :sys.get_state()
+    |> Map.fetch!(:subagent_supervisor)
+    |> DynamicSupervisor.which_children()
+    |> Enum.map(fn {_id, pid, _type, _modules} -> pid end)
+    |> Enum.find(&match?(%Condukt.Session{}, :sys.get_state(&1)))
+  end
+
+  defp blocking_chunks(test_pid, tag, text) do
+    Stream.map([text], fn text ->
+      send(test_pid, {:child_inference, tag, self()})
+      receive do: (:continue -> StreamChunk.text(text))
+    end)
+  end
+
+  defp stub_streams(scripts) do
+    scripts = start_supervised!({Agent, fn -> scripts end}, id: make_ref())
+
+    Mimic.stub(ReqLLM, :stream_text, fn model, context, _opts ->
+      response =
+        Agent.get_and_update(scripts, fn scripts ->
+          [response | rest] = Map.fetch!(scripts, model.id)
+          {response, Map.put(scripts, model.id, rest)}
+        end)
+
+      {:ok, %{response | model: ReqLLM.model!(model), context: context}}
+    end)
+  end
+
+  defp stream_response(chunks, finish_reason \\ :stop) do
+    metadata =
+      start_supervised!({ReqLLM.StreamResponse.MetadataHandle, fn -> %{finish_reason: finish_reason} end},
+        id: make_ref()
+      )
+
+    %ReqLLM.StreamResponse{stream: chunks, metadata_handle: metadata, cancel: fn -> :ok end, model: nil, context: nil}
+  end
+
+  defp eventually(check, attempts \\ 200) do
+    cond do
+      check.() -> :ok
+      attempts == 0 -> flunk("condition never held")
+      true -> Process.sleep(5) && eventually(check, attempts - 1)
+    end
+  end
+
+  defp await_history(pid, predicate) do
+    eventually(fn -> predicate.(Condukt.history(pid)) end)
+    Condukt.history(pid)
   end
 
   defp message_text?(%Message{content: content}, text) when is_list(content) do

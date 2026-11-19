@@ -95,7 +95,7 @@ defmodule TuistWeb.PublicPageChallengeController do
   defp capture_return_to_from_query(conn, params) do
     case params["return_to"] do
       raw when is_binary(raw) and raw != "" ->
-        if Authentication.local_return_to(raw) do
+        if Authentication.session_return_to(raw) do
           put_session(conn, PublicPageChallengePlug.return_to_key(), raw)
         else
           conn

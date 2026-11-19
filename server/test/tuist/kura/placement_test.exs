@@ -6,130 +6,7 @@ defmodule Tuist.Kura.PlacementTest do
   @today ~D[2026-08-26]
   @permitted ["us-east", "us-west", "eu-west", "ap-southeast"]
 
-  describe "relocate" do
-    test "moves the primary once another region has durably carried the majority" do
-      context =
-        context(
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5)
-        )
-
-      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["signal"] == "majority_of_runs_moved"
-      assert evidence["share"] >= 0.6
-      # The account built on all 30 days; the rung reads the last 14 of them.
-      assert evidence["active_days"] == 14
-    end
-
-    test "leaves an account alone below the majority" do
-      context =
-        context(
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("FR", 30, 12) ++ daily("US-VA", 30, 12)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "leaves a quiet account alone however lopsided its traffic is" do
-      # The volume floor is what stops noise moving anyone: a handful of runs
-      # is not evidence about where a team works.
-      context =
-        context(
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("FR", 30, 1)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "does not move on a single burst of the same volume" do
-      # Durability is the point. One afternoon that clears the window's total
-      # says an unusual day happened, not that the team moved.
-      context =
-        context(
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: [rollup("FR", @today, 600)]
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "does not move outside what the account is permitted" do
-      # Residency is a boundary the placer never crosses: traffic from Paris
-      # cannot move an account restricted to the United States to Europe.
-      context =
-        context(
-          primary: "us-east",
-          serving: ["us-east"],
-          permitted: ["us-east", "us-west"],
-          rollups: daily("FR", 30, 20)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "maps traffic to the nearest permitted region rather than refusing it" do
-      # A United States account whose team works from Paris is still better
-      # served from the region nearest Paris that it may use.
-      context =
-        context(
-          primary: "us-west",
-          serving: ["us-west"],
-          permitted: ["us-east", "us-west"],
-          rollups: daily("FR", 30, 20)
-        )
-
-      assert {:relocate, "us-west", "us-east", _evidence} = Placement.evaluate(context)
-    end
-
-    test "keeps a source region that still earns its own place" do
-      # A majority moving says which region should be primary; it says nothing
-      # about whether the other is still worth serving. Retiring a 35% region
-      # that clears the expansion floor would drain a cache the very next sweep
-      # proposes reopening.
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
-        )
-
-      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["retire_source"] == false
-    end
-
-    test "gives up a source region whose own traffic no longer earns it" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("FR", 30, 95) ++ daily("US-VA", 30, 2)
-        )
-
-      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["retire_source"] == true
-    end
-
-    test "gives up a source an Air account's own traffic does not earn" do
-      context =
-        context(
-          plan: :air,
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
-        )
-
-      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["retire_source"] == true
-    end
-
+  describe "correct initial placement" do
     test "corrects a guess on a short window at a higher bar" do
       context =
         context(
@@ -229,341 +106,87 @@ defmodule Tuist.Kura.PlacementTest do
       refute match?({:correct, _from, _to, _evidence}, Placement.evaluate(context))
     end
 
-    test "stops at the relocation cap" do
+    test "runs alone never move a settled primary" do
+      # Runs count where builds report from, which is not where the cache is
+      # used on much of the fleet. Only the guess a first placement is reads
+      # them.
       context =
         context(
+          plan: :pro,
           primary: "us-east",
           serving: ["us-east"],
-          relocations_in_window: 1,
-          rollups: daily("FR", 30, 20)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "does not relocate an account with nothing to relocate from" do
-      context = context(primary: nil, serving: [], rollups: daily("FR", 30, 20))
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "does not relocate into a region already retiring" do
-      context =
-        context(
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          retiring: ["eu-west"],
-          rollups: daily("FR", 30, 20)
+          rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5)
         )
 
       assert Placement.evaluate(context) == :none
     end
   end
 
-  describe "expand" do
-    test "adds a region whose own traffic clears the absolute floor" do
-      # Share-blind on purpose: a heavy second site earns a local instance even
-      # while the first site dominates the account's mix.
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
-        )
-
-      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["signal"] == "sustained_local_demand"
-      assert evidence["runs_per_day"] >= 25
-    end
-
-    test "holds an Air account at one region below its floor" do
-      # Air can hold two, but a second instance is the expensive thing, so its
-      # floor is higher than a paid plan's rather than lower.
+  describe "plan cap" do
+    test "never opens a second Air region, however busy its second site" do
       context =
         context(
           plan: :air,
           primary: "us-east",
           serving: ["us-east"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
+          rollups: daily_hits("US-VA", 14, 15_000) ++ daily_hits("FR", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
+          reported: reported(["us-east"], 28),
+          reserved_gib: %{"us-east" => 16},
+          projected_gib: %{"eu-west" => 16}
         )
 
       assert Placement.evaluate(context) == :none
     end
 
-    test "opens a second Air region once its own traffic clears the floor" do
+    test "gives up the quietest region an Air account holds beyond its primary" do
+      # Held from when Air funded two. The primary stays even though eu-west
+      # is busier; the least used secondary goes first.
       context =
         context(
           plan: :air,
           primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120)
+          serving: ["us-east", "eu-west", "ap-southeast"],
+          rollups: daily_hits("US-VA", 28, 100) ++ daily_hits("FR", 28, 60) ++ daily_hits("SG", 28, 30)
         )
 
-      assert {:expand, "eu-west", _evidence} = Placement.evaluate(context)
-    end
+      assert {:retire, "ap-southeast", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "over_instance_cap"
 
-    test "holds an Air account at two regions" do
-      context =
-        context(
-          plan: :air,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120) ++ daily("JP", 14, 200)
-        )
+      assert Placement.evaluate(%{context | retiring: ["ap-southeast"]}) ==
+               {:retire, "eu-west", %{evidence | "region_traffic" => 1_680}}
 
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "holds a region under the floor" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 5)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "asks Air for more than the paid plans before opening a region" do
-      # Air funds two regions and the paid plans five, so Air, which funds the
-      # fewest, is the one that has to see the most traffic before spending a
-      # slot. Pro and Enterprise share a
-      # floor: a second site earning a region is the same amount of traffic
-      # whichever paid plan it is on.
-      rollups = daily("US-VA", 14, 500) ++ daily("FR", 14, 30)
-
-      assert {:expand, "eu-west", _evidence} =
-               Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: rollups))
-
-      assert {:expand, "eu-west", _evidence} =
-               Placement.evaluate(context(plan: :enterprise, primary: "us-east", serving: ["us-east"], rollups: rollups))
-
-      assert Placement.evaluate(context(plan: :air, primary: "us-east", serving: ["us-east"], rollups: rollups)) ==
-               :none
-    end
-
-    test "stops at the instance ceiling" do
-      # The primary keeps the majority, so nothing relocates. Pro funds five
-      # regions like Enterprise: a fourth still opens, and a sixth is refused.
-      rollups =
-        daily("US-VA", 14, 500) ++
-          daily("US-OR", 14, 200) ++
-          daily("FR", 90, 20) ++
-          daily("SG", 90, 20) ++
-          daily("BR", 90, 20) ++ daily("PL", 90, 20)
-
-      permitted = @permitted ++ ["sa-west", "eu-east"]
-
-      for plan <- [:pro, :enterprise] do
-        assert {:expand, "us-west", _evidence} =
-                 Placement.evaluate(
-                   context(
-                     plan: plan,
-                     primary: "us-east",
-                     serving: ["us-east", "eu-west", "ap-southeast"],
-                     permitted: permitted,
-                     rollups: rollups
-                   )
-                 )
-
-        assert Placement.evaluate(
-                 context(
-                   plan: plan,
-                   primary: "us-east",
-                   serving: ["us-east", "eu-west", "ap-southeast", "sa-west", "eu-east"],
-                   permitted: permitted,
-                   rollups: rollups
-                 )
-               ) == :none
-      end
-    end
-
-    test "does not expand into a region it already holds" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
-        )
-
-      assert Placement.evaluate(context) == :none
+      assert Placement.evaluate(%{context | retiring: ["ap-southeast", "eu-west"]}) == :none
     end
   end
 
-  describe "retire" do
-    test "gives up a secondary whose region has gone quiet" do
+  describe "runs" do
+    test "open no region however busy the second site" do
       context =
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
-        )
-
-      assert {:retire, "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["signal"] == "demand_below_floor"
-    end
-
-    test "will not judge a window it has no history for" do
-      # The floor is a whole window's worth of runs. Measured against ten days
-      # of history it is ten times too generous, so a region running a real 30
-      # builds a day reads as abandoned. At a full window the same region is
-      # six times over the floor and is never a candidate.
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 10, 100) ++ daily("FR", 10, 30)
+          serving: ["us-east"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
         )
 
       assert Placement.evaluate(context) == :none
+      assert context |> Map.merge(served_only("us-east")) |> Placement.evaluate() == :none
     end
 
-    test "retires once the history reaches the window it measures" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
-        )
-
-      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
-    end
-
-    test "holds a new account's regions to the same rule as the fleet's" do
-      # Not a rollout guard. An account onboarded a fortnight ago has a
-      # fortnight of history however long attribution has been running, and its
-      # regions cannot be judged on a quarter it was not present for.
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 2)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "never retires the primary, however quiet its region has gone" do
-      # Retirement reclaims a spare region; it does not take an account's cache
-      # away. An account quiet everywhere keeps the one instance it has.
-      context =
-        context(
-          plan: :pro,
-          primary: "eu-west",
-          serving: ["eu-west"],
-          rollups: daily("FR", 90, 1)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "leaves a secondary that is still busy" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 40)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "does not retire the same region twice" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          retiring: ["eu-west"],
-          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "gives up nothing when the account has no attributed traffic at all" do
-      # Before origins are being attributed, every account looks like this. An
-      # account nobody could locate is not one whose regions are misplaced, and
-      # reading it as one would retire every secondary in the fleet.
+    test "retire no secondary however quiet its region" do
+      # Over a quarter of runs eu-west is a region nobody builds from. Whether
+      # it is used is what it served, which only the hits rungs read.
       context =
         context(
           plan: :pro,
           primary: "us-east",
           serving: ["us-east", "eu-west"],
           held_since: %{"eu-west" => Date.add(@today, -120)},
-          rollups: []
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
         )
 
       assert Placement.evaluate(context) == :none
-    end
-
-    test "does not give up a region expansion would reopen on the next sweep" do
-      # The two floors span different windows, so a region quiet for months and
-      # busy for the last fortnight sits under the retirement total while being
-      # actively used.
-      quiet_then_busy = for offset <- 0..89, do: rollup("FR", Date.add(@today, -offset), if(offset < 14, do: 25, else: 0))
-
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          held_since: %{"eu-west" => Date.add(@today, -120)},
-          rollups: daily("US-VA", 90, 500) ++ quiet_then_busy
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "does not give up a region younger than the retirement window" do
-      # A region opened on a fortnight's traffic carries less than the
-      # retirement window's worth of runs on the day it opens. Without the age
-      # gate it would be given up immediately and reopened by the same evidence
-      # the next fortnight.
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          held_since: %{"eu-west" => Date.add(@today, -14)},
-          rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
-        )
-
-      assert Placement.evaluate(context) == :none
-    end
-
-    test "gives it up once it has had the window and stayed quiet" do
-      context =
-        context(
-          plan: :pro,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          held_since: %{"eu-west" => Date.add(@today, -120)},
-          rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
-        )
-
-      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
-    end
-
-    test "the gap between the two floors is what keeps a region from flapping" do
-      # A region between the retirement floor and the expansion floor is left
-      # exactly as it is, whichever side it is currently on.
-      between = daily("US-VA", 90, 500) ++ daily("FR", 90, 15)
-
-      assert Placement.evaluate(
-               context(plan: :pro, primary: "us-east", serving: ["us-east", "eu-west"], rollups: between)
-             ) == :none
-
-      assert Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: between)) == :none
     end
   end
 
@@ -578,7 +201,7 @@ defmodule Tuist.Kura.PlacementTest do
   end
 
   test "window_days/1 covers the longest span the policy reads" do
-    assert Placement.window_days() == 90
+    assert Placement.window_days() == 28
   end
 
   describe "served hits" do
@@ -629,6 +252,7 @@ defmodule Tuist.Kura.PlacementTest do
       # cache is used.
       context =
         context(
+          plan: :pro,
           primary: "us-east",
           serving: ["us-east", "eu-west"],
           rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5),
@@ -734,9 +358,9 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
-    test "lets hits overrule a runs retirement of a region that serves" do
-      # A handful of runs a day maps to eu-east, which the runs rung reads as a
-      # region nobody uses. It serves five thousand hits a day.
+    test "keeps a region that serves however few runs map to it" do
+      # A handful of runs a day maps to eu-east. It serves five thousand hits a
+      # day.
       context =
         context(
           plan: :enterprise,
@@ -748,14 +372,11 @@ defmodule Tuist.Kura.PlacementTest do
           reserved_gib: %{"us-east" => 50, "eu-east" => 50}
         )
 
-      assert {:retire, "eu-east", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(Map.delete(context, :served)) == :none
       assert Placement.evaluate(context) == :none
     end
 
-    test "still opens a region on runs however small a share of the account they are" do
-      # 2% of the runs is no forecast of the hits a region will serve: regions
-      # opened on that little have gone on to carry most of an account's
-      # traffic. The opening is a trial the retirement rung judges later.
+    test "opens no region on runs, however busy the second site" do
       context =
         context(
           plan: :pro,
@@ -767,7 +388,7 @@ defmodule Tuist.Kura.PlacementTest do
           reserved_gib: %{"us-east" => 64}
         )
 
-      assert {:expand, "eu-west", _evidence} = Placement.evaluate(context)
+      assert Placement.evaluate(context) == :none
     end
 
     test "does not reopen a region it gave up until the reopening window has passed" do
@@ -776,10 +397,11 @@ defmodule Tuist.Kura.PlacementTest do
           plan: :pro,
           primary: "us-east",
           serving: ["us-east"],
-          rollups: daily("US-VA", 30, 100) ++ daily("FR", 30, 60),
-          served: %{"us-east" => served_daily(28, 100_000)},
+          rollups: daily_hits("US-VA", 14, 15_000) ++ daily_hits("FR", 14, 5_000),
+          served: %{"us-east" => served_daily(28, 20_000)},
           reported: reported(["us-east"], 28),
-          reserved_gib: %{"us-east" => 64}
+          reserved_gib: %{"us-east" => 64},
+          projected_gib: %{"eu-west" => 64}
         )
 
       assert Placement.evaluate(Map.put(context, :given_up, %{"eu-west" => Date.add(@today, -30)})) == :none
@@ -825,7 +447,7 @@ defmodule Tuist.Kura.PlacementTest do
           projected_gib: %{"eu-west" => 128}
         )
 
-      assert {:expand, "eu-west", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(Map.delete(context, :served)) == :none
       assert Placement.evaluate(context) == :none
     end
 
@@ -846,21 +468,25 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["share"] < 0.1
     end
 
-    test "reads runs while too few of the account's hits carry an origin" do
+    test "opens nothing while too few of the account's hits carry an origin" do
+      # A quarter of the hits carry an origin. Read as the account, Paris would
+      # be 40% of it; the rest of the traffic says nothing about where it
+      # comes from, and runs do not stand in for it.
       context =
         context(
           plan: :pro,
           primary: "us-east",
           serving: ["us-east"],
-          rollups: daily("US-VA", 30, 100) ++ daily("FR", 30, 30) ++ daily_hits("US-VA", 14, 5_000),
+          rollups:
+            daily("US-VA", 30, 100) ++
+              daily("FR", 30, 30) ++ daily_hits("US-VA", 14, 3_000) ++ daily_hits("FR", 14, 2_000),
           served: %{"us-east" => served_daily(28, 20_000)},
           reported: reported(["us-east"], 28),
           reserved_gib: %{"us-east" => 128},
           projected_gib: %{"eu-west" => 128}
         )
 
-      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
-      assert evidence["signal"] == "sustained_local_demand"
+      assert Placement.evaluate(context) == :none
     end
 
     test "moves the primary to a region it does not hold once most hits come from nearer it" do
@@ -879,6 +505,12 @@ defmodule Tuist.Kura.PlacementTest do
       assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "majority_of_origin_hits_moved"
       assert evidence["share"] == 0.75
+      # The source still serves a quarter of the hits, which keeps it for Pro.
+      # Air holds one region, so its primary moves and the source goes.
+      assert evidence["retire_source"] == false
+
+      assert {:relocate, "us-east", "eu-west", %{"retire_source" => true}} =
+               Placement.evaluate(%{context | plan: :air})
     end
 
     test "does not move the primary on runs the hits contradict" do
@@ -893,7 +525,7 @@ defmodule Tuist.Kura.PlacementTest do
           projected_gib: %{"eu-west" => 16}
         )
 
-      assert {:relocate, "us-east", "eu-west", _evidence} = Placement.evaluate(Map.delete(context, :served))
+      assert Placement.evaluate(Map.delete(context, :served)) == :none
       assert Placement.evaluate(context) == :none
     end
 
@@ -1053,6 +685,10 @@ defmodule Tuist.Kura.PlacementTest do
   defp daily_hits(origin, days, hits) do
     for offset <- 0..(days - 1),
         do: %{origin: origin, date: Date.add(@today, -offset), run_count: 0, demand_count: 0, hit_count: hits}
+  end
+
+  defp served_only(region) do
+    %{served: %{region => served_daily(28, 20_000)}, reported: reported([region], 28), reserved_gib: %{region => 64}}
   end
 
   defp served_daily(days, hits) do

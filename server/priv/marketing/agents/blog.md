@@ -1,6 +1,6 @@
 # Tuist engineering blog
 
-An entry point to Tuist's articles on build systems, caching, testing, CI, and the reasoning behind product and infrastructure decisions.
+Engineering articles from Tuist on build infrastructure, developer workflows, and coding agents, with product updates and technical decisions.
 
 ## What this area provides
 

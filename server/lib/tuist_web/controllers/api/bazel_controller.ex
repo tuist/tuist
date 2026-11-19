@@ -175,6 +175,15 @@ defmodule TuistWeb.API.BazelController do
       sequence_number: %Schema{type: :integer},
       stream: %Schema{type: :string},
       message: %Schema{type: :string},
+      target_label: %Schema{
+        type: :string,
+        description: "The test target a test log belongs to; empty for progress output and older logs."
+      },
+      status: %Schema{
+        type: :string,
+        description:
+          "The test attempt's status (`success`, `failure`, `flaky` or `skipped`); empty for progress output and older logs."
+      },
       observed_at: %Schema{type: :string, format: :"date-time"}
     },
     required: [:id, :invocation_id, :sequence_number, :stream, :message, :observed_at]
@@ -216,9 +225,20 @@ defmodule TuistWeb.API.BazelController do
   }
 
   operation(:list_invocations,
-    summary: "List Bazel invocations for a project.",
+    summary: "List Bazel invocations for a project, newest first.",
+    description:
+      "Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.",
     operation_id: "listBazelInvocations",
-    parameters: @project_parameters ++ @pagination_parameters ++ @status_parameter,
+    parameters:
+      @project_parameters ++
+        @pagination_parameters ++
+        @status_parameter ++
+        [
+          git_branch: [in: :query, type: :string, description: "Filter by git branch."],
+          git_commit_sha: [in: :query, type: :string, description: "Filter by full git commit SHA."],
+          is_ci: [in: :query, type: :boolean, description: "Filter by whether the invocation ran on CI."],
+          command: [in: :query, type: :string, description: "Filter by Bazel command, for example build or test."]
+        ],
     responses: %{
       ok:
         {"List of Bazel invocations", "application/json",
@@ -234,20 +254,8 @@ defmodule TuistWeb.API.BazelController do
     }
   )
 
-  def list_invocations(
-        %{assigns: %{selected_project: project}, params: %{page: page, page_size: page_size} = params} = conn,
-        _params
-      ) do
-    filters = maybe_append_filter([%{field: :project_id, op: :==, value: project.id}], :status, params[:status])
-
-    {invocations, meta} =
-      Bazel.list_invocations(project.id, %{
-        filters: filters,
-        order_by: [:finished_at],
-        order_directions: [:desc],
-        page: page,
-        page_size: page_size
-      })
+  def list_invocations(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
+    {invocations, meta} = Bazel.list_project_invocations(project.id, params)
 
     json(conn, %{invocations: Enum.map(invocations, &invocation_json/1), pagination_metadata: pagination_json(meta)})
   end
@@ -286,6 +294,8 @@ defmodule TuistWeb.API.BazelController do
 
   operation(:list_invocation_logs,
     summary: "List the sanitized logs captured for a Bazel invocation.",
+    description:
+      "Returns bounded Build Event Protocol progress output and test.log artifacts in execution order. Test logs carry their target label and attempt status. Progress output is not attributed to targets; failed actions' output by target is available from the invocation's build steps.",
     operation_id: "listBazelInvocationLogs",
     parameters:
       @project_parameters ++
@@ -296,6 +306,29 @@ defmodule TuistWeb.API.BazelController do
             type: :string,
             required: true,
             description: "The Bazel invocation identifier."
+          ],
+          stream: [
+            in: :query,
+            type: %Schema{type: :string, enum: ["stdout", "stderr"]},
+            description: "Only return chunks from this stream. Test logs are always stdout."
+          ],
+          source: [
+            in: :query,
+            type: %Schema{type: :string, enum: ["progress", "test_log"]},
+            description:
+              "Only return Build Event Protocol progress output (`progress`) or test.log artifacts (`test_log`)."
+          ],
+          target_label: [
+            in: :query,
+            type: %Schema{type: :string, maxLength: 1_024},
+            description:
+              "Only return the test logs of this exact Bazel target label, such as `//foo:bar_test`. Progress output is not attributed to targets."
+          ],
+          errors: [
+            in: :query,
+            type: %Schema{type: :boolean, default: false},
+            description:
+              "Only return test logs of failed attempts and stderr progress chunks containing a line that Bazel's reporter starts with `ERROR:`, `FAIL:` or `TIMEOUT:`."
           ]
         ],
     responses: %{
@@ -316,17 +349,25 @@ defmodule TuistWeb.API.BazelController do
   def list_invocation_logs(
         %{
           assigns: %{selected_project: project},
-          params: %{invocation_id: invocation_id, page: page, page_size: page_size}
+          params: %{invocation_id: invocation_id, page: page, page_size: page_size} = params
         } = conn,
         _params
       ) do
     {logs, meta} =
-      Bazel.list_invocation_logs(project.id, invocation_id, %{
-        order_by: [:sequence_number],
-        order_directions: [:asc],
-        page: page,
-        page_size: page_size
-      })
+      Bazel.list_invocation_logs(
+        project.id,
+        invocation_id,
+        %{
+          order_by: [:sequence_number],
+          order_directions: [:asc],
+          page: page,
+          page_size: page_size
+        },
+        stream: params[:stream],
+        source: params[:source],
+        target_label: params[:target_label],
+        errors: params[:errors] == true
+      )
 
     json(conn, %{logs: Enum.map(logs, &invocation_log_json/1), pagination_metadata: pagination_json(meta)})
   end
@@ -476,8 +517,8 @@ defmodule TuistWeb.API.BazelController do
       cache_endpoint: invocation.cache_endpoint,
       status: invocation.status,
       exit_code: invocation.exit_code,
-      started_at: invocation.started_at,
-      finished_at: invocation.finished_at,
+      started_at: utc_datetime(invocation.started_at),
+      finished_at: utc_datetime(invocation.finished_at),
       duration_ms: invocation.duration_ms,
       build_metrics: build_metrics_json(invocation),
       build_timeline: build_timeline_json(invocation),
@@ -493,9 +534,16 @@ defmodule TuistWeb.API.BazelController do
       sequence_number: log.sequence_number,
       stream: log.stream,
       message: log.message,
-      observed_at: log.observed_at
+      target_label: log.target_label,
+      status: log.status,
+      observed_at: utc_datetime(log.observed_at)
     }
   end
+
+  # ClickHouse `DateTime` columns load as naive UTC values; the schema promises
+  # RFC 3339 `date-time` strings, which require an offset.
+  defp utc_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
+  defp utc_datetime(datetime), do: datetime
 
   defp build_metrics_json(invocation) do
     %{

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a99b3abd030eab04f443db2be5112bc4935122cf925d6eaea28bb310f11e319f",
+  "hash": "d455383832b3c7296670d5ff4e865029edeb3bddd244b09863674179b9101de7",
   "hash_tree": {
     "root": {
       "children": [
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -217,21 +217,21 @@
             }
           ],
           "details": {},
-          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
+          "hash": "44b600b056f26737d5b610175b1eaefeaeb83d256c45e7534089ce4b1395b289",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a99b3abd030eab04f443db2be5112bc4935122cf925d6eaea28bb310f11e319f",
+      "hash": "d455383832b3c7296670d5ff4e865029edeb3bddd244b09863674179b9101de7",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/apple.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3b81d28fd4080ef52fbf90cf062a4c7edc5bdd356d0fefa774197eeaca59a713",
+  "output_hash": "9e4611b4da18bb2d66b88be14fb5c764b2557416afe803873ef117276989d123",
   "output_path": "server/priv/docs/ka/guides/features/bundle-insights/apple.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
+  "source_commit_sha": "43b523bdc7ac780541c4d77ba209a93f9062b01f",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/apple.md",
-  "translated_at": "2026-11-06T16:46:45.395737Z",
-  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
+  "translated_at": "2026-11-18T20:27:49.294770Z",
+  "translation_session_id": "01a1f03a-4133-7890-9c7b-fd93095f7225"
 }

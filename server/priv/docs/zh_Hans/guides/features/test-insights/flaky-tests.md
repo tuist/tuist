@@ -7,7 +7,7 @@
 ---
 # 不稳定测试 {#flaky-tests}
 
-不稳定测试是指在代码不变的情况下多次运行会产生不同结果（通过或失败）的测试。它们会削弱你对测试套件的信任，并浪费开发人员排查误报失败的时间。Tuist 会自动检测不稳定测试，并帮助你随时间跟踪它们。
+不稳定测试是指在使用相同代码多次运行时产生不同结果（通过或失败）的测试。它们会削弱你对测试套件的信任，并浪费开发人员排查误报失败的时间。Tuist 会自动检测不稳定测试，并帮助你随时间追踪它们。关于如何作为团队进行调查和隔离，请参阅 [不稳定测试](https://tuist.dev/solutions/flaky-tests)。如需了解常见原因及如何衡量不稳定性的工具无关说明，请参阅 <.localized_link href="/references/concepts/flaky-test">什么是不稳定测试？</.localized_link>。
 
 <.home_cards>
   <.home_card
@@ -27,7 +27,7 @@
 />
   <.home_card
     title="Bazel"
-    details="通过 tuist bazel test 检测、静音和跳过不稳定的 Bazel 测试用例。"
+    details="通过 tuist bazel test 检测、静音并跳过不稳定的 Bazel 测试用例。"
     link="/guides/features/test-insights/flaky-tests/bazel"
 />
   <.home_card
@@ -37,12 +37,12 @@
 />
   <.home_card
     title="Rust"
-    details="利用跨 CI 运行的结果检测并排查不稳定的 Cargo 测试。"
+    details="利用跨 CI 运行的结果检测并调查不稳定的 Cargo 测试。"
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
     title="Once"
-    details="通过报告的重试尝试和 CI 历史记录排查不一致的测试结果。"
+    details="通过报告的重试尝试和 CI 历史记录调查不一致的测试结果。"
     link="/guides/features/test-insights/flaky-tests/once"
 />
 </.home_cards>

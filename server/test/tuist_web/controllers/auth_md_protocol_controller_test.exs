@@ -508,21 +508,26 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
 
   @tag :sso_credential_boundary
   test "agent claim requires this session's issuer, not a historical linked identity" do
-    user = AccountsFixtures.user_fixture(email: "member-#{System.unique_integer([:positive])}@sso-claim.example")
+    user = AccountsFixtures.user_fixture(email: "member-#{System.unique_integer([:positive])}@authmd-sso-claim.example")
 
     organization =
       AccountsFixtures.organization_fixture(
         creator: user,
         sso_provider: :okta,
-        sso_organization_id: "sso-claim.example",
-        sso_login_domain: "sso-claim.example",
+        sso_organization_id: "authmd-sso-claim.example",
+        sso_login_domain: "authmd-sso-claim.example",
         sso_login_domain_verified_at: DateTime.truncate(DateTime.utc_now(), :second),
         oauth2_client_id: "local-client",
         oauth2_client_secret: "local-secret"
       )
 
     {:ok, _} = Tuist.Accounts.update_organization(organization, %{sso_enforced: true})
-    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :okta, provider_organization_id: "sso-claim.example")
+
+    AccountsFixtures.oauth2_identity_fixture(
+      user: user,
+      provider: :okta,
+      provider_organization_id: "authmd-sso-claim.example"
+    )
 
     registration = build_conn() |> post("/agent/identity", %{"type" => "anonymous"}) |> json_response(200)
 
@@ -534,7 +539,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     claim_attempt_token =
       claim["claim_attempt"]["verification_uri"] |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
 
-    for workspace <- ["wrong.example", "sso-claim.example"] do
+    for workspace <- ["authmd-wrong.example", "authmd-sso-claim.example"] do
       token =
         Tuist.Accounts.generate_user_session_token(user, %{
           auth_method: :okta,
@@ -550,7 +555,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
           "user_code" => claim["claim_attempt"]["user_code"]
         })
 
-      if workspace == "wrong.example" do
+      if workspace == "authmd-wrong.example" do
         assert html_response(conn, 403) =~ "Single sign-on required"
 
         assert Repo.get!(AgentRegistration, String.replace_prefix(registration["registration_id"], "reg_", "")).status ==
@@ -620,7 +625,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     public_jwk = Map.put(public_jwk, "kid", "auth-md-provider-test-key")
 
     provider = %{
-      "issuer" => "https://agent-provider.example.com",
+      "issuer" => "https://agent-provider.authmd-example.com",
       "display_name" => "Example Agent Provider",
       "jwks" => %{"keys" => [public_jwk]},
       "client_ids" => ["test-agent-client"]
@@ -629,7 +634,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     now = DateTime.to_unix(DateTime.utc_now())
 
     claims = %{
-      "iss" => "https://agent-provider.example.com",
+      "iss" => "https://agent-provider.authmd-example.com",
       "sub" => "provider-user-1",
       "aud" => "http://www.example.com",
       "client_id" => "test-agent-client",
@@ -651,7 +656,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
       jwk,
       "secevent+jwt",
       %{
-        "iss" => "https://agent-provider.example.com",
+        "iss" => "https://agent-provider.authmd-example.com",
         "sub" => "provider-user-1",
         "aud" => "http://www.example.com",
         "jti" => jti,

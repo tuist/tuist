@@ -54,7 +54,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-poll"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -94,7 +94,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-age"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
 
       # Relative to now, not fixed dates: the poll only scans back
       # `@queue_lookback_days`, so absolute timestamps would age out of
@@ -142,7 +142,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["linux-capped"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
 
       # Fills the default 32 vCPU / 64 GB Linux budget exactly, so no
@@ -188,7 +188,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["linux-headroom"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
 
       :ok =
@@ -222,8 +222,8 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["linux-mixed"])
 
-      capped = account_fixture()
-      served = account_fixture()
+      capped = pro_account_fixture()
+      served = pro_account_fixture()
       now = DateTime.utc_now()
 
       assert {:ok, _} =
@@ -275,7 +275,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["linux-nolimit"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
       Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id))
       now = DateTime.utc_now()
 
@@ -309,7 +309,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["linux-shared-a", "linux-shared-b"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
 
       assert {:ok, _} =
@@ -367,7 +367,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       # tick only because it has a queued row.
       stub_pool_list([])
 
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -405,7 +405,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-diverged"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -444,7 +444,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_claims_count())
       stub_pool_list(["fleet-claims"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
 
       {:ok, _} =
         Claims.attempt(123_456, account.id, "fleet-claims", "pod-x", %{
@@ -481,7 +481,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_session_clamp())
       stub_pool_list(["fleet-leaking"])
 
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
 
       Repo.insert!(%RunnerSession{
@@ -514,7 +514,7 @@ defmodule Tuist.Runners.PromExPluginTest do
     test "emits a final zero for a fleet that lost its pool and its clamped rows", %{handler_id: handler_id} do
       attach_collector(handler_id, Telemetry.event_name_session_clamp())
 
-      account = account_fixture()
+      account = pro_account_fixture()
       now = DateTime.utc_now()
 
       session =
@@ -629,5 +629,12 @@ defmodule Tuist.Runners.PromExPluginTest do
 
       assert :ok = PromExPlugin.execute_pool_replicas_telemetry_event()
     end
+  end
+
+  # The paid plans' limits, which these tests' resource figures assume.
+  defp pro_account_fixture do
+    account = account_fixture()
+    Tuist.Runners.Concurrency.raise_to_plan_defaults(account, :pro)
+    account
   end
 end

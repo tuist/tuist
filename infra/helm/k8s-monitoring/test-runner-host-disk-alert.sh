@@ -6,11 +6,16 @@ temporary="$(mktemp -d)"
 trap 'rm -rf "${temporary}"' EXIT
 source="${directory}/runner-host-disk-alert-rule.json"
 
-jq -e '.noDataState == "NoData" and .execErrState == "Error" and
-  .for == "15m" and .condition == "C" and .isPaused == false and
-  (.data[] | select(.refId == "C") | .model |
-    .expression == "A" and .type == "threshold" and
-    .conditions[0].evaluator == {params: [10], type: "lt"})' "${source}" >/dev/null
+jq -e 'length == 3 and all(.[]; .execErrState == "KeepLast") and
+  (.[] | select(.data[0].datasourceUid == "cg3i1jh2k1v5sb") |
+    .noDataState == "NoData" and
+    .for == "15m" and .condition == "C" and .isPaused == false and
+    (.data[] | select(.refId == "C") | .model |
+      .expression == "A" and .type == "threshold" and
+      .conditions[0].evaluator == {params: [10], type: "lt"}))' "${source}" >/dev/null
+# test-pulse-environment-copies.sh keeps the other copies in step with this one.
+jq '.[] | select(.data[0].datasourceUid == "cg3i1jh2k1v5sb")' "${source}" > "${temporary}/production.json"
+source="${temporary}/production.json"
 jq '{groups: [{name: "Runner disk", interval: "1m", rules: [{
   alert: .uid, expr: ("(" + (.data[] | select(.refId == "A") | .model.expr) + ") < 10"),
   for: .for

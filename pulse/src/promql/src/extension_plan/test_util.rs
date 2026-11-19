@@ -1,0 +1,97 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Utils for testing extension plan
+
+use std::sync::Arc;
+
+use common_query::native_histogram::{NativeHistogram, Span, UNKNOWN_COUNTER_RESET_HINT};
+use common_query::prometheus::PROMETHEUS_STALE_NAN_BITS;
+use common_recordbatch::DfRecordBatch as RecordBatch;
+use datafusion::arrow::array::Float64Array;
+use datafusion::arrow::datatypes::{
+    ArrowPrimitiveType, DataType, Field, Schema, TimestampMillisecondType,
+};
+use datafusion::datasource::memory::MemorySourceConfig;
+use datafusion::datasource::source::DataSourceExec;
+use datatypes::arrow::array::TimestampMillisecondArray;
+use datatypes::arrow_array::StringArray;
+
+pub(crate) const TIME_INDEX_COLUMN: &str = "timestamp";
+
+pub(crate) fn native_histogram(sum: f64) -> NativeHistogram {
+    NativeHistogram {
+        schema: 0,
+        zero_threshold: 0.0,
+        sum,
+        reset_hint: UNKNOWN_COUNTER_RESET_HINT,
+        start_timestamp: None,
+        custom_values: Vec::new(),
+        positive_spans: vec![Span {
+            offset: 0,
+            length: 1,
+        }],
+        negative_spans: Vec::new(),
+        count: 1.0,
+        zero_count: 0.0,
+        positive_buckets: vec![1.0],
+        negative_buckets: Vec::new(),
+    }
+}
+
+pub(crate) fn prepare_test_data() -> DataSourceExec {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new(TIME_INDEX_COLUMN, TimestampMillisecondType::DATA_TYPE, true),
+        Field::new("value", DataType::Float64, true),
+        Field::new("path", DataType::Utf8, true),
+    ]));
+    let timestamp_column = Arc::new(TimestampMillisecondArray::from(vec![
+        0, 30_000, 60_000, 90_000, 120_000, // every 30s
+        180_000, 240_000, // every 60s
+        241_000, 271_000, 291_000, // others
+    ])) as _;
+    let field_column = Arc::new(Float64Array::from(vec![1.0; 10])) as _;
+    let path_column = Arc::new(StringArray::from(vec!["foo"; 10])) as _;
+    let data = RecordBatch::try_new(
+        schema.clone(),
+        vec![timestamp_column, field_column, path_column],
+    )
+    .unwrap();
+
+    DataSourceExec::new(Arc::new(
+        MemorySourceConfig::try_new(&[vec![data]], schema, None).unwrap(),
+    ))
+}
+
+pub(crate) fn prepare_test_data_with_stale_marker() -> DataSourceExec {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new(TIME_INDEX_COLUMN, TimestampMillisecondType::DATA_TYPE, true),
+        Field::new("value", DataType::Float64, true),
+    ]));
+    let timestamp_column = Arc::new(TimestampMillisecondArray::from(vec![
+        0, 30_000, 60_000, 90_000, 120_000, // every 30s
+    ])) as _;
+    let field_column = Arc::new(Float64Array::from(vec![
+        0.0,
+        f64::from_bits(PROMETHEUS_STALE_NAN_BITS),
+        6.0,
+        f64::from_bits(PROMETHEUS_STALE_NAN_BITS),
+        12.0,
+    ])) as _;
+    let data = RecordBatch::try_new(schema.clone(), vec![timestamp_column, field_column]).unwrap();
+
+    DataSourceExec::new(Arc::new(
+        MemorySourceConfig::try_new(&[vec![data]], schema, None).unwrap(),
+    ))
+}

@@ -88,6 +88,122 @@ defmodule Tuist.Threads.MCPTest do
     refute first.name == second.name
   end
 
+  test "catalog search prioritizes exact remote names over substring matches", context do
+    stub_protocol(fn _ -> %{"tools" => Enum.map(1..630, &definition("lookup_#{&1}"))} end)
+    assert {:ok, [search, _]} = MCP.discover(context.user, context.run)
+
+    assert {:ok, %{"tools" => [first | rest], "next_offset" => 5}} = execute(search, %{"query" => "lookup_1"})
+    assert first["description"] =~ ": lookup_1."
+    assert length(rest) == 4
+
+    assert {:ok, %{"tools" => [^first], "next_offset" => nil}} = execute(search, %{"query" => first["name"]})
+  end
+
+  test "catalog search paginates identical remote tools across servers", context do
+    servers = Enum.map(1..6, fn _ -> %{server() | id: Ecto.UUID.generate()} end)
+    stub(MCPServers, :list, fn _ -> servers end)
+    stub(MCPServers, :credentials, fn _, _ -> {:ok, %{url: @url, access_token: @token}} end)
+    stub_protocol(fn _ -> %{"tools" => Enum.map(1..17, &definition("lookup_#{&1}"))} end)
+    assert {:ok, [search, call]} = MCP.discover(context.user, context.run)
+
+    assert {:ok, %{"tools" => first, "next_offset" => offset}} = execute(search, %{"query" => "lookup_17"})
+    assert length(first) == 5
+    assert offset == 5
+
+    assert {:ok, %{"tools" => [last], "next_offset" => nil}} =
+             execute(search, %{"query" => "lookup_17", "offset" => offset})
+
+    assert {:ok, %{"tools" => last_five, "next_offset" => nil}} =
+             execute(search, %{"query" => "lookup_17", "offset" => 1})
+
+    assert last_five == tl(first) ++ [last]
+    names = Enum.map(first ++ [last], & &1["name"])
+    assert length(Enum.uniq(names)) == 6
+    for name <- names, do: assert({:ok, _} = execute(call, %{"name" => name, "arguments" => %{}}))
+
+    assert {:ok, %{"tools" => ^first, "next_offset" => 5}} = execute(search, %{"query" => "lookup_17", "offset" => 0})
+    assert {:ok, %{"tools" => [], "next_offset" => nil}} = execute(search, %{"query" => "lookup_17", "offset" => 6})
+
+    for offset <- [-1, 1.5, "5", nil, 2001] do
+      assert {:error, :invalid_arguments} = execute(search, %{"query" => "lookup_17", "offset" => offset})
+    end
+  end
+
+  test "large catalogs remain searchable and callable without sending every schema to the model", context do
+    definitions =
+      for index <- 1..630 do
+        %{definition("lookup_#{index}") | "description" => String.duplicate("Item metadata. ", 40)}
+      end
+
+    finance = %{
+      definition("list_finance_transactions")
+      | "description" => "List bank transactions",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{"provider" => %{"type" => "string", "enum" => ["qonto", "mercury"]}}
+        }
+    }
+
+    definitions = definitions ++ [finance]
+    assert byte_size(JSON.encode!(%{"tools" => definitions})) > 262_144
+    parent = self()
+
+    stub_mint(fn envelope ->
+      if envelope["method"] == "tools/call", do: send(parent, {:remote_call, envelope["params"]})
+
+      result =
+        case envelope["method"] do
+          "tools/list" -> %{"tools" => definitions}
+          "tools/call" -> %{"content" => [%{"text" => "done"}]}
+          _ -> protocol_result(envelope)
+        end
+
+      data = JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], result: result})
+      {200, [{"content-type", "application/json"}], [data]}
+    end)
+
+    assert {:ok, [search, call]} = MCP.discover(context.user, context.run)
+    assert {:ok, %{"tools" => [found], "next_offset" => nil}} = execute(search, %{"query" => "Qonto"})
+    assert found["description"] =~ "list_finance_transactions"
+    assert found["inputSchema"] == finance["inputSchema"]
+
+    assert {:ok, %{"content" => [%{"text" => "done"}]}} =
+             execute(call, %{"name" => found["name"], "arguments" => %{"provider" => "qonto"}})
+
+    assert_received {:remote_call, %{"name" => "list_finance_transactions", "arguments" => %{"provider" => "qonto"}}}
+
+    assert {:error, :invalid_arguments} =
+             execute(call, %{"name" => found["name"], "arguments" => %{"provider" => "other"}})
+
+    assert {:error, :unknown_tool} = execute(call, %{"name" => "not_discovered", "arguments" => %{}})
+    assert {:ok, %{"tools" => [], "next_offset" => nil}} = execute(search, %{"query" => "unmatched"})
+
+    stub(MCPServers, :credentials, fn _, _ -> {:error, :not_found} end)
+
+    assert {:ok, %{"isError" => true, "content" => [%{"text" => "mcp_not_connected"}]}} =
+             execute(call, %{"name" => found["name"], "arguments" => %{}})
+
+    stub(Threads, :owns_run?, fn _, _ -> false end)
+    assert {:error, :stale_run} = execute(search, %{"query" => "Qonto"})
+  end
+
+  test "large catalog discovery still bounds tool count and response size", context do
+    stub_protocol(fn _ -> %{"tools" => Enum.map(1..2001, &definition("lookup_#{&1}"))} end)
+    assert {:error, :mcp_invalid_response} = MCP.discover(context.user, context.run)
+
+    stub_mint(fn envelope ->
+      result =
+        if envelope["method"] == "tools/list",
+          do: %{"tools" => [], "extra" => String.duplicate("a", 4_194_304)},
+          else: protocol_result(envelope)
+
+      data = JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], result: result})
+      {200, [{"content-type", "application/json"}], [data]}
+    end)
+
+    assert {:error, :mcp_invalid_response} = MCP.discover(context.user, context.run)
+  end
+
   test "calls use fresh credentials and sessions inside the durable ledger without a repository", context do
     stub_protocol()
     assert {:ok, [tool]} = MCP.discover(context.user, context.run)

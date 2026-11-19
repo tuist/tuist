@@ -1,0 +1,98 @@
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("//bazel:deny_warnings.bzl", "DENY_WARNINGS")
+load("//bazel:rust_junit_test.bzl", "rust_junit_test")
+load("//bazel:version.bzl", "KURA_VERSION")
+
+# The storage engine and the modules it stands on, the bottom of Kura's crates (core, node, reapi,
+# kura). Each is its own crate so its compile and its tests are separate actions. Named after the
+# Cargo package because rules_rs maps the `kura-core` dependency of the crates above to this label.
+rust_library(
+    name = "kura-core",
+    srcs = glob(["src/**/*.rs"]),
+    aliases = aliases(),
+    crate_name = "kura_core",
+    edition = "2024",
+    # tuist-memory-gb also sets the remote-execution VM's CPUs (two per 4 GB), and rustc's codegen
+    # spreads across them. Ignored outside remote execution.
+    exec_properties = {"tuist-memory-gb": "8"},
+    rustc_flags = DENY_WARNINGS,
+    version = KURA_VERSION,
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)
+
+# The same crate with its `test-support` feature, which the unit tests of the crates above build on.
+# Only test binaries link it, so the shipped binary never contains the test helpers.
+rust_library(
+    name = "kura_core_test_support",
+    srcs = glob(["src/**/*.rs"]),
+    aliases = aliases(),
+    crate_features = ["test-support"],
+    crate_name = "kura_core",
+    edition = "2024",
+    exec_properties = {"tuist-memory-gb": "8"},
+    # Only test binaries link it, and it is on their critical path, so like them it skips rustc's
+    # crate-local ThinLTO.
+    rustc_flags = DENY_WARNINGS + ["-Clto=off"],
+    version = KURA_VERSION,
+    visibility = [
+        "//:__pkg__",
+        "//crates/kura-node:__pkg__",
+        "//crates/kura-reapi:__pkg__",
+    ],
+    deps = all_crate_deps(normal = True),
+)
+
+rust_junit_test(
+    name = "kura_core_test",
+    compile_data = glob(["test/certificate-trust/*.pem"]),
+    aliases = aliases(),
+    crate = ":kura-core",
+    edition = "2024",
+    exec_properties = {"tuist-memory-gb": "8"},
+    # Like the other crates' tests, the suite waits on timeouts more than it uses CPU, so shards run it
+    # in parallel VMs.
+    shard_count = 4,
+    # Test binaries skip rustc's crate-local ThinLTO: it is a large share of the compile and the
+    # tests run just as fast without it.
+    rustc_flags = DENY_WARNINGS + ["-Clto=off"],
+    size = "medium",
+    deps = all_crate_deps(normal_dev = True),
+)
+
+# Qualify independent native/explicit TLS without compiling the storage engine.
+rust_junit_test(
+    name = "certificate_trust_test",
+    srcs = glob(["src/certificate_trust*.rs"]),
+    crate_root = "src/certificate_trust.rs",
+    crate_name = "certificate_trust",
+    compile_data = glob(["test/certificate-trust/*.pem"]),
+    aliases = aliases(),
+    edition = "2024",
+    rustc_flags = DENY_WARNINGS,
+    size = "small",
+    deps = [
+        "@crates//:bytes",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:rcgen",
+        "@crates//:reqwest",
+        "@crates//:rustls",
+        "@crates//:rustls-native-certs",
+        "@crates//:rustls-webpki",
+        "@crates//:sha2",
+        "@crates//:tempfile",
+        "@crates//:tokio",
+        "@crates//:tokio-rustls",
+        "@crates//:tracing",
+    ] + select({
+        "@platforms//os:macos": [
+            "@crates//:core-foundation",
+            "@crates//:security-framework",
+            "@crates//:security-framework-sys",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -24,6 +24,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
     :story_url,
     :og_image_path,
     :excerpt,
+    results: [],
     translations: %{},
     original_title: nil,
     original_excerpt: nil,
@@ -53,6 +54,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
       story_url: story_url,
       og_image_path: og_image_path,
       excerpt: excerpt,
+      results: parse_results(attrs["results"] || [], basename),
       translations: normalize_translations(attrs["translations"] || %{}),
       original_title: title,
       original_excerpt: excerpt,
@@ -96,6 +98,23 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
         end
 
       {locale, normalized_translation}
+    end)
+  end
+
+  # Before/after figures quoted on the story page and its customers card. Each
+  # needs all three fields, copied from what the customer reported: a result
+  # without a measured baseline is not a before/after figure, so a missing
+  # field fails compilation instead of rendering half a claim.
+  defp parse_results(results, basename) do
+    Enum.map(results, fn result ->
+      fields = Map.take(result, ["metric", "before", "after"])
+
+      if map_size(fields) != 3 or Enum.any?(Map.values(fields), &(&1 in [nil, ""])) do
+        raise ArgumentError,
+              "case study #{basename} has a result without metric, before, and after: #{inspect(result)}"
+      end
+
+      %{metric: fields["metric"], before: fields["before"], after: fields["after"]}
     end)
   end
 

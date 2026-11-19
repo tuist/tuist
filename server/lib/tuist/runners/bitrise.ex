@@ -225,20 +225,29 @@ defmodule Tuist.Runners.Bitrise do
     |> Enum.reduce(0, fn {stack, stack_builds}, count ->
       pool = Map.fetch!(pools_by_stack, stack)
 
-      case Dispatch.resolve_dispatch_target(account, [pool.profile_label]) do
-        {:ok, target} ->
-          enqueued = enqueue_all(connection, account, target, stack_builds)
+      with {:ok, target} <- Dispatch.resolve_dispatch_target(account, [pool.profile_label]),
+           :ok <- Dispatch.check_shape_fits_limit(account, target) do
+        enqueued = enqueue_all(connection, account, target, stack_builds)
 
-          if enqueued > 0 do
-            Logger.info("runners: bitrise enqueued",
-              account: account.name,
-              stack: stack,
-              fleet: target.pool_name,
-              count: enqueued
-            )
-          end
+        if enqueued > 0 do
+          Logger.info("runners: bitrise enqueued",
+            account: account.name,
+            stack: stack,
+            fleet: target.pool_name,
+            count: enqueued
+          )
+        end
 
-          count + enqueued
+        count + enqueued
+      else
+        {:error, :shape_exceeds_limit} ->
+          Logger.info("runners: bitrise pool shape exceeds the account's concurrency limit",
+            account: account.name,
+            stack: stack,
+            profile: pool.profile_label
+          )
+
+          count
 
         {:error, reason} ->
           Logger.info("runners: bitrise pool matches no profile",
@@ -452,6 +461,7 @@ defmodule Tuist.Runners.Bitrise do
          {:ok, %{status: 0} = remote} <- Client.get_build(connection, app_slug, build_slug),
          %Pool{} = pool <- Map.get(pools_by_stack, remote.stack_identifier) || {:error, :invalid_build},
          {:ok, target} <- Dispatch.resolve_dispatch_target(account, [pool.profile_label]),
+         :ok <- Dispatch.check_shape_fits_limit(account, target),
          1 <- enqueue_all(connection, account, target, [remote]) do
       {:ok, Repo.get_by!(Build, build_slug: build_slug)}
     else
@@ -500,6 +510,8 @@ defmodule Tuist.Runners.Bitrise do
   defp describe_error(:forbidden), do: "The API token cannot list this workspace's builds."
   defp describe_error(:not_found), do: "Bitrise does not recognize this workspace."
   defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
+
   defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
+
   defp describe_error(reason), do: inspect(reason)
 end

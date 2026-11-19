@@ -126,7 +126,7 @@ behind a flag (`gates` in the chart); all are on by default:
   the interface with `mvlan` true, sent back as read less its `status`, with
   the fallback fields the controller refuses the block without. The switch
   keeps its controller connection across the change. Its VLAN is reported,
-  never moved. Verified end to end on all three BER1 switches.
+  never moved. Verified end to end on all three alder switches.
 - `--enable-vlans`: creates the site networks `config.vlans` lists (never
   deletes one; a site network is shared by every switch in the site) and writes
   every port's VLAN membership as the spec's list, never as "Allow All", even

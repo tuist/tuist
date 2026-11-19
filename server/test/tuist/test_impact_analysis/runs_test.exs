@@ -2,8 +2,13 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.GitHistory
+  alias Tuist.GitHistory.FileChanges
   alias Tuist.Shards
+  alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Runs
+  alias Tuist.TestImpactAnalysis.Snapshot
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.TestImpactAnalysis.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -86,10 +91,22 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     )
   end
 
+  # The tests the run's stored decision selected, with their reason and the
+  # changed file that matched, named from `test_cases`.
   defp selected(project, run) do
-    project.id
-    |> Storage.list_run_tests(run.id)
-    |> Enum.map(&{&1.module_name, &1.suite_name, &1.name, &1.reason})
+    case Decision.stored(project.id, run.id) do
+      nil -> []
+      decision -> named_selected(project, decision)
+    end
+  end
+
+  defp named_selected(project, %{snapshot_id: snapshot_id, tests: tests}) do
+    tests = Enum.filter(tests, &(&1.decision == :selected))
+    names = Snapshots.names(project.id, %{checkpoint: %Snapshot{id: snapshot_id}}, Enum.map(tests, & &1.idx))
+
+    tests
+    |> Enum.map(&{&1.module_name, &1.suite_name, names[&1.idx].name, to_string(&1.reason), &1.matched_path})
+    |> Enum.sort()
   end
 
   describe "create/2" do
@@ -100,13 +117,13 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert run.commit_sha == "c2"
       assert run.baseline_run_ids == [baseline.id]
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
-      assert run.rules_version == "1"
+      assert run.rules_version == "2"
       assert List.last(run.rule_trace).rule == "unaffected"
       assert run.build_context == %{"scheme" => "App"}
 
       assert selected(project, run) == [
-               {"AppTests", "MathTests", "testAdd()", "impacted"},
-               {"AppTests", "SumTests", "sum()", "no_evidence"}
+               {"AppTests", "MathTests", "testAdd()", "impacted", "Sources/Math.swift"},
+               {"AppTests", "SumTests", "sum()", "no_evidence", nil}
              ]
 
       assert skip == [
@@ -154,8 +171,8 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {run.requested_count, run.selected_count, run.skipped_count} == {2, 2, 0}
 
       assert selected(project, run) == [
-               {"AppTests", "StringTests", "upper()", "no_evidence"},
-               {"AppTests", "SumTests", "sum()", "no_evidence"}
+               {"AppTests", "StringTests", "upper()", "no_evidence", nil},
+               {"AppTests", "SumTests", "sum()", "no_evidence", nil}
              ]
     end
 
@@ -288,6 +305,68 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: [%{name: "CoreTests"}]}))
       assert {run.requested_count, run.selected_count, run.requested_modules} == {1, 0, ["CoreTests"]}
       assert skip == [%{module: "CoreTests"}]
+    end
+  end
+
+  describe "the checked-out commit's file changes" do
+    # The baseline c1 on main, its file changes written.
+    setup %{repository_id: repository_id} do
+      GitHistory.record_branch_head(repository_id, "main", "c1", "main")
+      Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+      assert FileChanges.current(repository_id, "c1")
+      :ok
+    end
+
+    defp tree(repository_id, sha), do: Map.new(GitHistory.commit_files(repository_id, sha), &{&1.path, &1.git_blob_id})
+
+    test "are written from a clean checkout's diff, so its listing isn't asked for", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == ["c2"]
+
+      assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params())
+
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == []
+
+      assert tree(repository_id, "c2") ==
+               (@sources ++ ["Package.resolved"])
+               |> Map.new(&{&1, "blob-" <> &1})
+               |> Map.put("Sources/Math.swift", "new")
+    end
+
+    test "are not written from a dirty checkout's diff, nor from a capped one", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      assert {:ok, _} = Runs.create(project, params(%{dirty: true}))
+      assert {:ok, _} = Runs.create(project, params(%{changed_files_count: 2}))
+
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == ["c2"]
+      assert CoverageFixtures.listing(repository_id, "c2") == nil
+    end
+
+    test "are written from the stored diff once the commit reaches the graph", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      assert {:ok, %{run: %{outcome: "selected"}}} =
+               Runs.create(project, params(%{head_sha: "c3", parent_shas: ["c1"]}))
+
+      assert GitHistory.missing_listings(repository_id, ["c3"]) == ["c3"]
+
+      GitHistory.record_commits(repository_id, "sha1", [CoverageFixtures.commit("c3", ["c1"], 2)])
+
+      assert Runs.write_file_changes(project, repository_id, ["c3", "c4"]) == ["c3"]
+      assert GitHistory.missing_listings(repository_id, ["c3"]) == []
+      assert tree(repository_id, "c3")["Sources/Math.swift"] == "new"
+    end
+
+    test "a failed write doesn't fail the request", %{project: project, repository_id: repository_id} do
+      stub(FileChanges, :write_from_diff, fn _repository_id, _sha, _base_sha, _diff, _limit -> raise "boom" end)
+
+      assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params())
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == ["c2"]
     end
   end
 

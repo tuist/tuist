@@ -10,6 +10,13 @@ defmodule Tuist.Push do
   client. A registration is only usable while that grant is active, which makes
   sign-out, revocation and refresh expiry end it without a client round trip.
 
+  Two first-party apps register, each through its own fixed OAuth client: the
+  Tuist app (`app: "tuist"`, `Tuist.Environment.oauth_client_id/0`) and Tuist
+  Luft (`app: "luft"`, `Tuist.OAuth.Clients.luft_client_id/0`), so a row's
+  app also says which client its grant belongs to. Each app only receives its own
+  notifications (previews for the Tuist app, finished threads for Luft), on its
+  own APNs topic; Luft's macOS app registers as the `macos` platform.
+
   - `push_installations` is keyed by the client-generated `installation_id`
     (lowercase UUID). Tokens are encrypted with `Tuist.Vault`; `token_hash`
     enforces one live owner per device token.
@@ -35,6 +42,8 @@ defmodule Tuist.Push do
 
   import Ecto.Query
 
+  alias Boruta.Ecto.Token
+  alias Boruta.Oauth.Client
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.MCP.Events.OAuthGrants
@@ -43,6 +52,7 @@ defmodule Tuist.Push do
   alias Tuist.Push.FCM
   alias Tuist.Push.Installation
   alias Tuist.Push.Workers.NewPreviewWorker
+  alias Tuist.Push.Workers.ThreadFinishedWorker
   alias Tuist.Repo
 
   @max_live_per_user 10
@@ -55,27 +65,51 @@ defmodule Tuist.Push do
   @max_device_name_length 64
 
   @doc """
-  Resolves the OAuth grant behind `bearer` for `user`. Only unrevoked sign-ins
-  through the Tuist app client (`Tuist.Environment.oauth_client_id/0`) with a
-  refresh token qualify; dynamically registered OAuth clients, account tokens
-  and other credentials return `{:error, :oauth_session_required}`. `bearer`
-  must already be authenticated as `user` (`TuistWeb.AuthenticationPlug`
-  verifies its signature and expiry).
+  Resolves the OAuth grant behind `bearer` for `user`, as a sign-in of one of
+  `apps`. Only unrevoked sign-ins with a refresh token qualify: through the
+  Tuist app client (`Tuist.Environment.oauth_client_id/0`) for `"tuist"`, and
+  through Luft's first-party client (`Tuist.OAuth.Clients.luft_client_id/0`)
+  for `"luft"`. Other OAuth clients, account tokens and other
+  credentials return `{:error, :oauth_session_required}`. `bearer` must already
+  be authenticated as `user` (`TuistWeb.AuthenticationPlug` verifies its
+  signature and expiry).
   """
-  def oauth_session(bearer, %User{id: user_id}) when is_binary(bearer) do
+  def oauth_session(bearer, %User{} = user, apps \\ ["tuist"]) when is_binary(bearer) do
+    Enum.find_value(apps, {:error, :oauth_session_required}, &app_session(&1, bearer, user))
+  end
+
+  defp app_session("tuist", bearer, %User{id: user_id}) do
     with client_id when is_binary(client_id) <- Environment.oauth_client_id(),
-         %Boruta.Ecto.Token{} = grant <- OAuthGrants.find_bearer(bearer, client_id, user_id),
+         %Token{} = grant <- OAuthGrants.find_bearer(bearer, client_id, user_id),
          {:ok, grant_id} <- OAuthGrants.root_id(grant) do
-      {:ok, %{oauth_grant_id: grant_id}}
+      {:ok, %{app: "tuist", oauth_grant_id: grant_id}}
     else
-      _ -> {:error, :oauth_session_required}
+      _ -> nil
+    end
+  end
+
+  defp app_session("luft", bearer, %User{id: user_id}) do
+    with %Token{} = grant <- OAuthGrants.find_bearer(bearer, Clients.luft_client_id(), user_id),
+         {:ok, grant_id} <- OAuthGrants.root_id(grant) do
+      {:ok, %{app: "luft", oauth_grant_id: grant_id}}
+    else
+      _ -> nil
     end
   end
 
   @doc """
+  Whether `bearer` belongs to an unrevoked sign-in through a first-party app:
+  the Tuist app or Luft (`oauth_session/3`). The server trusts those as
+  the signed-in user rather than through scopes.
+  """
+  def first_party_session?(bearer, %User{} = user) when is_binary(bearer) do
+    match?({:ok, _session}, oauth_session(bearer, user, ["tuist", "luft"]))
+  end
+
+  @doc """
   Registers or refreshes `installation_id` for `user` under `session` (from
-  `oauth_session/2`). `device` has `:platform` (`ios` or `android`), `:token`
-  and `:environment` (`sandbox` or `production`; Android is always
+  `oauth_session/3`). `device` has `:platform` (`ios`, `macos` or `android`),
+  `:token` and `:environment` (`sandbox` or `production`; Android is always
   `production`), plus an optional `:name` the user sees in their device list
   (the device model).
 
@@ -87,7 +121,8 @@ defmodule Tuist.Push do
   """
   def register(%User{} = user, session, installation_id, device) do
     with {:ok, installation_id} <- validate_installation_id(installation_id),
-         {:ok, attrs} <- validate_device(device) do
+         {:ok, attrs} <- validate_device(device),
+         :ok <- validate_app_platform(session.app, attrs.platform) do
       token_hash = Installation.token_hash(attrs.platform, attrs.token)
 
       installation_id
@@ -100,11 +135,12 @@ defmodule Tuist.Push do
   end
 
   @doc """
-  Retires `installation_id` when it belongs to `user`. Unknown IDs become
-  tombstones so a registration that arrives after its deletion is rejected.
-  Other users' installations are left untouched. Always `:ok` for a valid ID.
+  Retires `installation_id` when it belongs to `user` and was registered from
+  `app`. Unknown IDs become tombstones so a registration that arrives after its
+  deletion is rejected. Other users' and other apps' installations are left
+  untouched. Always `:ok` for a valid ID.
   """
-  def unregister(%User{} = user, installation_id) do
+  def unregister(%User{} = user, installation_id, app \\ "tuist") do
     with {:ok, installation_id} <- validate_installation_id(installation_id) do
       {:ok, :ok} =
         locked(installation_id, fn
@@ -117,7 +153,7 @@ defmodule Tuist.Push do
 
             :ok
 
-          %Installation{retired_at: nil, user_id: user_id} = installation when user_id == user.id ->
+          %Installation{retired_at: nil, user_id: user_id, app: ^app} = installation when user_id == user.id ->
             retire!(installation, "unregistered")
             :ok
 
@@ -132,12 +168,13 @@ defmodule Tuist.Push do
   @doc """
   Removes one of `user`'s devices by its server registration ID, from the app's
   device list or the dashboard. Unlike `unregister/2`, the app keeps it off when
-  it next tries to refresh its registration (`:removed`). Always `:ok`.
+  it next tries to refresh its registration (`:removed`). Each app removes only
+  its own devices, the ones its device list shows. Always `:ok`.
   """
-  def remove_device(%User{id: user_id}, registration_id) do
+  def remove_device(%User{id: user_id}, registration_id, app \\ "tuist") do
     with {:ok, registration_id} <- Ecto.UUID.cast(registration_id),
          %Installation{installation_id: installation_id} <-
-           Repo.get_by(Installation, id: registration_id, user_id: user_id) do
+           Repo.get_by(Installation, id: registration_id, user_id: user_id, app: app) do
       {:ok, _} =
         locked(installation_id, fn
           %Installation{retired_at: nil, user_id: ^user_id} = installation -> retire!(installation, "removed")
@@ -149,13 +186,13 @@ defmodule Tuist.Push do
   end
 
   @doc """
-  The user's live installations whose OAuth grant is still active. Installations
-  whose sign-in has ended are retired as `session_ended` instead of returned.
-  This is the set notifications are delivered to.
+  The user's live installations of `app` whose OAuth grant is still active.
+  Installations whose sign-in has ended are retired as `session_ended` instead
+  of returned. This is the set notifications are delivered to.
   """
-  def live_installations(user_id) do
+  def live_installations(user_id, app \\ "tuist") do
     Installation
-    |> where([i], i.user_id == ^user_id and is_nil(i.retired_at))
+    |> where([i], i.user_id == ^user_id and i.app == ^app and is_nil(i.retired_at))
     |> order_by([i], desc: i.last_registered_at)
     |> Repo.all()
     |> Enum.filter(fn installation ->
@@ -175,6 +212,40 @@ defmodule Tuist.Push do
 
     :ok
   end
+
+  @doc """
+  Queues a notification to the owner's Luft devices that `thread` stopped
+  working with `status` (see `Tuist.Push.Workers.ThreadFinishedWorker`). Call it
+  in the transaction that sets the status, so the notification is queued only
+  when the status is. Does nothing on servers without an APNs key, since Luft
+  registers only Apple devices.
+  """
+  def notify_thread_finished(%{id: thread_id}, status) do
+    if APNs.configured?() do
+      {:ok, _job} = %{"thread_id" => thread_id, "status" => status} |> ThreadFinishedWorker.new() |> Oban.insert()
+    end
+
+    :ok
+  end
+
+  @doc """
+  The title a lock screen may show for `thread`. `Tuist.Threads` titles a new
+  thread with the start of its first message, which is conversation content, so
+  only a title the agent gave it is shown; otherwise "Your thread".
+  """
+  def thread_title(%{title: title, goal: goal}) do
+    title = title |> to_string() |> String.trim()
+
+    if title == "" or title == String.trim(String.slice(to_string(goal), 0, 80)) do
+      "Your thread"
+    else
+      String.slice(title, 0, 100)
+    end
+  end
+
+  @doc "The APNs topic, the bundle ID, of the app `installation` belongs to."
+  def apns_topic(%Installation{app: "luft"}), do: "dev.tuist.code"
+  def apns_topic(%Installation{}), do: Environment.apns_topic()
 
   @doc """
   Retires `installation` as `rejected` after the push provider refused its token,
@@ -222,10 +293,24 @@ defmodule Tuist.Push do
     %{retired: retired, deleted: deleted}
   end
 
-  # Raises on database errors, so a transient failure never retires a live device.
-  defp session_active?(%Installation{oauth_grant_id: grant_id, user_id: user_id}) do
-    ttl = Clients.public!().refresh_token_ttl
-    match?({:ok, _scope}, OAuthGrants.active_scope(grant_id, Environment.oauth_client_id(), user_id, ttl))
+  defp session_active?(%Installation{} = installation),
+    do: grant_active?(installation.app, installation.oauth_grant_id, installation.user_id)
+
+  @doc """
+  Whether the sign-in `grant_id` of `user_id` through `app`'s first-party OAuth
+  client is still active. Raises on database errors, so a transient failure
+  never retires a live registration.
+  """
+  def grant_active?(app, grant_id, user_id) do
+    client_id = if app == "luft", do: Clients.luft_client_id(), else: Environment.oauth_client_id()
+
+    case Clients.get_client(client_id) do
+      %Client{refresh_token_ttl: ttl} ->
+        match?({:ok, _scope}, OAuthGrants.active_scope(grant_id, client_id, user_id, ttl))
+
+      nil ->
+        false
+    end
   end
 
   # Compare-and-retire on the grant, so a concurrent re-registration that
@@ -267,6 +352,9 @@ defmodule Tuist.Push do
   defp upsert(%Installation{platform: platform}, _user, _session, _installation_id, %{platform: other}, _hash)
        when platform != other, do: {:error, :conflict}
 
+  defp upsert(%Installation{app: app}, _user, %{app: other}, _installation_id, _attrs, _hash) when app != other,
+    do: {:error, :conflict}
+
   defp upsert(%Installation{user_id: user_id} = existing, %User{id: user_id} = user, session, _id, attrs, hash),
     do: save(existing, user, session, attrs, hash)
 
@@ -299,6 +387,7 @@ defmodule Tuist.Push do
     installation
     |> Ecto.Changeset.change(%{
       user_id: user.id,
+      app: session.app,
       oauth_grant_id: session.oauth_grant_id,
       platform: attrs.platform,
       device_name: attrs.name,
@@ -312,7 +401,7 @@ defmodule Tuist.Push do
     |> Repo.insert_or_update()
     |> case do
       {:ok, saved} ->
-        evict_oldest!(user.id)
+        evict_oldest!(user.id, session.app)
         {:ok, saved}
 
       {:error, changeset} ->
@@ -322,16 +411,17 @@ defmodule Tuist.Push do
 
   defp advisory_lock!(key), do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key])
 
-  defp evict_oldest!(user_id) do
+  # Per app, so one app's registrations never push out the other's devices.
+  defp evict_oldest!(user_id, app) do
     keep =
       Installation
-      |> where([i], i.user_id == ^user_id and is_nil(i.retired_at))
+      |> where([i], i.user_id == ^user_id and i.app == ^app and is_nil(i.retired_at))
       |> order_by([i], desc: i.last_registered_at, desc: i.id)
       |> limit(@max_live_per_user)
       |> select([i], i.id)
 
     Installation
-    |> where([i], i.user_id == ^user_id and is_nil(i.retired_at) and i.id not in subquery(keep))
+    |> where([i], i.user_id == ^user_id and i.app == ^app and is_nil(i.retired_at) and i.id not in subquery(keep))
     |> Repo.update_all(set: retired_fields("evicted"))
   end
 
@@ -360,6 +450,12 @@ defmodule Tuist.Push do
   end
 
   defp validate_installation_id(_value), do: {:error, :invalid}
+
+  # Every app shares the server's one FCM project, so an Android "Luft"
+  # registration could carry the Tuist app's token and deliver thread
+  # notifications to it. Luft Android has no push support yet either.
+  defp validate_app_platform("luft", "android"), do: {:error, :invalid}
+  defp validate_app_platform(_app, _platform), do: :ok
 
   defp validate_device(%{platform: platform, token: token, environment: environment} = device)
        when is_binary(platform) and is_binary(token) and is_binary(environment) do
@@ -390,7 +486,7 @@ defmodule Tuist.Push do
 
   defp validate_device_name(_name), do: :error
 
-  defp validate_token("ios", token) do
+  defp validate_token(platform, token) when platform in ["ios", "macos"] do
     if Regex.match?(@apns_token, token), do: {:ok, String.downcase(token)}, else: :error
   end
 
@@ -400,6 +496,8 @@ defmodule Tuist.Push do
 
   defp validate_token(_platform, _token), do: :error
 
-  defp valid_environment?("ios", environment), do: environment in ["sandbox", "production"]
+  defp valid_environment?(platform, environment) when platform in ["ios", "macos"],
+    do: environment in ["sandbox", "production"]
+
   defp valid_environment?("android", environment), do: environment == "production"
 end

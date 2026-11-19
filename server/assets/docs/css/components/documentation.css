@@ -58,7 +58,7 @@
   flex-direction: column;
   gap: var(--noora-spacing-4);
   transition: box-shadow 0.15s ease;
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-6);
   background: var(--noora-surface-background-primary);
   width: 100%;
@@ -68,14 +68,14 @@
 }
 
 .tuist-docs [data-part="feature-card"]:hover {
-  box-shadow: var(--noora-light-border-focus);
+  box-shadow: var(--noora-border-small-focus);
 }
 
 .tuist-docs [data-part="feature-card"] [data-part="image"] {
   display: flex;
   justify-content: center;
   align-items: center;
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-6);
   background: linear-gradient(
     180deg,

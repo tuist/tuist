@@ -13,14 +13,19 @@ struct GetRemoteExecutionCapabilitiesServiceTests {
         let requests = Requests()
         let subject = GetRemoteExecutionCapabilitiesService { request in
             requests.append(request)
-            return Self.response(200, #"{"endpoint":"grpcs://execution.tuist.dev","image":"sha-0123456789ab","leases":true}"#)
+            return Self.response(
+                200,
+                #"{"endpoint":"grpcs://execution.tuist.dev","image":"sha-0123456789ab","max_concurrency":8,"leases":true}"#
+            )
         }
 
         let got = try await subject.getCapabilities(
             serverURL: serverURL, accountHandle: "tuist", projectHandle: "kura", token: "cache-token"
         )
 
-        #expect(got == RemoteExecutionCapabilities(endpoint: "grpcs://execution.tuist.dev", image: "sha-0123456789ab"))
+        #expect(got == RemoteExecutionCapabilities(
+            endpoint: "grpcs://execution.tuist.dev", image: "sha-0123456789ab", maxConcurrency: 8
+        ))
         let request = try #require(requests.all.first)
         #expect(request.url?.absoluteString == "https://tuist.dev/api/remote-execution/tuist/kura/capabilities")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer cache-token")

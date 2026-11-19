@@ -6,6 +6,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests.RunSelections
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -48,8 +49,12 @@ defmodule TuistWeb.TestSelectionsLiveTest do
                 module_name: "SearchTests",
                 suite_name: "SearchViewModelTests",
                 name: "test_load()",
-                matched_path: "Sources/Search/SearchViewModel.swift"
+                matched_path: "Sources/Search/SearchViewModel.swift",
+                files: ["Sources/Networking/APIClient.swift", "Sources/Search/SearchViewModel.swift"]
               }
+            ],
+            skipped: [
+              %{test_case_id: refresh, module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
             ]
           ],
           attrs
@@ -57,7 +62,13 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       )
 
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id, git_commit_sha: @sha, scheme: "App", test_impact_run_id: run.id)
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        git_commit_sha: @sha,
+        scheme: "App",
+        test_impact_run_id: run.id,
+        test_modules: []
+      )
 
     load_run =
       RunsFixtures.test_case_run_fixture(
@@ -78,6 +89,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         %{path: "App/Project.swift"}
       ]
     )
+
+    RunSelections.record(project.id, [test_run.id])
 
     %{run: run, test_run: test_run, load_run: load_run}
   end
@@ -568,6 +581,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#test-selection-test-reason", "Selected: Executed a changed file")
       assert has_element?(lv, "#test-selection-test-reason", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-executed-files-table", "SearchViewModel.swift")
+      assert has_element?(lv, "#selection-executed-files-table", "APIClient.swift")
     end
 
     test "is absent for a test run without a selection", %{conn: conn, organization: organization, project: project} do

@@ -36,9 +36,10 @@ reusable local Linux qualification harness, not a deployed allocator.
   acknowledgment bridge; every successful write was independently checked on
   both replicas. Connection retirement alone remains insufficient. The QD32
   random-read regression persists, including further sector/chunk/concurrency
-  experiments. Keep the PR draft and production thin enrollment disabled until
-  the performance gate passes or its acceptance criterion is explicitly changed.
-  Preserve failed and successful evidence in `validation.md`.
+  experiments. On 2026-11-09 the acceptance criterion changed to no regression
+  in production request latency, judged on the instances already moved (see the
+  top of `validation.md`); production thin enrollment is no longer blocked on
+  the raw-I/O result. Preserve failed and successful evidence in `validation.md`.
 
 - `kubelet_restart_test.rb` restarts the kubelet of a disposable
   `kind-kura-kubelet-restart` cluster only. Keep both cases: withdrawn capacity

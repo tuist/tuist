@@ -28,7 +28,9 @@ data class GitHistorySettings(
     val windowDays: Int = 365,
     val windowCommits: Int = 5000,
     val deepenBudgetSeconds: Int = 60,
-    val uploadBatchSize: Int = 500
+    val uploadBatchSize: Int = 500,
+    /** How many files of a commit's listing the server keeps. */
+    val commitFileLimit: Int = 50_000
 )
 
 /** A run's Git history as collected from the checkout, with what is needed to upload it once the run exists. */
@@ -48,9 +50,16 @@ data class CollectedGitHistory(
 class GitHistoryEnvironment(private val environment: Map<String, String>) {
     fun enabled(isCi: Boolean): Boolean = isCi && !isFalsy("TUIST_GIT_UPLOAD_ENABLED")
 
-    /** `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps collection to what the checkout has. */
-    fun remoteAccess(): GitHistoryRemoteAccess =
-        if (isFalsy("TUIST_GIT_UNSHALLOW_ENABLED")) GitHistoryRemoteAccess.NONE else GitHistoryRemoteAccess.BASE_HEAD
+    /**
+     * Only coverage needs the merge base, so only coverage fetches history; any other run reads the
+     * checkout and asks the remote for the base branch's latest commit at most.
+     * `TUIST_GIT_UNSHALLOW_ENABLED=false` keeps every run to what the checkout has.
+     */
+    fun remoteAccess(coverage: Boolean): GitHistoryRemoteAccess = when {
+        isFalsy("TUIST_GIT_UNSHALLOW_ENABLED") -> GitHistoryRemoteAccess.NONE
+        coverage -> GitHistoryRemoteAccess.HISTORY
+        else -> GitHistoryRemoteAccess.BASE_HEAD
+    }
 
     /** The branch a pull request merges into, from the CI provider only: a checkout does not know it. */
     fun baseBranch(): String? = firstValue(baseBranchVariables)?.removePrefix("refs/heads/")
@@ -125,7 +134,11 @@ class GitHistoryService(
     private val logger = Logging.getLogger(GitHistoryService::class.java)
     private val gson = Gson()
 
-    fun collect(gitInfo: GitInfoProvider, workingDirectory: File, isCi: Boolean): CollectedGitHistory? {
+    /**
+     * Collects the history on CI only: a coverage run ([coverage]) fetches and deepens the clone,
+     * which makes it a partial clone, and a developer's own clone must not become one.
+     */
+    fun collect(gitInfo: GitInfoProvider, workingDirectory: File, isCi: Boolean, coverage: Boolean = false): CollectedGitHistory? {
         val gitEnvironment = GitHistoryEnvironment(environment)
         if (!gitEnvironment.enabled(isCi)) return null
         val observedAt = clock()
@@ -159,17 +172,25 @@ class GitHistoryService(
         }
 
         val settings = settings()
+        val limits = GitHistoryLimits(
+            windowDays = settings.windowDays,
+            windowCommits = settings.windowCommits,
+            deepenBudgetSeconds = settings.deepenBudgetSeconds,
+            remoteAccess = gitEnvironment.remoteAccess(coverage)
+        )
+        val repositoryUrl = gitInfo.remoteUrlOrigin()?.takeIf { it.isNotBlank() }
+        // Deepened through the base branch, or the run's own on a push.
+        val connectBranch = baseBranch ?: gitInfo.branch()
         val history = try {
-            reader.read(
-                headSha = headSha,
-                baseBranch = baseBranch,
-                limits = GitHistoryLimits(
-                    windowDays = settings.windowDays,
-                    windowCommits = settings.windowCommits,
-                    deepenBudgetSeconds = settings.deepenBudgetSeconds,
-                    remoteAccess = gitEnvironment.remoteAccess()
-                )
-            )
+            val read = reader.read(headSha = headSha, baseBranch = baseBranch, limits = limits)
+            if (repositoryUrl == null || connectBranch == null) {
+                read
+            } else {
+                // A server that cannot be asked counts as having the commits, and nothing is fetched.
+                reader.connect(read, connectBranch, limits) { shas ->
+                    runCatching { missingCommits(repositoryUrl, shas) }.getOrDefault(emptyList())
+                }
+            }
         } catch (e: Exception) {
             val reason = e.message ?: e.javaClass.simpleName
             logger.info("Tuist: The run's Git history could not be read: $reason")
@@ -217,11 +238,7 @@ class GitHistoryService(
         if (commits.isEmpty()) return
 
         val missing = commits.map { it.sha }.chunked(MISSING_COMMITS_BATCH_SIZE).flatMapTo(mutableSetOf()) { shas ->
-            request("commits/missing", MissingCommitsRequest(repositoryUrl, shas)) { connection ->
-                InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
-                    gson.fromJson(it, MissingCommitsResponse::class.java)?.missing.orEmpty()
-                }
-            }
+            missingCommits(repositoryUrl, shas)
         }
 
         // Reversed first so that, between commits with the same time, the older listed one goes first.
@@ -254,6 +271,62 @@ class GitHistoryService(
         }
     }
 
+    private fun missingCommits(repositoryUrl: String, shas: List<String>): List<String> =
+        request("commits/missing", MissingCommitsRequest(repositoryUrl, shas)) { connection ->
+            InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
+                gson.fromJson(it, MissingCommitsResponse::class.java)?.missing.orEmpty()
+            }
+        }
+
+    /**
+     * Uploads the head commit's file listing (`git ls-tree -r`) once per commit, when the server
+     * lacks it: coverage measures the files no run compiled against it, and reads the tracked files
+     * from it. Only coverage runs on a clean checkout send it, after the run. Best effort.
+     */
+    fun uploadListing(collected: CollectedGitHistory?, workingDirectory: File): Boolean {
+        val history = collected?.history ?: return true
+        val repositoryUrl = collected.repositoryUrl?.takeIf { it.isNotBlank() } ?: return true
+        return try {
+            val missing = request("listings/missing", MissingCommitsRequest(repositoryUrl, listOf(history.headSha))) { connection ->
+                InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
+                    gson.fromJson(it, MissingCommitsResponse::class.java)?.missing.orEmpty()
+                }
+            }
+            if (history.headSha !in missing) return true
+            val limit = collected.settings.commitFileLimit
+            val files = ProcessGitRunner(workingDirectory)
+                .capture(listOf("ls-tree", "-r", "-z", "--full-tree", history.headSha))
+                .split('\u0000')
+                .mapNotNull { entry ->
+                    val meta = entry.substringBefore('\t', "").split(' ').filter { it.isNotEmpty() }
+                    val path = entry.substringAfter('\t', "")
+                    if (meta.size == 3 && meta[1] == "blob" && path.isNotEmpty()) {
+                        ListingFilePayload(path, meta[2], meta[0].toIntOrNull(8))
+                    } else null
+                }
+            val kept = files.take(limit.coerceAtLeast(0))
+            val batches = kept.chunked(LISTING_BATCH_SIZE).ifEmpty { listOf(emptyList()) }
+            batches.forEachIndexed { index, batch ->
+                val last = index == batches.lastIndex
+                request(
+                    "listings",
+                    UploadListingRequest(
+                        repositoryUrl = repositoryUrl,
+                        sha = history.headSha,
+                        files = batch,
+                        complete = last,
+                        truncated = files.size > kept.size,
+                        filesCount = if (last) kept.size else null
+                    )
+                ) {}
+            }
+            true
+        } catch (e: Exception) {
+            logger.info("Tuist: The commit's file listing could not be uploaded: ${e.message}")
+            false
+        }
+    }
+
     private fun settings(): GitHistorySettings {
         val defaults = GitHistorySettings()
         return try {
@@ -266,7 +339,8 @@ class GitHistoryService(
                 windowDays = response?.windowDays ?: defaults.windowDays,
                 windowCommits = response?.windowCommits ?: defaults.windowCommits,
                 deepenBudgetSeconds = response?.deepenBudgetSeconds ?: defaults.deepenBudgetSeconds,
-                uploadBatchSize = response?.uploadBatchSize ?: defaults.uploadBatchSize
+                uploadBatchSize = response?.uploadBatchSize ?: defaults.uploadBatchSize,
+                commitFileLimit = response?.commitFileLimit ?: defaults.commitFileLimit
             )
         } catch (e: Exception) {
             logger.debug("Tuist: Using the default Git history settings: ${e.message}")
@@ -308,7 +382,8 @@ class GitHistoryService(
         @SerializedName("window_days") val windowDays: Int?,
         @SerializedName("window_commits") val windowCommits: Int?,
         @SerializedName("deepen_budget_seconds") val deepenBudgetSeconds: Int?,
-        @SerializedName("upload_batch_size") val uploadBatchSize: Int?
+        @SerializedName("upload_batch_size") val uploadBatchSize: Int?,
+        @SerializedName("commit_file_limit") val commitFileLimit: Int?
     )
 
     private data class MissingCommitsRequest(
@@ -323,6 +398,21 @@ class GitHistoryService(
         @SerializedName("object_format") val objectFormat: String,
         val commits: List<CommitPayload>,
         @SerializedName("branch_heads") val branchHeads: List<BranchHeadPayload>
+    )
+
+    private data class ListingFilePayload(
+        val path: String,
+        @SerializedName("git_blob_id") val gitBlobId: String,
+        val mode: Int?
+    )
+
+    private data class UploadListingRequest(
+        @SerializedName("repository_url") val repositoryUrl: String,
+        val sha: String,
+        val files: List<ListingFilePayload>,
+        val complete: Boolean,
+        val truncated: Boolean,
+        @SerializedName("files_count") val filesCount: Int?
     )
 
     private data class CommitPayload(
@@ -343,6 +433,9 @@ class GitHistoryService(
 
         /** Commits per upload request the server accepts. */
         private const val MAX_UPLOAD_BATCH_SIZE = 10_000
+
+        /** Files per listing request; the server accepts up to 20,000. */
+        private const val LISTING_BATCH_SIZE = 10_000
     }
 }
 

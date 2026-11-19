@@ -20,6 +20,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
+  alias Tuist.Runners.Workers.ConcurrencySizingWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
@@ -32,6 +33,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   @shared_crons [
     {"* * * * *", Tuist.RemoteExecution.MaintenanceWorker},
     {"* * * * *", Tuist.Threads.RecoveryWorker},
+    {"*/10 * * * *", Tuist.Agents.Workers.PurgeDeletedSessionsWorker},
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
@@ -44,11 +46,14 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Sandboxes.ClaudeCodeReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
-    {"20 * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ReleaseRemovedNodesWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
+    {"@hourly", Tuist.Runners.Workers.ActionsCacheSweepWorker},
+    {"@hourly", Tuist.Runners.Workers.WorkflowRunSweepWorker},
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
     {"@hourly", PruneJobKeysWorker},
@@ -69,6 +74,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"*/15 * * * *", Tuist.Runners.Workers.PrepaidUsageWorker},
     {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
@@ -84,6 +90,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
     {"* * * * *", Tuist.Runners.Workers.SiteSpilloverWorker},
+    {"*/5 * * * *", ConcurrencySizingWorker},
+    {"30 * * * *", ConcurrencySizingWorker, args: %{"mode" => "daily"}},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},

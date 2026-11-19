@@ -27,6 +27,8 @@ The plugin collects results from all Gradle `Test` tasks, including:
 - Test suite and class structure
 - Flaky test detection across runs
 
+Turn on <.localized_link href="/guides/features/test-code-coverage/gradle">code coverage</.localized_link> to also upload which code your tests executed.
+
 ## Configure upload behavior {#configure-upload-behavior}
 
 By default:
@@ -43,7 +45,7 @@ tuist {
 
 ### Git history {#git-history}
 
-On CI, the plugin also uploads the commit history of the checkout when it reports a test run: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. The plugin reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). It doesn't fetch history.
+On CI, the plugin also uploads the commit history of the checkout when it reports a test run: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. The plugin reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage, it doesn't fetch history. With code coverage, a shallow checkout is deepened, without file contents, to find where a pull request branched off and to reach the commits Tuist already has, so a commit is never uploaded without the parent it sits on.
 
 | Variable | Effect |
 | --- | --- |

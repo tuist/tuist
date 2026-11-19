@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Application Performance Index (Apdex, https://www.apdex.org/) score and latency metrics for Tuist web page loads. Page-load panels are discriminated by request_kind=\"page_load\" from the server log stream. Marketing static asset panels use request_kind=\"marketing_static_asset\" timing logs emitted before Plug.Static serves /marketing/assets and /marketing/images. T=1s (satisfied <1s, tolerating 1-4s, frustrated >4s).",
+    "description": "Application Performance Index (Apdex, https://www.apdex.org/) score and latency metrics for Tuist web page loads. Panels read production server logs from Tuist Pulse SQL (opentelemetry_logs). Page-load panels use the request_kind=\"page_load\" Request completed lines (status, duration_ms), excluding the /ready kubelet probe. Marketing static asset panels use request_kind=\"marketing_static_asset\" timing logs emitted before Plug.Static serves /marketing/assets and /marketing/images. T=1s (satisfied <1s, tolerating 1-4s, frustrated >4s).",
     "editable": true,
     "elements": {
       "panel-11": {
@@ -46,87 +46,19 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "satisfied",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT (sum(CASE WHEN ms <= 1000 THEN 1.0 WHEN ms <= 4000 THEN 0.5 ELSE 0.0 END) / count(*)) AS \"Apdex (T=1s)\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r\nWHERE ms IS NOT NULL"
                       }
                     },
                     "refId": "A",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "tolerating",
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "B",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "total",
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "C",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "__expr__",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "__expr__"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expression": "($A + $B / 2) / $C",
-                        "type": "math"
-                      }
-                    },
-                    "refId": "D",
                     "hidden": false
                   }
                 }
@@ -206,18 +138,16 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "Page Loads/s",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT CAST(count(*) AS DOUBLE) / ($__unixEpochTo() - $__unixEpochFrom()) AS \"Page Loads/s\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r"
                       }
                     },
                     "refId": "A",
@@ -290,17 +220,16 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT percentile_cont(0.99) WITHIN GROUP (ORDER BY ms) AS \"P99\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r\nWHERE ms IS NOT NULL"
                       }
                     },
                     "refId": "A",
@@ -381,17 +310,16 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "SELECT sum(CASE WHEN status >= 500 THEN 1.0 ELSE 0.0 END) / ($__unixEpochTo() - $__unixEpochFrom()) AS \"5xx/s\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r"
                       }
                     },
                     "refId": "A",
@@ -471,148 +399,19 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT $__timeGroupAlias(timestamp, $__interval),\n  (sum(CASE WHEN ms <= 1000 THEN 1.0 WHEN ms <= 4000 THEN 0.5 ELSE 0.0 END) / count(*)) AS \"Apdex T=1s\",\n  (sum(CASE WHEN ms <= 200 THEN 1.0 WHEN ms <= 800 THEN 0.5 ELSE 0.0 END) / count(*)) AS \"Apdex T=200ms\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r\nWHERE ms IS NOT NULL\nGROUP BY 1 ORDER BY 1"
                       }
                     },
                     "refId": "A",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "B",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 200 [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "C",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 200 | ms <= 800 [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "D",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [$__interval]))",
-                        "instant": false,
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "E",
-                    "hidden": true
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "__expr__",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "__expr__"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expression": "($A + $B / 2) / $E",
-                        "type": "math"
-                      }
-                    },
-                    "refId": "F",
-                    "hidden": false
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "__expr__",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "__expr__"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expression": "($C + $D / 2) / $E",
-                        "type": "math"
-                      }
-                    },
-                    "refId": "G",
                     "hidden": false
                   }
                 }
@@ -709,7 +508,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "F"
+                      "options": "Apdex T=1s"
                     },
                     "properties": [
                       {
@@ -728,7 +527,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "G"
+                      "options": "Apdex T=200ms"
                     },
                     "properties": [
                       {
@@ -766,18 +565,16 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "Page Loads/s",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT $__timeGroupAlias(timestamp, $__interval),\n  CAST(count(*) AS DOUBLE) / ($__interval_ms / 1000.0) AS \"Page Loads/s\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r\nGROUP BY 1 ORDER BY 1"
                       }
                     },
                     "refId": "A",
@@ -887,18 +684,16 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "5xx/s",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT $__timeGroupAlias(timestamp, $__interval),\n  sum(CASE WHEN status >= 500 THEN 1.0 ELSE 0.0 END) / ($__interval_ms / 1000.0) AS \"5xx/s\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r\nGROUP BY 1 ORDER BY 1"
                       }
                     },
                     "refId": "A",
@@ -1009,67 +804,19 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.50, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "P50",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT $__timeGroupAlias(timestamp, $__interval),\n  percentile_cont(0.50) WITHIN GROUP (ORDER BY ms) AS \"P50\",\n  percentile_cont(0.95) WITHIN GROUP (ORDER BY ms) AS \"P95\",\n  percentile_cont(0.99) WITHIN GROUP (ORDER BY ms) AS \"P99\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, ' duration_ms=([0-9.]+)')[1] AS DOUBLE) AS ms,\n    CAST(regexp_match(body, ' status=([0-9]+)')[1] AS BIGINT) AS status\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=page_load%'\n    AND body LIKE '%Request completed%'\n    AND body NOT LIKE '% request_path=/ready %') r\nWHERE ms IS NOT NULL\nGROUP BY 1 ORDER BY 1"
                       }
                     },
                     "refId": "A",
-                    "hidden": false
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.95, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "P95",
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "B",
-                    "hidden": false
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "P99",
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "C",
                     "hidden": false
                   }
                 }
@@ -1176,18 +923,16 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" |~ \"Sent [0-9]+ in\" [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "Origin asset responses/s",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT $__timeGroupAlias(timestamp, $__interval),\n  CAST(count(*) AS DOUBLE) / ($__interval_ms / 1000.0) AS \"Origin asset responses/s\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, 'Sent [0-9]+ in ([0-9]+)ms')[1] AS DOUBLE) AS ms\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=marketing_static_asset%'\n    AND body LIKE '%Sent % in %ms%') r\nGROUP BY 1 ORDER BY 1"
                       }
                     },
                     "refId": "A",
@@ -1297,67 +1042,19 @@
                   "spec": {
                     "query": {
                       "kind": "DataQuery",
-                      "group": "loki",
+                      "group": "grafana-postgresql-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "grafanacloud-logs"
+                        "name": "pulse-sql"
                       },
                       "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.50, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "P50",
-                        "queryType": "range",
-                        "range": true
+                        "editorMode": "code",
+                        "format": "time_series",
+                        "rawQuery": true,
+                        "rawSql": "SELECT $__timeGroupAlias(timestamp, $__interval),\n  percentile_cont(0.50) WITHIN GROUP (ORDER BY ms) AS \"P50\",\n  percentile_cont(0.95) WITHIN GROUP (ORDER BY ms) AS \"P95\",\n  percentile_cont(0.99) WITHIN GROUP (ORDER BY ms) AS \"P99\"\nFROM (SELECT timestamp,\n    CAST(regexp_match(body, 'Sent [0-9]+ in ([0-9]+)ms')[1] AS DOUBLE) AS ms\n  FROM opentelemetry_logs\n  WHERE $__timeFilter(timestamp)\n    AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n    AND json_get_string(resource_attributes, 'container') = 'server'\n    AND body LIKE '%request_kind=marketing_static_asset%'\n    AND body LIKE '%Sent % in %ms%') r\nWHERE ms IS NOT NULL\nGROUP BY 1 ORDER BY 1"
                       }
                     },
                     "refId": "A",
-                    "hidden": false
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.95, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "P95",
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "B",
-                    "hidden": false
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "grafanacloud-logs"
-                      },
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"marketing_static_asset\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
-                        "instant": false,
-                        "legendFormat": "P99",
-                        "queryType": "range",
-                        "range": true
-                      }
-                    },
-                    "refId": "C",
                     "hidden": false
                   }
                 }

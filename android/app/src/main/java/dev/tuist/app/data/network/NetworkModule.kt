@@ -10,8 +10,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
-import dev.tuist.app.api.AISubscriptionsApi
-import dev.tuist.app.api.FeatureFlagsApi
 import dev.tuist.app.api.NotificationRulesApi
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
@@ -58,11 +56,13 @@ object NetworkModule {
     fun provideOkHttpClient(
         requestIdInterceptor: RequestIdInterceptor,
         authInterceptor: AuthInterceptor,
+        sessionGuardInterceptor: SessionGuardInterceptor,
         tokenRefreshAuthenticator: TokenRefreshAuthenticator,
     ): OkHttpClient {
         val builder = CertificateTrust.clientBuilder()
             .addInterceptor(requestIdInterceptor)
             .addInterceptor(authInterceptor)
+            .addNetworkInterceptor(sessionGuardInterceptor)
             .authenticator(tokenRefreshAuthenticator)
 
         if (BuildConfig.DEBUG) {
@@ -93,16 +93,6 @@ object NetworkModule {
     @Singleton
     fun providePreviewsApi(retrofit: Retrofit): PreviewsApi =
         retrofit.create(PreviewsApi::class.java)
-
-    @Provides
-    @Singleton
-    fun provideFeatureFlagsApi(retrofit: Retrofit): FeatureFlagsApi =
-        retrofit.create(FeatureFlagsApi::class.java)
-
-    @Provides
-    @Singleton
-    fun provideAISubscriptionsApi(retrofit: Retrofit): AISubscriptionsApi =
-        retrofit.create(AISubscriptionsApi::class.java)
 
     @Provides
     @Singleton

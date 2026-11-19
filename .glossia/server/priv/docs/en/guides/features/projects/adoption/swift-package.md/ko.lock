@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "814d11b4bf5b3521c5820a32c5d6f55b7111bfcf94a6e3c6c08541a4cc93af7e",
+  "hash": "d650fdab20dad7f7d5381ae83b05b48fd6f91ebb1f0c3621690f734b71315e22",
   "hash_tree": {
     "root": {
       "children": [
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -223,21 +223,21 @@
             }
           ],
           "details": {},
-          "hash": "dc159d6479f5eb910de455eabc6ca79448740bce20743a659dfb32f13ddce4e9",
+          "hash": "9a2416bc1e9077d31c51f802a361cad6e31529318f3091fcff911fcd5cbd9a5c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "814d11b4bf5b3521c5820a32c5d6f55b7111bfcf94a6e3c6c08541a4cc93af7e",
+      "hash": "d650fdab20dad7f7d5381ae83b05b48fd6f91ebb1f0c3621690f734b71315e22",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/adoption/swift-package.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "95d9afaddf23fb2105b22886e60e98c6dd76b415ce5cbf48e206007a353e1a22",
+  "output_hash": "a9483f29463f7e9c6eba223ae71b47a001a7e753b41fafbccaee8de65d1200c3",
   "output_path": "server/priv/docs/ko/guides/features/projects/adoption/swift-package.md",
   "protection_state": "recorded",
   "provider": "",
@@ -257,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
   "source_path": "server/priv/docs/en/guides/features/projects/adoption/swift-package.md",
-  "translated_at": "2026-11-06T18:38:51.894852Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-18T21:39:48.377355Z",
+  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
 }

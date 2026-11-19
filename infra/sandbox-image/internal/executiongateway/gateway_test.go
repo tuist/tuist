@@ -16,6 +16,7 @@ import (
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
 	rpc "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -38,9 +39,29 @@ func response(code int, body string) *http.Response {
 
 const id = "11111111-2222-3333-4444-555555555555"
 
+// gateway serves a control plane that advertises no cache, so actions run at the
+// default size without being read.
 func gateway(t *testing.T, roundtrip transport) (re.ExecutionClient, re.CapabilitiesClient) {
 	t.Helper()
-	return gatewayWith(t, New("https://control.example"), roundtrip)
+	return gatewayWith(t, New("https://control.example"), func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			return response(200, `{}`), nil
+		}
+		return roundtrip(r)
+	})
+}
+
+// serveCache serves store as the gateway's cache.
+func serveCache(t *testing.T, g *Gateway, store *blobStore) {
+	t.Helper()
+	l := bufconn.Listen(1 << 20)
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, store)
+	go s.Serve(l)
+	t.Cleanup(s.Stop)
+	g.Dial = func(string) (*grpc.ClientConn, error) {
+		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+	}
 }
 
 func gatewayWith(t *testing.T, g *Gateway, roundtrip transport) (re.ExecutionClient, re.CapabilitiesClient) {
@@ -172,13 +193,45 @@ func TestGatewayRejectsMissingDuplicateAndForeignCredentials(t *testing.T) {
 }
 
 func TestDisabledCapabilityAndBoundedResponse(t *testing.T) {
-	_, caps := gateway(t, func(*http.Request) (*http.Response, error) { return response(403, `{}`), nil })
+	_, caps := gatewayWith(t, New("https://control.example"), func(*http.Request) (*http.Response, error) { return response(403, `{}`), nil })
 	if _, err := caps.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("disabled: %v", err)
 	}
-	_, caps = gateway(t, func(*http.Request) (*http.Response, error) { return response(200, strings.Repeat("x", 300000)), nil })
+	_, caps = gatewayWith(t, New("https://control.example"), func(*http.Request) (*http.Response, error) { return response(200, strings.Repeat("x", 300000)), nil })
 	if _, err := caps.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("oversized: %v", err)
+	}
+}
+
+func TestExecuteForwardsBazelRequestMetadata(t *testing.T) {
+	bodies := make(chan map[string]any, 2)
+	client, _ := gateway(t, func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies <- body
+		return response(202, `{"id":"`+id+`","state":"completed","done":true}`), nil
+	})
+	execute := func(m *re.RequestMetadata) map[string]any {
+		b, _ := proto.Marshal(m)
+		ctx := metadata.AppendToOutgoingContext(authenticated(), "build.bazel.remote.execution.v2.requestmetadata-bin", string(b))
+		stream, err := client.Execute(ctx, &re.ExecuteRequest{InstanceName: "app", ActionDigest: &re.Digest{Hash: strings.Repeat("a", 64), SizeBytes: 5}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result, err := stream.Recv(); err != nil || !result.Done {
+			t.Fatalf("result: %v %v", result, err)
+		}
+		return <-bodies
+	}
+
+	body := execute(&re.RequestMetadata{ToolInvocationId: "inv-1", ActionMnemonic: "CppCompile", TargetId: "//app:lib", ActionId: "ignored"})
+	if body["invocation_id"] != "inv-1" || body["mnemonic"] != "CppCompile" || body["target"] != "//app:lib" || body["action_id"] != nil {
+		t.Fatalf("body %v", body)
+	}
+	// An oversized value is dropped on its own; the action still runs.
+	body = execute(&re.RequestMetadata{ToolInvocationId: "inv-2", TargetId: strings.Repeat("t", maxMetadataBytes+1)})
+	if body["invocation_id"] != "inv-2" || body["target"] != nil || body["mnemonic"] != nil {
+		t.Fatalf("body %v", body)
 	}
 }
 
@@ -309,6 +362,7 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			l := bufconn.Listen(1 << 20)
 			s := grpc.NewServer()
 			re.RegisterActionCacheServer(s, cache)
+			re.RegisterContentAddressableStorageServer(s, &blobStore{blobs: map[string][]byte{}})
 			go s.Serve(l)
 			t.Cleanup(s.Stop)
 			g := New("https://control.example")
@@ -380,8 +434,11 @@ type blobStore struct {
 	// inputs answers a read of one action that asks for its inputs with them
 	// too, as Kura does; tamper corrupts the last input it returns.
 	inputs, tamper bool
-	reads          atomic.Int32
-	treeCalls      atomic.Int32
+	// fail answers every read with an error, unavailable its first reads.
+	fail        bool
+	unavailable int32
+	reads       atomic.Int32
+	treeCalls   atomic.Int32
 }
 
 func (b *blobStore) GetTree(r *re.GetTreeRequest, s grpc.ServerStreamingServer[re.GetTreeResponse]) error {
@@ -421,7 +478,12 @@ func (b *blobStore) message(m proto.Message) *re.Digest {
 }
 
 func (b *blobStore) BatchReadBlobs(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
-	b.reads.Add(1)
+	if b.reads.Add(1) <= b.unavailable {
+		return nil, status.Error(codes.Unavailable, "cache busy")
+	}
+	if b.fail {
+		return nil, status.Error(codes.Internal, "cache failure")
+	}
 	md, _ := metadata.FromIncomingContext(ctx)
 	b.auth.Store(append(md.Get("authorization"), md.Get("x-tuist-account-handle")...))
 	response := &re.BatchReadBlobsResponse{}
@@ -495,8 +557,10 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
 	}
 	bodies := make(chan map[string]any, 2)
-	client, capabilities := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
+	var capabilityChecks atomic.Int32
+	client, _ := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			capabilityChecks.Add(1)
 			return response(200, `{"image":"sha-x","cas_endpoint":"grpcs://cache.example"}`), nil
 		}
 		var body map[string]any
@@ -514,13 +578,16 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 		}
 		return <-bodies
 	}
-	if _, ok := execute()["inputs"]; ok {
-		t.Fatal("prefetched before the project's cache endpoint was known")
-	}
-	if _, err := capabilities.GetCapabilities(authenticated(), &re.GetCapabilitiesRequest{InstanceName: "app"}); err != nil {
-		t.Fatal(err)
+	// The client's capability check is not needed: a build can outlive the
+	// gateway's memory of it, so Execute asks the control plane itself.
+	execute()
+	if capabilityChecks.Load() != 1 {
+		t.Fatalf("capability checks %d; want one to learn the cache endpoint", capabilityChecks.Load())
 	}
 	encoded, _ := execute()["inputs"].(string)
+	if capabilityChecks.Load() != 1 {
+		t.Fatal("asked for the cache endpoint again while it was remembered")
+	}
 	b, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		t.Fatal(err)
@@ -540,6 +607,48 @@ func TestExecuteSendsPrefetchedInputs(t *testing.T) {
 	}
 	if auth, _ := store.auth.Load().([]string); len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
 		t.Fatalf("credentials: %v", auth)
+	}
+}
+
+// A cache too busy to answer the prefetch and the first size read must delay
+// a larger action, not fail it: Bazel would fail the build.
+func TestExecuteRetriesTheActionReadForItsSize(t *testing.T) {
+	store := &blobStore{blobs: map[string][]byte{}, unavailable: 2}
+	command := store.message(&re.Command{Arguments: []string{"true"}})
+	root := store.message(&re.Directory{})
+	platform := &re.Platform{Properties: []*re.Platform_Property{{Name: worker.MemoryProperty, Value: "8"}}}
+	action := store.message(&re.Action{CommandDigest: command, InputRootDigest: root, Platform: platform})
+	l := bufconn.Listen(1 << 20)
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, store)
+	go s.Serve(l)
+	t.Cleanup(s.Stop)
+	g := New("https://control.example")
+	g.Dial = func(string) (*grpc.ClientConn, error) {
+		return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
+	}
+	bodies := make(chan map[string]any, 1)
+	client, _ := gatewayWith(t, g, func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/capabilities") {
+			return response(200, `{"image":"sha-x","cas_endpoint":"grpcs://cache.example"}`), nil
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies <- body
+		return response(202, `{"id":"`+id+`","state":"completed","done":true}`), nil
+	})
+	stream, err := client.Execute(authenticated(), &re.ExecuteRequest{InstanceName: "app", ActionDigest: action})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, err := stream.Recv(); err != nil || !result.Done {
+		t.Fatalf("result: %v %v", result, err)
+	}
+	if body := <-bodies; body["memory_gb"] != float64(8) {
+		t.Fatalf("memory_gb %v; want 8", body["memory_gb"])
+	}
+	if reads := store.reads.Load(); reads != 3 {
+		t.Fatalf("cache reads %d; want the prefetch, a refused size read and its retry", reads)
 	}
 }
 
@@ -564,7 +673,7 @@ func prefetchLab(t *testing.T, store *blobStore) (func() *re.BatchUpdateBlobsReq
 	}
 	g.remember("tuist", "app", "grpcs://cache.example", false)
 	prefetch := func() *re.BatchUpdateBlobsRequest {
-		encoded := g.prefetch(authenticated(), "tuist", "app", "Bearer secret", action)
+		encoded, _ := g.prefetch(authenticated(), "tuist", "app", "Bearer secret", action)
 		b, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil {
 			t.Fatal(err)

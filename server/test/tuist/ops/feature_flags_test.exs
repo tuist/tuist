@@ -40,23 +40,43 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     gate(:runners, :actor, "account:#{excluded.id}", false)
     gate(:runner_site_cache, :actor, "account:#{included.id}", true)
     gate(:kura_thin_volumes, :actor, "account:#{included.id}", true)
+    gate(:runner_actions_cache, :actor, "account:#{included.id}", true)
+    gate(:public_shard_storage, :actor, "account:#{included.id}", true)
     reject(FunWithFlags, :enabled?, 1)
     reject(FunWithFlags, :enabled?, 2)
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => excluded.id})
     assert result.resource == %{account_id: excluded.id, project_id: nil}
     assert result.environment == "prod"
-    assert length(result.evaluations) == 23
+    assert length(result.evaluations) == 26
     refute enabled?(result, "runner_shard_storage")
+    refute enabled?(result, "public_shard_storage")
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
     refute enabled?(result, "runners")
     refute enabled?(result, "runner_site_cache")
     refute enabled?(result, "kura_thin_volumes")
+    refute enabled?(result, "runner_actions_cache")
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => included.id})
     assert enabled?(result, "runners")
     assert enabled?(result, "runner_site_cache")
     assert enabled?(result, "kura_thin_volumes")
+    assert enabled?(result, "runner_actions_cache")
+    assert enabled?(result, "public_shard_storage")
+  end
+
+  test "runner concurrency growth can be held globally or per account without disabling runners" do
+    account = AccountsFixtures.user_fixture().account
+    gate(:runners, :actor, "account:#{account.id}", true)
+    assert {:ok, initial} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    assert enabled?(initial, "runner_concurrency_growth_paused")
+    gate(:runner_concurrency_growth_paused, :boolean, nil, true)
+    assert {:ok, paused} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    refute enabled?(paused, "runner_concurrency_growth_paused")
+    assert enabled?(paused, "runners")
+    gate(:runner_concurrency_growth_paused, :actor, "account:#{account.id}", false)
+    assert {:ok, resumed} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    assert enabled?(resumed, "runner_concurrency_growth_paused")
   end
 
   test "the persisted batch excludes other actors and flags outside the catalog" do
@@ -88,7 +108,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"project_id" => project.id})
     assert result.resource == %{account_id: project.account_id, project_id: project.id}
-    assert length(result.evaluations) == 24
+    assert length(result.evaluations) == 27
     assert enabled?(result, "build_entities")
     assert enabled?(result, "runner_site_cache")
     assert Enum.find(result.evaluations, &(&1.name == "runner_site_cache")).actor_id == project.account_id
@@ -100,30 +120,14 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert enabled?(result, "build_entities_kill_switch")
   end
 
-  test "coverage dependency is evaluated from the same persisted batch" do
-    account = AccountsFixtures.user_fixture().account
-    gate(:immutable_shard_reports, :actor, "account:#{account.id}", true)
-    coverage = gate(:xcode_coverage, :actor, "account:#{account.id}", true)
-
-    assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
-    assert enabled?(result, "xcode_coverage")
-    refute enabled?(result, "immutable_shard_reports")
-
-    Repo.delete!(coverage)
-    assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
-    refute enabled?(result, "xcode_coverage")
-    assert enabled?(result, "immutable_shard_reports")
-  end
-
-  test "test impact analysis needs its own toggle and coverage on production" do
+  test "test impact analysis needs its own toggle on production" do
     account = AccountsFixtures.user_fixture().account
     stub(Environment, :env, fn -> :prod end)
-    gate(:test_impact_analysis, :actor, "account:#{account.id}", true)
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
     refute enabled?(result, "test_impact_analysis")
 
-    gate(:xcode_coverage, :actor, "account:#{account.id}", true)
+    gate(:test_impact_analysis, :actor, "account:#{account.id}", true)
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
     assert enabled?(result, "test_impact_analysis")
   end
@@ -132,7 +136,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     account = AccountsFixtures.user_fixture().account
     gate(:immutable_shard_reports, :actor, "account:#{account.id}", true)
 
-    for {env, runners, coverage, site, stable} <- [
+    for {env, runners, test_impact_analysis, site, stable} <- [
           {:prod, false, false, false, false},
           {:can, false, false, true, true},
           {:stag, true, true, true, false},
@@ -142,11 +146,10 @@ defmodule Tuist.Ops.FeatureFlagsTest do
       assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
       assert result.environment == Atom.to_string(env)
       assert enabled?(result, "runners") == runners
-      assert enabled?(result, "xcode_coverage") == coverage
-      assert enabled?(result, "test_impact_analysis") == coverage
+      assert enabled?(result, "test_impact_analysis") == test_impact_analysis
       assert enabled?(result, "runner_site") == site
       assert enabled?(result, "kura_stable_hostname") == stable
-      assert enabled?(result, "immutable_shard_reports") == not coverage
+      refute enabled?(result, "immutable_shard_reports")
     end
   end
 
@@ -246,7 +249,10 @@ defmodule Tuist.Ops.FeatureFlagsTest do
            })
 
     refute Evaluation.runners_enabled?(account, Flag.new(:runners, []))
-    assert Evaluation.xcode_coverage_enabled?(nil, %{}) == false
+
+    refute Evaluation.test_impact_analysis_account_enabled?(account, %{
+             test_impact_analysis: Flag.new(:test_impact_analysis, [])
+           })
   end
 
   defp enabled?(result, name), do: Enum.find(result.evaluations, &(&1.name == name)).enabled

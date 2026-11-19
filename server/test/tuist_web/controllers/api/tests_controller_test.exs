@@ -8,12 +8,17 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias Tuist.Shards
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.RunSelections
   alias Tuist.Tests.Test
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/tests" do
@@ -336,7 +341,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
-    test "accepts a consolidated Once shard report with producer ordering", %{conn: conn, user: user, project: project} do
+    test "accepts a consolidated Struo shard report with producer ordering", %{conn: conn, user: user, project: project} do
       plan_id = UUIDv7.generate()
 
       expect(Tests, :create_test, fn attrs ->
@@ -353,8 +358,8 @@ defmodule TuistWeb.API.TestsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
-          build_system: "once",
-          scheme: "once test",
+          build_system: "struo",
+          scheme: "struo test",
           is_ci: true,
           duration: 30,
           status: "success",
@@ -554,7 +559,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       |> json_response(:ok)
 
       assert Tuist.ClickHouseRepo.all(
-               from(f in Tuist.Tests.CoverageFile, where: f.test_run_id == ^run_id, select: f.path)
+               from(f in Tuist.Tests.CoverageRunFile, where: f.test_run_id == ^run_id, select: f.path)
              ) == []
     end
 
@@ -1872,6 +1877,185 @@ defmodule TuistWeb.API.TestsControllerTest do
 
       # Then
       assert json_response(conn, :forbidden)
+    end
+  end
+
+  describe "selective testing and coverage on test runs" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      %{conn: Authentication.put_current_user(conn, user), user: user, project: project}
+    end
+
+    # A run coverage-based selection decided, one module-hash selection
+    # decided and one without selective testing, their selections recorded.
+    defp selection_runs(project) do
+      impact_run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          baseline_sha: "0f0f0f0f0f0f",
+          requested_count: 10,
+          selected: [%{name: "test_a()"}],
+          skipped_count: 9
+        )
+
+      {:ok, coverage} =
+        RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: impact_run.id, scheme: "Coverage")
+
+      {:ok, hashed} = RunsFixtures.test_fixture(project_id: project.id, scheme: "Hashed")
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          test_run_id: hashed.id,
+          ran_at: hashed.ran_at,
+          created_at: hashed.ran_at,
+          test_targets: ["CoreTests"]
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "CoreTests",
+        selective_testing_hash: "c1",
+        selective_testing_hit: :miss
+      )
+
+      {:ok, plain} = RunsFixtures.test_fixture(project_id: project.id, scheme: "Plain")
+
+      RunSelections.record(project.id, [coverage.id, hashed.id, plain.id])
+
+      %{coverage: coverage, hashed: hashed, plain: plain}
+    end
+
+    test "lists runs by selection strategy, each with its strategy", %{conn: conn, user: user, project: project} do
+      %{coverage: coverage, hashed: hashed, plain: plain} = selection_runs(project)
+      path = "/api/projects/#{user.account.name}/#{project.name}/tests"
+
+      strategies = fn params ->
+        conn
+        |> get(path <> params)
+        |> json_response(:ok)
+        |> Map.fetch!("test_runs")
+        |> Map.new(&{&1["id"], &1["selective_testing_strategy"]})
+      end
+
+      assert strategies.("") == %{coverage.id => "coverage", hashed.id => "module_hash", plain.id => nil}
+      assert strategies.("?selective_testing=coverage") == %{coverage.id => "coverage"}
+      assert strategies.("?selective_testing=module_hash") == %{hashed.id => "module_hash"}
+      assert strategies.(~s(?query=selective_testing:"coverage")) == %{coverage.id => "coverage"}
+
+      assert strategies.(~s(?query=-selective_testing:"coverage")) == %{
+               hashed.id => "module_hash",
+               plain.id => nil
+             }
+
+      assert conn |> get(path <> ~s(?query=selective_testing~"cov")) |> json_response(:bad_request)
+    end
+
+    test "shows a run's selection summary with the counts effectiveness uses", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      %{coverage: coverage, hashed: hashed, plain: plain} = selection_runs(project)
+
+      fallback_impact_run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          outcome: "fallback",
+          reason: "no_baseline",
+          baseline_sha: nil,
+          requested_count: 0,
+          skipped_count: 0
+        )
+
+      {:ok, fallback} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback_impact_run.id)
+      RunSelections.record(project.id, [fallback.id])
+
+      unrecorded_impact_run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          baseline_sha: "0f0f0f0f0f0f",
+          requested_count: 10,
+          skipped_modules: %{"CoreTests" => 3},
+          skipped_count: 7
+        )
+
+      {:ok, unrecorded} =
+        RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: unrecorded_impact_run.id)
+
+      path = "/api/projects/#{user.account.name}/#{project.name}/tests/"
+      summary = fn run -> conn |> get(path <> run.id) |> json_response(:ok) |> Map.fetch!("selective_testing") end
+
+      # The run executed its 2 test cases and coverage skipped 9: the impact
+      # run's own requested count (10) isn't what effectiveness counts.
+      assert summary.(coverage) == %{
+               "strategy" => "coverage",
+               "baseline_sha" => "0f0f0f0f0f0f",
+               "requested" => 11,
+               "selected" => 2,
+               "skipped" => 9,
+               "estimated" => 0
+             }
+
+      # A fallback without a baseline recorded zeros on its impact run, but ran its tests.
+      assert summary.(fallback) == %{
+               "strategy" => "coverage",
+               "baseline_sha" => nil,
+               "requested" => 2,
+               "selected" => 2,
+               "skipped" => 0,
+               "estimated" => 0
+             }
+
+      assert summary.(hashed) == %{
+               "strategy" => "module_hash",
+               "baseline_sha" => nil,
+               "requested" => 2,
+               "selected" => 2,
+               "skipped" => 0,
+               "estimated" => 0
+             }
+
+      # Until its row is recorded, a run reads its impact run's counts.
+      assert summary.(unrecorded) == %{
+               "strategy" => "coverage",
+               "baseline_sha" => "0f0f0f0f0f0f",
+               "requested" => 10,
+               "selected" => 3,
+               "skipped" => 7,
+               "estimated" => 3
+             }
+
+      assert summary.(plain) == nil
+    end
+
+    test "shows a run's own coverage", %{conn: conn, user: user, project: project} do
+      measured =
+        CoverageFixtures.run_with_coverage(
+          project,
+          user.account,
+          [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 0])],
+          %{
+            partial: true
+          }
+        )
+
+      {:ok, unmeasured} = RunsFixtures.test_fixture(project_id: project.id)
+      path = "/api/projects/#{user.account.name}/#{project.name}/tests/"
+
+      assert %{
+               "measured" => true,
+               "partial" => true,
+               "covered_lines" => 3,
+               "executable_lines" => 4,
+               "coverage" => 75.0
+             } = conn |> get(path <> measured.id) |> json_response(:ok) |> Map.fetch!("coverage")
+
+      assert %{"measured" => false, "covered_lines" => nil, "coverage" => nil} =
+               conn |> get(path <> unmeasured.id) |> json_response(:ok) |> Map.fetch!("coverage")
     end
   end
 end

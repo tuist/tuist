@@ -17,9 +17,6 @@ sealed class HomeTabs {
     data object Previews : HomeTabs()
 
     @Serializable
-    data object Threads : HomeTabs()
-
-    @Serializable
     data object Profile : HomeTabs()
 
     @Serializable

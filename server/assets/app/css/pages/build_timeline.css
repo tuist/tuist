@@ -106,8 +106,8 @@
         background: var(--noora-surface-background-secondary);
       }
       &:focus-visible {
-        outline: 2px solid var(--noora-chart-primary);
-        outline-offset: 2px;
+        outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+        outline-offset: var(--noora-focus-ring-offset);
       }
     }
     & [data-kind="compile"] {
@@ -157,7 +157,7 @@
   }
   & [data-part="timeline-chart"],
   & [data-part="metric-track"] {
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-1);
   }
   & [data-part="timeline-chart"] {
@@ -176,8 +176,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--noora-spacing-4);
   }
-  &[data-source="bazel"] [data-metric="cpu"] {
+  &[data-source="bazel"] [data-metric="cpu"],
+  & [data-metric="disk-space"] {
     grid-column: 1 / -1;
+  }
+  & [data-metric="disk-space"] [data-part="metric-heading"] {
+    flex-wrap: wrap;
   }
   & [data-part="metric-track"] {
     background: var(--noora-surface-background-primary);

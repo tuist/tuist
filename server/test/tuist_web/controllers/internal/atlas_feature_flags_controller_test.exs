@@ -25,11 +25,43 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
     assert conn |> get("/api/internal/atlas/flags/evaluate", %{"account_id" => 1}) |> json_response(401)
   end
 
-  test "catalog includes inactive flags and rejects unknown names", %{conn: conn} do
+  test "catalog includes inactive flags and rejects malformed names", %{conn: conn} do
     assert %{"flags" => flags} = conn |> authed() |> get("/api/internal/atlas/flags") |> json_response(200)
     assert Enum.any?(flags, &(&1["name"] == "runners" and &1["actor_type"] == "account"))
     assert Enum.any?(flags, &(&1["name"] == "build_entities_kill_switch" and &1["actor_type"] == "global"))
-    assert conn |> authed() |> get("/api/internal/atlas/flags/not-a-flag") |> json_response(404)
+
+    assert %{"error" => "invalid_flag_name"} =
+             conn |> authed() |> get("/api/internal/atlas/flags/not-a-flag") |> json_response(422)
+  end
+
+  test "writes create flags outside the catalog, which accept account and project gates and are listed", %{conn: conn} do
+    account = AccountsFixtures.user_fixture().account
+    project = ProjectsFixtures.project_fixture()
+
+    assert %{"actor_type" => "any", "gates" => []} =
+             conn |> authed() |> get("/api/internal/atlas/flags/operator_created_flag") |> json_response(200)
+
+    refute conn |> authed() |> get("/api/internal/atlas/flags") |> json_response(200) |> listed?("operator_created_flag")
+
+    change(conn, "operator_created_flag", %{"operation" => "enable", "scope" => "account", "account_id" => account.id})
+    change(conn, "operator_created_flag", %{"operation" => "enable", "scope" => "project", "project_id" => project.id})
+
+    assert {:ok, flag} = Persistence.get(:operator_created_flag)
+    assert Flag.enabled?(flag, for: account)
+    assert Flag.enabled?(flag, for: project)
+    refute Flag.enabled?(flag, for: %{account | id: account.id + 1})
+    assert conn |> authed() |> get("/api/internal/atlas/flags") |> json_response(200) |> listed?("operator_created_flag")
+
+    # Catalog flags keep their declared actor type.
+    params =
+      request(conn, "build_entities_kill_switch", %{
+        "operation" => "enable",
+        "scope" => "account",
+        "account_id" => account.id
+      })
+
+    assert %{"error" => "invalid_target"} =
+             conn |> authed() |> put("/api/internal/atlas/flags/build_entities_kill_switch", params) |> json_response(422)
   end
 
   test "resource evaluation accepts one positive target, resolves project ownership and rejects missing resources", %{
@@ -233,6 +265,8 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
   end
 
   defp authed(conn), do: put_req_header(conn, "authorization", "Bearer valid-token")
+
+  defp listed?(%{"flags" => flags}, name), do: Enum.any?(flags, &(&1["name"] == name and &1["actor_type"] == "any"))
 
   defp change(conn, name, attrs) do
     params = request(conn, name, attrs)

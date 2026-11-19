@@ -1,63 +1,63 @@
 ---
 {
   "title": "乜嘢係 Tuist？",
-  "description": "專為開發者而設的虛擬平台團隊。為 Xcode、Gradle、Bazel、Elixir、Rust 同 Once 打造基礎設施，並提供針對各工具鏈度身訂造的功能。"
+  "description": "Tuist 係一個為工程團隊同佢哋嘅編碼代理而設嘅構建平台。佢支援跨 Xcode、Gradle、Bazel、Elixir 同 Rust 嘅構建同測試工作流程；Once 支援仲處於 Canary 階段。功能會因工具鏈而異，而 Rust 編譯快取功能仍屬實驗性質。"
 }
 ---
 
-# 專為交付軟體嘅開發者而設嘅虛擬平台團隊
+# 為團隊及其編碼代理而設的構建平台
 
-**Tuist 協助團隊擴展應用程式開發並加快交付**，將大型代碼庫嘅複雜性轉化為隨團隊成長嘅高效體驗。它支援你已經使用嘅構建系統，適用於 Xcode、Gradle、Bazel、Elixir、Rust 同 Once 項目。可用功能取決於你嘅工具鏈：Rust 項目可獲得 Cargo 構建同測試洞察，包括文檔測試、不穩定測試檢測同實驗性編譯緩存。Once 原生連接以支援共享緩存、構建同測試洞察、分片以及受支援嘅應用程式預覽。
+**Tuist 是為工程團隊及其編碼代理而設的構建平台。** 它支援 Xcode、Gradle、Bazel、Elixir 和 Rust 的構建與測試工作流程；Once 支援目前處於 canary 階段。它會配合你現已使用的構建系統，而非取代它們。可用功能取決於你的工具鏈：Rust 專案可取得 Cargo 構建與測試洞察，包括 doctests、不穩定測試偵測，以及實驗性編譯快取。Once 以原生方式連接，提供共享快取、構建與測試洞察、分片，以及受支援的應用程式預覽。
 
-跟隨適合你構建系統嘅其中一條<.localized_link href="/guides/get-started">入門路徑</.localized_link>。Once 可直接連接而無需 Tuist CLI；其他路徑會說明需要安裝邊啲 Tuist 工具。
+依照你的構建系統，選擇其中一條<.localized_link href="/guides/get-started">入門路徑</.localized_link>。Once 可直接連接，無需 Tuist CLI；其他路徑則說明需要安裝哪些 Tuist 工具。
 
 <br/>
 
 <.home_cards>
   <.home_card
-    title="緩存"
-    details="喺你嘅團隊同 CI 之間共享構建輸出。支援 Xcode 嘅編譯緩存、Tuist 嘅模塊緩存、Gradle 嘅構建緩存、Bazel 嘅遠程緩存、Elixir 嘅依賴緩存、Rust 嘅實驗性編譯緩存，以及 Once 嘅共享操作緩存。"
+    title="快取"
+    details="在團隊與 CI 之間共享構建產出。支援 Xcode 的編譯快取、Tuist 的模組快取、Gradle 的構建快取、Bazel 的遠端快取、Elixir 的依賴快取、Rust 的實驗性編譯快取，以及 Once 的共享動作快取。"
     supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/cache"
 />
   <.home_card
-    title="構建同測試洞察"
-    details="追蹤 Xcode、Gradle、Bazel、Elixir、Rust 同 Once 項目中嘅構建同測試時長、失敗、不穩定性及回歸問題。"
+    title="構建與測試洞察"
+    details="追蹤 Xcode、Gradle、Bazel、Elixir、Rust 和 Once 專案的構建與測試耗時、失敗、不穩定性及回退。"
     supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/build-insights"
 />
   <.home_card
     title="選擇性測試"
-    details="只運行受生成嘅 Xcode 項目變更影響嘅測試，讓反饋喺幾秒內到位。"
+    details="在生成的 Xcode 專案中跳過未變更的測試目標，並提供早期存取覆蓋策略，以便對個別 XCTest/XCUITest 進行選擇。"
     link="/guides/features/selective-testing"
 />
   <.home_card
-    title="Runner"
-    details="喺受管理嘅 macOS 同 Linux Runner 上運行 CI，靠近開發者機器使用嘅相同緩存。"
+    title="執行器"
+    details="在受管的 macOS 與 Linux 執行器上執行 CI，這些執行器靠近開發者機器所使用的相同快取。"
     link="/guides/features/runners"
 />
   <.home_card
     title="預覽"
-    details="透過 URL 即時分享你嘅應用程式。無需應用商店審核延誤，亦無需複雜設置。"
+    details="透過 URL 分享受支援的流動應用程式、macOS 應用程式，以及 macOS/Linux 命令列工具。須符合構建、簽署及接收端相容性要求。"
     link="/guides/features/previews"
 />
   <.home_card
-    title="生成項目"
-    details="用 Swift 描述 Xcode 項目並一致地生成它們。消除合併衝突並解鎖模塊緩存。"
+    title="生成的專案"
+    details="以 Swift 描述 Xcode 專案並一致地生成它們。減少專案檔案衝突，並解鎖模組快取。"
     link="/guides/features/projects"
 />
   <.home_card
-    title="Package Registry"
-    details="藉助由 Tuist 緩存網絡支援嘅註冊表，喺幾秒而非幾分鐘內解析 Swift 包。"
+    title="套件註冊表"
+    details="透過註冊表協議取得受支援的 Swift 套件，無須克隆其 Git 儲存庫。"
     link="/guides/features/package-registries/swift"
 />
   <.home_card
-    title="Bundle 大小"
-    details="分析並保持你嘅應用程式輕量，令用戶獲得更快嘅下載速度，同時符合應用商店指引。"
+    title="套件大小"
+    details="隨時間追蹤受支援的 Apple 與 Android 套件大小，並調查大小回退。"
     link="/guides/features/bundle-insights"
 />
 </.home_cards>
 
-## 獲大規模交付軟體嘅團隊信賴
+## 獲大規模交付軟體的團隊信賴
 
-**[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending Spoons](https://bendingspoons.com/) 及 100+ 其他公司嘅團隊**透過 Tuist 加快佢哋 iOS 同 Android 代碼庫嘅交付速度。
+閱讀[客戶故事](https://tuist.dev/customers)，了解團隊採用的工作流程及其回報的成果。

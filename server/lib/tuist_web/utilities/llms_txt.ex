@@ -19,7 +19,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   @locale "en"
 
-  @summary "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental. It embraces build-system diversity with native depth in each toolchain, so organizations can adopt one productivity platform rather than a separate product per build system. It prioritizes avoiding unnecessary project work before buying more compute, shares compatible build outputs across developer, CI, and agent environments, and shares app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
+  @summary "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature."
 
   @notes [
     "Every documentation page has a plain-Markdown twin: swap `/docs/` for `/docs-markdown/` in any documentation URL to get the Markdown source instead of the rendered HTML page.",
@@ -30,7 +30,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   @product_pages [
     {"/", "What Tuist solves, which products to adopt, and how to get started."},
     {"/cache", "Reuse compatible build artifacts across machines and CI with Xcode, Gradle, and Bazel."},
-    {"/compute", "Managed macOS and Linux CI runners with a colocated cache; currently invite-only."},
+    {"/runners", "Managed macOS and Linux CI runners with a colocated cache; currently invite-only."},
     {"/tests", "Test insights, flaky-test tracking, sharding, and selective testing, with toolchain-specific support."},
     {"/previews", "Share iOS and Android app builds through a URL for feedback before store distribution."}
   ]
@@ -125,6 +125,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
       guide_section("Solve a problem", "/solutions/"),
       guide_section("Comparisons", "/compare"),
       guide_section("Build systems", "/build-systems"),
+      guide_section("Runners by CI provider", "/runners/"),
       link_section("Company", @company_pages),
       link_section("Policies", @policy_pages),
       link_section("Optional", @optional_pages)

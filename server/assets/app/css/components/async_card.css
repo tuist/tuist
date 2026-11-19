@@ -26,6 +26,10 @@
     min-height: 344px;
   }
 
+  &[data-error] {
+    justify-content: center;
+  }
+
   &[data-empty] {
     justify-content: center;
     padding-top: var(--noora-spacing-7);

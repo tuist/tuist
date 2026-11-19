@@ -29,15 +29,30 @@ type Metadata struct {
 	Slot        int    `json:"slot"`
 	Generation  int    `json:"generation"`
 	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	// CPUGuaranteeMilli weighs the VM's cgroup; zero, as in metadata from
+	// before guarantees, is protocol.DefaultCPUGuaranteeMilli.
+	CPUGuaranteeMilli uint64 `json:"cpu_guarantee_milli,omitempty"`
 	// FirecrackerVersion wrote the memory image beside the disks; another
 	// version cannot load it, so recovery turns a mismatch into a cold boot.
 	FirecrackerVersion string `json:"firecracker_version,omitempty"`
 	// DisksSynced records that the last pause flushed the guest page cache
 	// to the disks, so they can be saved without the memory image.
-	DisksSynced bool      `json:"disks_synced,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Error       string    `json:"error,omitempty"`
+	DisksSynced bool `json:"disks_synced,omitempty"`
+	// PausedCPUMs is the VM's CPU time at its last pause, which reports
+	// carry while it stays paused so the server bills a pause it learns of
+	// from a report (a daemon shutdown's) up to it. Zero when unread.
+	PausedCPUMs int64 `json:"paused_cpu_ms,omitempty"`
+	// RootfsGrowPending records that the rootfs file was grown to its
+	// template's size and the guest has not grown its filesystem yet.
+	RootfsGrowPending bool      `json:"rootfs_grow_pending,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	Error             string    `json:"error,omitempty"`
+
+	// CacheImage names the cache image cloned into the jail at create. Its
+	// clone is never archived, so a memory image that has it mounted must
+	// not travel either. Empty for no cache or the template's placeholder.
+	CacheImage string `json:"cache_image,omitempty"`
 }
 
 func (m Metadata) Shape() template.Shape {
@@ -45,11 +60,15 @@ func (m Metadata) Shape() template.Shape {
 }
 
 func (m Metadata) Info(workerRunning bool) protocol.SandboxInfo {
-	return protocol.SandboxInfo{
+	info := protocol.SandboxInfo{
 		ID: m.ID, State: m.State, Template: m.Template, TemplateTag: m.Tag,
 		VCPUs: m.VCPUs, MemoryMB: m.MemoryMB, WorkspaceGB: m.WorkspaceGB, Hostname: m.Hostname,
 		WorkerRunning: workerRunning, ColdBoot: m.ColdBoot, Generation: m.Generation, CreatedAt: m.CreatedAt, Error: m.Error,
 	}
+	if m.State == protocol.StatePaused {
+		info.CPUMs = m.PausedCPUMs
+	}
+	return info
 }
 
 func LoadMetadata(root string) (Metadata, error) {

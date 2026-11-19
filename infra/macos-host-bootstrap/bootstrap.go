@@ -319,9 +319,9 @@ type Config struct {
 	// same endpoint for the xcresult processor's Tart guests.
 	//
 	// Pushed rather than pulled, and pushed there rather than straight
-	// to Grafana Cloud, for the same reason those guests do it: the
-	// tailnet ACL is the access control, so no Grafana Cloud credential
-	// ever lands on a Mac mini. Empty disables the step.
+	// to Pulse, for the same reason those guests do it: the tailnet ACL
+	// is the access control, so no Pulse ingest credential ever lands on
+	// a Mac mini. Empty disables the step.
 	LogShipURL string
 
 	// LogShipEnv is the `env` stream label (staging / canary /
@@ -1448,7 +1448,7 @@ done
 # which set -e turned into a bootstrap failure that named auto-login
 # and said nothing about the real cause. Rented images ship Xcode so
 # this never surfaced there; an MDM-provisioned rack host does not, and
-# it failed all 8 attempts on the BER1 prototype (2026-09-09). od is in
+# it failed all 8 attempts on the alder prototype (2026-09-09). od is in
 # the base system and needs no developer tools.
 #
 # A match exits 1, which propagates via set -e and fails the bootstrap
@@ -2485,7 +2485,7 @@ func validateTailscaleCredential(cfg Config) error {
 //
 // A rack mini joins standard (TailscalePersistentDevice). It is hardware we
 // keep and can sit powered off for days, and it has no public address, so
-// an ephemeral registration strands it: on 2026-09-18 the BER1 prototype came
+// an ephemeral registration strands it: on 2026-09-18 the alder prototype came
 // back from a few days unpowered with its device deleted. Retiring one for
 // good means deleting its device by hand.
 func renderTailscaleScript(cfg Config) string {
@@ -3215,9 +3215,8 @@ func renderLogShipperScript(cfg Config) string {
 // The positions file goes with it, deliberately. It records how far into
 // /var/log/tart-kubelet.log the agent had shipped, and that file keeps growing
 // while the agent is off — so a re-enable that resumed from the stale offset
-// would replay the entire disabled window in one burst, which is both the cost
-// the feature flag was flipped to avoid and a batch Grafana Cloud would reject
-// as too old. Dropping it makes a re-enable start at the end of the file, the
+// would replay the entire disabled window in one burst, which is the cost the
+// feature flag was flipped to avoid. Dropping it makes a re-enable start at the end of the file, the
 // same as a first install.
 //
 // /var/log/tuist-log-shipper.log is left in place: it holds the agent's own

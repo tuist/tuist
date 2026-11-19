@@ -327,6 +327,9 @@ func (c *Client) WaitReady(ctx context.Context, timeout time.Duration) (Pong, er
 	return WaitReady(ctx, c, timeout)
 }
 
+// ErrAgentNotReady is WaitReady's error when the agent never answered.
+var ErrAgentNotReady = errors.New("agent not ready")
+
 // WaitReady pings any Agent until it answers or the timeout passes.
 func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, error) {
 	deadline := time.Now().Add(timeout)
@@ -344,7 +347,7 @@ func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, e
 			return Pong{}, ctx.Err()
 		}
 		if time.Now().After(deadline) {
-			return Pong{}, fmt.Errorf("agent not ready after %s: %w", timeout, last)
+			return Pong{}, fmt.Errorf("%w after %s: %w", ErrAgentNotReady, timeout, last)
 		}
 		select {
 		case <-ctx.Done():

@@ -40,6 +40,7 @@ using idiomatic Elixir patterns.
 | Define and run your first agent | [Getting Started](getting-started.md) |
 | Give an agent capabilities | [Tools](tools.md) and [Sandbox](sandbox.md) |
 | Delegate work to child agents | [Sub-agents](subagents.md) |
+| Build threads that start and message other sessions | [Child Sessions](child-sessions.md) |
 | Run an agent as an endpoint | [HTTP Routes](http-routes.md) |
 | Keep a conversation alive over time | [Sessions and Persistence](sessions-and-persistence.md) |
 

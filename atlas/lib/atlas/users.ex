@@ -96,7 +96,7 @@ defmodule Atlas.Users do
   def find_or_create_user_from_auth(%Ueberauth.Auth{} = auth) do
     email = auth.info.email
 
-    if allowed_email?(email) do
+    if allowed_identity?(auth) do
       case Repo.get_by(User, email: email) do
         nil ->
           %User{}
@@ -128,14 +128,28 @@ defmodule Atlas.Users do
     end
   end
 
-  defp allowed_email?(email) when is_binary(email) do
+  # The `hd` authorization parameter is only an account-picker hint, and an email
+  # suffix alone also matches personal Google accounts registered with a work
+  # address (which outlive offboarding). Require Google's verified hosted-domain
+  # claim for the configured Workspace.
+  defp allowed_identity?(%Ueberauth.Auth{
+         info: %{email: email},
+         extra: %{raw_info: %{user: %{"email" => email, "email_verified" => true} = google_user}}
+       })
+       when is_binary(email) do
     case Application.fetch_env!(:atlas, :allowed_email_domain) do
-      nil -> true
-      domain -> String.ends_with?(String.downcase(email), "@" <> String.downcase(domain))
+      nil ->
+        true
+
+      domain ->
+        domain = String.downcase(domain)
+
+        String.downcase(Map.get(google_user, "hd") || "") == domain and
+          String.ends_with?(String.downcase(email), "@" <> domain)
     end
   end
 
-  defp allowed_email?(_email), do: false
+  defp allowed_identity?(_auth), do: false
 
   def delete_user(%User{} = user) do
     user

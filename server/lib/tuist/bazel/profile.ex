@@ -10,6 +10,7 @@ defmodule Tuist.Bazel.Profile do
   alias Tuist.Bazel.Action
   alias Tuist.Bazel.ProfileDecoder
   alias Tuist.Bazel.ProfileSteps
+  alias Tuist.Bazel.RemoteExecutionProfile
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests.Sanitizer
@@ -42,7 +43,10 @@ defmodule Tuist.Bazel.Profile do
   def ingest(project, invocation_id, compressed) do
     with {:ok, profile} <- decode(compressed),
          {:ok, timeline} <- normalize(profile, invocation_id, project.name) do
-      version = Base.encode16(:crypto.hash(:sha256, compressed), case: :lower)
+      # A version per ingest, not per upload: a retried or repeated ingest writes
+      # a fresh set of steps instead of duplicating the published one, so
+      # readers never need FINAL to collapse duplicate steps.
+      version = UUIDv7.generate()
       ProfileSteps.insert(project, invocation_id, version, timeline)
       timeline = timeline |> Map.put(:steps_version, version) |> Map.put(:events, [])
 
@@ -178,10 +182,14 @@ defmodule Tuist.Bazel.Profile do
 
   def normalize(%{"otherData" => %{"build_id" => id} = metadata, "traceEvents" => events}, id, project)
       when is_list(events) and length(events) <= @max_events do
+    phases = RemoteExecutionProfile.associate(events)
+
     steps =
       events
       |> Enum.with_index()
-      |> Enum.flat_map(fn {event, index} -> step(event, index, project) end)
+      |> Enum.flat_map(fn {event, index} ->
+        Enum.map(step(event, index, project), &Map.merge(&1, Map.get(phases, index, %{})))
+      end)
       |> Enum.sort_by(&{&1.start_ms, &1.event_id})
 
     samples =

@@ -218,13 +218,29 @@ workflow code runs in the guest. Never expose host credentials or masters.
   plus the `for_*` subject it made room for), and `removed leftovers from the
   runner-cache root` (`removed`, `freed_bytes`). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
   The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
-  Everything that happened to one volume on a host:
+  Everything that happened to one volume on a host, from production Pulse's
+  `opentelemetry_logs` through the **Tuist Pulse SQL** data source (see
+  [`macos-log-shipper`](../macos-log-shipper/AGENTS.md#querying)):
 
-  ```logql
-  {job="tuist-macos-tart-kubelet", instance="<host>"} |= "<scope>"
-    | json | logger="custom-cache-volumes"
-    | line_format "{{.msg}} {{.operation}} {{.reason}} {{.result}} gen={{.generation}} pod={{.pod}}"
+  ```sql
+  SELECT timestamp,
+    json_get_string(parse_json(body), 'msg') AS msg,
+    json_get_string(parse_json(body), 'operation') AS operation,
+    json_get_string(parse_json(body), 'reason') AS reason,
+    json_get_string(parse_json(body), 'result') AS result,
+    json_get_string(parse_json(body), 'pod') AS pod,
+    body
+  FROM opentelemetry_logs
+  WHERE timestamp >= '<start>' AND timestamp < '<end>'
+    AND json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet'
+    AND json_get_string(resource_attributes, 'instance') = '<host>'
+    AND body LIKE '%<scope>%'
+    AND body LIKE '%"logger":"custom-cache-volumes"%'
+  ORDER BY timestamp
   ```
+
+  `generation` is in `body`; it may be a number, so read it there rather than
+  with `json_get_string`.
 
   Searching for the 48-hex prefix from a `tuist.dev/cache-volume-<prefix>` node
   label matches the same lines. The Linux agent logs the same fields as JSON
@@ -294,8 +310,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   terminated with reason `LogdWedged` and exit code 1. The guest restarts a
   wedged logd itself (`infra/runner-image/logd-watchdog.sh`) and writes the
   file only when that fails. It cannot halt itself then, so without the stop
-  its job hangs until the job's timeout and the VM keeps its host after that. Find them with
-  `{job="tuist-macos-tart-kubelet"} |= "wedged logd"`.
+  its job hangs until the job's timeout and the VM keeps its host after that. Find them in
+  production Pulse's `opentelemetry_logs` with
+  `json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND body LIKE '%wedged logd%'`.
 
 - Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP
   (customer runner Pods stay here). An `httpGet`/`tcpSocket` probe runs in
@@ -394,6 +411,15 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
   content store (`~/.tart/cache/content`). Deleting a local VM leaves the
   store alone, so the GC runs `tart prune --gc` after it reaps a golden, and
   before it re-measures free space under disk pressure.
+- The macOS sandbox store is seeded from the CI store's files (`macosandbox/seed.go`):
+  a cached image is `cache/OCIs/<host, ':' as %3A>/<repository>/sha256:<hex>/`
+  (`config.json`, `nvram.bin`, `manifest.json`; `disk.img` when standalone),
+  its manifest names each stacked disk file by the
+  `org.cirruslabs.tart.disk-file-content-digest` layer annotation, the file is
+  `cache/content/sha256/<hex>`, and `prune --gc` deletes content under an
+  exclusive `flock` on `cache/content/.gc.lock`. `tart get` opens only local
+  VMs; a cached image is found in `tart list`. A Tart release that changes
+  any of this makes seeding fall back to a pull.
 - `tart run` stays a foreground process for the life of the VM, so the
   `Setsid` launch and the `pgrep` liveness check are unchanged.
 - JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON

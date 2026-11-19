@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -156,6 +157,9 @@ func dispatch(req request) error {
 	}
 	switch req.Op {
 	case "ping":
+		if err := waitNetwork(3 * time.Second); err != nil {
+			return err
+		}
 		emit(response{Type: "pong"})
 		return nil
 	case "cpu":
@@ -252,7 +256,10 @@ func dispatch(req request) error {
 		if err != nil {
 			return err
 		}
-		if prior.ID == req.ID {
+		// A retried start finds its own worker running. Managed Agents reuse
+		// the session ID as the work ID on every turn, so a finished worker
+		// with the same ID is an earlier turn, and this turn starts a new one.
+		if prior.ID == req.ID && prior.Running {
 			emit(prior)
 			return nil
 		}
@@ -298,6 +305,24 @@ func dispatch(req request) error {
 		return nil
 	default:
 		return errors.New("unknown operation")
+	}
+}
+
+// waitNetwork waits for the guest's default route. A guest restored from a
+// checkpoint answers before DHCP has given it back (about 2 s), and the
+// worker the host starts next cannot resolve or reach anything until then.
+// Connecting a UDP socket only looks up the route; it sends nothing.
+func waitNetwork(budget time.Duration) error {
+	deadline := time.Now().Add(budget)
+	for {
+		conn, err := net.Dial("udp4", "192.0.2.1:9")
+		if err == nil {
+			return conn.Close()
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("guest network not ready: %w", err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 func command(req request) (*exec.Cmd, error) {
@@ -502,7 +527,8 @@ func orbBootstrap() error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Env = []string{"PATH=" + filepath.Dir(amp) + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
 		"HOME=" + home, "USER=" + os.Getenv("USER"), "LANG=en_US.UTF-8", "ORB_TOKEN=" + token, "AMP_URL=" + ampURL}
-	for _, name := range []string{"TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
+	// No Tuist credential reaches Amp: Tuist clients in the guest sign in with the Orb's Amp identity.
+	for _, name := range []string{"TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
 		if value := os.Getenv(name); value != "" {
 			cmd.Env = append(cmd.Env, name+"="+value)
 		}

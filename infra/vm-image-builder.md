@@ -368,9 +368,13 @@ a different artifact.
 
 Both image-build workflows pin
 `runs-on: [self-hosted, macos, bare-metal, vm-image-builder]`. Those
-four labels are stamped onto every runner by the chart-default
-`ghRunnerLabels`. Changing the workflows' selector and the chart
-value must happen together.
+four labels are the chart-default `ghRunnerLabels`. Production
+registers its builders with `macos-27` instead (see
+[Moving the fleet to a new macOS release](#moving-the-fleet-to-a-new-macos-release)),
+so `vm-image-builder` is added to its runners by hand in the org's
+Settings → Actions → Runners, and a re-registered builder needs it
+again. Changing the workflows' selector and the chart value must
+happen together.
 
 ## Stacked build labels
 

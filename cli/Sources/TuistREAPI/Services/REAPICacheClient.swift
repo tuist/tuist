@@ -309,6 +309,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         .with {
                             $0.instanceName = instanceName
                             $0.actionDigest = digest
+                            // Callers read standard output and error from the result itself. Servers such as
+                            // bazel-remote otherwise answer with their digests only.
+                            $0.inlineStdout = true
+                            $0.inlineStderr = true
                             $0.digestFunction = .sha256
                         }, metadata: try await metadata(presenceLookup: presenceLookup), options: options
                     )
@@ -399,10 +403,15 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     try await REAPIDrainRetryLadder.timing.sleep(delay)
                     continue
                 }
-                if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                // An upload can wait out a dropped connection as it waits out admission: gRPC fails calls on a channel
+                // that is reconnecting at once, so the short retries below end long before a reconnect does.
+                if let uploadBudget, let rpcError = error as? RPCError,
+                   [.resourceExhausted, .unavailable].contains(rpcError.code)
+                {
                     guard backpressureAttempts < backpressureRetryPolicy.maximumRetryCount else { throw error }
                     let delay = backpressureRetryPolicy.delay(for: backpressureAttempts, error: rpcError)
                     guard uploadBudget.consume(delay) else {
+                        guard rpcError.code == .resourceExhausted else { throw error }
                         throw RPCError(
                             code: .resourceExhausted,
                             message: "\(rpcError.message) (upload admission retry wait budget exhausted)",

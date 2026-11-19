@@ -101,7 +101,7 @@
     & > [data-part="image"] {
       margin-top: var(--noora-spacing-10);
       /* Same hairline treatment as the prose images below (prose.css). */
-      box-shadow: var(--noora-light-border-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       background: var(--marketing-illustration-neutral-2);
       width: 100%;
@@ -159,6 +159,63 @@
             text-decoration-style: dotted;
           }
         }
+      }
+    }
+
+    /* The customer's before/after figures, on the prose column under the
+       facts: hairline rows like the page frame, the after value carrying the
+       emphasis. */
+    & > [data-part="results"] {
+      box-sizing: border-box;
+      margin-top: var(--noora-spacing-11);
+      width: 100%;
+
+      @media (min-width: 1024px) {
+        max-width: 650px;
+      }
+
+      & > table {
+        border-collapse: collapse;
+        width: 100%;
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & th,
+        & td {
+          vertical-align: top;
+          border-bottom: 1px solid var(--marketing-stroke-default);
+          padding: var(--noora-spacing-5) 0;
+          text-align: start;
+        }
+
+        & :is(th, td):not(:first-child) {
+          padding-inline-start: var(--noora-spacing-6);
+          white-space: nowrap;
+        }
+
+        & thead th {
+          color: var(--noora-surface-label-secondary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+
+        & tbody th {
+          color: var(--noora-surface-label-primary);
+          font-weight: var(--noora-font-weight-regular);
+        }
+
+        & [data-part="before"] {
+          color: var(--noora-surface-label-secondary);
+        }
+
+        & [data-part="after"] {
+          color: var(--noora-surface-label-primary);
+          font-weight: var(--noora-font-weight-medium);
+        }
+      }
+
+      & > [data-part="caption"] {
+        margin-top: var(--noora-spacing-4);
+        color: var(--noora-surface-label-tertiary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
     }
 

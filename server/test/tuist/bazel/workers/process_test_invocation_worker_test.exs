@@ -58,6 +58,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
         id: UUIDv7.generate(),
         invocation_id: "invocation-1",
         target_label: "//B:Tests",
+        status: "failure",
         sequence_number: 20,
         started_at: ~U[2026-09-04 12:00:02Z],
         log_content: "Authorization: Bearer second-secret"
@@ -66,6 +67,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
         id: UUIDv7.generate(),
         invocation_id: "invocation-1",
         target_label: "//A:Tests",
+        status: "success",
         sequence_number: 10,
         started_at: ~U[2026-09-04 12:00:01Z],
         log_content: "--token first-secret"
@@ -90,6 +92,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
       assert Enum.map(logs, & &1.id) == Enum.map(Enum.reverse(results), & &1.id)
       assert Enum.at(logs, 0).message == "[Bazel test log for //A:Tests]\n--token <REDACTED>"
       assert Enum.at(logs, 1).message == "[Bazel test log for //B:Tests]\nAuthorization: <REDACTED>"
+      assert Enum.map(logs, &{&1.target_label, &1.status}) == [{"//A:Tests", "success"}, {"//B:Tests", "failure"}]
       {2, nil}
     end)
 

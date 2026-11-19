@@ -1,126 +1,71 @@
 defmodule Tuist.Kura.Placement do
   @moduledoc """
-  Decides where one account's cache instances belong from where its traffic
-  comes from. Pure: origin rollups in, at most one proposed transition out.
+  Decides where one account's cache instances belong from where its cache
+  traffic comes from. Pure: rollups in, at most one proposed transition out.
 
-  Three transitions, one mechanism. The primary **relocates** when another
-  region has durably carried the majority of the account's runs. A paid
-  account **expands** into a region whose own traffic clears an absolute
-  floor, share-blind on purpose: a heavy second site deserves a local instance
-  even while the first site dominates the mix, and a share test would let a
-  large primary veto every other region forever. A secondary **retires** when
-  its region's traffic falls under a much lower floor, the gap between the two
-  being what stops it flapping.
+  Everything is read in hits, the requests a region served, because a hit is
+  what a cache instance is for. Runs count where builds report from, and on a
+  large part of the fleet that is not where cache traffic lands: a run weighs
+  the same whether it made eight requests or thousands, and machines that
+  report a build are not always the machines pulling from the cache. Regions
+  opened on runs went on to serve a percent or two of the account's traffic.
+
+  The regions an account holds are read from what they served. The primary
+  follows the hits to a held region carrying their majority, and a secondary
+  retires once what it served stops paying for the claim it reserves.
+
+  A region the account does not hold has served it nothing to read, so it is
+  read from where the account's hits come from: the signed origin each request
+  carries, mapped through `OriginMap`. Only where at least half the account's
+  hits carry one, since a partial reading would mistake the attributed clients
+  for the account; below that nothing opens a region or moves the primary to
+  one it does not hold. The floors for opening sit well above the retirement
+  ones, which is what stops a region flapping, and nothing reopens a region
+  the hits closed recently.
+
+  The one rung that still reads runs is the correction of a first placement,
+  which is a guess made on whatever an account's first day looked like, before
+  any region of it has served anything.
 
   Windows are calendar spans rather than runs of qualifying days: nobody
   builds seven days a week, and a policy that broke its streak on a quiet
   weekend would never fire for a normal team. Volume is therefore read as a
   total across the span, with a separate count of the days that saw traffic
   so a single burst cannot pass for a durable move.
-
-  Relocation reads a fortnight. What it has to be sure of is that the majority
-  genuinely moved, which is a question about rate and spread rather than about
-  elapsed time: 140 runs at a 60% majority spread over five separate days
-  demands the same daily rate a month-long window did, and a slightly wider
-  share of the window's days, so shortening the span tightens the evidence
-  rather than weakening it. The month was also longer than the origin history
-  it reads, which meant every account whose placement predated origin
-  attribution had to wait out a window it could not yet fill before anything
-  could move it — the accounts most likely to be in the wrong region were the
-  ones the rung reached last.
-
-  Where an account's served hits are read, they decide about the regions it
-  already holds. Runs count where builds report from, and on a large part of
-  the fleet that is not where cache traffic lands: a run weighs the same
-  whether it made eight requests or thousands, and machines that report a
-  build are not always the machines pulling from the cache. So the primary
-  follows the hits to a region the account holds, and a secondary retires once
-  what it served stops paying for the claim it reserves.
-
-  A region the account does not hold has served it nothing to read, so it is
-  read from where the account's hits come from: the signed origin each request
-  carries, mapped through `OriginMap` like a run's. Where at least half the
-  account's hits carry one, origins open regions and move the primary to one it
-  does not hold, against floors well above the retirement ones. Elsewhere runs
-  still do, as a trial the retirement rung judges on what the region then
-  serves. Neither reopens a region the hits closed recently.
   """
 
   alias Tuist.Kura.OriginMap
 
+  @correct_initial %{
+    window_days: 7,
+    majority_share: 0.8,
+    min_runs_per_day: 5,
+    min_active_days: 1,
+    within_days: 14
+  }
+
   @default_policy %{
     air: %{
-      # Two, so an account whose work is genuinely split is not forced to serve
-      # half of it from the wrong side of an ocean. The floors are higher than
-      # Pro's rather than lower: a second instance is the expensive thing, so a
-      # plan that funds fewer of them should take more traffic to open one, not
-      # less. Without a second slot every Air relocation also tore the source
-      # down unconditionally (`retire_source?` has no other answer at
-      # `max_instances: 1`), which is the destroy-and-cold-refill that rung
-      # exists to avoid.
-      max_instances: 2,
-      correct_initial: %{
-        window_days: 7,
-        majority_share: 0.8,
-        min_runs_per_day: 5,
-        min_active_days: 1,
-        within_days: 14
-      },
-      relocate: %{
-        window_days: 14,
-        majority_share: 0.6,
-        min_runs_per_day: 10,
-        min_active_days: 5
-      },
-      expand: %{window_days: 14, min_runs_per_day: 100, min_active_days: 7},
-      retire: %{window_days: 90, max_runs_per_day: 20},
+      # One. Air is free, and a second instance reserves the account's whole
+      # claim in another region, so Air never expands: an account whose
+      # traffic moves has its primary moved after it, and the region it leaves
+      # is given up. That is a cold refill on every Air relocation, which a free
+      # cache can take. An Air account still holding a second region from when
+      # Air had two gives it up through `retire_over_cap`.
+      max_instances: 1,
+      correct_initial: @correct_initial,
       relocation_window_days: 90,
       max_relocations_per_window: 1
     },
     pro: %{
       max_instances: 5,
-      correct_initial: %{
-        window_days: 7,
-        majority_share: 0.8,
-        min_runs_per_day: 5,
-        min_active_days: 1,
-        within_days: 14
-      },
-      relocate: %{
-        window_days: 14,
-        majority_share: 0.6,
-        min_runs_per_day: 10,
-        min_active_days: 5
-      },
-      expand: %{window_days: 14, min_runs_per_day: 25, min_active_days: 7},
-      retire: %{window_days: 90, max_runs_per_day: 5},
+      correct_initial: @correct_initial,
       relocation_window_days: 90,
       max_relocations_per_window: 1
     },
     enterprise: %{
       max_instances: 5,
-      correct_initial: %{
-        window_days: 7,
-        majority_share: 0.8,
-        min_runs_per_day: 5,
-        min_active_days: 1,
-        within_days: 14
-      },
-      relocate: %{
-        window_days: 14,
-        majority_share: 0.6,
-        min_runs_per_day: 10,
-        min_active_days: 5
-      },
-      # Pro's floor, not a higher one: the paid plans fund the same five
-      # instances, so neither demands more traffic to open one. What the floor
-      # has to be is an absolute rate a real second site clears and a handful of
-      # stragglers does not, and 25 a day is that rate whatever the plan.
-      # Measured against the fleet on 2026-09-07: it opens a region for the
-      # accounts whose second site runs 30-40 builds a day, and still refuses
-      # the 5-runs-a-day tails.
-      expand: %{window_days: 14, min_runs_per_day: 25, min_active_days: 7},
-      retire: %{window_days: 90, max_runs_per_day: 10},
+      correct_initial: @correct_initial,
       relocation_window_days: 90,
       max_relocations_per_window: 1
     }
@@ -161,18 +106,21 @@ defmodule Tuist.Kura.Placement do
   end
 
   @doc """
-  The longest span any rung reads, so a caller loads exactly the rollups the
-  policy can use.
+  The longest span any rung reads origin rollups over, so a caller loads
+  exactly the rollups the policy can use: the runs the first-placement
+  correction reads, the origin hits expansion and relocation read, and what
+  over-cap retirement ranks secondaries by when the account reads no served
+  hits.
   """
-  def window_days(policy \\ @default_policy) do
-    policy
-    |> Map.values()
-    |> Enum.flat_map(fn plan ->
-      [plan.correct_initial, plan.relocate, plan.expand, plan.retire]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.map(& &1.window_days)
-    end)
-    |> Enum.max()
+  def window_days(policy \\ @default_policy, served_policy \\ @served_policy) do
+    Enum.max(
+      Enum.map(Map.values(policy), & &1.correct_initial.window_days) ++
+        [
+          served_policy.relocate.window_days,
+          served_policy.expand.window_days,
+          served_policy.retire.window_days
+        ]
+    )
   end
 
   @doc """
@@ -212,18 +160,20 @@ defmodule Tuist.Kura.Placement do
   """
   def evaluate(context, policy \\ @default_policy, served_policy \\ @served_policy) do
     plan_policy = Map.get(policy, context.plan, policy.air)
-    runs = by_region_and_date(context, :run_count)
     served = served(context)
 
-    correct_initial(context, plan_policy, runs) ||
-      relocate_to_hits(context, plan_policy, served, served_policy) ||
-      relocate_to_origin_hits(context, plan_policy, served, served_policy) ||
-      relocate(context, plan_policy, runs, served, served_policy) ||
-      expand(context, plan_policy, runs, served, served_policy) ||
+    move_primary(context, plan_policy, served, served_policy) ||
+      retire_over_cap(context, plan_policy, served, served_policy) ||
+      expand(context, plan_policy, served, served_policy) ||
       retire_zero_hits(context, served, served_policy) ||
       retire_idle(context, served, served_policy) ||
-      retire(context, plan_policy, runs, served, served_policy) ||
       :none
+  end
+
+  defp move_primary(context, plan_policy, served, served_policy) do
+    correct_initial(context, plan_policy, by_region_and_date(context, :run_count)) ||
+      relocate_to_hits(context, plan_policy, served, served_policy) ||
+      relocate_to_origin_hits(context, plan_policy, served, served_policy)
   end
 
   defp served(%{served: served} = context) do
@@ -258,9 +208,9 @@ defmodule Tuist.Kura.Placement do
   #
   # An account's first region is chosen the moment a build first asks where to
   # send cache traffic, from whatever origin history exists then — for a new
-  # account, often a single day of it. `relocate` needs 140 runs over a
-  # fortnight at a 60% majority and fires once a quarter, so a guess made on a
-  # day of evidence would otherwise stand for weeks. What justifies that
+  # account, often a single day of it. The hits rungs need a fortnight of
+  # served traffic and fire once a quarter, so a guess made on a day of
+  # evidence would otherwise stand for weeks. What justifies that
   # slowness is the cost of being wrong, and that cost is not constant: moving
   # an account whose cache is days old and nearly cold is cheap, moving one
   # with a warm working set is not.
@@ -330,7 +280,7 @@ defmodule Tuist.Kura.Placement do
   #
   # The destination is warm, so the move costs no refill. A region the account
   # does not hold has served nothing to read, so a move there is read from the
-  # origins of the hits, or from runs where too few of them carry one.
+  # origins of the hits.
   #
   # It spends the same quarterly relocation as the other relocation rungs, so
   # they cannot take turns moving an account back and forth.
@@ -361,7 +311,10 @@ defmodule Tuist.Kura.Placement do
         evidence =
           "majority_of_hits_moved"
           |> served_evidence(rung.window_days, region_hits, total, active)
-          |> Map.put("retire_source", idle?(context, served, served_policy.retire, context.primary))
+          |> Map.put(
+            "retire_source",
+            over_cap?(context, plan_policy, 0) or idle?(context, served, served_policy.retire, context.primary)
+          )
 
         {:relocate, context.primary, region, evidence}
       else
@@ -371,9 +324,9 @@ defmodule Tuist.Kura.Placement do
   end
 
   # The primary moves to a region the account does not hold once the majority
-  # of its hits come from origins nearer that region. The same rung as the runs
-  # one, read in hits: a build that made forty thousand requests weighs forty
-  # thousand, not one.
+  # of its hits come from origins nearer that region. Read in hits rather than
+  # runs: a build that made forty thousand requests weighs forty thousand, not
+  # one.
   defp relocate_to_origin_hits(_context, _plan_policy, nil, _served_policy), do: nil
   defp relocate_to_origin_hits(%{primary: nil}, _plan_policy, _served, _served_policy), do: nil
 
@@ -403,7 +356,10 @@ defmodule Tuist.Kura.Placement do
         evidence =
           "majority_of_origin_hits_moved"
           |> served_evidence(rung.window_days, region_hits, total, active)
-          |> Map.put("retire_source", idle?(context, served, served_policy.retire, context.primary))
+          |> Map.put(
+            "retire_source",
+            over_cap?(context, plan_policy, 1) or idle?(context, served, served_policy.retire, context.primary)
+          )
           |> Map.put("origin_map_version", OriginMap.version())
 
         {:relocate, context.primary, region, evidence}
@@ -414,9 +370,9 @@ defmodule Tuist.Kura.Placement do
   end
 
   # Whether enough of the account's hits carry the origin they came from for
-  # origins to stand for the account: placement reads them in place of runs
-  # only then. Requests from clients that predate signed origins carry none, and
-  # an account mostly made of those is read from its runs as before.
+  # origins to stand for the account. Requests whose credential carries no
+  # signed origin say nothing about where they came from, and below this an
+  # account opens no region and moves its primary to none it does not hold.
   defp attributed?(context, served, served_policy) do
     window = window_range(context.today, served_policy.expand.window_days)
     served_total = served.hits |> totals_in(window) |> Map.values() |> Enum.sum()
@@ -425,138 +381,16 @@ defmodule Tuist.Kura.Placement do
     served_total > 0 and attributed_total / served_total >= served_policy.origin.min_coverage
   end
 
-  defp relocate(_context, %{relocate: nil}, _runs, _served, _served_policy), do: nil
+  # Only into a second region of an account already served somewhere, and only
+  # read from origin hits: a region the account does not hold has served it
+  # nothing, and where too few of its hits carry an origin there is no reading
+  # of where the rest come from.
+  defp expand(%{primary: nil}, _plan_policy, _served, _served_policy), do: nil
+  defp expand(_context, _plan_policy, nil, _served_policy), do: nil
 
-  # Nothing to relocate from. Reachable only for an account whose every
-  # instance is a warm handoff's transient row, which is not a placement to
-  # move.
-  defp relocate(%{primary: nil}, _plan_policy, _runs, _served, _served_policy), do: nil
-
-  defp relocate(context, plan_policy, runs, served, served_policy) do
-    if context.relocations_in_window >= plan_policy.max_relocations_per_window or
-         (served != nil and attributed?(context, served, served_policy)) do
-      nil
-    else
-      rung = plan_policy.relocate
-      window = window_range(context.today, rung.window_days)
-      totals = totals_in(runs, window)
-      total = totals |> Map.values() |> Enum.sum()
-
-      candidate =
-        totals
-        |> Enum.reject(fn {region, _runs} ->
-          region == context.primary or region in context.retiring or
-            decided_by_hits?(context, served, served_policy, region) or
-            recently_given_up?(context, served, served_policy.expand, region)
-        end)
-        |> Enum.max_by(fn {_region, region_runs} -> region_runs end, fn -> nil end)
-
-      with {region, region_runs} <- candidate,
-           true <- total >= rung.min_runs_per_day * rung.window_days,
-           true <- region_runs / total >= rung.majority_share,
-           active = active_days(runs, region, window),
-           true <- active >= rung.min_active_days do
-        evidence =
-          "majority_of_runs_moved"
-          |> evidence(rung, region_runs, total, active)
-          |> Map.put("retire_source", retire_source?(context, plan_policy, runs, served, served_policy))
-
-        {:relocate, context.primary, region, evidence}
-      else
-        _ -> nil
-      end
-    end
-  end
-
-  # Whether the region the primary is leaving should be given up with it.
-  #
-  # Only when the account cannot hold it, or its own traffic does not earn it.
-  # A majority moving is a statement about which region should be *primary*,
-  # not about whether the other one is still worth serving: a 65/35 split
-  # moves the primary, and retiring the 35 would drain a region that clears
-  # the expansion floor on its own — which the very next sweep would then
-  # propose expanding back into, having destroyed and cold-refilled a cache to
-  # arrive exactly where it started.
-  #
-  # Where the region's own hits have been heard, they answer instead of its
-  # runs, for the same reason the retirement rung reads them.
-  defp retire_source?(context, plan_policy, runs, served, served_policy) do
-    cond do
-      length(context.serving) >= plan_policy.max_instances ->
-        true
-
-      reported?(context, served, served_policy.retire, context.primary) ->
-        idle?(context, served, served_policy.retire, context.primary)
-
-      is_nil(plan_policy.retire) ->
-        true
-
-      true ->
-        not earns_its_place?(context, plan_policy, runs, context.primary)
-    end
-  end
-
-  # A region the account holds and whose hits placement reads. The hits rungs
-  # decide about those, so the runs rungs neither move the primary onto one nor
-  # retire one.
-  defp decided_by_hits?(_context, nil, _served_policy, _region), do: false
-
-  defp decided_by_hits?(context, served, served_policy, region) do
-    region in context.serving and reported?(context, served, served_policy.retire, region)
-  end
-
-  # A region carrying enough of its own traffic that expansion would open it
-  # if the account did not already hold it.
-  defp earns_its_place?(context, plan_policy, runs, region) do
-    case plan_policy.expand do
-      nil ->
-        false
-
-      rung ->
-        window = window_range(context.today, rung.window_days)
-
-        Map.get(totals_in(runs, window), region, 0) >= rung.min_runs_per_day * rung.window_days and
-          active_days(runs, region, window) >= rung.min_active_days
-    end
-  end
-
-  defp expand(_context, %{expand: nil}, _runs, _served, _served_policy), do: nil
-
-  defp expand(context, plan_policy, runs, served, served_policy) do
-    cond do
-      length(context.serving) >= plan_policy.max_instances ->
-        nil
-
-      served != nil and attributed?(context, served, served_policy) ->
-        expand_on_origin_hits(context, served, served_policy)
-
-      true ->
-        expand_on_runs(context, plan_policy, runs, served, served_policy)
-    end
-  end
-
-  defp expand_on_runs(context, plan_policy, runs, served, served_policy) do
-    rung = plan_policy.expand
-    window = window_range(context.today, rung.window_days)
-    totals = totals_in(runs, window)
-    total = totals |> Map.values() |> Enum.sum()
-
-    candidate =
-      totals
-      |> Enum.reject(fn {region, _runs} -> region in context.serving end)
-      |> Enum.filter(fn {region, region_runs} ->
-        region_runs >= rung.min_runs_per_day * rung.window_days and
-          active_days(runs, region, window) >= rung.min_active_days and
-          not recently_given_up?(context, served, served_policy.expand, region)
-      end)
-      |> Enum.max_by(fn {_region, region_runs} -> region_runs end, fn -> nil end)
-
-    case candidate do
-      nil ->
-        nil
-
-      {region, region_runs} ->
-        {:expand, region, evidence("sustained_local_demand", rung, region_runs, total, active_days(runs, region, window))}
+  defp expand(context, plan_policy, served, served_policy) do
+    if length(context.serving) < plan_policy.max_instances and attributed?(context, served, served_policy) do
+      expand_on_origin_hits(context, served, served_policy)
     end
   end
 
@@ -606,20 +440,57 @@ defmodule Tuist.Kura.Placement do
   end
 
   # A region the hits closed stays shut for the reopening window, to an
-  # expansion and to the primary alike, whichever evidence would reopen it. Leaving it was decided on what it served, which
-  # outranks a projection from runs or from origins: both read the region
+  # expansion and to the primary alike. Leaving it was decided on what it
+  # served, which outranks a projection from origins: they read the region
   # through `OriginMap`, and a client the map places near a region is not always
   # one DNS routes to it. Without this the rungs undo each other a month apart.
-  #
-  # Where runs are what opens a region, the opening is a trial the retirement
-  # rung judges on what the region then serves. Run share forecasts that poorly
-  # in both directions, so it does not gate the opening.
-  defp recently_given_up?(_context, nil, _rung, _region), do: false
-
   defp recently_given_up?(context, served, rung, region) do
     case Map.get(served.given_up, region) do
       nil -> false
       given_up_on -> Date.diff(context.today, given_up_on) < rung.reopen_after_days
+    end
+  end
+
+  # Whether the account would hold more regions than its plan funds once it
+  # opens `opening` more. Retiring regions are already on their way out.
+  defp over_cap?(context, plan_policy, opening) do
+    length(context.serving -- context.retiring) + opening > plan_policy.max_instances
+  end
+
+  # An account holding more regions than its plan funds gives up a secondary,
+  # the one that carried the least of its traffic, without waiting for the
+  # retirement floors: its plan does not fund the region however busy it is.
+  # This is how Air accounts let go of the second region Air used to fund. It
+  # runs after the relocation rungs, so an account whose traffic moved to its
+  # secondary moves its primary there first and gives up the old one with it.
+  defp retire_over_cap(context, plan_policy, served, served_policy) do
+    if over_cap?(context, plan_policy, 0) do
+      window_days = served_policy.retire.window_days
+      window = window_range(context.today, window_days)
+
+      # What each region served where that is read, otherwise where the
+      # account's hits come from. Either only ranks which secondary goes
+      # first: the plan decides that one does.
+      traffic = if served == nil, do: by_region_and_date(context, :hit_count), else: served.hits
+      totals = totals_in(traffic, window)
+
+      context.serving
+      |> Enum.reject(&(&1 == context.primary or &1 in context.retiring))
+      |> Enum.min_by(&Map.get(totals, &1, 0), fn -> nil end)
+      |> case do
+        nil ->
+          nil
+
+        region ->
+          {:retire, region,
+           %{
+             "signal" => "over_instance_cap",
+             "window_days" => window_days,
+             "region_traffic" => Map.get(totals, region, 0),
+             "total_traffic" => totals |> Map.values() |> Enum.sum(),
+             "max_instances" => plan_policy.max_instances
+           }}
+      end
     end
   end
 
@@ -665,10 +536,9 @@ defmodule Tuist.Kura.Placement do
   # of an account serving millions, and a rate alone would keep a region for an
   # account so busy that a rounding error of it clears any floor.
   #
-  # Four weeks rather than the quarter the runs rung waits. That one reads an
-  # absence through a proxy and has to be sure; this one reads the absence
-  # itself, on days the region is known to have reported, and every week it
-  # waits is a week the whole claim stays reserved for nothing.
+  # Four weeks rather than a quarter: this reads the absence itself, on days
+  # the region is known to have reported, and every week it waits is a week
+  # the whole claim stays reserved for nothing.
   defp retire_idle(_context, nil, _served_policy), do: nil
 
   defp retire_idle(context, served, served_policy) do
@@ -716,8 +586,6 @@ defmodule Tuist.Kura.Placement do
       hits_per_active_day(served, region_hits, window) <= floor
   end
 
-  defp reported?(_context, nil, _rung, _region), do: false
-
   defp reported?(context, served, rung, region) do
     reported_days(served, region, window_range(context.today, rung.window_days)) >= rung.min_reported_days
   end
@@ -745,99 +613,11 @@ defmodule Tuist.Kura.Placement do
     if account_days > 0, do: region_hits / account_days, else: 0.0
   end
 
-  defp retire(_context, %{retire: nil}, _runs, _served, _served_policy), do: nil
-
-  defp retire(context, plan_policy, runs, served, served_policy) do
-    rung = plan_policy.retire
-    window = window_range(context.today, rung.window_days)
-    totals = totals_in(runs, window)
-    total = totals |> Map.values() |> Enum.sum()
-
-    cond do
-      # An account with nothing attributed anywhere is not an account whose
-      # regions are misplaced; it is one nobody could locate, or one that has
-      # gone quiet everywhere. Reading that as "this region is unused" would
-      # retire every secondary in the fleet on the strength of no evidence at
-      # all, which is exactly what the rollout looks like before origins are
-      # being attributed.
-      total == 0 ->
-        nil
-
-      not history_covers_window?(context, rung.window_days) ->
-        nil
-
-      true ->
-        retire_candidate(
-          context,
-          plan_policy,
-          rung,
-          totals,
-          total,
-          runs,
-          window,
-          &decided_by_hits?(context, served, served_policy, &1)
-        )
-    end
-  end
-
-  # Retirement is the only rung that reads an absence, so it is the only one
-  # partial history makes *more* likely to fire. The others need runs to clear
-  # a floor and a short history simply withholds them; this one needs runs to
-  # be missing, and a window nobody was watching supplies that for every region
-  # at once. A floor of a whole window's runs measured against a tenth of a
-  # window is a floor ten times too generous, which turns a real second office
-  # into one that looks abandoned.
-  #
-  # `held_long_enough?` does not cover this. It asks how long the account has
-  # held the region, not how much of that time anyone was recording where its
-  # traffic came from, and attribution that starts after the region did
-  # satisfies the first while failing the second.
-  #
-  # Permanent rather than a rollout guard: an account onboarded last week has a
-  # week of history whatever the fleet's attribution has been doing for months,
-  # and its regions must not be judged on a quarter it was not present for.
-  defp history_covers_window?(%{rollups: []}, _window_days), do: false
-
-  defp history_covers_window?(context, window_days) do
-    earliest = context.rollups |> Enum.map(& &1.date) |> Enum.min(Date)
-
-    Date.diff(context.today, earliest) >= window_days - 1
-  end
-
-  defp retire_candidate(context, plan_policy, rung, totals, total, runs, window, decided_by_hits?) do
-    # Never the primary, and never the last one serving: retirement reclaims a
-    # spare region, it does not take an account's cache away. Nor one whose hits
-    # are read: `retire_idle` has already decided about those from what they
-    # served, and runs saying otherwise is the disagreement hits settle.
-    context.serving
-    |> Enum.reject(&(&1 == context.primary or &1 in context.retiring or decided_by_hits?.(&1)))
-    |> Enum.filter(fn region ->
-      # The two floors span different windows, so a region quiet for months
-      # and busy for the last fortnight can sit under the retirement total
-      # while being actively used. Giving it up would drain a cache that
-      # expansion reopens on the next sweep, so the last word goes to the
-      # rung that would reopen it.
-      held_long_enough?(context, region, rung.window_days) and
-        Map.get(totals, region, 0) <= rung.max_runs_per_day * rung.window_days and
-        not earns_its_place?(context, plan_policy, runs, region)
-    end)
-    |> Enum.min_by(&Map.get(totals, &1, 0), fn -> nil end)
-    |> case do
-      nil ->
-        nil
-
-      region ->
-        region_runs = Map.get(totals, region, 0)
-
-        {:retire, region, evidence("demand_below_floor", rung, region_runs, total, active_days(runs, region, window))}
-    end
-  end
-
   # A region cannot have spent the retirement window below the floor if the
   # account has not held it that long. Without this the two floors do not
-  # actually straddle anything: a region opened on a fortnight's traffic
-  # carries less than the retirement window's worth of runs on the very day it
-  # opens, so it would be given up again immediately and reopened by the same
+  # actually straddle anything: a region opened on a fortnight's traffic has
+  # served less than the retirement window's worth on the very day it opens,
+  # so it would be given up again immediately and reopened by the same
   # evidence the next fortnight.
   defp held_long_enough?(context, region, window_days) do
     case Map.get(context.held_since, region) do

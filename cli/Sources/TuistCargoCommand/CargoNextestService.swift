@@ -24,6 +24,10 @@ struct CargoNextestService {
             shardID = shard.id
             arguments = CargoInvocation.restrictingToModules(shard.modules, arguments: arguments)
             var options = ["--archive-file", shard.archive.path, "--workspace-remap", context.directory.pathString]
+            // Coverage reads the test binaries after the run, so they are extracted where they outlive it.
+            if let coverage = context.environment[CargoCoverage.directoryVariable] {
+                options += ["--extract-to", coverage + "/extract", "--extract-overwrite"]
+            }
             if !arguments.contains(where: { $0 == "--no-tests" || $0.hasPrefix("--no-tests=") }) { options += [
                 "--no-tests",
                 "pass",

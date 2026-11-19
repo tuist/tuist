@@ -683,7 +683,7 @@ the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
-(`kubernetes.namespace`); BER1 is `tuist`, production's, beside its `RackHost`
+(`kubernetes.namespace`); alder is `tuist`, production's, beside its `RackHost`
 (it was `tuist-staging` while the rack was built at home). The namespace is
 also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
 or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
@@ -867,7 +867,7 @@ has got.
 ## The rack in the staging cluster
 
 The goal: the switches and the edge node managed from the cluster the rack
-belongs to, which is staging while BER1 is at home and production once it
+belongs to, which is staging while alder is at home and production once it
 is in the data center. Where that stands on 2026-09-23:
 
 - **Built and exercised.** `RackSwitch` objects rendered from the site
@@ -1213,13 +1213,69 @@ addresses and the gateways.
   address of the block across its connections. The upstream routes the
   announced prefix to the WAN address, and the replies are untranslated by
   conntrack before routing, so the edges hold no address of the block.
-  BER1 sets no `egress.nodes`, so every mini moves. The key limits it to the
+  Alder sets no `egress.nodes`, so every mini moves. The key limits it to the
   named minis, for moving a site over one env at a time (staging's lent
   mini, then canary's, then all).
   The storage nodes never move: their cluster addresses are the WAN address,
   forwarded to them by the edges, and their egress has to match. `render`
   refuses a block outside the announced prefixes and a node that is not a
   Mac mini on the segment (`fleet_edge_check_egress`).
+- **Several sites, one range.** Every site with a WAN announces the same
+  aggregates (`95.130.119.0/24`, `2a11:83c0::/29`), so the range stays on the
+  internet while any one site is up, and the addresses customers allowlist
+  (the whole range, in the public network guide) never change when a site
+  goes down. A /24 is the longest IPv4 prefix the internet carries, so the
+  aggregate alone cannot say which site an address belongs to. Each site
+  therefore also announces its own blocks, `management.edge.wan.bgp.site_prefixes`
+  (its egress /28), tagged `site_prefix_community`, the upstream's own
+  community for keeping a route inside its AS: Cogent's `174:990` ("do not
+  send route to BGP customers, or peers"). Not NO_EXPORT (65535:65281):
+  Cogent's customer guide does not accept announcements carrying a
+  community off its published list, and NO_EXPORT is not on it. The
+  upstream routes them to that site and passes only the aggregate on. A
+  reply to a mini then reaches the site that sent the request, whichever
+  site the internet handed the packet to. Without that, the upstream could
+  deliver it to the other site, whose `tuist_rack_wan` drops it. That only
+  works while both sites hang off the same upstream AS: a more-specific
+  kept inside that AS goes no further. The upstream also has to accept prefixes
+  longer than /24 from us, and RPKI has to allow them: each site prefix
+  needs its own route object and ROA for AS218377, since the /24's ROA is
+  for the /24 alone. `render` refuses an egress outside the site's
+  prefixes once it has any, a site prefix outside the aggregates, and two
+  sites that both announce an aggregate without site prefixes of their own
+  (`fleet_edge_check_sites`). The order matters at a new site: the existing
+  sites' site prefixes are live upstream before the new site's session
+  first comes up, or the new site starts receiving their replies and
+  dropping them.
+- **Between the sites, before a link of their own.** Two sites meet over
+  the internet, each from its WAN address, in two ways and nothing else. The
+  tailnet carries everything people and controllers do (every edge is a
+  subnet router for its own site). The cluster network carries everything
+  pods do: a storage node on the cluster network is a Cilium node at its
+  site's WAN address ("A storage node on the cluster network" in
+  `infra/rack-nodes/AGENTS.md`), so store-a and larch's storage node
+  replicate pod to pod over VXLAN between the two WAN addresses, the same
+  path store-a already uses to Hetzner. Nothing routes one site's machines
+  segment to the other's.
+
+### Addresses across sites
+
+Every site keeps its own internal networks, because the tailnet routes them
+or reaches them through the edges, so `render` refuses a site whose machines,
+management, provisioning or ToR management networks overlap another site's,
+and own blocks of the range that overlap (`fleet_edge_check_sites`). The VRRP
+link is site-local and the same everywhere. A copy of a site under another
+file name (as the tests make) is not a site.
+
+| Network | ber1 | larch |
+|---|---|---|
+| Machines (VLAN 10) | 10.10.0.0/24 | 10.20.0.0/24 |
+| Management | 192.168.0.0/24 (VLAN 1, mgmt switch) | 192.168.60.0/24 (VLAN 20, on the ToRs) |
+| Provisioning | 192.168.50.0/24 | 192.168.70.0/24 |
+| ToR management links | none | 192.168.61.0/30 (edge-a to tor-a), 192.168.61.4/30 (edge-b to tor-b) |
+| Edge VRRP (VLAN 4000) | 10.255.255.0/29 | 10.255.255.0/29 |
+| WAN (VLAN 4001) | 149.6.170.31/31, 2001:978:2:b::4:11/127 (Cogent) | 149.6.170.1/31, 2001:978:2:b::4:13/127 (Cogent) |
+| Egress and site prefix | 95.130.119.16/28 | 95.130.119.32/28 |
 
 ### Cold boot
 
@@ -1304,7 +1360,7 @@ The provisioning address stays on the port while the pod is away.
 ## The machines segment
 
 The Mac minis sit on a VLAN of their own behind the edges,
-`management.edge.machines`: the VLAN (10 in BER1), its gateway with the
+`management.edge.machines`: the VLAN (10 in alder), its gateway with the
 segment's prefix (`10.10.0.1/24`), each edge's own address on it (`members`,
 `.2` and `.3`), and the resolvers its DHCP hands out (`dns`, public ones, since
 nothing on the edges is open to the machines). The prefix stays clear of the
@@ -1933,7 +1989,7 @@ of its own, and each ToR's own management port goes to an edge
 - **The management VLAN is one the edges carry** (`carried_by: "edges"`), and
   the edges reach it over their uplinks as `mgmt0`, a bond like `machines0`;
   `management.edge.interface` has to be `mgmt0`. Its address, DHCP and the
-  power devices' routes sit on `mgmt0` the way BER1's sit on the edge's port
+  power devices' routes sit on `mgmt0` the way alder's sit on the edge's port
   into its management switch.
 - **Only a port with a management link is untagged on that VLAN.** Every other
   port is untagged on VLAN 1, which reaches nothing, so a mini racked before
@@ -1952,7 +2008,7 @@ of its own, and each ToR's own management port goes to an edge
   the far end of its own link to an edge.
 
 The env's one rack switch controller reconciles every site's switches, so
-`helm-values rack-switch-controller` merges the env's sites: BER1's Omada
+`helm-values rack-switch-controller` merges the env's sites: alder's Omada
 settings and the PicOS sites' 1Password items, which all name the same items.
-Each site with edges gets its own rack-edge release (`rack-edge-<site>`; BER1's
+Each site with edges gets its own rack-edge release (`rack-edge-<site>`; alder's
 is `rack-edge`, from before there was a second).

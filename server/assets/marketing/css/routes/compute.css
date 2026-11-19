@@ -1,4 +1,4 @@
-/* Compute feature page (/compute): left-aligned hero card followed by the
+/* CI runners page (/runners): left-aligned hero card followed by the
    features frame (intro text + two full-width showcase cards + 2x2
    hairline grid) on the 1200px page frame with 2px seams — the same
    skeleton as routes/cache.css. */
@@ -106,13 +106,18 @@
       text-wrap: pretty;
     }
 
-    /* The migration: the GitHub/Buildkite switch 8px above the diff it
-       selects. */
+    & > [data-part="actions"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-4);
+    }
+
+    /* The migration: the CI switch above the diff it selects. */
     & > [data-part="migration"] {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: var(--noora-spacing-4);
+      gap: var(--noora-spacing-5);
     }
 
     /* The diff: each line is one 20px strip (code/large regular's line
@@ -142,7 +147,8 @@
 
       &[data-ci="github"] > [data-part="variant"][data-ci="github"],
       &[data-ci="gitlab"] > [data-part="variant"][data-ci="gitlab"],
-      &[data-ci="buildkite"] > [data-part="variant"][data-ci="buildkite"] {
+      &[data-ci="buildkite"] > [data-part="variant"][data-ci="buildkite"],
+      &[data-ci="bitrise"] > [data-part="variant"][data-ci="bitrise"] {
         display: contents;
       }
 
@@ -159,7 +165,7 @@
       }
 
       & [data-part="line"][data-line="added"] {
-        background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+        background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
         color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
 
         & > [data-part="code"] {
@@ -397,7 +403,7 @@
             & [data-part="block"][data-active] {
               animation: marketing-compute-tile-in 0.5s linear;
               border: 1px solid var(--noora-purple-400);
-              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+              background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
             }
 
             /* The cycle's free slot: the grid keeps the cell while the
@@ -605,7 +611,7 @@
 
               &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(5) {
                 border: 1px solid var(--noora-purple-400);
-                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
               }
 
               @media (max-width: 720px) {
@@ -622,7 +628,7 @@
 
                 &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(9) {
                   border: 1px solid var(--noora-purple-400);
-                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
                 }
               }
             }
@@ -663,7 +669,7 @@
 
               &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(18) {
                 border: 1px solid var(--noora-purple-400);
-                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
               }
 
               @media (max-width: 720px) {
@@ -687,7 +693,7 @@
 
                 &:not([data-animated] *) > [data-part="blocks"] > [data-part="block"]:nth-child(15) {
                   border: 1px solid var(--noora-purple-400);
-                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
+                  background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple-32));
                 }
               }
             }
@@ -1561,6 +1567,243 @@
       display: flex;
       gap: var(--noora-spacing-4);
       margin-top: var(--noora-spacing-9);
+    }
+  }
+
+  /* A CI provider's page (/runners/<provider>): a hero centered like a blog
+     post's header (no background, title on the blog title ramp, then the
+     diff and the actions), the provider's guide in its own frame, and its
+     FAQ frame. */
+  &[data-page="provider"] {
+    & > header[data-part="header"] {
+      justify-content: flex-start;
+      align-items: center;
+      padding: var(--noora-spacing-13) var(--noora-spacing-6) var(--noora-spacing-15);
+      height: auto;
+      text-align: center;
+
+      & > [data-part="title"] {
+        max-width: 780px;
+        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        letter-spacing: -0.02em;
+      }
+
+      & > [data-part="subtitle"] {
+        max-width: 640px;
+      }
+
+      & > [data-part="migration"] {
+        align-items: center;
+      }
+
+      & > [data-part="actions"] {
+        justify-content: center;
+      }
+    }
+
+    /* FAQ frame: the page shell with the pricing page's intro ramp; the
+       question rows come from css/layouts/components/faq.css. */
+    & > [data-part="faq"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-11);
+      box-sizing: border-box;
+      margin: 0 var(--noora-spacing-1);
+      border: 1px solid var(--marketing-stroke-default);
+      background: var(--noora-surface-background-primary);
+      padding-top: var(--noora-spacing-14);
+
+      @media (min-width: 1024px) {
+        margin: 0;
+        width: 100%;
+        max-width: 1200px;
+      }
+
+      /* Questions read as regular-weight headings, like the guide's
+         (see faq.css). */
+      --faq-question-weight: var(--noora-font-weight-regular);
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > [data-part="title"] {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+      }
+    }
+
+    /* Every heading on the provider pages is regular weight; section
+       headings match the FAQ title. */
+    & > [data-part="guide"] :is(h2, h3, h4) {
+      font-weight: var(--noora-font-weight-regular);
+    }
+
+    & > [data-part="guide"] h2 {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+    }
+
+    & > [data-part="guide"] {
+      box-sizing: border-box;
+      margin: 0 var(--noora-spacing-1);
+      border: 1px solid var(--marketing-stroke-default);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-10) var(--noora-spacing-4) var(--noora-spacing-13);
+
+      @media (min-width: 1024px) {
+        margin: 0;
+        width: 100%;
+        max-width: 1200px;
+      }
+
+      /* The guide is left-aligned at the frame's 8px padding and reads as
+         one 780px column, except for sections with a code sample or a
+         bullet list, which split the frame's width into
+         two equal halves (see split_code_sections/1). */
+      & > [data-part="content"] > * {
+        max-width: 780px;
+      }
+
+      /* Two rows, 64px apart: the heading beside the code's lead
+         sentence, then the remaining prose beside the code. A section
+         with a bullet list has only the second row: heading and prose
+         beside the list. */
+      & > [data-part="content"] > [data-part="split"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-13);
+        /* The section carries the heading's top spacing, so the heading
+           and the lead sentence can center on each other. */
+        padding-top: var(--noora-spacing-8);
+        max-width: none;
+
+        & > :is([data-part="head"], [data-part="body"]) {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: var(--noora-spacing-7);
+
+          @media (min-width: 1024px) {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            column-gap: var(--noora-spacing-17);
+          }
+
+          & > * > * + * {
+            margin-top: var(--noora-spacing-7);
+          }
+        }
+
+        & > [data-part="head"] {
+          align-items: center;
+        }
+
+        & h2 {
+          padding: 0;
+        }
+
+        /* 56px between a section's title and its description. */
+        & [data-part="text"] > h2 + * {
+          margin-top: var(--noora-spacing-12);
+        }
+
+        /* 112px between consecutive two-column sections, plus 56px of
+           top padding on the second one. */
+        & + [data-part="split"] {
+          margin-top: var(--noora-spacing-17);
+          padding-top: var(--noora-spacing-12);
+        }
+
+        /* The right column starts level with the heading. */
+        & [data-part="list"] > :first-child {
+          margin-top: 0;
+        }
+
+        /* A list on the right (bullets or steps) reads as unmarked
+           points. */
+        & [data-part="list"] > :is(ul, ol) {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-12);
+          margin-top: 0;
+          padding-left: 0;
+          list-style: none;
+
+          & > li {
+            margin-top: 0;
+            padding-left: 0;
+            /* Each point: its lead phrase in the primary color at regular
+               weight, the explanation after it in the secondary color. */
+            color: var(--noora-surface-label-secondary);
+            list-style: none;
+
+            /* Same size and weight as the rest of the point; only the
+               color differs. */
+            & strong {
+              color: var(--noora-surface-label-primary);
+              font: inherit;
+            }
+
+            &::marker,
+            &::before {
+              content: none;
+            }
+          }
+        }
+
+        & > [data-part="body"] {
+          align-items: start;
+
+          /* Stacked on mobile, a list keeps the same 56px from the
+             description as between its points. */
+          &:has(> [data-part="list"]) {
+            @media (max-width: 1023px) {
+              row-gap: var(--noora-spacing-12);
+            }
+          }
+        }
+      }
+
+      /* Profile names like tuist-linux stay whole on one line. */
+      & :not(pre) > code {
+        white-space: nowrap;
+      }
+
+      /* Code samples show only the code box: no language bar or copy
+         button, and no shell around it. */
+      & .code-window {
+        box-shadow: none;
+        background: none;
+
+        & > [data-part="bar"] {
+          display: none;
+        }
+
+        & > [data-part="code"] {
+          clip-path: none;
+        }
+
+        /* Removed and added diff lines use Noora's red-100 and green-100
+           in light mode. Lumis inlines its theme colors, so this matches
+           its light backgrounds and overrides them; dark mode keeps the
+           theme's colors. */
+        & span[style*="#e4b7be"] {
+          background-color: light-dark(var(--noora-red-100), #2c171b) !important;
+        }
+
+        & span[style*="#b8d0bf"] {
+          background-color: light-dark(var(--noora-green-100), #10231c) !important;
+        }
+      }
     }
   }
 }

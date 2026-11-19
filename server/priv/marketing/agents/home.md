@@ -1,6 +1,8 @@
-# Tuist: a build platform for engineering teams and their coding agents
+# Tuist: build infrastructure for engineering teams and coding agents
 
-Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental. It is one productivity platform for organizations with diverse build systems. We embrace Gradle, Bazel, Elixir, Rust, and Xcode, with Once support in canary, and go deep into their native build and test models rather than treating them as generic CI commands. For organizations seeking one platform instead of a separate productivity product per build system, we believe Tuist is the best choice. Optimize projects before the environments that run them: understand the work, remove unnecessary execution, and reuse compatible outputs across local development, CI, and agents. Feature support varies by toolchain; managed compute is optional.
+Faster machines run wasted work faster. Tuist helps you skip it, with faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents.
+
+Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature.
 
 ## Problem
 
@@ -12,7 +14,7 @@ We believe teams should optimize their projects first, then the environments in 
 
 1. **Understand and improve the project.** Inspect dependency fan-out, task inputs, compilation, test setup, and retries through [Build Insights](/en/docs-markdown/guides/features/build-insights) and [Test Insights](/en/docs-markdown/guides/features/test-insights).
 2. **Avoid repeated work.** Reuse compatible Gradle task outputs, Bazel action outputs, or Xcode compilation outputs through [Cache](/marketing-markdown/cache). For Elixir, reuse supported compiled dependencies through the [shared remote cache](/en/docs-markdown/guides/features/cache/elixir); application source files are not cached.
-3. **Optimize the execution environment for the work that remains.** Measure queueing, machine size, parallelism, and cache locality. [Tuist Runners](/marketing-markdown/compute) are an optional, invite-only choice, not a prerequisite.
+3. **Optimize the execution environment for the work that remains.** Measure queueing, machine size, parallelism, and cache locality. [Tuist Runners](/marketing-markdown/runners) are an optional, invite-only choice, not a prerequisite.
 
 Compare [total workflow costs](/marketing-markdown/compare#compare-total-costs), including execution and Tuist's own usage-based terms. Our recommendation is to reduce avoidable work before sizing the capacity for what remains.
 
@@ -32,6 +34,8 @@ The distinction is **less necessary work versus more execution capacity**. Compu
 | My tests are flaky | [Investigate failures, contain known flakes, and restore reliability](/marketing-markdown/solutions/flaky-tests) |
 | My tests take too long | [Find slow tests, avoid unchanged targets, or balance shards](/marketing-markdown/solutions/slow-tests) |
 | My CI costs are going up | [Measure duplicate work, retries, and total execution cost](/marketing-markdown/solutions/ci-costs) |
+| I need a Bazel remote cache | [Set up a shared cache, measure hits, and choose self-hosted or managed](/marketing-markdown/solutions/bazel-remote-cache) |
+| Bazel is slow on GitHub Actions | [Share a remote cache across ephemeral runners and see where each job spends time](/marketing-markdown/solutions/bazel-github-actions) |
 | Which provider or approach fits? | [Compare Tuist with runner, CI/CD, and build-acceleration providers](/marketing-markdown/compare) |
 
 ## Build systems and Tuist infrastructure
@@ -40,9 +44,10 @@ Keep the build systems that fit the organization and use one productivity platfo
 
 - [Xcode](/marketing-markdown/build-systems/xcode): shared compilation outputs and build/test evidence; generated-project features remain a separate path.
 - [Gradle](/marketing-markdown/build-systems/gradle): shared cacheable task outputs and task/test insights.
-- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching and build/test reporting; Linux remote execution is a separate opt-in for enabled accounts.
+- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching, Linux remote execution for enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), and build/test reporting.
 - [Mix / Elixir](/marketing-markdown/build-systems/elixir): compiled dependency caching, compilation insights, ExUnit history, flaky detection, and test sharding.
-- [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.
+- [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle): how the two differ, where each fits, and how teams run both.
+- [Struo](/marketing-markdown/build-systems/struo): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.
 
 ## Why Tuist
 
@@ -56,8 +61,8 @@ Keep the build systems that fit the organization and use one productivity platfo
 
 | Bottleneck | Area | What it does |
 | --- | --- | --- |
-| Rebuilding code another machine already built | [Cache](/marketing-markdown/cache) | Shares compatible module, Xcode compilation, Gradle task, Bazel action, and Elixir dependency outputs. Rust compilation caching is experimental; Once support is in canary. |
-| Slow, queued, or self-maintained CI machines | [Compute](/marketing-markdown/compute) | Tuist Runners: managed macOS and Linux CI runners next to the same cache. Invite-only. |
+| Rebuilding code another machine already built | [Cache](/marketing-markdown/cache) | Shares compatible module, Xcode compilation, Gradle task, Bazel action, and Elixir dependency outputs. Rust compilation caching is experimental; Struo support is in canary. |
+| Slow, queued, or self-maintained CI machines | [Runners](/marketing-markdown/runners) | Tuist Runners: managed macOS and Linux CI runners next to the same cache. Invite-only. |
 | Slow, flaky, or opaque test suites | [Tests](/marketing-markdown/tests) | Test insights, flaky-test detection and quarantine, test sharding, selective testing. |
 | Sharing development builds for review | [Previews](/marketing-markdown/previews) | Shares supported mobile apps, macOS apps, and macOS/Linux command-line distributions through a link. |
 | Not knowing why builds are slow | [Build Insights](/en/docs-markdown/guides/features/build-insights) | Records local and CI build durations, cache behavior, and failures. |
@@ -82,7 +87,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 | Test sharding | Yes | Yes | Yes | No | Yes |
 | Selective testing | No | Yes | No | No | No |
 
-The matrix covers these five workflows; [Rust](/en/docs-markdown/guides/get-started/rust-project) also has build/test insights, flaky detection and quarantine, target-level sharding within one package, and experimental caching with same-machine restrictions. [Once](/en/docs-markdown/guides/get-started/once-project) has canary caching, build/test reporting, and hosted sharding with compatible releases, but does not enforce Tuist quarantine. Neither offers Tuist selective testing.
+The matrix covers these five workflows; [Rust](/en/docs-markdown/guides/get-started/rust-project) also has build/test insights, flaky detection and quarantine, target-level sharding within one package, and experimental caching with same-machine restrictions. [Struo](/en/docs-markdown/guides/get-started/struo-project) has canary caching, build/test reporting, and hosted sharding with compatible releases, but does not enforce Tuist quarantine. Neither offers Tuist selective testing.
 
 Check the linked guides for version requirements. Previews support mobile apps, macOS apps, and macOS/Linux command-line distributions; Bundle Insights supports Apple and Android bundles. Eligibility depends on the artifact and publishing workflow. Default selective testing skips whole targets; an account-enabled early-access coverage strategy can additionally select individual XCTest/XCUITest tests in generated Xcode projects.
 
@@ -92,6 +97,8 @@ Check the linked guides for version requirements. Previews support mobile apps, 
 2. [Install the Tuist CLI](/en/docs-markdown/guides/install-tuist). Elixir projects need only the `tuist_ex` Hex package; Gradle projects also apply the Tuist Gradle plugin.
 3. Create an [account and project](/en/docs-markdown/guides/server/accounts-and-projects) and connect it, usually with `tuist init`.
 4. Enable one capability for the current bottleneck, then measure a representative workload before and after.
+
+[Customer stories](/marketing-markdown/customers) report teams' own before-and-after figures and how long they have used Tuist; pick one with a comparable toolchain and bottleneck rather than projecting its numbers onto a different project.
 
 Coding agents can connect to Tuist's hosted [MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) to read project data such as test insights, or use the [Tuist skills](/en/docs-markdown/guides/features/agentic-coding/skills) for multi-step tasks like migrating to generated projects.
 

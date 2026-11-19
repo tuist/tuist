@@ -26,6 +26,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
           "type" => "string",
           "description" =>
             "Test case identifier in Module/Suite/TestCase or Module/TestCase format. " <>
+              "A nested Swift Testing suite is its whole path (Module/Outer/Inner/TestCase); " <>
+              "a `/` or `%` inside the module or test name can be percent-encoded (%2F, %25). " <>
               "Required when not using test_case_id. Must be combined with account_handle and project_handle."
         }
       }
@@ -86,7 +88,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
            @authorization_category,
            "Test case not found: #{test_case_id}"
          ) do
-      {:ok, test_case, _project} -> reply_with_test_case(test_case)
+      {:ok, test_case, project} -> reply_with_test_case(test_case, project)
       {:error, message} -> EMCP.Tool.error(message)
     end
   end
@@ -101,7 +103,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
              @authorization_category
            ),
          {:ok, test_case} <- find_test_case_by_name(project.id, module_name, suite_name, name) do
-      reply_with_test_case(test_case)
+      reply_with_test_case(test_case, project)
     else
       {:error, message} -> EMCP.Tool.error(message)
     end
@@ -111,13 +113,19 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
     EMCP.Tool.error("Provide either test_case_id, or identifier with account_handle and project_handle.")
   end
 
+  # The module is the first part and the test the last; everything between is
+  # the suite, since a nested Swift Testing suite is recorded as `Outer/Inner`.
+  # A part can percent-encode a `/` or `%` it holds, as tuist_ex does for Mix
+  # describe names such as `create_order/2`.
   defp parse_identifier(identifier) do
-    case String.split(identifier, "/") do
-      [module_name, suite_name, name] -> {:ok, {module_name, suite_name, name}}
+    case identifier |> String.split("/") |> Enum.map(&decode_identifier_part/1) do
       [module_name, name] -> {:ok, {module_name, nil, name}}
+      [module_name | [_, _ | _] = rest] -> {:ok, {module_name, rest |> Enum.drop(-1) |> Enum.join("/"), List.last(rest)}}
       _ -> {:error, "Invalid identifier format. Use Module/Suite/TestCase or Module/TestCase."}
     end
   end
+
+  defp decode_identifier_part(part), do: Regex.replace(~r/%2F|%25/i, part, &if(&1 == "%25", do: "%", else: "/"))
 
   defp find_test_case_by_name(project_id, module_name, suite_name, name) do
     filters =
@@ -139,9 +147,12 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
     end
   end
 
-  defp reply_with_test_case(test_case) do
+  defp reply_with_test_case(test_case, project) do
     analytics = Analytics.test_case_analytics_by_id(test_case.project_id, test_case.id)
-    reliability_rate = Analytics.test_case_reliability_by_id(test_case.project_id, test_case.id, "main")
+
+    reliability_rate =
+      Analytics.test_case_reliability_by_id(test_case.project_id, test_case.id, project.default_branch || "main")
+
     flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
 
     data = %{

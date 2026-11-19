@@ -21,6 +21,8 @@ class AuthInterceptorTest {
     @Before
     fun setUp() {
         tokenStorage = mockk()
+        every { tokenStorage.snapshot() } returns TokenStorage.Session("profile", 0)
+        every { tokenStorage.isCurrent(any()) } returns true
         interceptor = AuthInterceptor(tokenStorage)
     }
 

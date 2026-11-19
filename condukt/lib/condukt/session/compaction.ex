@@ -13,10 +13,11 @@ defmodule Condukt.Session.Compaction do
 
   defstruct [:spec, :policy, :supervisor, :task, :timer, :prefix, :result, :waiter, :attempted, :usage, :trace_context]
 
-  def apply(nil, messages, _metadata), do: messages
+  def apply(compactor, messages, metadata, opts \\ [])
+  def apply(nil, messages, _metadata, _opts), do: messages
 
-  def apply(compactor, messages, metadata) do
-    case compact(compactor, messages, metadata) do
+  def apply(compactor, messages, metadata, opts) do
+    case compact(compactor, messages, metadata, opts) do
       {:ok, compacted} -> compacted
       {:error, _reason} -> messages
     end
@@ -67,8 +68,8 @@ defmodule Condukt.Session.Compaction do
 
   # A blocked inference caller is kept as a GenServer `from`, not awaited in
   # the session process. Abort, clear, history and subscriptions stay usable.
-  def checkpoint(compaction, messages, overhead, from, metadata, phase \\ :background, protected_count \\ 1) do
-    {compaction, messages, error} = take_result(compaction, messages)
+  def checkpoint(compaction, current, overhead, from, metadata, phase \\ :background, protected_count \\ 1) do
+    {compaction, messages, error} = take_result(compaction, current)
 
     cond do
       phase in [:fallback, :manual] and not is_nil(error) ->
@@ -76,6 +77,15 @@ defmodule Condukt.Session.Compaction do
 
       phase == :manual ->
         {:continue, compaction, messages}
+
+      # The provider rejected a request the estimate admitted, so thresholds
+      # are not trusted. A ready result that shrinks history is retried as is;
+      # otherwise the largest prefix is compacted now.
+      phase == :overflow and messages != current ->
+        {:continue, compaction, messages}
+
+      phase == :overflow ->
+        block(cancel(compaction), messages, overhead, from, metadata, phase, protected_count)
 
       due?(compaction, messages, overhead, :blocking) ->
         block(compaction, messages, overhead, from, metadata, phase, protected_count)
@@ -104,7 +114,7 @@ defmodule Condukt.Session.Compaction do
     {:wait, %{compaction | waiter: {from, overhead, metadata, :background}}, messages}
   end
 
-  defp block(compaction, messages, overhead, from, metadata, _phase, protected_count) do
+  defp block(compaction, messages, overhead, from, metadata, phase, protected_count) do
     # Fresh foreground work can cover more than a speculative prefix, but
     # never touches the active prompt and suffix or splits an assistant/tool batch.
     case prefix(messages, 0, protected_count) do
@@ -112,7 +122,7 @@ defmodule Condukt.Session.Compaction do
         {:error, :context_limit, compaction, messages}
 
       prefix ->
-        compaction = start(compaction, prefix, metadata)
+        compaction = start(compaction, prefix, metadata, compactor_opts(phase))
         {:wait, %{compaction | waiter: {from, overhead, metadata, :fallback}}, messages}
     end
   end
@@ -172,7 +182,12 @@ defmodule Condukt.Session.Compaction do
     Enum.take(messages, min(cut, max(0, length(messages) - protected_count)))
   end
 
-  def start(compaction, prefix, metadata) do
+  # A compaction a provider rejection triggered tells the compactor so, letting
+  # it shrink further than the pass that produced the rejected history.
+  def compactor_opts(:overflow), do: [context_overflow: true]
+  def compactor_opts(_phase), do: []
+
+  def start(compaction, prefix, metadata, opts \\ []) do
     compaction = cancel(compaction)
     {:ok, supervisor} = ensure_supervisor(compaction.supervisor)
     spec = compaction.spec
@@ -181,7 +196,7 @@ defmodule Condukt.Session.Compaction do
     task =
       Task.Supervisor.async_nolink(supervisor, fn ->
         TraceContext.attach(trace_context)
-        compact(spec, prefix, metadata)
+        compact(spec, prefix, metadata, opts)
       end)
 
     timer = Process.send_after(self(), {:compaction_timeout, task.ref}, compaction.policy.timeout)
@@ -227,11 +242,12 @@ defmodule Condukt.Session.Compaction do
     :ok
   end
 
-  def compact(spec, messages, metadata) do
+  def compact(spec, messages, metadata, opts \\ []) do
     started = System.monotonic_time()
     before_bytes = :erlang.external_size(messages)
+    metadata = if opts[:context_overflow], do: Map.put(metadata, :trigger, :overflow), else: metadata
     Telemetry.emit([:compact, :start], %{system_time: System.system_time()}, metadata)
-    result = Compactor.compact(spec, messages)
+    result = Compactor.compact(spec, messages, opts)
 
     {compacted, status} =
       case result do

@@ -88,13 +88,16 @@ func ParseShapes(csv string) ([]Shape, error) {
 
 // Metadata describes a built shape snapshot.
 type Metadata struct {
-	Name               string    `json:"name"`
-	Tag                string    `json:"tag"`
-	Kernel             string    `json:"kernel"`
-	VCPUs              int       `json:"vcpus"`
-	MemoryMB           int       `json:"memory_mb"`
-	WorkspaceGB        int       `json:"workspace_gb"`
-	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
+	Name              string `json:"name"`
+	Tag               string `json:"tag"`
+	Kernel            string `json:"kernel"`
+	VCPUs             int    `json:"vcpus"`
+	MemoryMB          int    `json:"memory_mb"`
+	WorkspaceGB       int    `json:"workspace_gb"`
+	WorkspacePrepared bool   `json:"workspace_prepared,omitempty"`
+	// CacheDrive: the snapshot has a CachePlaceholderBytes cache drive that
+	// every jail restored from it must provide.
+	CacheDrive         bool      `json:"cache_drive,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -104,6 +107,24 @@ type Template struct {
 	Name string
 	Tag  string
 	Dir  string
+}
+
+// RunnerOwner is the uid and gid of the guest user that runs sessions, which
+// the template image records in its metadata.json (runner_uid, runner_gid).
+// Templates built before it was recorded report false.
+func (t Template) RunnerOwner() (uid, gid int, ok bool) {
+	data, err := os.ReadFile(filepath.Join(t.Dir, MetadataFile))
+	if err != nil {
+		return 0, 0, false
+	}
+	var owner struct {
+		UID int `json:"runner_uid"`
+		GID int `json:"runner_gid"`
+	}
+	if json.Unmarshal(data, &owner) != nil || owner.UID <= 0 || owner.GID <= 0 {
+		return 0, 0, false
+	}
+	return owner.UID, owner.GID, true
 }
 
 func (t Template) Kernel() string { return filepath.Join(t.Dir, KernelFile) }
@@ -150,6 +171,10 @@ func (t Template) ReadyShapes() []Shape {
 }
 
 // Artifacts are the files a sandbox is created from.
+// CachePlaceholderBytes is the size of the empty cache drive in a shape
+// snapshot built with Builder.CacheDrive.
+const CachePlaceholderBytes = 1 << 20
+
 type Artifacts struct {
 	Dir       string
 	Rootfs    string
@@ -184,18 +209,14 @@ func (t Template) Artifacts(shape Shape) (Artifacts, error) {
 	}, nil
 }
 
-// shapeVersion is the Firecracker version a shape snapshot was taken with,
-// empty when its metadata is unreadable.
-func shapeVersion(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, MetadataFile))
-	if err != nil {
-		return ""
-	}
+// shapeMetadata is a shape snapshot's metadata, zero when it is unreadable.
+func shapeMetadata(dir string) Metadata {
 	var meta Metadata
-	if json.Unmarshal(data, &meta) != nil {
-		return ""
+	data, err := os.ReadFile(filepath.Join(dir, MetadataFile))
+	if err != nil || json.Unmarshal(data, &meta) != nil {
+		return Metadata{}
 	}
-	return meta.FirecrackerVersion
+	return meta
 }
 
 // ownedByDaemon reports whether every entry of a shape directory belongs
@@ -365,12 +386,47 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 	return removed, nil
 }
 
+// PreviousTag returns the tag of template `name`, other than `current`, that
+// the node ran most recently, or "" when there is none. The template init
+// container rewrites a tag's metadata.json every time a Pod starts with it,
+// so the newest one names the tag this node ran before `current`.
+func (s *Store) PreviousTag(name, current string) (string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return "", fmt.Errorf("template name: %w", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(s.Dir, name))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	var previous string
+	var newest time.Time
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == current {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(s.Dir, name, e.Name(), MetadataFile))
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if previous == "" || info.ModTime().After(newest) {
+			previous, newest = e.Name(), info.ModTime()
+		}
+	}
+	return previous, nil
+}
+
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind, shapes snapshotted by a different Firecracker version, which
-// that version cannot load, and shapes holding a file the daemon does not
-// own; the next create rebuilds them. Sandboxes linked to a removed memfile
-// keep their own hard link.
-func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
+// that version cannot load, shapes built with a workspace of another size
+// than workspaceGB, which creates of that size could not clone, shapes
+// whose cache placeholder drive does not match cacheDrive, and shapes
+// holding a file the daemon does not own; the next create rebuilds them.
+// Sandboxes linked to a removed memfile keep their own hard link.
+func (s *Store) CleanPartialBuilds(firecrackerVersion string, workspaceGB int, cacheDrive bool) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -385,7 +441,9 @@ func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
 				continue
 			}
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
-			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) || shapeVersion(dir) != firecrackerVersion || !ownedByDaemon(dir) {
+			meta := shapeMetadata(dir)
+			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) ||
+				meta.FirecrackerVersion != firecrackerVersion || meta.WorkspaceGB != workspaceGB || meta.CacheDrive != cacheDrive || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

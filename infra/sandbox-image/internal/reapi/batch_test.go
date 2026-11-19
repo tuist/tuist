@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -63,7 +64,7 @@ func TestBatchMaterializationBoundsAndModes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer root.Close()
-	if err := w.materializeFiles(context.Background(), root, "", files); err != nil {
+	if err := w.materializeFiles(context.Background(), root, inputFiles(files)); err != nil {
 		t.Fatal(err)
 	}
 	if batches.Load() != 3 || streams.Load() != 1 {
@@ -135,7 +136,6 @@ func TestBatchResponseValidation(t *testing.T) {
 }
 func TestBatchFallbackReservesOnce(t *testing.T) {
 	w, m := harness(t)
-	d := m.put([]byte("abc"))
 	var calls atomic.Int32
 	m.batchRead = func(context.Context, *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
 		calls.Add(1)
@@ -147,7 +147,9 @@ func TestBatchFallbackReservesOnce(t *testing.T) {
 	}
 	defer root.Close()
 	for i := 0; i < 2; i++ {
-		if err := w.materializeFiles(context.Background(), root, "", []*re.FileNode{{Name: fmt.Sprintf("a%d", i), Digest: d}, {Name: fmt.Sprintf("b%d", i), Digest: d}}); err != nil {
+		// Distinct blobs: repeated digests are streamed once per action.
+		a, b := m.put(fmt.Appendf(nil, "a%02d", i)), m.put(fmt.Appendf(nil, "b%02d", i))
+		if err := w.materializeFiles(context.Background(), root, inputFiles([]*re.FileNode{{Name: fmt.Sprintf("a%d", i), Digest: a}, {Name: fmt.Sprintf("b%d", i), Digest: b}})); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -201,7 +203,7 @@ func TestBatchByteBoundAndActiveCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer root.Close()
-		if err := w.materializeFiles(context.Background(), root, "", files); err != nil {
+		if err := w.materializeFiles(context.Background(), root, inputFiles(files)); err != nil {
 			t.Fatal(err)
 		}
 		if calls.Load() != 3 || w.CAS.transferred != 35*inputBatchFileBytes {
@@ -254,8 +256,8 @@ func TestInputTreeUsesUnaryReadsAndBatchesSubdirectories(t *testing.T) {
 		t.Fatalf("execute: %v", response)
 	}
 	// The action; its command with the input root; out; out's two subdirectories
-	// together; then each leaf directory's file.
-	if batches.Load() != 6 || streams.Load() != 0 {
+	// together; then both leaf directories' files in one batch.
+	if batches.Load() != 5 || streams.Load() != 0 {
 		t.Fatalf("batches=%d streams=%d", batches.Load(), streams.Load())
 	}
 	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != "chained\nother\n" {
@@ -333,5 +335,60 @@ func TestReadTimingsRankTheSlowestReads(t *testing.T) {
 	// The action, command, input root and 8 files, all streamed.
 	if calls := timings["totals"].(map[string]any)["stream"].(map[string]any)["calls"]; calls != float64(11) {
 		t.Fatalf("stream calls %v; want 11", calls)
+	}
+}
+
+func inputFiles(nodes []*re.FileNode) []inputFile {
+	files := make([]inputFile, len(nodes))
+	for i, n := range nodes {
+		files[i] = inputFile{path: n.Name, node: n}
+	}
+	return files
+}
+
+func TestInputFileBatchesSpanDirectoriesAndRunConcurrently(t *testing.T) {
+	w, m := harness(t)
+	inputs := map[string]bool{}
+	root := &re.Directory{}
+	var want strings.Builder
+	for d := range 4 {
+		dir := &re.Directory{}
+		for f := range 50 {
+			digest := m.put(fmt.Appendf(nil, "%d/%d\n", d, f))
+			inputs[digest.Hash] = true
+			dir.Files = append(dir.Files, &re.FileNode{Name: fmt.Sprintf("%02d", f), Digest: digest})
+			fmt.Fprintf(&want, "%d/%d\n", d, f)
+		}
+		root.Directories = append(root.Directories, &re.DirectoryNode{Name: fmt.Sprint(d), Digest: m.message(t, dir)})
+	}
+	// 200 files in four directories are two batches, not four, and the second
+	// is sent while the first is still in flight.
+	both := make(chan struct{})
+	var fileBatches atomic.Int32
+	m.batchRead = func(ctx context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
+		if !inputs[r.Digests[0].Hash] {
+			return batchResponse(m, r), nil
+		}
+		if fileBatches.Add(1) == 2 {
+			close(both)
+		}
+		select {
+		case <-both:
+			return batchResponse(m, r), nil
+		case <-ctx.Done():
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	response, _ := w.Execute(ctx, action(t, m, "cat */* > output", root, []string{"output"}))
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execute: %v", response)
+	}
+	if fileBatches.Load() != 2 {
+		t.Fatalf("file batches %d, want 2", fileBatches.Load())
+	}
+	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != want.String() {
+		t.Fatal("wrong output")
 	}
 }

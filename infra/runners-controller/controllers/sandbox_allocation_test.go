@@ -15,6 +15,7 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -55,6 +56,61 @@ func TestSandboxAllocationAccountsForBusyWarmAndOtherPods(t *testing.T) {
 	allocation = planSandboxAllocation(otherNode, sandboxDaemon{name: "daemon-b", node: otherNode.Name, memory: gib}, []corev1.Pod{*sandboxDaemonPod("daemon-b", otherNode.Name, 1, 1, false)}, fleet)
 	if allocation.FreeBytes != 31*gib || allocation.MemoryBytes != 32*gib {
 		t.Fatalf("unexpected second host: %+v", allocation)
+	}
+}
+
+func TestSandboxAllocationReportsUnrequestedCPU(t *testing.T) {
+	node := linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024)
+	pool := linuxFleetPool("small", 1, 8192, 1, 10)
+	fleet := &fleetAllocation{members: map[string]fleetMember{pool.Name: {pool: pool}}}
+	cpu := func(milli int64) corev1.ResourceList {
+		return corev1.ResourceList{corev1.ResourceCPU: *resource.NewMilliQuantity(milli, resource.DecimalSI)}
+	}
+	// An exclusive-CPU runner budgets at the Pod level, plus its RuntimeClass overhead.
+	exclusive := busyLinuxRunner("exclusive", pool.Name, node.Name, 16)
+	exclusive.Spec.Resources = &corev1.ResourceRequirements{Requests: cpu(8000)}
+	exclusive.Spec.Overhead = cpu(250)
+	shared := idleLinuxRunner("shared", pool.Name, node.Name, 2, time.Hour)
+	shared.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("1")
+	// The daemon asked to shrink to 500m; until the kubelet applies it,
+	// it still holds the 3 cores it had.
+	daemon := sandboxDaemonPod("daemon", node.Name, 1, 1, false)
+	daemon.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("500m")
+	daemon.Status.ContainerStatuses[0].AllocatedResources[corev1.ResourceCPU] = resource.MustParse("3")
+	finished := busyLinuxRunner("finished", pool.Name, node.Name, 4)
+	finished.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("4")
+	finished.Status.Phase = corev1.PodSucceeded
+	pods := []corev1.Pod{*exclusive, *shared, *daemon, *finished}
+	allocation := planSandboxAllocation(node, sandboxDaemon{name: daemon.Name, node: node.Name, memory: gib}, pods, fleet)
+	if allocation.CPUFreeMilli != 32000-8250-1000-3000 {
+		t.Fatalf("cpu free = %d, want %d", allocation.CPUFreeMilli, 32000-8250-1000-3000)
+	}
+	// Only the idle warm runner's CPU can be reclaimed.
+	if allocation.CPUReclaimableMilli != 1000 {
+		t.Fatalf("cpu reclaimable = %d, want the idle runner's 1000m", allocation.CPUReclaimableMilli)
+	}
+
+	// A runner retired for the growth keeps counting until it is gone, so
+	// the server does not lower the growth and let a replacement take it.
+	leaving := idleLinuxRunner("leaving", pool.Name, node.Name, 2, time.Hour)
+	leaving.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("2")
+	leaving.DeletionTimestamp = &metav1.Time{Time: preemptionNow}
+	leaving.Finalizers = []string{"test"}
+	withLeaving := planSandboxAllocation(node, sandboxDaemon{name: daemon.Name, node: node.Name, memory: gib}, []corev1.Pod{*exclusive, *shared, *daemon, *finished, *leaving}, fleet)
+	if withLeaving.CPUReclaimableMilli != 3000 || withLeaving.CPUFreeMilli != allocation.CPUFreeMilli-2000 {
+		t.Fatalf("with a leaving runner: free %d, reclaimable %d; want %d and 3000", withLeaving.CPUFreeMilli, withLeaving.CPUReclaimableMilli, allocation.CPUFreeMilli-2000)
+	}
+
+	// A growth the kubelet deferred counts at what it allocated, so the
+	// server can lower a request that stopped fitting.
+	daemon.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("12")
+	pods = []corev1.Pod{*exclusive, *shared, *daemon, *finished}
+	allocation = planSandboxAllocation(node, sandboxDaemon{name: daemon.Name, node: node.Name, memory: gib}, pods, fleet)
+	if allocation.CPUFreeMilli != 32000-8250-1000-3000 {
+		t.Fatalf("cpu free with a deferred growth = %d, want %d", allocation.CPUFreeMilli, 32000-8250-1000-3000)
+	}
+	if got := allocationPodRequest(exclusive, corev1.ResourceMemory); got != 16*gib {
+		t.Fatalf("memory of a CPU-only Pod budget = %d, want the containers' 16 GiB", got)
 	}
 }
 

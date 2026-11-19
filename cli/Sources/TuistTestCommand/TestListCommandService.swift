@@ -13,6 +13,7 @@ protocol TestListCommandServicing {
         gitBranch: String?,
         status: String?,
         scheme: String?,
+        selectiveTesting: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -51,6 +52,7 @@ struct TestListCommandService: TestListCommandServicing {
         gitBranch: String?,
         status: String?,
         scheme: String?,
+        selectiveTesting: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -73,6 +75,7 @@ struct TestListCommandService: TestListCommandServicing {
             gitBranch: gitBranch,
             status: status,
             scheme: scheme,
+            selectiveTesting: selectiveTesting,
             page: startPage + 1,
             pageSize: resolvedPageSize
         )
@@ -94,15 +97,16 @@ struct TestListCommandService: TestListCommandServicing {
         let initialRows = initialTestRuns.map { testRun in
             [
                 testRun.id,
-                testRun.status.rawValue,
+                testRun.status,
                 testRun.scheme ?? "-",
                 Formatters.formatDuration(testRun.duration),
+                testRun.selective_testing_strategy ?? "-",
                 testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
             ]
         }
 
         try await Noora.current.paginatedTable(
-            headers: ["ID", "Status", "Scheme", "Duration", "Date"],
+            headers: ["ID", "Status", "Scheme", "Duration", "Selective Testing", "Date"],
             pageSize: resolvedPageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -117,6 +121,7 @@ struct TestListCommandService: TestListCommandServicing {
                     gitBranch: gitBranch,
                     status: status,
                     scheme: scheme,
+                    selectiveTesting: selectiveTesting,
                     page: pageIndex + 1,
                     pageSize: resolvedPageSize
                 )
@@ -124,9 +129,10 @@ struct TestListCommandService: TestListCommandServicing {
                 return page.test_runs.map { testRun in
                     [
                         testRun.id,
-                        testRun.status.rawValue,
+                        testRun.status,
                         testRun.scheme ?? "-",
                         Formatters.formatDuration(testRun.duration),
+                        testRun.selective_testing_strategy ?? "-",
                         testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
                     ]
                 }

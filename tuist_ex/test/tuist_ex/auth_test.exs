@@ -573,6 +573,30 @@ defmodule TuistEx.AuthTest do
     refute File.exists?(Path.join(context.directory, "config/tuist/credentials"))
   end
 
+  test "exchanges an Amp orb's identity token without a login and reuses it", context do
+    environment = fn
+      "AMP_ORB" -> "1"
+      key -> context.environment.(key)
+    end
+
+    access = jwt(4_000_000_000)
+
+    expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/oidc/token", body ->
+      assert body == %{token: "amp-identity"}
+      {:ok, 200, %{"access_token" => access}}
+    end)
+
+    options = [
+      url: "https://tuist.example",
+      environment: environment,
+      amp_identity_token: fn -> {:ok, "amp-identity"} end
+    ]
+
+    assert {:ok, ^access} = Auth.token(options)
+    assert {:ok, ^access} = Auth.token(options)
+    refute File.exists?(Path.join(context.directory, "config/tuist/credentials"))
+  end
+
   test "exchanges the identity token again once the exchanged token expires", context do
     environment = circleci(context)
     {:ok, calls} = Agent.start_link(fn -> [jwt(0), jwt(4_000_000_000)] end)

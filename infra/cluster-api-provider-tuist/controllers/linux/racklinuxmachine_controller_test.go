@@ -276,7 +276,7 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	}
 }
 
-// The converge keeps the port AMT shares, the host's boot MAC, up: BER1's
+// The converge keeps the port AMT shares, the host's boot MAC, up: alder's
 // MS-01s, whose hosts set spec.amt.activate.
 func TestRackLinuxMachineKeepsTheManagementPortUp(t *testing.T) {
 	host := claimedEdgeHost("dev-1")

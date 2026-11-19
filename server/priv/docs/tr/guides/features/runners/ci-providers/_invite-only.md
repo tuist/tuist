@@ -1,4 +1,4 @@
 > [!IMPORTANT]
-> **Davetiye ile erişim**
+> **Davet usulü**
 >
-> Tuist Runners şu anda davetiye ile erişime açık. Hesabınız için erişim talep etmek üzere [bize ulaşın](mailto:contact@tuist.dev) veya [topluluk Slack](https://slack.tuist.dev) kanalında bize yazın.
+> Tuist Runners şu anda davet usulüdür. Hesabınız için erişim talep etmek üzere [bize ulaşın](mailto:contact@tuist.dev) veya [topluluk Slack kanalında](https://slack.tuist.dev) bize yazın.

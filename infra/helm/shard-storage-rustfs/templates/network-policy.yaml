@@ -1,0 +1,87 @@
+{{- if .Values.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-store
+spec:
+  podSelector:
+    matchLabels: {app: {{ .Release.Name }}, component: store}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: {{ .Release.Name }}}
+      ports: [{protocol: TCP, port: 9000}]
+    {{- if and .Values.privateNetwork.enabled .Values.privateNetwork.clients }}
+    # In-cluster callers on the private network.
+    - from:
+        {{- range .Values.privateNetwork.clients }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .namespace }}}
+          {{- with .podLabels }}
+          podSelector:
+            matchLabels: {{- toYaml . | nindent 14 }}
+          {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: 9000}]
+    {{- end }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: {{ .Release.Name }}, component: store}
+      ports: [{protocol: TCP, port: 9000}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    {{- if .Values.metricsEndpoint }}
+    # The OTLP receiver behind metricsEndpoint.
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+      ports: [{protocol: TCP, port: 4318}]
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  podSelector:
+    matchLabels: {app: {{ .Release.Name }}, component: gateway}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.ingress.controllerNamespace }}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: {{ .Release.Name }}, component: store}
+      ports: [{protocol: TCP, port: 9000}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+{{- if .Values.ingress.hostNetworkController }}
+---
+# Host-network nginx proxying from another node arrives as a node identity.
+# Admit only the gateway port; the gateway still exposes only bucket /shards
+# and RustFS authenticates every request.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-gateway-host-ingress
+spec:
+  endpointSelector:
+    matchLabels: {app: {{ .Release.Name }}, component: gateway}
+  ingress:
+    - fromEntities: [host, remote-node]
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+{{- end }}
+{{- end }}

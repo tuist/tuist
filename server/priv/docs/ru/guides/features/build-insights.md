@@ -7,17 +7,17 @@
 ---
 # Аналитика сборок {#build-insights}
 
-Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Once.
+Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Once. Пошаговое расследование медленных сборок и роста затрат на CI см. в разделах [Медленные сборки](https://tuist.dev/solutions/slow-builds) и [Затраты на CI](https://tuist.dev/solutions/ci-costs).
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Отслеживайте время выполнения пост-действий схем Xcode, настройки сборки и метаданные сборки в панели управления Tuist."
+    details="Отслеживайте время выполнения пост-действий схем Xcode, параметры сборки и метаданные сборок в панели управления Tuist."
     link="/guides/features/build-insights/xcode"
 />
   <.home_card
     title="Сгенерированные проекты"
-    details="Отслеживайте аналитику сборок в сгенерированных проектах Tuist с пользовательскими схемами."
+    details="Отслеживайте аналитику сборок в проектах, сгенерированных Tuist, с пользовательскими схемами."
     link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card
@@ -27,17 +27,17 @@
 />
   <.home_card
     title="Bazel"
-    details="Отслеживайте длительность команд Bazel, общие показатели кэша и диагностику критического пути через протокол событий сборки (Build Event Protocol)."
+    details="Отслеживайте длительность команд Bazel, общие показатели кэша и диагностику критического пути через протокол Build Event Protocol."
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="Отслеживайте время компиляции вашего проекта на Elixir, предупреждения и файлы, которые замедляют сборку."
+    details="Отслеживайте время компиляции проекта на Elixir, предупреждения и файлы, которые замедляют сборку."
     link="/guides/features/build-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="Отслеживайте длительность команд Cargo, зафиксированные вызовы rustc и диагностику компилятора с помощью CLI Tuist."
+    details="Отслеживайте длительность команд Cargo, наблюдаемые вызовы rustc и диагностику компилятора с помощью CLI Tuist."
     link="/guides/features/build-insights/rust"
 />
   <.home_card

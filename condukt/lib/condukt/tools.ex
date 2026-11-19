@@ -4,8 +4,8 @@ defmodule Condukt.Tools do
 
   ## Default Tool Sets
 
-  - `coding_tools/0` - Read, Bash, Edit, Write, Glob, Grep (default for coding agents)
-  - `read_only_tools/0` - Read, Bash, Glob, Grep (read-only access)
+  - `coding_tools/0` - Read, Bash, Edit, Write, Glob, Grep, Ls (default for coding agents)
+  - `read_only_tools/0` - Read, Bash, Glob, Grep, Ls (read-only access)
 
   ## Individual Tools
 
@@ -16,7 +16,12 @@ defmodule Condukt.Tools do
   - `Condukt.Tools.Write` - Write files
   - `Condukt.Tools.Glob` - Find files by glob pattern
   - `Condukt.Tools.Grep` - Search file contents by regex
+  - `Condukt.Tools.Ls` - List a directory
   - `Condukt.Tools.Subagent` - Delegate work to registered sub-agent roles
+
+  The file tools follow the tools of pi's coding agent (badlogic/pi-mono):
+  their parameters, output limits, and the notices that tell the model how
+  to continue past them.
 
   Every built-in tool routes its filesystem and process work through the
   active `Condukt.Sandbox`, so the same tool list works against the host
@@ -46,20 +51,20 @@ defmodule Condukt.Tools do
       end
   """
 
-  alias Condukt.Tools.{Bash, Edit, Glob, Grep, Read, Write}
+  alias Condukt.Tools.{Bash, Edit, Glob, Grep, Ls, Read, Write}
 
   @doc """
-  Returns the default coding tools: Read, Bash, Edit, Write, Glob, Grep.
+  Returns the default coding tools: Read, Bash, Edit, Write, Glob, Grep, Ls.
 
   These tools provide full filesystem access for coding agents through the
   active sandbox.
   """
   def coding_tools do
-    [Read, Bash, Edit, Write, Glob, Grep]
+    [Read, Bash, Edit, Write, Glob, Grep, Ls]
   end
 
   @doc """
-  Returns read-only tools: Read, Bash, Glob, Grep.
+  Returns read-only tools: Read, Bash, Glob, Grep, Ls.
 
   Use these when you want the agent to explore but not modify files.
   Note that Bash can still execute arbitrary commands. Prefer a parameterized
@@ -67,7 +72,7 @@ defmodule Condukt.Tools do
   `git`, `gh`, or `mix`.
   """
   def read_only_tools do
-    [Read, Bash, Glob, Grep]
+    [Read, Bash, Glob, Grep, Ls]
   end
 
   @doc """
@@ -77,6 +82,6 @@ defmodule Condukt.Tools do
   sub-agents, so it is not included here.
   """
   def all do
-    [Read, Bash, Edit, Write, Glob, Grep]
+    [Read, Bash, Edit, Write, Glob, Grep, Ls]
   end
 end
