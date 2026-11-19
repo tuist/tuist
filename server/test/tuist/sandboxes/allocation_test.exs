@@ -199,21 +199,25 @@ defmodule Tuist.Sandboxes.AllocationTest do
       cpu_node = put_in(node, [:elastic, :cpu_floor_milli], 250)
       cpu_node = put_in(cpu_node, [:elastic, :cpu_ceiling_milli], 8000)
 
-      # The Pod's CPU request, as the stubbed resize reads and writes it.
-      Process.put(:daemon_cpu_milli, 250)
+      # The Pod's CPU request and how often it was read, as the stubbed
+      # resize reads and writes them.
+      pod = start_supervised!({Agent, fn -> %{milli: 250, reads: 0} end})
 
-      stub(KubernetesClient, :resize_sandbox_daemon_cpu, fn _namespace, pod, target ->
-        assert pod == cpu_node.elastic.pod_name
-        Process.put(:daemon_cpu_reads, Process.get(:daemon_cpu_reads, 0) + 1)
-        Process.put(:daemon_cpu_milli, target.(Process.get(:daemon_cpu_milli)))
-        {:ok, Process.get(:daemon_cpu_milli)}
+      stub(KubernetesClient, :resize_sandbox_daemon_cpu, fn _namespace, pod_name, target ->
+        assert pod_name == cpu_node.elastic.pod_name
+
+        Agent.get_and_update(pod, fn %{milli: milli, reads: reads} ->
+          milli = target.(milli)
+          {{:ok, milli}, %{milli: milli, reads: reads + 1}}
+        end)
       end)
 
-      {:ok, cpu_node: cpu_node}
+      {:ok, cpu_node: cpu_node, pod: pod}
     end
 
     test "grow into the grant's free CPU with the node's agent sandboxes and shrink as they pause", %{
-      cpu_node: node
+      cpu_node: node,
+      pod: pod
     } do
       running = sandbox_fixture(node_name: node.name, state: :running, vcpus: 1, memory_mb: 2048)
       sandbox_fixture(node_name: node.name, state: :creating, vcpus: 4, memory_mb: 8192)
@@ -233,9 +237,9 @@ defmodule Tuist.Sandboxes.AllocationTest do
       assert {:ok, 2750} = Capacity.sync_cpu(node)
 
       # Unchanged guarantees read nothing from Kubernetes.
-      reads = Process.get(:daemon_cpu_reads)
+      reads = Agent.get(pod, & &1.reads)
       assert :unchanged = Capacity.sync_cpu(node)
-      assert Process.get(:daemon_cpu_reads) == reads
+      assert Agent.get(pod, & &1.reads) == reads
 
       # A revoked grant blocks growth, never a shrink.
       running |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
