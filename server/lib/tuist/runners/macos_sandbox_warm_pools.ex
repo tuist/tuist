@@ -12,6 +12,9 @@ defmodule Tuist.Runners.MacosSandboxWarmPools do
     * `hours_with_jobs` counts the hours of the last 14 days with a create
       of the shape, or 0 when there was none in the last day, so the floors
       of idle pools are funded by use.
+    * `cold_jobs` counts the creates of the shape in those 14 days, or 0
+      when there was none in the last day: each one boots cold without a
+      warm VM, which is what the controller ranks warm floors by.
     * `p95_concurrent_last_hour` is 1 after a create of the shape in the last
       hour, which marks the pool in use, so its floor is funded with those
       of the CI pools running jobs. It holds no VM past the pool's
@@ -57,13 +60,15 @@ defmodule Tuist.Runners.MacosSandboxWarmPools do
   def signals({_vcpus, _memory_mb} = shape) do
     case Map.get(usage(), shape) do
       nil ->
-        %{hours_with_jobs: 0, p95_concurrent_last_hour: 0}
+        %{hours_with_jobs: 0, cold_jobs: 0, p95_concurrent_last_hour: 0}
 
-      %{hours: hours, last_created_at: last_created_at} ->
+      %{hours: hours, creates: creates, last_created_at: last_created_at} ->
         now = DateTime.utc_now()
+        active? = within?(last_created_at, now, @active_within_hours * 60)
 
         %{
-          hours_with_jobs: if(within?(last_created_at, now, @active_within_hours * 60), do: hours, else: 0),
+          hours_with_jobs: if(active?, do: hours, else: 0),
+          cold_jobs: if(active?, do: creates, else: 0),
           p95_concurrent_last_hour: if(within?(last_created_at, now, @in_use_within_minutes), do: 1, else: 0)
         }
     end
@@ -89,6 +94,7 @@ defmodule Tuist.Runners.MacosSandboxWarmPools do
         {s.vcpus, s.memory_mb},
         %{
           hours: fragment("count(DISTINCT date_trunc('hour', ?))::integer", s.inserted_at),
+          creates: fragment("count(*)::integer"),
           last_created_at: max(s.inserted_at)
         }
       }
