@@ -3,7 +3,7 @@
 // compose these components and style nothing themselves, so every card
 // looks like the app around it: the theme's tokens, the system's type
 // sizes, and Liquid Glass actions on iOS and macOS 26 and later.
-import { host, mount as mountApp, platform, signal, Text, token, View } from "nsh";
+import { host, mount as mountApp, platform, Scroll, signal, Text, token, View } from "nsh";
 
 export { signal };
 
@@ -140,5 +140,31 @@ export function Action(props: { reply: string; prominent?: boolean; children: st
         {props.children}
       </Text>
     </View>
+  );
+}
+
+/** A server-authored question. Only decision cards receive the answer capability. */
+export function Decision(props: {
+  question: string;
+  options: { id: string; label: string }[];
+  allowOther: boolean;
+}) {
+  return (
+    <Scroll class="flex-1">
+      <View class="gap-3">
+        <Text class="text-base font-semibold text-foreground">{props.question}</Text>
+        {props.options.map((option) => (
+          <View
+            role="button"
+            onPress={() => {
+              if (host.available()) void host.call("answer", option.id);
+            }}
+            class="min-h-11 justify-center rounded-xl bg-muted px-4 py-3 active:opacity-70"
+          >
+            <Text class="text-sm font-semibold text-foreground">{option.label}</Text>
+          </View>
+        ))}
+      </View>
+    </Scroll>
   );
 }

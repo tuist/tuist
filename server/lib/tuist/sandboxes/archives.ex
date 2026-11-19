@@ -117,6 +117,8 @@ defmodule Tuist.Sandboxes.Archives do
   # all loaded; past the download URL's lifetime it can no longer read it,
   # so a report that never arrived no longer protects the archive.
   @memory_loading_grace_seconds 2 * 3600
+  # A warm restore loads its memory in 8 to 163 s (production, 2026-11-19).
+  @restoring_window_seconds 180
   @min_part_size 32 * @mib
   @max_parts 2000
   @per_run 10
@@ -1159,6 +1161,30 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def origin_nodes(%Sandbox{archive_memory: %{"node" => node}}) when is_binary(node), do: [node]
   def origin_nodes(_subject), do: []
+
+  @doc """
+  The nodes still loading a warm restore's memory from the archive: one
+  placed there and booting, or one running whose node has not reported
+  `memory_loaded`. Restores on one node share its bandwidth to the store,
+  and in production (2026-11-19) 8 GiB guests restored alone came back in
+  26 s at the median, two at once in 42 to 49 s, and three at once hit the
+  60 s agent timeout, so a restore avoids these nodes like `origin_nodes/1`.
+  Rows older than #{@restoring_window_seconds} s do not count, so a lost
+  `memory_loaded` never keeps a node avoided.
+  """
+  def restoring_nodes do
+    since = DateTime.add(now(), -@restoring_window_seconds)
+
+    Repo.all(
+      from(s in Sandbox,
+        where: not is_nil(s.archived_at) and not is_nil(s.node_name) and s.updated_at >= ^since,
+        where:
+          s.state == :creating or (s.state == :running and not is_nil(fragment("?->>'loading_since'", s.archive_memory))),
+        distinct: true,
+        select: s.node_name
+      )
+    )
+  end
 
   @doc """
   Whether an archive holds its disks chunked (lazy disks), which only nodes

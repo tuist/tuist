@@ -19,6 +19,8 @@ defmodule Tuist.Threads.Message do
     # A `card` message's NSH bundle and size class (`Tuist.Threads.Cards`).
     field :card_size, :string
     field :card_source, :string
+    # A structured ask_user question, its run/call identity and accepted answer.
+    field :decision, :map
     # A `progress` message's plan: `%{"steps" => [%{"title", "status"}]}`.
     # A running `tool` message's build or test progress instead: the last
     # snapshot of a Struo run its command reported (`Threads.record_build_progress/3`).

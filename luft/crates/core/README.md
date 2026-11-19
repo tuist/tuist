@@ -64,6 +64,17 @@ with Show more/less, and a separate scrollable raw result. Sharing/copying
 uses the unchanged message `content`, not the derived preview. Launch the
 iOS simulator with `-LuftToolPreview` for a signed-out presentation fixture.
 
+A decision is an assistant message with `decision: {question: string,
+options: [{id: string, label: string}], allow_other: bool,
+status: "pending" | "answered" | "cancelled", answer?: {option_id: string | null,
+text: string} | null}`. The core preserves this metadata in live and cached
+conversations. A pending decision may also have a `medium` `ui` (height 240);
+terminal decisions have no UI source. Apple grants only pending decision cards
+the `answer` host capability, accepts only an ID from that message's options,
+and supplies its label to `answer_question`. Generic cards have only `reply`,
+which edits the composer and never submits. Native fallbacks retain option and
+dismiss actions; terminal decisions render the question and recorded result.
+
 The tab catalog is `threads` (index 0, the default), `halls`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The hall operations live in `Halls`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 
@@ -160,7 +171,8 @@ when an operation reports an error.
 | `register_runner` | `name`, `platform` | the runner plus its one-time `token` and the profile's `server`, for `luft-runner connect` |
 | `remove_runner` | runner `id` | null; revokes it on the server |
 | `thread` | thread `id` (UUID), optional `before` message position | the server's thread with its latest messages, plus `state`, `section` and `working` (queued or running, and not archived); frontends poll it while `working`. A message's optional `ui` is a card the model wrote: NSH JavaScript `source` and a `size` of `compact`, `medium` or `tall`, to which the core adds the frame `height` in points (120, 240, 400). Edges show the card at that height and its `content` when they can't run it; the core drops a `ui` with an unknown size or an empty or larger than 256 KiB source |
-| `send_message` | thread `id`, `content`, optional `attachments` | the updated thread; retries reuse the request ID like `start_thread` |
+| `send_message` | thread `id`, `content`, optional `attachments` | the updated thread; retries reuse the request ID like `start_thread`. With a pending decision, the server treats text as its answer (free text only when `allow_other`, otherwise an exact option label/ID), preserving any attachments |
+| `answer_question` | thread `id`, message `question_id` (UUID), `content` (chosen label or localized dismissal text), either `option_id` or `cancel:true`; optional UUID `request_id` | the updated thread from the existing messages endpoint, saved to the conversation store. Online only: never enqueues a structured answer or optimistically changes a decision offline. Retries of the same question/option/content reuse the request ID; different questions/options are distinct writes |
 | `snooze_thread` | thread `id`; `snooze`: `until_needed`, a future UTC RFC 3339 time, or null to wake it | the updated thread. A snoozed thread has `section` `snoozed` and `snooze: {until, until_needed}` (null otherwise) in `threads`, `thread` and their cached forms, until `until` passes or, for `until_needed`, its run stops; sending it a message wakes it. The server holds back the thread's finished notification while a timed snooze lasts, reminds the person when it ends, and leaves snoozed threads out of the Live Activity. `until_needed` on a thread that already finished fails with an error that says so. Needs the network; it isn't queued offline |
 | `archive_thread` | thread `id`; optional `archived` (default true; false restores it) | the updated thread, with `section` `archived`, or back in its inbox section when restored; archiving stops its run if it was working. Needs the network; it isn't queued offline |
 | `snooze_options` | `offset_seconds`: the device's UTC offset now; optional `working` | `{options:[{id,until},…]}`: what Snooze offers, in order, for the edge to label: `until_needed` (only while `working`, `until` null), `in_1_hour`, `in_2_hours`, `in_4_hours`, `this_evening` (18:00 local, offered before 17:00), `tomorrow` and `next_week` (09:00 local, next Monday). Pass `until` to `snooze_thread`; a custom time is any later time the edge picks |

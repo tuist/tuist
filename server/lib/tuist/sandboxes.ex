@@ -1033,9 +1033,15 @@ defmodule Tuist.Sandboxes do
     on_site = restore_nodes(site, Archives.lazy_disks?(subject))
 
     case Archives.memory_compat(subject) do
-      nil when is_nil(site) -> Capacity.place(sandbox)
-      nil -> Capacity.place(sandbox, on_site)
-      compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(subject), Archives.warm_only?(subject))
+      nil when is_nil(site) ->
+        Capacity.place(sandbox)
+
+      nil ->
+        Capacity.place(sandbox, on_site)
+
+      compat ->
+        avoid = Enum.uniq(Archives.origin_nodes(subject) ++ Archives.restoring_nodes())
+        place_warm(sandbox, on_site, compat, avoid, Archives.warm_only?(subject))
     end
   end
 
@@ -1065,8 +1071,10 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp place_warm(sandbox, on_site, compat, origin, warm_only) do
-    case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat), avoid: origin) do
+  # `avoid`: the node the archive was written from and the nodes still
+  # loading another restore (`Archives.restoring_nodes/0`).
+  defp place_warm(sandbox, on_site, compat, avoid, warm_only) do
+    case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat), avoid: avoid) do
       {:error, :no_node} when warm_only -> {:error, :no_capacity}
       {:error, :no_node} -> Capacity.place(sandbox, on_site)
       placed -> placed

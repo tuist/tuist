@@ -71,6 +71,97 @@ impl Host for Fake {
         }
     }
 }
+#[test]
+fn decision_answers_are_online_only_retry_idempotently_and_cache_terminal_metadata() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let question = "12345678-1234-5678-9abc-123456789abc";
+    let decision = json!({"question":"Which approach?", "options":[{"id":"a","label":"Approach A"}],
+        "allow_other":true,"status":"pending","answer":null});
+    let mut thread = json!({"id":id,"status":"idle","archive_status":"active","messages":[{
+        "id":question,"role":"assistant","content":"Which approach?", "decision":decision,
+        "ui":{"size":"medium","source":"mount(() => null)"}
+    }]});
+    h.responses.push_back((200, thread.clone()));
+    let pending = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(pending["data"]["messages"][0]["ui"]["height"], 240);
+    assert_eq!(pending["data"]["messages"][0]["decision"], decision);
+    let args = json!({"id":id,"question_id":question,"option_id":"a","content":"Approach A"});
+    h.responses.push_back((0, Value::Null));
+    assert_eq!(
+        call(&mut c, &mut h, "answer_question", args.clone())["error"],
+        OFFLINE
+    );
+    assert_eq!(
+        call(&mut c, &mut h, "flush_outbox", json!({}))["data"]["sent"],
+        0
+    );
+    assert_eq!(
+        call(&mut c, &mut h, "cached_thread", json!({"id":id}))["data"]["messages"][0]["decision"],
+        decision
+    );
+    let first: Value =
+        serde_json::from_str(h.actions.last().unwrap()["body"].as_str().unwrap()).unwrap();
+    assert_eq!(first["question_id"], question);
+    assert_eq!(first["option_id"], "a");
+    assert_eq!(first["content"], "Approach A");
+    assert_eq!(first["request_id"].as_str().unwrap().len(), 36);
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        format!("https://one.test/api/accounts/ana/threads/{id}/messages")
+    );
+
+    // Live refreshes between a lost answer and its retry keep the retry key.
+    h.responses.push_back((200, thread.clone()));
+    call(&mut c, &mut h, "thread", json!({"id":id}));
+
+    thread["messages"][0]["decision"]["status"] = json!("answered");
+    thread["messages"][0]["decision"]["answer"] = json!({"option_id":"a","text":"Approach A"});
+    thread["messages"][0].as_object_mut().unwrap().remove("ui");
+    h.responses.push_back((200, thread.clone()));
+    let answered = call(&mut c, &mut h, "answer_question", args);
+    assert!(answered.get("error").is_none(), "{answered}");
+    let retry: Value =
+        serde_json::from_str(h.actions.last().unwrap()["body"].as_str().unwrap()).unwrap();
+    assert_eq!(retry["request_id"], first["request_id"]);
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":id}));
+    assert_eq!(
+        cached["data"]["messages"][0]["decision"],
+        thread["messages"][0]["decision"]
+    );
+    assert!(cached["data"]["messages"][0].get("ui").is_none());
+
+    thread["messages"][0]["decision"]["status"] = json!("cancelled");
+    thread["messages"][0]["decision"]["answer"] = Value::Null;
+    h.responses.push_back((200, thread.clone()));
+    let cancelled = call(
+        &mut c,
+        &mut h,
+        "answer_question",
+        json!({"id":id,"question_id":question,"cancel":true,"content":"Dismissed"}),
+    );
+    assert_eq!(
+        cancelled["data"]["messages"][0]["decision"]["status"],
+        "cancelled"
+    );
+    let body: Value =
+        serde_json::from_str(h.actions.last().unwrap()["body"].as_str().unwrap()).unwrap();
+    assert_eq!(body["cancel"], true);
+    assert!(body.get("option_id").is_none());
+    assert_ne!(body["request_id"], first["request_id"]);
+
+    let count = h.actions.len();
+    for args in [
+        json!({"id":id,"question_id":"../invalid","option_id":"a","content":"A"}),
+        json!({"id":id,"question_id":question,"content":"A"}),
+        json!({"id":id,"question_id":question,"option_id":"a","cancel":true,"content":"A"}),
+    ] {
+        assert!(call(&mut c, &mut h, "answer_question", args)["error"].is_string());
+    }
+    assert_eq!(h.actions.len(), count);
+}
+
 fn token(exp: i64, user: u64) -> String {
     format!(
         "header.{}.sig",

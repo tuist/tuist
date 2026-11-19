@@ -31,9 +31,10 @@ import (
 // disks before it starts the VM, which is the old wait for the whole tail.
 const (
 	lazyDiskSuffix = ".fill"
-	// Per disk. A warm restore fills its disks once its memory is loaded,
-	// so the two fills together take the memory's streams over.
-	lazyDiskFillWorkers = 8
+	// Per disk. Eight streams on each disk of two restores on one node
+	// OOM-killed the daemon in production (2026-11-18) while their fills
+	// still went through the page cache.
+	lazyDiskFillWorkers = 4
 	// lazyDiskPauseWait bounds how long a pause waits, with the guest still
 	// running, for the disks of a restore still filling, which it must hold
 	// whole before it can save the sandbox. With the guest sync (up to 60 s)

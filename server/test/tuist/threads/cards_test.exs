@@ -109,6 +109,22 @@ defmodule Tuist.Threads.CardsTest do
       end
     end
 
+    test "decision copy stays data, including code-like text and long options" do
+      if Cards.available?() do
+        question = %{
+          "question" => ~s(Should we use import x from "./other"; or a different approach?),
+          "options" => [
+            %{"id" => "keep", "label" => String.duplicate("Keep this approach. ", 15)},
+            %{"id" => "change", "label" => "Change it"}
+          ],
+          "allow_other" => true
+        }
+
+        assert {:ok, bundle} = Cards.build_decision(question)
+        assert bundle =~ "Change it"
+      end
+    end
+
     test "a card that logs without end is stopped at the output limit" do
       if Cards.available?() do
         flood =

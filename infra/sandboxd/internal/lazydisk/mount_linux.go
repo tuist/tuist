@@ -4,6 +4,7 @@ package lazydisk
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"syscall"
 	"time"
@@ -146,3 +147,12 @@ func (f *file) Fsync(_ <-chan struct{}, _ *fuse.FsyncIn) fuse.Status {
 func (f *file) Flush(_ <-chan struct{}, _ *fuse.FlushIn) fuse.Status { return fuse.OK }
 
 func (f *file) Release(_ <-chan struct{}, _ *fuse.ReleaseIn) {}
+
+// dropCache writes the range back and drops it from the page cache.
+func dropCache(f *os.File, off, n int64) error {
+	fd := int(f.Fd()) //nolint:gosec // File descriptors fit an int.
+	if err := unix.SyncFileRange(fd, off, n, unix.SYNC_FILE_RANGE_WAIT_BEFORE|unix.SYNC_FILE_RANGE_WRITE|unix.SYNC_FILE_RANGE_WAIT_AFTER); err != nil {
+		return fmt.Errorf("writing disk chunk back: %w", err)
+	}
+	return unix.Fadvise(fd, off, n, unix.FADV_DONTNEED)
+}

@@ -49,13 +49,13 @@ defmodule Tuist.Threads.Cards do
   @external_resource @kit_path
   @kit File.read!(@kit_path)
 
-  @nsh_json JSON.encode!(%{
-              name: "Card",
-              id: "dev.tuist.thread-card",
-              version: "1.0.0",
-              build: 1,
-              capabilities: %{host: ["reply"]}
-            })
+  @nsh_config %{
+    name: "Card",
+    id: "dev.tuist.thread-card",
+    version: "1.0.0",
+    build: 1,
+    capabilities: %{host: ["reply"]}
+  }
 
   defmodule Output do
     @moduledoc false
@@ -98,8 +98,30 @@ defmodule Tuist.Threads.Cards do
   fix in `tsx`.
   """
   def build(tsx, size) when is_binary(tsx) and is_binary(size) do
+    with :ok <- check_source(tsx), do: build_card(tsx, size, ["reply"])
+  end
+
+  def build(_tsx, _size), do: {:error, "Give the card's TSX as `tsx` and its size class as `size`."}
+
+  @doc "Builds the host-owned decision template, never arbitrary model code with answer permission."
+  def build_decision(question) do
+    props = %{
+      question: question["question"],
+      options: question["options"],
+      allowOther: question["allow_other"]
+    }
+
+    source = """
+    import { mount, Decision } from "./luft";
+    const props = #{JSON.encode!(props)};
+    mount(() => <Decision {...props} />);
+    """
+
+    build_card(source, "medium", ["answer"])
+  end
+
+  defp build_card(tsx, size, capabilities) do
     with {:ok, height} <- height(size),
-         :ok <- check_source(tsx),
          {:ok, nsh} <- nsh(),
          :ok <- take_slot() do
       {:ok, dir} = Briefly.create(type: :directory)
@@ -107,7 +129,7 @@ defmodule Tuist.Threads.Cards do
       try do
         File.write!(Path.join(dir, "App.tsx"), tsx)
         File.write!(Path.join(dir, "luft.tsx"), @kit)
-        File.write!(Path.join(dir, "nsh.json"), @nsh_json)
+        File.write!(Path.join(dir, "nsh.json"), JSON.encode!(%{@nsh_config | capabilities: %{host: capabilities}}))
         File.write!(Path.join(dir, "check.test.tsx"), test_file(height))
 
         with {:ok, _} <- nsh |> run(["build", "App.tsx", "--release", "--out", "out"], dir) |> quoting_only_card(),
@@ -122,8 +144,6 @@ defmodule Tuist.Threads.Cards do
       end
     end
   end
-
-  def build(_tsx, _size), do: {:error, "Give the card's TSX as `tsx` and its size class as `size`."}
 
   @doc """
   The registry that counts the cards a node is checking; the application

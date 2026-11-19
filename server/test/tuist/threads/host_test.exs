@@ -206,6 +206,86 @@ defmodule Tuist.Threads.HostTest do
     assert List.last(fresh.messages).body == "I received the attachments."
   end
 
+  test "ask_user releases its host and resumes the same tool call with a durable answer" do
+    user = AccountsFixtures.user_fixture()
+    calls = start_supervised!({Agent, fn -> 0 end})
+
+    question = %{
+      question: "How should we handle encryption?",
+      options: [%{id: "fix", label: "Propose a fix"}, %{id: "accept", label: "Draft risk acceptance"}],
+      allow_other: true
+    }
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(calls, &{&1, &1 + 1})
+
+      message =
+        case turn do
+          0 ->
+            assert Enum.any?(request["tools"], &(&1["function"]["name"] == "ask_user"))
+
+            %{
+              role: "assistant",
+              content: nil,
+              tool_calls: [
+                %{id: "decision", type: "function", function: %{name: "ask_user", arguments: JSON.encode!(question)}}
+              ]
+            }
+
+          1 ->
+            result = Enum.find(request["messages"], &(&1["tool_call_id"] == "decision"))
+            assert result["content"] =~ "accept"
+            assert result["content"] =~ "Draft risk acceptance"
+            %{role: "assistant", content: JSON.encode!(%{reply: "I'll draft the acceptance.", suggestions: []})}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: if(turn == 0, do: "tool_calls", else: "stop")}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Help with encryption"))
+    pid = host(thread.id)
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 15_000
+    run = Repo.one!(from r in Run, where: r.thread_id == ^thread.id)
+    assert run.status == "waiting"
+    assert Agent.get(calls, & &1) == 1
+    assert Threads.next_run(thread.id) == nil
+    {:ok, waiting} = Threads.get(user, user.account, thread.id)
+    assert waiting.agent_status == "waiting"
+    decision = Enum.find(waiting.messages, &(&1.kind == "decision"))
+
+    attrs = Map.merge(request("Draft risk acceptance"), %{"question_id" => decision.id, "option_id" => "accept"})
+    assert {:ok, answered} = Threads.message(user, user.account, thread.id, attrs)
+    assert {:ok, _replay} = Threads.message(user, user.account, thread.id, attrs)
+    assert answered.agent_status == "queued"
+    assert Repo.reload!(run).status == "queued"
+    Lease.release(thread.id, run.attempt)
+    host_until_idle(thread.id)
+    assert Repo.reload!(run).status == "succeeded"
+    assert Agent.get(calls, & &1) == 2
+    {:ok, finished} = Threads.get(user, user.account, thread.id)
+    assert Enum.count(finished.messages, &(&1.kind == "decision")) == 1
+    assert List.last(finished.messages).body == "I'll draft the acceptance."
+  end
+
   test "a thread on a runner works through the runner, with the tools its owner allowed" do
     user = AccountsFixtures.user_fixture()
     {:ok, runner, _token} = Runners.register(user, %{"name" => "macbook", "platform" => "macos"})

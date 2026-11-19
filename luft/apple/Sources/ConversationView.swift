@@ -29,6 +29,7 @@ struct AppMessage: Decodable, Identifiable {
     }()
     /// A card the model wrote, sized by the Rust core; `content` is its text.
     var ui: AppCard?
+    var decision: AppDecision?
     /// The plan the agent shares with `update_progress`, counted by the Rust core;
     /// `content` is the plan as a checklist.
     var progress: AppProgress?
@@ -389,7 +390,10 @@ struct ConversationView: View {
                         switch group {
                         // A card can call `reply` without a tap (on mount, from a timer),
                         // so its text goes to the composer and the person sends it.
-                        case let .message(message): MessageRow(message: message, showAuthor: shared) { text in reply = text }.id(message.id)
+                        case let .message(message):
+                            MessageRow(message: message, showAuthor: shared, answering: sending, answer: { option in
+                                Task { await answer(message, option: option) }
+                            }) { text in reply = text }.id(message.id)
                         case let .tools(tools): ToolActivity(tools: tools).id(tools[0].id)
                         }
                     }
@@ -674,6 +678,27 @@ struct ConversationView: View {
             let known = Set(messages.map(\.id))
             older = page.messages.filter { !known.contains($0.id) } + older
             olderBefore = page.has_more == true ? page.next_before : nil
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func answer(_ message: AppMessage, option: String?) async {
+        guard !sending, let decision = message.decision, decision.status == "pending" else { return }
+        var args: [String: Any] = ["id": id, "question_id": message.id]
+        if let option {
+            guard let choice = decision.options.first(where: { $0.id == option }) else { return }
+            args["option_id"] = option
+            args["content"] = choice.label
+        } else {
+            args["cancel"] = true
+            args["content"] = String(localized: "Dismissed")
+        }
+        sending = true
+        defer { sending = false }
+        do {
+            show(try await client.conversation("answer_question", args))
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -1016,11 +1041,35 @@ struct MessageRow: View {
     let message: AppMessage
     /// Names who wrote a prompt, in a thread shared with others.
     var showAuthor = false
+    var answering = false
+    /// An option ID, or nil to explicitly dismiss. Never arbitrary card text.
+    var answer: ((String?) -> Void)? = nil
     /// Puts a card's reply in the composer.
     let reply: (String) -> Void
 
     var body: some View {
-        if let card = message.ui {
+        if let decision = message.decision {
+            VStack(alignment: .leading, spacing: 12) {
+                if decision.status == "pending", let card = message.ui {
+                    CardView(card: card, fallback: message.content, decision: decision, answer: answer, reply: reply)
+                        .allowsHitTesting(!answering)
+                } else {
+                    DecisionContent(decision: decision, answer: answer)
+                        .disabled(answering || answer == nil)
+                }
+                if decision.status == "pending" {
+                    if decision.allow_other {
+                        Text("You can also type your answer in the composer.")
+                            .font(.caption).foregroundStyle(Noora.labelSecondary)
+                    }
+                    HStack {
+                        Button("Dismiss") { answer?(nil) }
+                            .disabled(answering || answer == nil)
+                        if answering { ProgressView().controlSize(.small) }
+                    }
+                }
+            }
+        } else if let card = message.ui {
             CardView(card: card, fallback: message.content, reply: reply)
         } else if let progress = message.progress {
             PlanView(progress: progress)

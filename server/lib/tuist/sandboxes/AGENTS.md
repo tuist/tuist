@@ -425,7 +425,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `snapshot_compat`: CPU model and flags, host kernel version and
   Firecracker version) is placed only on nodes with the same
   `snapshot_compat`, waiting for room on them, and on the node it was
-  archived from (`archive_memory.node`) only when no other of them can take
+  archived from (`archive_memory.node`), or on a node still loading another
+  warm restore's memory (`Archives.restoring_nodes/0`: restores on one node
+  share its bandwidth to the store, and three at once hit the guest agent's
+  60 s timeout in production), only when no other of them can take
   it (`Capacity.place/3`'s `avoid:`), and resumes warm: the node
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
