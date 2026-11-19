@@ -7,7 +7,7 @@
 ---
 # Swift 套件 {#swift-package}
 
-若你正在開發 Swift 套件，可以使用 `--replace-scm-with-registry` 旗標從註冊表解析相依性（若可用）：
+如果你正在開發 Swift 套件，可以使用 `--replace-scm-with-registry` 旗標從註冊表解析相依性（若可用）：
 
 ```bash
 swift package --replace-scm-with-registry resolve

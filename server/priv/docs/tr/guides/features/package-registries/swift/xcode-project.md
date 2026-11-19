@@ -2,7 +2,7 @@
 {
   "title": "Xcode projesi",
   "titleTemplate": ":title · Swift · Paket Kayıtları · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Registry'nin bir Xcode projesinde nasıl kullanılacağını öğrenin."
+  "description": "Tuist Registry'yi bir Xcode projesinde nasıl kullanacağınızı öğrenin."
 }
 ---
 # Xcode projesi {#xcode-project}
@@ -11,15 +11,15 @@ Xcode projenizde kayıt defterini kullanarak paket eklemek için varsayılan Xco
 
 ![Paket bağımlılıkları ekleme](/images/guides/features/build/registry/registry-add-package.png)
 
-## Kaynak denetimi paketlerini çözümleme {#resolving-source-control-packages}
+## Kaynak kontrol paketlerini çözümleme {#resolving-source-control-packages}
 
-Eklediğiniz paketlerin geçişli bağımlılıkları gibi bir kaynak denetimi URL'si ile bildirilen paketler, varsayılan olarak kaynak denetiminden çözülür. `tuist registry setup`, aşağıdaki kullanıcı varsayılanını yazarak Xcode'u bunları bunun yerine kayıt defterinden çözümleyecek şekilde yapılandırır:
+Eklediğiniz paketlerin geçişli bağımlılıkları gibi, bir kaynak kontrol URL'si ile bildirilen paketler varsayılan olarak kaynak kontrolden çözülür. `tuist registry setup`, aşağıdaki kullanıcı varsayılanını yazarak Xcode'u bunları bunun yerine kayıt defterinden çözümleyecek şekilde yapılandırır:
 
 ```bash
 defaults write com.apple.dt.Xcode IDEPackageDependencySCMToRegistryTransformation useRegistryIdentityAndSources
 ```
 
-Xcode daha sonra bir kayıt defteri eşdeğeri mevcut olduğunda kaynak denetimi paketini kayıt defterinden çözer; mevcut olmadığında ise kaynak denetimine geri döner.
+Xcode daha sonra, bir kayıt defteri eşdeğeri mevcut olduğunda kaynak kontrol paketini kayıt defterinden çözümler ve mevcut olmadığında kaynak kontrole geri döner.
 
 > [!NOTE]
 > Bu, makine başına bir Xcode tercihidir ve proje ayarı değildir; bu nedenle kayıt defteri yapılandırma dosyasını commitlemek onu ekibinizin geri kalanıyla paylaşmaz. Her geliştiricinin makinesinde bir kez `tuist registry setup` komutunu çalıştırması gerekir. Tercih daha sonra o makinedeki tüm Xcode projelerine uygulanır.

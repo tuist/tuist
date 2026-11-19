@@ -1,13 +1,13 @@
 ---
 {
-  "title": "XcodeProj tabanlı paket entegrasyonuyla oluşturulan proje",
-  "titleTemplate": ":title · Swift · Paket Kayıt Defterleri · Özellikler · Kılavuzlar · Tuist",
-  "description": "Oluşturulan projelerde XcodeProj tabanlı paket entegrasyonu ile Tuist Registry'yi kullanın."
+  "title": "XcodeProj tabanlı paket entegrasyonuna sahip oluşturulmuş proje",
+  "titleTemplate": ":title · Swift · Paket Kayıtları · Özellikler · Kılavuzlar · Tuist",
+  "description": "Oluşturulan projelerde XcodeProj tabanlı paket entegrasyonu ile Tuist Kaydını kullanın."
 }
 ---
 # XcodeProj tabanlı paket entegrasyonu ile oluşturulan proje {#generated-project-with-xcodeproj-based-integration}
 
-<.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj tabanlı entegrasyon</.localized_link> kullanırken, bağımlılıklar kayıt defterinde mevcutsa bunları oradan çözmek için `--replace-scm-with-registry` bayrağını kullanabilirsiniz. Bunu `Tuist.swift` dosyanızdaki `installOptions` bölümüne ekleyin:
+<.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj tabanlı entegrasyon</.localized_link> kullanırken, bağımlılıklar kayıt defterinde mevcutsa bunları kayıt defterinden çözmek için `--replace-scm-with-registry` bayrağını kullanabilirsiniz. Bunu `Tuist.swift` dosyanızdaki `installOptions` bölümüne ekleyin:
 ```swift
 import ProjectDescription
 

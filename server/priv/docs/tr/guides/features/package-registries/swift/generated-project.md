@@ -7,7 +7,7 @@
 ---
 # Xcode paket entegrasyonu ile oluşturulan proje {#generated-project-with-xcode-based-integration}
 
-Tuist Projeleri ile paketlerin <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode'un varsayılan entegrasyonunu</.localized_link> kullanıyorsanız, bir paket eklerken URL yerine kayıt defteri tanımlayıcısını kullanmanız gerekir:
+Tuist Projelerinde paketler için <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode'un varsayılan entegrasyonunu</.localized_link> kullanıyorsanız, bir paket eklerken URL yerine kayıt tanımlayıcısını kullanmanız gerekir:
 ```swift
 import ProjectDescription
 
@@ -34,4 +34,4 @@ let project = Project(
 ```
 
 > [!TIP]
-> Her paketi kayıt defteri tanımlayıcısıyla eklemek zorunda değilsiniz. Proje oluşturulduktan sonra `tuist registry setup` komutunu çalıştırmak, Xcode'u kaynak kontrol URL'siyle bildirilen paketleri kayıt defterinden çözümleyecek şekilde de yapılandırır; bu işlemi `registryEnabled` tek başına yapmaz. Bkz. <.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">Kaynak kontrol paketlerini çözümleme</.localized_link>.
+> Her paketi kayıt tanımlayıcısıyla eklemek zorunda değilsiniz. Proje oluşturulduktan sonra `tuist registry setup` komutunu çalıştırmak, Xcode'u kaynak kontrol URL'siyle bildirilen paketleri kayıttan çözümleyecek şekilde de yapılandırır; bu işlemi `registryEnabled` tek başına yapmaz. Bkz. <.localized_link href="/guides/features/package-registries/swift/xcode-project#resolving-source-control-packages">Kaynak kontrol paketlerini çözümleme</.localized_link>.
