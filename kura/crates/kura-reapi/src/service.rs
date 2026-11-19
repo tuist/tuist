@@ -394,7 +394,7 @@ fn fill_staging_window(buffer: &mut Vec<u8>, window: usize, data: &[u8]) -> usiz
 impl ReapiService {
     pub(super) fn new(state: SharedState) -> Self {
         Self {
-            snapshot_cache: state.snapshot_cache.clone(),
+            snapshot_cache: state.snapshot_cache(),
             splice_verifications: SpliceVerificationSlots::new(
                 state.config.reapi_splice_verification_concurrency,
             ),

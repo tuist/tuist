@@ -116,7 +116,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # Deliberately without `peer_roles`. The published roles key each managed pod
   # by its internal `KURA_NODE_URL`, while a self-hosted node's peer list names
   # a managed region by its single public peer URL — and `region_gateways`
-  # (kura/src/sync/roles.rs) only honours a published role whose URL is present
+  # (kura/crates/kura-node/src/sync/roles.rs) only honours a published role whose URL is present
   # among the peers it can see. So a role published here could never match, the
   # node's local lowest-URL rule would decide anyway, and all the field actually
   # did was ship internal cluster DNS names to customer infrastructure. Roles

@@ -24,7 +24,6 @@ use crate::{
     memory::MemoryController,
     metrics::Metrics,
     peer_tls::PeerClientFactory,
-    reapi::SnapshotCache,
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
@@ -108,7 +107,9 @@ pub struct AppState {
     pub store: Arc<Store>,
     pub io: IoController,
     pub memory: MemoryController,
-    pub snapshot_cache: Arc<SnapshotCache>,
+    /// The REAPI action-cache snapshot cache. kura-reapi owns its type and creates it on first use
+    /// (`kura_reapi::SnapshotCacheExt`), so this crate does not depend on the REAPI services.
+    pub snapshot_cache: std::sync::OnceLock<Arc<dyn std::any::Any + Send + Sync>>,
     pub metrics: Metrics,
     pub runtime: Arc<RuntimeState>,
     pub auth: Option<SharedAuth>,
@@ -457,7 +458,7 @@ pub struct ClusterStatusReport {
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct MembershipUpdate {
+pub struct MembershipUpdate {
     pub discovered_peers: Vec<String>,
     pub lost_peers: Vec<String>,
     pub known_peer_count: usize,
@@ -466,7 +467,7 @@ pub(crate) struct MembershipUpdate {
 }
 
 #[derive(Debug)]
-pub(crate) struct ReadinessState {
+pub struct ReadinessState {
     generation: u64,
     initial_discovery_completed: bool,
     settle_until: Instant,
@@ -493,7 +494,7 @@ struct ReadinessSnapshot {
 }
 
 impl ReadinessState {
-    pub(crate) fn new(now: Instant) -> Self {
+    pub fn new(now: Instant) -> Self {
         Self {
             generation: 0,
             initial_discovery_completed: false,
@@ -609,7 +610,7 @@ impl AppState {
         entered
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn expire_readiness_settle_window(&self) {
         self.readiness.lock().await.settle_until = Instant::now();
     }
@@ -678,7 +679,7 @@ impl AppState {
 
     /// Segment count as a percentage of the ring's desired total, the ring
     /// term of the backfill readiness gate.
-    pub(crate) fn ring_fullness_percent(&self) -> u64 {
+    pub fn ring_fullness_percent(&self) -> u64 {
         let inputs = self.store.backfill_capacity_inputs();
         if inputs.ring_total_segments == 0 {
             return 100;

@@ -1,40 +1,26 @@
-// The storage engine and the modules it stands on are the kura-core crate (crates/kura-core), so its
-// build and tests run in parallel with this crate's. Importing them under their old names keeps
-// every `crate::store::...` path in this crate working.
+// The node is three crates below this one, so Bazel compiles and tests them as separate actions:
+// kura-core (the storage engine), kura-node (state, HTTP, replication) and kura-reapi (the REAPI
+// services). Importing their modules under their old names keeps every `crate::store::...` path
+// in this crate working.
+#[cfg(test)]
+use kura_core::backpressure;
 use kura_core::{
-    action_cache_removals, analytics_outbox, artifact, backpressure, bandwidth, certificate_trust,
-    config, connectivity, constants, control_plane_http, enrollment, failpoints, file_cache, io,
-    memory, metrics, multipart, node_location, peer_topology, request_observability, segment,
-    store, utils,
+    artifact, bandwidth, certificate_trust, config, connectivity, constants, control_plane_http,
+    enrollment, io, memory, metrics, node_location, request_observability, store, utils,
 };
+#[cfg(test)]
+use kura_node::test_support;
+use kura_node::{
+    analytics, analytics_forwarder, auth, backfill, bazel_test_artifacts, handover, http, peer_tls,
+    replication, runtime, serving_authority, state, sync, telemetry, usage,
+};
+use kura_reapi as reapi;
 
 mod accelerated_file_serving;
-mod analytics;
-mod analytics_forwarder;
 mod app;
-mod auth;
-mod backfill;
-mod bazel_test_artifacts;
-mod handover;
-mod http;
 mod mesh_heartbeat;
-mod migration;
-mod peer_tls;
-mod reapi;
 mod registration;
-mod replication;
-mod runtime;
-mod serving_authority;
 mod startup;
-mod state;
-mod sync;
-mod telemetry;
-mod usage;
-
-#[cfg(test)]
-mod peer_topology_tests;
-#[cfg(test)]
-mod test_support;
 
 pub use app::run;
 

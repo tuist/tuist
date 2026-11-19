@@ -132,7 +132,7 @@ async fn request_forward(
 /// The record rows `peer`'s feed holds after `from` and at or below `head`,
 /// read without waiting; None when the feed no longer reaches back to `from`
 /// (another incarnation or a trimmed floor) or holds more than `limit`.
-pub(crate) async fn feed_records_between(
+pub async fn feed_records_between(
     app: &SharedState,
     peer: &str,
     from: SyncPosition,

@@ -205,7 +205,7 @@ pub fn combined_router(state: SharedState) -> Router {
         .with_state(state)
 }
 
-pub(crate) async fn guard_response_stream_transport(mut response: Response) -> Response {
+pub async fn guard_response_stream_transport(mut response: Response) -> Response {
     let Some(guard) = response.extensions_mut().remove::<ResponseTransportGuard>() else {
         return response;
     };
@@ -279,7 +279,7 @@ fn attach_materialized_response_permit(
 }
 
 #[cfg(test)]
-pub(crate) fn router(state: SharedState) -> Router {
+pub fn router(state: SharedState) -> Router {
     combined_router(state)
 }
 

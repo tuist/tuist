@@ -3176,7 +3176,7 @@ nothing user-visible happening:
    to the same PV. Once both are gone the StatefulSet recreates them and
    `WaitForFirstConsumer` binds the new claim on the second box.
 4. Wait for the moved replica to catch up from its peer before handing it
-   traffic. Kura backfills a fresh replica from the peer it joins (`kura/src/backfill/`),
+   traffic. Kura backfills a fresh replica from the peer it joins (`kura/crates/kura-node/src/backfill/`),
    so the cache content follows even though the volume does not; gate on that
    pod's backfill metrics rather than a timer.
 5. Let the primary role hand over, then repeat 3-4 for the ex-primary.

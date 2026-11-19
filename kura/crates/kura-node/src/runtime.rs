@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "test-support")))]
 use std::cell::Cell;
 
 use tokio::sync::{Notify, futures::Notified};
@@ -16,7 +16,7 @@ use crate::metrics::{InflightMetrics, Metrics};
 pub use kura_core::runtime::DataDirLock;
 
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "test-support")))]
 const PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL: u8 = 16;
 const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
 const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
@@ -24,7 +24,7 @@ const PUBLIC_HTTP_INFLIGHT_SHIFT: u32 = 32;
 const HTTP_INFLIGHT_INCREMENT: u64 = 1;
 const PUBLIC_HTTP_INFLIGHT_INCREMENT: u64 = 1 << PUBLIC_HTTP_INFLIGHT_SHIFT;
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "test-support")))]
 thread_local! {
     static PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER: Cell<u8> = const { Cell::new(0) };
 }
@@ -77,11 +77,11 @@ struct PublicConnections {
     retired: Option<Arc<Cohort>>,
 }
 
-pub(crate) struct PublicConnectionLease(Arc<Cohort>);
+pub struct PublicConnectionLease(Arc<Cohort>);
 
 impl PublicConnectionLease {
     /// Becomes true when this connection's cohort is retired.
-    pub(crate) fn retirement(&self) -> tokio::sync::watch::Receiver<bool> {
+    pub fn retirement(&self) -> tokio::sync::watch::Receiver<bool> {
         self.0.retired.subscribe()
     }
 }
@@ -166,7 +166,7 @@ impl RuntimeState {
         &self.connection_incarnation
     }
 
-    pub(crate) fn public_connection(&self) -> PublicConnectionLease {
+    pub fn public_connection(&self) -> PublicConnectionLease {
         let connections = self
             .public_connections
             .lock()
@@ -400,10 +400,10 @@ impl RuntimeState {
 }
 
 fn should_update_public_request_latency_ewma() -> bool {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     return true;
 
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "test-support")))]
     PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER.with(|counter| {
         let current = counter.get();
         counter.set((current + 1) % PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL);

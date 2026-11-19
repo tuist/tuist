@@ -583,7 +583,7 @@ fn spawn_link(
 
 /// Exponential backoff shared by both link tasks: the backfill's request
 /// backoff constants, so a failing link paces itself like a failing pass.
-pub(crate) fn backoff(attempt: u32) -> Duration {
+pub fn backoff(attempt: u32) -> Duration {
     let base = crate::constants::BACKFILL_RETRY_BACKOFF_BASE_MS;
     let max = crate::constants::BACKFILL_RETRY_BACKOFF_MAX_MS;
     Duration::from_millis(base.saturating_mul(1_u64 << attempt.min(16)).min(max))
@@ -592,11 +592,11 @@ pub(crate) fn backoff(attempt: u32) -> Duration {
 /// Error marker for a peer that does not serve a pull route (404 or 405):
 /// a release that predates pull, which no number of retries changes until
 /// it is upgraded.
-pub(crate) const PEER_UNSUPPORTED: &str = "peer does not serve the pull route";
+pub const PEER_UNSUPPORTED: &str = "peer does not serve the pull route";
 
 /// The backoff between failed passes (bootstrap retries), the lifecycle's
 /// pass-retry constants.
-pub(crate) fn pass_backoff(attempt: u32) -> Duration {
+pub fn pass_backoff(attempt: u32) -> Duration {
     let base = crate::constants::BACKFILL_PASS_RETRY_BACKOFF_BASE_MS;
     let max = crate::constants::BACKFILL_PASS_RETRY_BACKOFF_MAX_MS;
     Duration::from_millis(base.saturating_mul(1_u64 << attempt.min(16)).min(max))

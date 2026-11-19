@@ -119,10 +119,10 @@ fn pem_blocks(bundle: &str) -> Vec<String> {
 /// A throwaway pair, and its rotation successor. Shared with the policy
 /// tests so both sign with the same key the verifier is given.
 #[cfg(test)]
-pub(crate) mod test_keys {
+pub mod test_keys {
     // A throwaway pair, and its rotation successor. Fixed rather than generated
     // so a failure is about the code under test.
-    pub(crate) const SIGNING_KEY: &str = "\
+    pub const SIGNING_KEY: &str = "\
     -----BEGIN PRIVATE KEY-----
     MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgiZOW2KwtxzHEuc6N
     M9Tn1vhXrMIJ4A4ND5S708b5sNKhRANCAAR49ecP/fwb8LDSXBb33jquLIwO3Q7c
@@ -130,14 +130,14 @@ pub(crate) mod test_keys {
     -----END PRIVATE KEY-----
     ";
 
-    pub(crate) const PUBLIC_KEY: &str = "\
+    pub const PUBLIC_KEY: &str = "\
     -----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEePXnD/38G/Cw0lwW9946riyMDt0O
     3IUMarUMh7k/gQy73fOffES++mFi6tHXVGvpM5WrImpOYM+AmTz0ZfyUKw==
     -----END PUBLIC KEY-----
     ";
 
-    pub(crate) const ROTATED_SIGNING_KEY: &str = "\
+    pub const ROTATED_SIGNING_KEY: &str = "\
     -----BEGIN PRIVATE KEY-----
     MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1pleNy6ZhrdrUQIW
     MTDQBwPmgY9S4qEwoDYrRXEdjkahRANCAAReoaVWopRByBUayj4u2l7zYUSEUvKL
@@ -145,7 +145,7 @@ pub(crate) mod test_keys {
     -----END PRIVATE KEY-----
     ";
 
-    pub(crate) const ROTATED_PUBLIC_KEY: &str = "\
+    pub const ROTATED_PUBLIC_KEY: &str = "\
     -----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXqGlVqKUQcgVGso+Ltpe82FEhFLy
     izaNWRnoXzg2aIX+L8OIcR0RzlrsLDd2OOOH/+KmUEAOh0LSwWs4l/UFZA==

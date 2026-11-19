@@ -27,7 +27,7 @@ use crate::{
     state::SharedState,
 };
 
-pub(crate) mod proto {
+pub mod proto {
     include!("bep_proto.rs");
 }
 

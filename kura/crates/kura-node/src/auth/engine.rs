@@ -610,7 +610,7 @@ impl AuthEngine {
     /// standing in for a probe that is in flight. Holding a real one would
     /// mean holding a real backend call open.
     #[cfg(test)]
-    pub(crate) async fn hold_consultation(
+    pub async fn hold_consultation(
         &self,
         ctx: &RequestContext,
     ) -> tokio::sync::OwnedMutexGuard<()> {
@@ -628,7 +628,7 @@ impl AuthEngine {
     /// Lifts the backoff left by a failed probe so the next request dials the
     /// backend again, standing in for the seconds a test cannot wait.
     #[cfg(test)]
-    pub(crate) async fn clear_unavailable_backoff(&self, ctx: &RequestContext) {
+    pub async fn clear_unavailable_backoff(&self, ctx: &RequestContext) {
         self.unreachable.invalidate(&fingerprint(
             policy::authorization_header(ctx).unwrap_or_default(),
         ));
@@ -638,7 +638,7 @@ impl AuthEngine {
     /// back to the backend. The windows are minutes long by design, which is
     /// longer than a test can wait.
     #[cfg(test)]
-    pub(crate) async fn expire_serving_deadline(&self, ctx: &RequestContext) {
+    pub async fn expire_serving_deadline(&self, ctx: &RequestContext) {
         let request = policy::resolve_request(ctx).expect("a resolvable request");
         let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
         let key = entry_key(&credential_key, &request.target);
@@ -660,7 +660,7 @@ impl AuthEngine {
     /// Moves this request's entry back in time by `by`, as if that long had
     /// passed since it was evaluated.
     #[cfg(test)]
-    pub(crate) async fn age_entry(&self, ctx: &RequestContext, by: Duration) {
+    pub async fn age_entry(&self, ctx: &RequestContext, by: Duration) {
         let request = policy::resolve_request(ctx).expect("a resolvable request");
         let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
         let key = entry_key(&credential_key, &request.target);
