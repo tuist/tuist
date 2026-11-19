@@ -319,6 +319,41 @@ defmodule Tuist.SandboxesTest do
       assert events(sandbox) == ["paused"]
     end
 
+    test "pause/1 bills the time since the last report from the CPU the node read as it paused" do
+      # 2 GiB of memory: a guarantee of half a vCPU, 10 s of CPU over 20 s.
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a", memory_mb: 2048)
+      old_daemon = sandbox_fixture(state: :running, node_name: "node-a")
+
+      Repo.update_all(from(s in Sandbox, where: s.id in ^[sandbox.id, old_daemon.id]),
+        set: [metered_cpu_ms: 10_000, metered_at: DateTime.add(DateTime.utc_now(), -20, :second)]
+      )
+
+      stub(Nodes, :call, fn "node-a", "pause", %{sandbox_id: id}, _opts ->
+        if id == sandbox.id,
+          do: {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024, "cpu_ms" => 30_000}},
+          else: {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024}}
+      end)
+
+      assert {:ok, %Sandbox{state: :paused, metered_at: nil}} = Sandboxes.pause(sandbox)
+      assert {:ok, %Sandbox{state: :paused}} = Sandboxes.pause(old_daemon)
+
+      assert [%{sandbox_id: sandbox_id, used: 20_000, billed: 20_000, duration_ms: duration_ms}] =
+               ClickHouseRepo.all(
+                 from(u in UsageEvent,
+                   where: u.sandbox_id in ^[sandbox.id, old_daemon.id],
+                   select: %{
+                     sandbox_id: u.sandbox_id,
+                     used: u.used_cpu_ms,
+                     billed: u.billed_cpu_ms,
+                     duration_ms: u.duration_ms
+                   }
+                 )
+               )
+
+      assert sandbox_id == sandbox.id
+      assert duration_ms in 20_000..20_500
+    end
+
     test "pause/1 leaves the sandbox running when the node refuses" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:error, "worker running"} end)

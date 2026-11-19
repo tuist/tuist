@@ -1327,6 +1327,7 @@ defmodule Tuist.Sandboxes do
              ) do
           {1, [paused]} ->
             Events.record_transition(sandbox, paused)
+            if usage = pause_usage(sandbox, data), do: UsageEvent.Buffer.insert(usage)
             if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name)
             {:ok, paused}
 
@@ -2181,19 +2182,28 @@ defmodule Tuist.Sandboxes do
 
   # A running Linux agent sandbox is billed, at each report, the larger of
   # its guarantee (`Sandbox.guaranteed_cpu_milli/1`) over the time since the
-  # previous report and the CPU its VM used in that time (`cpu_ms` counts from the VM process's start). The
-  # first report of a run bills the CPU used so far; a lower reading than the
-  # last one comes from a new VM process. An interval longer than two
-  # reports, such as across a server restart, bills the guarantee for two.
-  # The usage row is written only when the row update wins its race, so a
-  # lost update is metered by the next report instead.
+  # previous report and the CPU its VM used in that time (`cpu_ms` counts
+  # from the VM process's start), and its pause bills the time since the
+  # last report the same way (`pause_usage/2`). The first report of a run
+  # bills the CPU used so far; a lower reading than the last one comes from
+  # a new VM process. An interval longer than two reports, such as across a
+  # server restart, bills the guarantee for two. The usage row is written
+  # only when the row update wins its race, so a lost update is metered by
+  # the next report instead.
   defp meter(attrs, %Sandbox{state: :running, purpose: :agent, platform: :linux} = sandbox, %{
          "state" => "running",
          "cpu_ms" => cpu_ms
        })
        when is_integer(cpu_ms) and cpu_ms >= 0 do
     at = DateTime.utc_now()
+    {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage(sandbox, cpu_ms, at)}
+  end
 
+  defp meter(attrs, _sandbox, _reported), do: {attrs, nil}
+
+  # The usage row billing a running Linux agent sandbox's VM from its
+  # previous meter reading to `cpu_ms`, read at `at`.
+  defp usage(sandbox, cpu_ms, at) do
     {duration_ms, used_ms} =
       case sandbox do
         %Sandbox{metered_at: %DateTime{} = last_at, metered_cpu_ms: last_ms} when is_integer(last_ms) ->
@@ -2206,7 +2216,7 @@ defmodule Tuist.Sandboxes do
 
     guaranteed = Sandbox.guaranteed_cpu_milli(sandbox)
 
-    usage = %{
+    %{
       id: UUIDv7.generate(),
       account_id: sandbox.account_id,
       sandbox_id: sandbox.id,
@@ -2219,11 +2229,15 @@ defmodule Tuist.Sandboxes do
       billed_cpu_ms: max(div(guaranteed * duration_ms, 1000), used_ms),
       inserted_at: DateTime.to_naive(at)
     }
-
-    {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage}
   end
 
-  defp meter(attrs, _sandbox, _reported), do: {attrs, nil}
+  # A pause bills the time since the last report from the CPU time the
+  # node read as it paused the VM, which daemons before that reading
+  # leave out; their last interval goes unbilled.
+  defp pause_usage(%Sandbox{purpose: :agent, platform: :linux} = sandbox, %{"cpu_ms" => cpu_ms})
+       when is_integer(cpu_ms) and cpu_ms >= 0, do: usage(sandbox, cpu_ms, DateTime.utc_now())
+
+  defp pause_usage(_sandbox, _data), do: nil
 
   # A daemon shutdown (or a pause whose caller lost the result) can leave
   # the VM paused without a server pause. Repeated reports also heal old
