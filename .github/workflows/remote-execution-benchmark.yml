@@ -59,13 +59,21 @@ on:
       sample:
         description: Trial identifier for grouping repeated measurements
         default: "1"
+      workload:
+        description: Bazel workspace to build (external ones are pinned below)
+        type: choice
+        options: [kura, abseil-cpp, protobuf]
+        default: kura
+      tuist_project:
+        description: Tuist project whose CAS scope the run uses; a never-used project makes the first run cold
+        default: tuist/kura
+      paired:
+        description: Run a second timed build in the same CAS scope right after the first (cold then warm pair)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: kura
 
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
@@ -74,7 +82,9 @@ env:
   PROVIDER: ${{ inputs.provider || 'tuist' }}
   COMMAND: ${{ inputs.command || 'test' }}
   BAZEL_FLAGS: ${{ inputs.bazel_flags || '--jobs=20' }}
-  TARGETS: //...
+  TUIST_PROJECT: ${{ inputs.tuist_project || 'tuist/kura' }}
+  WORKLOAD: ${{ inputs.workload || 'kura' }}
+  TARGETS: ${{ (inputs.workload == 'abseil-cpp' && '//absl/...') || (inputs.workload == 'protobuf' && '//src/...') || '//...' }}
 
 jobs:
   benchmark:
@@ -83,7 +93,11 @@ jobs:
     # A runner of the server under test: remote execution reads inputs from
     # the account's runner cache, which only its runners upload into.
     runs-on: ${{ inputs.runner || 'tuist-staging-staging-linux-2vcpu' }}
-    timeout-minutes: 90
+    timeout-minutes: 120
+    defaults:
+      run:
+        # External workloads are cloned into bench-workload at a pinned commit.
+        working-directory: ${{ (inputs.workload || 'kura') == 'kura' && 'kura' || 'bench-workload' }}
     permissions:
       contents: read
       id-token: write
@@ -92,6 +106,31 @@ jobs:
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
+
+      # Same client for every workload: Kura's pinned Bazel and Tuist (mise),
+      # the runner's autodetected C++ toolchain, and the workload's own
+      # .bazelrc plus the provider's endpoint configuration.
+      - name: Check out the external workload
+        if: inputs.workload && inputs.workload != 'kura'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          case "$WORKLOAD" in
+            abseil-cpp) repo=abseil/abseil-cpp sha=5a15bf2b34b3d929bfb516d59339b3f6ee2aa677 ;;
+            protobuf) repo=protocolbuffers/protobuf sha=c0d0827c8d52ab52afdf4ee477b58e78b4c903ef ;;
+            *) echo "::error::unknown workload $WORKLOAD"; exit 1 ;;
+          esac
+          git init -q bench-workload
+          git -C bench-workload fetch -q --depth 1 "https://github.com/$repo" "$sha"
+          git -C bench-workload checkout -q FETCH_HEAD
+          cp kura/mise.toml kura/mise.lock bench-workload/
+          rm -f bench-workload/.bazelversion
+          printf 'project = "%s"\n' "$TUIST_PROJECT" > bench-workload/tuist.toml
+          printf '\ntry-import %%workspace%%/.bazelrc.tuist\n' >> bench-workload/.bazelrc
+
+      - name: Use the requested Tuist project
+        if: (!inputs.workload || inputs.workload == 'kura') && inputs.tuist_project && inputs.tuist_project != 'tuist/kura'
+        run: printf 'project = "%s"\n' "$TUIST_PROJECT" > tuist.toml
 
       - name: Validate comparison inputs
         env:
@@ -120,13 +159,13 @@ jobs:
       # outputs never do.
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-kura-remote-execution-benchmark-repository-v1
+          key: ci-${{ inputs.workload || 'kura' }}-remote-execution-benchmark-repository-v1
           path: ~/.cache/tuist/bazel/repository
 
       - uses: ./.github/actions/mise
         with:
           install_args: "rust bazel tuist"
-          working_directory: kura
+          working_directory: ${{ (inputs.workload || 'kura') == 'kura' && 'kura' || 'bench-workload' }}
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
@@ -168,7 +207,9 @@ jobs:
           build --remote_cache_compression=true
           build --remote_timeout=15m
           build --noremote_local_fallback
-          build --config=tuist-remote-execution
+          # A never-used instance name is a fresh CAS scope, so this job's
+          # first build starts cold and its second (paired) build warm.
+          build --remote_instance_name=tuist-bench-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
           build --remote_default_exec_properties=OSFamily=Linux
           build --remote_default_exec_properties=Arch=amd64
           build --remote_default_exec_properties=container-image=$BUILDBUDDY_IMAGE
@@ -182,6 +223,11 @@ jobs:
           build --experimental_profile_include_target_label
           build --experimental_profile_include_primary_output
           EOF
+          # Kura registers the guest's C++ toolchain under this config; other
+          # workloads use the autodetected one, the same on runner and guest.
+          if grep -q '^build:tuist-remote-execution ' .bazelrc; then
+            echo "build --config=tuist-remote-execution" >> .bazelrc.tuist
+          fi
 
       - name: Record comparison environment
         env:
@@ -219,43 +265,53 @@ jobs:
           BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
           NODE_CACHE_STATE: ${{ inputs.node_cache_state || 'unknown' }}
           SAMPLE: ${{ inputs.sample || '1' }}
+          PAIRED: ${{ inputs.paired == false && 'false' || 'true' }}
         run: |
           set -euo pipefail
           ulimit -n 65536
-          start=$(date +%s)
-          # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
-          bazel "$COMMAND" $TARGETS $BAZEL_FLAGS --disk_cache= --noremote_accept_cached \
-            --noremote_local_fallback --profile="$RUNNER_TEMP/profile.json.gz" 2>&1 | tee "$RUNNER_TEMP/bazel.log"
-          wall=$(( $(date +%s) - start ))
-          elapsed=$(sed -n 's/.*INFO: Elapsed time: \([0-9.]*\)s, Critical Path: \([0-9.]*\)s.*/\1 \2/p' "$RUNNER_TEMP/bazel.log" | tail -n 1)
-          processes=$(grep -E 'INFO: [0-9]+ processes?:' "$RUNNER_TEMP/bazel.log" | tail -n 1 | sed 's/.*INFO: //')
-          if [ "$MODE" = remote ]; then
-            [[ "$processes" =~ (^|[[:space:],])[1-9][0-9]*[[:space:]]remote[,.] ]] || {
-              echo "::error::No executed remote actions in the benchmark summary"; exit 1;
-            }
-            if [[ "$processes" == *"cache hit"* ]]; then
-              echo "::error::Cached actions invalidate the execution comparison"; exit 1
-            fi
-          fi
+          # The first build runs in the job's CAS scope as it is (cold for a
+          # fresh BuildBuddy instance or a never-used Tuist project); the
+          # paired one repeats it right away, so its inputs are warm. Action
+          # cache reads stay off for both, so every action executes.
+          phases=first
+          [ "$PAIRED" = true ] && phases="first repeat"
+          echo '[]' > "$RUNNER_TEMP/result.json"
           {
-            echo "| Provider | Node cache | Sample | Mode | Wall (s) | Bazel elapsed (s) | Critical path (s) | Processes |"
-            echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
-            echo "| $PROVIDER | $NODE_CACHE_STATE | $SAMPLE | $MODE | $wall | ${elapsed% *} | ${elapsed#* } | $processes |"
+            echo "| Workload | Provider | Phase | Node cache | Sample | Wall (s) | Bazel elapsed (s) | Critical path (s) | Processes |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
           } >>"$GITHUB_STEP_SUMMARY"
-          jq -n --argjson wall "$wall" --argjson elapsed "${elapsed% *}" \
-            --argjson critical "${elapsed#* }" --arg processes "$processes" \
-            '{wallSeconds:$wall, elapsedSeconds:$elapsed, criticalSeconds:$critical, processes:$processes}' \
-            > "$RUNNER_TEMP/result.json"
-          echo "::notice title=$PROVIDER $COMMAND ($NODE_CACHE_STATE, sample $SAMPLE)::wall ${wall}s, elapsed ${elapsed% *}s, critical path ${elapsed#* }s, $processes"
+          for phase in $phases; do
+            start=$(date +%s)
+            # shellcheck disable=SC2086 # BAZEL_FLAGS is a list of flags
+            bazel "$COMMAND" $TARGETS $BAZEL_FLAGS --disk_cache= --noremote_accept_cached \
+              --noremote_local_fallback --profile="$RUNNER_TEMP/profile-$phase.json.gz" 2>&1 | tee "$RUNNER_TEMP/bazel-$phase.log"
+            wall=$(( $(date +%s) - start ))
+            elapsed=$(sed -n 's/.*INFO: Elapsed time: \([0-9.]*\)s, Critical Path: \([0-9.]*\)s.*/\1 \2/p' "$RUNNER_TEMP/bazel-$phase.log" | tail -n 1)
+            processes=$(grep -E 'INFO: [0-9]+ processes?:' "$RUNNER_TEMP/bazel-$phase.log" | tail -n 1 | sed 's/.*INFO: //')
+            if [ "$MODE" = remote ]; then
+              [[ "$processes" =~ (^|[[:space:],])[1-9][0-9]*[[:space:]]remote[,.] ]] || {
+                echo "::error::No executed remote actions in the $phase benchmark summary"; exit 1;
+              }
+              if [[ "$processes" == *"cache hit"* ]]; then
+                echo "::error::Cached actions invalidate the execution comparison"; exit 1
+              fi
+            fi
+            echo "| $WORKLOAD | $PROVIDER | $phase | $NODE_CACHE_STATE | $SAMPLE | $wall | ${elapsed% *} | ${elapsed#* } | $processes |" >>"$GITHUB_STEP_SUMMARY"
+            jq --arg workload "$WORKLOAD" --arg phase "$phase" --argjson wall "$wall" --argjson elapsed "${elapsed% *}" \
+              --argjson critical "${elapsed#* }" --arg processes "$processes" \
+              '. + [{workload:$workload, phase:$phase, wallSeconds:$wall, elapsedSeconds:$elapsed, criticalSeconds:$critical, processes:$processes}]' \
+              "$RUNNER_TEMP/result.json" > "$RUNNER_TEMP/result.next" && mv "$RUNNER_TEMP/result.next" "$RUNNER_TEMP/result.json"
+            echo "::notice title=$WORKLOAD $PROVIDER $COMMAND ($phase, sample $SAMPLE)::wall ${wall}s, elapsed ${elapsed% *}s, critical path ${elapsed#* }s, $processes"
+          done
 
       - name: Summarize the profile
         if: always()
         run: |
           set -euo pipefail
-          [ -f "$RUNNER_TEMP/profile.json.gz" ] || exit 0
+          [ -f "$RUNNER_TEMP/profile-first.json.gz" ] || exit 0
           # Bazel 9 no longer exposes analyze-profile. These are aggregate
           # span durations, not additive wall-time or critical-path phases.
-          gzip -dc "$RUNNER_TEMP/profile.json.gz" | jq '
+          gzip -dc "$RUNNER_TEMP/profile-first.json.gz" | jq '
             [.traceEvents[] | select(.dur != null)] | group_by(.cat) |
             map({category: .[0].cat, spanCount: length,
                  aggregateDurationSeconds: (map(.dur) | add / 1000000)})
@@ -270,8 +326,8 @@ jobs:
         with:
           name: remote-execution-benchmark-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/profile.json.gz
-            ${{ runner.temp }}/bazel.log
+            ${{ runner.temp }}/profile-*.json.gz
+            ${{ runner.temp }}/bazel-*.log
             ${{ runner.temp }}/profile-summary.json
             ${{ runner.temp }}/environment.json
             ${{ runner.temp }}/result.json
