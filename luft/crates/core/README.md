@@ -53,6 +53,17 @@ The core clears it for cached/offline history and ended runs. iOS presents one
 brief edge glow per residency, a static cue with Reduced Motion, and a ready
 label; no readiness cue is inferred from agent status alone.
 
+Tool messages returned by `thread` include `toolResult`: `text` unwraps up to four
+all-text MCP envelopes and formats JSON; `preview` contains its first 1,200
+characters; `raw` formats the original JSON without unwrapping it. Malformed
+text and mixed text/image/resource results remain readable without dropping
+non-text evidence. A recognized `test_cases` list also provides `testCases`
+(`name`, optional `module`, `suite`, `flaky`, `state`) for native cards, in the
+returned order, not ranked by flakiness. Apple shows three cards initially,
+with Show more/less, and a separate scrollable raw result. Sharing/copying
+uses the unchanged message `content`, not the derived preview. Launch the
+iOS simulator with `-LuftToolPreview` for a signed-out presentation fixture.
+
 The tab catalog is `threads` (index 0, the default), `halls`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The hall operations live in `Halls`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 

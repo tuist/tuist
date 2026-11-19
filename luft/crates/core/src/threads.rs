@@ -308,6 +308,7 @@ fn present(thread: &mut Value) {
             .filter(|&i| working && !archived && messages[i]["role"] != "user");
         for (index, message) in messages.iter_mut().enumerate() {
             present_card(message);
+            present_tool_result(message);
             present_build(message, working && !archived);
             let plan = present_progress(message, current == Some(index));
             if current == Some(index) {
@@ -462,6 +463,69 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let doy = (153 * mp + 2) / 5 + d - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     era * 146_097 + doe - 719_468
+}
+
+/// Presentation is derived, never substituted for the original evidence.
+fn present_tool_result(message: &mut Value) {
+    if message["role"] != "tool" {
+        return;
+    }
+    let raw = message["content"].as_str().unwrap_or_default();
+    let formatted = serde_json::from_str::<Value>(raw)
+        .ok()
+        .and_then(|value| serde_json::to_string_pretty(&value).ok())
+        .unwrap_or_else(|| raw.to_string());
+    let readable = readable_tool_result(raw, 0);
+    let preview: String = readable.chars().take(1200).collect();
+    let decoded = serde_json::from_str::<Value>(&readable).unwrap_or(Value::Null);
+    let cases = decoded["test_cases"]
+        .as_array()
+        .filter(|cases| !cases.is_empty() && cases.iter().all(|case| case["name"].is_string()))
+        .map(|cases| {
+            cases
+                .iter()
+                .map(|case| {
+                    json!({
+                        "name": case["name"], "module": case["module_name"].as_str(),
+                        "suite": case["suite_name"].as_str(), "flaky": case["is_flaky"].as_bool(),
+                        "state": case["state"].as_str(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+    message["toolResult"] = json!({
+        "text": readable,
+        "preview": preview,
+        "raw": formatted,
+        "testCases": cases,
+    });
+}
+
+fn readable_tool_result(text: &str, depth: usize) -> String {
+    if depth == 4 {
+        return text.to_string();
+    }
+    let Ok(value) = serde_json::from_str::<Value>(text) else {
+        return text.to_string();
+    };
+    if let Some(inner) = value.as_str() {
+        return readable_tool_result(inner, depth + 1);
+    }
+    // Only unwrap all-text MCP envelopes. Mixed image/resource results must
+    // remain visible rather than silently losing their non-text evidence.
+    if let Some(blocks) = value["content"].as_array().filter(|blocks| {
+        !blocks.is_empty()
+            && blocks
+                .iter()
+                .all(|block| block["type"] == "text" && block["text"].is_string())
+    }) {
+        return blocks
+            .iter()
+            .map(|block| readable_tool_result(block["text"].as_str().unwrap(), depth + 1))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+    }
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| text.to_string())
 }
 
 /// A message's `progress` is the plan the agent shares with `update_progress`:

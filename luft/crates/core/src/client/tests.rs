@@ -1899,6 +1899,62 @@ fn cards_get_the_height_of_their_size_class_and_unshowable_ones_fall_back_to_tex
 }
 
 #[test]
+fn tool_results_unwrap_text_without_replacing_raw_evidence() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let payload = json!({"test_cases":[
+        {"name":"shard_with_remote_test_products()", "module_name":"TuistServerAcceptanceTests",
+         "suite_name":"ShardAcceptanceTests", "is_flaky":true, "state":"muted", "id":"keep-in-raw"},
+        {"name":"test_run_tests_with_specified_arch()", "is_flaky":false}
+    ]});
+    let raw = json!({"content":[{"type":"text","text":payload.to_string()}]}).to_string();
+    let mixed = json!({"content":[{"type":"text","text":"keep me"},
+        {"type":"image","data":"image-evidence","mimeType":"image/png"}]})
+    .to_string();
+    let long = "🛠".repeat(1201);
+    let messages = json!([
+        {"role":"tool","content":raw},
+        {"role":"tool","content":"{truncated"},
+        {"role":"tool","content":mixed},
+        {"role":"tool","content":long},
+        {"role":"assistant","content":raw},
+        {"role":"tool","content":json!({"content":[{"type":"text","text":"First"},{"type":"text","text":"Second"}]}).to_string()}
+    ]);
+    h.responses.push_back((200, server_thread(messages)));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    let shown = &thread["data"]["messages"];
+    assert_eq!(shown[0]["content"], raw);
+    assert_eq!(
+        serde_json::from_str::<Value>(shown[0]["toolResult"]["text"].as_str().unwrap()).unwrap(),
+        payload
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(shown[0]["toolResult"]["raw"].as_str().unwrap()).unwrap(),
+        serde_json::from_str::<Value>(&raw).unwrap()
+    );
+    assert_eq!(
+        shown[0]["toolResult"]["testCases"][0],
+        json!({
+            "name":"shard_with_remote_test_products()", "module":"TuistServerAcceptanceTests",
+            "suite":"ShardAcceptanceTests", "flaky":true, "state":"muted"
+        })
+    );
+    assert_eq!(shown[0]["toolResult"]["testCases"][1]["flaky"], false);
+    assert_eq!(shown[1]["toolResult"]["text"], "{truncated");
+    assert_eq!(shown[1]["toolResult"]["raw"], "{truncated");
+    assert!(
+        shown[2]["toolResult"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("image-evidence")
+    );
+    assert_eq!(shown[3]["toolResult"]["preview"], "🛠".repeat(1200));
+    assert_eq!(shown[3]["toolResult"]["text"], long);
+    assert_eq!(shown[4].get("toolResult"), None);
+    assert_eq!(shown[5]["toolResult"]["text"], "First\n\nSecond");
+}
+
+#[test]
 fn a_bash_calls_once_build_shows_its_share_of_planned_targets_while_it_runs() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);

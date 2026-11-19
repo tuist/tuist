@@ -308,3 +308,12 @@
 "People" = "People";
 "Owner" = "Owner";
 "Private conversation" = "Private conversation";
+"Expanded" = "Expanded";
+"Collapsed" = "Collapsed";
+"%lld test cases" = "%lld test cases";
+"Flaky" = "Flaky";
+"Raw result" = "Raw result";
+"Hide raw result" = "Hide raw result";
+"Share raw result" = "Share raw result";
+"Show more" = "Show more";
+"Show less" = "Show less";

@@ -35,6 +35,21 @@ struct AppMessage: Decodable, Identifiable {
     /// A Bash call's Once build or test progress, presented by the Rust core;
     /// `content` says it in words.
     var build: AppBuild?
+    var toolResult: AppToolResult?
+}
+
+struct AppToolResult: Decodable {
+    struct TestCase: Decodable {
+        let name: String
+        let module: String?
+        let suite: String?
+        let flaky: Bool?
+        let state: String?
+    }
+    let text: String
+    let preview: String
+    let raw: String
+    let testCases: [TestCase]?
 }
 
 struct AppBuild: Decodable {
@@ -792,40 +807,100 @@ private struct ToolActivity: View {
     }
 }
 
-private struct ToolCallRow: View {
+struct ToolCallRow: View {
     let tool: AppMessage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var expanded = false
+    @State private var showAll = false
+    @State private var showRaw = false
 
     private var running: Bool { tool.toolStatus == "running" }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Result").font(.caption.bold()).foregroundStyle(Noora.labelSecondary)
-                Text(verbatim: tool.content).font(.caption.monospaced()).textSelection(.enabled)
-                    .foregroundStyle(Noora.labelPrimary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 6)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            Button { expanded.toggle() } label: {
                 HStack(spacing: 8) {
-                    ToolStatusIcon(running: running)
-                    Text(verbatim: tool.toolName ?? String(localized: "Tool"))
-                        .font(.subheadline.monospaced()).foregroundStyle(Noora.labelPrimary).lineLimit(1)
-                    Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done")).font(.caption).foregroundStyle(Noora.labelSecondary)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        ToolStatusIcon(running: running)
+                    }
+                    let layout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(spacing: 8))
+                    layout {
+                        Text(verbatim: tool.toolName ?? String(localized: "Tool"))
+                            .font(.subheadline.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                        Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done"))
+                            .font(.caption).foregroundStyle(Noora.labelSecondary)
+                            .fixedSize(horizontal: true, vertical: true)
+                    }
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.caption)
+                    }
                 }
                 .frame(minHeight: 44)
-                if let build = tool.build {
-                    BuildProgressView(build: build).padding(.bottom, 10)
-                }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.borderless)
+            .disabled(running)
+            .accessibilityValue(expanded ? Text("Expanded") : Text("Collapsed"))
+            if let build = tool.build {
+                BuildProgressView(build: build).padding(.bottom, 10)
+            }
+            if expanded {
+                if let cases = tool.toolResult?.testCases {
+                    Text("\(cases.count) test cases").font(.caption).foregroundStyle(Noora.labelSecondary)
+                    ForEach(Array((showAll ? cases : Array(cases.prefix(3))).enumerated()), id: \.offset) { _, item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: item.name).font(.subheadline.weight(.medium))
+                            if let suite = item.suite { Text(verbatim: suite).font(.caption).foregroundStyle(Noora.labelSecondary) }
+                            if let module = item.module { Text(verbatim: module).font(.caption).foregroundStyle(Noora.labelSecondary) }
+                            HStack {
+                                if item.flaky == true { Text("Flaky").foregroundStyle(Noora.labelDestructive) }
+                                if let state = item.state { Text(verbatim: state).foregroundStyle(Noora.labelSecondary) }
+                            }.font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Noora.backgroundPrimary, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    if cases.count > 3 { moreButton }
+                } else {
+                    Text(verbatim: showAll ? (tool.toolResult?.text ?? tool.content) : (tool.toolResult?.preview ?? tool.content))
+                        .font(.caption.monospaced()).textSelection(.enabled)
+                        .lineLimit(showAll ? nil : 8)
+                    // Wrapped lines can overflow even a short source string.
+                    moreButton
+                }
+                Divider().padding(.vertical, 4)
+                Button { showRaw.toggle() } label: {
+                    Label(showRaw ? LocalizedStringKey("Hide raw result") : LocalizedStringKey("Raw result"), systemImage: "curlybraces")
+                        .font(.caption).frame(minHeight: 44)
+                }.buttonStyle(.borderless)
+                if showRaw {
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(verbatim: tool.toolResult?.raw ?? tool.content)
+                            .font(.caption.monospaced()).textSelection(.enabled)
+                            .fixedSize(horizontal: true, vertical: true).padding(8)
+                    }.frame(height: 200)
+                        .background(Noora.backgroundPrimary, in: RoundedRectangle(cornerRadius: 8))
+                    ShareLink(item: tool.content) {
+                        Label("Share raw result", systemImage: "square.and.arrow.up").font(.caption).frame(minHeight: 44)
+                    }.buttonStyle(.borderless)
+                }
+                Spacer(minLength: 6)
+            }
         }
-        .disabled(running)
+        .foregroundStyle(Noora.labelPrimary)
         .padding(.horizontal, 12)
         .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+    }
+
+    private var moreButton: some View {
+        Button(showAll ? LocalizedStringKey("Show less") : LocalizedStringKey("Show more")) { showAll.toggle() }
+            .font(.caption).frame(minHeight: 44).buttonStyle(.borderless)
     }
 }
 
