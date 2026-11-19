@@ -94,23 +94,31 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 		return allocation
 	}
 	capacity := node.Status.Allocatable.Memory().Value()
-	var used, reclaimable, cpuUsed int64
+	var used, reclaimable, cpuUsed, cpuReclaimable int64
 	for i := range pods {
 		pod := &pods[i]
 		if pod.Spec.NodeName != node.Name || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		memory := allocationPodMemory(pod)
-		cpuUsed += allocationPodRequest(pod, corev1.ResourceCPU)
+		cpu := allocationPodRequest(pod, corev1.ResourceCPU)
 		// The target daemon is counted separately using max(requested,
 		// allocated, applied). Other daemon Pods remain ordinary occupancy.
 		if pod.Name == daemon.name && isSandboxDaemon(pod) {
 			memory = daemon.memory
+			// Its CPU counts at what the kubelet allocated, which is what a
+			// resize is admitted against: a growth it deferred does not use
+			// up the room the server sizes the next request from.
+			if asked, allocated := daemonCPU(pod); asked > allocated {
+				cpu -= asked - allocated
+			}
 		}
 		used += memory
+		cpuUsed += cpu
 		member, ok := fleet.members[pod.Labels["tuist.dev/runner-pool"]]
 		if ok && pod.DeletionTimestamp.IsZero() && isIdle(pod) && isWarmCapacity(pod, member.pool) && !isStaleRunner(pod, member.pool) {
 			reclaimable += memory
+			cpuReclaimable += cpu
 		}
 	}
 	allocation.FreeBytes = max(capacity-used, 0)
@@ -119,6 +127,7 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 		allocation.WarmBytes = int64(slots)*fleet.slotBytes + executionDaemonReserveBytes
 	}
 	allocation.CPUFreeMilli = max(node.Status.Allocatable.Cpu().MilliValue()-cpuUsed, 0)
+	allocation.CPUReclaimableMilli = cpuReclaimable
 	return allocation
 }
 

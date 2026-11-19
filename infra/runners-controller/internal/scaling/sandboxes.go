@@ -19,12 +19,16 @@ type SandboxAllocation struct {
 	ObservedAt  time.Time `json:"observed_at"`
 	MemoryBytes int64     `json:"memory_bytes"`
 	FreeBytes   int64     `json:"free_bytes"`
-	// CPUFreeMilli is the node's allocatable CPU no Pod requests, the
-	// daemon included: room its CPU request can grow into at once. A growth
-	// past it would be deferred by the kubelet, and a deferred resize holds
-	// up the daemon's memory growths with it.
+	// CPUFreeMilli is the node's allocatable CPU no Pod requests, with the
+	// daemon counted at the CPU the kubelet allocated it: room its CPU
+	// request can grow into at once.
 	CPUFreeMilli int64 `json:"cpu_free_milli"`
-	Reclaim      bool  `json:"reclaim"`
+	// CPUReclaimableMilli is the CPU idle warm runners on the node hold. A
+	// growth into it is deferred by the kubelet until the autoscaler retires
+	// them, as for memory; a deferred resize holds up the daemon's memory
+	// growths with it, and the server lowers a growth that stops fitting.
+	CPUReclaimableMilli int64 `json:"cpu_reclaimable_milli"`
+	Reclaim             bool  `json:"reclaim"`
 	// WarmBytes is the carve-out a remote execution worker is kept at while
 	// this grant is fresh: its share of the fleet-wide floor. 0 for other
 	// daemons, and from controllers that predate it.
