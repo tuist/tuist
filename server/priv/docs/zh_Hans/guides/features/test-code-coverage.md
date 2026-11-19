@@ -2,12 +2,12 @@
 {
   "title": "代码覆盖率",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "跟踪每次测试运行中每个文件和每行代码的覆盖率。"
+  "description": "跟踪每次测试运行中每个文件和提交的行覆盖率。"
 }
 ---
 # 代码覆盖率 {#code-coverage}
 
-代码覆盖率告诉你测试执行了代码中的哪些行。Tuist 会上传每次测试运行的覆盖率，并将一次提交中的所有运行合并为一个数值（按文件和整个项目），以便你在仪表板上逐次跟踪。
+代码覆盖率会告诉你测试执行了哪些代码行。Tuist 会上传每次测试运行的覆盖率，并将一次提交中的所有运行合并为一个数据（按文件和整个项目），以便你在仪表盘中逐次提交跟踪。
 
 <.home_cards>
   <.home_card
@@ -17,7 +17,7 @@
 />
   <.home_card
     title="生成的项目"
-    details="使用 tuist test、二进制缓存和选择性测试来衡量 Tuist 生成项目的代码覆盖率。"
+    details="使用 tuist test、二进制缓存和选择性测试来衡量 Tuist 生成项目中的代码覆盖率。"
     link="/guides/features/test-code-coverage/generated-xcode-project"
 />
   <.home_card

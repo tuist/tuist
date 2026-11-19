@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a6a1d2b13cfbf609302bf16c94c5a48ff3fcfd3de2a57154673206960472a0ed",
+  "hash": "2700fcaa0ca682d9920842739957374dc346d073f86b6dcaa217d7ad05da4264",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "bbb14cfac86918e87d51181c9de7fcc18e80ef65c459ab457c85f897ecba66ef"
                 },
                 "## Connect Amp {#connect}": {
-                  "content_hash": "94a7e0b747b57566d205ab897bdb97d15f3ba384ad907a8af451bf097ae66277"
+                  "content_hash": "d07a939d8e1d7fae98333177c3a9146d62ac4d4665a60bbf7168ef440cc82eca"
                 },
                 "## Pausing and retention {#retention}": {
                   "content_hash": "112ff088a0fe019c510829062ffa469d865a454e90337716be13ea51a94c43c8"
@@ -41,11 +41,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "83816979435c6089fdfa83003b872bd17f34582ace15c1b1b5e91ad9e3503be9",
+          "hash": "195ffaef41ebb906335e5cb471cf690b668c44febc11cca7b0ca1104b5057381",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
           "metadata": {
-            "content_hash": "8cf665ad2cc1261fea116c80c2d3f72a5f6798f053f27280435cb23d1da76450"
+            "content_hash": "5b9f827c99137c27f5b91135f83a88a67185ce8d889b735fdd9d62d5db7358ab"
           }
         },
         {
@@ -106,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,13 +119,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -154,11 +148,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -235,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "92fd96f6188ed45511ac30051e1411bafd9807418139db10c9af6836b87844d3",
+          "hash": "3ba81c160073a9ec7ddd98c9a14feb7d76c0de522978579d188d98dd4eca0d6b",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a6a1d2b13cfbf609302bf16c94c5a48ff3fcfd3de2a57154673206960472a0ed",
+      "hash": "2700fcaa0ca682d9920842739957374dc346d073f86b6dcaa217d7ad05da4264",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9d45dfa09978d68feb1c34b06404c87580ea935d7f052421cfe9507f6450b69e",
+  "output_hash": "4cd8561de1fea5a28cf01a8176b39b514e852c59f030277466b54a455ddb2d92",
   "output_path": "server/priv/docs/tr/guides/features/sandboxes/amp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1c5f2719555ef6a364756c8b4816d6bfaa654288",
+  "source_commit_sha": "5f6b0c6761cf60e6ba412eb3de60cafd4a5b924e",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/amp.md",
-  "translated_at": "2026-11-18T22:51:39.925424Z",
-  "translation_session_id": "01a1f0d5-0649-7925-a79d-a6aef802c1ae"
+  "translated_at": "2026-11-19T14:38:21.534221Z",
+  "translation_session_id": "01a1f43c-cc79-7fa7-97c3-b1bca0dda8f1"
 }

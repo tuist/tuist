@@ -1002,6 +1002,76 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// Public headers include sibling `.inl` files, as aws-c-common's do (`#include <aws/common/error.inl>`).
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_app_with_cached_spm_c_target_inline_headers")
+    ) func generated_app_with_cached_spm_c_target_inline_headers() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["CCommon", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("CCommon", by: "App", xcodeprojPath: xcodeprojPath)
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "App",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
+    /// A package with the Adjust SDK's layout (`include/<Module>/`, imported as `<Module/Header.h>`) reached only through
+    /// a cached framework. Its dependents compile against the package's module without Tuist's cached-header search
+    /// paths, finding the processed framework in the products directory instead.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_app_with_cached_spm_nested_framework_headers")
+    ) func generated_app_with_cached_spm_nested_framework_headers() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["Feature", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            GenerateCommand.self, ["App", "FeatureTests", "--no-open", "--path", fixtureDirectory.pathString]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Feature", by: "FeatureTests", xcodeprojPath: xcodeprojPath)
+        try await TuistTest.run(
+            XcodeBuildBuildForTestingCommand.self,
+            [
+                "-workspace",
+                fixtureDirectory.appending(component: "App.xcworkspace").pathString,
+                "-scheme",
+                "App-Workspace",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
     /// Removes the targets' binaries from the local cache so the next warm treats them as misses, and returns the
     /// number of cache actions removed.
     private func evictFromLocalCache(_ targets: Set<String>) async throws -> Int {

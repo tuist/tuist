@@ -2,12 +2,12 @@
 {
   "title": "Cobertura de código",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Haz seguimiento de la cobertura de líneas de cada archivo y commit desde tus ejecuciones de tests."
+  "description": "Rastrea la cobertura de líneas de cada archivo y commit desde tus ejecuciones de tests."
 }
 ---
 # Cobertura de código {#code-coverage}
 
-La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist sube la cobertura de cada ejecución de tests y agrupa las ejecuciones de un commit en una única cifra, por archivo y para todo el proyecto, para que puedas seguirla en el panel commit a commit.
+La cobertura de código te indica qué líneas de tu código han ejecutado tus tests. Tuist sube la cobertura de cada ejecución de tests y consolida las ejecuciones de un commit en una única cifra, por archivo y para todo el proyecto, para que puedas seguirla en el panel commit a commit.
 
 <.home_cards>
   <.home_card
@@ -32,7 +32,7 @@ La cobertura de código te indica qué líneas de tu código ejecutaron tus test
 />
   <.home_card
     title="Gradle"
-    details="Sube la cobertura de código de proyectos Gradle, indicando qué archivos ejecutó cada test."
+    details="Sube la cobertura de código de proyectos Gradle, indicando qué archivos ha ejecutado cada test."
     link="/guides/features/test-code-coverage/gradle"
 />
 </.home_cards>

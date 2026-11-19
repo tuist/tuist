@@ -11264,7 +11264,7 @@ extension ProjectDescription.Headers {
     ) -> ProjectDescription.Headers {
         let publicPath = targetBasePath.appending(component: publicDirectory)
         let name = moduleName ?? targetBasePath.basename.replacingOccurrences(of: "-", with: "_")
-        let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def,inl,inc,tcc,tpp}"
         return .swiftPackageHeaders(
             public: .list([.glob(.path("\(publicPath.pathString)/\(glob)"))]),
             project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: projectExcluding)]),
