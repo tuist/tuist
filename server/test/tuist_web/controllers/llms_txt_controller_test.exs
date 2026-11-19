@@ -59,8 +59,8 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       refute body =~ "/compare/AGENTS"
       refute body =~ "/build-systems/index"
       refute body =~ "/build-systems/AGENTS"
-      assert body =~ "[Tuist with Once]"
-      assert body =~ "Once support in Tuist is currently in canary"
+      assert body =~ "[Tuist with Struo]"
+      assert body =~ "Struo support in Tuist is currently in canary"
     end
 
     test "links documentation pages to their markdown twin", %{conn: conn} do

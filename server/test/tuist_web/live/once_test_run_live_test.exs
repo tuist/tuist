@@ -70,7 +70,7 @@ defmodule TuistWeb.OnceTestRunLiveTest do
     refute has_element?(view, "[data-part=badge-processing]")
     assert html =~ "Interrupted"
     refute html =~ "In progress"
-    assert render_async(view, 2_000) =~ "Once stopped reporting before this run finished"
+    assert render_async(view, 2_000) =~ "Struo stopped reporting before this run finished"
     assert html =~ "06:51"
     refute html =~ "08:00"
   end

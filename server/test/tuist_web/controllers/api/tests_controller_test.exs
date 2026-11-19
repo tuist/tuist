@@ -341,7 +341,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
-    test "accepts a consolidated Once shard report with producer ordering", %{conn: conn, user: user, project: project} do
+    test "accepts a consolidated Struo shard report with producer ordering", %{conn: conn, user: user, project: project} do
       plan_id = UUIDv7.generate()
 
       expect(Tests, :create_test, fn attrs ->
@@ -358,8 +358,8 @@ defmodule TuistWeb.API.TestsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
-          build_system: "once",
-          scheme: "once test",
+          build_system: "struo",
+          scheme: "struo test",
           is_ci: true,
           duration: 30,
           status: "success",

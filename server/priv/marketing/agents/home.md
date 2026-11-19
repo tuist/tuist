@@ -47,7 +47,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 - [Bazel](/marketing-markdown/build-systems/bazel): remote action caching, Linux remote execution for enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), and build/test reporting.
 - [Mix / Elixir](/marketing-markdown/build-systems/elixir): compiled dependency caching, compilation insights, ExUnit history, flaky detection, and test sharding.
 - [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle): how the two differ, where each fits, and how teams run both.
-- [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.
+- [Struo](/marketing-markdown/build-systems/struo): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.
 
 ## Why Tuist
 
@@ -61,7 +61,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 
 | Bottleneck | Area | What it does |
 | --- | --- | --- |
-| Rebuilding code another machine already built | [Cache](/marketing-markdown/cache) | Shares compatible module, Xcode compilation, Gradle task, Bazel action, and Elixir dependency outputs. Rust compilation caching is experimental; Once support is in canary. |
+| Rebuilding code another machine already built | [Cache](/marketing-markdown/cache) | Shares compatible module, Xcode compilation, Gradle task, Bazel action, and Elixir dependency outputs. Rust compilation caching is experimental; Struo support is in canary. |
 | Slow, queued, or self-maintained CI machines | [Runners](/marketing-markdown/runners) | Tuist Runners: managed macOS and Linux CI runners next to the same cache. Invite-only. |
 | Slow, flaky, or opaque test suites | [Tests](/marketing-markdown/tests) | Test insights, flaky-test detection and quarantine, test sharding, selective testing. |
 | Sharing development builds for review | [Previews](/marketing-markdown/previews) | Shares supported mobile apps, macOS apps, and macOS/Linux command-line distributions through a link. |
@@ -87,7 +87,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 | Test sharding | Yes | Yes | Yes | No | Yes |
 | Selective testing | No | Yes | No | No | No |
 
-The matrix covers these five workflows; [Rust](/en/docs-markdown/guides/get-started/rust-project) also has build/test insights, flaky detection and quarantine, target-level sharding within one package, and experimental caching with same-machine restrictions. [Once](/en/docs-markdown/guides/get-started/once-project) has canary caching, build/test reporting, and hosted sharding with compatible releases, but does not enforce Tuist quarantine. Neither offers Tuist selective testing.
+The matrix covers these five workflows; [Rust](/en/docs-markdown/guides/get-started/rust-project) also has build/test insights, flaky detection and quarantine, target-level sharding within one package, and experimental caching with same-machine restrictions. [Struo](/en/docs-markdown/guides/get-started/struo-project) has canary caching, build/test reporting, and hosted sharding with compatible releases, but does not enforce Tuist quarantine. Neither offers Tuist selective testing.
 
 Check the linked guides for version requirements. Previews support mobile apps, macOS apps, and macOS/Linux command-line distributions; Bundle Insights supports Apple and Android bundles. Eligibility depends on the artifact and publishing workflow. Default selective testing skips whole targets; an account-enabled early-access coverage strategy can additionally select individual XCTest/XCUITest tests in generated Xcode projects.
 

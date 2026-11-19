@@ -401,6 +401,10 @@ defmodule Tuist.Threads.ShippingTest do
     File.write!(Path.join(root, ".once/out/build.log"), "once runtime state\n")
     File.mkdir_p!(Path.join(root, "app/.once/analysis"))
     File.write!(Path.join(root, "app/.once/analysis/state"), "nested once state\n")
+    File.mkdir_p!(Path.join(root, ".struo/out"))
+    File.write!(Path.join(root, ".struo/out/build.log"), "struo runtime state\n")
+    File.mkdir_p!(Path.join(root, "app/.struo/analysis"))
+    File.write!(Path.join(root, "app/.struo/analysis/state"), "nested struo state\n")
     thread = Repo.update!(Ecto.Changeset.change(c.thread, base_sha: base))
 
     stub(Repository, :review, fn account, snapshot, objects ->

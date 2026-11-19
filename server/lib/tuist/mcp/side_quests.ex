@@ -42,7 +42,7 @@ defmodule Tuist.MCP.SideQuests do
     xcode: "Xcode",
     gradle: "Gradle",
     bazel: "Bazel",
-    once: "Once",
+    once: "Struo",
     mix: "Elixir",
     cargo: "Rust"
   ]

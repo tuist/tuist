@@ -347,7 +347,7 @@ defmodule Tuist.Sandboxes.CommandsTest do
     end
 
     @tag :tmp_dir
-    test "a read answers the last progress snapshot a Once run in the command appended", %{tmp_dir: home} do
+    test "a read answers Struo progress and retains legacy command progress", %{tmp_dir: home} do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       command = running_command(sandbox)
       dir = Path.join(home, ".cache/tuist/commands/#{command.id}")
@@ -373,8 +373,15 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert {:ok, %{progress: %{"state" => "succeeded", "done" => 4}, stdout: "Compiling\n"}} =
                Commands.read(sandbox, command.id)
 
+      File.write!(Path.join(dir, "struo-progress.jsonl"), """
+      {"v":1,"command":"test","state":"running","done":2,"planned":6}
+      """)
+
+      assert {:ok, %{progress: %{"command" => "test", "state" => "running", "done" => 2}}} =
+               Commands.read(sandbox, command.id)
+
       # Whatever else a command writes there is not a snapshot.
-      File.write!(Path.join(dir, "once-progress.jsonl"), "not json\n")
+      File.write!(Path.join(dir, "struo-progress.jsonl"), "not json\n")
       assert {:ok, %{progress: nil}} = Commands.read(sandbox, command.id)
     end
   end

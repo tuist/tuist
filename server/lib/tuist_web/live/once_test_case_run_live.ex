@@ -27,7 +27,7 @@ defmodule TuistWeb.OnceTestCaseRunLive do
 
     if is_nil(run) do
       raise NotFoundError,
-            "Could not find Once test run #{inspect(run_id)}"
+            "Could not find Struo test run #{inspect(run_id)}"
     end
 
     test_case =
@@ -35,7 +35,7 @@ defmodule TuistWeb.OnceTestCaseRunLive do
 
     if is_nil(test_case) do
       raise NotFoundError,
-            "Could not find Once test case #{inspect(case_id)}"
+            "Could not find Struo test case #{inspect(case_id)}"
     end
 
     if connected?(socket) do

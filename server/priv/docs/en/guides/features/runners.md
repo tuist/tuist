@@ -142,9 +142,11 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
 />
 </.home_cards>
 
-## Once graph actions {#once-graph-actions}
+## Struo graph actions {#struo-graph-actions}
 
-Once can execute eligible graph command actions on Tuist's Linux workers when the account has remote execution enabled and the server advertises compatible worker capabilities. This is action-level execution, separate from the CI-provider jobs above. See <.localized_link href="/guides/features/runners/once">Once remote execution</.localized_link> for setup, image requirements, and compatibility checks.
+<a id="once-graph-actions"></a>
+
+Struo can execute eligible graph command actions on Tuist's Linux workers when the account has remote execution enabled and the server advertises compatible worker capabilities. This is action-level execution, separate from the CI-provider jobs above. See <.localized_link href="/guides/features/runners/struo">Struo remote execution</.localized_link> for setup, image requirements, and compatibility checks.
 
 ## Why Tuist Runners {#why-tuist-runners}
 

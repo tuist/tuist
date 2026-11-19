@@ -1,5 +1,5 @@
 # Standalone workspace so the monorepo's other Cargo projects are never resolved
-# here. Each member is a separate Once action: the leaf crates compile in
+# here. Each member is a separate Struo action: the leaf crates compile in
 # parallel, and only `gpui` depends on gpui.
 [workspace]
 members = ["gpui", "crates/*"]

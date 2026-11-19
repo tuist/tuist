@@ -315,13 +315,13 @@ custom classes must fully style the input
 - For running external system commands, **always** use `MuonTrap.cmd/3` instead of `System.cmd/3`. MuonTrap propagates process shutdowns to the child process, so a killed BEAM process does not leave orphaned subprocesses
 - For temporary files and directories, **always** use `Briefly` (`Briefly.create/1`, `Briefly.create!/1`) instead of building paths under `System.tmp_dir!/0` by hand. Briefly removes the temp file or directory automatically when the owning process exits, so you do not need manual `File.rm/1` cleanup
 
-## CI with Once
+## CI with Struo
 
-- `.github/workflows/atlas.yml` builds, lints, and tests through [Once](https://github.com/tuist/once), pinned in `mise.toml` and `mise.lock`. Once derives the targets from `mix.exs`, so there is no Atlas-specific manifest. The root `once.toml` limits workspace discovery to Atlas, binds the shared cache to the `tuist/atlas` project, and declares `atlas_image` (this Dockerfile, cached in `tuist/atlas-oci`).
-- Run Once from the repository root with package-qualified targets (`once test atlas/mix_tests`). From `atlas/`, Once treats this directory as the workspace root, and the `../noora` path dependency fails as escaping the workspace.
-- `once run atlas/mix_lint` also runs `mix deps.unlock --check-unused`, so remove dependencies from `mix.lock` when you drop them from `mix.exs`.
-- Javex 0.1.5's published Hex metadata includes ExDoc. Atlas declares it explicitly with `runtime: false` so Hex/Mix and Once's source-derived graph agree without starting documentation tooling with the application. Do not prune these transitive lock entries or use a custom dependency environment to hide them: normal Hex resolution still requires them. Verify dependency changes with the Atlas-pinned Once binary from the repository root (`once query targets` and `once run atlas/mix_lint`), not only with Mix.
-- The Dockerfile pins its base images by digest so Once can cache instructions individually. Update a digest together with its tag.
+- `.github/workflows/atlas.yml` builds, lints, and tests through [Struo](https://github.com/tuist/struo), pinned in `mise.toml` and `mise.lock`. Struo derives the targets from `mix.exs`, so there is no Atlas-specific manifest. The root `struo.toml` limits workspace discovery to Atlas, binds the shared cache to the `tuist/atlas` project, and declares `atlas_image` (this Dockerfile, cached in `tuist/atlas-oci`).
+- Run Struo from the repository root with package-qualified targets (`struo test atlas/mix_tests`). From `atlas/`, Struo treats this directory as the workspace root, and the `../noora` path dependency fails as escaping the workspace.
+- `struo run atlas/mix_lint` also runs `mix deps.unlock --check-unused`, so remove dependencies from `mix.lock` when you drop them from `mix.exs`.
+- Javex 0.1.5's published Hex metadata includes ExDoc. Atlas declares it explicitly with `runtime: false` so Hex/Mix and Struo's source-derived graph agree without starting documentation tooling with the application. Do not prune these transitive lock entries or use a custom dependency environment to hide them: normal Hex resolution still requires them. Verify dependency changes with the Atlas-pinned Struo binary from the repository root (`struo query targets` and `struo run atlas/mix_lint`), not only with Mix.
+- The Dockerfile pins its base images by digest so Struo can cache instructions individually. Update a digest together with its tag.
 
 ## Mix guidelines
 

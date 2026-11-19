@@ -2,7 +2,7 @@
 # Signs a copy of the LuftMacOS build with Tuist's Developer ID certificate,
 # notarizes and staples it, and leaves delivery/macos/Luft.app. Follows atlas-native/macos/distribution/bundle.sh without push
 # provisioning: Luft needs no restricted entitlements, only the hardened
-# runtime's microphone exception for on-device dictation. Never mutates Once's
+# runtime's microphone exception for on-device dictation. Never mutates Struo's
 # outputs.
 # Vault credentials must never enter inherited shell tracing or verbose output.
 set +x +v
@@ -12,7 +12,7 @@ umask 077
 cd "$(dirname "$0")/../.."
 # shellcheck source-path=SCRIPTDIR/../..
 source ios/distribution/keychain.sh
-app_source="$PWD/.once/out/LuftMacOS/Luft.app"
+app_source="$PWD/.struo/out/LuftMacOS/Luft.app"
 team=U6LC622NKF
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }

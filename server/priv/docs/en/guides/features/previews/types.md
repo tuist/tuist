@@ -14,7 +14,7 @@ The preview type determines what you package and where it can run, independently
 - **Android:** a signed application APK. Recipients need a compatible Android device or emulator. Android App Bundles (`.aab`) are not preview installation packages.
 - **Apple:** an application bundle for a simulator, or an exported IPA for physical devices. Device builds need a provisioning profile that permits installation on the recipient's device.
 
-The <.localized_link href="/guides/features/previews/xcode">Xcode</.localized_link>, <.localized_link href="/guides/features/previews/gradle">Gradle</.localized_link>, and <.localized_link href="/guides/features/previews/bazel">Bazel</.localized_link> guides describe which outputs each workflow can publish. For example, Bazel and Once publication support eligible Apple simulator and macOS applications, not physical-device builds.
+The <.localized_link href="/guides/features/previews/xcode">Xcode</.localized_link>, <.localized_link href="/guides/features/previews/gradle">Gradle</.localized_link>, and <.localized_link href="/guides/features/previews/bazel">Bazel</.localized_link> guides describe which outputs each workflow can publish. For example, Bazel and Struo publication support eligible Apple simulator and macOS applications, not physical-device builds.
 
 ## Desktop apps {#desktop-apps}
 

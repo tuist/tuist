@@ -206,7 +206,7 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
 
     {:ok, view, _} = live(conn, path)
     render_async(view, 5000)
-    assert has_element?(view, "[data-once-telemetry-gap]", "Per-action remote timings are not available for Once yet")
+    assert has_element?(view, "[data-once-telemetry-gap]", "Per-action remote timings are not available for Struo yet")
     assert has_element?(view, "a[href$='/once/build-runs']", "Open build runs")
     refute has_element?(view, "#remote-execution-queue")
     refute has_element?(view, "#remote-execution-chart")

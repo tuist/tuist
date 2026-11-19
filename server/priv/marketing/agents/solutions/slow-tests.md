@@ -32,7 +32,7 @@ Investigate slow fixtures, shared state, retries, and unnecessary execution befo
 
 Default selective testing operates at **test-target granularity**, using project-graph hashes and prior successful runs. It requires Tuist-generated Xcode projects and `tuist test`. An account-enabled early-access [coverage strategy](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project) can additionally select individual XCTest/XCUITest tests, with coverage uploads and TestCoverageAttribution. Tuist selective testing is not available for ordinary Xcode, Gradle, Bazel, or Elixir projects.
 
-Sharding spreads the tests that execute across parallel CI machines. Tuist supports sharding for Xcode, Gradle, and Elixir; not Bazel today. Cargo has target-level sharding within one package, and compatible Once releases support hosted shard plans; see the [sharding guides](/en/docs-markdown/guides/features/test-sharding) for their distinct requirements. Timing-balanced sharding uses reported execution history and needs parallel capacity. On generated projects, selective testing can skip unchanged targets and sharding can distribute the remainder. Measure total machine-minutes as well as wall-clock time: parallelism can increase setup and compute usage.
+Sharding spreads the tests that execute across parallel CI machines. Tuist supports sharding for Xcode, Gradle, and Elixir; not Bazel today. Cargo has target-level sharding within one package, and compatible Struo releases support hosted shard plans; see the [sharding guides](/en/docs-markdown/guides/features/test-sharding) for their distinct requirements. Timing-balanced sharding uses reported execution history and needs parallel capacity. On generated projects, selective testing can skip unchanged targets and sharding can distribute the remainder. Measure total machine-minutes as well as wall-clock time: parallelism can increase setup and compute usage.
 
 If a suite has a few intrinsically slow tests, changing fixtures or test boundaries may be more effective than adding machines. Use evidence from [Tuist Tests](/marketing-markdown/tests) to choose the intervention rather than treating all parallelism as a saving.
 
@@ -72,7 +72,7 @@ Not necessarily. Sharding shortens wall-clock time by running tests on several m
 
 ### Which build systems does Tuist support for test acceleration?
 
-Test insights support Xcode, Gradle, Bazel, and Elixir. Sharding supports Xcode, Gradle, and Elixir, but not Bazel today. Selective testing requires a Tuist generated Xcode project. Cargo and Once have their own requirements. See the [test sharding](/en/docs-markdown/guides/features/test-sharding) and [selective testing](/en/docs-markdown/guides/features/selective-testing) guides for each integration's requirements.
+Test insights support Xcode, Gradle, Bazel, and Elixir. Sharding supports Xcode, Gradle, and Elixir, but not Bazel today. Selective testing requires a Tuist generated Xcode project. Cargo and Struo have their own requirements. See the [test sharding](/en/docs-markdown/guides/features/test-sharding) and [selective testing](/en/docs-markdown/guides/features/selective-testing) guides for each integration's requirements.
 
 ### Do we need to change CI providers?
 

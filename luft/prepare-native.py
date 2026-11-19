@@ -37,7 +37,7 @@ def main():
             # as roots, so explicitly make the portable selection here as well.
             text = text.replace('default = ["network"]', 'default = []')
         (directory / "Cargo.toml").write_text(text)
-        (directory / "src/lib.rs").write_text("// Metadata only; Once compiles the original sources.\n")
+        (directory / "src/lib.rs").write_text("// Metadata only; Struo compiles the original sources.\n")
         if (ROOT / "crates" / package / "src/main.rs").exists():
             (directory / "src/main.rs").write_text("fn main() {}\n")
     shutil.copyfile(ROOT / "Cargo.lock", DEST / "Cargo.lock")

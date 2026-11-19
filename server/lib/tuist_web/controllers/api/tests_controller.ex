@@ -1171,6 +1171,9 @@ defmodule TuistWeb.API.TestsController do
   end
 
   defp create_test_from_params(params, test_id) do
+    build_system = Map.get(params, :build_system, "xcode")
+    build_system = if build_system == "struo", do: "once", else: build_system
+
     Tests.create_test(%{
       id: test_id,
       duration: params.duration,
@@ -1203,7 +1206,7 @@ defmodule TuistWeb.API.TestsController do
       ci_project_handle: Map.get(params, :ci_project_handle),
       ci_host: Map.get(params, :ci_host),
       ci_provider: Map.get(params, :ci_provider),
-      build_system: Map.get(params, :build_system, "xcode"),
+      build_system: build_system,
       test_modules: Map.get(params, :test_modules, []),
       test_cases: Map.get(params, :test_cases, []),
       build_run_id: Map.get(params, :build_run_id),

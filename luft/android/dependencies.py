@@ -17,7 +17,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = Path(__file__).with_name("dependencies.lock.json")
-VENDOR = ROOT / ".once/vendor-browser"
+VENDOR = ROOT / ".struo/vendor-browser"
 PACKAGE = "dev.tuist.guild"
 REPOSITORIES = ("https://dl.google.com/dl/android/maven2", "https://repo.maven.apache.org/maven2")
 EXCLUDED = {"org.jetbrains.kotlin:kotlin-stdlib", "org.jetbrains.kotlin:kotlin-stdlib-common",
@@ -246,7 +246,7 @@ def build(arguments):
                    "--min-sdk-version", "26", "--target-sdk-version", "35", "--auto-add-overlay",
                    "--custom-package", PACKAGE, "--version-code", "1", "--version-name", "0.1.0",
                    "--extra-packages", ":".join(sorted(set(packages))), "-o", linked]
-        # Match Once: application first, then provider resource zips in the supplied order.
+        # Match Struo: application first, then provider resource zips in the supplied order.
         for archive in [str(own)] + compiled:
             command.extend(["-R", archive])
         run(*command)

@@ -38,9 +38,9 @@ Choose your build system for setup and publication commands:
     link="/guides/features/previews/bazel"
   />
   <.home_card
-    title="Once"
-    details="Publish eligible Android, Apple simulator, and macOS applications with Once's native artifact provider."
-    link="/guides/features/previews/once"
+    title="Struo"
+    details="Publish eligible Android, Apple simulator, and macOS applications with Struo's native artifact provider."
+    link="/guides/features/previews/struo"
   />
 </.home_cards>
 

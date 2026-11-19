@@ -29,7 +29,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   @tool_paths Enum.map(@tools, fn {slug, _name} -> "/compare/" <> slug end)
   @build_system_paths [
     "/build-systems"
-    | Enum.map(["xcode", "gradle", "bazel", "elixir", "once", "bazel-vs-gradle"], &"/build-systems/#{&1}")
+    | Enum.map(["xcode", "gradle", "bazel", "elixir", "struo", "bazel-vs-gradle"], &"/build-systems/#{&1}")
   ]
 
   test "covers every marketing landing page with an authored guide" do
@@ -83,6 +83,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for path <- MarketingMarkdown.guide_paths(),
         [_match, docs_path] <- Regex.scan(~r{/en/docs-markdown/([^\s)]+)}, MarketingMarkdown.get(path)) do
       # Directory indexes are served without the /index suffix.
+      docs_path = URI.parse(docs_path).path
       source = Path.expand("../../../priv/docs/en/#{docs_path}", __DIR__)
       assert File.exists?(source <> ".md") or File.exists?(Path.join(source, "index.md")), docs_path
     end
@@ -180,7 +181,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
     assert home =~ "Elixir"
     assert home =~ "remote cache"
-    assert home =~ "Once support is in canary"
+    assert home =~ "Struo support is in canary"
     assert home =~ "Rust compilation caching is experimental"
     refute home =~ "Tuist does not provide remote build caching"
     assert cache =~ "/guides/features/cache"
@@ -202,7 +203,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert MarketingMarkdown.source(path) == nil
     end
 
-    for slug <- ["xcode", "gradle", "bazel", "elixir", "once"] do
+    for slug <- ["xcode", "gradle", "bazel", "elixir", "struo"] do
       path = "/build-systems/" <> slug
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ "## What "
@@ -219,19 +220,19 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/build-systems/elixir") =~ "per-file timings"
     assert MarketingMarkdown.get("/build-systems/elixir") =~ "balanced test sharding"
 
-    once = MarketingMarkdown.get("/build-systems/once")
-    assert once =~ "https://buildonce.dev/"
-    assert once =~ "currently in canary"
-    assert once =~ "Make scripts cacheable"
-    assert once =~ "build systems that do not support it natively"
-    assert once =~ "without rewriting project sources or native build definitions"
-    assert once =~ "Script annotations or wrapper configuration"
-    assert once =~ "without rewriting the project into a new build language"
-    assert once =~ "npm run build"
-    assert once =~ "remote execution requires an enabled account"
-    assert once =~ "linux/amd64"
-    assert once =~ "does not ingest Once's raw action log stream"
-    refute once =~ "## Limitations"
+    struo = MarketingMarkdown.get("/build-systems/struo")
+    assert struo =~ "https://struo.run/"
+    assert struo =~ "currently in canary"
+    assert struo =~ "Make scripts cacheable"
+    assert struo =~ "build systems that do not support it natively"
+    assert struo =~ "without rewriting project sources or native build definitions"
+    assert struo =~ "Script annotations or wrapper configuration"
+    assert struo =~ "without rewriting the project into a new build language"
+    assert struo =~ "npm run build"
+    assert struo =~ "remote execution requires an enabled account"
+    assert struo =~ "linux/amd64"
+    assert struo =~ "does not ingest Struo's raw action log stream"
+    refute struo =~ "## Limitations"
 
     assert MarketingMarkdown.get("/build-systems/index") == nil
     assert MarketingMarkdown.get("/build-systems/AGENTS") == nil
@@ -246,7 +247,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ MarketingMarkdown.alternate_path("/build-systems"), path
     end
 
-    for slug <- ["xcode", "gradle", "bazel", "elixir", "once"] do
+    for slug <- ["xcode", "gradle", "bazel", "elixir", "struo"] do
       markdown = MarketingMarkdown.get("/build-systems/" <> slug)
       assert markdown =~ "## One productivity platform, native depth"
       assert markdown =~ "CI"

@@ -56,7 +56,7 @@ The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can d
 
 Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
 
-Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Once run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
+Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Struo run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
 
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
@@ -303,7 +303,7 @@ Tools that take the identifier of a single record, such as `build_run_id`, `test
 |----|------|----------------|
 | `xcode_compilation_cache` | `get_xcode_build` | A processed clean build with Xcode 26 or later ran no cacheable compilation tasks. |
 | `gradle_build_cache` | `get_gradle_build` | A build executed cacheable tasks without Gradle's build cache computing a key for any of them, meaning the build cache was off. |
-| `flaky_test_quarantine` | `get_test_run` | A run had flaky tests and no enabled automation in the project mutes or skips them. Not suggested for Once projects. |
+| `flaky_test_quarantine` | `get_test_run` | A run had flaky tests and no enabled automation in the project mutes or skips them. Not suggested for Struo projects. |
 | `test_sharding` | `get_test_run` | An unsharded CI run took 10 minutes or more, in a build system Tuist can shard. The tip says how many tests selective testing already skipped, when it did. |
 | `tuist_runners` | `get_xcode_build`, `get_test_run` | A CI run used GitHub Actions, Bitrise, GitLab CI, or Buildkite machines and the account has never run a job on Tuist Runners. Only on tuist.dev. |
 | `pull_request_comments` | `get_xcode_build`, `get_test_run` | A GitHub Actions run belongs to a project that isn't connected to its GitHub repository. |
@@ -470,7 +470,7 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 
 #### Xcode builds
 
-Build-detail tools for Xcode, Gradle, Bazel, Mix and Cargo expose the existing `custom_metadata: {tags, values}` shape, including infrastructure observations when reported. Values remain strings and unfamiliar keys are preserved. For example, `tuist.cpu.available_processors` describes runtime-available logical processors, while `tuist.gradle.max_workers` is a Gradle worker limit and `tuist.jvm.max_heap_bytes` is a JVM heap limit, not host memory. These are untrusted client observations, not verified runner identities. Absent observations stay absent; imported logs and older clients may have no infrastructure metadata. Once metadata awaits a coordinated client/protocol update.
+Build-detail tools for Xcode, Gradle, Bazel, Mix and Cargo expose the existing `custom_metadata: {tags, values}` shape, including infrastructure observations when reported. Values remain strings and unfamiliar keys are preserved. For example, `tuist.cpu.available_processors` describes runtime-available logical processors, while `tuist.gradle.max_workers` is a Gradle worker limit and `tuist.jvm.max_heap_bytes` is a JVM heap limit, not host memory. These are untrusted client observations, not verified runner identities. Absent observations stay absent; imported logs and older clients may have no infrastructure metadata. Struo metadata awaits a coordinated client/protocol update.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
@@ -560,14 +560,16 @@ Set `include_cache_inspection: true` on `get_cargo_build` to retrieve validated 
 
 `build_id` is the build run ID (the invocation ID for Bazel) or the build's dashboard URL. The returned `trace_url` serves a [Chrome Trace Event](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU) JSON file. Anyone holding the link can download that build's trace without other credentials until `expires_at`, one hour after the call. Agents can download it with `curl`, hand it to you to open in Perfetto, or query it with Perfetto's `trace_processor`. The trace contains the recorded steps packed into lanes by parallelism, a track spanning the whole build, and CPU and memory counters when the build recorded machine metrics. It holds the same data as the step tools above, without logs. The dashboard offers the same file from each build's Timeline tab.
 
-#### Once runs
+#### Struo runs
+
+<a id="once-runs"></a>
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_once_runs` | List Once runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
+| `list_once_runs` | List Struo runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
 | `get_once_run` | Get a run with its action totals, cache summary, and, for test runs, test totals. | `account_handle`, `project_handle`, `run_id` |
 
-Cargo build, Mix build, and Once run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
+Cargo build, Mix build, and Struo run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
 
 #### Tasks, actions, modules and files
 
@@ -584,7 +586,7 @@ These project-scoped tools inspect persistent build identities across runs. Star
 | `bazel_actions` | Bazel actions | BEP-reported action executions |
 | `gradle_tasks` | Gradle tasks | Task executions |
 | `xcode_modules` | Xcode modules | Compilations and module cache events |
-| `once_actions` | Once actions | Executions |
+| `once_actions` | Struo actions | Executions |
 | `mix_files` | Mix compiled files | Compilations |
 | `mix_modules` | Mix compiled modules | Compilations |
 | `cargo_crates` | Cargo crates | Recorded rustc invocations |
@@ -597,7 +599,7 @@ Xcode module durations come from measured target compilations in build logs. Mod
 
 Bazel actions are identified by target label, mnemonic and configured primary output, keeping separate actions and configurations distinct without relying on input-dependent cache digests. History records BEP-reported executions, not cache lookups or trace-profile phases. Complete execution coverage requires `--build_event_publish_all_actions`; artifact delivery is best effort, so missing observations are not evidence that no work ran. Older Kura payloads without stable identity or execution start remain accepted but unindexed. Absent end-time measurements stay unavailable and genuine zero durations count.
 
-Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+Mix module durations measure the containing file's compilation, not independently measured module work. Struo actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
 
 Cargo crates are grouped by exact recorded crate root, name and kind. Checkout-path changes can split histories, and build profiles, features and target triples are not distinguished. History measures rustc invocations, not per-file work or cache hits; absent jobs do not establish removals or a complete workspace inventory.
 

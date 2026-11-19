@@ -1,8 +1,8 @@
-# Once workspace for the monorepo. Discovery is limited to the projects that
-# build with Once so the rest of the repository is never scanned or loaded.
+# Struo workspace for the monorepo. Discovery is limited to the projects that
+# build with Struo so the rest of the repository is never scanned or loaded.
 [workspace]
 include = [
-  "once.toml",
+  "struo.toml",
   "atlas/mix.exs",
 ]
 exclude = [
@@ -18,7 +18,7 @@ account = "tuist"
 project = "atlas"
 
 # The Atlas image has its own project so its layer snapshots and insights stay
-# separate from the Mix build. Select it with `ONCE_CACHE_PROVIDER=tuist-oci`.
+# separate from the Mix build. Select it with `STRUO_CACHE_PROVIDER=tuist-oci`.
 [infrastructures.tuist-oci]
 kind = "tuist"
 account = "tuist"

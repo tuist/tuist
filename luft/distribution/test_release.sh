@@ -36,27 +36,27 @@ cmp "$ROOT/gpui/resources/icon.png" "$temp/icon.png"
 test "$(od -An -tx1 -N6 "$temp/icon.ico" | tr -d ' \n')" = 000001000100
 echo 'PASS brand PNG retained in ICO'
 
-yq -p toml -o json '.' "$ROOT/once.toml" | toml | yq -p toml -o json '.' > "$temp/roundtrip"
-yq -p toml -o json '.' "$ROOT/once.toml" > "$temp/original"
+yq -p toml -o json '.' "$ROOT/struo.toml" | toml | yq -p toml -o json '.' > "$temp/roundtrip"
+yq -p toml -o json '.' "$ROOT/struo.toml" > "$temp/original"
 jq -en --slurpfile original "$temp/original" --slurpfile roundtrip "$temp/roundtrip" '$original == $roundtrip' >/dev/null
 echo 'PASS TOML source mappings round-trip'
 
-pin=$(yq -p toml -r '.tools."github:tuist/once"' "$ROOT/mise.toml")
+pin=$(yq -p toml -r '.tools."github:tuist/struo"' "$ROOT/mise.toml")
 # shellcheck disable=SC2016
-printf '#!/usr/bin/env bash\nprintf "once %%s\\n" "${TEST_ONCE_VERSION}"\n' > "$temp/bin/once"
+printf '#!/usr/bin/env bash\nprintf "struo %%s\\n" "${TEST_STRUO_VERSION}"\n' > "$temp/bin/struo"
 printf '#!/usr/bin/env bash\necho "cargo-packager 0.11.7"\n' > "$temp/bin/cargo-packager"
 chmod +x "$temp/bin/"*
-PATH="$temp/bin:$PATH" TEST_ONCE_VERSION="$pin" check_tools
-if (PATH="$temp/bin:$PATH" TEST_ONCE_VERSION=0.75.0 check_tools) >/dev/null 2>&1; then fail 'Accepted obsolete Once version'; fi
+PATH="$temp/bin:$PATH" TEST_STRUO_VERSION="$pin" check_tools
+if (PATH="$temp/bin:$PATH" TEST_STRUO_VERSION=0.75.0 check_tools) >/dev/null 2>&1; then fail 'Accepted obsolete Struo version'; fi
 echo 'PASS packaging agrees with mise pin and rejects stale tool'
 
-cat > "$temp/bin/once" <<'ONCE'
+cat > "$temp/bin/struo" <<'STRUO'
 #!/usr/bin/env bash
 set -euo pipefail
-if test "$1" = --version; then printf 'once %s\n' "$TEST_ONCE_VERSION"; exit; fi
+if test "$1" = --version; then printf 'struo %s\n' "$TEST_STRUO_VERSION"; exit; fi
 test "$1 $2" = 'test --all'
-yq -p toml -o json '.' once.toml | jq -e '
-    .workspace.include == ["once.toml"] and (has("modules") | not) and
+yq -p toml -o json '.' struo.toml | jq -e '
+    .workspace.include == ["struo.toml"] and (has("modules") | not) and
     (.target | length == 1) and .target[0].name == "LuftDesktop" and
     .target[0].kind == "cargo_workspace" and
     .target[0].attrs.resolver_inputs == ["Cargo.toml", "Cargo.lock", "gpui/Cargo.toml", "crates/*/Cargo.toml"]' >/dev/null
@@ -65,10 +65,10 @@ test ! -d native-dependencies && test ! -d modules && test ! -d android
 printf 'PASS isolated desktop packaging workspace\n' > "$TEST_PACKAGING_MARKER"
 # Stop before compilation/packaging; the real build must propagate this failure.
 exit 73
-ONCE
+STRUO
 # Do not invoke build in an if-condition: Bash would disable its errexit handling.
 set +e
-(set -e; PATH="$temp/bin:$PATH" TEST_ONCE_VERSION="$pin" TEST_PACKAGING_MARKER="$temp/staged" build "$temp/package" false)
+(set -e; PATH="$temp/bin:$PATH" TEST_STRUO_VERSION="$pin" TEST_PACKAGING_MARKER="$temp/staged" build "$temp/package" false)
 status=$?
 set -e
 test "$status" = 73 || fail 'Packaging failed before reaching the isolated graph test'

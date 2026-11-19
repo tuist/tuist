@@ -145,7 +145,7 @@ defmodule Tuist.Threads.SandboxTest do
     assert :ok = Sandbox.stop_process(sandbox, id)
   end
 
-  test "a Once run's progress reaches the run's Bash call once per change", %{record: record} do
+  test "a Struo run's progress reaches the run's Bash call once per change", %{record: record} do
     run = %{id: "run-1", thread_id: "thread-1", attempt: 1}
 
     {:ok, sandbox} =
@@ -170,10 +170,10 @@ defmodule Tuist.Threads.SandboxTest do
     end
 
     # Each line on stdin makes the command append the next snapshot, as
-    # Once does while it runs.
+    # Struo does while it runs.
     script = """
     for line in '#{snapshot.(1, 10)}' '#{snapshot.(1, 20)}' '#{snapshot.(2, 30)}'; do
-      printf '%s\\n' "$line" >> "$ONCE_PROGRESS"; echo step; read -r _
+      printf '%s\\n' "$line" >> "$STRUO_PROGRESS"; echo step; read -r _
     done
     """
 

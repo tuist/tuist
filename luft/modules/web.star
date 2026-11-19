@@ -7,7 +7,7 @@
 #   package-lock.json) and bundles the TypeScript edge with Vite, pointing its
 #   `luft-core` import at the bindings through LUFT_CORE_DIR.
 #
-# Once's javascript_build only accepts React Native dependency sets, hence
+# Struo's javascript_build only accepts React Native dependency sets, hence
 # these kinds.
 
 def _host_tool(ctx, name):

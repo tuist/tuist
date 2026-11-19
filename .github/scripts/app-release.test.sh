@@ -75,7 +75,7 @@ def triggers(path):
 
 for path in ["luft/gpui/src/main.rs", "luft/crates/core/src/lib.rs",
              "luft/apple/Sources/AppWorkspace.swift", "luft/android/src/dev/tuist/guild/MainActivity.kt",
-             "luft/once.toml", "luft/mise.toml", "luft/README.md"]:
+             "luft/struo.toml", "luft/mise.toml", "luft/README.md"]:
     assert not triggers(path), f"Luft triggers shipping release: {path}"
     assert not releases(path), path
 

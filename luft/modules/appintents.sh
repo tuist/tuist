@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Adds the App Intents metadata that Shortcuts, Siri and the Action button read.
-# Once does not run Xcode's metadata step, so this compiles the self-contained
+# Struo does not run Xcode's metadata step, so this compiles the self-contained
 # intents source for its constant values and runs Apple's processor on it.
 set -euo pipefail
 

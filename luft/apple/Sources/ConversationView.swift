@@ -32,7 +32,7 @@ struct AppMessage: Decodable, Identifiable {
     /// The plan the agent shares with `update_progress`, counted by the Rust core;
     /// `content` is the plan as a checklist.
     var progress: AppProgress?
-    /// A Bash call's Once build or test progress, presented by the Rust core;
+    /// A Bash call's Struo build or test progress, presented by the Rust core;
     /// `content` says it in words.
     var build: AppBuild?
     var toolResult: AppToolResult?
@@ -68,7 +68,7 @@ struct AppBuild: Decodable {
     let failed: Int
     /// Case counts, once a case ran.
     let tests: Tests?
-    /// The share of planned targets done, once Once planned them.
+    /// The share of planned targets done, once Struo planned them.
     let fraction: Double?
     /// A target or test case failed.
     let failing: Bool
@@ -904,7 +904,7 @@ struct ToolCallRow: View {
     }
 }
 
-/// A Once build or test a Bash call runs: what it builds, how many of its
+/// A Struo build or test a Bash call runs: what it builds, how many of its
 /// planned targets are done and, for tests, how the cases went.
 private struct BuildProgressView: View {
     let build: AppBuild
@@ -912,7 +912,7 @@ private struct BuildProgressView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(build.command == "test" ? LocalizedStringKey("Testing with Once") : LocalizedStringKey("Building with Once"))
+                Text(build.command == "test" ? LocalizedStringKey("Testing with Struo") : LocalizedStringKey("Building with Struo"))
                     .font(.caption.weight(.medium)).foregroundStyle(Noora.labelPrimary)
                 if let target = build.target, !target.isEmpty {
                     Text(verbatim: target).font(.caption.monospaced()).foregroundStyle(Noora.labelSecondary)

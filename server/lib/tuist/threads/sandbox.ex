@@ -30,7 +30,7 @@ defmodule Tuist.Threads.Sandbox do
   a command ends within the run that started it, and `:run` (`id`,
   `thread_id` and `attempt`), the run whose Bash calls' build and test
   progress reading a command records (`Threads.record_build_progress/3`):
-  every command sets `ONCE_PROGRESS`, so a Once build or test in it reports
+  every command sets `STRUO_PROGRESS`, so a Struo build or test in it reports
   as it goes; and `:progress_interval` (default 1000), how many milliseconds
   a reading process waits before reporting an unchanged snapshot again.
 
@@ -383,11 +383,11 @@ defmodule Tuist.Threads.Sandbox do
 
   # A Bash call's process id ends in the model's id for the call
   # (`Condukt.Tools.Bash.process_id/2`, with the run's session id), which is
-  # how the build progress a Once run in it reported finds the call.
+  # how the build progress a Struo run in it reported finds the call.
   # Progress is best effort: failing to record it must not fail reading the
   # command, which the Bash tool and its watcher depend on.
   #
-  # A command's watcher reads it every few hundred milliseconds, and Once
+  # A command's watcher reads it every few hundred milliseconds, and Struo
   # rewrites its snapshot at most once a second, mostly with only the clock
   # moved on, so the reading process skips a snapshot it reported less than
   # `:progress_interval` milliseconds ago. Reporting it again soon after

@@ -13,7 +13,7 @@
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-For Apple previews, the Tuist macOS menu bar app is an alternative to the CLI, whether the build came from Xcode, Bazel, or Once. The publication workflow's signing and eligibility requirements still apply.
+For Apple previews, the Tuist macOS menu bar app is an alternative to the CLI, whether the build came from Xcode, Bazel, or Struo. The publication workflow's signing and eligibility requirements still apply.
 
 ## Install {#install}
 

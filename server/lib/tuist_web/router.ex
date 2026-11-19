@@ -487,6 +487,11 @@ defmodule TuistWeb.Router do
     pipe_through [:marketing_markdown]
 
     redirect("/marketing-markdown/compute", "/marketing-markdown/runners", :permanent, preserve_query_string: true)
+    redirect("/build-systems/once", "/build-systems/struo", :permanent, preserve_query_string: true)
+
+    redirect("/marketing-markdown/build-systems/once", "/marketing-markdown/build-systems/struo", :permanent,
+      preserve_query_string: true
+    )
   end
 
   scope "/", TuistWeb do
@@ -866,6 +871,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/struo", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/tuist.json", WellKnownController, :tuist_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association

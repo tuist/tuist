@@ -51,6 +51,8 @@ defmodule TuistWeb.OnceCacheLiveTest do
     {:ok, view, _} = live(conn, path)
     render_async(view, 2_000)
 
+    assert render(view) =~ "Struo Cache"
+    refute render(view) =~ "Once Cache"
     assert has_element?(view, "#once-cache-analytics-chart")
     refute has_element?(view, "#once-cache-hit-rate-scatter-chart")
 

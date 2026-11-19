@@ -140,7 +140,7 @@ msgstr ""
 #: lib/tuist_web/live/mix_overview_live.html.heex:120
 #: lib/tuist_web/live/mix_overview_live.html.heex:173
 #: lib/tuist_web/live/mix_overview_live.html.heex:224
-#: lib/tuist_web/live/once_overview_live.ex:199
+#: lib/tuist_web/live/once_overview_live.ex:201
 #: lib/tuist_web/live/once_runs_live.ex:1102
 #: lib/tuist_web/live/once_tests_live.ex:230
 #: lib/tuist_web/live/test_runs_live.ex:352
@@ -2333,11 +2333,6 @@ msgstr ""
 msgid "Number of test cases that both passed and failed."
 msgstr ""
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:90
-#, elixir-autogen, elixir-format
-msgid "Once version"
-msgstr ""
-
 #: lib/tuist_web/helpers/test_labels.ex:44
 #: lib/tuist_web/live/coverage_detail_live.ex:555
 #: lib/tuist_web/live/coverage_detail_live.html.heex:536
@@ -2629,11 +2624,6 @@ msgstr ""
 #: lib/tuist_web/live/once_test_run_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Interrupted"
-msgstr ""
-
-#: lib/tuist_web/live/once_test_run_live.ex:146
-#, elixir-autogen, elixir-format
-msgid "Once stopped reporting before this run finished"
 msgstr ""
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:69
@@ -3309,4 +3299,14 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.ex:620
 #, elixir-autogen, elixir-format
 msgid "pull request #%{number}"
+msgstr ""
+
+#: lib/tuist_web/live/once_test_run_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Struo stopped reporting before this run finished"
+msgstr ""
+
+#: lib/tuist_web/live/once_test_run_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Struo version"
 msgstr ""

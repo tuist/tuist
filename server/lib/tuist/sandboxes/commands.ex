@@ -96,9 +96,10 @@ defmodule Tuist.Sandboxes.Commands do
                   }
                   FEED
                   unset TUIST_COMMAND TUIST_STDIN TUIST_CWD
-                  # Once appends its run's progress here (`read/3` returns the last line).
-                  : "${ONCE_PROGRESS:=$d/once-progress.jsonl}"
-                  export ONCE_PROGRESS
+                  # Both clients append progress here (`read/3` returns the last line).
+                  : "${STRUO_PROGRESS:=$d/struo-progress.jsonl}"
+                  : "${ONCE_PROGRESS:=$d/struo-progress.jsonl}"
+                  export STRUO_PROGRESS ONCE_PROGRESS
                   perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' \
                     /bin/bash -c 'echo $$ > "$1/pid"; perl "$1/feed.pl" "$1" | /bin/bash -l "$1/command" > "$1/stdout" 2> "$1/stderr"; echo $? > "$1/exit_code.tmp"; mv "$1/exit_code.tmp" "$1/exit_code"' _ "$d" \
                     < /dev/null > /dev/null 2>&1 &
@@ -112,8 +113,8 @@ defmodule Tuist.Sandboxes.Commands do
 
   # Prints `<state> <exit code or -> <stdout size> <stderr size> <reason or ->
   # <progress or ->` on the first line, then the stdout chunk; the stderr chunk
-  # goes to stderr. Progress is the base64 of the last line Once appended to
-  # the command's `ONCE_PROGRESS` file, its build or test run so far.
+  # goes to stderr. Progress is the base64 of the last line Struo appended to
+  # the command's `STRUO_PROGRESS` file, its build or test run so far.
   # The exit code is checked before the sizes are taken, so a finished
   # command's last read holds all of its output.
   @read_script @dir <>
@@ -144,8 +145,10 @@ defmodule Tuist.Sandboxes.Commands do
                  reason=-
                  [ -s "$d/killed" ] && reason=$(cat "$d/killed")
                  progress=-
-                 if [ -s "$d/once-progress.jsonl" ]; then
-                   progress=$(tail -n 1 "$d/once-progress.jsonl" | head -c 8192 | base64 | tr -d '\n')
+                 progress_file="$d/struo-progress.jsonl"
+                 [ -s "$progress_file" ] || progress_file="$d/once-progress.jsonl"
+                 if [ -s "$progress_file" ]; then
+                   progress=$(tail -n 1 "$progress_file" | head -c 8192 | base64 | tr -d '\n')
                    [ -n "$progress" ] || progress=-
                  fi
                  echo "$state $code $so $se $reason $progress"
