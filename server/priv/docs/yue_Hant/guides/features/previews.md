@@ -2,7 +2,7 @@
 {
   "title": "Previews",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "透過 Tuist Previews 分享流動應用程式、桌面應用程式和命令列工具，讓團隊成員無需在本機重新編譯即可試用構建版本。"
+  "description": "透過 Tuist Previews 分享流動應用程式、桌面應用程式及命令列工具，讓團隊成員無需在本機重新編譯即可試用建構版本。"
 }
 ---
 # Previews {#previews}
@@ -24,12 +24,12 @@ Tuist Previews 讓團隊成員無需在本機重新建構，即可試用流動�
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="從現有的 Xcode 專案或 Tuist 生成的專案中分享應用程式。"
+    details="從現有的 Xcode 專案或 Tuist 產生的專案分享應用程式。"
     link="/guides/features/previews/xcode"
   />
   <.home_card
     title="Gradle"
-    details="從 Gradle 專案中分享 Android 應用程式和原生命令列工具。"
+    details="從 Gradle 專案分享 Android 應用程式和原生命令列工具。"
     link="/guides/features/previews/gradle"
   />
   <.home_card
@@ -38,13 +38,13 @@ Tuist Previews 讓團隊成員無需在本機重新建構，即可試用流動�
     link="/guides/features/previews/bazel"
   />
   <.home_card
-    title="Once"
-    details="使用 Once 的原生構件提供者發布符合條件的 Android、Apple 模擬器和 macOS 應用程式。"
-    link="/guides/features/previews/once"
+    title="Struo"
+    details="使用 Struo 的原生構件提供者發布符合條件的 Android、Apple 模擬器和 macOS 應用程式。"
+    link="/guides/features/previews/struo"
   />
 </.home_cards>
 
-如果你已有支援的建構，請使用<.localized_link href="/cli/share">`tuist share`</.localized_link>在無需建構系統整合的情況下發布它。打包和簽署要求仍然適用。
+如果你已經有支援的建構，請使用<.localized_link href="/cli/share">`tuist share`</.localized_link>在沒有建構系統整合的情況下發布它。打包和簽署要求仍然適用。
 
 ## 運行預覽 {#run-a-preview}
 
@@ -70,11 +70,11 @@ Tuist Previews 讓團隊成員無需在本機重新建構，即可試用流動�
 
 ## 可見性 {#visibility}
 
-預覽使用專案的默認可見性。私人預覽需要身份驗證和專案存取權限。僅在建構可以與任何人分享時，才在專案設定中將預覽設為公開。公開可見性不會繞過平台簽署或裝置安裝要求。
+預覽使用專案的默認可見性。私人預覽需要驗證和專案存取權限。僅在建構可以與任何人分享時，才在專案設定中將預覽設為公開。公開可見性不會繞過平台簽署或裝置安裝要求。
 
-## 軌道 {#tracks}
+## 追蹤 {#tracks}
 
-軌道將預覽組織成命名群組，例如`beta`用於內部測試人員，或`nightly`用於自動建構。在你的工作流程中使用發布命令指定軌道；軌道會在首次使用時懶加載創建。使用它們按目的分組預覽，並在 Tuist 儀表板中過濾預覽。
+追蹤將預覽組織成命名群組，例如`beta`用於內部測試人員，或`nightly`用於自動化建構。在你的工作流程中使用發布命令指定追蹤；追蹤會在首次使用時惰性建立。使用它們按目的分組預覽，並在 Tuist 儀表板中過濾預覽。
 
 ## README 徽章 {#readme-badge}
 
@@ -88,7 +88,7 @@ Tuist Previews 讓團隊成員無需在本機重新建構，即可試用流動�
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-如果專案包含多個具有不同捆綁標識符的應用程式，請添加`bundle-id`查詢參數以選擇應用程式：
+如果專案包含多個具有不同 bundle identifier 的應用程式，請添加`bundle-id`查詢參數以選擇應用程式：
 
 ```markdown
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)

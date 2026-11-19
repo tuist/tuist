@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "137ccb154f53ab6ec4c873ce8dee96951d35bd544d597d2d58af3c06dccdc826",
+  "hash": "e985183bd535419fa40e52050b74ccb766f92a8eb611f56b85abae0f7c15848f",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Run previews with the macOS app": {
-                  "content_hash": "48ce19cbe8e407497142dcc8ce81522e3f35c83aecf87d23167d8aa7fb15868c"
+                  "content_hash": "2a78086305e71f8ed0bdb1fd672c970add2f28a74280c59b6268985e7a77d0b9"
                 },
                 "## Install {#install}": {
                   "content_hash": "2a4383244689640d8d9cb5ce00af52f433864b558334a683e74bf894a940b44f"
@@ -26,11 +26,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "5288c9eae875ed94a5c345bbb675035aeab33dbb334d19b10b1f05cc548eed0a",
+          "hash": "818ee31247212f6db619ecbe07dbd69de5d6204c85779de4d077524f6091a613",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/previews/run/macos.md",
           "metadata": {
-            "content_hash": "6e573cc6ccddb65115df7f2a4274bee36bbb0ede7b2556e87a74b08e086ffa9d"
+            "content_hash": "fed4a9737154ee14fb38fd8b1cb463d74ec03c4e5c4d39269349acbbf8b89375"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "137ccb154f53ab6ec4c873ce8dee96951d35bd544d597d2d58af3c06dccdc826",
+      "hash": "e985183bd535419fa40e52050b74ccb766f92a8eb611f56b85abae0f7c15848f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews/run/macos.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "23f4087580f5eb640bbd5e45108025fb9608c4cc50e29b7efd85e2ac6da90a36",
+  "output_hash": "17986a7237f6e999049db5f93ddcbf4a33e6b43e8c8c1d22814405424f5c3f5a",
   "output_path": "server/priv/docs/ko/guides/features/previews/run/macos.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
+  "source_commit_sha": "8b13b6c82d496e754cd7c67293a058ebac875cc8",
   "source_path": "server/priv/docs/en/guides/features/previews/run/macos.md",
-  "translated_at": "2026-11-18T21:31:30.941421Z",
-  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
+  "translated_at": "2026-11-19T08:27:33.389615Z",
+  "translation_session_id": "01a1f2e9-438a-7123-b43c-39b0601399d6"
 }

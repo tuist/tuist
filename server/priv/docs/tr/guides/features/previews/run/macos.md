@@ -13,7 +13,7 @@
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Apple önizlemeleri için, Tuist macOS menü çubuğu uygulaması CLI'ye bir alternatiftir; derleme Xcode, Bazel veya Once'dan gelmiş olabilir. Yayınlama iş akışının imzalama ve uygunluk gereksinimleri yine de geçerlidir.
+Apple önizlemeleri için Tuist macOS menü çubuğu uygulaması, derleme Xcode, Bazel veya Struo'dan gelmiş olsun CLI'ye bir alternatiftir. Yayınlama iş akışının imzalama ve uygunluk gereksinimleri hâlâ geçerlidir.
 
 ## Yükleme {#install}
 
@@ -21,8 +21,8 @@ Apple önizlemeleri için, Tuist macOS menü çubuğu uygulaması CLI'ye bir alt
 
 ## Derleme çalıştırma {#run-a-build}
 
-Menü çubuğu uygulamasında uyumlu bir cihaz veya simülatör seçin, ardından önizleme sayfasında **Çalıştır** düğmesine tıklayın.
+Menü çubuğu uygulamasında uyumlu bir cihaz veya simülatör seçin, ardından bir önizleme sayfasında **Çalıştır** düğmesine tıklayın.
 
-macOS uygulaması öncelikle uygulama başına en son uyumlu önizlemeyi ister. Platform filtrelerini uygulamadan önce farklı uygulamaları seçen eski sunucularda, mevcut bir derlemeyi gizleyebilecek bir kesim uygulamaksızın sayfalandırılmış geçmişe geri döner.
+macOS uygulaması önce uygulama başına en son uyumlu önizlemeyi ister. Platform filtrelerini uygulamadan önce farklı uygulamaları seçen eski sunucularda, mevcut bir derlemeyi gizleyebilecek bir kesim uygulamadan sayfalanmış geçmişe geri döner.
 
-Erişim ve düzenleme için bkz. <.localized_link href="/guides/features/previews#visibility">görünürlük ve izler</.localized_link>.
+Erişim ve organizasyon için bkz. <.localized_link href="/guides/features/previews#visibility">görünürlük ve kanallar</.localized_link>.

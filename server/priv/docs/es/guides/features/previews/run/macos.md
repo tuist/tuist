@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Ejecutar previsualizaciones con la app de macOS",
+  "title": "Ejecuta vistas previas con la app de macOS",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Usa la app de barra de menús de Tuist para macOS para ejecutar previsualizaciones compatibles de Apple en dispositivos y simuladores."
+  "description": "Usa la app de barra de menús de Tuist para macOS para ejecutar vistas previas compatibles de Apple en dispositivos y simuladores."
 }
 ---
-# Ejecuta previews con la app de macOS
+# Ejecuta previsualizaciones con la app de macOS
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
@@ -13,16 +13,16 @@
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Para los previews de Apple, la app de barra de menús de Tuist para macOS es una alternativa a la CLI, independientemente de si la compilación proviene de Xcode, Bazel o Once. Siguen aplicándose los requisitos de firma y elegibilidad del flujo de publicación.
+Para las previsualizaciones en Apple, la app de barra de menús de Tuist para macOS es una alternativa a la CLI, independientemente de si la compilación proviene de Xcode, Bazel o Struo. Siguen aplicándose los requisitos de firma y elegibilidad del flujo de publicación.
 
-## Instalar {#install}
+## Instalación {#install}
 
 [Descarga la app](https://tuist.dev/download) o instálala con `brew install --cask tuist/tuist/tuist`.
 
 ## Ejecutar una compilación {#run-a-build}
 
-Selecciona un dispositivo o simulador compatible en la app de la barra de menús y, a continuación, haz clic en **Ejecutar** en la página del preview.
+Selecciona un dispositivo o simulador compatible en la app de la barra de menús y luego haz clic en **Ejecutar** en la página de previsualización.
 
-La app de macOS solicita primero el preview compatible más reciente por cada app. En servidores antiguos que seleccionan apps distintas antes de aplicar filtros de plataforma, recurre al historial paginado sin imponer un límite que pueda ocultar una compilación disponible.
+La app de macOS solicita primero la previsualización compatible más reciente por app. En servidores antiguos que seleccionan apps distintas antes de aplicar filtros de plataforma, recurre al historial paginado sin imponer un límite que pueda ocultar una compilación disponible.
 
-Para gestionar el acceso y la organización, consulta <.localized_link href="/guides/features/previews#visibility">visibilidad y tracks</.localized_link>.
+Para el acceso y la organización, consulta <.localized_link href="/guides/features/previews#visibility">visibilidad y tracks</.localized_link>.

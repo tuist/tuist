@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1422e037550f4d6e7d6c18849b7c3186aff7962f766a8d464080c7161e5bbf5d",
+  "hash": "9bf02381c35b47ce274ed5d28637a89a1b3b68b07515b0b5c11ad8a43c85e2d9",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "62d56eced070731d92c41f54dcf605e9f5693c282c671be24d7eb7b4c4b50add"
                 },
                 "## Mobile apps {#mobile-apps}": {
-                  "content_hash": "427c0ee0a5499829b2f8dc3765e862bf9adb8bcb40fbc0db03e86acdf71b0c15"
+                  "content_hash": "bf3e7596867b3ff83fbc902f7951a7d8d4c17e4e18acbedbeec4ef26c4d697f2"
                 },
                 "## Multiple CLI targets {#multiple-cli-targets}": {
                   "content_hash": "c0f7187844131da9348226f5594fb6ca90c30e500466a5f707a289a74fdd2104"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "aaef61a3f8124da03cd687b003f49c9506ad9e35692ac2973228bae163fcedc8",
+          "hash": "625c50ad9b777756c80abac4ff84eddf2132f31f6524ec5a101c0aff7e354d57",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/previews/types.md",
           "metadata": {
-            "content_hash": "b15efa3ff77f9de91d489584a4c7f0d36afb3c71553a8ed0fd660c15fae21517"
+            "content_hash": "5897c9f162b480c290028d05a60c34c26e87c2457845b436ef05bfb5951772af"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "1422e037550f4d6e7d6c18849b7c3186aff7962f766a8d464080c7161e5bbf5d",
+      "hash": "9bf02381c35b47ce274ed5d28637a89a1b3b68b07515b0b5c11ad8a43c85e2d9",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews/types.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f26939a7d85af5f922cd8ae2e62d14b498f0aa6d69067d9b690317f7d21f8117",
+  "output_hash": "39882e8c3479027f7df684ebc359bbb079513b70768b7d96ce46472c30b02c99",
   "output_path": "server/priv/docs/es/guides/features/previews/types.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
+  "source_commit_sha": "8b13b6c82d496e754cd7c67293a058ebac875cc8",
   "source_path": "server/priv/docs/en/guides/features/previews/types.md",
-  "translated_at": "2026-11-18T21:31:51.495644Z",
-  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
+  "translated_at": "2026-11-19T08:28:11.509180Z",
+  "translation_session_id": "01a1f2e9-438a-7123-b43c-39b0601399d6"
 }

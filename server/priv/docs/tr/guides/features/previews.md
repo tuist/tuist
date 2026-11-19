@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Önizlemeler",
+  "title": "Previews",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "Mobil uygulamaları, masaüstü uygulamalarını ve komut satırı araçlarını Tuist Önizlemeler ile paylaşın; böylece ekip arkadaşlarınız bir derlemeyi yerel olarak yeniden derlemeden deneyebilir."
+  "description": "Mobil uygulamaları, masaüstü uygulamalarını ve komut satırı araçlarını Tuist Previews ile paylaşın; böylece ekip arkadaşlarınız bir derlemeyi yerel olarak yeniden derlemeden deneyebilir."
 }
 ---
 # Önizlemeler {#previews}
@@ -13,7 +13,7 @@ Tuist Önizlemeleri, ekip arkadaşlarınızın mobil uygulamaları, masaüstü u
 
 - **Mobil uygulamalar:** Android APK'ları ve Apple uygulama paketleri veya IPA dosyaları. Desteklenen cihazlar, simülatörler ve imzalama gereksinimleri yayınlama iş akışına bağlıdır.
 - **Masaüstü uygulamaları:** macOS uygulama paketleri.
-- **Komut satırı araçları:** tek başına veya bağımlılıklarıyla birlikte paketlenmiş macOS veya Linux çalıştırılabilir dosyaları.
+- **Komut satırı araçları:** macOS veya Linux çalıştırılabilir dosyaları; tek başlarına veya bağımlılıklarıyla birlikte paketlenmiş olarak.
 
 Paketleme ve uyumluluk gereksinimleri için <.localized_link href="/guides/features/previews/types">Desteklenen türler</.localized_link> bölümüne bakın. Yapıt türü, bir önizlemenin nerede çalışabileceğini belirler; hangi derleme sisteminin onu ürettiğini dikte etmez.
 
@@ -34,17 +34,17 @@ Kurulum ve yayınlama komutları için derleme sisteminizi seçin:
   />
   <.home_card
     title="Bazel"
-    details="Eşlik eden Bazel kurallarıyla Android uygulamalarını, Apple uygulamalarını ve komut satırı araçlarını paylaşın."
+    details="Android uygulamalarını, Apple uygulamalarını ve komut satırı araçlarını eşlik eden Bazel kurallarıyla paylaşın."
     link="/guides/features/previews/bazel"
   />
   <.home_card
-    title="Once"
-    details="Once'ın yerel yapıt sağlayıcısıyla uygun Android, Apple simülatörü ve macOS uygulamalarını yayınlayın."
-    link="/guides/features/previews/once"
+    title="Struo"
+    details="Uygun Android, Apple simülatörü ve macOS uygulamalarını Struo'nun yerel yapıt sağlayıcısıyla yayınlayın."
+    link="/guides/features/previews/struo"
   />
 </.home_cards>
 
-Zaten desteklenen bir derlemeniz varsa, bunu bir derleme sistemi entegrasyonu olmadan yayınlamak için <.localized_link href="/cli/share">`tuist share`</.localized_link> kullanın. Paketleme ve imzalama gereksinimleri hala geçerlidir.
+Zaten desteklenen bir derlemeniz varsa, bunu bir derleme sistemi entegrasyonu olmadan yayınlamak için <.localized_link href="/cli/share">`tuist share`</.localized_link> kullanın. Paketleme ve imzalama gereksinimleri yine de geçerlidir.
 
 ## Bir önizlemeyi çalıştır {#run-a-preview}
 
@@ -70,19 +70,19 @@ Alıcıların, önizlemeyi üreten derleme sistemine ihtiyacı yoktur. Uyumlu bi
 
 ## Görünürlük {#visibility}
 
-Önizlemeler, projenin varsayılan görünürlüğünü kullanır. Özel önizlemeler kimlik doğrulama ve proje erişimi gerektirir. Derleme herkesle paylaşılabiliyorsa, önizlemeleri proje ayarlarında yalnızca o zaman herkese açık yapın. Herkese açık görünürlük, platform imzalama veya cihaz kurulum gereksinimlerini atlamaz.
+Önizlemeler, projenin varsayılan görünürlüğünü kullanır. Özel önizlemeler kimlik doğrulama ve proje erişimi gerektirir. Önizlemeleri proje ayarlarında yalnızca derleme herkesle paylaşılabiliyorsa herkese açık yapın. Herkese açık görünürlük, platform imzalama veya cihaz kurulum gereksinimlerini atlamaz.
 
-## İzler {#tracks}
+## Kanallar {#tracks}
 
-İzler, önizlemeleri adlandırılmış gruplar halinde düzenler; örneğin dahili test kullanıcıları için `beta` veya otomatik derlemeler için `nightly`. İş akışınız için yayınlama komutuyla bir iz belirtin; izler ilk kullanıldığında tembel olarak oluşturulur. Bunları önizlemeleri amaca göre gruplandırmak ve Tuist kontrol panelinde önizlemeleri filtrelemek için kullanın.
+Kanallar, önizlemeleri adlandırılmış gruplara düzenler; örneğin dahili testçiler için `beta` veya otomatik derlemeler için `nightly`. İş akışınız için yayınlama komutuyla bir kanal belirtin; kanallar ilk kullanıldığında tembel olarak oluşturulur. Bunları önizlemeleri amaca göre gruplandırmak ve Tuist panosunda önizlemeleri filtrelemek için kullanın.
 
 ## README rozeti {#readme-badge}
 
-En son önizlemeye işaret eden bir rozeti deponuzun `README` dosyasına ekleyin:
+En son önizlemeye işaret eden bir rozeti depo `README` dosyanıza ekleyin:
 
 [![Tuist Önizlemesi](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-Hesap ve proje tanıtıcılarını kendi tanıtıcılarınızla değiştirin:
+Hesap ve proje tutamaçlarını kendi bilgilerinizle değiştirin:
 
 ```markdown
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7f7b486186df80be3a3d494240eac7fa4dab113ccddc4714714e2369485940b4",
+  "hash": "3e2d697b9145770ad13617f83025665bd7aca553ed167c180c4d21576d5fa64f",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "08611397cfff9507fb1c3240272baf78c413d464c8cc576d48ef53c5d09974ce"
                 },
                 "## Publish a preview {#publish-a-preview}": {
-                  "content_hash": "1009176872a57e00034b2ab678d4ae47f27a772b5a9ef328ea3dec025d685b73"
+                  "content_hash": "98800f8497dbe44f01210c387811905f5b3db1d890a87f47cfcd55e3abd8bb97"
                 },
                 "## README badge {#readme-badge}": {
                   "content_hash": "8a32d12424bb1b06ce04447f60f0580a22eaf0b515034f73efc7ac9cddbbadb6"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1e76d921f461685869e32a7c52757fdc824ae2c4115f32f394522799345d74d6",
+          "hash": "c076c797902c2e04e15f7a5d7dbccd1b5ad1cbef3a1a5ea8fe7771082ee09f12",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/previews.md",
           "metadata": {
-            "content_hash": "07f4bbad93cb72cdbb5cf7b1f8fdc81cd49139e22c6e9a6c3705811464b2f863"
+            "content_hash": "d4fedce4a14503f4fda590d2730226ccc2f8ce4a2c2b36357d9893b446e6c26c"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "7f7b486186df80be3a3d494240eac7fa4dab113ccddc4714714e2369485940b4",
+      "hash": "3e2d697b9145770ad13617f83025665bd7aca553ed167c180c4d21576d5fa64f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ca39830f05da38dc662a95680e8a25b1c975bcb41de7ffc2e287589a26f9369c",
+  "output_hash": "c0d31e8e6d8db14596850dcf9219eb8443fd32ced96db71dc7b20f29323b48c4",
   "output_path": "server/priv/docs/zh_Hans/guides/features/previews.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
+  "source_commit_sha": "8b13b6c82d496e754cd7c67293a058ebac875cc8",
   "source_path": "server/priv/docs/en/guides/features/previews.md",
-  "translated_at": "2026-11-18T21:23:06.060651Z",
-  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
+  "translated_at": "2026-11-19T08:27:33.147709Z",
+  "translation_session_id": "01a1f2e9-438a-7123-b43c-39b0601399d6"
 }

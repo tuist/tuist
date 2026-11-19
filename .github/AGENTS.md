@@ -414,10 +414,12 @@ their target does; see `server/docs/coverage-test-selection.md`), and
 `coverage-complete` runs `tuist coverage complete` once all three finished,
 whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
-and the CLI session logs when it fails, then the unit, app and acceptance tests run in full
-(`--no-selective-testing`), so every measured merge is a complete baseline for
-coverage-based test selection, and `coverage-complete`
-follows when unit and app passed and the acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
+and the CLI session logs when it fails, then the unit, app and acceptance tests run
+selectively, like a pull request, and `coverage-complete`
+follows when unit and app passed and the acceptance run has finished. A nightly
+scheduled run tests main's head in full (`--no-selective-testing`) off the macOS
+peak, so coverage-based test selection always has a checkpoint at most a day old;
+keep at least one full run a day, because selection reads checkpoints only from full runs. The unit, app and acceptance tests record per-target evidence,
 which the CLI reads from Xcode's raw profiles: the server carries
 targets selective testing skipped only from runs that recorded evidence under
 the same hash: main's full runs
@@ -430,7 +432,9 @@ those tests still carry one by one from the latest run whose executed files
 match, and so do tests skipped by identifier (`--skip-test-targets`,
 `-skip-testing`). Acceptance and Swift Testing tests have no per-test evidence,
 so in those cases they stay gaps (`not_linked`).
-Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
+Quarantined tests are outside the figure either way. On main a run in progress
+finishes and only the newest push waits behind it, so pushes in between are never
+run and their changes land in the next run's diff; a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
 commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1

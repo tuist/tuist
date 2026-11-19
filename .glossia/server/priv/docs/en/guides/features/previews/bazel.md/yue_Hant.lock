@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "673dba2b51380e52cb00faa33808f1fd531b8d89fef707cbdbe9799d19233a40",
+  "hash": "73eb367939a8e882d8a045524f8edabde2717e201d874692413fb7dc8cb66d24",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "16b54e316d1f6b2fa1fe1dad1316ae92f16d009ee53747a00052c65b70d4dad3"
                 },
                 "## Related workflows {#publish-from-once}": {
-                  "content_hash": "0bd3178a22f67de7db0c7776c04d4e4d5ca6035a103c122ac02feaac4f764d1f"
+                  "content_hash": "bbccae5ab9824ffbae7b5f01d5bcd31a305e1da30e34c40d0950f2fbed0dd54c"
                 },
                 "## Setup": {
                   "content_hash": "f57f6db515dfb6dd4111a8dae93b3cbca8e25e4337546fd5bb230f934f98f15c"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0992be69aab913d4336777b2d06ab29c600973f2ea4188af8346535c3093f9d4",
+          "hash": "e8fdc590895c56b8a84a949859093ea961e0c97b5a545e976a7ac1de541656a0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/previews/bazel.md",
           "metadata": {
-            "content_hash": "71028c9afdcb12a0f0f0af08fef4e32a386380c318125cb49841f34108dce85f"
+            "content_hash": "44bae74fbcc32c17fe6465d2b526bacacc716f6a93a05b8ea307a551fbff0e87"
           }
         },
         {
@@ -245,14 +245,14 @@
         }
       ],
       "details": {},
-      "hash": "673dba2b51380e52cb00faa33808f1fd531b8d89fef707cbdbe9799d19233a40",
+      "hash": "73eb367939a8e882d8a045524f8edabde2717e201d874692413fb7dc8cb66d24",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews/bazel.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "4cad10bf44b20ecabc81e23447431cac5fe15ffccaccdc8fbdfccb869aa60590",
+  "output_hash": "f58d10e2f88c8040a9f023cb6fb18569ae28521fc3aef9a7ecef47a8cf0268c1",
   "output_path": "server/priv/docs/yue_Hant/guides/features/previews/bazel.md",
   "protection_state": "recorded",
   "provider": "",
@@ -273,8 +273,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
+  "source_commit_sha": "8b13b6c82d496e754cd7c67293a058ebac875cc8",
   "source_path": "server/priv/docs/en/guides/features/previews/bazel.md",
-  "translated_at": "2026-11-18T21:23:26.940602Z",
-  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
+  "translated_at": "2026-11-19T08:27:33.274470Z",
+  "translation_session_id": "01a1f2e9-438a-7123-b43c-39b0601399d6"
 }
