@@ -406,7 +406,8 @@ func TestWriteImageStreamsToReceiveImage(t *testing.T) {
 		t.Fatal("the received image differs from the master")
 	}
 	var stat unix.Stat_t
-	if err := unix.Stat(dst, &stat); err != nil || stat.Blocks*512 > 2*int64(len(payload))+(1<<20) {
+	// ext4 may preallocate past the written runs, as the restore test allows.
+	if err := unix.Stat(dst, &stat); err != nil || stat.Blocks*512 > 2*int64(len(payload))+(8<<20) {
 		t.Fatalf("the received image allocates %d bytes", stat.Blocks*512)
 	}
 
