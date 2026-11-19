@@ -47,6 +47,7 @@ public enum PackageManifestEnvironment {
         if ["GITHUB_ACTIONS", "RUNNER_OS", "RUNNER_ARCH"].contains(key) { return true }
         guard forDependencyResolution else { return false }
         return [
+            "TUIST_OIDC_TOKEN",
             "SSH_AUTH_SOCK",
             "GITHUB_TOKEN",
             "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
@@ -76,6 +77,11 @@ public enum PackageManifestEnvironment {
             "TUIST_CACHE_SIGNING_GRANT",
             "TUIST_RUNNER_POD_NAME",
             "TUIST_RUNNER_POD_UID",
+            // A Tuist sandbox sets these afresh for every command.
+            "TUIST_COMMAND_ID",
+            "TUIST_OIDC_TOKEN",
+            "STRUO_PROGRESS",
+            "ONCE_PROGRESS",
         ].filter { pattern in variables.keys.contains { matches(key: $0, patterns: [pattern]) } }
 
         if variables["GITLAB_CI"] == "true" {
