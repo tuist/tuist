@@ -37,15 +37,16 @@ registry:
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-  # Point registry's Sentry envelopes at the Registry domain DSN in the
-  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
-  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
-  # item in `tuist-k8s-canary` holding the Registry-domain Hive DSN;
-  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
-  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  # Point registry's Sentry envelopes at the Registry domain DSN of the
+  # Tuist project in the self-hosted Atlas ingest (atlas.tuist.dev); Hive
+  # is retired. Prereq (MUST land before this merges): add a
+  # SENTRY_DSN_REGISTRY_ATLAS field to the REGISTRY 1Password item in
+  # `tuist-k8s-canary` holding that DSN; otherwise the ES sync errors on a
+  # missing remoteRef. The old SENTRY_DSN_REGISTRY_HIVE field stays put
+  # until the Hive cluster is deleted.
   externalSecrets:
     fields:
-      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
+      sentryDsn: SENTRY_DSN_REGISTRY_ATLAS
 
 server:
   # Exercise distribution between real replicas before production promotion.
@@ -450,14 +451,14 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
-      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
-      # `tuist-k8s-canary` holds the Hive DSN under the default
-      # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
-      # remoteRef whose item is missing fails the whole `kura-shared-secrets`
-      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
-      # flip this back to `kura-sentry` and reroll.
-      item: kura-sentry-hive
+      # Points at the self-hosted Atlas ingest (../atlas) so Kura errors land in
+      # the Kura project on atlas.tuist.dev, matching production. The
+      # `kura-sentry-atlas` 1P item in `tuist-k8s-canary` holds the Atlas DSN
+      # under the default `KURA_SENTRY_DSN` field and MUST exist before this
+      # merges; a remoteRef whose item is missing fails the whole
+      # `kura-shared-secrets` sync. The prior `kura-sentry` (hosted sentry.io)
+      # item is kept in the vault as a rollback: flip this back and reroll.
+      item: kura-sentry-atlas
 
 # Only the shared mesh cache pools are listed: every budget here is denominated
 # in their public bandwidth.

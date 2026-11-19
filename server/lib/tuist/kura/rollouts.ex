@@ -1,7 +1,7 @@
 defmodule Tuist.Kura.Rollouts do
   @moduledoc """
   Health-gated progressive rollout of Kura runtime image versions
-  ([spec #79](https://hive.tuist.dev/specs/79)).
+  ([spec #79](https://atlas.tuist.dev/engineering/specs/79)).
 
   A rollout is durable control-plane state advanced one reconciler tick at
   a time (`sync/0`). When the configured runtime tag changes, the active
