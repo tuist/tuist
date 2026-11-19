@@ -74,6 +74,10 @@ See [the shared provider inventory and retrieval procedure](../server/data-expor
 
 ## Native device-only read projections
 
+The native clients have been removed from this repository. Previously distributed
+apps may still retain the device-local data described below; removing their source
+does not delete installed apps or their data.
+
 iOS/macOS retain bounded, disposable copies of authorized Orbit inbox/history,
 Tasks/Accounts/Finance lists and details, caller Profile, Time off, provider and
 connection metadata, and payload-free Automation metadata. The app-private,

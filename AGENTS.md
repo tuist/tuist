@@ -21,7 +21,6 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [condukt/](condukt/AGENTS.md) | Elixir agent framework and native sandboxes |
 | [tuist_common/](tuist_common/AGENTS.md) | Shared Elixir utilities |
 | [atlas/](atlas/AGENTS.md) | Internal operations app |
-| [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
 | [gradle/](gradle/AGENTS.md) | Gradle plugin |
 | [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
 | [luft/](luft/AGENTS.md) | Luft, the Rust-core client built alongside the companion apps |
@@ -59,7 +58,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 
 Use conventional commits with the affected subsystem as scope, for example
 `fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
-`android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`, `code`,
+`android`, `server`, `atlas`, `codebase-search`, `cache`, `registry`, `code`,
 `slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
 `grafana-datasource`, `docs`, and `handbook`.
 
