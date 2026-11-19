@@ -62,19 +62,10 @@ defmodule Tuist.Projects do
     Repo.exists?(from p in Project, where: p.account_id == ^account_id and p.build_system in [:bazel, :once])
   end
 
-  def legacy_token?(token) do
-    not String.starts_with?(token, "tuist_")
-  end
-
   def get_project_by_full_token(full_token) do
-    if legacy_token?(full_token) do
-      hash = Tuist.Tokens.legacy_token_hash(full_token)
-      Repo.one(from(p in Project, where: p.token_hash == ^hash, preload: [:account]))
-    else
-      case get_project_token(full_token) do
-        {:error, _} -> nil
-        {:ok, token} -> get_project_by_id(token.project_id)
-      end
+    case get_project_token(full_token) do
+      {:error, _} -> nil
+      {:ok, token} -> get_project_by_id(token.project_id)
     end
   end
 

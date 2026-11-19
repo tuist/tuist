@@ -1824,7 +1824,7 @@ jobs:
   # runner, round-trips a blob through the cache endpoint dispatch handed it
   # with a token minted from its OIDC identity, and rebuilds a fixture from an
   # empty local CAS, which must be served entirely from the remote cache.
-  # Production's own fleets, the BER1 rack among them, are covered by the
+  # Production's own fleets, the alder rack among them, are covered by the
   # workflow's hourly schedule, since a check of them here would test the
   # release production is still on rather than this one.
   #

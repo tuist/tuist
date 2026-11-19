@@ -21,19 +21,21 @@ To keep your threads on their current orbs and only build, test and run Apple-pl
 You need to be an administrator of both the Amp workspace and the Tuist account.
 
 1. In Amp, open your workspace's **Settings → Orbs**, click **Add Orb Provider**, and name it, for example `tuist`. Members pick the provider by this name. Copy the `aop_live_…` token; Amp shows it only once.
-2. In the provider's **Edit** dialog in Amp, add the **Orb types** you want to offer and pick the default. The Linux types match the sizes of [Amp's own orbs](https://ampcode.com/docs/orbs/sizes-and-costs):
+2. In the provider's **Edit** dialog in Amp, add the **Orb types** you want to offer and pick the default. The Linux types match the memory of [Amp's own orbs](https://ampcode.com/docs/orbs/sizes-and-costs). Each one is guaranteed a quarter of a vCPU per GiB of memory and bursts to 16 vCPUs when its machine has idle cores (see <.localized_link href="/guides/features/sandboxes#guaranteed-cpu">Guaranteed CPU</.localized_link>):
 
-   | Type | Platform | Shape |
-   | --- | --- | --- |
-   | `linux` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace |
-   | `linux-tiny` | Linux | 1 vCPU, 2 GiB RAM, 10 GB workspace |
-   | `linux-small` | Linux | 2 vCPU, 4 GiB RAM, 10 GB workspace |
-   | `linux-medium` | Linux | 4 vCPU, 8 GiB RAM, 10 GB workspace (same as `linux`) |
-   | `linux-large` | Linux | 8 vCPU, 16 GiB RAM, 10 GB workspace |
-   | `linux-xxlarge` | Linux | 16 vCPU, 32 GiB RAM, 10 GB workspace |
-   | `linux-3xlarge` | Linux | 16 vCPU, 44 GiB RAM, 10 GB workspace |
-   | `macos` | macOS with the default Xcode | 8 vCPU, 8 GiB RAM, 30 GB workspace |
-   | `macos-xcode-<version>` | macOS with that Xcode, such as `macos-xcode-26-1-1` for Xcode 26.1.1 | 8 vCPU, 8 GiB RAM, 30 GB workspace |
+   | Type | Shape |
+   | --- | --- |
+   | `linux` | Linux, 8 GiB RAM, 2 guaranteed vCPUs |
+   | `linux-tiny` | Linux, 2 GiB RAM, 0.5 guaranteed vCPUs |
+   | `linux-small` | Linux, 4 GiB RAM, 1 guaranteed vCPU |
+   | `linux-medium` | Same as `linux` |
+   | `linux-large` | Linux, 16 GiB RAM, 4 guaranteed vCPUs |
+   | `linux-xxlarge` | Linux, 32 GiB RAM, 8 guaranteed vCPUs |
+   | `linux-3xlarge` | Linux, 44 GiB RAM, 11 guaranteed vCPUs |
+   | `macos` | macOS with the default Xcode, 8 vCPU, 8 GiB RAM |
+   | `macos-xcode-<version>` | macOS with that [Xcode](#xcode), 8 vCPU, 8 GiB RAM |
+
+   Linux types have a 10 GB workspace, macOS types 30 GB.
 
 3. In Tuist, open **Sandboxes** in your account's dashboard, click **Connect** on the Amp card, and paste the token.
 

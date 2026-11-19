@@ -82,14 +82,19 @@ defmodule Tuist.Sandboxes.CapacityTest do
   end
 
   describe "place/1" do
-    test "reserves the ready node with the most free memory", %{template: template} do
+    test "packs sandboxes onto the node already running the most of them while it has room", %{template: template} do
+      # Each node budgets 20 GiB less the 512 MiB daemon reserve.
       busy = connect(node_name(), template)
       free = connect(node_name(), template)
       sandbox_fixture(template: template, state: :running, node_name: busy, memory_mb: 8192)
       sandbox = new_sandbox(template)
 
-      assert {:ok, ^free} = Capacity.place(sandbox)
-      assert %Sandbox{node_name: ^free, state: :creating} = Repo.reload!(sandbox)
+      assert {:ok, ^busy} = Capacity.place(sandbox)
+      assert %Sandbox{node_name: ^busy, state: :creating} = Repo.reload!(sandbox)
+
+      # 8 + 4 + 4 GiB plus overheads still fits; another 4 GiB does not.
+      assert {:ok, ^busy} = Capacity.place(new_sandbox(template))
+      assert {:ok, ^free} = Capacity.place(new_sandbox(template))
     end
 
     test "place/3 takes a preferred node with room over a freer one, and passes over a full one", %{template: template} do

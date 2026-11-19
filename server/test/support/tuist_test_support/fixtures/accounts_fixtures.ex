@@ -7,15 +7,20 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Oauth2Identity
 
+  @doc """
+  A user access JWT, the credential the CLI sends after `tuist auth login`.
+  """
+  def user_access_token(user) do
+    {:ok, token, _} = Tuist.Authentication.encode_and_sign(user, %{}, token_type: :access, ttl: {1, :hour})
+    token
+  end
+
   def user_fixture(opts \\ []) do
     email = Keyword.get(opts, :email, unique_user_email())
     handle = Keyword.get(opts, :handle, handle_from_email(email))
 
     create_opts =
       [
-        # A legacy token, as users created before they stopped being issued
-        # have, so tests can still cover authenticating with one.
-        token: Keyword.get_lazy(opts, :token, &Tuist.Tokens.generate_token/0),
         password: Keyword.get(opts, :password, valid_user_password()),
         confirmed_at: Keyword.get(opts, :confirmed_at, DateTime.utc_now()),
         email_verified_at: Keyword.get(opts, :email_verified_at),

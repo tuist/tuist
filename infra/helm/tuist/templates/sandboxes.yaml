@@ -256,6 +256,12 @@ spec:
               value: {{ .Values.sandboxes.memoryGiB | quote }}
             - name: MEMORY_CEILING_GIB
               value: {{ max .Values.sandboxes.memoryGiB (.Values.sandboxes.maxMemoryGiB | default 0) | quote }}
+            # The CPU request moves the same way, without a CPU limit, to
+            # what the node's running sandboxes are guaranteed.
+            - name: CPU_FLOOR_MILLI
+              value: {{ include "tuist.milliCPU" .Values.sandboxes.cpu | quote }}
+            - name: CPU_CEILING_MILLI
+              value: {{ include "tuist.milliCPU" (.Values.sandboxes.maxCpu | default .Values.sandboxes.cpu) | quote }}
             - name: DISK_BUDGET_GIB
               value: {{ .Values.sandboxes.diskGiB | quote }}
             # The guests reach the Tuist API through its public URL; the

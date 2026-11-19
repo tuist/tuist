@@ -25,6 +25,7 @@ enum SandboxOutput {
             "Created: \(Formatters.formatDate(sandbox.inserted_at))",
             "Last active: \(sandbox.last_active_at.map(Formatters.formatDate) ?? "Never")",
         ]
+        if let guaranteed = sandbox.guaranteed_vcpus { lines.insert("Guaranteed: \(guaranteed.formatted()) vCPUs", at: 5) }
         if let pausedAt = sandbox.paused_at { lines.append("Paused: \(Formatters.formatDate(pausedAt))") }
         if let archivedAt = sandbox.archived_at {
             let size = sandbox.archive_bytes.map { " (\(Formatters.formatBytes($0)))" } ?? ""

@@ -55,7 +55,9 @@ type agent struct {
 	dockerMerges     chan struct{}
 	dockerHeads      func(cachevolumes.Slot) (cachevolumes.Identity, error)
 	exposeDockerHead func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error
-	executionWaits   cachevolumes.ExecutionWaits
+	// cloneMaster reflinks a saved head's master for a sandbox cache image.
+	cloneMaster    func(context.Context, cachevolumes.Identity, string) error
+	executionWaits cachevolumes.ExecutionWaits
 	// sandboxNamespace holds the sandboxd Pods that may seed and export
 	// sandbox checkouts; empty refuses them. sandboxSeeds bounds concurrent
 	// seeds, sandboxExports the export each use has in flight.
@@ -96,6 +98,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == "POST" && r.URL.Path == "/sandbox-checkout/export":
 		a.serveSandboxExport(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/sandbox-cache/image":
+		a.serveSandboxCacheImage(w, r)
 		return
 	case r.Method == "POST" && r.URL.Path == "/docker":
 		a.serveDocker(w, r)
@@ -326,7 +331,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, sandboxNamespace: *sandboxNamespace, sandboxSeeds: make(chan struct{}, 4), node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, cloneMaster: backend.CloneMaster, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, sandboxNamespace: *sandboxNamespace, sandboxSeeds: make(chan struct{}, 4), node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	if *actionsCache {
 		// Uploads are staged on the cache filesystem, above its reserve, until
 		// they are copied to the store.
@@ -358,6 +363,7 @@ func main() {
 		log.Fatalf("runtime teardown verification unavailable: %v", err)
 	}
 	abandonSandboxSeeds(checkouts)
+	abandonSandboxCacheImages(*root)
 	// Without git and git-lfs the worker logs why and retries; the host answers
 	// denied meanwhile, so runners export nothing.
 	go checkouts.Start(context.Background())

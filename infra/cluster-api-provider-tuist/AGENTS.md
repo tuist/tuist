@@ -49,12 +49,12 @@ machine kinds:
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
   with tart-cri/tart-kubelet.
 - `RackAppleSiliconMachine`: Mac minis **we own**, in a rack we
-  operate (the BER1 colo programme). Same host bootstrap and drift
+  operate (the alder colo programme). Same host bootstrap and drift
   loop as the Scaleway kind; each `RackHost` in the cluster's own
   inventory keeps one, rather than a vendor API supplying hosts, and
   its reboot is a PDU outlet. See "Rack-owned hosts" below.
 - `RackLinuxMachine`: x86 Linux machines **we own** in the same rack (the
-  BER1 edge, services and storage nodes), one per `RackLinuxHost`, which the
+  alder edge, services and storage nodes), one per `RackLinuxHost`, which the
   operator creates with its CAPI Machine, joined over their own tailnet address with a kubeadm
   `system:node` identity and kept converged. See "Rack-owned Linux hosts"
   below.
@@ -306,13 +306,13 @@ own source address. Notes:
   belongs in the configured list.
 - A rack host's list is the fleet's plus its RackHost `spec.sshIngressAllowCIDRs`:
   the address each subnet router in front of it forwards from on the host's
-  side, which for BER1 is each edge's own address on the machines segment. A
+  side, which for alder is each edge's own address on the machines segment. A
   router forwards with SNAT (the default on Linux, the only mode on macOS), so
   the host sees the router, not the operator. A rented mini that drops off the
   tailnet can still be dialled on its public address because the operator's
   egress is in the fleet list; a rack mini has no public address, so without
   the router in its list it is reachable only from its console. That is what
-  stranded the BER1 prototype on 2026-09-18 (see "Rack-owned hosts").
+  stranded the alder prototype on 2026-09-18 (see "Rack-owned hosts").
 - Put the operator's SSH egress in `--ssh-ingress-allow-cidrs` to keep the
   public path usable, since a tailnet-transported roll can't update Tailscale
   itself (`SkipTailscaleInstall`, above).
@@ -434,7 +434,7 @@ parking or retiring the host.
 
 ### A host lent to another env
 
-A rack belongs to one env's operator: production's for BER1. Staging and
+A rack belongs to one env's operator: production's for alder. Staging and
 canary run jobs on rack hardware by borrowing hosts, and a lent host is split
 in two (runbook: "Lending a host to another env" in
 [infra/rack-nodes/AGENTS.md](../rack-nodes/AGENTS.md)):
@@ -646,7 +646,7 @@ mode behind it:
   over its public address. A rack mini joins as a standard device
   (`TailscalePersistentDevice`, set by `rackFleetConfig`) and its SSH ingress
   guard admits its subnet routers (see "SSH ingress guard"), so a box that sat
-  powered off comes back reachable both ways. On 2026-09-18 the BER1 prototype
+  powered off comes back reachable both ways. On 2026-09-18 the alder prototype
   had neither: after a few days unpowered with no Machine, it
   came back answering LAN ping, its device deleted from the tailnet, and `:22`
   silently dropped for the router, leaving the console as the only way in. A
@@ -713,7 +713,7 @@ returning no fingerprint, so the wrong box's key is not pinned
 failed attempt, and the recovery power-cycle after three of them reboots this
 host's own outlet, which is what makes the right box ask for its address
 again. A RackHost without a serial is not checked. On 2026-10-05 a recreated
-Machine bootstrapped the wrong mini of the first BER1 tray this way, under the
+Machine bootstrapped the wrong mini of the first alder tray this way, under the
 other's serial, before this check existed.
 
 **Advertise a /32 per host, not the rack's prefix**, for as long as the
@@ -1189,7 +1189,7 @@ and `Ready` stand without it. The output gauges exist only for a measure the
 card reported. The input's `current` is read from the same `measures` object
 as its voltage.
 
-What the BER1 switches' Network-M3 cards (firmware 2.1.2) serve, read on
+What the alder switches' Network-M3 cards (firmware 2.1.2) serve, read on
 2026-10-16: one output, with its measures embedded, as `current`, `voltage`,
 `frequency` and `percentLoad` (current as a share of the 16 A rating). There's no
 active or apparent power, which matches the EATS16N manual's front-panel
@@ -1308,7 +1308,7 @@ whole site, is over budget starts no new runner VM. Running jobs finish, so
 the cost is some queueing at the margin.
 
 - **`chainAmps`** is the output current at which a chain stops taking work:
-  13 A at BER1, under its 16 A breaker, with room for the dual-PSU gear a feed
+  13 A at alder, under its 16 A breaker, with room for the dual-PSU gear a feed
   loss moves onto the same circuit. A chain is a transfer switch with the PDUs
   whose `spec.chain` names it, or a PDU that hangs off none. Its minis are the
   RackHosts whose `spec.power.pdu` is one of those PDUs.
@@ -1316,7 +1316,7 @@ the cost is some queueing at the margin.
   nothing meters, such as dual-PSU gear on the colocation's own strips. The
   switches together may draw the contracted step in effect less it:
   `status.powerBudgetWatts`. It is derived rather than stated per step, so a
-  contract change is one edit to `contracted_power`. BER1's is 0, because
+  contract change is one edit to `contracted_power`. Alder's is 0, because
   everything there hangs off a switch, including the critical gear on
   `ber1-ats-1`. A site whose dual-PSU gear sits on the colocation's strips sets
   that gear's peak draw here.
@@ -1521,7 +1521,7 @@ router was in its allow list, or whose router changed address, answers LAN ping
 and times out on `:22` from the router. If it is still on the tailnet, the drift
 loop's tailnet fallback delivers the new list on its own. If it is not, only
 its console can (Screen Sharing over the LAN only helps if it was enabled on
-the box; on the BER1 prototype it was not). Add the router to the anchor file
+the box; on the alder prototype it was not). Add the router to the anchor file
 the re-arm LaunchDaemon reloads every minute:
 
 ```bash
@@ -1585,7 +1585,7 @@ fault, and no fleet changes across the restart.
 
 ## Rack-owned Linux hosts
 
-`RackLinuxMachine` joins x86 Linux machines we own (the BER1 MS-01s) and keeps
+`RackLinuxMachine` joins x86 Linux machines we own (the alder MS-01s) and keeps
 them converged. Its inventory is `RackLinuxHost`, rendered from
 `rackLinuxFleet.hosts` and named after each machine's SMBIOS UUID; the name the
 host runs under is `spec.hostname`. How a box is installed is in
@@ -2319,7 +2319,7 @@ Tart is part of the runner runtime, so a lent rack host runs the borrowing
 env's Tart: its `macosFleet.tart.version`, or a `tuist.dev/tart-version`
 annotation on the `RackHostLease` in the borrowing cluster (see "A host lent to
 another env"). An annotation on the lender's RackAppleSiliconMachine has no
-effect on a lent host, so BER1 runs one Tart only when staging, canary and
+effect on a lent host, so alder runs one Tart only when staging, canary and
 production all select it.
 
 ## Module layout
@@ -3289,7 +3289,7 @@ A pool host scheduled for deletion is still adoptable until it goes, so
 schedule it only once nothing in that env needs a spare.
 
 Staging and canary rent no runner hosts (`runnersFleet.hostCount: 0`;
-their macOS jobs run on lent BER1 rack hosts, see `infra/rack-nodes/AGENTS.md`),
+their macOS jobs run on lent alder rack hosts, see `infra/rack-nodes/AGENTS.md`),
 and keep one `macosFleet` mini each for the xcresult processor. Their
 pools hold no spare, so replacing that mini means ordering a
 `tuist-pool-` host first.

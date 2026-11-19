@@ -675,3 +675,46 @@ func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 		t.Fatal("a job's clone left the master speculative or downloaded again", remote.downloads)
 	}
 }
+
+// A sandbox's copy of a master is a reflink taken under the lineage lock. The
+// host never fetches for it, and the use keeps the master from looking idle.
+func TestLocalCloneMasterForSandboxes(t *testing.T) {
+	b, remote := newLocal(t)
+	saved := identity(first)
+	saved.BaseGeneration = 3
+	saved.ImageDigest = strings.Repeat("c", 40)
+	saved.ContentDigest = strings.Repeat("b", 64)
+	dst := filepath.Join(b.Root, "sandbox.img")
+	if err := b.CloneMaster(context.Background(), saved, dst); !errors.Is(err, ErrNoMaster) || remote.downloads != 0 {
+		t.Fatalf("a host without the master answered %v after %d downloads", err, remote.downloads)
+	}
+	unsaved := saved
+	unsaved.ImageDigest = ""
+	if err := b.CloneMaster(context.Background(), unsaved, dst); !errors.Is(err, ErrInvalidMaster) {
+		t.Fatalf("an identity without a saved head answered %v", err)
+	}
+	master := b.master(Slot{Identity: saved})
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("saved contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master+".spare", nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(master, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.CloneMaster(context.Background(), saved, dst); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "saved contents" {
+		t.Fatalf("the clone holds %q", data)
+	}
+	info, err := os.Stat(master)
+	if err != nil || time.Since(info.ModTime()) > time.Hour || speculative(master) {
+		t.Fatal("a sandbox's use must mark the master used")
+	}
+}

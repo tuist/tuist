@@ -70,8 +70,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `/execution` endpoint or a macOS `execution_token` mailbox request, with the
   pod and node the agent itself trusts. Agents forward it unread and never log it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
-  goes through `DoServer`: up to four attempts on a connection failure or a
-  502/503/504, jittered backoff from 250 ms to 2 s, never past the request
+  goes through `DoServer`: up to four attempts on a connection failure (also
+  one that cuts the response body short: `DoServer` reads the body inside the
+  attempt) or a 502/503/504, jittered backoff from 250 ms to 2 s, never past the request
   context (an attach keeps its 25 s budget). The server keeps them idempotent:
   an allocation returns the pod's existing use, a report restates a use, and an
   `image` request reads a HEAD, signs another URL or returns the generation the
@@ -294,6 +295,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded from a host-built master; attach fails rather than format an empty image.
   The host publishes and restores checkout masters itself, with `CompressImage`
   and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- `CloneMaster` lends a saved head's master to sandboxd (the agent's
+  `/sandbox-cache/image`): a reflink under the scope lock eviction takes,
+  streamed with `WriteImage` in the `CompressImage` format and received with
+  `ReceiveImage`. It never fetches, records no use and writes nothing back.
 - A restore downloads into `restore-<generation>-<content digest>` beside the
   master, because the transfer resumes a partial it finds at the same path: a
   fixed name let a restart splice another HEAD's archive into this one. Other

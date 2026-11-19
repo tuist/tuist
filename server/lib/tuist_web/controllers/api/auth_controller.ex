@@ -11,6 +11,7 @@ defmodule TuistWeb.API.AuthController do
   alias Tuist.Environment
   alias Tuist.OAuth.Apple
   alias TuistWeb.API.Schemas.AuthenticationTokens
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -153,10 +154,9 @@ defmodule TuistWeb.API.AuthController do
     # Refreshing carries the claims over, so the tokens keep the SSO
     # sign-in that approved the code for `ensure_refresh_satisfies_sso/1`.
     claims =
-      Map.merge(
-        %{"email" => user.email, "preferred_username" => user.account.name},
-        UserToken.sso_claims(device_code)
-      )
+      %{"email" => user.email, "preferred_username" => user.account.name}
+      |> Map.merge(UserToken.sso_claims(device_code))
+      |> Map.merge(Authentication.origin_claims(RemoteIp.origin(conn)))
 
     case Accounts.issue_user_credential(user, fn -> consume_and_sign(device_code, user, claims) end) do
       {:ok, tokens} ->
@@ -273,7 +273,11 @@ defmodule TuistWeb.API.AuthController do
   end
 
   defp rotate_refresh_token(conn, refresh_token, sso_claims) do
-    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl, sso_claims: sso_claims) do
+    case Authentication.refresh(refresh_token,
+           ttl: @refresh_token_ttl,
+           sso_claims: sso_claims,
+           origin: RemoteIp.origin(conn)
+         ) do
       {:error, _} ->
         {:error, :invalid_refresh_token}
 
@@ -414,10 +418,16 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
 
       true ->
+        claims =
+          Map.merge(
+            %{"email" => user.email, "preferred_username" => user.account.name},
+            Authentication.origin_claims(RemoteIp.origin(conn))
+          )
+
         {:ok, access_token, _opts} =
           Authentication.encode_and_sign(
             user,
-            %{email: user.email, preferred_username: user.account.name},
+            claims,
             token_type: :access,
             ttl: @access_token_ttl
           )
@@ -425,7 +435,7 @@ defmodule TuistWeb.API.AuthController do
         {:ok, refresh_token, _opts} =
           Authentication.encode_and_sign(
             user,
-            %{email: user.email, preferred_username: user.account.name},
+            claims,
             token_type: :refresh,
             ttl: @refresh_token_ttl
           )

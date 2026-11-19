@@ -28,6 +28,7 @@ defmodule Tuist.Application do
   alias Tuist.Kura
   alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Sandboxes.SandboxEvent
+  alias Tuist.Sandboxes.UsageEvent, as: SandboxUsageEvent
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
@@ -371,6 +372,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
           Supervisor.child_spec(SandboxEvent.Buffer, id: SandboxEvent.Buffer),
+          Supervisor.child_spec(SandboxUsageEvent.Buffer, id: SandboxUsageEvent.Buffer),
           Supervisor.child_spec(RemoteExecutionUsageEvent.Buffer, id: RemoteExecutionUsageEvent.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,

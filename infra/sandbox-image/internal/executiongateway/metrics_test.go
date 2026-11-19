@@ -60,6 +60,9 @@ func TestPrefetchesAreCountedByHowTheInputsWereRead(t *testing.T) {
 }
 
 func TestExecutedActionPhasesAreAttributed(t *testing.T) {
+	var out bytes.Buffer
+	log.SetOutput(&out)
+	defer log.SetOutput(os.Stderr)
 	m := newMetrics(prometheus.NewRegistry())
 	at := func(s float64) *timestamppb.Timestamp {
 		return timestamppb.New(time.Unix(1_000, 0).Add(time.Duration(s * float64(time.Second))))
@@ -73,8 +76,11 @@ func TestExecutedActionPhasesAreAttributed(t *testing.T) {
 		ExecutionCompletedTimestamp:    at(176),
 		OutputUploadStartTimestamp:     at(177),
 		OutputUploadCompletedTimestamp: at(176), // reversed: skipped
-	})
-	m.observePhases(nil)
+	}, map[string]int64{"vm_preparing": 1500, "account_limit": 500})
+	m.observePhases(nil, nil)
+	if got, want := strings.TrimSpace(out.String()), "waits=account_limit:500,vm_preparing:1500"; !strings.HasSuffix(got, want) {
+		t.Fatalf("phase line %q; want it to end with %q", got, want)
+	}
 
 	for phase, want := range map[string]float64{"queued": 2, "input_fetch": 170, "execution": 3.5} {
 		var metric dto.Metric
@@ -105,7 +111,7 @@ func TestPhaseLogIncludesCASReadsOnlyForSlowInputFetches(t *testing.T) {
 		newMetrics(prometheus.NewRegistry()).observePhases(&re.ExecutedActionMetadata{
 			InputFetchStartTimestamp: timestamppb.New(start), InputFetchCompletedTimestamp: timestamppb.New(start.Add(fetch)),
 			AuxiliaryMetadata: []*anypb.Any{otherAny, readsAny},
-		})
+		}, nil)
 		line := strings.TrimSpace(out.String())
 		_, suffix, logged := strings.Cut(line, " cas_reads=")
 		if slow := fetch >= slowInputFetch; logged != slow {

@@ -2240,7 +2240,7 @@ demoted.
 
 ### Kura thin pool rules
 
-Eight rules in folder `Alerts`, group **Kura thin pools**, recorded in
+Seven rules in folder `Alerts`, group **Kura thin pools**, recorded in
 [`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
 the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
 `:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
@@ -2250,7 +2250,7 @@ carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
 non-production keep list in `values.yaml`, because thin pools are rehearsed on
 staging. Each environment's metrics now land in its own Pulse, and only
 `kura-thin-pool-metrics-missing` runs there for staging and canary (as `-stg`
-and `-can` copies). The five usage and degraded rules read production Pulse
+and `-can` copies). The four usage, health and degraded rules read production Pulse
 (`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
 degraded alert until those rules get `-stg` and `-can` copies. **No Data:
 Normal**, **Error: Keep last state**. None sets `notification_settings`: the
@@ -2264,29 +2264,35 @@ the JSON; publish rule and policy changes separately.
 
 | Rule | UID | Threshold | Pending | Severity | Routing |
 | --- | --- | --- | --- | --- | --- |
-| Kura thin pool data usage high | `kura-thin-pool-data-high` | data used > 80% | 15m | warning | policy tree |
-| Kura thin pool data almost full | `kura-thin-pool-data-full` | data used > 90% | 5m | critical | `Incidents` in production |
+| Kura thin pool cannot back its volumes | `kura-thin-pool-unhealthy` | healthy gauge = 0 | 10m | critical | `Incidents` in production |
 | Kura thin pool metadata usage high | `kura-thin-pool-metadata-high` | metadata used > 70% | 15m | warning | policy tree |
 | Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
 | Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
 | Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
 
-#### Kura thin pool data usage
+#### Kura thin pool cannot back its volumes
 
 ```promql
-max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes)
-/ max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)
+max by (cluster, node, vg, pool) (1 - kura_volumes_thin_pool_healthy)
 ```
 
-Pools are created with `error_if_no_space`, so a full pool fails tenant writes
-with I/O errors rather than queueing them. In `ceiling-backed-v1` every volume
-is fully backed and the driver keeps a data reserve, so crossing 80% means
-committed ceilings are near the pool size or mappings are unattributed; once
-tenants share overcommitted disk this becomes the main capacity signal. Read
-`GET /v1/node` on the node's allocator socket and compare `committed_bytes`,
-`unattributed_mapped_bytes` and per-volume `mapped_bytes`. Reclaim or move
-volumes through the planned migration path. Never extend, convert or change the
-geometry of a populated pool as the fix.
+There is deliberately no rule on data used over pool size. In
+`ceiling-backed-v1` the driver admits a volume only when the pool can back its
+full ceiling after the data reserve, so caches filling their ceilings take a
+healthy pool to 90% and more without any risk of running it out of space; the
+80% and 90% data rules fired on such pools in November 2026. The plugin sets
+`kura_volumes_thin_pool_healthy` to 0 when its own check fails: committed
+ceilings plus unattributed mappings exceed the usable bytes, data or metadata
+entered the reserve, the volume slot budget is exceeded, or the pool left its
+qualified state. Only then can tenant writes exhaust the pool, which is
+created with `error_if_no_space` and fails them with I/O errors rather than
+queueing them. The node admits no new volumes meanwhile.
+
+Read `GET /v1/node` on the node's allocator socket for `reason`, and compare
+`committed_bytes`, `usable_bytes`, `unattributed_mapped_bytes` and per-volume
+`mapped_bytes`. Reclaim unattributed mappings or move volumes through the
+planned migration path. Never extend, convert or change the geometry of a
+populated pool as the fix.
 
 #### Kura thin pool metadata usage
 
@@ -2609,7 +2615,7 @@ Private Network and no prospect of one, so it correctly has no `vlan` device.
 Without the exclusion every rack host pages as critical from the moment it
 joins, which is what happened on 2026-09-09 when the first one did.
 
-When BER1 gains its in-rack kura region, the cache path there is in-rack L2
+When alder gains its in-rack kura region, the cache path there is in-rack L2
 rather than a Scaleway PN. Checking it is a NEW rule keyed on whatever that path
 exposes, not a widening of this one. Removing the exclusion to "cover the rack"
 only restores the false positive.
@@ -3133,7 +3139,7 @@ missed 10-06 and 10-07 entirely.
 The `2 *` term and the `-12vcpu-28gb` regex encode today's only
 double-slot shape. Add any new shape there with its slot count, or the
 rule under-counts occupancy. The rule covers the Scaleway fleet only;
-BER1 is its own capacity domain and needs its own copy over
+alder is its own capacity domain and needs its own copy over
 `node=~"ber1-runner-.*"` and the `-ber1-` pools once it takes work.
 
 When it fires:
@@ -7900,12 +7906,12 @@ and on (site) (
 
 Transit is billed on the 95th percentile of 5-minute samples against the
 committed rate, so a trailing 7-day 95th percentile above 90% of the commit is
-heading for an overage. `1e9` is BER1's commit in bits per second (1 Gbps),
+heading for an overage. `1e9` is alder's commit in bits per second (1 Gbps),
 and `<instance site>` selects only `site="ber1"`. Pulse rejects the
 `label_replace(vector(...))` commit table the rule used on Grafana Cloud, so a
 second site needs its own copy of the rule with its own commit. The `count_over_time`
 gate waits for 3.5 days of `wan0` samples, so a short history cannot fire it:
-in its first 25 minutes on 2026-10-15 BER1 downloaded 3.5 and 2.9 Gbps over two
+in its first 25 minutes on 2026-10-15 alder downloaded 3.5 and 2.9 Gbps over two
 5-minute windows, which alone made the 95th percentile three times the commit.
 
 ### Rack power draw near its contracted limit
@@ -7945,7 +7951,7 @@ step there, not an edit to this rule. A site with no contracted power has no
 ratio, which [Rack has no contracted power](#rack-has-no-contracted-power)
 catches.
 
-BER1's steps:
+Alder's steps:
 
 | From | Contracted power | Fires above |
 | --- | --- | --- |
@@ -7968,7 +7974,7 @@ in `infra/cluster-api-provider-tuist/AGENTS.md`. While the alert fires,
 is already holding work back.
 
 The draw is every PDU outlet's active power, plus the output of each transfer
-switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
+switch that feeds no reporting PDU. At alder that switch is `ber1-ats-1`, which
 powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs
 directly. `capt_rackpdu_chain` names the switch behind each PDU while that PDU
 reports draw, so a chain is never counted twice. A PDU that stops reporting

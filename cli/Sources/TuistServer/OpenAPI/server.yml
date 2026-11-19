@@ -9677,6 +9677,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        macos_setup_script:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         max_idle_seconds:
           type: integer
           x-struct:
@@ -9753,6 +9758,7 @@ components:
         - agent_model
         - agent_system_prompt
         - setup_script
+        - macos_setup_script
         - inserted_at
         - updated_at
       title: SandboxAgentEnvironment
@@ -10870,6 +10876,12 @@ components:
           enum:
             - managed_agents
             - claude_code
+          type: string
+          x-struct:
+          x-validate:
+        macos_setup_script:
+          description: "Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB."
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -15525,6 +15537,13 @@ components:
       x-validate:
     CreateSandbox:
       properties:
+        guaranteed_vcpus:
+          description: 'Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.'
+          maximum: 8
+          minimum: 1
+          type: number
+          x-struct:
+          x-validate:
         memory_mb:
           enum:
             - 4096
@@ -17520,6 +17539,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        guaranteed_vcpus:
+          description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+          type: number
+          x-struct:
+          x-validate:
         hostname:
           nullable: true
           type: string
@@ -19312,6 +19336,11 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              guaranteed_vcpus:
+                description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                type: number
+                x-struct:
+                x-validate:
               hostname:
                 nullable: true
                 type: string
@@ -19716,6 +19745,12 @@ components:
           x-validate:
         anthropic_workspace_id:
           description: 'Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.'
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        macos_setup_script:
+          description: "Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB."
           nullable: true
           type: string
           x-struct:
@@ -23799,6 +23834,11 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        guaranteed_vcpus:
+                          description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                          type: number
+                          x-struct:
+                          x-validate:
                         hostname:
                           nullable: true
                           type: string
@@ -23970,6 +24010,13 @@ paths:
           application/json:
             schema:
               properties:
+                guaranteed_vcpus:
+                  description: 'Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.'
+                  maximum: 8
+                  minimum: 1
+                  type: number
+                  x-struct:
+                  x-validate:
                 memory_mb:
                   enum:
                     - 4096
@@ -24058,6 +24105,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:
@@ -29791,6 +29843,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:
@@ -36406,6 +36463,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:
@@ -46567,6 +46629,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
+                    x-struct:
+                    x-validate:
                   hostname:
                     nullable: true
                     type: string
@@ -47242,6 +47309,11 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        macos_setup_script:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         max_idle_seconds:
                           type: integer
                           x-struct:
@@ -47318,6 +47390,7 @@ paths:
                         - agent_model
                         - agent_system_prompt
                         - setup_script
+                        - macos_setup_script
                         - inserted_at
                         - updated_at
                       title: SandboxAgentEnvironment
@@ -47440,6 +47513,12 @@ paths:
                   enum:
                     - managed_agents
                     - claude_code
+                  type: string
+                  x-struct:
+                  x-validate:
+                macos_setup_script:
+                  description: "Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB."
+                  nullable: true
                   type: string
                   x-struct:
                   x-validate:
@@ -47602,6 +47681,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  macos_setup_script:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   max_idle_seconds:
                     type: integer
                     x-struct:
@@ -47678,6 +47762,7 @@ paths:
                   - agent_model
                   - agent_system_prompt
                   - setup_script
+                  - macos_setup_script
                   - inserted_at
                   - updated_at
                 title: SandboxAgentEnvironment
@@ -54108,6 +54193,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
+                    x-struct:
+                    x-validate:
                   hostname:
                     nullable: true
                     type: string
@@ -54404,6 +54494,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                macos_setup_script:
+                  description: "Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB."
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
                 setup_script:
                   description: "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
                   nullable: true
@@ -54504,6 +54600,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  macos_setup_script:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   max_idle_seconds:
                     type: integer
                     x-struct:
@@ -54580,6 +54681,7 @@ paths:
                   - agent_model
                   - agent_system_prompt
                   - setup_script
+                  - macos_setup_script
                   - inserted_at
                   - updated_at
                 title: SandboxAgentEnvironment

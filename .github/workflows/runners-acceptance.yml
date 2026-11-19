@@ -98,7 +98,7 @@ jobs:
               ;;
             production)
               server=https://tuist.dev
-              # The BER1 probe is paused: the `tuist` account is excluded from
+              # The alder probe is paused: the `tuist` account is excluded from
               # the rack's runner cache (`runner_site_cache_excluded`) to free
               # its storage, so dispatch hands the probe no cache endpoint.
               # Restore this line once the larger rack storage lands.

@@ -81,7 +81,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert Enum.all?(recent, &has_element?(lv, "#sandbox-#{&1.id}"))
       refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
       refute has_element?(lv, "#sandboxes-empty-state")
-      assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
+      assert has_element?(lv, "#sandboxes-concurrency-vcpus", "1 of 32 in use now")
       refute has_element?(lv, "#sandboxes-concurrency-disk")
     end
 

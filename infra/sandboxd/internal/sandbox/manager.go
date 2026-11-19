@@ -20,12 +20,13 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/lazydisk"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 const (
@@ -60,6 +61,12 @@ type Config struct {
 	// CacheImageDir holds ext4 cache images that creates may attach as an
 	// extra drive; empty disables cache drives.
 	CacheImageDir string
+	// CacheImagesBytes bounds the masters copied into CacheImageDir for
+	// cache grants; zero refuses grants.
+	CacheImagesBytes int64
+	// CacheImagesTTL removes a copied master unused for this long, so one of
+	// a cleared volume or a deleted account does not linger on the node.
+	CacheImagesTTL time.Duration
 	// FirecrackerVersion is the running binary's version, recorded with
 	// every memory image a pause writes.
 	FirecrackerVersion string
@@ -92,8 +99,15 @@ type Deps struct {
 	// from seeds, which a fresh sandbox's first worker starts from; see
 	// preparedWorkspace.
 	Workspaces *checkout.Workspaces
-	Events     func(protocol.Event)
-	Log        *slog.Logger
+	// Cgroups, when set, spawns each VM into its own cgroup weighted by its
+	// guaranteed CPU (hostinfo.VMCgroups).
+	Cgroups *hostinfo.VMCgroups
+	Events  func(protocol.Event)
+	Log     *slog.Logger
+
+	// CacheImages copies granted runner-cache masters onto the node: the
+	// node's runner-cache agent. Nil refuses cache grants.
+	CacheImages CacheImageSource
 }
 
 type Manager struct {
@@ -113,8 +127,10 @@ type Manager struct {
 	blobs     *blobcache.Cache
 	// checkouts and checkoutLimits serve workers' checkout grants.
 	checkouts      checkout.Agent
+	cacheImages    cacheImages
 	checkoutLimits checkout.Limits
 	workspaces     *checkout.Workspaces
+	cgroups        *hostinfo.VMCgroups
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -208,7 +224,8 @@ func New(cfg Config, deps Deps) *Manager {
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
 		blobs:     deps.Blobs,
-		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces,
+		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces, cacheImages: cacheImages{source: deps.CacheImages},
+		cgroups:   deps.Cgroups,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -269,6 +286,17 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if fromSnapshot && fromArchive {
 		return res, errors.New("create takes a disk snapshot or an archive, not both")
 	}
+	if args.CacheGrant != nil {
+		if args.CacheImage != "" {
+			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
+		}
+		name, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		if err != nil {
+			return res, err
+		}
+		defer release()
+		args.CacheImage = name
+	}
 	if args.CacheImage != "" {
 		if m.cfg.CacheImageDir == "" {
 			return res, fmt.Errorf("%w: this daemon has no cache image directory", ErrCacheImage)
@@ -302,7 +330,8 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	root := vm.RootDir(m.cfg.JailBase, args.SandboxID)
 	sb := &Sandbox{root: root, meta: Metadata{
 		ID: args.SandboxID, Template: tmpl.Name, Tag: tmpl.Tag, VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
-		WorkspaceGB: args.WorkspaceGB, Hostname: args.Hostname, State: "creating", Slot: -1, CreatedAt: time.Now().UTC(),
+		WorkspaceGB: args.WorkspaceGB, Hostname: args.Hostname, CPUGuaranteeMilli: args.CPUGuaranteeMilli,
+		State: "creating", Slot: -1, CreatedAt: time.Now().UTC(),
 	}}
 	m.mu.Lock()
 	// Check under the same lock that publishes the new sandbox. After the
@@ -464,10 +493,25 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 	}
 	m.observePhase("network_setup", networkStarted)
 	launchStarted := time.Now()
-	inst, err := m.launcher.Launch(ctx, vm.Spec{
+	spec := vm.Spec{
 		ID: meta.ID, JailBase: m.cfg.JailBase, FirecrackerBin: m.cfg.FirecrackerBin, JailerBin: m.cfg.JailerBin,
 		JailerEnabled: m.cfg.JailerEnabled, UID: uid, GID: uid, NetNS: ns,
-	})
+	}
+	if m.cgroups != nil {
+		guarantee := meta.CPUGuaranteeMilli
+		if guarantee == 0 {
+			guarantee = protocol.DefaultCPUGuaranteeMilli
+		}
+		// Without its own cgroup the VM still runs, in the daemon's, as
+		// before guarantees: it then shares the daemon's weight.
+		if cgroup, err := m.cgroups.Open(meta.ID, guarantee); err != nil {
+			m.log.Warn("opening the sandbox's cgroup failed; it runs in the daemon's", "sandbox", meta.ID, "error", err)
+		} else {
+			defer cgroup.Close()
+			spec.Cgroup = cgroup
+		}
+	}
+	inst, err := m.launcher.Launch(ctx, spec)
 	if err != nil {
 		_ = m.net.Teardown(context.Background(), ns, meta.Slot)
 		return nil, nil, fmt.Errorf("launching firecracker: %w", err)
@@ -975,6 +1019,11 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	sb.inst = nil
 	sb.mu.Unlock()
 	m.dropLazyDisks(sb)
+	if m.cgroups != nil {
+		if err := m.cgroups.Remove(id); err != nil {
+			m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
+		}
+	}
 	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err
@@ -1308,6 +1357,7 @@ func (m *Manager) refreshGauges() {
 // restart interrupted) are removed, as are stale namespaces.
 func (m *Manager) Recover(ctx context.Context) error {
 	m.removePartialDiskSnapshots()
+	m.removePartialCacheImages()
 	base := filepath.Join(m.cfg.JailBase, "firecracker")
 	entries, err := os.ReadDir(base)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -235,7 +235,7 @@ parses the pool name): `hours_with_jobs` ranks it against idle CI pools by the
 hours of the last 14 days with a create, and a create in the last hour marks it
 in use, so its floor is funded with those of the CI pools running jobs. Queued
 CI jobs still take its slot. Production
-keeps one 8 GiB VM on the BER1 rack: a cold create there took 17 to 19 s on a
+keeps one 8 GiB VM on the alder rack: a cold create there took 17 to 19 s on a
 host with room, and a claim skips its clone and boot, leaving the workspace
 volume (`macOS sandbox boot phases` and `claim phases` in the kubelet log time
 each step). 8 GiB is the default of Claude Code, Amp Orbs and the tuist-mac

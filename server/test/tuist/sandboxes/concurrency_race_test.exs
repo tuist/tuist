@@ -56,7 +56,7 @@ defmodule Tuist.Sandboxes.ConcurrencyRaceTest do
       assert {:ok, _} = Task.await(task)
       assert {:error, :sandbox_concurrency_limit} = Concurrency.admit(account.id, paused, reserve_resume)
       assert Repo.reload!(paused).state == :paused
-      assert Concurrency.usage(account.id) == %{vcpus: 2, memory_mb: 4096}
+      assert Concurrency.usage(account.id) == %{vcpus: 1.0, memory_mb: 4096}
     after
       send(task.pid, :commit)
       Task.shutdown(task)

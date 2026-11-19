@@ -17,7 +17,6 @@ For one account, or for every account:
 - CLI and app refresh tokens, and device codes;
 - OAuth grants and agent credentials;
 - account tokens (including SCIM) and project tokens;
-- legacy user and project tokens (the ones without a `tuist_` prefix);
 - every access JWT issued at or before the revocation, through
   `users.credentials_revoked_at` and `accounts.credentials_revoked_at`.
 
@@ -65,7 +64,7 @@ kubectl --context tuist-k8s-production -n tuist exec $POD -- \
 ```
 
 It returns how many rows each step touched, such as
-`%{users: 2, account_tokens: 1, project_tokens: 1, legacy_project_tokens: 1}`.
+`%{users: 2, account_tokens: 1, project_tokens: 1}`.
 
 Every account, which signs out every customer and every Tuist employee:
 
@@ -109,28 +108,13 @@ kubectl --context tuist-k8s-production -n tuist exec $POD -- \
   bin/tuist rpc 'import Ecto.Query; IO.inspect(Tuist.Repo.all(from j in Oban.Job, where: j.worker == "Tuist.Accounts.Workers.CredentialRotationNoticeWorker" and fragment("?->>'"'"'notice_id'"'"'", j.args) == "<notice id>", group_by: j.state, select: {j.state, count(j.id)}))'
 ```
 
-## Revoking only the legacy tokens
-
-To retire legacy user and project tokens (the ones without a `tuist_` prefix)
-without touching any other credential, check who still uses them, then revoke
-them:
-
-```sh
-kubectl --context tuist-k8s-production -n tuist exec $POD -- \
-  bin/tuist rpc 'IO.inspect(Tuist.Release.legacy_token_usage())'
-kubectl --context tuist-k8s-production -n tuist exec $POD -- \
-  bin/tuist rpc 'IO.inspect(Tuist.Release.revoke_legacy_tokens())'
-```
-
-It returns `%{legacy_user_tokens: n, legacy_project_tokens: n}` and is safe to
-rerun. It needs the same write access as step 1.
-
 ## Rehearsal
 
 Rehearsed on staging on 2026-11-17 against two throwaway organizations, each
 with one credential of every kind. Revoking one of them turned all seven of
-its credentials (legacy user and project tokens, project token, account token,
-account JWT, user JWT, CLI refresh token) and its browser session from
+its credentials (legacy user and project tokens, which no longer exist since
+2026-11-19, project token, account token, account JWT, user JWT, CLI refresh
+token) and its browser session from
 accepted to `401` within the minute, left the other organization's working,
 and let its users sign in again afterwards. The rotation notice reached the
 one admin, and a rerun with its `notice_id` queued nothing. `:everything` was

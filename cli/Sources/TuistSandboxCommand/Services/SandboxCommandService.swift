@@ -131,7 +131,8 @@ struct SandboxCommandService {
         xcodeVersion: String? = nil,
         vcpus: Int?,
         memoryGB: Int?,
-        workspaceGB: Int?
+        workspaceGB: Int?,
+        guaranteedVCPUs: Double? = nil
     ) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
         let sandbox = try await step("Booting sandbox...", done: "Sandbox booted", options: options) {
@@ -143,7 +144,8 @@ struct SandboxCommandService {
                 xcodeVersion: xcodeVersion,
                 vcpus: vcpus,
                 memoryMB: memoryGB.map { $0 * 1024 },
-                workspaceGB: workspaceGB
+                workspaceGB: workspaceGB,
+                guaranteedVCPUs: guaranteedVCPUs
             )
         }
         try output(sandbox, options: options) { SandboxOutput.details($0) }

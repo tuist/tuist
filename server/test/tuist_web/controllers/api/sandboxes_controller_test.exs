@@ -489,10 +489,36 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   end
 
   describe "sandboxes" do
+    test "creates a Linux sandbox with a picked CPU guarantee and refuses others", %{conn: conn, account: account} do
+      stub(Capacity, :place, fn %{platform: :linux} -> {:ok, "node-a"} end)
+
+      # The node weighs the VM's cgroup by its guarantee: the pick, or a
+      # quarter vCPU per GiB of memory when that is more.
+      expect(Nodes, :call, 2, fn "node-a", "create", %{vcpus: 16, cpu_guarantee_milli: milli}, _opts
+                                 when milli in [2000, 4000] ->
+        {:ok, %{"template_tag" => "sha-1"}}
+      end)
+
+      for {body, guaranteed} <- [
+            {%{memory_mb: 4096, vcpus: 2, guaranteed_vcpus: 2}, 2},
+            {%{memory_mb: 16_384, vcpus: 8, guaranteed_vcpus: 1}, 4}
+          ] do
+        assert %{"vcpus" => 16, "guaranteed_vcpus" => ^guaranteed} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:created)
+      end
+
+      for body <- [%{guaranteed_vcpus: 3}, %{platform: "darwin", vcpus: 8, memory_mb: 8192, guaranteed_vcpus: 2}] do
+        assert %{"message" => message} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:bad_request)
+
+        assert message =~ "guaranteed_cpu_milli"
+      end
+    end
+
     test "creates, inspects, runs commands in, pauses, resumes and deletes a sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
 
-      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 4, memory_mb: 8192}, _opts ->
+      expect(Nodes, :call, fn "node-a", "create", %{vcpus: 16, memory_mb: 8192}, _opts ->
         {:ok, %{"template_tag" => "sha-1"}}
       end)
 
@@ -501,7 +527,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
         |> post(~p"/api/accounts/#{account.name}/sandboxes", %{vcpus: 4, memory_mb: 8192})
         |> json_response(:created)
 
-      assert %{"id" => id, "state" => "running", "node_name" => "node-a", "vcpus" => 4, "template_tag" => "sha-1"} =
+      assert %{"id" => id, "state" => "running", "node_name" => "node-a", "vcpus" => 16, "template_tag" => "sha-1"} =
                created
 
       assert created["hostname"] == "sbx-" <> String.slice(id, 0, 8)
@@ -627,10 +653,12 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert %{
                "bucket" => "hour",
                "vcpu_hours" => vcpu_hours,
+               "memory_gib_hours" => memory_gib_hours,
                "created" => %{"count" => 0, "points" => points},
                "concurrency" => %{
                  "limits" => %{"vcpus" => 32, "memory_gb" => 64.0},
-                 "in_use" => %{"vcpus" => 4, "memory_gb" => 8.0}
+                 # A quarter vCPU per GiB guaranteed.
+                 "in_use" => %{"vcpus" => 2, "memory_gb" => 8.0}
                }
              } =
                conn
@@ -638,6 +666,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
                |> json_response(:ok)
 
       assert vcpu_hours == 0
+      assert memory_gib_hours == 0
       assert length(points) in 12..13
 
       too_long = DateTime.utc_now() |> DateTime.add(-91, :day) |> DateTime.to_iso8601()

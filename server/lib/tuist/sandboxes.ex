@@ -35,6 +35,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.UsageEvent
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
   alias Tuist.Sandboxes.Xcode
@@ -68,6 +69,8 @@ defmodule Tuist.Sandboxes do
   # long is paused, in case Amp's own pause never arrives.
   @orb_idle_pause_after_seconds 600
   @active_cpu_ms_per_second 20
+  # Nodes report every 30 seconds.
+  @max_metered_interval_ms 60_000
 
   def default_template, do: @default_template
   def default_shape, do: @default_shape
@@ -623,7 +626,8 @@ defmodule Tuist.Sandboxes do
       vcpus: sandbox.vcpus,
       memory_mb: sandbox.memory_mb,
       workspace_gb: sandbox.workspace_gb,
-      hostname: hostname
+      hostname: hostname,
+      cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
     }
 
     case place_and_create(sandbox, args, source, prefer) do
@@ -1314,6 +1318,8 @@ defmodule Tuist.Sandboxes do
                  paused_at: now(),
                  residency_work_id: nil,
                  guest_cpu_ms: nil,
+                 metered_cpu_ms: nil,
+                 metered_at: nil,
                  resident: data["resident"] == true,
                  updated_at: now()
                ],
@@ -1524,7 +1530,15 @@ defmodule Tuist.Sandboxes do
       )
 
     case Repo.update_all(query,
-           set: [state: :paused, paused_at: now(), residency_work_id: nil, guest_cpu_ms: nil, updated_at: now()],
+           set: [
+             state: :paused,
+             paused_at: now(),
+             residency_work_id: nil,
+             guest_cpu_ms: nil,
+             metered_cpu_ms: nil,
+             metered_at: nil,
+             updated_at: now()
+           ],
            inc: [residency_epoch: 1]
          ) do
       {1, [paused]} ->
@@ -2124,8 +2138,11 @@ defmodule Tuist.Sandboxes do
       |> put_reported_pause(sandbox)
       |> put_guest_activity(sandbox, reported)
 
-    if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) do
-      apply_report(sandbox, attrs)
+    {attrs, usage} = meter(attrs, sandbox, reported)
+
+    if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) and
+         apply_report(sandbox, attrs) == :updated and usage do
+      UsageEvent.Buffer.insert(usage)
     end
 
     if idle_orb?(sandbox, attrs), do: enqueue_idle_orb_pause(sandbox)
@@ -2153,17 +2170,74 @@ defmodule Tuist.Sandboxes do
         else: updates
 
     case Repo.update_all(query, updates) do
-      {1, [updated]} -> Events.record_transition(sandbox, updated)
-      {0, []} -> :ok
+      {1, [updated]} ->
+        Events.record_transition(sandbox, updated)
+        :updated
+
+      {0, []} ->
+        :stale
     end
   end
+
+  # A running Linux agent sandbox is billed, at each report, the larger of
+  # its guarantee (`Sandbox.guaranteed_cpu_milli/1`) over the time since the
+  # previous report and the CPU its VM used in that time (`cpu_ms` counts from the VM process's start). The
+  # first report of a run bills the CPU used so far; a lower reading than the
+  # last one comes from a new VM process. An interval longer than two
+  # reports, such as across a server restart, bills the guarantee for two.
+  # The usage row is written only when the row update wins its race, so a
+  # lost update is metered by the next report instead.
+  defp meter(attrs, %Sandbox{state: :running, purpose: :agent, platform: :linux} = sandbox, %{
+         "state" => "running",
+         "cpu_ms" => cpu_ms
+       })
+       when is_integer(cpu_ms) and cpu_ms >= 0 do
+    at = DateTime.utc_now()
+
+    {duration_ms, used_ms} =
+      case sandbox do
+        %Sandbox{metered_at: %DateTime{} = last_at, metered_cpu_ms: last_ms} when is_integer(last_ms) ->
+          {at |> DateTime.diff(last_at, :millisecond) |> max(0) |> min(@max_metered_interval_ms),
+           if(cpu_ms >= last_ms, do: cpu_ms - last_ms, else: cpu_ms)}
+
+        _first ->
+          {0, cpu_ms}
+      end
+
+    guaranteed = Sandbox.guaranteed_cpu_milli(sandbox)
+
+    usage = %{
+      id: UUIDv7.generate(),
+      account_id: sandbox.account_id,
+      sandbox_id: sandbox.id,
+      source: Events.source(sandbox),
+      vcpus: sandbox.vcpus,
+      memory_mb: sandbox.memory_mb,
+      guaranteed_cpu_milli: guaranteed,
+      duration_ms: duration_ms,
+      used_cpu_ms: used_ms,
+      billed_cpu_ms: max(div(guaranteed * duration_ms, 1000), used_ms),
+      inserted_at: DateTime.to_naive(at)
+    }
+
+    {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage}
+  end
+
+  defp meter(attrs, _sandbox, _reported), do: {attrs, nil}
 
   # A daemon shutdown (or a pause whose caller lost the result) can leave
   # the VM paused without a server pause. Repeated reports also heal old
   # paused rows, without continually moving their archive age forward.
   defp put_reported_pause(%{state: :paused} = attrs, sandbox) do
     paused_at = if sandbox.state == :paused, do: sandbox.paused_at || now(), else: now()
-    Map.merge(attrs, %{paused_at: paused_at, residency_work_id: nil, guest_cpu_ms: nil})
+
+    Map.merge(attrs, %{
+      paused_at: paused_at,
+      residency_work_id: nil,
+      guest_cpu_ms: nil,
+      metered_cpu_ms: nil,
+      metered_at: nil
+    })
   end
 
   defp put_reported_pause(%{state: :running} = attrs, _sandbox), do: Map.put(attrs, :paused_at, nil)

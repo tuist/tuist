@@ -1681,7 +1681,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Idle runners a pool gave up ahead of its scale-down cooldown because a sibling pool on the same fleet (fleet_selector, e.g. the BER1 rack) had queued jobs whose Pods the scheduler refused for insufficient resources. Emitted by the runners-controller (tuist_runners_pool_preempted_pods_total); each retired Pod also carries a RunnerPodPreemptedForSiblingDemand event naming the starved pool. Occasional bursts after another pool's spike are expected. A steady rate means the fleet is too small for the mix of pools sharing it.",
+        "description": "Idle runners a pool gave up ahead of its scale-down cooldown because a sibling pool on the same fleet (fleet_selector, e.g. the alder rack) had queued jobs whose Pods the scheduler refused for insufficient resources. Emitted by the runners-controller (tuist_runners_pool_preempted_pods_total); each retired Pod also carries a RunnerPodPreemptedForSiblingDemand event naming the starved pool. Occasional bursts after another pool's spike are expected. A steady rate means the fleet is too small for the mix of pools sharing it.",
         "fieldConfig": {
           "defaults": {
             "color": {

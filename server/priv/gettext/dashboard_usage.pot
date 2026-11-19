@@ -55,7 +55,7 @@ msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:90
 #: lib/tuist_web/live/usage_live.html.heex:233
-#: lib/tuist_web/live/usage_live.html.heex:774
+#: lib/tuist_web/live/usage_live.html.heex:775
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr ""
@@ -98,10 +98,10 @@ msgstr ""
 msgid "%{count} minutes run"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:705
+#: lib/tuist_web/live/usage_live.ex:710
 #: lib/tuist_web/live/usage_live.html.heex:151
 #: lib/tuist_web/live/usage_live.html.heex:275
-#: lib/tuist_web/live/usage_live.html.heex:821
+#: lib/tuist_web/live/usage_live.html.heex:831
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
 msgstr ""
@@ -142,7 +142,7 @@ msgid "Last period came to %{count} minutes."
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.ex:393
-#: lib/tuist_web/live/usage_live.ex:649
+#: lib/tuist_web/live/usage_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr ""
@@ -174,7 +174,7 @@ msgstr ""
 msgid "Covered by your trial"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:702
+#: lib/tuist_web/live/usage_live.ex:707
 #: lib/tuist_web/live/usage_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -231,7 +231,7 @@ msgstr ""
 msgid "Cache usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:704
+#: lib/tuist_web/live/usage_live.ex:709
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr ""
@@ -248,17 +248,17 @@ msgstr ""
 msgid "Not billed"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:727
+#: lib/tuist_web/live/usage_live.ex:732
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:719
+#: lib/tuist_web/live/usage_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:713
+#: lib/tuist_web/live/usage_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr ""
@@ -274,22 +274,22 @@ msgstr ""
 msgid "Test insights usage"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:700
+#: lib/tuist_web/live/usage_live.ex:705
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:692
+#: lib/tuist_web/live/usage_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:689
+#: lib/tuist_web/live/usage_live.ex:694
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:694
+#: lib/tuist_web/live/usage_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr ""
@@ -335,7 +335,7 @@ msgstr ""
 msgid "Tuist Runners discount"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:696
+#: lib/tuist_web/live/usage_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr ""
@@ -365,7 +365,7 @@ msgstr ""
 msgid "Group by:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:833
+#: lib/tuist_web/live/usage_live.html.heex:843
 #, elixir-autogen, elixir-format
 msgid "No sandboxes ran in this period"
 msgstr ""
@@ -380,48 +380,28 @@ msgstr ""
 msgid "vCPU-hours"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:758
-#, elixir-autogen, elixir-format
-msgid "vCPUs times the hours sandboxes ran this period."
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.html.heex:810
-#, elixir-autogen, elixir-format
-msgid "%{count} vCPU-hours run"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.html.heex:766
-#, elixir-autogen, elixir-format
-msgid "At %{rate}"
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.html.heex:746
-#, elixir-autogen, elixir-format
-msgid "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs, memory and disk included; paused and archived sandboxes use none."
-msgstr ""
-
-#: lib/tuist_web/live/usage_live.html.heex:817
+#: lib/tuist_web/live/usage_live.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "Covered during early access"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:638
+#: lib/tuist_web/live/usage_live.ex:643
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} vCPU-hours."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:644
+#: lib/tuist_web/live/usage_live.ex:649
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} vCPU-hours this period."
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.ex:615
-#: lib/tuist_web/live/usage_live.html.heex:804
+#: lib/tuist_web/live/usage_live.html.heex:805
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:776
+#: lib/tuist_web/live/usage_live.html.heex:777
 #, elixir-autogen, elixir-format
 msgid "Sandboxes are not billed while they are in early access"
 msgstr ""
@@ -540,4 +520,34 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes include input fetch, execution, and output upload at Linux compute rates. Queueing and VM boot are free."
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:819
+#, elixir-autogen, elixir-format
+msgid "%{count} GiB-hours of memory at %{rate}"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:811
+#, elixir-autogen, elixir-format
+msgid "%{count} vCPU-hours"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:766
+#, elixir-autogen, elixir-format
+msgid "At %{rate} and %{memory_rate}"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:758
+#, elixir-autogen, elixir-format
+msgid "CPU sandboxes were billed for this period."
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:640
+#, elixir-autogen, elixir-format
+msgid "per GiB-hour"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:746
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Running sandboxes are billed for CPU and memory at Linux runner rates, with a Linux sandbox's CPU counted as at least its guarantee. Paused sandboxes aren't billed."
 msgstr ""

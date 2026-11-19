@@ -132,7 +132,7 @@ defmodule TuistWeb.API.ReportPublishingAuthorizationTest do
       {:ok, project_model} = Projects.get_project_token(project_token)
 
       assert conn
-             |> put_req_header("authorization", "Bearer #{project.token}")
+             |> put_req_header("authorization", "Bearer #{project_token}")
              |> publish(project, @suffix, body(@system, @suffix))
              |> json_response(@success)
 
@@ -288,7 +288,7 @@ defmodule TuistWeb.API.ReportPublishingAuthorizationTest do
       {_, foreign_token} = account_token(other_user.account, ["project:#{@resource}:write"])
       {:ok, user_token, _} = Tuist.Guardian.encode_and_sign(other_user, %{}, token_type: "access_token")
 
-      for token <- [sibling.token, restricted_token, foreign_token, user_token] do
+      for token <- [Projects.create_project_token(sibling), restricted_token, foreign_token, user_token] do
         denied =
           conn |> put_req_header("authorization", "Bearer #{token}") |> publish(project, @suffix, body(@system, @suffix))
 

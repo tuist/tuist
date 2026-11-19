@@ -148,7 +148,7 @@ The long-window rules moved with less history than they look back over:
 less than Cloud held, and `fg1c6ql650pvka` (7 days) stays quiet until Pulse
 holds the 3.5 days of `wan0` samples its gate requires, around November 21.
 Pulse rejects its `label_replace(vector(...))` commit table, so it divides by
-BER1's commit directly (see `alerts.md`). `Kura - replication outbox
+alder's commit directly (see `alerts.md`). `Kura - replication outbox
 approaching its cap` (`afwtwlzgkderke`) read a metric retired in kura@0.46 and
 was deleted.
 

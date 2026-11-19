@@ -133,7 +133,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
 
 LVM region enrollment encrypts all Kura claims by default and selects the
-extended disk resource. BER1 stays on its legacy class until explicitly
+extended disk resource. Alder stays on its legacy class until explicitly
 enrolled after rack plugin/host preparation; the account flag alone cannot
 move it onto file-backed encryption. Desired and rendered manifest revisions
 must include both encryption and LVM enrollment identically.
@@ -141,5 +141,5 @@ must include both encryption and LVM enrollment identically.
 ## Deployment
 
 - Read [../infra/AGENTS.md](../infra/AGENTS.md) before shared-infrastructure work. Managed deployments use CAPI Kubernetes on Hetzner through Helm; chart and environment values live in `infra/helm/tuist/`.
-- `.github/workflows/server-production-deployment.yml` cascades main through canary, acceptance tests, runners acceptance and the Kura rollout gate before production (with a hotfix fast path). Runners acceptance requires remote compilation-cache hits; `.github/workflows/runners-acceptance.yml` probes production runners and the BER1 rack hourly.
+- `.github/workflows/server-production-deployment.yml` cascades main through canary, acceptance tests, runners acceptance and the Kura rollout gate before production (with a hotfix fast path). Runners acceptance requires remote compilation-cache hits; `.github/workflows/runners-acceptance.yml` probes production runners and the alder rack hourly.
 - Canary/production pin the newest `kura@X.Y.0-canary.N` in the deployed commit; the cascade calls `kura-release.yml` when Kura changed. Fresh staging builds its runtime from that commit. `kura_runtime_image_tag` overrides the pin in `server-deployment.yml`, which also supports single-environment manual deployments.

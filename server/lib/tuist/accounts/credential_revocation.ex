@@ -3,7 +3,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
   Revokes customer-facing credentials in bulk, for an incident where they may
   have leaked: browser sessions and pending sign-in links, CLI and app refresh
   tokens, OAuth grants, device codes, agent credentials, account tokens
-  (including SCIM), project tokens, and legacy user and project tokens.
+  (including SCIM) and project tokens.
   Run it through `Tuist.Release.revoke_credentials/1`, following the runbook in
   `server/docs/credential-revocation.md`.
 
@@ -32,20 +32,6 @@ defmodule Tuist.Accounts.CredentialRevocation do
   alias Tuist.Repo
 
   @doc """
-  Revokes only the legacy user and project tokens (the ones without a `tuist_`
-  prefix), leaving every other credential working. Idempotent. Returns the
-  number of tokens revoked in each table.
-  """
-  def revoke_legacy_tokens do
-    %{
-      legacy_user_tokens:
-        count(Repo.update_all(from(u in "users", where: not is_nil(u.token_hash)), set: [token_hash: nil])),
-      legacy_project_tokens:
-        count(Repo.update_all(from(p in "projects", where: not is_nil(p.token_hash)), set: [token_hash: nil]))
-    }
-  end
-
-  @doc """
   Revokes every customer-facing credential. Each step is idempotent, and they
   are not wrapped in one transaction, so a rerun finishes an interrupted run.
   Returns the number of rows each step touched.
@@ -56,7 +42,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
 
     counts = %{
       accounts: count(Repo.update_all(from(a in Account), set: [credentials_revoked_at: now])),
-      users: count(Repo.update_all(from(u in "users"), set: [token_hash: nil, credentials_revoked_at: now])),
+      users: count(Repo.update_all(from(u in "users"), set: [credentials_revoked_at: now])),
       browser_tokens: count(Repo.delete_all(UserToken)),
       refresh_tokens: count(Repo.delete_all("guardian_tokens")),
       oauth_tokens: count(Repo.update_all(unrevoked_oauth_tokens(), set: oauth_revocation(now))),
@@ -64,9 +50,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
       agent_credentials:
         count(Repo.update_all(from(c in AgentAuthCredential, where: is_nil(c.revoked_at)), set: [revoked_at: now])),
       account_tokens: count(Repo.delete_all(AccountToken)),
-      project_tokens: count(Repo.delete_all(ProjectToken)),
-      legacy_project_tokens:
-        count(Repo.update_all(from(p in "projects", where: not is_nil(p.token_hash)), set: [token_hash: nil]))
+      project_tokens: count(Repo.delete_all(ProjectToken))
     }
 
     disconnect(session_tokens)
@@ -74,8 +58,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
   end
 
   @doc """
-  Revokes the credentials of one account: its account, project and legacy
-  project tokens and its account JWTs, plus the user credentials of its owner
+  Revokes the credentials of one account: its account and project tokens and its account JWTs, plus the user credentials of its owner
   or, for an organization, of its members.
   """
   def revoke_account(account_id) do
@@ -98,14 +81,7 @@ defmodule Tuist.Accounts.CredentialRevocation do
         counts = %{
           users: length(users),
           account_tokens: count(Repo.delete_all(from(t in AccountToken, where: t.account_id == ^account_id))),
-          project_tokens: count(Repo.delete_all(from(t in ProjectToken, where: t.project_id in subquery(project_ids)))),
-          legacy_project_tokens:
-            count(
-              Repo.update_all(
-                from(p in "projects", where: p.account_id == ^account_id and not is_nil(p.token_hash)),
-                set: [token_hash: nil]
-              )
-            )
+          project_tokens: count(Repo.delete_all(from(t in ProjectToken, where: t.project_id in subquery(project_ids))))
         }
 
         {counts, session_tokens}

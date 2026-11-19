@@ -7,6 +7,7 @@ defmodule Tuist.Sandboxes.Query do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Analytics
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
@@ -33,10 +34,17 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   # The changeset validates each platform's shapes; omitted fields take the platform's defaults.
+  # A macOS sandbox for a `repository` boots from its Claude Code macOS
+  # snapshot when one is ready, and has one built otherwise.
   def run(:create, account, params) do
     attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
+    attrs = put_guarantee(attrs, params["guaranteed_vcpus"])
 
-    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(kept(created))}
+    with {:ok, source} <- ClaudeCodeSnapshots.mac_source(account, params["repository"], attrs),
+         {:ok, created} <- Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: source && source.snapshot) do
+      ClaudeCodeSnapshots.request_mac_build(source)
+      {:ok, sandbox(kept(created))}
+    end
   end
 
   def run(:show, account, params) do
@@ -72,6 +80,7 @@ defmodule Tuist.Sandboxes.Query do
          period: %{start: iso(start), end: iso(finish)},
          bucket: Atom.to_string(Analytics.bucket_for_window(start, finish)),
          vcpu_hours: usage.vcpu_hours,
+         memory_gib_hours: usage.memory_gib_hours,
          created: %{
            count: overview.created.count,
            trend: overview.created.trend,
@@ -85,15 +94,16 @@ defmodule Tuist.Sandboxes.Query do
              vcpus: account.sandbox_vcpus_limit,
              memory_gb: account.sandbox_memory_gb_limit * 1.0
            },
+           # Guarantees can be fractions of a vCPU; the API's vCPUs are whole.
            in_use: %{
-             vcpus: in_use.vcpus,
+             vcpus: ceil(in_use.vcpus),
              memory_gb: Float.round(in_use.memory_mb / 1024, 1)
            },
            points:
              points(
                concurrency.dates,
                &%{
-                 vcpus: Enum.at(concurrency.vcpus, &1),
+                 vcpus: ceil(Enum.at(concurrency.vcpus, &1)),
                  memory_gb: Enum.at(concurrency.memory_gb, &1) * 1.0
                }
              )
@@ -186,6 +196,12 @@ defmodule Tuist.Sandboxes.Query do
   def error(reason) when is_binary(reason), do: {:bad_gateway, "The sandbox node rejected the operation: #{reason}"}
   def error(reason), do: {:internal_server_error, "Sandbox operation failed: #{inspect(reason)}"}
 
+  # vCPUs to millicores; anything else reaches the changeset as is, which
+  # refuses it.
+  defp put_guarantee(attrs, nil), do: attrs
+  defp put_guarantee(attrs, vcpus) when is_number(vcpus), do: Map.put(attrs, :guaranteed_cpu_milli, round(vcpus * 1000))
+  defp put_guarantee(attrs, vcpus), do: Map.put(attrs, :guaranteed_cpu_milli, vcpus)
+
   @doc """
   The public fields of a sandbox, with the status the dashboard shows.
   """
@@ -216,6 +232,7 @@ defmodule Tuist.Sandboxes.Query do
       :updated_at
     ])
     |> Map.put(:status, status(sandbox))
+    |> Map.put(:guaranteed_vcpus, Sandbox.vcpus(Sandbox.guaranteed_cpu_milli(sandbox)))
   end
 
   defp status(%Sandbox{state: :running, residency_work_id: work}) when is_binary(work), do: "active"

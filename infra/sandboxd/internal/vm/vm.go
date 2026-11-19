@@ -60,6 +60,11 @@ type Spec struct {
 	GID            int
 	NetNS          string
 	NetNSDir       string
+	// Cgroup, when set, is the cgroup v2 directory the process is spawned
+	// into (clone3 CLONE_INTO_CGROUP), so Firecracker and its vCPU threads
+	// run there from their first instruction. The jailer moves nothing
+	// without --cgroup arguments.
+	Cgroup *os.File
 }
 
 // Instance is a spawned Firecracker process.
@@ -227,6 +232,10 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 	cmd.Stdout = pipeW
 	cmd.Stderr = pipeW
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if spec.Cgroup != nil {
+		cmd.SysProcAttr.UseCgroupFD = true
+		cmd.SysProcAttr.CgroupFD = int(spec.Cgroup.Fd())
+	}
 	fmt.Fprintf(logFile, "\n==== %s sandboxd spawn: %s %s\n", time.Now().UTC().Format(time.RFC3339), bin, strings.Join(args, " "))
 	if err := cmd.Start(); err != nil {
 		pipeW.Close()

@@ -1851,3 +1851,15 @@ key another pod writes with.
   value: {{ join "," . | quote }}
 {{- end }}
 {{- end -}}
+
+{{/*
+A Kubernetes CPU quantity ("250m", "2", "1.5") in millicores.
+*/}}
+{{- define "tuist.milliCPU" -}}
+{{- $cpu := toString . -}}
+{{- if hasSuffix "m" $cpu -}}
+{{- trimSuffix "m" $cpu | int -}}
+{{- else -}}
+{{- mulf (float64 $cpu) 1000 | int -}}
+{{- end -}}
+{{- end }}

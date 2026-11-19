@@ -59,7 +59,7 @@ defmodule TuistWeb.RunnerInteractiveShellControllerTest do
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("authorization", "Bearer #{TuistTestSupport.Fixtures.AccountsFixtures.user_access_token(user)}")
       |> put_req_header("x-tuist-runner-shell-token", session.token)
       |> websocket_upgrade_headers()
       |> get(~p"/api/runners/interactive/shell/connect")

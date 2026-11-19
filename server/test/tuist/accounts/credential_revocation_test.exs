@@ -33,8 +33,6 @@ defmodule Tuist.Accounts.CredentialRevocationTest do
     {:ok, user_jwt, _} = Authentication.encode_and_sign(member, %{}, token_type: :access, ttl: {1, :hour})
 
     credentials = %{
-      legacy_user: member.token,
-      legacy_project: project.token,
       project: Projects.create_project_token(project),
       account: account_token,
       account_jwt: account_jwt,
@@ -74,37 +72,13 @@ defmodule Tuist.Accounts.CredentialRevocationTest do
       assert counts.users == 2
       assert counts.account_tokens == 1
       assert counts.project_tokens == 1
-      assert counts.legacy_project_tokens == 1
 
       assert Enum.sort(authenticating(other.credentials)) == Enum.sort(Map.keys(other.credentials))
       assert Accounts.get_user_by_session_token(other.session)
     end
 
-    test "clears the stored legacy project token digests" do
-      %{account: account} = organization_with_credentials()
-
-      {:ok, _} = CredentialRevocation.revoke_account(account.id)
-
-      assert Repo.all(
-               from(p in "projects", where: p.account_id == ^account.id and not is_nil(p.token_hash), select: p.id)
-             ) == []
-    end
-
     test "returns an error for an unknown account" do
       assert CredentialRevocation.revoke_account(-1) == {:error, :not_found}
-    end
-  end
-
-  describe "revoke_legacy_tokens/0" do
-    test "rejects legacy user and project tokens and leaves every other credential working" do
-      %{credentials: credentials} = organization_with_credentials()
-
-      CredentialRevocation.revoke_legacy_tokens()
-
-      assert credentials |> Map.drop([:legacy_user, :legacy_project]) |> authenticating() |> Enum.sort() ==
-               credentials |> Map.drop([:legacy_user, :legacy_project]) |> Map.keys() |> Enum.sort()
-
-      assert authenticating(Map.take(credentials, [:legacy_user, :legacy_project])) == []
     end
   end
 

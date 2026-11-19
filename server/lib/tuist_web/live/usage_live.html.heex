@@ -745,7 +745,7 @@
         <span data-part="info-label">
           {dgettext(
             "dashboard_usage",
-            "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs, memory and disk included; paused and archived sandboxes use none.",
+            "Billing period %{from} to %{to}. Running sandboxes are billed for CPU and memory at Linux runner rates, with a Linux sandbox's CPU counted as at least its guarantee. Paused sandboxes aren't billed.",
             from: Timex.format!(usage.period_start, "{Mshort} {D}"),
             to: Timex.format!(usage.period_end, "{Mshort} {D}, {YYYY}")
           )}
@@ -755,7 +755,7 @@
             id="widget-sandbox-vcpu-hours"
             title={dgettext("dashboard_usage", "vCPU-hours")}
             description={
-              dgettext("dashboard_usage", "vCPUs times the hours sandboxes ran this period.")
+              dgettext("dashboard_usage", "CPU sandboxes were billed for this period.")
             }
             value={TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)}
           />
@@ -763,8 +763,9 @@
             id="widget-sandbox-gross"
             title={dgettext("dashboard_usage", "Usage value")}
             description={
-              dgettext("dashboard_usage", "At %{rate}",
-                rate: TuistWeb.UsageLive.vcpu_hour_rate_label()
+              dgettext("dashboard_usage", "At %{rate} and %{memory_rate}",
+                rate: TuistWeb.UsageLive.vcpu_hour_rate_label(),
+                memory_rate: TuistWeb.UsageLive.gib_hour_rate_label()
               )
             }
             value={format_money(usage.gross)}
@@ -807,11 +808,20 @@
             <dl data-part="lines">
               <div data-part="line">
                 <dt>
-                  {dgettext("dashboard_usage", "%{count} vCPU-hours run",
+                  {dgettext("dashboard_usage", "%{count} vCPU-hours",
                     count: TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)
                   )}
                 </dt>
-                <dd>{TuistWeb.UsageLive.money_label(usage.gross)}</dd>
+                <dd>{TuistWeb.UsageLive.money_label(usage.cpu)}</dd>
+              </div>
+              <div data-part="line" data-kind="memory">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} GiB-hours of memory at %{rate}",
+                    count: TuistWeb.UsageLive.vcpu_hours(usage.memory_gib_hours),
+                    rate: TuistWeb.UsageLive.gib_hour_rate_label()
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(usage.memory)}</dd>
               </div>
               <div data-part="line" data-kind="credit">
                 <dt>{dgettext("dashboard_usage", "Covered during early access")}</dt>

@@ -2443,23 +2443,6 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
-    test "issues no legacy token" do
-      # When: two users, so their missing digests do not collide on the unique index
-      {:ok, first} = Accounts.create_user(unique_user_email(), password: valid_user_password())
-      {:ok, second} = Accounts.create_user(unique_user_email(), password: valid_user_password())
-
-      # Then
-      assert is_nil(first.token)
-      assert is_nil(second.token)
-
-      assert Repo.all(
-               from(u in "users",
-                 where: u.id in ^[first.id, second.id],
-                 select: u.token_hash
-               )
-             ) == [nil, nil]
-    end
-
     test "suffixes reserved email-derived handles and retries collisions" do
       stub(Environment, :tuist_hosted?, fn -> false end)
 
@@ -3184,7 +3167,6 @@ defmodule Tuist.AccountsTest do
       refute Accounts.get_user_by_session_token(squatter_session)
       assert_receive %Broadcast{event: "disconnect"}
       refute Accounts.get_device_code(device_code)
-      refute Accounts.get_user_by_token(squatted.token)
       assert {:error, _} = Tuist.Guardian.resource_from_token(squatter_refresh, %{"typ" => "refresh"})
     end
 
@@ -3260,7 +3242,6 @@ defmodule Tuist.AccountsTest do
       Repo.insert!(user_token)
 
       {:ok, _} = Accounts.reset_user_password(token, %{"password" => "reset StrongP@ss 2038"})
-      refute Accounts.get_user_by_token(squatted.token)
       assert {:error, _} = Tuist.Guardian.resource_from_token(squatter_refresh, %{"typ" => "refresh"})
     end
 

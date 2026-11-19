@@ -106,14 +106,17 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   @doc """
   The newest ready snapshot of `repository` (`owner/name`) a Claude Code
   environment saved after running the setup script whose SHA-256 is
-  `setup_sha256`, for the environment's template and workspace size. Only a
-  snapshot of a template tag a connected node creates new sandboxes with
-  qualifies: the rootfs carries `sbx-worker`, so a snapshot of an older
-  image would hold sessions back on it.
+  `setup_sha256`, for the environment's template and workspace size, or the
+  `template:` and `workspace_gb:` given. Only a snapshot of a template tag a
+  connected node creates new sandboxes with qualifies: the rootfs carries
+  `sbx-worker`, so a snapshot of an older image would hold sessions back on it.
   """
-  def find_ready_for_repository(%AgentEnvironment{} = agent_environment, repository, setup_sha256)
+  def find_ready_for_repository(%AgentEnvironment{} = agent_environment, repository, setup_sha256, opts \\ [])
       when is_binary(repository) and is_binary(setup_sha256) do
-    case current_template_tags(agent_environment.template) do
+    template = Keyword.get(opts, :template, agent_environment.template)
+    workspace_gb = Keyword.get(opts, :workspace_gb, agent_environment.workspace_gb)
+
+    case current_template_tags(template) do
       [] ->
         nil
 
@@ -122,8 +125,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
           from(s in DiskSnapshot,
             where: s.agent_environment_id == ^agent_environment.id and s.repository == ^repository,
             where: s.setup_sha256 == ^setup_sha256 and s.state == :ready,
-            where: s.template == ^agent_environment.template and s.template_tag in ^tags,
-            where: s.workspace_gb == ^agent_environment.workspace_gb,
+            where: s.template == ^template and s.template_tag in ^tags,
+            where: s.workspace_gb == ^workspace_gb,
             order_by: [desc: s.inserted_at],
             limit: 1
           )
@@ -151,19 +154,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   @doc """
   Starts building the snapshot of `repository` for a Claude Code
   environment and the setup script whose SHA-256 is `setup_sha256`
-  (`Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker`). Answers
+  (`Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker`), on the
+  environment's platform, template and workspace size, or the `platform:`,
+  `template:` and `workspace_gb:` given. Answers
   `{:error, :already_building}` while a build of the same key runs or for a
   while after one failed.
   """
-  def start_build(%AgentEnvironment{} = agent_environment, repository, setup_sha256)
+  def start_build(%AgentEnvironment{} = agent_environment, repository, setup_sha256, opts \\ [])
       when is_binary(repository) and is_binary(setup_sha256) do
     attrs = %{
       account_id: agent_environment.account_id,
       agent_environment_id: agent_environment.id,
       repository: repository,
       setup_sha256: setup_sha256,
-      template: agent_environment.template,
-      workspace_gb: agent_environment.workspace_gb,
+      platform: Keyword.get(opts, :platform, agent_environment.platform),
+      template: Keyword.get(opts, :template, agent_environment.template),
+      workspace_gb: Keyword.get(opts, :workspace_gb, agent_environment.workspace_gb),
       last_used_at: now()
     }
 
@@ -327,8 +333,11 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     Repo.exists?(query)
   end
 
-  # A Claude Code environment keeps one snapshot per repository: the newest
-  # save replaces the older ready ones, whichever setup script they ran.
+  # A Claude Code environment keeps one snapshot per repository for its
+  # sessions: the newest save replaces the older ready ones of its platform,
+  # whichever setup script or template they ran. The Macs its sessions create
+  # keep one per Xcode template (`ClaudeCodeSnapshots.mac_build?/2`), which
+  # those of the environment's own platform leave alone.
   # Builds of the repository are left to finish.
   #
   # Amp refreshes a project snapshot under a new identifier: it spawns an
@@ -337,11 +346,23 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # was spawned from are superseded too, not only older saves of this one.
   defp delete_superseded(%DiskSnapshot{agent_environment_id: agent_environment_id} = snapshot, _sandbox)
        when is_integer(agent_environment_id) do
-    from(s in DiskSnapshot,
-      where:
-        s.agent_environment_id == ^agent_environment_id and s.repository == ^snapshot.repository and
-          s.state == :ready and s.id != ^snapshot.id and s.inserted_at <= ^snapshot.inserted_at
-    )
+    query =
+      from(s in DiskSnapshot,
+        where:
+          s.agent_environment_id == ^agent_environment_id and s.repository == ^snapshot.repository and
+            s.platform == ^snapshot.platform and s.state == :ready and s.id != ^snapshot.id and
+            s.inserted_at <= ^snapshot.inserted_at
+      )
+
+    environment_platform =
+      Repo.one(from(e in AgentEnvironment, where: e.id == ^agent_environment_id, select: e.platform))
+
+    query =
+      if snapshot.platform == environment_platform,
+        do: query,
+        else: where(query, [s], s.template == ^snapshot.template)
+
+    query
     |> Repo.all()
     |> Enum.each(&delete/1)
   end

@@ -33,12 +33,12 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/sandbox"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/server"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/server"
 )
 
 // version is set with -ldflags "-X main.version=...".
@@ -72,14 +72,35 @@ func main() {
 	memoryFloorGiB := intEnv(logger, "MEMORY_FLOOR_GIB", 0)
 	executionSlots := intEnv(logger, "EXECUTION_SLOTS", 0)
 	memoryCeilingGiB := intEnv(logger, "MEMORY_CEILING_GIB", 0)
-	if memoryFloorGiB < 0 || memoryCeilingGiB < 0 {
-		logger.Error("MEMORY_FLOOR_GIB and MEMORY_CEILING_GIB must not be negative", "floor", memoryFloorGiB, "ceiling", memoryCeilingGiB)
+	cpuFloorMilli := intEnv(logger, "CPU_FLOOR_MILLI", 0)
+	cpuCeilingMilli := intEnv(logger, "CPU_CEILING_MILLI", 0)
+	if memoryFloorGiB < 0 || memoryCeilingGiB < 0 || cpuFloorMilli < 0 || cpuCeilingMilli < 0 {
+		logger.Error("MEMORY_FLOOR_GIB, MEMORY_CEILING_GIB, CPU_FLOOR_MILLI and CPU_CEILING_MILLI must not be negative",
+			"memory_floor", memoryFloorGiB, "memory_ceiling", memoryCeilingGiB, "cpu_floor", cpuFloorMilli, "cpu_ceiling", cpuCeilingMilli)
 		os.Exit(1)
 	}
 	elastic := protocol.Elastic{
 		PodName:            os.Getenv("POD_NAME"),
 		MemoryFloorBytes:   uint64(memoryFloorGiB) << 30,   //nolint:gosec // Checked non-negative above.
 		MemoryCeilingBytes: uint64(memoryCeilingGiB) << 30, //nolint:gosec // Checked non-negative above.
+		CPUFloorMilli:      uint64(cpuFloorMilli),          //nolint:gosec // Checked non-negative above.
+		CPUCeilingMilli:    uint64(cpuCeilingMilli),        //nolint:gosec // Checked non-negative above.
+	}
+	// Each VM gets its own cgroup, weighted by its guarantee, so one busy
+	// sandbox cannot take another's guaranteed CPU. Without them (no cgroup
+	// v2, a read-only hierarchy) every VM shares the daemon's cgroup as
+	// before, and hello does not offer cpu_guarantees.
+	var vmCgroups *hostinfo.VMCgroups
+	if boolEnv(logger, "VM_CGROUPS", true) {
+		daemonWeight := elastic.CPUFloorMilli
+		if daemonWeight == 0 {
+			daemonWeight = protocol.DefaultCPUGuaranteeMilli
+		}
+		var err error
+		if vmCgroups, err = hostinfo.SetupVMCgroups(daemonWeight); err != nil {
+			logger.Warn("per-VM cgroups are off; every VM shares the daemon's", "error", err)
+			vmCgroups = nil
+		}
 	}
 	diskBudgetGiB := intEnv(logger, "DISK_BUDGET_GIB", 0)
 	if diskBudgetGiB < 0 {
@@ -96,17 +117,23 @@ func main() {
 		logger.Error("CHECKOUT_WORKSPACES_GIB must not be negative", "value", checkoutWorkspacesGiB)
 		os.Exit(1)
 	}
-	// The blob cache and the prepared checkout workspaces come out of the disk
-	// budget: the server places sandboxes against the budget the daemon
-	// reports, so it never counts on the bytes they may hold.
+	cacheImagesGiB := intEnv(logger, "CACHE_IMAGES_GIB", 0)
+	if cacheImagesGiB < 0 {
+		logger.Error("CACHE_IMAGES_GIB must not be negative", "value", cacheImagesGiB)
+		os.Exit(1)
+	}
+	// The blob cache, the prepared checkout workspaces and the copied cache
+	// images come out of the disk budget: the server places sandboxes against
+	// the budget the daemon reports, so it never counts on the bytes they may
+	// hold.
 	sandboxBudgetGiB := diskBudgetGiB
-	if diskBudgetGiB > 0 && blobCacheGiB+checkoutWorkspacesGiB > 0 {
-		if blobCacheGiB+checkoutWorkspacesGiB >= diskBudgetGiB {
-			logger.Error("BLOB_CACHE_GIB and CHECKOUT_WORKSPACES_GIB must stay below DISK_BUDGET_GIB",
-				"blob_cache_gib", blobCacheGiB, "checkout_workspaces_gib", checkoutWorkspacesGiB, "disk_budget_gib", diskBudgetGiB)
+	if reserved := blobCacheGiB + checkoutWorkspacesGiB + cacheImagesGiB; diskBudgetGiB > 0 && reserved > 0 {
+		if reserved >= diskBudgetGiB {
+			logger.Error("BLOB_CACHE_GIB, CHECKOUT_WORKSPACES_GIB and CACHE_IMAGES_GIB must stay below DISK_BUDGET_GIB",
+				"blob_cache_gib", blobCacheGiB, "checkout_workspaces_gib", checkoutWorkspacesGiB, "cache_images_gib", cacheImagesGiB, "disk_budget_gib", diskBudgetGiB)
 			os.Exit(1)
 		}
-		sandboxBudgetGiB -= blobCacheGiB + checkoutWorkspacesGiB
+		sandboxBudgetGiB -= reserved
 	}
 	prebuild, err := template.ParseShapes(os.Getenv("PREBUILD_SHAPES"))
 	if err != nil {
@@ -262,11 +289,18 @@ func main() {
 	// checkout masters and takes their exports. It authorizes this Pod by
 	// name and address; without either, workers clone as before.
 	var checkouts checkout.Agent
+	// The same agent copies runner-cache masters for cache grants, when
+	// CACHE_IMAGE_DIR and CACHE_IMAGES_GIB are set.
+	var cacheImages sandbox.CacheImageSource
 	if agentURL := os.Getenv("CHECKOUT_AGENT_URL"); agentURL != "" {
 		if elastic.PodName == "" {
 			logger.Warn("CHECKOUT_AGENT_URL is set without POD_NAME; checkouts stay off")
 		} else {
-			checkouts = &checkout.Client{URL: agentURL, PodName: elastic.PodName, HTTP: checkout.NewHTTPClient()}
+			client := &checkout.Client{URL: agentURL, PodName: elastic.PodName, HTTP: checkout.NewHTTPClient()}
+			checkouts = client
+			if cacheImagesGiB > 0 {
+				cacheImages = client
+			}
 		}
 	}
 	// Prepared workspaces let a fresh sandbox start from the node's last seed
@@ -294,15 +328,24 @@ func main() {
 		AllowedShapes: allowedShapes,
 		SnapshotDir:   snapshotDir, FirecrackerVersion: fcVersion, SnapshotCompat: snapshotCompat,
 		// Cache images must share the data filesystem so attaching one is a reflink.
-		CacheImageDir: os.Getenv("CACHE_IMAGE_DIR"),
+		CacheImageDir: os.Getenv("CACHE_IMAGE_DIR"), CacheImagesBytes: int64(cacheImagesGiB) << 30,
+		CacheImagesTTL: durationEnv(logger, "CACHE_IMAGES_TTL", 24*time.Hour),
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
-		Blobs: blobs, Checkouts: checkouts, Workspaces: workspaces,
+		Blobs: blobs, Checkouts: checkouts, Workspaces: workspaces, CacheImages: cacheImages, Cgroups: vmCgroups,
 	})
 	if err := manager.Recover(ctx); err != nil {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
+	}
+	if cacheImages != nil {
+		manager.ExpireCacheImages()
+		go func() {
+			for range time.Tick(10 * time.Minute) {
+				manager.ExpireCacheImages()
+			}
+		}()
 	}
 	// Remote-execution daemons keep their old tags: the server places
 	// executions on the tag most nodes are configured with, so a node that
@@ -378,7 +421,7 @@ func main() {
 
 	disk := diskusage.Accounter{
 		DataDir: dataDir, TemplatesDir: store.Dir, SnapshotsDir: snapshotDir, JailDir: jailBase,
-		BlobCacheDir: filepath.Join(dataDir, "blobs"), CheckoutsDir: filepath.Join(dataDir, "checkouts"), BudgetBytes: uint64(sandboxBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
+		BlobCacheDir: filepath.Join(dataDir, "blobs"), CheckoutsDir: filepath.Join(dataDir, "checkouts"), CacheImagesDir: os.Getenv("CACHE_IMAGE_DIR"), BudgetBytes: uint64(sandboxBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
 	}
 	diskReport := func() protocol.DiskReport {
 		report, err := disk.Report()
@@ -414,6 +457,7 @@ func main() {
 					DirectExecEndpoint: directExecEndpoint,
 					SnapshotCompat:     snapshotCompat,
 					LazyDisks:          true,
+					CPUGuarantees:      vmCgroups != nil,
 					DefaultTemplate:    templateName,
 					DefaultTemplateTag: defaultTemplate.Tag,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,

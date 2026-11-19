@@ -4,7 +4,7 @@
       [
         "alertname",
         "=~",
-        "Kura thin pool data almost full|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
+        "Kura thin pool cannot back its volumes|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
       ],
       [
         "cluster",
@@ -25,7 +25,7 @@
       [
         "alertname",
         "=~",
-        "Kura thin pool data almost full|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
+        "Kura thin pool cannot back its volumes|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
       ],
       [
         "cluster",
@@ -45,7 +45,7 @@
       [
         "alertname",
         "=~",
-        "Kura thin pool data almost full|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
+        "Kura thin pool cannot back its volumes|Kura thin pool metadata almost full|Kura thin pool read-only or out of data space"
       ],
       [
         "cluster",

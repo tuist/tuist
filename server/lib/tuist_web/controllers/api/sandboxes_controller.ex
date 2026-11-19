@@ -105,6 +105,7 @@ defmodule TuistWeb.API.SandboxesController do
       agent_model: %Schema{type: :string},
       agent_system_prompt: %Schema{type: :string, nullable: true},
       setup_script: %Schema{type: :string, nullable: true},
+      macos_setup_script: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
@@ -131,6 +132,7 @@ defmodule TuistWeb.API.SandboxesController do
       :agent_model,
       :agent_system_prompt,
       :setup_script,
+      :macos_setup_script,
       :inserted_at,
       :updated_at
     ]
@@ -175,6 +177,12 @@ defmodule TuistWeb.API.SandboxesController do
       nullable: true,
       description:
         "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
+    },
+    macos_setup_script: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB."
     }
   }
 
@@ -332,6 +340,7 @@ defmodule TuistWeb.API.SandboxesController do
         :agent_model,
         :agent_system_prompt,
         :setup_script,
+        :macos_setup_script,
         :anthropic_organization_id,
         :anthropic_workspace_id,
         :anthropic_service_account_id,
@@ -359,7 +368,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
@@ -399,6 +408,7 @@ defmodule TuistWeb.API.SandboxesController do
         :agent_model,
         :agent_system_prompt,
         :setup_script,
+        :macos_setup_script,
         :xcode_version | AgentEnvironment.federation_fields()
       ])
 
@@ -499,7 +509,7 @@ defmodule TuistWeb.API.SandboxesController do
     parameters: @account_parameters,
     request_body:
       {"Sandbox params", "application/json",
-       %Schema{title: "CreateSandbox", type: :object, properties: @shape_properties}},
+       %Schema{title: "CreateSandbox", type: :object, properties: SandboxSchemas.create()}},
     responses:
       @error_responses
       |> Map.merge(@node_error_responses)
@@ -1079,6 +1089,7 @@ defmodule TuistWeb.API.SandboxesController do
       :agent_model,
       :agent_system_prompt,
       :setup_script,
+      :macos_setup_script,
       :inserted_at,
       :updated_at
     ])

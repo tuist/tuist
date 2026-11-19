@@ -54,11 +54,16 @@ defmodule Tuist.Sandboxes.Capacity do
   shrink back toward what their running sandboxes hold a while after
   their last growth (`shrink_carve_outs/0`), which hands the memory back
   to the runner pools.
+
+  CPU is not admitted: guests burst into the node's idle cores. The
+  daemon's CPU request follows what its sandboxes are guaranteed
+  (`sync_cpu/1`), so those cores stay out of exclusive-CPU runners.
   """
 
   import Ecto.Query
 
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Sandboxes
@@ -105,6 +110,8 @@ defmodule Tuist.Sandboxes.Capacity do
   @admission_grow_wait_ms 2_500
   # Below the new limit, so the kubelet's check that usage fits passes.
   @shrink_reclaim_margin_bytes 256 * @mib
+  # How long a node's last confirmed CPU request saves a Kubernetes read.
+  @cpu_request_cache_ttl to_timeout(minute: 5)
 
   def charge_bytes(%{memory_mb: memory_mb}) when is_integer(memory_mb), do: memory_mb * @mib + @vm_overhead_bytes
 
@@ -123,14 +130,23 @@ defmodule Tuist.Sandboxes.Capacity do
       )
       when is_integer(memory) and memory >= 0 and is_integer(free) and free >= 0 and is_boolean(reclaim) do
     # Controllers that predate the compute allocator's remote execution
-    # pool send no warm target.
+    # pool send no warm target, and controllers before CPU grants send no
+    # `cpu_free_milli`; their nodes' daemons keep their CPU request.
     warm = Map.get(params, "warm_bytes", 0)
+    cpu_free = params["cpu_free_milli"]
 
     with true <- is_integer(warm) and warm >= 0,
          true <- valid_name?(name),
          true <- valid_name?(pod),
+         true <- is_nil(cpu_free) or (is_integer(cpu_free) and cpu_free >= 0),
          {:ok, timestamp} <- allocation_timestamp(observed) do
-      store_allocation(name, pod, timestamp, %{memory: memory, free: free, reclaim: reclaim, warm: warm})
+      store_allocation(name, pod, timestamp, %{
+        allocation_memory_bytes: memory,
+        allocation_free_bytes: free,
+        allocation_cpu_free_milli: cpu_free,
+        allocation_reclaim: reclaim,
+        allocation_warm_bytes: warm
+      })
     else
       _ -> {:error, :invalid_allocation}
     end
@@ -166,15 +182,13 @@ defmodule Tuist.Sandboxes.Capacity do
       ensure_newer_allocation!(row, timestamp)
 
       (row || %SandboxNode{name: name})
-      |> SandboxNode.changeset(%{
-        pod_name: pod,
-        memory_limit_bytes: allocation_memory_limit(row, pod),
-        allocation_observed_at: timestamp,
-        allocation_memory_bytes: grant.memory,
-        allocation_free_bytes: grant.free,
-        allocation_reclaim: grant.reclaim,
-        allocation_warm_bytes: grant.warm
-      })
+      |> SandboxNode.changeset(
+        Map.merge(grant, %{
+          pod_name: pod,
+          memory_limit_bytes: allocation_memory_limit(row, pod),
+          allocation_observed_at: timestamp
+        })
+      )
       |> Repo.insert_or_update!()
 
       # Enqueue in this transaction: a server restart after acknowledgement
@@ -224,6 +238,8 @@ defmodule Tuist.Sandboxes.Capacity do
     case Nodes.lookup(node_name) do
       {:ok, _pid, info} ->
         node = Map.put(info, :name, node_name)
+        # A failure is retried by the next grant, a few seconds later.
+        sync_cpu(node)
 
         if elastic?(node) do
           pressure = not allocation_allows?(node, 0)
@@ -746,7 +762,9 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc """
   Picks and reserves the node a new sandbox boots on: the connected node
-  with the template ready, disk for the sandbox and the most free memory.
+  with the template ready, disk for the sandbox and room for it that runs
+  the most sandboxes already, so they burst into each other's idle cores
+  and leave other nodes whole for runners.
   When no node has room, idle sandboxes are paused on the node that can
   free the most. When no node has disk, the oldest paused Orb on them is
   archived (`Tuist.Sandboxes.Archives.make_node_room/1`), so a retry finds
@@ -767,7 +785,7 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc """
   `place/2` that tries the nodes in `prefer:` first, ahead of the ranking by
-  free memory, such as the nodes holding the session repository's checkout.
+  the sandboxes nodes run, such as the nodes holding the session repository's checkout.
   A preferred node only wins when it can take the sandbox like any other
   would; a full one is passed over, never waited for.
 
@@ -786,7 +804,7 @@ defmodule Tuist.Sandboxes.Capacity do
       |> Nodes.await(Nodes.presence_wait_ms())
       |> Enum.filter(node_filter)
 
-    candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox)))
+    candidates = Enum.filter(ready, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox) and cpu_room?(&1, sandbox)))
 
     cond do
       ready == [] ->
@@ -823,7 +841,7 @@ defmodule Tuist.Sandboxes.Capacity do
         {:error, :no_node}
 
       nodes ->
-        case Enum.filter(nodes, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox))) do
+        case Enum.filter(nodes, &(disk_space?(&1, sandbox) and disk_room?(&1, sandbox) and cpu_room?(&1, sandbox))) do
           [] -> {:error, :no_capacity}
           candidates -> place_on(candidates, sandbox)
         end
@@ -835,7 +853,7 @@ defmodule Tuist.Sandboxes.Capacity do
   placement on them was refused, for its log: `:not_ready`, `:disk_budget`,
   `:disk_space`, the grant's outcome when the runners controller does not
   allow the memory (`:ci_reclaim`, `:allocation_limit`, `:expired`,
-  `:missing_grant`, `:replaced_pod`), `:ceiling` when the carve-out cannot
+  `:missing_grant`, `:replaced_pod`), `:cpu` when it cannot hold the sandbox's CPU guarantee (`cpu_room?/2`), `:ceiling` when the carve-out cannot
   grow that far, `:growth_failed` when the grant allowed a growth that did
   not land (the kubelet deferred it), and `:room` when the node has room
   by now.
@@ -864,13 +882,21 @@ defmodule Tuist.Sandboxes.Capacity do
         else: :allowed
 
     cond do
-      not disk_room?(node, sandbox) -> :disk_budget
-      not disk_space?(node, sandbox) -> :disk_space
+      (placement = placement_refusal(node, sandbox)) != nil -> placement
       grant != :allowed -> grant
       memory_fits?(node, reserved, charge) -> :room
       not elastic?(node) -> :no_memory
       node.elastic.memory_ceiling_bytes - @daemon_reserve_bytes - reserved < charge -> :ceiling
       true -> :growth_failed
+    end
+  end
+
+  defp placement_refusal(node, sandbox) do
+    cond do
+      not disk_room?(node, sandbox) -> :disk_budget
+      not disk_space?(node, sandbox) -> :disk_space
+      not cpu_room?(node, sandbox) -> :cpu
+      true -> nil
     end
   end
 
@@ -881,11 +907,13 @@ defmodule Tuist.Sandboxes.Capacity do
   # first again.
   defp place_on(candidates, sandbox, prefer \\ []) do
     charge = charge_bytes(sandbox)
-    ranked = rank(candidates)
+    ranked = pack(candidates)
     {preferred, others} = Enum.split_with(ranked, &(&1.name in prefer))
 
     reserve = fn node ->
-      reserve(node, charge, fn -> set_node(sandbox, node.name) end, fn -> disk_room?(node, sandbox) end)
+      reserve(node, charge, fn -> set_node(sandbox, node.name) end, fn ->
+        disk_room?(node, sandbox) and cpu_room?(node, sandbox)
+      end)
     end
 
     result =
@@ -1472,6 +1500,161 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  @doc """
+  Whether the node's daemon CPU request can be resized: its daemon names its
+  Pod and reports a CPU ceiling above its floor.
+  """
+  def cpu_elastic?(%{elastic: %{pod_name: pod_name, cpu_floor_milli: floor, cpu_ceiling_milli: ceiling}})
+      when is_binary(pod_name) and pod_name != "" and is_integer(floor) and floor > 0 and is_integer(ceiling) and
+             ceiling > floor, do: true
+
+  def cpu_elastic?(_node), do: false
+
+  @doc "Moves every connected node's daemon CPU request to its sandboxes' guarantee (`sync_cpu/1`)."
+  def sync_cpus do
+    Nodes.connected_nodes()
+    |> Enum.filter(&cpu_elastic?/1)
+    |> Enum.map(&{&1.name, sync_cpu(&1)})
+  end
+
+  @doc """
+  Moves the node's daemon CPU request to its floor plus the guaranteed CPU
+  (`Sandbox.guaranteed_cpu_milli/1`) of the agent sandboxes it charges, up to its
+  ceiling. Guests have no CPU limit; the request keeps that much of the
+  node's CPU out of exclusive-CPU runners and weighs the guests against the
+  shared pool's other Pods when it is contended.
+
+  A shrink always goes ahead. A growth only goes into CPU the
+  runners-controller's fresh grant reports no Pod requests: the kubelet
+  defers a resize that does not fit, and a deferred resize holds up the
+  Pod's memory growths with it. A node without a grant row is not shared
+  with CI and grows freely. What does not fit now is retried on the next
+  sync, run on every grant (`reconcile_allocation/1`) and every minute.
+  """
+  def sync_cpu(%{name: node_name} = node) do
+    if cpu_elastic?(node), do: timed(node_name, :cpu, fn -> do_sync_cpu(node) end), else: :unchanged
+  end
+
+  defp do_sync_cpu(%{name: node_name, elastic: %{pod_name: pod_name}} = node) do
+    fn ->
+      lock(node_name)
+      desired = desired_cpu_milli(node)
+      cache_key = ["sandbox_daemon_cpu", node_name, pod_name]
+
+      if KeyValueStore.get(cache_key) == desired,
+        do: :unchanged,
+        else: resize_cpu(node, desired, cache_key)
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, result} ->
+        result
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: resizing a node's daemon CPU request failed",
+          node: node_name,
+          pod: pod_name,
+          reason: inspect(reason)
+        )
+
+        {:error, :resize_failed}
+    end
+  end
+
+  # Under the node's lock, like a memory resize, so a delayed write cannot
+  # overwrite a newer one; the PATCH is fenced at the Pod version it read.
+  defp resize_cpu(%{name: node_name, elastic: %{pod_name: pod_name}} = node, desired, cache_key) do
+    room = cpu_room(Repo.get(SandboxNode, node_name), node)
+
+    case KubernetesClient.resize_sandbox_daemon_cpu(
+           Environment.sandboxes_namespace(),
+           pod_name,
+           &cpu_target(desired, &1, room)
+         ) do
+      {:ok, milli} ->
+        KeyValueStore.put(cache_key, milli, ttl: @cpu_request_cache_ttl)
+        {:ok, milli}
+
+      {:error, reason} ->
+        Repo.rollback(reason)
+    end
+  end
+
+  defp desired_cpu_milli(%{name: node_name, elastic: %{cpu_floor_milli: floor, cpu_ceiling_milli: ceiling}}) do
+    min(floor + guaranteed_cpu_milli(node_name), ceiling)
+  end
+
+  defp guaranteed_cpu_milli(node_name) do
+    from(s in Sandbox,
+      where: s.node_name == ^node_name and s.purpose == :agent and s.state in ^@charged_states,
+      select: %{
+        platform: s.platform,
+        vcpus: s.vcpus,
+        memory_mb: s.memory_mb,
+        guaranteed_cpu_milli: s.guaranteed_cpu_milli
+      }
+    )
+    |> Repo.all()
+    |> Enum.map(&Sandbox.guaranteed_cpu_milli/1)
+    |> Enum.sum()
+  end
+
+  @doc """
+  Whether the node can hold the sandbox's guarantee. A Linux sandbox needs,
+  on a node whose daemon runs each VM in its own cgroup (hello
+  `cpu_guarantees`) and can resize its CPU request, room for its guarantee
+  under the daemon's CPU ceiling and, on a node shared with CI, that much
+  CPU no other Pod requests in the fresh grant, so `sync_cpu/1` can raise the
+  request right away. A node without both, or whose controller reports no
+  free CPU, still takes sandboxes guaranteed only their memory's CPU, as
+  before guarantees were held, but not a picked guarantee. macOS sandboxes and
+  remote execution VMs are placed on their shape. Run under the node's lock
+  when placing, like the disk check.
+  """
+  def cpu_room?(node, sandbox) do
+    cond do
+      not Sandbox.burst?(sandbox) ->
+        true
+
+      Map.get(node, :cpu_guarantees) == true and cpu_elastic?(node) ->
+        guarantee = Sandbox.guaranteed_cpu_milli(sandbox)
+
+        node.elastic.cpu_floor_milli + guaranteed_cpu_milli(node.name) + guarantee <= node.elastic.cpu_ceiling_milli and
+          case cpu_room(Repo.get(SandboxNode, node.name), node) do
+            :unbounded -> true
+            :unreported -> not Sandbox.picked_guarantee?(sandbox)
+            room -> guarantee <= room
+          end
+
+      true ->
+        not Sandbox.picked_guarantee?(sandbox)
+    end
+  end
+
+  defp cpu_target(desired, current, _room) when desired <= current, do: desired
+  defp cpu_target(desired, _current, :unbounded), do: desired
+  defp cpu_target(_desired, current, :unreported), do: current
+  defp cpu_target(desired, current, room), do: min(desired, current + room)
+
+  defp cpu_room(nil, _node), do: :unbounded
+  # A controller from before grants reported free CPU.
+  defp cpu_room(%SandboxNode{allocation_cpu_free_milli: nil}, _node), do: :unreported
+
+  defp cpu_room(
+         %SandboxNode{
+           pod_name: pod,
+           allocation_reclaim: false,
+           allocation_observed_at: %DateTime{} = at,
+           allocation_cpu_free_milli: free
+         },
+         %{elastic: %{pod_name: pod}}
+       )
+       when is_integer(free) do
+    if fresh_allocation?(at), do: free, else: 0
+  end
+
+  defp cpu_room(%SandboxNode{}, _node), do: 0
+
   defp wait_ms(:grow_wait_ms),
     do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:grow_wait_ms, @grow_wait_ms)
 
@@ -1527,6 +1710,24 @@ defmodule Tuist.Sandboxes.Capacity do
     |> Enum.map(&{&1, free_bytes(&1)})
     |> Enum.sort_by(fn {_node, free} -> if free == :unbounded, do: :infinity, else: free end, :desc)
     |> Enum.map(fn {node, _free} -> node end)
+  end
+
+  # Agent sandboxes are packed onto the nodes that already run the most of
+  # them, ties going to the node whose grant has the most CPU no runner
+  # requests. Mostly idle sandboxes burst into each other's idle cores
+  # rather than beside CI jobs that keep theirs busy, and the nodes left
+  # whole take runners without a daemon carving them up. Whether a node fits
+  # is still decided under its lock when reserving.
+  defp pack(nodes) do
+    Enum.sort_by(nodes, fn %{name: node_name} ->
+      cpu_free =
+        case Repo.get(SandboxNode, node_name) do
+          %SandboxNode{allocation_cpu_free_milli: free} when is_integer(free) -> free
+          _no_grant -> 0
+        end
+
+      {-reserved_bytes(node_name), -cpu_free, node_name}
+    end)
   end
 
   defp most_reclaimable(nodes, charge) do

@@ -44,44 +44,81 @@ func CompressImage(src, dst string) (string, string, error) {
 		return "", "", err
 	}
 	defer in.Close()
-	info, err := in.Stat()
-	if err != nil {
-		return "", "", err
-	}
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return "", "", err
 	}
 	defer out.Close()
 	inventory, content := sha1.New(), sha256.New()
-	zw, err := zstd.NewWriter(io.MultiWriter(newWritebackWriter(out), inventory, content), zstd.WithEncoderLevel(zstd.SpeedDefault))
-	if err != nil {
-		return "", "", err
-	}
-	defer zw.Close()
-	header := make([]byte, 16)
-	copy(header, sparseArchiveMagic)
-	binary.BigEndian.PutUint64(header[8:], uint64(info.Size()))
-	if _, err = zw.Write(header); err != nil {
-		return "", "", err
-	}
-	buf := make([]byte, archiveBuffer)
-	err = sparse.Extents(in, info.Size(), func(offset, length int64) error {
-		return writeExtents(zw, in, offset, length, buf)
-	})
-	if err != nil {
-		return "", "", err
-	}
-	if _, err = zw.Write(make([]byte, 16)); err != nil {
-		return "", "", err
-	}
-	if err = zw.Close(); err != nil {
+	if err := WriteImage(io.MultiWriter(newWritebackWriter(out), inventory, content), in); err != nil {
 		return "", "", err
 	}
 	if err = out.Sync(); err != nil {
 		return "", "", err
 	}
 	return hex.EncodeToString(inventory.Sum(nil)), hex.EncodeToString(content.Sum(nil)), nil
+}
+
+// WriteImage streams an image as a sparse archive, the format CompressImage
+// stores and RestoreImage and ReceiveImage read.
+func WriteImage(w io.Writer, in *os.File) error {
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.SpeedDefault))
+	if err != nil {
+		return err
+	}
+	defer zw.Close()
+	header := make([]byte, 16)
+	copy(header, sparseArchiveMagic)
+	binary.BigEndian.PutUint64(header[8:], uint64(info.Size()))
+	if _, err = zw.Write(header); err != nil {
+		return err
+	}
+	buf := make([]byte, archiveBuffer)
+	err = sparse.Extents(in, info.Size(), func(offset, length int64) error {
+		return writeExtents(zw, in, offset, length, buf)
+	})
+	if err != nil {
+		return err
+	}
+	if _, err = zw.Write(make([]byte, 16)); err != nil {
+		return err
+	}
+	return zw.Close()
+}
+
+// ReceiveImage writes a sparse archive streamed by WriteImage to dst, which
+// must not exist, and keeps it sparse. There is no published digest to check:
+// the terminator, the zstd frame checksums and the absence of trailing bytes
+// show the stream is complete. A failure removes dst.
+func ReceiveImage(ctx context.Context, src io.Reader, dst string, maxBytes int64) (err error) {
+	bounded := &io.LimitedReader{R: src, N: maxBytes + maxBytes/100 + (1 << 20) + 1}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := out.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			os.Remove(dst)
+		}
+	}()
+	total, err := restoreSparse(ctx, bounded, out, maxBytes)
+	if err != nil {
+		return err
+	}
+	if n, err := io.Copy(io.Discard, bounded); err != nil || n > 0 || bounded.N <= 0 {
+		return errors.Join(errArchive, err)
+	}
+	if err = out.Truncate(total); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 // writeExtents records the non-zero runs of one data extent. Allocated zero

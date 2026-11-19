@@ -517,7 +517,7 @@ defmodule Tuist.Kura.Regions do
   @rack_sites [
     # The machines segment of each site, where its minis sit
     # (infra/rack-switch-fleet/sites/<site>.json).
-    %{site: "ber1", display_name: "BER1 rack (runner cache)", client_cidr: "10.10.0.0/24"},
+    %{site: "ber1", display_name: "Alder rack (runner cache)", client_cidr: "10.10.0.0/24"},
     %{site: "larch", display_name: "Larch rack (runner cache)", client_cidr: "10.20.0.0/24"}
   ]
 

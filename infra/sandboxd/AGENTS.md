@@ -64,6 +64,10 @@ reflink, so rootfs clones are instant copy-on-write):
   disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
 /data/sandboxes/blobs/<scope>/<sha256>-<size>
                       remote-execution input blobs (BLOB_CACHE_GIB), emptied at startup
+<CACHE_IMAGE_DIR>/rc-<head digest>
+                      runner-cache masters copied for cache grants (CACHE_IMAGES_GIB), least
+                      recently used first past the budget, removed CACHE_IMAGES_TTL after
+                      their last use; unfinished .copy-* files are removed at startup
 /data/sandboxes/checkouts/<key digest>.ext4, <key digest>.json
                       prepared checkout workspaces (CHECKOUT_WORKSPACES_GIB); unfinished
                       .build-* directories are removed at startup
@@ -430,6 +434,26 @@ NetworkPolicy identity, so the chart lists 8090 in `DAEMON_ONLY_TCP_PORTS`:
 nothing the guest sends reaches the agent except the export bytes the daemon
 relays, which the agent verifies as it does a CI job's.
 
+## Guest to host: cache images
+
+A `create` may carry `cache_grant {id, scope, base_generation, image_digest,
+content_digest}` instead of `cache_image`: the saved head of a Linux
+runner-cache volume. The daemon names the copy `rc-<sha256 of the head>` in
+`CACHE_IMAGE_DIR`, and when it is not there asks the node's runner-cache agent
+for it with `POST /sandbox-cache/image` (`{"pod_name": POD_NAME, "grant":
+...}`, authorized like the checkout routes). The agent reflinks the master
+under its scope lock, marks it used, streams the clone in runner-cache's
+sparse zstd format and deletes it; it never fetches a master the node lacks
+and answers `404 cold`, which fails the create, so the server must pick a
+node that holds the head. Concurrent creates for one head share one copy
+(15-minute budget, written to `.copy-*` and renamed); the sandbox then gets
+its own reflink of it exactly as with `cache_image`. Copies a sandbox is
+attaching are pinned; eviction and expiry skip them and never touch images
+without the `rc-` prefix. The copy is one way: nothing the sandbox writes
+reaches the runner-cache volume. The agent must run a version with the route
+before a daemon gets grants; an older agent's 404 fails the create as an
+error rather than `cold`.
+
 ## Node to server: WebSocket
 
 The daemon dials `GET /api/internal/sandboxes/nodes/connect` on the in-cluster
@@ -444,7 +468,8 @@ Node to server:
 ```
 {"type":"hello","node":"...","daemon_version":"...","firecracker_version":"...",
  "capacity":{"memory_bytes":N,"cpus":N},
- "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N},
+ "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N,
+            "cpu_floor_milli":N,"cpu_ceiling_milli":N},
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
@@ -714,6 +739,8 @@ agent so the manager runs end to end without KVM).
 | `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
+| `CPU_FLOOR_MILLI`, `CPU_CEILING_MILLI` | `0`, `0` | The CPU request the Pod starts at and the most the server may raise it to, in millicores, reported in `hello.elastic`. There is no CPU limit either way. A ceiling not above the floor keeps the request fixed. |
+| `VM_CGROUPS` | `true` | Run each VM in its own cgroup v2 child of the container's, weighted by its `create.cpu_guarantee_milli` (default 250), with the daemon in a `sandboxd` leaf weighted by `CPU_FLOOR_MILLI`; hello then sets `cpu_guarantees`. If the cpu controller is unavailable the daemon logs it and every VM shares its cgroup as before. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. Shapes built with another size are removed at startup and rebuilt. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
@@ -726,6 +753,8 @@ agent so the manager runs end to end without KVM).
 | `CHECKOUT_AGENT_URL` | | The node's runner-cache agent, e.g. `http://<runner-cache-volumes Service>.tuist-runners.svc.cluster.local:8090`; see "Guest to host: checkout". Needs `POD_NAME`. Empty ignores checkout grants. The chart sets it, and lists 8090 in `DAEMON_ONLY_TCP_PORTS`, when Linux cache volumes are enabled. |
 | `CHECKOUT_WORKSPACES_GIB` | `0` | Budget for prepared checkout workspaces under `DATA_DIR/checkouts`, taken out of `DISK_BUDGET_GIB` (the daemon reports the budget less this and the blob cache, and refuses to start unless both fit). Needs `CHECKOUT_AGENT_URL`. `0` disables them. A build also needs free space for four times the budget plus 10 GiB. |
 | `CHECKOUT_WORKSPACES_TTL` | `6h` | How long a prepared workspace is used after it is built. |
+| `CACHE_IMAGES_GIB` | `0` | Budget for runner-cache masters copied into `CACHE_IMAGE_DIR` for `create {..., cache_grant}`, taken out of `DISK_BUDGET_GIB` like the checkout workspaces. Needs `CACHE_IMAGE_DIR` and `CHECKOUT_AGENT_URL`. `0` refuses grants. See "Guest to host: cache images". |
+| `CACHE_IMAGES_TTL` | `24h` | How long a copied master stays after a sandbox last attached it; checked every 10 minutes. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
 

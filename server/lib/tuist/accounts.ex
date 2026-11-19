@@ -375,41 +375,6 @@ defmodule Tuist.Accounts do
     |> Enum.filter(&enrollment_allowed?.(&1.email))
   end
 
-  @doc """
-  Given a token, it returns the user associated with it.
-  """
-  def get_user_by_token(token) do
-    hash = Tuist.Tokens.legacy_token_hash(token)
-
-    Repo.one(
-      from(u in User,
-        where: u.token_hash == ^hash,
-        preload: [:account]
-      )
-    )
-  end
-
-  @doc """
-  Records that a legacy user or project token authenticated a request, at most
-  once a day per row, so `Tuist.Release.legacy_token_usage/1` can tell which
-  ones are still in use before they are retired.
-  """
-  def record_legacy_token_use(%{legacy_token_last_used_at: last_used_at, __struct__: schema, id: id} = subject) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-    cutoff = DateTime.add(now, -1, :day)
-
-    if is_nil(last_used_at) or DateTime.before?(last_used_at, cutoff) do
-      Repo.update_all(
-        from(s in schema,
-          where: s.id == ^id and (is_nil(s.legacy_token_last_used_at) or s.legacy_token_last_used_at < ^cutoff)
-        ),
-        set: [legacy_token_last_used_at: now]
-      )
-    end
-
-    subject
-  end
-
   def get_device_code(code) do
     Repo.get_by(DeviceCode, code: code)
   end
@@ -3007,7 +2972,7 @@ defmodule Tuist.Accounts do
 
   @doc """
   Revokes the credentials that act for the user and outlive browser sessions:
-  CLI, app, OAuth and agent tokens, device codes, and the legacy user token.
+  CLI, app, OAuth and agent tokens, and device codes.
 
   `credentials_revoked_at` rejects every user-issued JWT authenticated at or
   before now (see `credentials_revoked?/2`), including access tokens, which are
@@ -3022,7 +2987,7 @@ defmodule Tuist.Accounts do
     sub = to_string(id)
 
     Repo.update_all(from(u in User, where: u.id == ^id),
-      set: [token_hash: nil, credentials_revoked_at: DateTime.truncate(now, :second)]
+      set: [credentials_revoked_at: DateTime.truncate(now, :second)]
     )
 
     Repo.delete_all(

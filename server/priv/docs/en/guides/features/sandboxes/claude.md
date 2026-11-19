@@ -212,4 +212,17 @@ For cloud sessions in an Anthropic-hosted environment:
 
 After the first sync, Claude runs `mise install` in the repository root on the Mac to install the project's pinned Tuist; Tuist 4.218.0 and later then sign in to your account's cache in each command on their own.
 
+### Ready Macs {#remote-mac-snapshots}
+
+A **Tuist Linux** environment can prepare these Macs ahead of time. Set its macOS setup script with the API (`macos_setup_script` on `PATCH /api/accounts/{account}/sandboxes/agent-environments/{id}`), such as:
+
+```bash
+mise install
+tuist install
+tuist generate --no-open
+xcodebuild build -workspace App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 17'
+```
+
+When Claude creates a Mac for a repository connected to one of your Tuist projects, `create_sandbox` gets the repository, and the Mac boots from that repository's snapshot for its Xcode: the default branch is cloned to `~/work/<name>`, the script has run there, and the build products are in place. The first `tuist sandbox sync` sends only the files that differ from that commit, so Xcode rebuilds only what they change. The first Mac of a repository and Xcode boots bare and has its snapshot built on an idle Mac, for up to an hour, for the Macs after it. Changing the script, the Xcode or the image builds it again.
+
 Claude deletes the Mac when the task is done. A Mac left behind pauses when idle and is deleted after 14 days paused. Macs created this way count toward your Tuist account like any other sandbox.

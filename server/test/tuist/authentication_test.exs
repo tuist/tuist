@@ -42,34 +42,21 @@ defmodule Tuist.AuthenticationTest do
     assert subject.last_sign_in_at
   end
 
-  test "authenticated_subject returns the user associated to the token" do
-    # Given
+  test "authenticated_subject rejects legacy user and project tokens" do
+    # Given: rows still holding a legacy token digest, as before they were retired
     user = AccountsFixtures.user_fixture()
-
-    # When
-    subject = Authentication.authenticated_subject(user.token)
-
-    # Then
-    assert subject.id == user.id
-    assert subject.last_sign_in_at
-  end
-
-  test "authenticated_subject returns the project associated to the legacy token" do
-    # Given
     project = ProjectsFixtures.project_fixture()
+    user_token = Tuist.Tokens.generate_token()
+    project_token = Tuist.Tokens.generate_token()
+    Repo.update_all(from(u in "users", where: u.id == ^user.id), set: [token_hash: :crypto.hash(:sha256, user_token)])
+
+    Repo.update_all(from(p in "projects", where: p.id == ^project.id),
+      set: [token_hash: :crypto.hash(:sha256, project_token)]
+    )
 
     # When/Then
-    assert Authentication.authenticated_subject(project.token).id == project.id
-  end
-
-  test "authenticated_subject does not match a project by its stored legacy token digest" do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    stored = Repo.one!(from(p in "projects", where: p.id == ^project.id, select: %{hash: p.token_hash}))
-
-    # Then
-    assert stored.hash == :crypto.hash(:sha256, project.token)
-    assert is_nil(Authentication.authenticated_subject(Base.encode16(stored.hash, case: :lower)))
+    assert is_nil(Authentication.authenticated_subject(user_token))
+    assert is_nil(Authentication.authenticated_subject(project_token))
   end
 
   test "authenticated_subject returns the project associated to the token" do

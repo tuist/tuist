@@ -449,6 +449,52 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "resize_sandbox_daemon_cpu/4" do
+    @tag :tmp_dir
+    test "patches only the CPU request, fenced at the version it read, and skips an unchanged one", %{
+      tmp_dir: tmp_dir
+    } do
+      opts = in_cluster_opts(tmp_dir)
+
+      pod = %{
+        "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
+        "spec" => %{
+          "containers" => [
+            %{"name" => "sidecar", "resources" => %{"requests" => %{"cpu" => "4"}}},
+            %{"name" => "sandboxd", "resources" => %{"requests" => %{"cpu" => "1500m", "memory" => "1Gi"}}}
+          ]
+        }
+      }
+
+      expect(Req, :request, 3, fn request_opts ->
+        assert request_opts[:retry] == false
+
+        case request_opts[:method] do
+          :get ->
+            {:ok, %Req.Response{status: 200, body: pod}}
+
+          :patch ->
+            assert request_opts[:url] ==
+                     "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc/resize"
+
+            assert JSON.decode!(request_opts[:body]) == %{
+                     "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
+                     "spec" => %{
+                       "containers" => [%{"name" => "sandboxd", "resources" => %{"requests" => %{"cpu" => "2250m"}}}]
+                     }
+                   }
+
+            {:ok, %Req.Response{status: 200, body: pod}}
+        end
+      end)
+
+      assert {:ok, 2250} =
+               Client.resize_sandbox_daemon_cpu("tuist-sandboxes", "sandboxd-abc", &(&1 + 750), opts)
+
+      assert {:ok, 1500} = Client.resize_sandbox_daemon_cpu("tuist-sandboxes", "sandboxd-abc", & &1, opts)
+    end
+  end
+
   describe "create_token_review/2" do
     @tag :tmp_dir
     test "returns the SA principal when the token is authenticated and audience-bound", %{tmp_dir: tmp_dir} do

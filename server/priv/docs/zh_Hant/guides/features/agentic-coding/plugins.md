@@ -2,17 +2,17 @@
 {
   "title": "外掛程式",
   "titleTemplate": ":title · 代理編碼 · 功能 · 指南 · Tuist",
-  "description": "安裝 Tuist 的 Cursor 外掛程式，或供應商中立的 Agent Plugins 套件。"
+  "description": "安裝 Tuist 的 Cursor 外掛程式，或廠商中立的 Agent Plugins 套件。"
 }
 ---
 
 # 外掛程式
 
-Tuist 將代理技能與託管 MCP 伺服器打包為外掛程式，讓你可以一併安裝。請選擇符合你編碼代理的外掛套件。
+Tuist 將代理技能與託管的 MCP 伺服器打包為外掛程式，讓你可以一併安裝。請選擇符合你編碼代理的套件。
 
 ## Claude Code
 
-[Tuist Claude Code 市集](https://github.com/tuist/claude-plugin)提供 Tuist 外掛程式，可使用以下指令安裝：
+[Tuist Claude Code 市集](https://github.com/tuist/claude-plugin)將 Tuist 外掛程式打包，可使用以下指令安裝：
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
@@ -35,7 +35,7 @@ claude plugin install tuist@tuist-plugins
 
 ## 其他編碼代理
 
-[Tuist Agent Plugin](https://github.com/tuist/agent-plugin) 遵循開放且廠商中立的 [Agent Plugins](https://agent-plugins.org/) 標準。將相容的用戶端指向該儲存庫，並依照該用戶端的指示安裝或參照外掛目錄：
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)遵循開放且供應商中立的 [Agent Plugins](https://agent-plugins.org/) 標準。將相容的用戶端指向該儲存庫，並依照該用戶端的指示安裝或參照外掛程式目錄：
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
@@ -45,10 +45,10 @@ git clone https://github.com/tuist/agent-plugin.git
 
 ## 驗證
 
-大多數技能使用 Tuist 命令列介面，因此在要求代理存取你的專案資料前，請先進行一次驗證：
+大多數技能使用 Tuist 命令列介面，因此在要求代理存取你的專案資料前，請先驗證一次：
 
 ```bash
 tuist auth login
 ```
 
-託管的 MCP 伺服器會在需要時要求登入。請參閱 <.localized_link href="/guides/features/agentic-coding/mcp">MCP 指南</.localized_link> 以取得針對不同用戶端的設定與驗證詳細資訊。
+託管的 MCP 伺服器會在需要時要求自行登入。請參閱 <.localized_link href="/guides/features/agentic-coding/mcp">MCP 指南</.localized_link> 以取得針對特定用戶端的設定與驗證詳細資訊。

@@ -137,7 +137,6 @@ defmodule Tuist.Kura.RolloutsTest do
         |> Enum.map(
           &%{
             email: "#{prefix}-#{&1}@example.com",
-            token_hash: Tuist.Tokens.legacy_token_hash("#{prefix}-#{&1}"),
             created_at: naive_now,
             updated_at: naive_now
           }

@@ -1448,7 +1448,7 @@ done
 # which set -e turned into a bootstrap failure that named auto-login
 # and said nothing about the real cause. Rented images ship Xcode so
 # this never surfaced there; an MDM-provisioned rack host does not, and
-# it failed all 8 attempts on the BER1 prototype (2026-09-09). od is in
+# it failed all 8 attempts on the alder prototype (2026-09-09). od is in
 # the base system and needs no developer tools.
 #
 # A match exits 1, which propagates via set -e and fails the bootstrap
@@ -2485,7 +2485,7 @@ func validateTailscaleCredential(cfg Config) error {
 //
 // A rack mini joins standard (TailscalePersistentDevice). It is hardware we
 // keep and can sit powered off for days, and it has no public address, so
-// an ephemeral registration strands it: on 2026-09-18 the BER1 prototype came
+// an ephemeral registration strands it: on 2026-09-18 the alder prototype came
 // back from a few days unpowered with its device deleted. Retiring one for
 // good means deleting its device by hand.
 func renderTailscaleScript(cfg Config) string {

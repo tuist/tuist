@@ -43,7 +43,8 @@ public protocol SandboxesServicing: Sendable {
         xcodeVersion: String?,
         vcpus: Int?,
         memoryMB: Int?,
-        workspaceGB: Int?
+        workspaceGB: Int?,
+        guaranteedVCPUs: Double?
     ) async throws -> ServerSandbox
     func transitionSandbox(
         _ transition: SandboxTransition,
@@ -225,7 +226,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         xcodeVersion: String?,
         vcpus: Int?,
         memoryMB: Int?,
-        workspaceGB: Int?
+        workspaceGB: Int?,
+        guaranteedVCPUs: Double?
     ) async throws -> ServerSandbox {
         typealias Body = Operations.createSandbox.Input.Body.jsonPayload
         let shapeVCPUs = try vcpus.map { try Body.vcpusPayload(rawValue: $0) ?? { throw SandboxesServiceError.invalidShape }() }
@@ -236,6 +238,7 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
             try await Client.authenticated(serverURL: serverURL).createSandbox(.init(
                 path: .init(account_handle: accountHandle),
                 body: .json(.init(
+                    guaranteed_vcpus: guaranteedVCPUs,
                     memory_mb: shapeMemory,
                     platform: platform,
                     template: template,

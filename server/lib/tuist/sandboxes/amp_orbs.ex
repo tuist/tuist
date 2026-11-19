@@ -41,6 +41,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # `linux-medium`, Amp's default. An existing Orb keeps the shape it was
   # created with.
   #
+  # Every Linux Orb bursts into its node's idle cores and is guaranteed, and
+  # billed for at least, a quarter vCPU per GiB of its memory
+  # (`Sandbox.guaranteed_cpu_milli/1`).
+  #
   # `macos` boots the default Xcode. Each other Xcode macOS sandboxes serve is
   # a type named after its template, `macos-xcode-<xcode-dashes>` (such as
   # `macos-xcode-26-1-1`), with the `macos` shape.

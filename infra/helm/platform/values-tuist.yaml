@@ -186,7 +186,7 @@ kura-ap-southeast-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-# The BER1 rack's cache gateway, on its storage node (values.yaml).
+# The alder rack's cache gateway, on its storage node (values.yaml).
 kura-ber1-runners-ingress-nginx:
   enabled: true
 

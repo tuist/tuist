@@ -85,7 +85,7 @@ defmodule TuistWeb.API.NetworkTrustedGradleReportsTest do
   } do
     response =
       conn
-      |> put_req_header("authorization", "Bearer " <> project.token)
+      |> put_req_header("authorization", "Bearer " <> Tuist.Projects.create_project_token(project))
       |> put_req_header("x-tuist-actor-id", "developer-123")
       |> publish(project)
       |> json_response(201)
