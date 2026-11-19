@@ -1812,7 +1812,7 @@ replica elsewhere while the gap is closed.
 Measured on 2026-11-19 after the driver rollout (`sha-fa2cacbb092c`): B was 0
 to 10 GiB on every thin node and unattributed mappings 0; A was 1 on
 `eu-west-qvv7x-lkh4l` (10 GiB) and `us-east-5764k-v2vrj` (4 GiB), where the
-gap straddles a replica boundary, and 0 elsewhere. The rule first fired on
+gap straddles a replica boundary, and 0 elsewhere. The rule was created with
 A `> 0`, which would have warned on those two nodes for gaps smaller than one
 replica; it was raised to B `> 16` the same day so it warns only when at least
 a whole replica's worth of commitment is hidden from the scheduler.
