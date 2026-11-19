@@ -1,13 +1,13 @@
 ---
 {
-  "title": "入门指南",
+  "title": "快速入门",
   "titleTemplate": ":title · 指南 · Tuist",
   "description": "选择与当前应用构建方式匹配的 Tuist 路径：Xcode、生成的 Xcode 项目、Gradle、Elixir、Rust、Bazel 或 Struo。"
 }
 ---
 # 开始使用 {#get-started}
 
-选择与当前应用构建方式匹配的路径。每条路径都会逐步介绍需要安装的内容、如何启用缓存、洞察和测试功能，以及如何端到端验证设置。你可以独立采用这些路径，如果在多个平台上交付软件，也可以组合使用。
+选择与当前应用构建方式匹配的路径。每条路径都会逐步介绍需要安装的内容、如何启用缓存、洞察和测试功能，以及如何端到端验证设置。你可以单独采用这些路径，如果需要在多个平台上交付软件，也可以组合使用。
 
 大多数路径使用 <.localized_link href="/guides/install-tuist">Tuist 命令行界面</.localized_link>。Elixir 使用 Hex 包，而 Struo 通过其原生的 Tuist 提供程序连接；两者在集成时都不需要 Tuist CLI。
 
@@ -37,7 +37,7 @@
 
 ## Rust 项目 {#rust-project}
 
-通过 Tuist CLI 运行 Cargo 以报告构建和单个测试结果（包括文档测试），并排查不稳定测试。
+通过 Tuist CLI 运行 Cargo 以报告构建和单个测试结果（包括文档测试），并调查不稳定测试。
 
 <.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
 

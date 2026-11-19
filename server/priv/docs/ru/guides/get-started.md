@@ -2,24 +2,24 @@
 {
   "title": "Начало работы",
   "titleTemplate": ":title · Руководства · Tuist",
-  "description": "Выберите подход Tuist, соответствующий текущему способу сборки вашего приложения: Xcode, генерируемые проекты Xcode, Gradle, Elixir, Rust, Bazel или Struo."
+  "description": "Выберите подход Tuist, соответствующий текущему процессу сборки вашего приложения: Xcode, сгенерированные проекты Xcode, Gradle, Elixir, Rust, Bazel или Struo."
 }
 ---
 # Начало работы {#get-started}
 
-Выберите путь, соответствующий тому, как ваше приложение собирается сегодня. Каждый из них подробно описывает, что нужно установить, как включить кэширование, аналитику и функции тестирования, а также как проверить настройку от начала до конца. Вы можете внедрять их по отдельности или комбинировать, если выпускаете обновления для нескольких платформ.
+Выберите путь, соответствующий тому, как ваше приложение собирается сегодня. Каждый из них описывает, что нужно установить, как включить кэширование, аналитику и возможности тестирования, а также как проверить настройку от начала до конца. Вы можете внедрять их независимо или комбинировать, если выпускаете обновления для нескольких платформ.
 
 Большинство путей используют <.localized_link href="/guides/install-tuist">интерфейс командной строки Tuist</.localized_link>. Elixir использует пакет Hex, а Struo подключается через свой нативный провайдер Tuist; ни один из них не требует CLI Tuist для интеграции.
 
 ## Проект Xcode {#existing-xcode-project}
 
-Сохраните существующий проект или рабочую область Xcode и добавляйте возможности Tuist по одной. Генерация проекта не требуется.
+Сохраните существующий проект или рабочее пространство Xcode и добавляйте возможности Tuist по одной. Генерация проекта не требуется.
 
 <.localized_link href="/guides/get-started/existing-xcode-project">Start with an Xcode project →</.localized_link>
 
 ## Сгенерированный проект Xcode {#generated-xcode-project}
 
-Позвольте Tuist определять и генерировать ваш проект Xcode из манифестов Swift. Сгенерированные проекты сжимают сложность модульных проектов Xcode в лаконичное декларативное описание графа и являются строгим требованием для <.localized_link href="/guides/features/cache/module-cache">кэша модулей</.localized_link> и <.localized_link href="/guides/features/selective-testing/generated-xcode-project">выборочного тестирования</.localized_link>.
+Позвольте Tuist определять и генерировать ваш проект Xcode из манифестов Swift. Сгенерированные проекты сводят сложность модульных проектов Xcode к лаконичному декларативному описанию графа и являются строгим требованием для <.localized_link href="/guides/features/cache/module-cache">кэша модулей</.localized_link> и <.localized_link href="/guides/features/selective-testing/generated-xcode-project">выборочного тестирования</.localized_link>.
 
 <.localized_link href="/guides/get-started/generated-xcode-project">Start with a generated project →</.localized_link>
 
@@ -43,7 +43,7 @@
 
 ## Проект Bazel {#bazel-project}
 
-Настройте рабочее пространство Bazel на кэш API удаленного выполнения Tuist и сервис событий сборки (Build Event Service), чтобы делиться попаданиями в кэш и аналитикой с вашей командой и CI.
+Настройте рабочее пространство Bazel на кэш Remote Execution API и сервис Build Event Service от Tuist, чтобы делиться попаданиями в кэш и аналитикой между вашей командой и CI.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
@@ -51,6 +51,6 @@
 
 <a id="once-project"></a>
 
-Подключите кешируемые скрипты и графы сборки Struo к Tuist для общего кэширования, живой аналитики сборок и тестов, хостинга шардирования тестов и превью приложений.
+Подключите кешируемые скрипты и графы сборки Struo к Tuist для общего кэширования, оперативной аналитики сборок и тестов, хостинга шардирования тестов и предварительного просмотра приложений.
 
 <.localized_link href="/guides/get-started/struo-project">Start with a Struo project →</.localized_link>

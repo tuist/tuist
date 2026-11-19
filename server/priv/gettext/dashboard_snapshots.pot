@@ -48,8 +48,8 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: lib/tuist_web/live/snapshot_build_live.ex:223
-#: lib/tuist_web/live/snapshot_commit_live.ex:140
+#: lib/tuist_web/live/snapshot_build_live.ex:213
+#: lib/tuist_web/live/snapshot_commit_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "Approve changes"
 msgstr ""
@@ -258,8 +258,8 @@ msgstr ""
 msgid "Pull request"
 msgstr ""
 
-#: lib/tuist_web/live/snapshot_build_live.ex:213
-#: lib/tuist_web/live/snapshot_commit_live.ex:130
+#: lib/tuist_web/live/snapshot_build_live.ex:222
+#: lib/tuist_web/live/snapshot_commit_live.ex:139
 #, elixir-autogen, elixir-format
 msgid "Reject changes"
 msgstr ""

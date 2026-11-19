@@ -2,10 +2,10 @@
 {
   "title": "Sharding de tests con Struo",
   "titleTemplate": ":title · Sharding de tests · Funcionalidades · Guías · Tuist",
-  "description": "Planifica lotes de tests de Struo a través de Tuist, distribúyelos entre workers de CI e inspecciona una ejecución combinada de tests."
+  "description": "Planifica lotes de tests de Struo a través de Tuist, distribúyelos entre workers de CI e inspecciona una ejecución de tests combinada."
 }
 ---
-# Fragmentación de tests con Struo {#struo-test-sharding}
+# Fragmentación de tests de Struo {#struo-test-sharding}
 
 <a id="once-test-sharding"></a>
 
@@ -16,19 +16,19 @@ Cuando tu suite de tests supera la capacidad de una sola máquina, Struo puede p
 >
 > - Completa <.localized_link href="/guides/get-started/struo-project">Primeros pasos con Struo</.localized_link>.
 > - Usa [Struo 1.0.0](https://github.com/tuist/struo/releases/tag/1.0.0) o posterior, con `struo query test-plan --shards` y `struo test --shard-plan`.
-> - Ten una detección completa para los targets de test seleccionados y el mismo checkout y entorno de test disponible en los workers.
+> - Asegúrate de tener una descubierta completa para los targets de test seleccionados y de que el mismo checkout y entorno de test estén disponibles en los workers.
 
-No se requiere ningún wrapper de la CLI de Tuist. Struo usa su proveedor nativo de Tuist y las credenciales correspondientes.
+No se requiere ningún wrapper de la CLI de Tuist. Struo utiliza su proveedor nativo de Tuist y las credenciales correspondientes.
 
 ## Descubre tus tests {#discover-your-tests}
 
-Ejecuta los tests seleccionados para establecer la detección antes de planificar:
+Ejecuta los tests seleccionados para establecer la descubierta antes de planificar:
 
 ```bash
 struo test MyTests --format json
 ```
 
-La granularidad de lote disponible depende del runner. Algunos targets de test admiten lotes por archivo o por caso; otros permanecen a nivel de target. Consulta [la guía de testing de Struo](https://struo.run/docs/guide/graph/testing) para conocer las capacidades de detección y agrupación en lotes.
+La granularidad de lote disponible depende del runner. Algunos targets de test admiten lotes por archivo o por caso; otros permanecen a nivel de target. Consulta [la guía de testing de Struo](https://struo.run/docs/guide/graph/testing) para conocer las capacidades de descubierta y creación de lotes.
 
 ## Crea un plan alojado {#create-a-hosted-plan}
 
@@ -48,7 +48,7 @@ Construye tu matriz de CI a partir de `shards`, en lugar de asumir que contiene 
 
 La referencia toma por defecto `TUIST_SHARD_REFERENCE` o la ejecución de CI detectada. Pásala explícitamente cuando el entorno no tenga un identificador de CI compatible.
 
-## Ejecuta cada fragmento {#execute-each-shard}
+## Ejecuta cada shard {#execute-each-shard}
 
 Proporciona a cada worker el ID de plan devuelto y su propio índice:
 
@@ -56,14 +56,14 @@ Proporciona a cada worker el ID de plan devuelto y su propio índice:
 struo test --shard-plan "$SHARD_PLAN_ID" --shard-index "$SHARD_INDEX" --jobs 4
 ```
 
-Como alternativa, establece `TUIST_SHARD_PLAN_ID` y `TUIST_SHARD_INDEX`. Los workers descargan el plan vinculado al UUID exacto y ejecutan solo los lotes asignados. Una asignación vacía no ejecuta nada; los resultados faltantes, los procesos fallidos y el trabajo interrumpido no pueden superar la partición.
+Como alternativa, establece `TUIST_SHARD_PLAN_ID` y `TUIST_SHARD_INDEX`. Los workers descargan el plan exacto vinculado al UUID y ejecutan solo los lotes asignados. Una asignación vacía no ejecuta nada; los resultados faltantes, los procesos fallidos y el trabajo interrumpido no pueden superar la partición.
 
-Esto distribuye un plan de tests, no un archivo precompilado de build de tests. Prepara las fuentes, herramientas y detección necesarias en los workers; la caché compartida puede evitar repetir trabajo de build elegible.
+Esto distribuye un plan de test, no un archivo de build de test precompilado. Prepara las fuentes, las herramientas y la descubierta necesarias en los workers; el caché compartido puede evitar repetir trabajo de build elegible.
 
 ## Reejecuciones y resultados {#reruns-and-results}
 
-Para una reejecución, incrementa `--shard-attempt` o establece `TUIST_SHARD_ATTEMPT`. De lo contrario, Struo usa el intento de ejecución de GitHub y, por defecto, 1. `--shard-report-revision` tiene por defecto 0 y puede incrementarse al corregir un informe dentro del mismo intento. Estos contadores son independientes de los reintentos de un test.
+Para una reejecución, incrementa `--shard-attempt` o establece `TUIST_SHARD_ATTEMPT`. De lo contrario, Struo usa el intento de ejecución de GitHub y, por defecto, toma el valor 1. `--shard-report-revision` tiene por defecto 0 y puede incrementarse al corregir un informe dentro del mismo intento. Estos contadores son independientes de los reintentos de un test.
 
-Abre **Tests → Fragmentos** para inspeccionar el plan, el balance y los workers reportados, luego abre la ejecución de tests combinada para ver los resultados individuales. Las unidades de programación de Struo se etiquetan como **Lotes**; los casos conservan sus nombres nativos de target, suite y test.
+Abre **Tests → Shards** para inspeccionar el plan, el equilibrio y los workers reportados, y luego abre la ejecución de tests combinada para ver los resultados individuales. Las unidades de programación de Struo se etiquetan como **Lotes**; los casos conservan sus nombres nativos de target, suite y test.
 
-Consulta <.localized_link href="/guides/features/test-insights/struo">Análisis de tests con Struo</.localized_link> para obtener detalles sobre los informes y las limitaciones de cobertura.
+Consulta <.localized_link href="/guides/features/test-insights/struo">Análisis de tests de Struo</.localized_link> para obtener detalles sobre los informes y las limitaciones de cobertura.

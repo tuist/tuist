@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Elixir Test Bölümleme",
-  "titleTemplate": ":title · Test Bölümleme · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Test Bölümleme ile Elixir projenizin testlerini birden fazla CI çalıştırıcısına dağıtın."
+  "title": "Elixir Test Parçalama",
+  "titleTemplate": ":title · Test Parçalama · Özellikler · Kılavuzlar · Tuist",
+  "description": "Tuist Test Parçalama ile Elixir projenizin testlerini birden fazla CI çalıştırıcısına dağıtın."
 }
 ---
 # Elixir test parçalama {#elixir-test-sharding}
@@ -16,13 +16,13 @@ Tuist Hex paketi, bir Elixir projesinin testlerini parçalamak için yerleşik d
 
 ## Nasıl çalışır {#how-it-works}
 
-Test parçalama iki aşamalı bir iş akışı izler:
+Test parçalama iki aşamalı bir iş akışını izler:
 
-1. **Derleme aşaması:** Tuist, projenizi test için derler, test dosyalarınızı listeler ve sunucuda bir **parça planı** oluşturur. Sunucu, son 30 günlük geçmiş test zamanlama verilerini kullanarak testleri parçalara dağıtır, böylece her parça yaklaşık olarak aynı süreyi alır. Derleme aşaması derlemeyi yükler ve CI sisteminizin paralel çalıştırıcılar başlatmak için kullandığı bir **parça matrisi** çıktısı verir.
-2. **Test aşaması:** Her CI çalıştırıcısı bir **parça dizini** alır, derlemeyi indirir ve yalnızca o parçaya atanan testleri yürütür.
+1. **Derleme aşaması:** Tuist projenizi test için derler, test dosyalarınızı listeler ve sunucuda bir **parça planı** oluşturur. Sunucu, her parçanın yaklaşık olarak aynı sürede tamamlanması için testleri parçalara dağıtmak üzere son 30 güne ait geçmiş test zamanlama verilerini kullanır. Derleme aşaması derlemeyi yükler ve CI sisteminizin paralel çalıştırıcılar başlatmak için kullandığı bir **parça matrisi** çıktısı verir.
+2. **Test aşaması:** Her CI çalıştırıcısı bir **parça indeksi** alır, derlemeyi indirir ve yalnızca o parçaya atanan testleri yürütür.
 
 > [!NOTE]
-> Kayıtlı Tuist Linux çalıştırıcılarında, parça derlemeleri yerel yapıt depolamayı kullanabilir. Böyle bir derlemeyi kullanan tüm parçalar aynı konumdaki kayıtlı çalıştırıcılarda çalışmalıdır; iş akışını diğer çalıştırıcılara taşırken yerel depolamayı devre dışı bırakarak derlemeyi yeniden çalıştırın.
+> Kayıtlı Tuist Linux çalıştırıcılarında, parça derlemeleri yerel yapıt depolamayı kullanabilir. Böyle bir derlemeyi kullanan tüm parçaların aynı sitedeki kayıtlı çalıştırıcılarda çalışması gerekir; iş akışını diğer çalıştırıcılara taşırken yerel depolamayı devre dışı bırakarak derlemeyi yeniden çalıştırın.
 
 Testler dosya bazında dağıtılır: bir dosyadaki her test aynı parçada çalışır. Tuist'in henüz görmediği testler için bir tahmin yapılır, bu nedenle bir projenin ilk planları sonrakilere göre daha az dengelidir.
 
@@ -35,7 +35,7 @@ MIX_ENV=test mix compile --warnings-as-errors
 MIX_ENV=test mix tuist.test.build --shard-max 5
 ```
 
-Parçalama görevini çağırmadan önce paylaşılan kurulum tarafından yüklenen takma ad üzerinden derleme yapın. Soğuk bir çekimde Mix, Tuist'in bağımlılık önbelleğinin bunları geri yükleme fırsatı bulmadan önce `tuist.test.build` öğesini keşfederken bağımlılıkları derleyebilir. Açık derleme, parçalama göreviyle aynı test ortamında çalışır.
+Parçalama görevini çağırmadan önce paylaşılan kurulum tarafından yüklenen takma ad üzerinden derleme yapın. Soğuk bir çekim durumunda Mix, Tuist'in bağımlılık önbelleğinin bunları geri yükleme fırsatı bulmadan önce `tuist.test.build` öğesini keşfederken bağımlılıkları derleyebilir. Açık derleme, parçalama göreviyle aynı test ortamında çalışır.
 
 Bu görev:
 1. Projeyi test ortamında derler
@@ -52,23 +52,23 @@ Bu görev:
 | `--shard-total <N>` | Bir aralık yerine tam parça sayısı |
 | `--shard-max-duration <MS>` | Parça başına hedeflenen maksimum süre (milisaniye cinsinden) |
 | `--shard-reference <REF>` | Parçaların planı bulmak için kullandığı ad |
-| `--no-upload` | Derlemeyi yüklemeden parçaları planlayın; her parça kendi kendine derlenir |
+| `--no-upload` | Derlemeyi yüklemeden parçaları planla; her parça kendi kendine derlenir |
 
 Diğer tüm argümanlar `mix compile` öğesine iletilir.
 
-Parça referansı otomatik olarak CI ortam değişkenlerinden (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, `CIRCLE_WORKFLOW_ID`, `BUILDKITE_BUILD_ID`) türetilir veya `TUIST_SHARD_REFERENCE` ortam değişkeni aracılığıyla açıkça ayarlanabilir. Bu sağlayıcıların dışında, bunu derleme aşamasının ve tek bir pipeline çalışmasının parçalarının paylaştığı bir değere ayarlamanız gerekir. GitHub Actions'ta referanslar çalıştırma denemesini de içerir: yalnızca başarısız olan işleri yeniden çalıştırırken, parça işlerinde yeni bir tane türetmek yerine orijinal derleme işinin referansını iletin.
+Parça referansı otomatik olarak CI ortam değişkenlerinden (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, `CIRCLE_WORKFLOW_ID`, `BUILDKITE_BUILD_ID`) türetilir veya `TUIST_SHARD_REFERENCE` ortam değişkeni aracılığıyla açıkça ayarlanabilir. Bu sağlayıcıların dışında, bunu derleme aşamasının ve tek bir ardışık düzen çalışmasının parçalarının paylaştığı bir değere ayarlamanız gerekir. GitHub Actions'da referanslar çalıştırma denemesini de içerir: yalnızca başarısız işleri yeniden çalıştırırken, parça işlerinde yeni bir tane türetmek yerine orijinal derleme işinin referansını iletin.
 
 ## Test aşaması {#test-phase}
 
-`TUIST_SHARD_INDEX` ayarlandığında, paket sunucudan parça atamasını getirir, derlemeyi indirir ve derleme yapmadan yalnızca atanan test dosyalarını çalıştırır. Soğuk bir çalıştırıcıda, görevi çağırmadan önce SDK'yı önyükleyin ve yollarını yükleyin:
+`TUIST_SHARD_INDEX` ayarlandığında, paket sunucudan parça atamasını alır, derlemeyi indirir ve derleme yapmadan yalnızca atanan test dosyalarını çalıştırır. Soğuk bir çalıştırıcıda, görevi çağırmadan önce SDK'yı önyükleyin ve yollarını yükleyin:
 
 ```sh
 MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test
 ```
 
-SDK'yı Mix'in çalışan süreçlerinde derlemek, onu üst süreçte yüklemez. Açık `deps.loadpaths` adımı, derlemeyi indirmeden önce kalan bağımlılıkların derlenmesini engelleyerek görev keşfini önler. Bu tek komutlu form, projenizin test hazırlık takma adını korur. Kurulum komutları derlemeyi tetikliyorsa, aşağıdaki ayrı kurulum sırasını kullanın.
+SDK'nın Mix'in çalışan süreçlerinde derlenmesi, onu üst süreçte yüklemez. Açık `deps.loadpaths` adımı, derlemeyi indirmeden önce kalan bağımlılıkların derlenmesini engelleyerek görev keşfini önler. Bu tek komutlu form, projenizin test hazırlık takma adını korur. Kurulum komutları derlemeyi tetikliyorsa, aşağıdaki ayrı kurulum dizisini kullanın.
 
-İlettiğiniz herhangi bir test dosyası veya dizini parçayı daha da daraltır: yalnızca hem parçada hem de seçiminizde olan dosyalar çalışır. Sonuçta hiç testi kalmayan bir parça başarıyla çıkar.
+İlettiğiniz herhangi bir test dosyası veya dizini parçayı daha da daraltır: hem parçada hem de seçiminizde olan dosyalar çalışır. Sonuçta hiç testi olmayan bir parça başarıyla çıkar.
 
 Tüm parçaların sonuçları panoya tek bir test çalıştırması olarak gelir ve **Parçalar** bölümü her birinin ne kadar sürdüğünü gösterir.
 
@@ -84,7 +84,7 @@ Kurulumunuzu derleme devre dışı bırakılmış ayrı bir süreçte çalışt�
 MIX_ENV=test mix run --no-start --no-compile --no-deps-check -e 'Mix.Tasks.Ecto.Create.run([]); Mix.Tasks.Ecto.Migrate.run([])'
 ```
 
-Diğer projeye özel hazırlıkları bu aşamada tutun. Derleme takma adınız da önyükleme işini yapmadan önce `--no-compile` öğesine uymalıdır: Mix yalnızca bayrakları liste takma adının son görevine iletir, bu nedenle daha önceki koşulsuz `deps.compile` yine de çalışır. <.localized_link href="/guides/features/cache/elixir-advanced#manual-compile-integration">manuel derleme entegrasyonu</.localized_link> içindeki korumalı takma ada bakın.
+Diğer projeye özel hazırlıkları bu aşamada tutun. Derleme takma adınız da önyükleme işini yapmadan önce `--no-compile` koşuluna uymalıdır: Mix bayrakları yalnızca liste takma adının son görevine iletir, bu nedenle daha önceki koşulsuz `deps.compile` yine de çalışır. <.localized_link href="/guides/features/cache/elixir-advanced#manual-compile-integration">manuel derleme entegrasyonu</.localized_link> bölümündeki korumalı takma ada bakın.
 
 Ardından, parçayı yürütmeden önce geri yüklenen SDK'yı derleme yapmadan yükleyin. Bu ayrıca, kaynakları indirilen derlemeden daha yeni olduğunda bir yol bağımlılığının derlenmesini engelleyerek görev keşfini önler:
 
@@ -92,18 +92,18 @@ Ardından, parçayı yürütmeden önce geri yüklenen SDK'yı derleme yapmadan 
 MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download
 ```
 
-Her iki komut da aynı parça referansına ihtiyaç duyar. `--prepare-only` yüklenmiş bir derleme gerektirir ve hazırlanmış uygulama yapıtı eksikse `--no-download` başarısız olur. `--no-download`, projenizin test hazırlık takma adını açıkça atlar (yeniden denemeler dahil) ve kurulum adımlarını atladığında bir bildirim yazdırır. Normal çalıştırmalar, `--no-compile --no-deps-check` ilettiğinizde bile takma adlarını korur. Veritabanı migration'larını ayrı bir süreçte tutmak, migration regresyon testleri bu modülleri kendileri yüklediğinde modül yeniden tanımlama uyarılarını da önler.
+Her iki komut da aynı parça referansına ihtiyaç duyar. `--prepare-only` yüklenmiş bir derleme gerektirir ve hazırlanmış uygulama yapıtı eksikse `--no-download` başarısız olur. `--no-download`, yeniden denemeler dahil olmak üzere projenizin test hazırlık takma adını açıkça atlar ve kurulum adımlarını atladığında bir bildirim yazdırır. Normal çalıştırmalar, `--no-compile --no-deps-check` ilettiğinizde bile takma adlarını korur. Veritabanı migration'larını ayrı bir süreçte tutmak, migration regresyon testleri bu modülleri kendileri yüklediğinde modül yeniden tanımlama uyarılarını da önler.
 
 Farklı ortamları test ederken, `--scheme clickhouse-current` veya `--scheme clickhouse-floor` gibi kararlı bir `--scheme` etiketi iletin. Farklı etiketlere sahip sonuçlar, aynı konfigürasyonun kararsız yeniden çalıştırmaları olarak değerlendirilmez.
 
-### Parçaların ihtiyaç duydukları {#what-the-shards-need}
+### Parçaların ihtiyaçları {#what-the-shards-need}
 
-Yüklenen derleme `_build/test` dizinidir. Her parça çalıştırıcısı hâlâ şunlara ihtiyaç duyar:
+Yüklenen derleme `_build/test` dizinidir. Her parça çalıştırıcısının hâlâ şunlara ihtiyacı vardır:
 - Derleme aşamasıyla aynı checkout
 - Aynı Elixir ve Erlang/OTP sürümleri
 - Bağımlılık kaynakları, `mix deps.get` komutundan
 
-Bir umbrella projesinin kökünden parçalama henüz desteklenmiyor. Her iki aşamayı da projenin uygulamalarından birinin içinde çalıştırın.
+Şemsiye projenin kökünden parçalama henüz desteklenmiyor. Her iki aşamayı da uygulamalarından birinin içinde çalıştırın.
 
 ## Sürekli entegrasyon {#continuous-integration}
 
@@ -183,4 +183,4 @@ GitHub Actions dışındaki sağlayıcılarda derleme aşaması planı `.tuist-s
 }
 ```
 
-Paralel işlerinizi kurmak için `shard_count` kullanın ve her işe `0` ile `shard_count - 1` arasında bir `TUIST_SHARD_INDEX` atayın. Tuist'in referansı otomatik türetmediği bir sağlayıcıda, her işe ayrıca aynı `TUIST_SHARD_REFERENCE` değerini verin.
+Paralel işlerinizi yapılandırmak için `shard_count` kullanın ve her işe `0` ile `shard_count - 1` arasında bir `TUIST_SHARD_INDEX` atayın. Tuist'in referansı otomatik olarak türetmediği bir sağlayıcıda ayrıca her işe aynı `TUIST_SHARD_REFERENCE` değerini verin.

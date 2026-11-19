@@ -2,12 +2,12 @@
 {
   "title": "Gradle 测试分片",
   "titleTemplate": ":title · 测试分片 · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist 测试分片将 Gradle 测试分布到多个 CI 运行器上。"
+  "description": "使用 Tuist 测试分片在多个 CI 运行器之间分发 Gradle 测试。"
 }
 ---
 # Gradle 测试分片 {#gradle-test-sharding}
 
-Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你项目的测试任务之前的 CI 运行中记录的测试套件，并利用 Tuist 服务器根据历史计时数据创建均衡的分片计划。
+Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你项目的测试任务之前的 CI 运行中记录的测试套件，并利用 Tuist 服务器根据历史耗时数据创建均衡的分片计划。
 
 > [!IMPORTANT]
 > **要求**
@@ -18,7 +18,7 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
 
 测试分片遵循两阶段工作流：
 
-1. **构建阶段：** Tuist 根据为你的项目记录的测试套件在服务器上创建**分片计划**。服务器使用过去 30 天的历史测试计时数据将测试分配到各个分片，使每个分片花费的时间大致相同。构建阶段输出一个**分片矩阵**，你的 CI 系统用它来生成并行运行器。
+1. **构建阶段：** Tuist 根据为你的项目记录的测试套件在服务器上创建**分片计划**。服务器使用过去 30 天的历史测试耗时数据，将测试分配到各个分片，使每个分片的耗时大致相同。构建阶段会输出一个**分片矩阵**，你的 CI 系统利用它来生成并行运行器。
 2. **测试阶段：** 每个 CI 运行器接收一个**分片索引**，并仅执行分配给该分片的测试。最后一个分片还会运行所有未分配给其他分片的测试套件。
 
 ## 构建阶段 {#build-phase}
@@ -31,11 +31,11 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
 ```
 
 此任务：
-1. 查找具有待分片测试任务的项目，而不编译它们
-2. 根据过去 30 天为这些项目记录的测试套件和计时数据，在 Tuist 服务器上创建分片计划
+1. 查找包含待分片测试任务的项目，无需编译它们
+2. 根据过去 30 天为这些项目记录的测试套件和耗时，在 Tuist 服务器上创建分片计划
 3. 为你的 CI 系统输出分片矩阵
 
-当尚未记录任何测试套件时（例如在首次运行时），计划将包含一个运行所有测试的单个分片。
+当尚未记录任何测试套件时（例如首次运行），计划将包含一个运行所有测试的单一分片。
 
 ### 构建选项 {#build-options}
 
@@ -48,7 +48,7 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
 | `-PtuistShardMaxDuration=<MS>` | 每个分片的目标最大持续时间（毫秒） |
 | `-PtuistShardTestTask=<NAME>` | 要进行分片的测试任务，例如 `testDebugUnitTest`。默认为构建中的每个测试任务 |
 
-具有多个构建变体的 Android 项目每个变体都有一个单元测试任务。将 `-PtuistShardTestTask` 设置为你的分片运行的变体，以便仅规划具有该变体的项目：
+具有多个构建变体的 Android 项目，每个变体对应一个单元测试任务。将 `-PtuistShardTestTask` 设置为你的分片所运行的变体，以便仅规划包含该变体的项目：
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -60,7 +60,7 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
 
 ## 测试阶段 {#test-phase}
 
-每个分片运行器使用标准 `test` 任务执行其分配的测试。当设置 `TUIST_SHARD_INDEX` 时，插件会自动从服务器获取分片分配，并过滤测试执行以仅包含分配的测试套件。没有套件分配给该分片的项目中的测试任务将被跳过。
+每个分片运行器使用标准的 `test` 任务执行其分配的测试。当设置了 `TUIST_SHARD_INDEX` 时，插件会自动从服务器获取分片分配，并过滤测试执行，使其仅包含分配的测试套件。没有测试套件分配给该分片的项目中的测试任务将被跳过。
 
 最后一个分片运行每个测试任务，并排除分配给其他分片的套件，因此尚未有记录运行的套件（例如新添加的套件）仍会运行。
 
@@ -159,7 +159,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist 生成一个包含 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 参数的 `.tuist-shard-continuation.json`：
+Tuist 生成一个 `.tuist-shard-continuation.json`，其中包含[continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation)的参数：
 
 ```yaml
 # .circleci/config.yml
@@ -369,4 +369,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise 不支持在运行时动态创建并行作业。在你的流水线阶段中定义固定数量的分片工作流——阶段内的工作流会自动并行运行。
+> Bitrise 不支持在运行时动态创建并行作业。在你的流水线阶段中定义固定数量的分片工作流——同一阶段内的工作流会自动并行运行。
