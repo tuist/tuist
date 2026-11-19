@@ -63,6 +63,16 @@ cert-manager:
 ingress-nginx:
   enabled: true
   controller:
+    # Every ingress-nginx controller in this file runs our build of the
+    # chainguard-forks/ingress-nginx controller, which backports nginx CVE
+    # fixes upstream no longer ships (.github/workflows/
+    # ingress-nginx-controller-image.yml). Pin it by digest: the chart
+    # appends its own upstream digest whenever digest is unset.
+    image: &ingressNginxControllerImage
+      repository: ghcr.io/tuist/ingress-nginx-controller
+      tag: v1.15.15-1045ec1be710
+      digest: sha256:b0beddf501f287c553f3fdd1d4bc208e7e0bde76521f068634f42626afcef924
+      digestChroot: ""
     # Annotation validation stays off on every ingress-nginx controller in
     # this file until it is enabled on purpose. Chart 4.11.8 only passes the
     # flag when this is true, and controller v1.11.8 defaults it to false;
@@ -160,6 +170,7 @@ ingress-nginx:
 grpc-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: grpc-ingress-nginx-leader
@@ -200,6 +211,7 @@ grpc-ingress-nginx:
 kura-eu-west-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-eu-west-ingress-nginx-leader
@@ -273,6 +285,7 @@ kura-eu-west-ingress-nginx:
 kura-ca-east-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-ca-east-ingress-nginx-leader
@@ -297,6 +310,7 @@ kura-ca-east-ingress-nginx:
 kura-us-east-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-east-ingress-nginx-leader
@@ -318,6 +332,7 @@ kura-us-east-ingress-nginx:
 kura-us-west-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-west-ingress-nginx-leader
@@ -341,6 +356,7 @@ kura-us-west-ingress-nginx:
 kura-ap-southeast-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-ap-southeast-ingress-nginx-leader
@@ -365,6 +381,7 @@ kura-ap-southeast-ingress-nginx:
 kura-sa-west-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-sa-west-ingress-nginx-leader
@@ -386,6 +403,7 @@ kura-sa-west-ingress-nginx:
 kura-eu-east-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-eu-east-ingress-nginx-leader
@@ -407,6 +425,7 @@ kura-eu-east-ingress-nginx:
 kura-us-central-ingress-nginx:
   enabled: false
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-central-ingress-nginx-leader
@@ -721,6 +740,7 @@ kura-ber1-runners-ingress-nginx:
   enabled: false
   fullnameOverride: kura-ber1-runners-ingress-nginx
   controller:
+    image: *ingressNginxControllerImage
     enableAnnotationValidations: false
     kind: DaemonSet
     hostNetwork: true
