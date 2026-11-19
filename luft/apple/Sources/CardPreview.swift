@@ -146,7 +146,9 @@ struct ToolPreview: View {
             }
             .background(Noora.backgroundPrimary)
             .navigationTitle(Text(verbatim: "Test results"))
-            .navigationBarTitleDisplayMode(.inline)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
     }
 

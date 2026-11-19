@@ -19,12 +19,18 @@ def _browser_impl(ctx):
         compiled = declare_output("resources/" + manifest.split("/")[-2] + ".zip")
         resources.append(compiled)
         arguments.extend([manifest, compiled])
+    env = {"PATH": host_env("PATH"), "JAVA_HOME": host_env("JAVA_HOME")}
+
+    # A shared-library Python, such as the one actions/setup-python installs, finds libpython through it.
+    library_path = host_env("LD_LIBRARY_PATH")
+    if library_path:
+        env["LD_LIBRARY_PATH"] = library_path
     run_action(
         display_name = "Link browser SDK resource classes",
         argv = [host_which("python3"), "android/dependencies.py", "build", aapt2, android_jar, host_which("javac"), host_which("jar"), r_jar, r_txt, linked] + arguments,
         inputs = glob(ctx["srcs"]) + vendor,
         outputs = [r_jar, r_txt, linked] + resources,
-        env = {"PATH": host_env("PATH"), "JAVA_HOME": host_env("JAVA_HOME")},
+        env = env,
         toolchain_identity = host_file_sha256(aapt2) + "\x00" + host_file_sha256(android_jar) + "\x00" + host_command([host_which("javac"), "-version"]),
         identifier = "tuist_browser_resources:" + ctx["label"]["id"],
     )
