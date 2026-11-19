@@ -369,13 +369,18 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    switch: the deployment workflow neither builds nor installs a release it
    disables.
 3. **Remote Execution Deployment** (`.github/workflows/remote-execution-deployment.yml`)
-   installs the release. In production the server deploy cascade calls it after
-   every production or hotfix deploy, so the runners controller that recognises
-   remote execution workers is always deployed first, and it reuses the template
-   and sandboxd tags that deploy published. Dispatch it by hand for other
-   environments or to pin other tags. It publishes the guest template and the
-   execution gateway (`ghcr.io/tuist/tuist-remote-execution`, both under the
-   sandbox image's source-derived tag) and sandboxd unless given published tags,
+   installs the release. The server deploy cascade calls it after the canary
+   leg with `replace_workers`, which deletes canary's workers that are not on
+   the new spec and waits until each replacement has built the new `bazel`
+   template; production waits on that job, so an RE chart or image that cannot
+   start stops on canary. The cascade calls it again after every production or
+   hotfix deploy (a hotfix skips canary), so the runners controller that
+   recognises remote execution workers is always deployed first. Both reuse the
+   template and sandboxd tags that run published. Production workers are not
+   replaced automatically. Dispatch it by hand for staging or to pin other
+   tags. It publishes the guest template and the execution gateway
+   (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
+   source-derived tag) and sandboxd unless given published tags,
    then installs the release into `tuist-sandboxes`. The gateway's Ingress uses
    the dedicated `nginx-grpc` controller with TLS and a 16-minute proxy timeout;
    `platform-external-dns` publishes its host to Cloudflare (DNS-only), and the

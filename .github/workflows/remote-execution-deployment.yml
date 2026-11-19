@@ -219,16 +219,23 @@ jobs:
             done
             [ -n "$new" ] && [ "$new" != "$pod" ] || { echo "::error::No replacement worker on $node"; exit 1; }
             kubectl -n "$NAMESPACE" wait --for=condition=Ready "pod/$new" --timeout=10m
-            # One `template ready` per prebuilt VM shape (PREBUILD_SHAPES).
+            # Both prebuilt VM shapes (PREBUILD_SHAPES) must be ready: built now
+            # (`template ready`) or already on the host from an earlier run
+            # (`default template` at startup lists them in ready_shapes).
             for _ in $(seq 1 120); do
               log=$(kubectl -n "$NAMESPACE" logs "$new" -c sandboxd 2>/dev/null || true)
-              if grep 'template build failed' <<< "$log" | grep -q "$TEMPLATE_IMAGE_TAG"; then
-                echo "::error::$new failed to build template $TEMPLATE_IMAGE_TAG"
-                grep 'template build failed' <<< "$log" | tail -5
+              failed=$(jq -Rr --arg tag "$TEMPLATE_IMAGE_TAG" \
+                'fromjson? | select(.tag == $tag and .msg == "template build failed") | "\(.shape): \(.error)"' <<< "$log")
+              if [ -n "$failed" ]; then
+                echo "::error::$new failed to build template $TEMPLATE_IMAGE_TAG: $failed"
                 exit 1
               fi
-              ready=$(grep 'template ready' <<< "$log" | grep -c "$TEMPLATE_IMAGE_TAG" || true)
-              [ "$ready" -ge 2 ] && { echo "$new built its templates"; continue 2; }
+              ready=$(jq -Rr --arg tag "$TEMPLATE_IMAGE_TAG" '
+                fromjson? | select(.tag == $tag)
+                | if .msg == "template ready" then 1
+                  elif .msg == "default template" then (.ready_shapes | length)
+                  else empty end' <<< "$log" | awk '{n += $1} END {print n + 0}')
+              [ "$ready" -ge 2 ] && { echo "$new has its templates ready"; continue 2; }
               sleep 5
             done
             echo "::error::$new did not report its templates ready within ten minutes"
