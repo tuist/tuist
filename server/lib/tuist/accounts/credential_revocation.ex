@@ -32,6 +32,20 @@ defmodule Tuist.Accounts.CredentialRevocation do
   alias Tuist.Repo
 
   @doc """
+  Revokes only the legacy user and project tokens (the ones without a `tuist_`
+  prefix), leaving every other credential working. Idempotent. Returns the
+  number of tokens revoked in each table.
+  """
+  def revoke_legacy_tokens do
+    %{
+      legacy_user_tokens:
+        count(Repo.update_all(from(u in "users", where: not is_nil(u.token_hash)), set: [token_hash: nil])),
+      legacy_project_tokens:
+        count(Repo.update_all(from(p in "projects", where: not is_nil(p.token_hash)), set: [token_hash: nil]))
+    }
+  end
+
+  @doc """
   Revokes every customer-facing credential. Each step is idempotent, and they
   are not wrapped in one transaction, so a rerun finishes an interrupted run.
   Returns the number of rows each step touched.

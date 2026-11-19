@@ -352,6 +352,18 @@ defmodule Tuist.Release do
   end
 
   @doc """
+  Revokes every legacy user and project token (the ones without a `tuist_`
+  prefix) and nothing else. Check `legacy_token_usage/1` first:
+
+      bin/tuist rpc 'IO.inspect(Tuist.Release.revoke_legacy_tokens())'
+  """
+  def revoke_legacy_tokens do
+    counts = CredentialRevocation.revoke_legacy_tokens()
+    Logger.warning("Revoked every legacy token: #{inspect(counts)}")
+    counts
+  end
+
+  @doc """
   Emails the admins of one account, or of every account (personal accounts
   reach their owner), a credential rotation notice
   (`Tuist.Accounts.Workers.CredentialRotationNoticeWorker`), on a live node:

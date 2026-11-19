@@ -109,6 +109,22 @@ kubectl --context tuist-k8s-production -n tuist exec $POD -- \
   bin/tuist rpc 'import Ecto.Query; IO.inspect(Tuist.Repo.all(from j in Oban.Job, where: j.worker == "Tuist.Accounts.Workers.CredentialRotationNoticeWorker" and fragment("?->>'"'"'notice_id'"'"'", j.args) == "<notice id>", group_by: j.state, select: {j.state, count(j.id)}))'
 ```
 
+## Revoking only the legacy tokens
+
+To retire legacy user and project tokens (the ones without a `tuist_` prefix)
+without touching any other credential, check who still uses them, then revoke
+them:
+
+```sh
+kubectl --context tuist-k8s-production -n tuist exec $POD -- \
+  bin/tuist rpc 'IO.inspect(Tuist.Release.legacy_token_usage())'
+kubectl --context tuist-k8s-production -n tuist exec $POD -- \
+  bin/tuist rpc 'IO.inspect(Tuist.Release.revoke_legacy_tokens())'
+```
+
+It returns `%{legacy_user_tokens: n, legacy_project_tokens: n}` and is safe to
+rerun. It needs the same write access as step 1.
+
 ## Rehearsal
 
 Rehearsed on staging on 2026-11-17 against two throwaway organizations, each
