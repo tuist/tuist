@@ -90,6 +90,11 @@ struct CoverageCompleteCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain() == "Coverage of commit abcdef1 is complete: 82.5% over App, Core.")
+        #expect(
+            success.takeaways.map { $0.plain() } == [
+                "See the commit's coverage at https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567",
+            ]
+        )
     }
 
     @Test(.withMockedEnvironment())
@@ -182,6 +187,30 @@ struct CoverageCompleteCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain().contains("No run of commit abcdef1 has reported coverage yet"))
+    }
+
+    @Test(.withMockedEnvironment())
+    func namesTheCheckoutsCommitAndHowToSignalAnotherWhenNoRunReportedCoverageYet() async throws {
+        try await givenProject()
+        given(gitController).gitInfo(workingDirectory: .any).willReturn(
+            GitInfo(ref: "refs/pull/42/merge", branch: "feature", sha: "abcdef1234567", remoteURLOrigin: nil)
+        )
+        given(completeCommitCoverageService)
+            .completeCommitCoverage(fullHandle: .any, serverURL: .any, gitCommitSHA: .value("abcdef1234567"))
+            .willReturn(.pending)
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, fullHandle: nil, commit: nil, json: false)
+        }
+
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain().contains("No run of commit abcdef1, the checkout's HEAD, has reported coverage yet"))
+        #expect(success.takeaways.map { $0.plain() }.contains { $0.contains("tuist coverage complete --commit <sha>") })
+        #expect(
+            success.takeaways.map { $0.plain() }
+                .contains("See the commits your runs reported coverage for at https://tuist.dev/acme/app/tests/coverage/commits")
+        )
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
