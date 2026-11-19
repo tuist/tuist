@@ -47,7 +47,7 @@ pub struct MemoryPermit {
 }
 
 impl MemoryPermit {
-    pub(crate) fn shrink_to(&mut self, retained_bytes: usize) -> Result<(), ()> {
+    pub fn shrink_to(&mut self, retained_bytes: usize) -> Result<(), ()> {
         let retained_bytes = u64::try_from(retained_bytes).map_err(|_| ())?;
         if retained_bytes > self._transient.bytes {
             return Err(());
@@ -221,7 +221,7 @@ impl ForegroundMemoryReservation {
         Self { transient }
     }
 
-    pub(crate) fn try_resize(&mut self, requested_bytes: u64) -> Result<(), ()> {
+    pub fn try_resize(&mut self, requested_bytes: u64) -> Result<(), ()> {
         self.transient.try_resize_foreground(requested_bytes)
     }
 
@@ -230,7 +230,7 @@ impl ForegroundMemoryReservation {
     /// bounds, so it holds floor-derived memory only: this reservation's own
     /// floor bytes first, then the floor pool. The ceiling headroom this
     /// reservation borrowed goes back with it.
-    pub(crate) fn try_reserve_reply(&mut self, bytes: u64) -> Result<Option<MemoryPermit>, ()> {
+    pub fn try_reserve_reply(&mut self, bytes: u64) -> Result<Option<MemoryPermit>, ()> {
         if bytes == 0 {
             return Ok(None);
         }

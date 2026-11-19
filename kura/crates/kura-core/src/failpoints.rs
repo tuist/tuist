@@ -1,11 +1,11 @@
 use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum FailpointName {
+pub enum FailpointName {
     BeforeSegmentFsync,
     #[cfg(test)]
     BeforeWalFsync,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     BeforeUsageOutboxAppend,
     AfterInlineManifestReadBeforeCommit,
     AfterArtifactBytesDurableBeforeMetadata,
@@ -25,7 +25,7 @@ impl FailpointName {
             Self::BeforeSegmentFsync => "before_segment_fsync",
             #[cfg(test)]
             Self::BeforeWalFsync => "before_wal_fsync",
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Self::BeforeUsageOutboxAppend => "before_usage_outbox_append",
             Self::AfterInlineManifestReadBeforeCommit => "after_inline_manifest_read_before_commit",
             Self::AfterArtifactBytesDurableBeforeMetadata => {
@@ -47,9 +47,9 @@ impl FailpointName {
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
-pub(crate) enum FailpointAction {
+pub enum FailpointAction {
     Sleep(Duration),
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     Pause {
         reached: std::sync::Arc<tokio::sync::Notify>,
         resume: std::sync::Arc<tokio::sync::Notify>,
@@ -65,12 +65,12 @@ struct FailpointBehavior {
 }
 
 #[derive(Default)]
-pub(crate) struct FailpointSet {
+pub struct FailpointSet {
     behaviors: Mutex<BTreeMap<FailpointName, FailpointBehavior>>,
 }
 
 impl FailpointSet {
-    pub(crate) async fn hit(&self, name: FailpointName) -> Result<(), String> {
+    pub async fn hit(&self, name: FailpointName) -> Result<(), String> {
         let action = {
             let mut behaviors = self
                 .behaviors
@@ -97,7 +97,7 @@ impl FailpointSet {
                 tokio::time::sleep(duration).await;
                 Ok(())
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             FailpointAction::Pause { reached, resume } => {
                 reached.notify_one();
                 resume.notified().await;
@@ -114,7 +114,7 @@ impl FailpointSet {
 
     /// Blocking-context counterpart of [`Self::hit`] for failpoints on code
     /// that runs on the blocking pool (no async runtime to sleep on).
-    pub(crate) fn hit_blocking(&self, name: FailpointName) -> Result<(), String> {
+    pub fn hit_blocking(&self, name: FailpointName) -> Result<(), String> {
         let action = {
             let mut behaviors = self
                 .behaviors
@@ -141,7 +141,7 @@ impl FailpointSet {
                 std::thread::sleep(duration);
                 Ok(())
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             FailpointAction::Pause { .. } => {
                 panic!("Pause is only supported by async failpoints");
             }
@@ -154,27 +154,27 @@ impl FailpointSet {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_once(&self, name: FailpointName, action: FailpointAction) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_once(&self, name: FailpointName, action: FailpointAction) {
         self.set(name, action, Some(1));
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[allow(dead_code)]
-    pub(crate) fn set_always(&self, name: FailpointName, action: FailpointAction) {
+    pub fn set_always(&self, name: FailpointName, action: FailpointAction) {
         self.set(name, action, None);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[allow(dead_code)]
-    pub(crate) fn clear(&self, name: FailpointName) {
+    pub fn clear(&self, name: FailpointName) {
         self.behaviors
             .lock()
             .expect("failpoint lock should not be poisoned")
             .remove(&name);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn set(&self, name: FailpointName, action: FailpointAction, remaining_hits: Option<usize>) {
         self.behaviors
             .lock()

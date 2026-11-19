@@ -1,10 +1,13 @@
-[package]
-name = "kura"
+[workspace]
+members = ["crates/kura-core"]
+
+[workspace.package]
 version = "0.8.0"
 edition = "2024"
 license = "AGPL-3.0-only"
 
-[dependencies]
+[workspace.dependencies]
+kura-core = { path = "crates/kura-core" }
 arc-swap = "1.9.1"
 async-trait = "0.1.89"
 axum = "0.8.9"
@@ -58,6 +61,73 @@ tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
 zstd = "0.14.3"
+futures-executor = "0.3.32"
+tempfile = "3.23.0"
+core-foundation = "=0.10.1"
+security-framework = "=3.7.0"
+security-framework-sys = "=2.17.0"
+
+[package]
+name = "kura"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kura-core.workspace = true
+arc-swap.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+axum-server.workspace = true
+base64.workspace = true
+bazel-remote-apis.workspace = true
+bytes.workspace = true
+deadpool.workspace = true
+futures-util.workspace = true
+h2.workspace = true
+hex.workspace = true
+hmac.workspace = true
+http-body.workspace = true
+http-body-util.workspace = true
+httparse.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+libc.workspace = true
+jsonwebtoken.workspace = true
+memmap2.workspace = true
+moka.workspace = true
+opentelemetry.workspace = true
+opentelemetry-http.workspace = true
+opentelemetry-otlp.workspace = true
+opentelemetry_sdk.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+prometheus-client.workspace = true
+rand.workspace = true
+rcgen.workspace = true
+reqwest.workspace = true
+rocksdb.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+rustls-native-certs.workspace = true
+webpki.workspace = true
+rustix.workspace = true
+sentry.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
+tower.workspace = true
+tracing.workspace = true
+tracing-opentelemetry.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+zstd.workspace = true
 
 # `unprefixed_malloc_on_supported_platforms` builds jemalloc without the `_rjem_` symbol prefix, so
 # the binary's own `malloc`/`free` are jemalloc's and interpose libc's for the whole process. Without
@@ -78,15 +148,11 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 sha2 = { version = "0.10.9", features = ["asm"] }
 
-[target.'cfg(target_vendor = "apple")'.dependencies]
-core-foundation = "=0.10.1"
-security-framework = "=3.7.0"
-security-framework-sys = "=2.17.0"
-
 [dev-dependencies]
-futures-executor = "0.3.32"
-tempfile = "3.23.0"
-tokio = { version = "1.48.0", features = ["test-util"] }
+futures-executor.workspace = true
+tempfile.workspace = true
+kura-core = { workspace = true, features = ["test-support"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 [profile.dev.package."*"]
 debug = false

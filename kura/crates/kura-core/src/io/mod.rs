@@ -607,7 +607,7 @@ impl AsyncSeek for TrackedFile {
 /// stalls them; the operation keeps borrowing the caller's buffer and handle,
 /// so nothing outlives a cancelled caller. Current-thread runtimes (tests)
 /// run it directly.
-pub(crate) fn run_blocking_file_operation<T>(operation: impl FnOnce() -> T) -> T {
+pub fn run_blocking_file_operation<T>(operation: impl FnOnce() -> T) -> T {
     match tokio::runtime::Handle::current().runtime_flavor() {
         tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(operation),
         _ => operation(),

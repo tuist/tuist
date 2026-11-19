@@ -127,6 +127,7 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
+    use crate::serving_authority::AuthorityStart as _;
     let inherited = crate::serving_authority::AuthorityConfig::validate_volume(
         &config.data_dir,
         config.serving_authority.as_ref(),

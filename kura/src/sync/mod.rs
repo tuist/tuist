@@ -12,7 +12,7 @@
 //! roles the control plane publishes when it has better information).
 
 pub mod coordinator;
-pub mod feed;
+pub use kura_core::sync::feed;
 pub mod region;
 pub mod replica;
 pub mod roles;

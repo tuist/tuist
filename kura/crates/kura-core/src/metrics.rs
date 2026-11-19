@@ -260,18 +260,18 @@ struct RolloutSnapshot {
     peer_connection_failure_count: AtomicU64,
 }
 
-pub(crate) struct InflightMetrics {
+pub struct InflightMetrics {
     http: Gauge,
     public_http: Gauge,
     grpc: Gauge,
 }
 
-pub(crate) struct ResponseStreamReservationMetrics {
+pub struct ResponseStreamReservationMetrics {
     reserved_bytes: Gauge,
     active: Gauge,
 }
 
-pub(crate) struct AnalyticsQueueMetrics {
+pub struct AnalyticsQueueMetrics {
     enqueued: Counter,
     dropped: Counter,
     depth: Gauge,
@@ -279,16 +279,16 @@ pub(crate) struct AnalyticsQueueMetrics {
 }
 
 impl AnalyticsQueueMetrics {
-    pub(crate) fn record_enqueued(&self, capacity: usize, depth: usize) {
+    pub fn record_enqueued(&self, capacity: usize, depth: usize) {
         self.enqueued.inc();
         self.update(capacity, depth);
     }
 
-    pub(crate) fn record_dropped(&self) {
+    pub fn record_dropped(&self) {
         self.dropped.inc();
     }
 
-    pub(crate) fn update(&self, capacity: usize, depth: usize) {
+    pub fn update(&self, capacity: usize, depth: usize) {
         self.capacity.set(capacity as i64);
         self.depth.set(depth as i64);
     }
@@ -462,31 +462,31 @@ impl ReapiLatencyMetrics {
     }
 }
 
-pub(crate) struct GrpcWriteAdmissionMetrics {
+pub struct GrpcWriteAdmissionMetrics {
     decode_rejected: Counter,
     staging_rejected: Counter,
     capacity_shed: Counter,
 }
 
 impl GrpcWriteAdmissionMetrics {
-    pub(crate) fn record_decode_rejected(&self) {
+    pub fn record_decode_rejected(&self) {
         self.decode_rejected.inc();
         self.capacity_shed.inc();
     }
 
-    pub(crate) fn record_staging_rejected(&self) {
+    pub fn record_staging_rejected(&self) {
         self.staging_rejected.inc();
         self.capacity_shed.inc();
     }
 }
 
 impl ResponseStreamReservationMetrics {
-    pub(crate) fn add(&self, bytes: u64) {
+    pub fn add(&self, bytes: u64) {
         self.reserved_bytes.inc_by(bytes as i64);
         self.active.inc();
     }
 
-    pub(crate) fn remove(&self, bytes: u64) {
+    pub fn remove(&self, bytes: u64) {
         self.reserved_bytes.dec_by(bytes as i64);
         self.active.dec();
     }
@@ -526,15 +526,15 @@ impl ResponseStreamMetrics {
 }
 
 impl InflightMetrics {
-    pub(crate) fn update_http(&self, count: usize) {
+    pub fn update_http(&self, count: usize) {
         self.http.set(count as i64);
     }
 
-    pub(crate) fn update_public_http(&self, count: usize) {
+    pub fn update_public_http(&self, count: usize) {
         self.public_http.set(count as i64);
     }
 
-    pub(crate) fn update_grpc(&self, count: usize) {
+    pub fn update_grpc(&self, count: usize) {
         self.grpc.set(count as i64);
     }
 }
@@ -2653,15 +2653,15 @@ impl Metrics {
         self.inflight.update_grpc(count);
     }
 
-    pub(crate) fn inflight_metrics(&self) -> Arc<InflightMetrics> {
+    pub fn inflight_metrics(&self) -> Arc<InflightMetrics> {
         self.inflight.clone()
     }
 
-    pub(crate) fn grpc_write_admission_metrics(&self) -> Arc<GrpcWriteAdmissionMetrics> {
+    pub fn grpc_write_admission_metrics(&self) -> Arc<GrpcWriteAdmissionMetrics> {
         self.grpc_write_admission.clone()
     }
 
-    pub(crate) fn analytics_queue_metrics(&self) -> Arc<AnalyticsQueueMetrics> {
+    pub fn analytics_queue_metrics(&self) -> Arc<AnalyticsQueueMetrics> {
         let counter = |result: &str| {
             self.analytics_events.get_or_create_owned(&AnalyticsLabels {
                 pipeline: "queue".to_owned(),
@@ -3277,7 +3277,7 @@ impl Metrics {
         self.response_stream.reservation(protocol).add(bytes);
     }
 
-    pub(crate) fn begin_response_stream_reservation(
+    pub fn begin_response_stream_reservation(
         &self,
         protocol: &str,
         bytes: u64,

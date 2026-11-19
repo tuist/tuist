@@ -5,12 +5,16 @@ use tokio::{
     time::{Instant, sleep},
 };
 
-use crate::runtime::RuntimeState;
+/// How busy public traffic is, which background transfers yield to.
+pub trait PublicLoad: Send + Sync {
+    fn public_inflight(&self) -> usize;
+    fn public_latency_pressure_divisor(&self, target_ms: u64) -> usize;
+}
 
 pub struct BandwidthLimiter {
     bytes_per_second: u64,
     public_latency_target_ms: u64,
-    runtime: Arc<RuntimeState>,
+    runtime: Arc<dyn PublicLoad>,
     next_available: Mutex<Instant>,
 }
 
@@ -18,7 +22,7 @@ impl BandwidthLimiter {
     pub fn new(
         bytes_per_second: u64,
         public_latency_target_ms: u64,
-        runtime: Arc<RuntimeState>,
+        runtime: Arc<dyn PublicLoad>,
     ) -> Option<Self> {
         if bytes_per_second == 0 {
             return None;
@@ -96,9 +100,21 @@ fn duration_for_bytes(bytes: usize, bytes_per_second: u64) -> Duration {
 mod tests {
     use super::*;
 
+    struct Idle;
+
+    impl PublicLoad for Idle {
+        fn public_inflight(&self) -> usize {
+            0
+        }
+
+        fn public_latency_pressure_divisor(&self, _target_ms: u64) -> usize {
+            1
+        }
+    }
+
     #[test]
     fn disabled_when_limit_is_zero() {
-        assert!(BandwidthLimiter::new(0, 100, RuntimeState::new()).is_none());
+        assert!(BandwidthLimiter::new(0, 100, Arc::new(Idle)).is_none());
     }
 
     #[test]

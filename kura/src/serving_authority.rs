@@ -95,14 +95,29 @@ impl Drop for PermitInner {
     }
 }
 
-tokio::task_local! { static PUBLIC_PERMIT: Option<Permit>; }
+pub use kura_core::serving_authority::AuthorityConfig;
 
+// The permit slot lives in kura-core so the store can publish under it; this module's `Permit` is
+// the only `Publisher` put there.
 pub fn current_permit() -> Option<Permit> {
-    PUBLIC_PERMIT.try_with(Clone::clone).ok().flatten()
+    kura_core::serving_authority::current_permit()
+        .and_then(|permit| permit.as_any().downcast_ref::<Permit>().cloned())
 }
 
 pub async fn scope<T>(permit: Option<Permit>, future: impl Future<Output = T>) -> T {
-    PUBLIC_PERMIT.scope(permit, future).await
+    let permit =
+        permit.map(|permit| Arc::new(permit) as kura_core::serving_authority::PermitHandle);
+    kura_core::serving_authority::scope(permit, future).await
+}
+
+impl kura_core::serving_authority::Publisher for Permit {
+    fn publish_dyn(&self, operation: &mut dyn FnMut() -> Result<(), String>) -> Result<(), String> {
+        self.publish(operation)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ServingAuthority {
@@ -522,16 +537,6 @@ impl Permit {
     }
 }
 
-pub fn publish<T>(
-    permit: Option<&Permit>,
-    operation: impl FnOnce() -> Result<T, String>,
-) -> Result<T, String> {
-    match permit {
-        Some(p) => p.publish(operation),
-        None => operation(),
-    }
-}
-
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -558,20 +563,26 @@ fn authority_http_error(error: reqwest::Error) -> String {
     details.chars().take(2048).collect()
 }
 
-#[derive(Clone, Debug)]
-pub struct AuthorityConfig {
-    pub instance: String,
-    pub namespace: String,
-    pub instance_uid: String,
-    pub pod_uid: String,
-    pub host: String,
+/// Starting the authority from its configuration. The configuration itself lives in kura-core, which
+/// reads it with the rest of the node config.
+pub trait AuthorityStart {
+    fn validate_volume(
+        data_dir: &std::path::Path,
+        config: Option<&Self>,
+    ) -> Result<Option<Holder>, String>;
+
+    fn start(
+        &self,
+        data_dir: &std::path::Path,
+        inherited: Option<Holder>,
+    ) -> Result<Arc<ServingAuthority>, String>;
 }
 
-impl AuthorityConfig {
+impl AuthorityStart for AuthorityConfig {
     /// Returns the exited holder when the volume is this pod's own unclean
     /// primary volume. Only that holder's exit resume may reopen it; any other
     /// pod, or a legacy start, must quarantine and rebuild.
-    pub fn validate_volume(
+    fn validate_volume(
         data_dir: &std::path::Path,
         config: Option<&Self>,
     ) -> Result<Option<Holder>, String> {
@@ -610,29 +621,7 @@ impl AuthorityConfig {
             }
         }
     }
-    pub fn from_env() -> Result<Option<Self>, String> {
-        let Some(instance) = std::env::var("KURA_SERVING_AUTHORITY").ok() else {
-            return Ok(None);
-        };
-        let required = |name| {
-            std::env::var(name)
-                .ok()
-                .filter(|v| !v.is_empty())
-                .ok_or_else(|| format!("{name} is required for serving authority"))
-        };
-        if instance.is_empty() {
-            return Err("KURA_SERVING_AUTHORITY must not be empty".into());
-        }
-        Ok(Some(Self {
-            instance,
-            namespace: required("POD_NAMESPACE")?,
-            instance_uid: required("KURA_INSTANCE_UID")?,
-            pod_uid: required("POD_UID")?,
-            host: required("POD_NODE_NAME")?,
-        }))
-    }
-
-    pub fn start(
+    fn start(
         &self,
         data_dir: &std::path::Path,
         inherited: Option<Holder>,

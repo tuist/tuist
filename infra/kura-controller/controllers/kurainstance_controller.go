@@ -5020,7 +5020,7 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 // sync with the pod's terminationGracePeriodSeconds, and bounded cache
 // budgets for the managed memory profile (see defaultResources). Other
 // resource-shaped knobs are derived from the pod's cgroup and rlimit
-// at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
+// at runtime startup. See kura/crates/kura-core/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
 	if environment == "" {
 		environment = "production"

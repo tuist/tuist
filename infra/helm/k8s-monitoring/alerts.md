@@ -1810,7 +1810,7 @@ cleaner bound; a restart inside the same window is the substitute.
 
 **The second arm cannot see the kill that matters.** Kura reads
 `/sys/fs/cgroup/memory.events` of its own container cgroup
-(`kura/src/memory/cgroup.rs`). When the OOM killer takes the main process the
+(`kura/crates/kura-core/src/memory/cgroup.rs`). When the OOM killer takes the main process the
 container restarts with a fresh cgroup and the counter starts at zero, so
 `kura_container_memory_oom_kill_events` only ever counts a kill that took a
 child or thread and left the process running. Keep it; do not rely on it.
@@ -6578,7 +6578,7 @@ The mechanism behind the two rules above, and the only one of the three visible
 *before* the pod stops answering.
 
 Kura builds its metadata store with a RocksDB `WriteBufferManager` whose stall
-flag is enabled (`kura/src/store.rs`). Once memtable memory reaches the pool
+flag is enabled (`kura/crates/kura-core/src/store.rs`). Once memtable memory reaches the pool
 size, RocksDB blocks every thread inside its write call until a flush drains
 it. The stall itself is correct — without it the memtables grow unbounded and
 the pod is OOM-killed instead — so what matters is which thread it blocks.

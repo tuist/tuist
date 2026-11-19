@@ -99,7 +99,7 @@ const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 const HANDOVER_COMPACTION_CHUNK_BYTES: u64 = 64 << 20;
 // Flush threshold for stale backfill-index row retirement collected across
 // one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
-pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
+pub const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 1024;
 // Coordinates a namespace delete against everything that writes into that
 // namespace. The delete resolves its tombstone with a read-compare-write that
@@ -117,7 +117,7 @@ const ARTIFACT_WRITE_LOCK_STRIPES: usize = 1024;
 const NAMESPACE_LOCK_STRIPES: usize = 16;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
-pub(crate) const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+pub const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
 const SEGMENT_POSITIONED_WRITE_SLOTS: usize = 32;
 // Two commit threads keep one long RocksDB write (a large namespace-delete
 // batch, a write stall) from queueing every other commit behind it; more would bring back the write
@@ -184,10 +184,10 @@ pub struct StorageSnapshotData {
 }
 
 pub struct Store {
-    pub(crate) handover_hold: Arc<StdMutex<Option<String>>>,
+    pub handover_hold: Arc<StdMutex<Option<String>>>,
     // Published by the blocking eviction commit while holding handover_hold.
     // A repair walk must revisit rows checked before a later eviction.
-    pub(crate) handover_eviction_generation: Arc<AtomicU64>,
+    pub handover_eviction_generation: Arc<AtomicU64>,
     // A named handover sets the oldest version its source retains. Every
     // capacity or pressure eviction of a segment that may hold a record at or
     // after it is counted: it may have dropped data the barrier requires.
@@ -246,7 +246,7 @@ pub struct Store {
     segment_positioned_write_slots: Semaphore,
     #[cfg(test)]
     positioned_segment_writes_enabled: AtomicBool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     direct_small_uploads_enabled: AtomicBool,
     segment_writers_ahead_of_durability: Arc<DurabilityWriters>,
     pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
@@ -269,12 +269,12 @@ pub struct Store {
     write_thread_observer: Arc<StdMutex<Option<Arc<dyn Fn(std::thread::ThreadId) + Send + Sync>>>>,
     /// Pauses a request-path commit after database visibility but before the
     /// awaiting caller can publish its durability sequence.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[allow(clippy::type_complexity)]
     write_commit_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     /// Runs on each authoritative manifest read, so tests can observe how many
     /// overlap.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[allow(clippy::type_complexity)]
     manifest_read_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
@@ -681,7 +681,7 @@ pub struct BackfillIndexPage {
 ///   sync before dropping their range from the page cache and once the
 ///   unsynced bytes reach [`RELAXED_DURABILITY_MAX_UNSYNCED_SEGMENT_BYTES`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ApplyDurability {
+pub enum ApplyDurability {
     Sync,
     Relaxed,
     DeferredBatch,
@@ -776,7 +776,7 @@ impl Drop for PendingDurabilityWriter {
 /// reclaimed when their segment is evicted, staged inline bytes are dropped
 /// with it, and the failed pass re-lists.
 #[derive(Default)]
-pub(crate) struct BackfillApplyBatch {
+pub struct BackfillApplyBatch {
     staged: Vec<StagedBackfillApply>,
     max_durability_seq: u64,
     /// Staged segment ranges whose page cache the policy asked to release;
@@ -790,14 +790,14 @@ pub(crate) struct BackfillApplyBatch {
 }
 
 impl BackfillApplyBatch {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             feed_rows: true,
             ..Self::default()
         }
     }
 
-    pub(crate) fn without_feed_rows(mut self) -> Self {
+    pub fn without_feed_rows(mut self) -> Self {
         self.feed_rows = false;
         self
     }
@@ -815,7 +815,7 @@ struct CachedSegmentRange {
 /// converged (`Converged` — local copy newer/equal or tombstoned; nothing
 /// queued, the record is readable now and resolves immediately).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum BackfillStageOutcome {
+pub enum BackfillStageOutcome {
     Staged,
     Converged,
 }
@@ -985,7 +985,7 @@ pub struct ApplyProvenance<'a> {
     pub sync_feed_row: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl ApplyProvenance<'static> {
     /// A push from a peer of unknown region on the legacy replication
     /// routes: it may have crossed a region boundary, so it earns a row.
@@ -1117,7 +1117,7 @@ impl ArtifactApplyOutcome {
         }
     }
 
-    pub(crate) fn applied(self) -> bool {
+    pub fn applied(self) -> bool {
         matches!(self, Self::Applied)
     }
 }
@@ -1137,7 +1137,7 @@ impl NamespaceDeleteOutcome {
     }
 
     #[cfg(test)]
-    pub(crate) fn applied(self) -> bool {
+    pub fn applied(self) -> bool {
         matches!(self, Self::Applied)
     }
 }
@@ -1210,14 +1210,14 @@ impl<'a> StagedArtifactPath<'a> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl<'a> From<&'a Path> for StagedArtifactPath<'a> {
     fn from(path: &'a Path) -> Self {
         Self::new(path, FileCachePolicy::Adaptive)
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl<'a> From<&'a PathBuf> for StagedArtifactPath<'a> {
     fn from(path: &'a PathBuf) -> Self {
         Self::from(path.as_path())
@@ -1558,7 +1558,7 @@ impl Store {
             segment_positioned_write_slots: Semaphore::new(SEGMENT_POSITIONED_WRITE_SLOTS),
             #[cfg(test)]
             positioned_segment_writes_enabled: AtomicBool::new(true),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             direct_small_uploads_enabled: AtomicBool::new(true),
             segment_writers_ahead_of_durability: Arc::new(DurabilityWriters::default()),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
@@ -1568,9 +1568,9 @@ impl Store {
             eviction_commits: Arc::new(StdMutex::new(EvictionCommitLog::default())),
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             write_commit_observer: StdMutex::new(None),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             manifest_read_observer: StdMutex::new(None),
             action_cache_generations: StdMutex::new(HashMap::new()),
             action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
@@ -1947,7 +1947,7 @@ impl Store {
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn apply_replicated_artifact_from_path<'a>(
         &self,
         producer: ArtifactProducer,
@@ -2601,7 +2601,7 @@ impl Store {
     /// original error stands. Returns the manifest that was actually opened so
     /// callers derive response metadata (size, content type) from the copy the
     /// bytes come from.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn open_artifact_reader(
         &self,
         manifest: &ArtifactManifest,
@@ -2839,8 +2839,8 @@ impl Store {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn pending_promotion(&self, artifact_id: &str) -> Option<RefreshTrigger> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn pending_promotion(&self, artifact_id: &str) -> Option<RefreshTrigger> {
         self.promotion_queue
             .lock()
             .expect("promotion queue lock")
@@ -3679,7 +3679,7 @@ impl Store {
         );
     }
 
-    pub(crate) fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
+    pub fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read inline artifact bytes: {error}"))
@@ -3793,19 +3793,19 @@ impl Store {
         }
     }
 
-    pub(crate) fn direct_small_uploads_enabled(&self) -> bool {
-        #[cfg(test)]
+    pub fn direct_small_uploads_enabled(&self) -> bool {
+        #[cfg(any(test, feature = "test-support"))]
         {
             self.direct_small_uploads_enabled.load(Ordering::Acquire)
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-support")))]
         {
             true
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_direct_small_uploads_enabled(&self, enabled: bool) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_direct_small_uploads_enabled(&self, enabled: bool) {
         self.direct_small_uploads_enabled
             .store(enabled, Ordering::Release);
     }
@@ -4588,7 +4588,7 @@ impl Store {
         SegmentRingLimits::with_total(self.disk_pressure_segment_limit.load(Ordering::Acquire))
     }
 
-    pub(crate) async fn handover_reclaim_candidates(&self) -> Result<HashSet<String>, String> {
+    pub async fn handover_reclaim_candidates(&self) -> Result<HashSet<String>, String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
         self.finish_segment_retirement(&mut recovery, true).await?;
         let _refresh = self.segment_refresh_lock.lock().await;
@@ -4606,20 +4606,20 @@ impl Store {
     /// Counts, from now on, capacity and pressure evictions of segments that
     /// may hold a record at or after `frontier_ms`, the oldest version a named
     /// handover source retains. Destination-only reclaims are never counted.
-    pub(crate) fn watch_retained_evictions(&self, frontier_ms: u64) {
+    pub fn watch_retained_evictions(&self, frontier_ms: u64) {
         self.retained_loss_frontier_ms
             .store(frontier_ms, Ordering::Release);
     }
 
     /// Extends the watch to segments that may hold `version_ms`, before a
     /// record that old is checked as held, so its later eviction is counted.
-    pub(crate) fn lower_retained_watch(&self, version_ms: u64) -> u64 {
+    pub fn lower_retained_watch(&self, version_ms: u64) -> u64 {
         self.retained_loss_frontier_ms
             .fetch_min(version_ms, Ordering::AcqRel)
             .min(version_ms)
     }
 
-    pub(crate) fn retained_loss_evictions(&self) -> u64 {
+    pub fn retained_loss_evictions(&self) -> u64 {
         self.retained_loss_evictions.load(Ordering::Acquire)
     }
 
@@ -4627,7 +4627,7 @@ impl Store {
     /// evicts a segment that may hold a record at or after `frontier_ms`:
     /// free ring slots and the active segment's remainder, bounded by disk
     /// headroom, plus the next evictees whose newest record is older.
-    pub(crate) fn handover_admissible_bytes(&self, frontier_ms: u64) -> u64 {
+    pub fn handover_admissible_bytes(&self, frontier_ms: u64) -> u64 {
         let snapshot = self.segment_state_snapshot();
         let state = &snapshot.state;
         let segments = state.old.len() + state.current.len() + state.new.len();
@@ -4668,7 +4668,7 @@ impl Store {
     /// the active segment, without hinting siblings, so a named handover can
     /// reclaim the rest. Returns the bytes copied and the selected artifacts
     /// still in the segment; reclaim it only when none are left.
-    pub(crate) async fn compact_handover_segment(
+    pub async fn compact_handover_segment(
         &self,
         segment_id: &str,
         keep: impl Fn(&str) -> bool,
@@ -4717,7 +4717,7 @@ impl Store {
         Ok((copied, left))
     }
 
-    pub(crate) async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
+    pub async fn reclaim_handover_segment(&self, segment_id: &str) -> Result<(), String> {
         let mut recovery = self.disk_pressure_reclamation.lock().await;
         self.finish_segment_retirement(&mut recovery, true).await?;
         {
@@ -5191,8 +5191,8 @@ impl Store {
 
     /// Moves every segment into the Old generation behind a fresh New one, so
     /// tests outside this module can drive the aging-ring paths.
-    #[cfg(test)]
-    pub(crate) fn age_every_segment_for_test(&self) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn age_every_segment_for_test(&self) {
         let mut state = self.segment_state_snapshot().state.clone();
         let mut old = std::mem::take(&mut state.old);
         old.append(&mut state.current);
@@ -5209,8 +5209,8 @@ impl Store {
             .expect("failed to age segment state");
     }
 
-    #[cfg(test)]
-    pub(crate) fn pending_promotion_for_test(&self, artifact_id: &str) -> Option<RefreshTrigger> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn pending_promotion_for_test(&self, artifact_id: &str) -> Option<RefreshTrigger> {
         self.promotion_queue
             .lock()
             .expect("promotion queue lock")
@@ -6479,7 +6479,7 @@ impl Store {
             .store(Some(Arc::new(SegmentHandleFastPath { cache_key, handle })));
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn persist_artifact_from_bytes(
         &self,
         producer: ArtifactProducer,
@@ -6509,7 +6509,7 @@ impl Store {
             .map(|persisted| persisted.manifest)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn persist_artifact_from_bytes_and_replicate(
         &self,
         producer: ArtifactProducer,
@@ -6530,7 +6530,7 @@ impl Store {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn persist_admitted_artifact_from_bytes_and_replicate(
+    pub async fn persist_admitted_artifact_from_bytes_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
@@ -6579,7 +6579,7 @@ impl Store {
     /// precheck, append and commit as on the single-record path, so concurrent
     /// uploads of one blob still append it once. Segments retired by rotation
     /// are evicted after the locks are released.
-    pub(crate) async fn persist_artifacts_from_bytes_and_replicate(
+    pub async fn persist_artifacts_from_bytes_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
@@ -6846,7 +6846,7 @@ impl Store {
             .collect()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn persist_inline_artifact_from_bytes(
         &self,
         producer: ArtifactProducer,
@@ -6983,7 +6983,7 @@ impl Store {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn apply_replicated_artifact_from_bytes(
         &self,
         producer: ArtifactProducer,
@@ -7017,7 +7017,7 @@ impl Store {
     /// origin resolved and `trunk` the publishing build's trunk; a peer that
     /// sends neither (an older node, or any non-REAPI write) applies untagged,
     /// exactly as before.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes(
         &self,
@@ -7096,7 +7096,7 @@ impl Store {
     /// newer or equal, or tombstoned) is already converged and stages
     /// nothing.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn stage_backfill_inline_apply(
+    pub async fn stage_backfill_inline_apply(
         &self,
         batch: &mut BackfillApplyBatch,
         producer: ArtifactProducer,
@@ -7159,7 +7159,7 @@ impl Store {
     /// pre-check ignores (local copy newer or equal, or tombstoned) is
     /// already converged and stages nothing.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn stage_backfill_segmented_apply(
+    pub async fn stage_backfill_segmented_apply(
         &self,
         batch: &mut BackfillApplyBatch,
         producer: ArtifactProducer,
@@ -7295,7 +7295,7 @@ impl Store {
     /// that loses them is absorbed by the re-list contract), and staged
     /// records not yet committed are just unreferenced segment bytes or
     /// dropped in-memory inline bodies.
-    pub(crate) async fn commit_backfill_apply_batch(
+    pub async fn commit_backfill_apply_batch(
         &self,
         batch: BackfillApplyBatch,
         mut on_group_committed: impl FnMut(usize),
@@ -7499,7 +7499,7 @@ impl Store {
         Ok(true)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     async fn persist_artifact_from_bytes_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
@@ -7532,7 +7532,7 @@ impl Store {
         result
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub async fn delete_namespace(&self, namespace_id: &str) -> Result<u64, String> {
         self.delete_namespace_with_version(namespace_id, TombstoneVersion::Local, true)
             .await
@@ -7777,7 +7777,7 @@ impl Store {
         Ok((NamespaceDeleteOutcome::Applied, version_ms))
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn try_start_multipart_upload(
         &self,
         tenant_id: &str,
@@ -8405,7 +8405,7 @@ impl Store {
             return Ok(());
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         self.failpoints
             .hit_blocking(FailpointName::BeforeUsageOutboxAppend)?;
 
@@ -9557,7 +9557,7 @@ impl Store {
     /// key order. Test-only: nothing in production reads tombstones in bulk
     /// since the legacy bootstrap walker was retired — replication carries
     /// each delete individually and the backfill index lists them as entries.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn namespace_tombstones(&self) -> Result<Vec<(String, u64)>, String> {
         let mut tombstones = Vec::new();
         let iter = self.db.iterator_cf(
@@ -9795,7 +9795,7 @@ impl Store {
     /// test (`backfill::window::capacity_complete`). Re-read as a pass's
     /// cursor descends: applies rotate segments, so the live count and the
     /// next evictee move underneath a running pass.
-    pub(crate) fn backfill_capacity_inputs(&self) -> BackfillCapacityInputs {
+    pub fn backfill_capacity_inputs(&self) -> BackfillCapacityInputs {
         let snapshot = self.segment_state_snapshot();
         let state = &snapshot.state;
         BackfillCapacityInputs {
@@ -9822,7 +9822,7 @@ impl Store {
     /// and LWW-refreshed (R10). Reads only the manifest/tombstone row, like
     /// the apply-time check; eviction deletes manifests in the same batch as
     /// the bytes, so manifest presence tracks body presence.
-    pub(crate) fn backfill_locally_covered(
+    pub fn backfill_locally_covered(
         &self,
         kind: BackfillRecordKind,
         record_id: &str,
@@ -9842,16 +9842,16 @@ impl Store {
         self.namespace_tombstone_blocks(&manifest.namespace_id, version_ms)
     }
 
-    #[cfg(test)]
-    pub(crate) async fn evict_segment_for_testing(&self, segment_id: &str) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn evict_segment_for_testing(&self, segment_id: &str) {
         assert!(!self.is_active_segment(segment_id));
         self.evict_segment(segment_id).await.unwrap();
     }
 
     /// Test hook: replaces the segment ring state wholesale so tests can
     /// fabricate ring-full shapes without writing gigabytes of segments.
-    #[cfg(test)]
-    pub(crate) async fn install_segment_state_for_testing(
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn install_segment_state_for_testing(
         &self,
         state: SegmentState,
     ) -> Result<(), String> {
@@ -9862,10 +9862,7 @@ impl Store {
     /// drains the collector, mirroring [`Self::delete_stale_action_cache_rows`]:
     /// batching keeps a request that resolves many dangling rows to a handful
     /// of WAL fsyncs instead of one per row.
-    pub(crate) fn retire_backfill_index_rows(
-        &self,
-        stale_rows: &mut Vec<Vec<u8>>,
-    ) -> Result<(), String> {
+    pub fn retire_backfill_index_rows(&self, stale_rows: &mut Vec<Vec<u8>>) -> Result<(), String> {
         if stale_rows.is_empty() {
             return Ok(());
         }
@@ -9879,7 +9876,7 @@ impl Store {
     /// Test hook: plants a raw `backfill/idx/` row so tests can fabricate the
     /// dangling-row states (build/live races, unlocked deletes) that normal
     /// write paths clean up after themselves.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn insert_backfill_index_row_for_testing(
         &self,
         version_ms: u64,
@@ -10059,7 +10056,7 @@ impl Store {
 
     /// Rows with `after < seq <= head`, oldest first, at most `limit`,
     /// against the current head.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn sync_feed_page(&self, after: u64, limit: usize) -> Result<Vec<SyncFeedRow>, String> {
         self.sync_feed_page_to(after, limit, self.sync_feed.head())
     }
@@ -10104,7 +10101,7 @@ impl Store {
     }
 
     /// This node's forward cursor against a sibling, if it holds one.
-    pub(crate) async fn persist_handover_receipt(&self, receipt: &[u8]) -> Result<(), String> {
+    pub async fn persist_handover_receipt(&self, receipt: &[u8]) -> Result<(), String> {
         let mut batch = WriteBatch::default();
         batch.put_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
@@ -10438,7 +10435,7 @@ impl Store {
 
     /// The ring's age-ordered seal-time stats, the horizon input of
     /// `backfill::window::compute_window`.
-    pub(crate) fn backfill_age_ordered_stats(&self) -> Vec<u64> {
+    pub fn backfill_age_ordered_stats(&self) -> Vec<u64> {
         self.segment_state_snapshot()
             .state
             .age_ordered_references()
@@ -10841,12 +10838,12 @@ impl Store {
             .unwrap_or(ArtifactApplyOutcome::Applied))
     }
 
-    pub(crate) async fn hit_failpoint(&self, name: FailpointName) -> Result<(), String> {
+    pub async fn hit_failpoint(&self, name: FailpointName) -> Result<(), String> {
         self.failpoints.hit(name).await
     }
 
-    #[cfg(test)]
-    pub(crate) fn failpoints(&self) -> Arc<FailpointSet> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn failpoints(&self) -> Arc<FailpointSet> {
         self.failpoints.clone()
     }
 
@@ -11005,7 +11002,7 @@ impl Store {
         let permit = crate::serving_authority::current_permit();
         let handover_hold = self.handover_hold.clone();
         let handover_enabled = self.handover_enabled;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         let commit_observer = self.write_commit_observer.lock().unwrap().clone();
         let durability_seq = self
             .commit_threads
@@ -11034,7 +11031,7 @@ impl Store {
                 // The worker owns both publication and enrollment, even if its
                 // caller is cancelled after the row becomes visible.
                 drop(pending_writer);
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-support"))]
                 if result.is_ok()
                     && let Some(observer) = commit_observer
                 {
@@ -11147,7 +11144,7 @@ impl Store {
     /// Covers an existing client manifest, including a cancelled writer's
     /// tracked commit: a visible row may still be waiting for its WAL flush.
     /// Durable hits and unrelated metadata writes require no I/O.
-    pub(crate) async fn acknowledge_existing_client_manifest(&self) -> Result<(), String> {
+    pub async fn acknowledge_existing_client_manifest(&self) -> Result<(), String> {
         if self.acknowledgement_durability(true) == ApplyDurability::Relaxed {
             return Ok(());
         }
@@ -11170,18 +11167,18 @@ impl Store {
     /// (writes committed with sync enabled, deferred writes, successful synced
     /// WAL flushes) — the durability-accounting counters tests pin path
     /// semantics with.
-    #[cfg(test)]
-    pub(crate) fn set_write_commit_observer(&self, observer: Option<Arc<dyn Fn() + Send + Sync>>) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_write_commit_observer(&self, observer: Option<Arc<dyn Fn() + Send + Sync>>) {
         *self.write_commit_observer.lock().unwrap() = observer;
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_manifest_read_observer(&self, observer: Option<Arc<dyn Fn() + Send + Sync>>) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_manifest_read_observer(&self, observer: Option<Arc<dyn Fn() + Send + Sync>>) {
         *self.manifest_read_observer.lock().unwrap() = observer;
     }
 
-    #[cfg(test)]
-    pub(crate) fn wal_write_counts(&self) -> (u64, u64, u64) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn wal_write_counts(&self) -> (u64, u64, u64) {
         (
             self.wal_sync_write_count.load(Ordering::Relaxed),
             self.wal_deferred_write_count.load(Ordering::Relaxed),
@@ -11189,10 +11186,7 @@ impl Store {
         )
     }
 
-    pub(crate) fn namespace_tombstone_version(
-        &self,
-        namespace_id: &str,
-    ) -> Result<Option<u64>, String> {
+    pub fn namespace_tombstone_version(&self, namespace_id: &str) -> Result<Option<u64>, String> {
         let Some(bytes) = self
             .db
             .get_pinned_cf_opt(
@@ -11265,11 +11259,8 @@ impl Store {
         self.existence_cache.trim_to(target_entries)
     }
 
-    pub(crate) fn manifest_from_db(
-        &self,
-        artifact_id: &str,
-    ) -> Result<Option<ArtifactManifest>, String> {
-        #[cfg(test)]
+    pub fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
+        #[cfg(any(test, feature = "test-support"))]
         {
             let observer = self.manifest_read_observer.lock().unwrap().clone();
             if let Some(observer) = observer {
@@ -11289,7 +11280,7 @@ impl Store {
 
     /// [`Store::manifest_from_db`] for many ids in one RocksDB multi-get, in
     /// request order.
-    pub(crate) fn manifests_from_db<'a>(
+    pub fn manifests_from_db<'a>(
         &self,
         artifact_ids: impl IntoIterator<Item = &'a str>,
     ) -> Result<Vec<Option<ArtifactManifest>>, String> {
@@ -11336,7 +11327,7 @@ impl Store {
         Some((*retained).clone())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn maybe_cache_manifest(&self, manifest: ArtifactManifest) {
         self.maybe_cache_manifest_retained(Arc::new(manifest));
     }
@@ -11378,8 +11369,8 @@ impl Store {
             .record_memory_action("manifest_cache_skip");
     }
 
-    #[cfg(test)]
-    pub(crate) fn seed_stale_manifest_cache(&self, manifest: ArtifactManifest) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn seed_stale_manifest_cache(&self, manifest: ArtifactManifest) {
         self.maybe_cache_manifest(manifest);
     }
 
@@ -12462,7 +12453,7 @@ fn total_disk_bytes(_path: &Path) -> Option<u64> {
 /// Ring-fullness inputs of the backfill marginal-trade capacity test, read
 /// through [`Store::backfill_capacity_inputs`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct BackfillCapacityInputs {
+pub struct BackfillCapacityInputs {
     pub segment_count: usize,
     pub ring_total_segments: usize,
     pub next_evictee_stat_ms: Option<u64>,
@@ -12470,7 +12461,7 @@ pub(crate) struct BackfillCapacityInputs {
 
 /// Resolved generation counts for the CAS segment ring.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct SegmentRingLimits {
+pub struct SegmentRingLimits {
     pub desired_old_segments: usize,
     pub desired_current_segments: usize,
     pub desired_new_segments: usize,
@@ -12496,7 +12487,7 @@ impl SegmentRingLimits {
         }
     }
 
-    pub(crate) fn total_segments(&self) -> usize {
+    pub fn total_segments(&self) -> usize {
         self.desired_old_segments + self.desired_current_segments + self.desired_new_segments
     }
 
@@ -12628,7 +12619,7 @@ struct PressureRetirement {
 /// still here when the guard drops (a failed manifest commit, a refused
 /// eviction, a cancelled request) goes to the reclamation worker instead of
 /// waiting for startup's orphan sweep.
-pub(crate) struct RetiredSegments<'a> {
+pub struct RetiredSegments<'a> {
     store: &'a Store,
     remaining: VecDeque<SegmentReference>,
 }
@@ -12796,7 +12787,7 @@ fn blob_handle_cache_key(blob_path: &str) -> String {
     format!("blob:{blob_path}")
 }
 
-pub(crate) fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
+pub fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
     if manifest.version_ms == 0 {
         manifest.created_at_ms
     } else {
@@ -12807,7 +12798,7 @@ pub(crate) fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
 /// The backfill index kind of a manifest. Legacy blob-backed artifacts ride
 /// as `SegmentArtifact`: the kind distinguishes "body is inline bytes" from
 /// "body is file-backed", which is what the transfer path cares about.
-pub(crate) fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
+pub fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
     // A recipe is physically inline but is only useful when every referenced
     // chunk made the same age-bounded catch-up pass. Classifying it with the
     // capacity-sensitive records makes a capacity-completed pass skip the
@@ -12864,7 +12855,7 @@ fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> boo
     incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
 }
 
-pub(crate) fn try_allocate_exact_vec(size: usize) -> Option<Vec<u8>> {
+pub fn try_allocate_exact_vec(size: usize) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
     bytes.try_reserve_exact(size).ok()?;
     Some(bytes)
@@ -25502,7 +25493,7 @@ mod tests {
 
         let mut previous_remaining = entries.len();
         for _ in 0..interruptions {
-            let runtime = crate::runtime::RuntimeState::new();
+            let runtime = Arc::new(crate::startup::TestDrain::default());
             let recovery =
                 crate::startup::Recovery::new(store.io.metrics().clone(), runtime.clone());
             recovery.set_phase(crate::startup::Phase::CleaningSegments);
@@ -25549,7 +25540,7 @@ mod tests {
         }
         let recovery = crate::startup::Recovery::new(
             store.io.metrics().clone(),
-            crate::runtime::RuntimeState::new(),
+            Arc::new(crate::startup::TestDrain::default()),
         );
         recovery.set_phase(crate::startup::Phase::CleaningSegments);
         store.set_startup_recovery(recovery);

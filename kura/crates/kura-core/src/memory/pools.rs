@@ -45,7 +45,7 @@ pub(super) struct MemoryPools {
     mmap_serving_bytes: usize,
     response_streaming_bytes: usize,
     foreground_response_streaming_bytes: usize,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     elastic_foreground_response_streaming_capacity_bytes: usize,
     degraded_response_stream_slots: usize,
 }
@@ -152,7 +152,7 @@ impl MemoryPools {
             mmap_serving_bytes,
             response_streaming_bytes,
             foreground_response_streaming_bytes,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             elastic_foreground_response_streaming_capacity_bytes:
                 elastic_foreground_response_streaming_bytes,
             degraded_response_stream_slots,
@@ -244,7 +244,7 @@ impl MemoryPools {
         self.foreground_response_streaming_bytes
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn elastic_foreground_response_streaming_bytes(&self) -> usize {
         self.elastic_foreground_response_streaming_capacity_bytes
     }
