@@ -280,15 +280,23 @@ function assertPublisher(name) {
   assert.equal(publisher.jobs.test.permissions, undefined);
   assert.equal(publisher.jobs.build.if, "github.event_name != 'pull_request'");
   assert.equal(publisher.jobs.build.permissions.packages, 'write');
-  assert.equal(publisher.jobs.build.needs, 'test');
+  assert.equal(publisher.jobs.build.needs, undefined, name);
   assert.equal(publisher.on.workflow_call.outputs.image_tag.value, '${{ jobs.build.outputs.image_tag }}');
-  const build = publisher.jobs.build.steps.find((s) => s.uses?.startsWith('docker/build-push-action@'));
+  const build = publisher.jobs.build.steps.find((s) => s.uses?.startsWith('docker/build-push-action@') && s.with.push === true);
   assert.equal(build.if, "steps.existing.outputs.exists != 'true'");
   assert.equal(build.with.tags, '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}');
   for (const step of publisher.jobs.test.steps) {
     assert.notEqual(step.with?.push, true, `${name} test job must not publish`);
   }
 }
+
+test('the template publisher exercises a new guest before pushing it', () => {
+  const steps = workflow('sandbox-image.yml').jobs.build.steps;
+  const check = steps.findIndex((s) => s.run?.includes('sandbox-image-check-guest.sh'));
+  const push = steps.findIndex((s) => s.with?.push === true);
+  assert.ok(check >= 0 && check < push);
+  assert.equal(steps[check].if, "steps.existing.outputs.exists != 'true'");
+});
 
 test('the daemon publisher tags what its version script names', () => {
   const steps = workflow('sandboxd-image.yml').jobs.build.steps;
