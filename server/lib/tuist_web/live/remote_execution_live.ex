@@ -15,6 +15,7 @@ defmodule TuistWeb.RemoteExecutionLive do
   alias Tuist.RemoteExecution.Analytics
   alias Tuist.RemoteExecution.Usage
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.ErrorCardSection
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
@@ -197,6 +198,8 @@ defmodule TuistWeb.RemoteExecutionLive do
   end
 
   def render(assigns) do
+    assigns = assign(assigns, :timings, timings_state(assigns.summary, assigns.series))
+
     ~H"""
     <div id="remote-execution" class="bazel-invocations">
       <div data-part="filters">
@@ -229,9 +232,10 @@ defmodule TuistWeb.RemoteExecutionLive do
 
       <.async_card
         :let={ready?}
-        results={[@usage, @summary, @series]}
+        results={[@usage]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
+        chart_frame="small"
         data-part="bazel-invocation-analytics-card"
       >
         <div data-part="widgets">
@@ -281,7 +285,7 @@ defmodule TuistWeb.RemoteExecutionLive do
           <.percentile_dropdown_widget
             :if={!@once?}
             id="remote-execution-queue"
-            loading={!ready?}
+            loading={!ready? or @timings == :loading}
             title={phase_title(:queue, @queue_type)}
             description={
               dgettext(
@@ -289,23 +293,24 @@ defmodule TuistWeb.RemoteExecutionLive do
                 "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
               )
             }
-            value={if ready?, do: phase_value(@summary.result, :queue, @queue_type)}
-            metrics={if ready?, do: phase_metrics(@summary.result, :queue)}
+            value={if @timings == :ready, do: phase_value(@summary.result, :queue, @queue_type)}
+            metrics={if @timings == :ready, do: phase_metrics(@summary.result, :queue)}
             selected_type={@queue_type}
             legend_color={legend_color(@queue_type)}
             event_name="select_queue_type"
             phx_click="select_widget"
             phx_value_widget="queue"
             selected={@selected_widget == "queue"}
-            trend_value={if ready?, do: @summary.result.trends.queue[stat(@queue_type)]}
+            trend_value={if @timings == :ready, do: @summary.result.trends.queue[stat(@queue_type)]}
             trend_label={@trend_label}
             trend_type={:inverse}
-            empty={ready? && is_nil(@summary.result.queue.avg)}
+            empty={@timings == :failed or (@timings == :ready && is_nil(@summary.result.queue.avg))}
+            empty_label={if @timings == :failed, do: dgettext("dashboard_builds", "Couldn't load")}
           />
           <.percentile_dropdown_widget
             :if={!@once?}
             id="remote-execution-duration"
-            loading={!ready?}
+            loading={!ready? or @timings == :loading}
             title={phase_title(:execution, @execution_type)}
             description={
               dgettext(
@@ -313,22 +318,29 @@ defmodule TuistWeb.RemoteExecutionLive do
                 "Time actions ran on a remote worker. This is per-action work, not build wall time or billed VM time."
               )
             }
-            value={if ready?, do: phase_value(@summary.result, :execution, @execution_type)}
-            metrics={if ready?, do: phase_metrics(@summary.result, :execution)}
+            value={
+              if @timings == :ready, do: phase_value(@summary.result, :execution, @execution_type)
+            }
+            metrics={if @timings == :ready, do: phase_metrics(@summary.result, :execution)}
             selected_type={@execution_type}
             legend_color={legend_color(@execution_type)}
             event_name="select_execution_type"
             phx_click="select_widget"
             phx_value_widget="execution"
             selected={@selected_widget == "execution"}
-            trend_value={if ready?, do: @summary.result.trends.execution[stat(@execution_type)]}
+            trend_value={
+              if @timings == :ready, do: @summary.result.trends.execution[stat(@execution_type)]
+            }
             trend_label={@trend_label}
             trend_type={:inverse}
-            empty={ready? && is_nil(@summary.result.execution.avg)}
+            empty={
+              @timings == :failed or (@timings == :ready && is_nil(@summary.result.execution.avg))
+            }
+            empty_label={if @timings == :failed, do: dgettext("dashboard_builds", "Couldn't load")}
           />
         </div>
         <.card_section
-          :if={!ready?}
+          :if={!ready? or (@timings == :loading && @selected_widget in ~w(execution queue))}
           data-part="analytics-card-chart-section"
           data-chart-frame="standard"
         >
@@ -366,7 +378,7 @@ defmodule TuistWeb.RemoteExecutionLive do
         </.empty_card_section>
         <.card_section
           :if={
-            ready? && @selected_widget in ~w(execution queue) &&
+            ready? && @timings == :ready && @selected_widget in ~w(execution queue) &&
               has_data?(@series.result, @selected_widget)
           }
           data-part="analytics-card-chart-section"
@@ -382,7 +394,7 @@ defmodule TuistWeb.RemoteExecutionLive do
         </.card_section>
         <.empty_card_section
           :if={
-            ready? && @selected_widget in ~w(execution queue) &&
+            ready? && @timings == :ready && @selected_widget in ~w(execution queue) &&
               !has_data?(@series.result, @selected_widget)
           }
           title={dgettext("dashboard_builds", "No remote execution timings in this period")}
@@ -394,6 +406,11 @@ defmodule TuistWeb.RemoteExecutionLive do
             <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
           </:image>
         </.empty_card_section>
+        <ErrorCardSection.error_card_section
+          :if={ready? && @timings == :failed && @selected_widget in ~w(execution queue)}
+          data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
+        />
       </.async_card>
 
       <.card
@@ -478,7 +495,7 @@ defmodule TuistWeb.RemoteExecutionLive do
           <.async_result :let={activity} assign={@activity}>
             <:loading><.skeleton_chart /></:loading>
             <:failed>
-              <span>{dgettext("dashboard_builds", "Invocations could not be loaded.")}</span>
+              <ErrorCardSection.error_state />
             </:failed>
             <div
               :if={running_rows(@running, activity.page, assigns) != [] or activity.rows != []}
@@ -776,6 +793,16 @@ defmodule TuistWeb.RemoteExecutionLive do
     |> assign(assigns)
     |> assign(:uri, url |> URI.new!() |> Map.put(:path, nil))
     |> push_event("replace-url", %{url: url})
+  end
+
+  # Profile timings load and fail apart from usage, so a slow diagnostics query
+  # never hides the usage widgets.
+  defp timings_state(summary, series) do
+    cond do
+      summary.failed || series.failed -> :failed
+      summary.ok? and series.ok? -> :ready
+      true -> :loading
+    end
   end
 
   # Once has no profile timings.

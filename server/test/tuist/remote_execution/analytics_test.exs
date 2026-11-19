@@ -25,6 +25,11 @@ defmodule Tuist.RemoteExecution.AnalyticsTest do
       profile(owner, id, 999, 999)
     end
 
+    # A re-reported invocation counts at its current finish time, not a superseded one.
+    invocation(project, "moved", true, NaiveDateTime.add(now, -60))
+    profile(project, "moved", 999, 999)
+    invocation(project, "moved", true, NaiveDateTime.add(now, -7200))
+
     # Replacing a profile supersedes its earlier version instead of adding to it.
     profile(project, "shared", 0, 100)
     profile(project, "shared", 0, 100)
