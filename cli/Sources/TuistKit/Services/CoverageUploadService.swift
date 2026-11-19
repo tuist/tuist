@@ -24,11 +24,11 @@ public struct PreparedCoverage: Equatable {
 }
 
 /// Ties a run's coverage to the repository and decides how it travels to the server:
-/// DEFLATE-compressed, anything up to the server's inline threshold goes in the run's request;
-/// anything larger is PUT to a signed URL first and the run references it. Both keep memory flat
-/// in the coverage's size. The coverage is the `llvm-cov` export the run wrote into its bundle
-/// (`CoverageExport`), or, without one, the bundle's `xccov` report read through the streaming
-/// parser. Failures cost the run its coverage, never the run.
+/// DEFLATE-compressed, anything whose uncompressed size is within the server's inline threshold
+/// goes in the run's request; anything larger is PUT to a signed URL first and the run references
+/// it. Both keep memory flat in the coverage's size. The coverage is the `llvm-cov` export the
+/// run wrote into its bundle (`CoverageExport`), or, without one, the bundle's `xccov` report read
+/// through the streaming parser. Failures cost the run its coverage, never the run.
 ///
 /// With a coverage output path in the run's metadata (`tuist test --coverage-output-path`), the
 /// tied report is also written there as `<result bundle name>.lcov`, for teams that merge a
@@ -103,6 +103,9 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 let deflated = directory.appending(component: "coverage.ndjson.deflate")
                 try Self.deflate(ndjson, to: deflated)
                 let size = try FileManager.default.attributesOfItem(atPath: deflated.pathString)[.size] as? Int ?? 0
+                // The server holds an inline run to its body limit after inflating it, and coverage
+                // compresses tenfold or more, so the inline decision reads the uncompressed size.
+                let inflatedSize = try FileManager.default.attributesOfItem(atPath: ndjson.pathString)[.size] as? Int ?? 0
 
                 let threshold: Int
                 do {
@@ -112,7 +115,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
                     threshold = Self.defaultInlineThresholdBytes
                 }
 
-                if size <= threshold {
+                if inflatedSize <= threshold {
                     let files = try XcodeCoverageParser.readFiles(at: ndjson).sorted { $0.path < $1.path }
                     return PreparedCoverage(
                         coverage: TestRunCoverage(tool: tool, partial: summary.partial, files: files, platform: platform),

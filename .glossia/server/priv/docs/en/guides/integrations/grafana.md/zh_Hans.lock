@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "1ff388fbcd1d21ae990f9b54a319872e5cedb03f681f00b42ef954aecab73aa1",
+  "hash": "fcd67014dd3a1a1d3556317fbf76b24a41ebc8158432c59056b63c9552c8bb56",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,7 +23,7 @@
                   "content_hash": "d3e8d2985b191ef0f46c98acef6cf61ba1a32c39a7df08b858683b39c5137549"
                 },
                 "## Build systems {#build-systems}": {
-                  "content_hash": "a319a2d1fcba73e214f17e87b39c8165b1e823219bc5d060f318dd1f814be0a8"
+                  "content_hash": "e13c487d144d0e4ad28f01c1b41c97df87d562ad0a5286bf42bde34d479eaf9b"
                 },
                 "## Configuration {#configuration}": {
                   "content_hash": "bf2f2c000a9191664924b7213b78505b69cbc2cde4c593fc680d5c749b69f07b"
@@ -32,7 +32,7 @@
                   "content_hash": "38eff2edc396d31900323cf9113affbce2edab998f27f0b18324b181667e33d9"
                 },
                 "## Query options {#query-options}": {
-                  "content_hash": "6531fcfc772a66bc49c76fdf863e517aa261b5f44c985a090ac4d84e54664bdf"
+                  "content_hash": "67eaca034c7eb54b89742dd9996a19fe4d1eee4fc367e2e45abaa0a446313408"
                 },
                 "## Reporting custom metadata {#custom-metadata}": {
                   "content_hash": "42579a6b0b8c86e59d069e539dcac8f2fc02c6851ae06e44bdcdce4f809a8f0b"
@@ -56,19 +56,19 @@
                   "content_hash": "656be1571054227faf59993974cbe2640d54dbb9854b3fdfdbd37a873dd62318"
                 },
                 "### Cache savings": {
-                  "content_hash": "23c8f75bbe4f1d3dde50333ac3a5b0d7bf9fcfa3980343cf2b75403ada42571f"
+                  "content_hash": "c7555ff5187891b6e633020bb2fc79dff47e4838d9a7b278deb27533f0cffc4d"
                 },
                 "### Dashboard variables": {
                   "content_hash": "7e71c7f9289d865c7cfcb77d7c24df4f054ae42d3192f19027f8aa50e2a4d7e9"
                 },
                 "### Failure categories": {
-                  "content_hash": "cba4fb775bc5f3e7e6c24525eadf7ae535f4e9348263076447decf9351a3a59c"
+                  "content_hash": "4421e1c28071d755a86c160838cc26c5eb135ab733d99125fe4ebeb4ad15d045"
                 },
                 "### From the Grafana catalog {#from-the-grafana-catalog}": {
                   "content_hash": "4766a89b227cc0be45f53e0d45bce714cc2bfe2bb56f5e3a8090c98effeecb03"
                 },
                 "### Tables": {
-                  "content_hash": "04aa47be1d1959e3f970b01604e9ed5cb33a0c40c0e6d2ae85d199079a5612b6"
+                  "content_hash": "4450b32cb92dd68b3380eb70c82c1827536be4de162779f21c7ec2f6b8cc7a18"
                 },
                 "Preamble": {
                   "content_hash": "b945af03c93e4a7ff10cd8457a182ff5d7ca9035d02fe0038d4d31f39a01e103"
@@ -77,11 +77,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "06ff8cb0bde91974327d7375b1449fdfe5b4984a60539ec89dc90addc0678a66",
+          "hash": "f0cd90296937d212a4c6eafe38e4cc1d71714f51c9090a4b7ce18358ff18c5f6",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/grafana.md",
           "metadata": {
-            "content_hash": "6ba7b26b78aa5c33dfd37252f6f351a0ed2640f752bc85ca057235d2d4562c25"
+            "content_hash": "0b71439db8363febf2155314705da8ae701b2ea40213e650e80e26e159137b71"
           }
         },
         {
@@ -142,7 +142,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -155,13 +155,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -190,11 +184,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -277,21 +271,21 @@
             }
           ],
           "details": {},
-          "hash": "b3e3e7e79c4ffedece527db614fe1723b24a8977318013cc72eae773cb3b3d34",
+          "hash": "3181fd87d9bc62925b45bf2b4d0219111a7b41cc79fe221e21e3dea609733609",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "1ff388fbcd1d21ae990f9b54a319872e5cedb03f681f00b42ef954aecab73aa1",
+      "hash": "fcd67014dd3a1a1d3556317fbf76b24a41ebc8158432c59056b63c9552c8bb56",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/grafana.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "82046df93697c6041b5fee9d19da73e53188851ab9930784d8f6cf3427c01fc4",
+  "output_hash": "e2524c98c79485d2add2239ffacc4651809221d648e2d0a32adce7ca3cba7975",
   "output_path": "server/priv/docs/zh_Hans/guides/integrations/grafana.md",
   "protection_state": "recorded",
   "provider": "",
@@ -312,8 +306,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "d08b50d5d556457b83770581cc833fa39f0258c1",
   "source_path": "server/priv/docs/en/guides/integrations/grafana.md",
-  "translated_at": "2026-11-19T00:46:32.607922Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-19T17:34:39.132105Z",
+  "translation_session_id": "01a1f4de-41a4-77e4-b81c-547366c86618"
 }

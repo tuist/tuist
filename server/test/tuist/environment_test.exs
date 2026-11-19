@@ -585,8 +585,8 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "coverage_inline_threshold_bytes/1" do
-    test "defaults to 5 MB and reads the environment" do
-      assert Environment.coverage_inline_threshold_bytes(%{}) == 5_000_000
+    test "defaults to 500 KB and reads the environment" do
+      assert Environment.coverage_inline_threshold_bytes(%{}) == 500_000
       assert Environment.coverage_inline_threshold_bytes(%{"TUIST_COVERAGE_INLINE_THRESHOLD_BYTES" => "1024"}) == 1024
     end
   end

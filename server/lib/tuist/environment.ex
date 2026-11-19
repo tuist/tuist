@@ -422,16 +422,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The size, in bytes of the DEFLATE-compressed coverage, above which a client
-  that processed the result bundle itself uploads the coverage to object
-  storage instead of sending it inline with the run. Set with
-  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 5 MB by default, well under the
-  request body limit the inline form is held to.
+  The size, in bytes, of a run's coverage above which a client that processed
+  the result bundle itself uploads the coverage to object storage instead of
+  sending it inline with the run. Set with
+  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 500 KB by default. The request body
+  limit the inline form is held to applies after a compressed body is
+  inflated, and coverage compresses tenfold to fiftyfold, so the default stays
+  under it however a client measures the coverage: the Xcode CLI compares the
+  uncompressed size, while older Xcode CLIs, Mix and Gradle compare the
+  compressed size.
   """
   def coverage_inline_threshold_bytes(environment \\ System.get_env()) when is_map(environment) do
     case Map.get(environment, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") do
-      nil -> 5_000_000
-      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 5_000_000
+      nil -> 500_000
+      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 500_000
     end
   end
 

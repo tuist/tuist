@@ -7,9 +7,9 @@
 ---
 # HTTP 프록시 {#http-proxy}
 
-환경 변수에 `HTTPS_PROXY` 또는 `HTTP_PROXY`가 설정되면, Tuist는 관리하는 HTTP 연결을 해당 프록시를 통해 자동으로 라우팅합니다. 이는 Tuist CLI와 Tuist Gradle 플러그인 모두에 적용되며, 추가 구성이 필요하지 않습니다.
+환경에 `HTTPS_PROXY` 또는 `HTTP_PROXY`가 설정되면, Tuist는 관리하는 HTTP 연결을 해당 프록시를 통해 자동으로 라우팅합니다. 이는 Tuist CLI와 Tuist Gradle 플러그인 모두에 적용되며, 추가 구성이 필요하지 않습니다.
 
-이 동작은 `curl`, `git` 및 대부분의 개발자 도구에서 사용하는 규칙과 일치하므로, 다른 도구를 위해 이미 이러한 변수를 설정한 환경에서는 Tuist를 별도 설정 없이 바로 사용할 수 있습니다.
+이 동작은 `curl`, `git` 및 대부분의 개발자 도구에서 사용하는 규칙과 일치하므로, 다른 도구를 위해 이러한 변수를 이미 설정한 환경에서는 Tuist를 별도 설정 없이 바로 사용할 수 있습니다.
 
 ## 프록시 대상 {#what-is-proxied}
 
@@ -20,7 +20,7 @@ Tuist가 소유한 HTTP 클라이언트만 프록시를 통해 라우팅됩니�
 
 ## 변수 조회 순서 {#variable-lookup-order}
 
-Tuist는 다음 순서대로 첫 번째 비어 있지 않은 값을 읽습니다:
+Tuist는 다음 순서로 첫 번째 비어 있지 않은 값을 읽습니다:
 
 1. `HTTPS_PROXY`
 2. `https_proxy`

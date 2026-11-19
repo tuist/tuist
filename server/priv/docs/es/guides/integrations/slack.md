@@ -7,7 +7,7 @@
 ---
 # Integración de Tuist para Slack {#slack}
 
-La integración de Tuist para Slack muestra análisis de compilaciones, tests y paquetes directamente en tus canales. Convierte la monitorización, que tu equipo tendría que recordar hacer, en algo que ocurre automáticamente. Por ejemplo, tu equipo puede recibir resúmenes diarios del rendimiento de las compilaciones, tasas de aciertos de caché o tendencias del tamaño de los paquetes, así como alertas instantáneas en cuanto una métrica clave se degrade o un test se vuelva inestable.
+La integración de Tuist para Slack muestra análisis de compilaciones, tests y paquetes directamente en tus canales. Convierte el monitoreo de una tarea que tu equipo debe recordar hacer en algo que ocurre automáticamente. Por ejemplo, tu equipo puede recibir resúmenes diarios del rendimiento de las compilaciones, tasas de aciertos de caché o tendencias del tamaño de los paquetes, así como alertas instantáneas en el momento en que una métrica clave se degrada o un test se vuelve inestable.
 
 Esta página describe qué hace la integración, cómo instalarla canal por canal y cómo gestiona Tuist tus datos. Para más detalles sobre cómo Tuist recopila, gestiona y almacena datos de terceros, consulta nuestra [política de privacidad](https://tuist.dev/privacy).
 
@@ -15,16 +15,16 @@ Esta página describe qué hace la integración, cómo instalarla canal por cana
 
 Tuist envía notificaciones a Slack mediante los [Incoming Webhooks](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks) de Slack. La integración solo solicita el ámbito `incoming-webhook`. Cada destino de notificación (informe de proyecto, regla de alerta, alerta de test inestable, acción de automatización) corresponde a un único canal de Slack que eliges durante la instalación. Slack crea una URL de webhook por canal y Tuist la almacena para entregar los mensajes.
 
-Tuist nunca lee mensajes, listas de miembros ni ningún otro dato de tu espacio de trabajo. La integración solo escribe notificaciones en los canales que hayas autorizado explícitamente.
+Tuist nunca lee mensajes, listas de miembros ni ningún otro dato de tu espacio de trabajo. La integración solo escribe notificaciones en los canales que has autorizado explícitamente.
 
 ## Configuración {#setup}
 
 ### Informes de proyecto {#project-reports}
 
-Los informes de proyecto entregan un resumen diario de las métricas de compilación, tests y caché de tu proyecto en un canal de Slack que elijas.
+Los informes de proyecto entregan un resumen diario de las métricas de compilación, test y caché de tu proyecto en un canal de Slack de tu elección.
 
 1. Abre la configuración de notificaciones de tu proyecto en el panel de Tuist.
-2. Haz clic en **Seleccionar canal de Slack** y elige el espacio de trabajo y el canal donde quieres que Tuist publique. Slack te pedirá que autorices el ámbito `incoming-webhook` y selecciones un único canal.
+2. Haz clic en **Seleccionar canal de Slack** y elige el espacio de trabajo y el canal en el que quieres que Tuist publique. Slack te pedirá que autorices el ámbito `incoming-webhook` y selecciones un único canal.
 3. Elige los días de la semana y la hora del día en que quieres recibir el informe diario.
 
 ![Una imagen que muestra la configuración de notificaciones con el informe de Slack](/images/guides/integrations/slack/notifications-settings.png)
@@ -35,28 +35,28 @@ Una vez configurado, Tuist envía informes diarios automáticos al canal selecci
 
 > [!NOTE] PRIVATE CHANNELS
 > <!-- -->
-> Para publicar en un canal privado, abre primero el canal en Slack y añádelo a la lista de canales visibles para la integración durante el paso de autorización.
+> Para publicar en un canal privado, abre primero el canal dentro de Slack y añádelo a la lista de canales visibles para la integración durante el paso de autorización.
 > <!-- -->
 
 ### Reglas de alerta {#alert-rules}
 
-Las reglas de alerta te notifican en Slack cuando las métricas clave se degradan significativamente, ayudándote a detectar compilaciones más lentas, degradación de la caché o ralentizaciones de los tests lo antes posible.
+Las reglas de alerta te notifican en Slack cuando las métricas clave se degradan significativamente, ayudándote a detectar compilaciones más lentas, degradación de la caché o ralentizaciones de tests lo antes posible.
 
 Para crear una regla de alerta, ve a la configuración de notificaciones de tu proyecto y haz clic en **Añadir regla de alerta**. Puedes configurar:
 
 - **Nombre**: Un nombre descriptivo para la alerta
 - **Categoría**: Qué medir (duración de la compilación, duración de los tests, tasa de aciertos de caché o tamaño del paquete)
-- **Métrica**: Cómo agregar los datos (p50, p90, p99 o media)
+- **Métrica**: Cómo agregar los datos (p50, p90, p99 o promedio)
 - **Desviación**: El porcentaje de cambio que activa una alerta
-- **Ventana deslizante**: Cuántas ejecuciones recientes comparar
-- **Rama**: Para las alertas de tasa de aciertos de caché, limita la comparación a las ejecuciones de una única rama. Déjalo vacío para considerar todas las ramas. Las alertas de tamaño de paquete siempre apuntan a una única rama.
-- **Canal de Slack**: El canal de destino. Autorizas el canal mediante el mismo flujo `incoming-webhook` descrito anteriormente.
+- **Ventana móvil**: Cuántas ejecuciones recientes comparar
+- **Rama**: Para las alertas de tasa de aciertos de caché, restringe la comparación a las ejecuciones en una única rama. Déjalo vacío para considerar todas las ramas. Las alertas de tamaño de paquete siempre apuntan a una única rama.
+- **Canal de Slack**: El canal de destino. Autorizas el canal a través del mismo flujo `incoming-webhook` descrito anteriormente.
 
-Por ejemplo, podrías crear una alerta que se active cuando la duración de compilación p90 aumente más de un 20 % en comparación con las 100 compilaciones anteriores.
+Por ejemplo, podrías crear una alerta que se active cuando la duración de compilación p90 aumente más de un 20% en comparación con las 100 compilaciones anteriores.
 
-Limitar una alerta de tasa de aciertos de caché a tu rama predeterminada es útil cuando solo esa rama llena la caché. Las ramas de pull request que tocan un módulo de bajo nivel pierden legítimamente la caché, e incluirlas haría que la alerta se disparara ante regresiones esperadas.
+Limitar una alerta de tasa de aciertos de caché a tu rama predeterminada es útil cuando solo esa rama pobla la caché. Las ramas de pull request que tocan un módulo de bajo nivel fallan legítimamente en la caché, e incluirlas haría que la alerta se disparara por regresiones esperadas.
 
-Una alerta de tasa de aciertos de caché solo compara ventanas que pueda comparar de forma justa. Ambas ventanas deben contener tantas ejecuciones como el tamaño de la ventana deslizante, y una fuente de datos de caché que aparezca solo en una de las dos ventanas se excluye de ambas. Por lo tanto, una rama que aún no haya acumulado el doble del tamaño de la ventana deslizante en ejecuciones, o cuyo nombre no coincida con nada, nunca activará la regla. Si limitas una regla a una rama con poco tráfico, mantén la ventana deslizante lo suficientemente pequeña para que la rama la llene.
+Una alerta de tasa de aciertos de caché solo compara ventanas que pueda comparar de forma justa. Ambas ventanas deben contener tantas ejecuciones como el tamaño de la ventana móvil, y una fuente de datos de caché que solo aparezca en una de las dos ventanas se excluye de ambas. Por lo tanto, una rama que aún no haya acumulado el doble del tamaño de la ventana móvil en ejecuciones, o un nombre de rama que no coincida con nada, nunca activará la regla. Si limitas una regla a una rama con poco tráfico, mantén la ventana móvil lo suficientemente pequeña para que la rama la llene.
 
 Cuando se active una alerta, recibirás un mensaje como este en tu canal de Slack:
 
@@ -69,13 +69,13 @@ Cuando se active una alerta, recibirás un mensaje como este en tu canal de Slac
 
 ### Alertas de tests inestables {#flaky-test-alerts}
 
-Las alertas de tests inestables se activan en cuanto Tuist detecta un nuevo test inestable, ayudándote a identificar la inestabilidad de los tests antes de que afecte a tu equipo.
+Las alertas de tests inestables se activan en el momento en que Tuist detecta un nuevo test inestable, ayudándote a detectar inestabilidad en los tests antes de que afecte a tu equipo.
 
-Para crear una regla de alerta de tests inestables, ve a la configuración de notificaciones de tu proyecto y haz clic en **Añadir regla de alerta de test inestable**. Puedes configurar:
+Para crear una regla de alerta de test inestable, ve a la configuración de notificaciones de tu proyecto y haz clic en **Añadir regla de alerta de test inestable**. Puedes configurar:
 
 - **Nombre**: Un nombre descriptivo para la alerta
 - **Umbral de activación**: El número mínimo de ejecuciones inestables en los últimos 30 días necesario para activar una alerta
-- **Canal de Slack**: El canal de destino, autorizado mediante el flujo `incoming-webhook`.
+- **Canal de Slack**: El canal de destino, autorizado a través del flujo `incoming-webhook`.
 
 Cuando un test se vuelve inestable y alcanza tu umbral, recibirás una notificación con un enlace directo para investigar el caso de test:
 
@@ -83,4 +83,4 @@ Cuando un test se vuelve inestable y alcanza tu umbral, recibirás una notificac
 
 ## Desconectar la integración {#disconnect}
 
-Para detener una notificación, elimina el canal de Slack configurado del informe, la regla de alerta o la acción de automatización en tu panel de Tuist. Para revocar por completo el acceso de Tuist, elimina la integración de webhook desde Slack a través de **Configuración y administración → Gestionar aplicaciones**.
+Para detener una notificación, elimina el canal de Slack configurado del informe, la regla de alerta o la acción de automatización en tu panel de Tuist. Para revocar completamente el acceso de Tuist, elimina la integración de webhook desde Slack a través de **Configuración y administración → Gestionar aplicaciones**.
