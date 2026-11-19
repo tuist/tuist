@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "000abeedc3bd948fe4e2d035c6e87b538b512ce0da137768c658f17b56c5ac76",
+  "hash": "11d9fa1e28e2aa304ec2918c6bb99a713e6f91f18b6bb6dfaaeb32de53262533",
   "hash_tree": {
     "root": {
       "children": [
@@ -163,7 +163,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -182,7 +182,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -211,11 +211,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -298,21 +298,21 @@
             }
           ],
           "details": {},
-          "hash": "dc159d6479f5eb910de455eabc6ca79448740bce20743a659dfb32f13ddce4e9",
+          "hash": "9a2416bc1e9077d31c51f802a361cad6e31529318f3091fcff911fcd5cbd9a5c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "000abeedc3bd948fe4e2d035c6e87b538b512ce0da137768c658f17b56c5ac76",
+      "hash": "11d9fa1e28e2aa304ec2918c6bb99a713e6f91f18b6bb6dfaaeb32de53262533",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/authentication/sso.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "0669786bf8d6f6653f496f14fd43d1398c2fd0ca3b110aa45dc99d0a74f0df88",
+  "output_hash": "894aa3a6eb5d8bd6c10ac18ee4d46fc67be4bf622724c28b84079a0f24d986ef",
   "output_path": "server/priv/docs/ko/guides/integrations/authentication/sso.md",
   "protection_state": "recorded",
   "provider": "",
@@ -332,8 +332,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
   "source_path": "server/priv/docs/en/guides/integrations/authentication/sso.md",
-  "translated_at": "2026-11-06T22:11:27.725318Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-19T00:28:42.079309Z",
+  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
 }

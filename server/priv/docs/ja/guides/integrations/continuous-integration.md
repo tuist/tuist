@@ -1,23 +1,23 @@
 ---
 {
-  "title": "継続的インテグレーション（CI）",
-  "titleTemplate": ":title · 自動化 · ガイド · Tuist",
+  "title": "継続的インテグレーション (CI)",
+  "titleTemplate": ":title · Automate · Guides · Tuist",
   "description": "Tuist を CI ワークフローで活用する方法を学びます。"
 }
 ---
-# 継続的インテグレーション（CI）{#continuous-integration-ci}
+# 継続的インテグレーション（CI） {#continuous-integration-ci}
 
 [継続的インテグレーション](https://en.wikipedia.org/wiki/Continuous_integration)ワークフローでTuistコマンドを実行するには、CI環境にTuistをインストールする必要があります。 
 
-認証は任意ですが、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>などのサーバーサイド機能を利用する場合は必須です。Tuistのインストール後にCIの実行時間を短縮しコストを抑える方法については、[ビルドの低速化](https://tuist.dev/solutions/slow-builds)と[CIのコスト](https://tuist.dev/solutions/ci-costs)をご覧ください。
+認証はオプションですが、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>などのサーバーサイド機能を使用する場合は必須です。Tuistをインストールした後にCIの実行時間を短縮しコストを削減するには、[ビルドの遅延](https://tuist.dev/solutions/slow-builds)および[CIコスト](https://tuist.dev/solutions/ci-costs)をご覧ください。
 
 以下のセクションでは、さまざまなCIプラットフォームでの設定例を紹介します。Onceは独自のネイティブなTuistプロバイダーを通じて接続するため、Tuist CLIは不要です。そのワークフローについては[Once](#once)をご覧ください。
 
 ## Once {#once}
 
-<.localized_link href="/guides/get-started/once-project">Onceの利用を開始</.localized_link>からプロバイダーとキャッシュバインディングをコミットします。[Onceのインストール手順](https://buildonce.dev/docs/guide/getting-started)に従ってジョブ内にOnceをインストールし、キャッシュ可能な作業を実行する前に認証を行います。
+<.localized_link href="/guides/get-started/once-project">Onceを使い始める</.localized_link>からプロバイダーとキャッシュバインディングをコミットしてください。[Onceのインストール手順](https://buildonce.dev/docs/guide/getting-started)を使用してジョブ内にOnceをインストールし、キャッシュ可能な作業を実行する前に認証を行います。
 
-GitHub Actions、CircleCI、BitriseはOnceのヘッドレスOpenID Connectログインに対応しています。<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>の説明に従って、リポジトリをTuistプロジェクトに接続してください。GitHub Actionsでは、identity-token権限を付与します。
+GitHub Actions、CircleCI、BitriseはOnceのヘッドレスOpenID Connectログインをサポートしています。<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>の説明に従って、リポジトリをTuistプロジェクトに接続してください。GitHub Actionsでは、identity-token権限を付与します。
 
 ```yaml
 permissions:
@@ -36,17 +36,17 @@ jobs:
       - run: once test
 ```
 
-ターゲットが必要とするツールチェーンを備えたOSを選択してください。`MyTarget`を自分のターゲットに置き換え、既存のツールインストールワークフローを通じてOnceのバージョンを固定します。生成されたセッションは、ジョブ中のキャッシュアクセス、レポート作成、アーティファクトの公開に再利用されます。
+ターゲットが必要とするツールチェーンを含むOSを選択してください。`MyTarget`をあなたのターゲットに置き換え、既存のツールインストールワークフローを通じてOnceのバージョンを固定してください。 resultingセッションは、ジョブ中のキャッシュアクセス、レポート作成、アーティファクト公開のために再利用されます。
 
-他のプロバイダーでは、`TUIST_TOKEN`を必要な操作が許可された<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>に設定します。このトークンはCIのシークレットストアに保存し、`once.toml`やワークフローのソースコードには決して含めないでください。このトークンを使用する場合、インタラクティブなログイン手順は不要です。
+他のプロバイダーでは、`TUIST_TOKEN`を必要な操作が許可された<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>に設定してください。これはCIのシークレットストアに保存し、`once.toml`やワークフローのソースコードには決して保存しないでください。このトークンを使用する場合、インタラクティブなログインステップは不要です。
 
-マルチワーカー構成の場合は、<.localized_link href="/guides/features/test-sharding/once">Onceによるテストシャーディング</.localized_link>の手順に従ってください。アプリケーションを公開するには、明示的な<.localized_link href="/guides/features/previews/once">Onceプレビュー公開</.localized_link>ステップを追加します。通常のビルドではプレビューは暗黙的に公開されません。
+マルチワーカー構成の場合は、<.localized_link href="/guides/features/test-sharding/once">Onceテストシャーディング</.localized_link>に従ってください。アプリケーションを公開するには、明示的な<.localized_link href="/guides/features/previews/once">Onceプレビュー公開</.localized_link>ステップを追加してください。通常のビルドではプレビューは暗黙的に公開されません。
 
 ## 例 {#examples}
 
 ### GitHub Actions {#github-actions}
 
-[GitHub Actions](https://docs.github.com/en/actions)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して安全でシークレット不要の認証を行えます。
+[GitHub Actions](https://docs.github.com/en/actions)では、安全でシークレット不要の認証のために<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用できます。
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -139,18 +139,18 @@ jobs:
 :::
 
 > [!NOTE]
-> **OIDCの設定**
+> **OIDCセットアップ**
 >
-> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリを接続</.localized_link>してTuistプロジェクトに関連付ける必要があります。OIDCを動作させるには`permissions: id-token: write`が必要です。Tuist 4.218.0以降では、CLIが最初のリクエスト時にIDトークンを交換するため、ワークフローに`tuist auth login`ステップは不要です。それ以前のバージョンでは、他のTuistコマンドの前に`tuist auth login`を実行してください。あるいは、`TUIST_TOKEN`シークレットとともに<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用することもできます。
+> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリを接続</.localized_link>してTuistプロジェクトに関連付ける必要があります。OIDCが動作するには`permissions: id-token: write`が必要です。Tuist 4.218.0以降では、CLIが最初のリクエスト時にIDトークンを交換するため、ワークフローに`tuist auth login`ステップは不要です。それ以前のバージョンでは、他のTuistコマンドの前に`tuist auth login`を実行してください。あるいは、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を`TUIST_TOKEN`シークレットとして使用することもできます。
 
 
 > [!TIP]
-> 環境間でTuistのバージョンを固定するため、Tuistプロジェクトで`mise use --pin`を使用することを推奨します。このコマンドは`mise.toml`ファイル内でTuistのバージョンを固定します。
+> Tuistプロジェクトで`mise use --pin`を使用して、環境間でTuistのバージョンを固定することを推奨します。このコマンドは`mise.toml`ファイル内のTuistバージョンを固定します。
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-[Xcode Cloud](https://developer.apple.com/xcode-cloud/)ではXcodeプロジェクトを信頼できる情報源として使用するため、[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)スクリプトを追加してTuistをインストールし、必要なコマンド（例：`tuist generate`）を実行する必要があります。
+[Xcode Cloud](https://developer.apple.com/xcode-cloud/)では、Xcodeプロジェクトを信頼できる情報源として使用するため、Tuistをインストールし必要なコマンド（例：`tuist generate`）を実行するために[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)スクリプトを追加する必要があります。
 
 ::: code-group
 
@@ -179,12 +179,12 @@ tuist generate
 > [!NOTE]
 > **認証**
 >
-> Xcode Cloudのワークフロー設定で`TUIST_TOKEN`環境変数を設定し、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用してください。
+> Xcode Cloudのワークフロー設定で`TUIST_TOKEN`環境変数を設定することで、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用してください。
 
 
 ### CircleCI {#circleci}
 
-[CircleCI](https://circleci.com)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して安全でシークレット不要の認証を行えます。
+[CircleCI](https://circleci.com)では、安全でシークレット不要の認証のために<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用できます。
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -235,12 +235,12 @@ jobs:
 > [!NOTE]
 > **認証**
 >
-> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリを接続</.localized_link>してTuistプロジェクトに関連付ける必要があります。CircleCIのOIDCトークンには接続済みのGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。Tuist 4.218.0以降では、CLIが最初のリクエスト時にIDトークンを交換するため、`tuist auth login`ステップは不要です。それ以前のバージョンでは、他のTuistコマンドの前に`mise exec -- tuist auth login`を実行してください。あるいは、`TUIST_TOKEN`環境変数とともに<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用することもできます。
+> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリを接続</.localized_link>してTuistプロジェクトに関連付ける必要があります。CircleCIのOIDCトークンには接続されたGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。Tuist 4.218.0以降では、CLIが最初のリクエスト時にIDトークンを交換するため、`tuist auth login`ステップは不要です。それ以前のバージョンでは、他のTuistコマンドの前に`mise exec -- tuist auth login`を実行してください。あるいは、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を`TUIST_TOKEN`環境変数として使用することもできます。
 
 
 ### Bitrise {#bitrise}
 
-[Bitrise](https://bitrise.io)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して安全でシークレット不要の認証を行えます。
+[Bitrise](https://bitrise.io)では、安全でシークレット不要の認証のために<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用できます。
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -292,12 +292,12 @@ workflows:
 > [!NOTE]
 > **認証**
 >
-> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリを接続</.localized_link>してTuistプロジェクトに関連付ける必要があります。BitriseのOIDCトークンには接続済みのGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。Tuist 4.218.0以降では、CLIが最初のリクエスト時にIDトークンを交換するため、`tuist auth login`ステップは不要です。それ以前のバージョンでは、他のTuistコマンドの前に`mise exec -- tuist auth login`を実行してください。あるいは、`TUIST_TOKEN`環境変数とともに<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用することもできます。
+> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリを接続</.localized_link>してTuistプロジェクトに関連付ける必要があります。BitriseのOIDCトークンには接続されたGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。Tuist 4.218.0以降では、CLIが最初のリクエスト時にIDトークンを交換するため、`tuist auth login`ステップは不要です。それ以前のバージョンでは、他のTuistコマンドの前に`mise exec -- tuist auth login`を実行してください。あるいは、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を`TUIST_TOKEN`環境変数として使用することもできます。
 
 
 ### Codemagic {#codemagic}
 
-[Codemagic](https://codemagic.io)では、ワークフローに追加のステップを組み込んでTuistをインストールできます。
+[Codemagic](https://codemagic.io)では、Tuistをインストールするためにワークフローに追加のステップを加えることができます。
 
 ::: code-group
 ```yaml [Mise]
@@ -339,11 +339,11 @@ workflows:
 > [!NOTE]
 > **認証**
 >
-> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、`TUIST_TOKEN`という名前のシークレット環境変数として追加してください。
+> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、それを`TUIST_TOKEN`という名前のシークレット環境変数として追加してください。
 
 ### Appcircle {#appcircle}
 
-[Appcircle](https://appcircle.io)では、組み込みの[Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install)および[Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands)ワークフローステップを使用するか、**Git Clone**ステップの後に**Custom Script**ステップを追加して自身でTuistをインストールできます。
+[Appcircle](https://appcircle.io)では、組み込みの[Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install)および[Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands)ワークフローステップを使用するか、**Git Clone**ステップの後に**Custom Script**ステップを追加して自分でTuistをインストールできます。
 
 ::: code-group
 ```bash [Mise]
@@ -364,29 +364,29 @@ tuist setup cache
 > [!NOTE]
 > **ワークフローステップ**
 >
-> Tuist InstallステップはHomebrewでTuistをインストールし、`tuist generate`を実行します。**Tuist Version**入力欄にバージョンを指定して固定し、その後Tuist Commandsステップを追加して`tuist test`や`tuist build`などのコマンドを実行してください。
+> Tuist InstallステップはHomebrewでTuistをインストールし、`tuist generate`を実行します。**Tuist Version**入力欄でバージョンを固定し、その後Tuist Commandsステップを追加して`tuist test`や`tuist build`などのコマンドを実行してください。
 
 > [!NOTE]
 > **認証**
 >
-> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、[環境変数グループ](https://docs.appcircle.io/build/build-environment-variables)内に`TUIST_TOKEN`という名前の変数として追加してください。そして、ビルド設定でそのグループを選択します。ロックアイコンを使用して、その変数をシークレットとしてマークしてください。
+> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、それを[環境変数グループ](https://docs.appcircle.io/build/build-environment-variables)内の`TUIST_TOKEN`という名前の変数として追加し、ビルド構成でそのグループを選択してください。ロックアイコンを使用して、その変数をシークレットとしてマークします。
 
 ## xcodebuildの出力フォーマット {#xcodebuild-output-formatting}
 
-`tuist build`、`tuist test`、`tuist xcodebuild build`、および`tuist xcodebuild test`は、[xcbeautify](https://github.com/cpisciotta/xcbeautify)のフォーマッターを使用して`xcodebuild`の出力を整形するため、これらのコマンドを手動でxcbeautifyにパイプする必要はありません。GitHub Actionsでは、`GITHUB_ACTIONS`環境変数によって検出されると、TuistはxcbeautifyのGitHub Actionsレンダラーを使用し、コンパイラの警告、エラー、テストの失敗を実行サマリーとプルリクエスト内の注釈として表示します。それ以外の場所ではターミナルレンダラーを使用し、出力がパイプされていないか、`NO_COLOR`が設定されていない限り色付けされます。
+`tuist build`、`tuist test`、`tuist xcodebuild build`、および`tuist xcodebuild test`は、[xcbeautify](https://github.com/cpisciotta/xcbeautify)のフォーマッターを使用して`xcodebuild`の出力を整形するため、これらのコマンドを自分でxcbeautifyにパイプする必要はありません。GitHub Actionsでは、`GITHUB_ACTIONS`環境変数を通じて検出され、TuistはxcbeautifyのGitHub Actionsレンダラーを使用します。これにより、コンパイラの警告、エラー、テストの失敗がランサマリーとプルリクエストのアノテーションとして表示されます。それ以外の場所ではターミナルレンダラーを使用し、出力がパイプされていない限り、または`NO_COLOR`が設定されていない限り色付きで表示されます。
 
-明確なエラーなしにビルドが失敗した場合など、`xcodebuild`の未整形の出力を表示するには、`--verbose`を渡してください。
+明確なエラーなしでビルドが失敗した場合など、`xcodebuild`の未整形出力を表示するには、`--verbose`を渡してください。
 
-ジョブがTuistを介さずに直接`xcodebuild`を呼び出す場合は、手動でxcbeautifyにパイプし、`pipefail`を設定して、ビルドが失敗してもステップが失敗するようにしてください。
+ジョブがTuist経由ではなく直接`xcodebuild`を呼び出す場合は、自分でxcbeautifyにパイプし、`pipefail`を設定して、ビルドが失敗してもステップが失敗するようにしてください。
 
 ```bash
 set -o pipefail
 xcodebuild test -scheme App | xcbeautify --renderer github-actions
 ```
 
-## 実行レポート {#run-report}
+## ランレポート {#run-report}
 
-Tuistが実行をアップロードすると、そのダッシュボードURLがログに出力されます。ログをスクレイピングせずにこれらを取得するには（例えば、ジョブが失敗した際にテストレポートのリンクをSlackに投稿したり、独自ツールに取り込んだりする場合）、`tuist test`、`tuist xcodebuild test`、または`tuist xcodebuild build`に`--run-report-path`を渡すか（あるいは`TUIST_RUN_REPORT_PATH`を設定してください）。Tuistは、実行がアップロードされると、そのパスにJSONレポートを書き込みます。
+Tuistがランをアップロードすると、そのダッシュボードURLがログに出力されます。ログをスクレイピングせずにこれらを取得するには（例えば、ジョブが失敗したときにテストレポートのリンクをSlackに投稿したり、ランを独自のツールに取り込んだりする場合）、`tuist test`、`tuist xcodebuild test`、または`tuist xcodebuild build`に`--run-report-path`を渡すか（または`TUIST_RUN_REPORT_PATH`を設定してください）。Tuistは、ランがアップロードされると、そのパスにJSONレポートを書き込みます。
 
 ```json
 {
@@ -415,22 +415,22 @@ Tuistが実行をアップロードすると、そのダッシュボードURLが
 
 | フィールド | 型 | 説明 |
 | - | - | - |
-| `runId` | 文字列 | 実行の一意の識別子。 |
+| `runId` | 文字列 | ランの一意の識別子。 |
 | `status` | 文字列 | `"success"`または`"failure"`。 |
-| `runURL` | 文字列 | 実行のダッシュボードURL。常に存在します。 |
+| `runURL` | 文字列 | ランのダッシュボードURL。常に存在します。 |
 | `testRunURL` | 文字列? | テスト実行のダッシュボードURL。コマンドがテストを実行した場合に存在します。 |
 | `buildRunURL` | 文字列? | ビルド実行のダッシュボードURL。コマンドがビルドを実行した場合に存在します。 |
-| `testRuns` | 配列 | スキーマごとのテスト結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules`、および`skippedTestModules`。テスト数はテストケースの数であり、`skippedTests`は結果バンドルでスキップされたものとして報告された数をカウントします。`skippedTestModules`は<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>によってスキップされたテストモジュールの数をカウントし、選択的テストが適用されなかった場合、または実行がテストシャードである場合は省略されます。 |
+| `testRuns` | 配列 | スキーマごとのテスト結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules`、および`skippedTestModules`。テスト数はテストケースの数であり、`skippedTests`は結果バンドルでスキップされたものとして報告された数をカウントします。`skippedTestModules`は<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>によってスキップされたテストモジュールの数をカウントし、選択的テストが適用されなかった場合、またはランがテストシャードである場合は省略されます。 |
 | `buildRuns` | 配列 | スキーマごとのビルド結果：`scheme`、`succeeded`、`durationInSeconds`。 |
 
-`testRunURL`と`buildRunURL`は独立しています。ビルドとテストの両方を行うコマンドは両方のURLを書き込みますが、ログではそれができません。ログは実行ごとに1つのURLのみを出力します。
+`testRunURL`と`buildRunURL`は独立しています。ビルドとテストの両方を実行するコマンドは両方を書き込みますが、ログではできません。ログはランごとに1つのURLしか出力しません。
 
 > [!NOTE]
 > **レポートが書き込まれるタイミング**
 >
-> レポートは、サーバーにアップロードされた実行に対してのみ書き込まれます。これには認証が必要であり、CI上では自動的に行われます。パスは各実行の開始時にクリアされるため、レポートを生成しない実行でも、前回の実行による古いデータが残ることはありません。
+> レポートはサーバーにアップロードされたランに対してのみ書き込まれます。これには認証が必要で、CI上では自動的に行われます。パスはすべてのランの開始時にクリアされるため、レポートを生成しないランは、以前のランからの古いものを残すのではなく、何も残しません。
 
-GitLab CIでは、後続のジョブにURLを公開するために、[`dotenv`レポート](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv)を使用するのが一般的です。
+GitLab CIでは、後続のジョブにURLを公開するために[`dotenv`レポート](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv)を使用するのが一般的です。
 
 ```yaml
 test:
