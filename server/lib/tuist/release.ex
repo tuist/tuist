@@ -56,7 +56,7 @@ defmodule Tuist.Release do
   # Column-level rather than table-level because application data sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
-  # `users.token_hash`, `projects.token_hash`, `accounts.s3_secret_access_key`, and
+  # `projects.slack_webhook_url`, `accounts.s3_secret_access_key`, and
   # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
   # the dashboard needs only the signup timestamp. The runner cache volume
   # columns leave out the account, repository and pod the rows belong to.
