@@ -2488,6 +2488,14 @@ runnersController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
+  # The chart's 256Mi default OOM-killed the manager in a loop (peak working
+  # set 258 MB on 2026-11-19). Each restart leaves every macOS host's sandbox
+  # grant stale past the server's 15 s window, so no Mac sandbox can be placed.
+  resources:
+    requests:
+      memory: 256Mi
+    limits:
+      memory: 1Gi
   features:
     dindImage: true
     registryMirror: true
