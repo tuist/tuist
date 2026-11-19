@@ -332,6 +332,13 @@ jobs:
       # while XCTest stays parallel.
       - name: Run tests
         run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 -parallel-testing-enabled NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      # Renders the iOS app's SwiftUI previews (tuist/snapshots) and uploads them to Tuist
+      # Snapshots, which `tuist test` does by itself in CI. Main's runs are the baseline; on a
+      # pull request, changed previews fail this step until they are approved on the
+      # `tuist/snapshots (TuistAppSnapshots)` check or in the dashboard.
+      - name: Run snapshot tests
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.fork != true }}
+        run: tuist test TuistAppSnapshots --platform iOS ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   acceptance-tests-build:
     name: Build Acceptance Tests
