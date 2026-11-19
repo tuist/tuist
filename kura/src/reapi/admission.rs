@@ -629,23 +629,46 @@ where
                     }));
             }
 
-            // Sample latency once the response is ready, before the body
-            // streams, so long ByteStream reads do not inflate the signal.
-            state.runtime.record_public_request_latency(
-                &state.metrics,
-                "grpc",
-                &route,
-                started_at.elapsed(),
-            );
+            // Sample time to first byte, not body completion, so long
+            // ByteStream reads do not inflate the signal. A unary response is
+            // complete once it is ready. A Read is ready before it has read
+            // anything, so its sample waits for the first frame, or for the
+            // body to drop if it never produces one. Dropping a sample
+            // records it, so every other route records here.
+            let sample = PendingLatencySample {
+                state,
+                route,
+                started_at,
+            };
+            let mut sample = (sample.route == BYTESTREAM_READ_PATH).then_some(sample);
             Ok(response.map(|body| {
                 body.map_frame(move |frame| {
                     let _guard = &guard;
+                    drop(sample.take());
                     frame
                 })
                 .map_err(|error| -> BoxError { error.into() })
                 .boxed_unsync()
             }))
         })
+    }
+}
+
+/// A public gRPC latency observation that records itself when dropped.
+struct PendingLatencySample {
+    state: SharedState,
+    route: Cow<'static, str>,
+    started_at: Instant,
+}
+
+impl Drop for PendingLatencySample {
+    fn drop(&mut self) {
+        self.state.runtime.record_public_request_latency(
+            &self.state.metrics,
+            "grpc",
+            &self.route,
+            self.started_at.elapsed(),
+        );
     }
 }
 

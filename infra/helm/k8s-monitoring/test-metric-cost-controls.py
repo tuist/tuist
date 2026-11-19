@@ -44,6 +44,12 @@ def query(port, expression):
     return float(result[0]["value"][1]) if result else 0
 
 
+BUCKETS = [("0.001", 1), ("0.002", 2), ("0.004", 3), ("+Inf", 4)]
+# Upgraded runtimes prepend sub-millisecond public latency buckets, spelled the
+# way Kura renders them.
+SUB_MILLISECOND = [("0.0000625", 0), ("0.000125", 0), ("0.00025", 0), ("0.0005", 1)]
+
+
 def fixture():
     lines = []
     for pod, routes, marker in [
@@ -52,13 +58,13 @@ def fixture():
     ]:
         for route in routes:
             labels = f'pod="{pod}",transport="grpc",route="/service/{route}"{marker}'
-            for le, value in [("0.001", 1), ("0.002", 2), ("0.004", 3), ("+Inf", 4)]:
+            for le, value in (SUB_MILLISECOND if marker else []) + BUCKETS:
                 lines.append(f'kura_public_request_latency_seconds_bucket{{{labels},le="{le}"}} {value}')
             lines += [f'kura_public_request_latency_seconds_count{{{labels}}} 4',
                       f'kura_public_request_latency_seconds_sum{{{labels}}} 0.005']
     for transport in ["http", "grpc"]:
         labels = f'pod="new",transport="{transport}"'
-        for le, value in [("0.001", 1), ("0.002", 2), ("0.004", 3), ("+Inf", 4)]:
+        for le, value in SUB_MILLISECOND + BUCKETS:
             lines.append(f'kura_public_request_latency_by_transport_seconds_bucket{{{labels},le="{le}"}} {value}')
         lines += [f'kura_public_request_latency_by_transport_seconds_count{{{labels}}} 4',
                   f'kura_public_request_latency_by_transport_seconds_sum{{{labels}}} 0.005']
@@ -136,14 +142,17 @@ prometheus.scrape "fixture" {{
                     time.sleep(0.5)
                 checks = {
                     'count(kura_public_request_latency_seconds_bucket{pod="old"})': 6,
-                    'count(kura_public_request_latency_seconds_bucket{pod="new"})': 6 if enabled else 9,
-                    'count(kura_public_request_latency_by_transport_seconds_bucket)': 6 if enabled else 0,
+                    'count(kura_public_request_latency_seconds_bucket{pod="new"})': 10 if enabled else 15,
+                    'count(kura_public_request_latency_by_transport_seconds_bucket)': 10 if enabled else 0,
                     'count({__name__=~"kura_.*",kura_latency_aggregate_enabled=~".+"})': 0,
                     'count(kura_public_request_latency_by_transport_seconds_count)': 0,
                     'count(kura_public_request_latency_by_transport_seconds_sum)': 0,
                     'count(kura_file_operation_duration_seconds_count)': 0 if enabled else 1,
                     'count({__name__=~"kura_.*",le="0.002"})': 0,
-                    'count({__name__=~"kura_.*",latency_aggregate=~".+"})': 6 if enabled else 0,
+                    'count({__name__=~"kura_.*",le=~"0.000125|0.0005"})': 0,
+                    'count({__name__=~"kura_.*",le="0.00025"})': 4 if enabled else 3,
+                    'count({__name__=~"kura_.*",le="6.25e-05"})': 4 if enabled else 3,
+                    'count({__name__=~"kura_.*",latency_aggregate=~".+"})': 10 if enabled else 0,
                     'count(kura_public_request_latency_seconds_bucket{latency_aggregate="true",route!~".*/(SplitBlob|SpliceBlob)"})': 0,
                     'count(kura_public_request_latency_seconds_count)': 5,
                     'count(kura_public_request_latency_seconds_sum)': 5,

@@ -10164,6 +10164,80 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bytestream_read_latency_is_sampled_at_its_first_frame() {
+        use tokio_stream::wrappers::ReceiverStream;
+
+        let context = test_context(|_| {}).await;
+        let observed = |route: &str| -> u64 {
+            context
+                .state
+                .metrics
+                .render()
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_public_request_latency_seconds_count")
+                        && line.contains(&format!("route=\"{route}\""))
+                })
+                .map_or(0, |line| {
+                    line.split_whitespace().last().unwrap().parse().unwrap()
+                })
+        };
+        let call = |path: &'static str| {
+            let (frames, receiver) =
+                tokio::sync::mpsc::channel::<Result<http_body::Frame<bytes::Bytes>, Infallible>>(1);
+            let mut body = Some(TonicBody::new(http_body_util::StreamBody::new(
+                ReceiverStream::new(receiver),
+            )));
+            let mut service = GrpcRequestAccountingLayer {
+                state: context.state.clone(),
+            }
+            .layer(tower::service_fn(
+                move |_request: http::Request<TonicBody>| {
+                    let body = body.take().expect("one call per service");
+                    async move { Ok::<_, Infallible>(http::Response::new(body)) }
+                },
+            ));
+            let request = http::Request::builder()
+                .uri(path)
+                .body(TonicBody::empty())
+                .unwrap();
+            (service.call(request), frames)
+        };
+
+        // A unary response is complete once it is ready.
+        let action_path = "/build.bazel.remote.execution.v2.ActionCache/GetActionResult";
+        let (response, _frames) = call(action_path);
+        let response = response.await.unwrap();
+        assert_eq!(observed(action_path), 1);
+        drop(response);
+        assert_eq!(observed(action_path), 1);
+
+        // A Read that is ready but has produced nothing has not answered yet.
+        let read_path = "/google.bytestream.ByteStream/Read";
+        let (response, frames) = call(read_path);
+        let mut body = response.await.unwrap().into_body();
+        assert_eq!(observed(read_path), 0);
+        frames
+            .send(Ok(http_body::Frame::data(bytes::Bytes::from_static(b"x"))))
+            .await
+            .unwrap();
+        body.frame().await.unwrap().unwrap();
+        assert_eq!(observed(read_path), 1);
+        frames
+            .send(Ok(http_body::Frame::data(bytes::Bytes::from_static(b"y"))))
+            .await
+            .unwrap();
+        body.frame().await.unwrap().unwrap();
+        drop(body);
+        assert_eq!(observed(read_path), 1, "later frames must not sample again");
+
+        // A Read dropped before its first frame is still observed once.
+        let (response, _frames) = call(read_path);
+        drop(response.await.unwrap());
+        assert_eq!(observed(read_path), 2);
+    }
+
+    #[tokio::test]
     async fn response_transport_keeps_materialization_memory_until_body_drops() {
         let context = test_context(|_| {}).await;
         let materialization_limit = context.state.memory.reapi_materialization_limit_bytes();

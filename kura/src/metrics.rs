@@ -594,8 +594,18 @@ pub mod shed_kind {
     ];
 }
 
+/// Bounds below the 1 ms ladder: hot cache reads answer well under a
+/// millisecond, which a 1 ms first bucket cannot tell apart. They are prepended
+/// as literals so every existing bound keeps its exact `le` spelling, which
+/// the hosted thinning rule, dashboards and alerts match on.
+const PUBLIC_LATENCY_SUB_MILLISECOND_BOUNDS: [f64; 4] = [0.0000625, 0.000125, 0.00025, 0.0005];
+
 fn public_latency_histogram() -> Histogram {
-    Histogram::new(exponential_buckets(0.001, 2.0, 16))
+    Histogram::new(
+        PUBLIC_LATENCY_SUB_MILLISECOND_BOUNDS
+            .into_iter()
+            .chain(exponential_buckets(0.001, 2.0, 16)),
+    )
 }
 
 impl Metrics {

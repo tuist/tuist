@@ -252,6 +252,12 @@ k8s-monitoring:
         // 17 to 10 buckets (and the multipart family from 15 to 8) without
         // changing labels or making duplicate remote-write series.
         //
+        // The two public latency families also carry four sub-millisecond
+        // buckets (62.5, 125, 250 and 500 us), because hot cache reads
+        // answer under the old 1 ms floor. The same alternation keeps 62.5
+        // and 250 us, a factor of 4 apart like the rest, so those families
+        // keep 12 buckets.
+        //
         // kura_replication_request_duration_seconds keeps every bucket. Since
         // pull replication it only times catch-up passes (backfill_entries,
         // backfill_bodies, backfill_artifact), labelled by operation alone, so
@@ -261,7 +267,7 @@ k8s-monitoring:
         write_relabel_config {
           source_labels = ["cluster", "__name__", "le"]
           separator = ";"
-          regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|public_request_latency_by_transport_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
+          regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|public_request_latency_by_transport_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.000125|0.0005|0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
           action = "drop"
         }
         // The server's two exponential histograms grow each boundary by a
