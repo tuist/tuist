@@ -120,6 +120,13 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 			reclaimable += memory
 			cpuReclaimable += cpu
 		}
+		// A runner on its way off the node still holds its CPU until it is
+		// gone. Counting it as reclaimable keeps the server from lowering a
+		// deferred growth it was retired for, which would let a replacement
+		// runner take the CPU and retire again: seen on staging.
+		if ok && !pod.DeletionTimestamp.IsZero() {
+			cpuReclaimable += cpu
+		}
 	}
 	allocation.FreeBytes = max(capacity-used, 0)
 	allocation.MemoryBytes = max(capacity-used+daemon.memory+reclaimable, 0)

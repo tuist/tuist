@@ -15,6 +15,7 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -87,6 +88,17 @@ func TestSandboxAllocationReportsUnrequestedCPU(t *testing.T) {
 	// Only the idle warm runner's CPU can be reclaimed.
 	if allocation.CPUReclaimableMilli != 1000 {
 		t.Fatalf("cpu reclaimable = %d, want the idle runner's 1000m", allocation.CPUReclaimableMilli)
+	}
+
+	// A runner retired for the growth keeps counting until it is gone, so
+	// the server does not lower the growth and let a replacement take it.
+	leaving := idleLinuxRunner("leaving", pool.Name, node.Name, 2, time.Hour)
+	leaving.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("2")
+	leaving.DeletionTimestamp = &metav1.Time{Time: preemptionNow}
+	leaving.Finalizers = []string{"test"}
+	withLeaving := planSandboxAllocation(node, sandboxDaemon{name: daemon.Name, node: node.Name, memory: gib}, []corev1.Pod{*exclusive, *shared, *daemon, *finished, *leaving}, fleet)
+	if withLeaving.CPUReclaimableMilli != 3000 || withLeaving.CPUFreeMilli != allocation.CPUFreeMilli-2000 {
+		t.Fatalf("with a leaving runner: free %d, reclaimable %d; want %d and 3000", withLeaving.CPUFreeMilli, withLeaving.CPUReclaimableMilli, allocation.CPUFreeMilli-2000)
 	}
 
 	// A growth the kubelet deferred counts at what it allocated, so the

@@ -219,7 +219,9 @@ cancellable and leaves the reserve intact. See
     `cpu_reclaimable_milli`, the CPU idle warm runners hold) retires idle
     runners the same way, until their CPU, Pod-level budget and overhead
     included, covers it. The grant counts the daemon at the CPU the kubelet
-    allocated, so a deferred growth does not hide `cpu_free_milli`.
+    allocated, so a deferred growth does not hide `cpu_free_milli`, and keeps a
+    terminating runner's CPU in `cpu_reclaimable_milli` until it is gone, or the
+    server lowers the growth and a replacement runner takes the CPU.
     Per-node shape caps and reservation calculations subtract the same
     allocation plus the daemon's CPU request, including pending shrinks and
     terminating daemons. Never write the adjusted allocatable back to a Node.
