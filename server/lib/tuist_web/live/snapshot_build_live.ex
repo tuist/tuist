@@ -208,6 +208,15 @@ defmodule TuistWeb.SnapshotBuildLive do
           data-part="review-buttons"
         >
           <.button
+            :if={Snapshots.status(@build, @selected_project) != "approved"}
+            id="approve-snapshot-build"
+            label={dgettext("dashboard_snapshots", "Approve changes")}
+            size="medium"
+            phx-click="approve"
+          >
+            <:icon_left><.icon name="check" /></:icon_left>
+          </.button>
+          <.button
             :if={Snapshots.status(@build, @selected_project) != "rejected"}
             id="reject-snapshot-build"
             label={dgettext("dashboard_snapshots", "Reject changes")}
@@ -216,15 +225,6 @@ defmodule TuistWeb.SnapshotBuildLive do
             phx-click="reject"
           >
             <:icon_left><.icon name="close" /></:icon_left>
-          </.button>
-          <.button
-            :if={Snapshots.status(@build, @selected_project) != "approved"}
-            id="approve-snapshot-build"
-            label={dgettext("dashboard_snapshots", "Approve changes")}
-            size="medium"
-            phx-click="approve"
-          >
-            <:icon_left><.icon name="check" /></:icon_left>
           </.button>
         </div>
       </div>
