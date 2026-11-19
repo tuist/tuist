@@ -255,7 +255,7 @@
         },
         {
           "switch": "larch-tor-b",
-          "port": 28,
+          "port": 21,
           "media": "copper",
           "nic": "bmc",
           "purpose": "management"

@@ -14,7 +14,7 @@ spec:
   applyOrder: 1
   applyNote: Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.
   credentialItem: rack-switch-controller picos admin
-  configRevision: cb74d087a1c54771
+  configRevision: a17f0cbc83cba00d
   config:
     hostname: larch-tor-b
     managementVlan: 20
@@ -142,7 +142,7 @@ spec:
       - port: 21
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 20
         taggedVlans: []
       - port: 22
         description: ""
@@ -185,7 +185,7 @@ spec:
       - port: 28
         description: ""
         spanningTree: true
-        nativeVlan: 20
+        nativeVlan: 1
         taggedVlans: []
       - port: 29
         description: ""
@@ -216,6 +216,10 @@ spec:
         nativeVlan: 1
         taggedVlans: []
   ports:
+    - port: 21
+      purpose: management
+      peer: larch-edge-a
+      detail: edge/bmc
     - port: 22
       purpose: management
       peer: larch-store-a
@@ -240,10 +244,6 @@ spec:
       purpose: wan
       peer: spare
       detail: fibre
-    - port: 28
-      purpose: management
-      peer: larch-edge-a
-      detail: edge/bmc
     - port: 29
       purpose: data
       peer: larch-edge-a
