@@ -2,6 +2,8 @@ module github.com/tuist/tuist/infra/k8s/clusters/clusterclass-check
 
 go 1.26.10
 
+godebug default=go1.25
+
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/evanphx/json-patch/v5 v5.9.11
