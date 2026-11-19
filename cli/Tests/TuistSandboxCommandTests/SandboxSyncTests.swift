@@ -93,10 +93,17 @@ struct SandboxSyncTests {
 
     @Test
     func probe_readsTheRootAndTheWorktreeTheSandboxHolds() {
-        #expect(SandboxSync.probe("root /home/u/work/app\nid abc\nprobed\n")! == ("/home/u/work/app", "abc", nil))
-        #expect(SandboxSync.probe("root /home/u/work/app\nid \ncommit \nprobed\n")! == ("/home/u/work/app", nil, nil))
         #expect(
-            SandboxSync.probe("root /home/u/work/app\nid abc\ncommit 7c5f\nprobed\n")! == ("/home/u/work/app", "abc", "7c5f")
+            SandboxSync.probe("root /home/u/work/app\nid abc\nprobed\n") ==
+                SandboxSync.Probe(root: "/home/u/work/app", id: "abc", commit: nil)
+        )
+        #expect(
+            SandboxSync.probe("root /home/u/work/app\nid \ncommit \nprobed\n") ==
+                SandboxSync.Probe(root: "/home/u/work/app", id: nil, commit: nil)
+        )
+        #expect(
+            SandboxSync.probe("root /home/u/work/app\nid abc\ncommit 7c5f\nprobed\n") ==
+                SandboxSync.Probe(root: "/home/u/work/app", id: "abc", commit: "7c5f")
         )
         #expect(SandboxSync.probe("mkdir: Permission denied\n") == nil)
     }
