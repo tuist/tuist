@@ -352,7 +352,11 @@ defmodule Atlas.TuistServerTest do
       end
 
       assert {:error, "paid_plan_required"} =
-               TuistServer.update_runner_trial(42, attrs, token: "tok", base_url: "https://tuist.test", request: request)
+               TuistServer.update_runner_trial(42, attrs,
+                 token: "tok",
+                 base_url: "https://tuist.test",
+                 request: request
+               )
     end
 
     test "bounds ambiguous transport errors without logging credentials or retrying" do
