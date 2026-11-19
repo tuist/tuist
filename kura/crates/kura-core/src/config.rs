@@ -389,7 +389,7 @@ pub struct UsageConfig {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct HostResources {
+pub struct HostResources {
     pub file_descriptor_limit: usize,
     pub memory_limit_bytes: u64,
     pub cpu_count: usize,
@@ -716,7 +716,7 @@ impl Config {
         Self::from_lookup_with_resources(|key| std::env::var(key).ok(), HostResources::detect())
     }
 
-    pub(crate) fn from_lookup_with_resources<F>(
+    pub fn from_lookup_with_resources<F>(
         mut lookup: F,
         host_resources: HostResources,
     ) -> Result<Self, String>

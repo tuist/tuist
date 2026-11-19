@@ -3,14 +3,14 @@ use rand::Rng as _;
 /// `Retry-After` is expressed in whole seconds, so the hint is drawn uniformly
 /// from `MIN_RETRY_AFTER_SECONDS..=ceiling`: a fleet shed together must not
 /// return together.
-pub(crate) const MIN_RETRY_AFTER_SECONDS: u64 = 1;
+pub const MIN_RETRY_AFTER_SECONDS: u64 = 1;
 /// Ceiling for a shed that carries no backlog signal.
-pub(crate) const IDLE_RETRY_AFTER_CEILING_SECONDS: u64 = 2;
+pub const IDLE_RETRY_AFTER_CEILING_SECONDS: u64 = 2;
 /// Ceiling for a full queue. Response-stream admission waits up to five
 /// seconds; shorter admission paths share this jitter window under saturation.
-pub(crate) const SATURATED_RETRY_AFTER_CEILING_SECONDS: u64 = 10;
+pub const SATURATED_RETRY_AFTER_CEILING_SECONDS: u64 = 10;
 
-pub(crate) fn retry_after_ceiling_seconds(backlog: u64, capacity: u64) -> u64 {
+pub fn retry_after_ceiling_seconds(backlog: u64, capacity: u64) -> u64 {
     if capacity == 0 {
         return IDLE_RETRY_AFTER_CEILING_SECONDS;
     }
@@ -19,7 +19,7 @@ pub(crate) fn retry_after_ceiling_seconds(backlog: u64, capacity: u64) -> u64 {
     IDLE_RETRY_AFTER_CEILING_SECONDS + span.saturating_mul(backlog).div_ceil(capacity)
 }
 
-pub(crate) fn retry_after_seconds(ceiling_seconds: u64) -> u64 {
+pub fn retry_after_seconds(ceiling_seconds: u64) -> u64 {
     let ceiling = ceiling_seconds.max(MIN_RETRY_AFTER_SECONDS);
     rand::rng().random_range(MIN_RETRY_AFTER_SECONDS..=ceiling)
 }

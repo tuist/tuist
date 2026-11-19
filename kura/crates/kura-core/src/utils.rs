@@ -67,8 +67,8 @@ impl TmpBudget {
         })
     }
 
-    #[cfg(test)]
-    pub(crate) fn reserved_bytes(&self) -> u64 {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn reserved_bytes(&self) -> u64 {
         self.reserved.load(Ordering::Acquire)
     }
 
@@ -202,44 +202,44 @@ impl std::fmt::Debug for TempBodyFile {
 }
 
 #[derive(Debug)]
-pub(crate) struct TempFileCleanup {
+pub struct TempFileCleanup {
     path: Option<PathBuf>,
     reservation: Option<TmpReservation>,
 }
 
 impl TempFileCleanup {
-    pub(crate) fn new(path: PathBuf, reservation: TmpReservation) -> Self {
+    pub fn new(path: PathBuf, reservation: TmpReservation) -> Self {
         Self {
             path: Some(path),
             reservation: Some(reservation),
         }
     }
 
-    pub(crate) fn new_unreserved(path: PathBuf) -> Self {
+    pub fn new_unreserved(path: PathBuf) -> Self {
         Self {
             path: Some(path),
             reservation: None,
         }
     }
 
-    pub(crate) fn set_reservation(&mut self, reservation: TmpReservation) {
+    pub fn set_reservation(&mut self, reservation: TmpReservation) {
         debug_assert!(self.reservation.is_none());
         self.reservation = Some(reservation);
     }
 
-    pub(crate) fn grow_reservation_to(&mut self, total: u64) -> Result<(), String> {
+    pub fn grow_reservation_to(&mut self, total: u64) -> Result<(), String> {
         match self.reservation.as_mut() {
             Some(reservation) => reservation.grow_to(total),
             None => Ok(()),
         }
     }
 
-    pub(crate) fn disarm(&mut self) {
+    pub fn disarm(&mut self) {
         self.path.take();
         self.reservation.take();
     }
 
-    pub(crate) async fn remove_and_disarm(&mut self, io: &IoController) {
+    pub async fn remove_and_disarm(&mut self, io: &IoController) {
         let Some(path) = self.path.clone() else {
             return;
         };
@@ -320,7 +320,7 @@ pub struct RequestBodyError {
 }
 
 impl RequestBodyError {
-    pub(crate) fn from_error(error: axum::Error) -> Self {
+    pub fn from_error(error: axum::Error) -> Self {
         let mut kind = RequestBodyErrorKind::Failed;
         let mut messages = Vec::new();
         let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
@@ -378,7 +378,7 @@ impl RequestBodyError {
 // Hyper 1.9 turns h2 CANCEL/NO_ERROR body errors into None without receiving
 // END_STREAM. Check the concrete Incoming body before Axum erases its type:
 // generic http_body implementations need not provide an exact end-stream hint.
-pub(crate) fn guard_incoming_request(request: hyper::Request<hyper::body::Incoming>) -> Request {
+pub fn guard_incoming_request(request: hyper::Request<hyper::body::Incoming>) -> Request {
     let http2 = request.version() == hyper::Version::HTTP_2;
     request.map(|body| {
         if http2 {
@@ -605,7 +605,7 @@ pub async fn discard_request_body(request: Request, max_bytes: u64) {
     }
 }
 
-pub(crate) async fn drop_staging_cache_range(
+pub async fn drop_staging_cache_range(
     file: TrackedFile,
     path: &Path,
     offset: u64,

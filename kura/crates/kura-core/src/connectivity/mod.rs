@@ -54,7 +54,7 @@ fn read_selection(path: &Path) -> Option<Selection> {
     serde_json::from_slice(&bytes).ok()
 }
 
-pub(crate) struct Diagnostics {
+pub struct Diagnostics {
     stop: Option<oneshot::Sender<()>>,
     // Dropping a JoinHandle detaches: diagnostics must never delay shutdown.
     _thread: Option<JoinHandle<()>>,
@@ -68,7 +68,7 @@ impl Drop for Diagnostics {
     }
 }
 
-pub(crate) fn start_from_env() -> Option<Diagnostics> {
+pub fn start_from_env() -> Option<Diagnostics> {
     start(
         std::env::var("KURA_CONNECTIVITY_CONFIG_FILE")
             .ok()

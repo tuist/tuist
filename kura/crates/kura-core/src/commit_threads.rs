@@ -26,7 +26,7 @@ struct Lane {
     in_flight: Arc<AtomicUsize>,
 }
 
-pub(crate) struct CommitThreads {
+pub struct CommitThreads {
     lanes: Vec<Lane>,
 }
 
@@ -42,7 +42,7 @@ impl CommitThreads {
     /// Starts `threads` commit threads, each accepting up to `queue_depth`
     /// waiting commits before callers wait for room. The threads exit once
     /// this value is dropped and their queues drain.
-    pub(crate) fn new(threads: usize, queue_depth: usize) -> std::io::Result<Self> {
+    pub fn new(threads: usize, queue_depth: usize) -> std::io::Result<Self> {
         let lanes = (0..threads)
             .map(|index| {
                 let (sender, mut receiver) = mpsc::channel::<Job>(queue_depth);
@@ -68,7 +68,7 @@ impl CommitThreads {
     /// operation runs to completion even if the caller is dropped, like a
     /// `spawn_blocking` task; a caller dropped while waiting for queue room
     /// never runs it.
-    pub(crate) async fn run<T: Send + 'static>(
+    pub async fn run<T: Send + 'static>(
         &self,
         operation: impl FnOnce() -> T + Send + 'static,
     ) -> Result<T, String> {

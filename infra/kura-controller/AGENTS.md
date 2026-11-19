@@ -46,7 +46,7 @@ Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node li
 - Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
   metrics are omitted rather than recorded as zero; auxiliary-container usage
   must never influence the runtime request bands.
-- Optional fixed connectivity diagnostics: [`../../kura/src/connectivity/AGENTS.md`](../../kura/src/connectivity/AGENTS.md).
+- Optional fixed connectivity diagnostics: [`../../kura/crates/kura-core/src/connectivity/AGENTS.md`](../../kura/crates/kura-core/src/connectivity/AGENTS.md).
   Exact deployment-selected instances receive expiring live-Pod annotations only
   when equipped with the fixed projection. Reserve selection env and annotations
   against instance overrides. Run patches after serving work with one total

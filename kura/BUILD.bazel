@@ -2,8 +2,8 @@ load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
 load("//bazel:rust_junit_test.bzl", "rust_junit_test")
+load("//bazel:version.bzl", "KURA_VERSION")
 
-_KURA_VERSION = "0.8.0"
 
 # CI-only gate: deny warnings on the first-party crates (the bazel equivalent of cargo's
 # RUSTFLAGS="-D warnings"). Off by default so local `bazel build` / `mise run compile`
@@ -13,10 +13,11 @@ _KURA_VERSION = "0.8.0"
 config_setting(
     name = "deny_warnings",
     define_values = {"kura_deny_warnings": "true"},
+    visibility = ["//visibility:public"],
 )
 
 _DENY_WARNINGS = select({
-    ":deny_warnings": ["-Dwarnings"],
+    "//:deny_warnings": ["-Dwarnings"],
     "//conditions:default": [],
 })
 
@@ -34,45 +35,9 @@ rust_library(
     # and rustc's codegen spreads across them. Ignored outside remote execution.
     exec_properties = {"tuist-memory-gb": "8"},
     rustc_flags = _DENY_WARNINGS,
-    version = _KURA_VERSION,
+    version = KURA_VERSION,
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True),
-)
-
-# Qualify independent native/explicit TLS without compiling the storage engine.
-rust_junit_test(
-    name = "certificate_trust_test",
-    srcs = glob(["src/certificate_trust*.rs"]),
-    crate_root = "src/certificate_trust.rs",
-    crate_name = "certificate_trust",
-    compile_data = glob(["test/certificate-trust/*.pem"]),
-    aliases = aliases(),
-    edition = "2024",
-    rustc_flags = _DENY_WARNINGS,
-    size = "small",
-    deps = [
-        "@crates//:bytes",
-        "@crates//:http-body-util",
-        "@crates//:hyper",
-        "@crates//:hyper-util",
-        "@crates//:rcgen",
-        "@crates//:reqwest",
-        "@crates//:rustls",
-        "@crates//:rustls-native-certs",
-        "@crates//:rustls-webpki",
-        "@crates//:sha2",
-        "@crates//:tempfile",
-        "@crates//:tokio",
-        "@crates//:tokio-rustls",
-        "@crates//:tracing",
-    ] + select({
-        "@platforms//os:macos": [
-            "@crates//:core-foundation",
-            "@crates//:security-framework",
-            "@crates//:security-framework-sys",
-        ],
-        "//conditions:default": [],
-    }),
 )
 
 rust_binary(
@@ -81,7 +46,7 @@ rust_binary(
     aliases = aliases(),
     edition = "2024",
     rustc_flags = _DENY_WARNINGS,
-    version = _KURA_VERSION,
+    version = KURA_VERSION,
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True) + [":kura_lib"],
 )
@@ -96,13 +61,20 @@ rust_junit_test(
     deps = all_crate_deps(normal = True, normal_dev = True) + [":kura_lib"],
 )
 
-# Recompiles kura_lib with --test so the crate's #[cfg(test)] unit tests (and the test_support
-# module) run under `bazel test`.
+# The kura crate.s unit tests reach into kura-core through its test-support helpers, so the test
+# binary links that variant of kura-core rather than reusing kura_lib.s dependencies.
+_TEST_ALIASES = dict(aliases())
+
+_TEST_ALIASES.update({"//crates/kura-core:kura_core_test_support": "kura_core"})
+
+# Compiles the kura crate with --test so its #[cfg(test)] unit tests (and the test_support module)
+# run under `bazel test`.
 rust_junit_test(
     name = "kura_lib_test",
-    compile_data = glob(["test/certificate-trust/*.pem"]),
-    aliases = aliases(),
-    crate = ":kura_lib",
+    srcs = glob(["src/**/*.rs"], exclude = ["src/main.rs"]),
+    aliases = _TEST_ALIASES,
+    crate_name = "kura",
+    crate_root = "src/lib.rs",
     edition = "2024",
     # rustc peaks near 6.5 GB compiling the crate as a test binary, more than the default 4 GiB
     # remote-execution VM holds. The 16 GB VM also has 8 vCPUs, which took the compile from about
@@ -113,11 +85,15 @@ rust_junit_test(
     # 45 s. Shards run in parallel VMs at the same per-VM concurrency; more test threads instead
     # made a store test that races two tasks fail.
     shard_count = 4,
-    # Only this test binary skips rustc's crate-local ThinLTO, which took 55 s of the 150 s
-    # compile, the longest action in the build. Tests run just as fast without it, and the
-    # library and shipped binary keep the default.
+    # Test binaries skip rustc's crate-local ThinLTO, which took 55 s of this one's 150 s compile,
+    # the longest action in the build. Tests run just as fast without it, and the libraries and
+    # shipped binary keep the default.
     rustc_flags = _DENY_WARNINGS + ["-Clto=off"],
     size = "medium",
-    version = _KURA_VERSION,
-    deps = all_crate_deps(normal_dev = True),
+    version = KURA_VERSION,
+    deps = all_crate_deps(
+        cargo_only = True,
+        normal = True,
+        normal_dev = True,
+    ) + ["//crates/kura-core:kura_core_test_support"],
 )

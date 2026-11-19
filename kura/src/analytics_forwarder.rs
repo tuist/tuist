@@ -617,17 +617,6 @@ enum PostOutcome {
     TransportError { kind: &'static str, cause: String },
 }
 
-impl Pipeline {
-    /// Every pipeline the forwarder drains. Kept next to the module so
-    /// the drain-loop spawn logic does not have to enumerate variants
-    /// inline.
-    const ALL: [Pipeline; 3] = [
-        Pipeline::GradleCache,
-        Pipeline::XcodeCache,
-        Pipeline::ReapiCache,
-    ];
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

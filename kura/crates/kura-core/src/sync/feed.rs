@@ -412,7 +412,7 @@ impl SyncFeedState {
         self.head().saturating_sub(self.floor())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn dropped_total(&self) -> u64 {
         self.dropped_total.load(Ordering::Relaxed)
     }

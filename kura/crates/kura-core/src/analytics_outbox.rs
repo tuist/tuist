@@ -107,6 +107,14 @@ pub enum Pipeline {
 }
 
 impl Pipeline {
+    /// Every pipeline the forwarder drains, so its drain-loop spawn logic does not have to
+    /// enumerate variants inline.
+    pub const ALL: [Pipeline; 3] = [
+        Pipeline::GradleCache,
+        Pipeline::XcodeCache,
+        Pipeline::ReapiCache,
+    ];
+
     /// The wire-stable numeric encoding used in the key prefix. Frozen at
     /// the value the enum variant was assigned; do not change it for an
     /// existing pipeline.

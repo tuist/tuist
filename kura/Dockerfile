@@ -20,21 +20,23 @@ WORKDIR /app
 ENV CARGO_INCREMENTAL=0
 
 COPY Cargo.toml Cargo.lock ./
+COPY crates/kura-core/Cargo.toml crates/kura-core/
 
 RUN --mount=type=cache,id=kura-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=kura-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    mkdir -p src && \
+    mkdir -p src crates/kura-core/src && \
     printf 'fn main() {}\n' > src/main.rs && \
-    touch src/lib.rs && \
+    touch src/lib.rs crates/kura-core/src/lib.rs && \
     cargo fetch --locked && \
-    rm -rf src
+    rm -rf src crates/kura-core/src
 
 COPY src src
+COPY crates crates
 
 RUN --mount=type=cache,id=kura-target-${TARGETARCH},target=/app/target,sharing=locked \
     --mount=type=cache,id=kura-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=kura-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    touch src/lib.rs src/main.rs && \
+    touch src/lib.rs src/main.rs crates/kura-core/src/lib.rs && \
     cargo build --release --locked && \
     cp /app/target/release/kura /usr/local/bin/kura
 

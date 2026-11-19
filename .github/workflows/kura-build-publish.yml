@@ -101,8 +101,9 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          # The first `version =` is [workspace.package]'s, which kura and kura-core inherit.
           sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" Cargo.toml
-          sed -i "s/^_KURA_VERSION = \".*\"/_KURA_VERSION = \"${VERSION}\"/" BUILD.bazel
+          sed -i "s/^KURA_VERSION = \".*\"/KURA_VERSION = \"${VERSION}\"/" bazel/version.bzl
           env -u RUSTUP_TOOLCHAIN cargo update -w
 
       - name: Update CHANGELOG.md
@@ -117,7 +118,7 @@ jobs:
           name: kura-release-metadata
           path: |
             kura/CHANGELOG.md
-            kura/BUILD.bazel
+            kura/bazel/version.bzl
             kura/Cargo.toml
             kura/Cargo.lock
           retention-days: 1

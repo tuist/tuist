@@ -16,7 +16,7 @@ pub struct ForegroundFileCacheReservation {
 }
 
 impl ForegroundFileCacheReservation {
-    pub(crate) fn new(memory: ForegroundMemoryReservation, policy: FileCachePolicy) -> Self {
+    pub fn new(memory: ForegroundMemoryReservation, policy: FileCachePolicy) -> Self {
         Self { memory, policy }
     }
 
@@ -24,15 +24,15 @@ impl ForegroundFileCacheReservation {
         self.policy
     }
 
-    pub(crate) fn try_resize(&mut self, requested_bytes: u64) -> Result<(), ()> {
+    pub fn try_resize(&mut self, requested_bytes: u64) -> Result<(), ()> {
         self.memory.try_resize(requested_bytes)
     }
 
-    pub(crate) fn set_policy(&mut self, policy: FileCachePolicy) {
+    pub fn set_policy(&mut self, policy: FileCachePolicy) {
         self.policy = policy;
     }
 
-    pub(crate) fn try_reserve_reply(
+    pub fn try_reserve_reply(
         &mut self,
         bytes: u64,
     ) -> Result<Option<crate::memory::MemoryPermit>, ()> {
@@ -61,7 +61,7 @@ impl FileCachePolicy {
 /// copied under the bounded policy, which releases completed staging and
 /// segment ranges every drop interval, so it is charged for one drop interval
 /// rather than for a whole window it never holds.
-pub(crate) async fn reserve_foreground_staging(
+pub async fn reserve_foreground_staging(
     memory: &MemoryController,
     declared_or_max_bytes: u64,
 ) -> Result<ForegroundFileCacheReservation, ForegroundAdmissionTimeout> {

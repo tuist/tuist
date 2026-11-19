@@ -5,7 +5,7 @@ on:
     paths:
       - kura/test/e2e/provider-topology/**
       - kura/test/e2e/certificate-trust/**
-      - kura/src/metrics.rs
+      - kura/crates/kura-core/src/metrics.rs
       - .github/workflows/kura-qualification.yml
       - .github/workflows/kura-runtime-image.yml
   push:
@@ -13,7 +13,7 @@ on:
     paths:
       - kura/test/e2e/provider-topology/**
       - kura/test/e2e/certificate-trust/**
-      - kura/src/metrics.rs
+      - kura/crates/kura-core/src/metrics.rs
       - .github/workflows/kura-qualification.yml
       - .github/workflows/kura-runtime-image.yml
 

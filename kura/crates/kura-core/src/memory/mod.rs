@@ -105,7 +105,7 @@ struct MemoryControllerInner {
 }
 
 impl MemoryController {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn new(metrics: Metrics, soft_limit_bytes: u64, hard_limit_bytes: u64) -> Self {
         let runtime_limit_bytes = hard_limit_bytes
             .saturating_mul(100)
@@ -142,7 +142,7 @@ impl MemoryController {
 
     /// Ceiling-derived sizing with no published floor. Production goes through
     /// `with_anon_budget`, which passes `None` for the same effect.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn with_runtime_limit(
         metrics: Metrics,
         runtime_limit_bytes: u64,
@@ -338,7 +338,7 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
-    pub(crate) fn pressure_tier_changed(&self) -> tokio::sync::futures::Notified<'_> {
+    pub fn pressure_tier_changed(&self) -> tokio::sync::futures::Notified<'_> {
         self.inner.pressure_tier_changed.notified()
     }
 
@@ -745,7 +745,7 @@ impl MemoryController {
             .await
     }
 
-    pub(crate) fn try_reserve_foreground_memory(
+    pub fn try_reserve_foreground_memory(
         &self,
         requested_bytes: u64,
     ) -> Result<ForegroundMemoryReservation, ()> {
@@ -761,7 +761,7 @@ impl MemoryController {
     ///
     /// For callers that would otherwise refuse or queue a write. A caller that
     /// queues does so on the floor-derived pool.
-    pub(crate) fn try_reserve_elastic_foreground_memory(
+    pub fn try_reserve_elastic_foreground_memory(
         &self,
         requested_bytes: u64,
     ) -> Result<ForegroundMemoryReservation, ()> {
@@ -782,7 +782,7 @@ impl MemoryController {
     /// Unlike a materialized response, the reservation covers the staging
     /// file's page cache, which writeback makes reclaimable even while a slow
     /// client holds the permit.
-    pub(crate) async fn reserve_foreground_memory(
+    pub async fn reserve_foreground_memory(
         &self,
         requested_bytes: u64,
     ) -> Result<(ForegroundMemoryReservation, bool), ForegroundAdmissionTimeout> {
@@ -900,17 +900,17 @@ impl MemoryController {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn response_stream_waiter_count(&self) -> usize {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn response_stream_waiter_count(&self) -> usize {
         self.inner.response_stream_waiters.load(Ordering::Acquire) as usize
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn foreground_response_streaming_pool_bytes(&self) -> usize {
         self.inner.pools.foreground_response_streaming_bytes()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn elastic_foreground_response_streaming_pool_bytes(&self) -> usize {
         self.inner
             .pools

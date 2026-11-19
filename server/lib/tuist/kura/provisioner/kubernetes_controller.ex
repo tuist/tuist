@@ -37,7 +37,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @client_endpoint_fields ~w(publicHost privateHost grpcPublicHost clientHostAliases)
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
-  # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
+  # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/crates/kura-core/src/constants.rs): 4 x
   # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. The ceiling upload
   # staging reaches inside the data volume when nothing narrows it. Keep in sync
   # if either constant moves.

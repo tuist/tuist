@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use tracing::warn;
 
-pub(crate) const CONNECT_TIMEOUT_SECS: u64 = 3;
-pub(crate) const REQUEST_TIMEOUT_SECS: u64 = 5;
+pub const CONNECT_TIMEOUT_SECS: u64 = 3;
+pub const REQUEST_TIMEOUT_SECS: u64 = 5;
 const _: () = assert!(CONNECT_TIMEOUT_SECS < REQUEST_TIMEOUT_SECS);
 
 /// The client the analytics and Bazel test-artifact pipelines deliver on.
@@ -15,9 +15,7 @@ const _: () = assert!(CONNECT_TIMEOUT_SECS < REQUEST_TIMEOUT_SECS);
 /// used to hardcode could not be met from outside the control plane's own
 /// region: a remote node failed every batch at connect while its control-plane
 /// client, pointed at the same host, kept succeeding.
-pub(crate) fn analytics_client_builder(
-    request_timeout_ms: u64,
-) -> Result<reqwest::ClientBuilder, String> {
+pub fn analytics_client_builder(request_timeout_ms: u64) -> Result<reqwest::ClientBuilder, String> {
     Ok(crate::certificate_trust::client_builder()?
         .connect_timeout(Duration::from_millis(analytics_connect_timeout_ms(
             request_timeout_ms,
@@ -40,7 +38,7 @@ fn analytics_connect_timeout_ms(request_timeout_ms: u64) -> u64 {
     request_timeout_ms
 }
 
-pub(crate) fn client_builder() -> Result<reqwest::ClientBuilder, String> {
+pub fn client_builder() -> Result<reqwest::ClientBuilder, String> {
     // Connection setup includes DNS. A remote region can spend more than one
     // second resolving Kubernetes search domains before starting TCP. Match
     // the managed auth client's connect budget, keeping the total request bounded.

@@ -1,52 +1,38 @@
+// The storage engine and the modules it stands on are the kura-core crate (crates/kura-core), so its
+// build and tests run in parallel with this crate's. Importing them under their old names keeps
+// every `crate::store::...` path in this crate working.
+use kura_core::{
+    action_cache_removals, analytics_outbox, artifact, backpressure, bandwidth, certificate_trust,
+    config, connectivity, constants, control_plane_http, enrollment, failpoints, file_cache, io,
+    memory, metrics, multipart, node_location, peer_topology, request_observability, segment,
+    store, utils,
+};
+
 mod accelerated_file_serving;
-mod action_cache_refs;
-mod action_cache_removals;
 mod analytics;
 mod analytics_forwarder;
-mod analytics_outbox;
 mod app;
-mod artifact;
 mod auth;
 mod backfill;
-mod backpressure;
-mod bandwidth;
 mod bazel_test_artifacts;
-mod certificate_trust;
-mod commit_threads;
-mod config;
-mod connectivity;
-mod constants;
-mod control_plane_http;
-mod enrollment;
-mod failpoints;
-mod file_cache;
 mod handover;
 mod http;
-mod io;
-mod memory;
 mod mesh_heartbeat;
-mod metrics;
 mod migration;
-mod mmap;
-mod multipart;
-mod node_location;
 mod peer_tls;
-mod peer_topology;
 mod reapi;
 mod registration;
 mod replication;
-mod request_observability;
 mod runtime;
-mod segment;
 mod serving_authority;
 mod startup;
 mod state;
-mod store;
 mod sync;
 mod telemetry;
 mod usage;
-mod utils;
 
+#[cfg(test)]
+mod peer_topology_tests;
 #[cfg(test)]
 mod test_support;
 

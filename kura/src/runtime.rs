@@ -1,7 +1,4 @@
 use std::{
-    fs::{File, OpenOptions},
-    io::Write,
-    path::Path,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
@@ -11,14 +8,13 @@ use std::{
 
 #[cfg(not(test))]
 use std::cell::Cell;
-#[cfg(test)]
-use std::path::PathBuf;
 
 use tokio::sync::{Notify, futures::Notified};
 
 use crate::metrics::{InflightMetrics, Metrics};
 
-const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
+pub use kura_core::runtime::DataDirLock;
+
 const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
 #[cfg(not(test))]
 const PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL: u8 = 16;
@@ -119,6 +115,24 @@ pub struct RuntimeState {
     public_request_latency_ewma_micros: AtomicU64,
     public_request_latency_sampled_at_ms: AtomicU64,
     inflight_changed: Notify,
+}
+
+// The store and the bandwidth limiter live in kura-core, below this module, and see the runtime
+// only through these traits.
+impl kura_core::startup::DrainSignal for RuntimeState {
+    fn is_draining(&self) -> bool {
+        RuntimeState::is_draining(self)
+    }
+}
+
+impl kura_core::bandwidth::PublicLoad for RuntimeState {
+    fn public_inflight(&self) -> usize {
+        RuntimeState::public_inflight(self)
+    }
+
+    fn public_latency_pressure_divisor(&self, target_ms: u64) -> usize {
+        RuntimeState::public_latency_pressure_divisor(self, target_ms)
+    }
 }
 
 impl RuntimeState {
@@ -479,101 +493,13 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-pub struct DataDirLock {
-    _file: File,
-    #[cfg(test)]
-    path: PathBuf,
-}
-
-impl DataDirLock {
-    pub fn acquire(data_dir: &Path) -> Result<Self, String> {
-        let path = data_dir.join(DATA_DIR_LOCK_FILE);
-        let mut file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .truncate(false)
-            .open(&path)
-            .map_err(|error| {
-                format!(
-                    "failed to open writer lock file {}: {error}",
-                    path.display()
-                )
-            })?;
-
-        try_lock_exclusive(&file).map_err(|error| {
-            format!("failed to acquire writer lock {}: {error}", path.display())
-        })?;
-
-        file.set_len(0).map_err(|error| {
-            format!(
-                "failed to reset writer lock file {}: {error}",
-                path.display()
-            )
-        })?;
-        writeln!(file, "pid={}", std::process::id()).map_err(|error| {
-            format!(
-                "failed to write writer lock file {}: {error}",
-                path.display()
-            )
-        })?;
-        file.flush().map_err(|error| {
-            format!(
-                "failed to flush writer lock file {}: {error}",
-                path.display()
-            )
-        })?;
-
-        Ok(Self {
-            _file: file,
-            #[cfg(test)]
-            path,
-        })
-    }
-
-    #[cfg(test)]
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-}
-
-#[cfg(unix)]
-fn try_lock_exclusive(file: &File) -> Result<(), std::io::Error> {
-    use std::os::fd::AsRawFd;
-
-    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(not(unix))]
-fn try_lock_exclusive(_file: &File) -> Result<(), std::io::Error> {
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use std::{sync::Barrier, time::Duration};
 
-    use tempfile::tempdir;
     use tokio::time::timeout;
 
     use super::*;
-
-    #[test]
-    fn data_dir_lock_rejects_second_owner() {
-        let temp_dir = tempdir().expect("failed to create temp dir");
-        let first = DataDirLock::acquire(temp_dir.path()).expect("first lock should succeed");
-        let second = DataDirLock::acquire(temp_dir.path());
-        assert!(second.is_err(), "second lock acquisition should fail");
-        assert_eq!(
-            first.path(),
-            temp_dir.path().join(DATA_DIR_LOCK_FILE).as_path()
-        );
-    }
 
     #[tokio::test]
     async fn inflight_change_notification_resolves_on_request_completion() {
