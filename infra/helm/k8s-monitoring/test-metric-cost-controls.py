@@ -151,7 +151,7 @@ prometheus.scrape "fixture" {{
                     'count({__name__=~"kura_.*",le="0.002"})': 0,
                     'count({__name__=~"kura_.*",le=~"0.000125|0.0005"})': 0,
                     'count({__name__=~"kura_.*",le="0.00025"})': 4 if enabled else 3,
-                    'count({__name__=~"kura_.*",le="6.25e-05"})': 4 if enabled else 3,
+                    'count({__name__=~"kura_.*",le=~"0.0000625|6.25e-05"})': 4 if enabled else 3,
                     'count({__name__=~"kura_.*",latency_aggregate=~".+"})': 10 if enabled else 0,
                     'count(kura_public_request_latency_seconds_bucket{latency_aggregate="true",route!~".*/(SplitBlob|SpliceBlob)"})': 0,
                     'count(kura_public_request_latency_seconds_count)': 5,
