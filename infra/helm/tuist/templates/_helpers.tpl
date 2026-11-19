@@ -1610,6 +1610,28 @@ can serve. Empty unless the rack's runners are enabled, which does not need
 (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
 {{/*
+The RuntimeClass an exclusive-CPU Kata pool runs under, as JSON
+`{name, memoryMiB}`. Its host cgroup is the budget plus podFixed, and the
+guest's kernel memory and virtiofsd's page cache grow with the budget, so
+podFixed is `kataContainers.podFixed.memory` (in Mi or Gi) plus
+`kataContainers.exclusivePodFixedMemoryPercent` of the budget, rounded up to
+256 MiB. Called with `dict "root" $ "podMemMiB" <budget>`.
+*/}}
+{{- define "tuist.kataExclusiveRuntimeClass" -}}
+{{- $base := toString .root.Values.kataContainers.podFixed.memory -}}
+{{- $baseMiB := 0 -}}
+{{- if hasSuffix "Gi" $base -}}
+{{- $baseMiB = mul (trimSuffix "Gi" $base | int) 1024 -}}
+{{- else if hasSuffix "Mi" $base -}}
+{{- $baseMiB = trimSuffix "Mi" $base | int -}}
+{{- end -}}
+{{- $podMemMiB := int .podMemMiB -}}
+{{- $extraMiB := mul (div (add (div (mul $podMemMiB (int (.root.Values.kataContainers.exclusivePodFixedMemoryPercent | default 0))) 100) 255) 256) 256 -}}
+{{- $name := ternary (printf "kata-qemu-%dg" (div $podMemMiB 1024)) (printf "kata-qemu-%dmi" $podMemMiB) (eq (mod $podMemMiB 1024) 0) -}}
+{{- dict "name" $name "memoryMiB" (add $baseMiB $extraMiB) | toJson -}}
+{{- end -}}
+
+{{/*
 Linux OS versions the shape pools run on, as a JSON array of
 `{osVersion, tag, default, image, autoscaling}`. `runnersFleetLinux.osVersions`
 lists them; exactly one carries `default: true` and runs

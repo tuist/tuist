@@ -2476,9 +2476,11 @@ sandboxes:
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
-  # Exclusive-CPU Pods' host cgroup is their budget plus this, so it must
+  # Exclusive-CPU Pods' host cgroup is their budget plus podFixed, so it must
   # cover Kata's 2 GiB guest base plus QEMU's page tables and slab. Raised
-  # ahead of turning exclusive CPUs back on, one shape at a time.
+  # ahead of turning exclusive CPUs back on, one shape at a time. Exclusive
+  # pools run under a kata-qemu-<size> RuntimeClass that adds
+  # exclusivePodFixedMemoryPercent of the budget to this (see values.yaml).
   podFixed:
     memory: "3584Mi"
 
@@ -2486,6 +2488,14 @@ runnersController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
+  # The chart's 256Mi default OOM-killed the manager in a loop (peak working
+  # set 258 MB on 2026-11-19). Each restart leaves every macOS host's sandbox
+  # grant stale past the server's 15 s window, so no Mac sandbox can be placed.
+  resources:
+    requests:
+      memory: 256Mi
+    limits:
+      memory: 1Gi
   features:
     dindImage: true
     registryMirror: true

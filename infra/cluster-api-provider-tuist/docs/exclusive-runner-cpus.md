@@ -158,7 +158,16 @@ plus that overhead, and the guest alone is the budget plus Kata's 2 GiB. With
 page tables and slab) hit the cgroup limit, and the host OOM killer stopped
 QEMU mid-job, which GitHub reports as "runner lost communication". The chart
 therefore requires `kataContainers.podFixed.memory` of at least 3584Mi
-whenever a pool is exclusive. A v1.34 kubelet panics on the unknown gate, so the
+whenever a pool is exclusive. That floor is not enough for large guests: the
+guest's kernel memory and virtiofsd's page cache grow with it, and on
+2026-11-19 a full 64 GiB guest under 3584Mi (65.7 GiB of guest RAM, 0.66 GiB
+of kernel memory, 1.1 GiB of dirty and writeback page cache) was OOM-killed
+about 90 s into the probe. So every exclusive pool runs under its own
+`kata-qemu-<size>` RuntimeClass (same handler) whose podFixed is that floor
+plus `kataContainers.exclusivePodFixedMemoryPercent` (4%) of the budget,
+rounded up to 256 MiB: 6400Mi for 64 GiB, 5120Mi for 32 GiB. The scheduler
+and the runners-controller reserve that overhead per Pod, and shared-CPU pools
+keep `kata-qemu`. A v1.34 kubelet panics on the unknown gate, so the
 config is always rendered for the kubelet a node runs: the drift loop uses the
 Node's reported kubelet version, and nodes below v1.36 render and hash exactly
 as before.
