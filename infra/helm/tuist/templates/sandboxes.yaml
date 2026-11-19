@@ -260,8 +260,10 @@ spec:
             # what the node's running sandboxes are guaranteed.
             - name: CPU_FLOOR_MILLI
               value: {{ include "tuist.milliCPU" .Values.sandboxes.cpu | quote }}
+            # Only reported in hello; the server's own ceiling (maxCpu) wins.
+            # daemonMaxCpu pins it so raising maxCpu rolls no daemon.
             - name: CPU_CEILING_MILLI
-              value: {{ include "tuist.milliCPU" (.Values.sandboxes.maxCpu | default .Values.sandboxes.cpu) | quote }}
+              value: {{ include "tuist.milliCPU" (.Values.sandboxes.daemonMaxCpu | default .Values.sandboxes.maxCpu | default .Values.sandboxes.cpu) | quote }}
             - name: DISK_BUDGET_GIB
               value: {{ .Values.sandboxes.diskGiB | quote }}
             # The guests reach the Tuist API through its public URL; the

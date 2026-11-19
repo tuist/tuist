@@ -346,7 +346,9 @@ budget and runner caches on the same filesystem. Workers jail guests from UID
 
 Disconnecting a client does not cancel its operation. The API does not implement
 Operations cancellation or priorities. Execution lasts at most ten minutes, with
-bounded staging and upload time. Synchronize server and host clocks; lease and
+bounded staging and upload time; an action asking for longer, such as a Bazel
+test with a `long` or `eternal` timeout, runs with ten minutes instead of being
+refused. Synchronize server and host clocks; lease and
 create deadlines include five seconds of skew slack. The daemon overlaps network
 removal and VM termination, waits for both, then removes files and releases its
 slot. An unreachable node keeps its VMs' slots until it reconnects and deletion

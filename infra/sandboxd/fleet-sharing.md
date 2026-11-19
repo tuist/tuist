@@ -156,7 +156,8 @@ to its vCPUs. Its shape only picks its memory, which stays reserved. It is bille
 at every 30-second node report, for the larger of its guarantee and the
 CPU its VM used (`sandbox_usage_events`), plus its memory, at Tuist Runners' Linux rates, and the account's concurrency counts its
 guarantee. Guests have no CPU limit. The server raises the daemon's CPU request in place, from the
-chart's `sandboxes.cpu` floor up to `sandboxes.maxCpu`, to the floor plus those
+chart's `sandboxes.cpu` floor up to `sandboxes.maxCpu` (passed to the server, not
+the daemons, so changing it pauses no sandbox), to the floor plus those
 guarantees, and lowers it as sandboxes pause (`Capacity.sync_cpu/1`, on every
 grant and every minute). The request keeps those cores out of exclusive-CPU
 runners, which otherwise take whole cores from the pool the guests burst into,

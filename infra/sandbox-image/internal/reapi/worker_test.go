@@ -277,7 +277,12 @@ func TestWorkerFailureAndTimeout(t *testing.T) {
 		timeout   time.Duration
 		code      codes.Code
 		exit      int32
-	}{{"failure", "printf failed >&2; exit 7", 0, codes.OK, 7}, {"timeout", "sleep 30", 30 * time.Millisecond, codes.DeadlineExceeded, 124}} {
+	}{
+		{"failure", "printf failed >&2; exit 7", 0, codes.OK, 7},
+		{"timeout", "sleep 30", 30 * time.Millisecond, codes.DeadlineExceeded, 124},
+		// Bazel's "eternal" test timeout: runs, under the worker's ceiling.
+		{"timeout above the ceiling", "exit 0", time.Hour, codes.OK, 0},
+	} {
 		t.Run(test.name, func(t *testing.T) {
 			w, m := harness(t)
 			d := action(t, m, test.cmd, &re.Directory{}, nil)

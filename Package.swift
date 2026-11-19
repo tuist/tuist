@@ -2019,7 +2019,8 @@ targets.append(
             // references nothing in it; a static framework would be dropped by the linker.
             "TestCoverageAttribution": .framework,
             "TestCoverageAttributionObserver": .framework,
-        ]
+        ],
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
 #endif
 

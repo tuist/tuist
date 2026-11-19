@@ -112,10 +112,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   to lower a limit below current usage; it also retries a shrink the kubelet
   has not applied and cancels a deferred growth no longer needed.
 - Daemon CPU requests (`Capacity.sync_cpu/1`): a daemon that reports a CPU
-  ceiling above its floor (`elastic.cpu_floor_milli`, `cpu_ceiling_milli`)
-  has its Pod's CPU request moved, without a limit, to the floor plus
+  floor (`elastic.cpu_floor_milli`), under a ceiling above it, has its Pod's
+  CPU request moved, without a limit, to the floor plus
   `Sandbox.guaranteed_cpu_milli/1` (a quarter vCPU per GiB of memory, or the creator's pick if more) of each
-  creating, resuming or running agent sandbox on it, up to the ceiling,
+  creating, resuming or running agent sandbox on it, up to the ceiling
+  (`Environment.sandbox_cpu_ceiling_milli/0`, the chart's `sandboxes.maxCpu`,
+  else the one the daemon reports: the server reads it so that changing it
+  restarts no daemon, since a restart pauses every sandbox on its node),
   through `Tuist.Kubernetes.Client.resize_sandbox_daemon_cpu/4` under the
   node lock. A growth goes, from the CPU the kubelet allocated, into the fresh
   grant's `cpu_free_milli` plus `cpu_reclaimable_milli` (idle warm runners'

@@ -2857,8 +2857,15 @@ sandboxes:
   # The most the server may raise the daemon's CPU request to, in cores or
   # millicores; sandboxes whose guarantees would pass it go to other nodes.
   # Guarantees follow memory at the hosts' 1 vCPU : 4 GB, so 24 matches about
-  # 96 GB of sandboxes. Not above `cpu` keeps the request fixed.
+  # 96 GB of sandboxes. Not above `cpu` keeps the request fixed. The server
+  # reads it, so changing it rolls the server, not the daemons.
   maxCpu: "24"
+  # Temporary: the ceiling the daemon still reports in its hello, which the
+  # server ignores in favour of maxCpu. Set it where maxCpu changes to keep
+  # the DaemonSet as it was (a daemon restart pauses every sandbox on its
+  # node); drop it with the daemon's CPU_CEILING_MILLI at the next sandboxd
+  # image change. Unset follows maxCpu.
+  daemonMaxCpu: ""
   # Share of the node's data filesystem sandboxes may reserve. Every file a
   # sandbox writes is fixed-size (rootfs clone, sparse workspace of
   # workspace_gb, memory image), so the server reserves each sandbox's

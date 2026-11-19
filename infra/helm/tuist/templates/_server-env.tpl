@@ -275,6 +275,13 @@ cluster and integration settings in every mode. Mode-specific variables
             {{- end }}
             - name: TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT
               value: {{ .Values.sandboxes.archiveDiskHighWaterPercent | quote }}
+            {{- if .Values.sandboxes.enabled }}
+            # The most the server raises a Linux sandbox daemon's CPU request
+            # to (Tuist.Sandboxes.Capacity.sync_cpu/1). Read by the server, so
+            # changing it restarts no daemon and pauses no sandbox.
+            - name: TUIST_SANDBOX_CPU_CEILING_MILLI
+              value: {{ include "tuist.milliCPU" (.Values.sandboxes.maxCpu | default .Values.sandboxes.cpu) | quote }}
+            {{- end }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
