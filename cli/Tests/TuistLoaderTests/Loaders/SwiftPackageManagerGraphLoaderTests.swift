@@ -147,6 +147,7 @@ private final class PackageInfoMapperTraitsSpy: PackageInfoMapping, @unchecked S
         packageSettings _: TuistCore.PackageSettings,
         packageModuleAliases _: [String: [String: String]],
         packageProducts _: [String: [String: [ProjectDescription.TargetDependency]]],
+        graphTargetNames _: Set<String>,
         enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         mappings.withLock {
