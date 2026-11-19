@@ -63,6 +63,13 @@ cert-manager:
 ingress-nginx:
   enabled: true
   controller:
+    # Annotation validation stays off on every ingress-nginx controller in
+    # this file until it is enabled on purpose. Chart 4.11.8 only passes the
+    # flag when this is true, and controller v1.11.8 defaults it to false;
+    # chart 4.15.1 defaults this to true. Pinning false keeps a chart bump
+    # from turning it on. Each controller reads its own value, and the main
+    # webhook only checks Ingresses of the nginx class, so set it on all.
+    enableAnnotationValidations: false
     replicaCount: 2
     publishService:
       enabled: true
@@ -102,18 +109,32 @@ ingress-nginx:
       # `nginx-grpc` and the Kura gateways, which keep HTTP/2. Re-enable only
       # on a fixed nginx (1.31.9+).
       use-http2: "false"
+      # Keep the client address nginx sees ($remote_addr, X-Real-IP, the
+      # access log, limit-rps keys) as the address the load balancer declared
+      # in the PROXY header, as it was up to controller v1.12. From v1.13,
+      # with use-proxy-protocol and use-forwarded-headers both on, real_ip
+      # reads this header, which the controller fills with the
+      # client-supplied X-Forwarded-For whenever the PROXY address is in
+      # proxy-real-ip-cidr (0.0.0.0/0 by default), and with the load
+      # balancer's own address when that header is absent. The http-snippet
+      # renders after the controller's own more_set_input_headers, so this
+      # value wins. Earlier controllers read the PROXY header directly and
+      # only forward this header upstream, where nothing reads it.
+      http-snippet: 'more_set_input_headers "X-Forwarded-For-Proxy-Protocol: $proxy_protocol_addr";'
     # The address of the edge that opened this connection, which the
-    # application needs and cannot otherwise see. With PROXY protocol,
-    # $remote_addr is the CDN edge the load balancer declared, but the
-    # forwarded-for chain nginx builds ends in $realip_remote_addr — the
-    # load balancer itself — so the edge address exists here and reaches
-    # nothing downstream. Everything that reads it must treat it as
-    # authoritative only from a private peer: the load balancer holds a
-    # public address, so a client can reach the origin directly, and
+    # application needs and cannot otherwise see: the address the load
+    # balancer declared in the PROXY header. Everything that reads it must
+    # treat it as authoritative only from a private peer: the load balancer
+    # holds a public address, so a client can reach the origin directly, and
     # proxy_set_header overwriting any inbound value is what makes this
     # unforgeable rather than a header anyone can assert.
+    #
+    # Name the PROXY address itself, not $remote_addr. The http-snippet above
+    # keeps them equal, but this header must not become forgeable if that
+    # snippet is dropped: without it, controller v1.13+ sets $remote_addr
+    # from whatever a direct client writes in X-Forwarded-For.
     proxySetHeaders:
-      X-Tuist-Edge-Address: "$remote_addr"
+      X-Tuist-Edge-Address: "$proxy_protocol_addr"
     metrics:
       enabled: true
       service:
@@ -139,6 +160,7 @@ ingress-nginx:
 grpc-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: grpc-ingress-nginx-leader
     ingressClass: nginx-grpc
@@ -178,6 +200,7 @@ grpc-ingress-nginx:
 kura-eu-west-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-eu-west-ingress-nginx-leader
     ingressClass: kura-eu-west
@@ -250,6 +273,7 @@ kura-eu-west-ingress-nginx:
 kura-ca-east-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-ca-east-ingress-nginx-leader
     ingressClass: kura-ca-east
@@ -273,6 +297,7 @@ kura-ca-east-ingress-nginx:
 kura-us-east-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-east-ingress-nginx-leader
     ingressClass: kura-us-east
@@ -293,6 +318,7 @@ kura-us-east-ingress-nginx:
 kura-us-west-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-west-ingress-nginx-leader
     ingressClass: kura-us-west
@@ -315,6 +341,7 @@ kura-us-west-ingress-nginx:
 kura-ap-southeast-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-ap-southeast-ingress-nginx-leader
     ingressClass: kura-ap-southeast
@@ -338,6 +365,7 @@ kura-ap-southeast-ingress-nginx:
 kura-sa-west-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-sa-west-ingress-nginx-leader
     ingressClass: kura-sa-west
@@ -358,6 +386,7 @@ kura-sa-west-ingress-nginx:
 kura-eu-east-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-eu-east-ingress-nginx-leader
     ingressClass: kura-eu-east
@@ -378,6 +407,7 @@ kura-eu-east-ingress-nginx:
 kura-us-central-ingress-nginx:
   enabled: false
   controller:
+    enableAnnotationValidations: false
     replicaCount: 2
     electionID: kura-us-central-ingress-nginx-leader
     ingressClass: kura-us-central
@@ -691,6 +721,7 @@ kura-ber1-runners-ingress-nginx:
   enabled: false
   fullnameOverride: kura-ber1-runners-ingress-nginx
   controller:
+    enableAnnotationValidations: false
     kind: DaemonSet
     hostNetwork: true
     dnsPolicy: Default
